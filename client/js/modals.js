@@ -69,6 +69,25 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ═══════════════════════════════════════════════════════════
    BILL MODAL
 ═══════════════════════════════════════════════════════════ */
+// Rebuild the "Charged to" <select> from the user's cards, keeping the
+// default "Direct" option and re-selecting `selectedId` if it still exists.
+function populateBillCardOptions(selectedId) {
+  var sel = document.getElementById('b-card');
+  if (!sel) return;
+  // Drop everything after the first (default "Direct") option.
+  while (sel.options.length > 1) sel.remove(1);
+  cards.forEach(function (c) {
+    var opt = document.createElement('option');
+    opt.value = String(c.id);
+    opt.textContent = c.name || 'Card';
+    sel.appendChild(opt);
+  });
+  // Only re-select a card that still exists; otherwise fall back to Direct.
+  sel.value = (selectedId != null && cards.some(function (c) { return String(c.id) === String(selectedId); }))
+    ? String(selectedId)
+    : '';
+}
+
 export function openBillModal(idx) {
   editBillId = (idx === undefined) ? null : idx;
   document.getElementById('bill-modal-title').textContent = editBillId !== null ? 'Edit Bill' : 'Add Bill';
@@ -81,6 +100,7 @@ export function openBillModal(idx) {
   document.getElementById('b-frequency').value = b.frequency || 'Monthly';
   document.getElementById('b-notes').value     = b.notes     || '';
   document.getElementById('b-autopay').checked = !!b.autopay;
+  populateBillCardOptions(b.cardId);
 
   document.getElementById('bill-modal').classList.add('open');
 }
@@ -93,6 +113,11 @@ export function saveBill() {
   var name = document.getElementById('b-name').value.trim();
   if (!name) { alert('Please enter a bill name.'); return; }
 
+  // "Charged to" links the bill to a card as its payment method; the
+  // empty value means it's paid directly (bank/cash). Store null in
+  // that case so the field stays clean in exports/sync.
+  var cardId = document.getElementById('b-card').value || null;
+
   var obj = {
     id:        (editBillId !== null) ? bills[editBillId].id : Date.now(),
     name:      name,
@@ -100,6 +125,7 @@ export function saveBill() {
     amount:    parseFloat(document.getElementById('b-amount').value) || 0,
     dueDay:    parseInt(document.getElementById('b-dueday').value) || null,
     frequency: document.getElementById('b-frequency').value,
+    cardId:    cardId,
     notes:     document.getElementById('b-notes').value.trim(),
     autopay:   document.getElementById('b-autopay').checked,
   };

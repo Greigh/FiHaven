@@ -8,10 +8,10 @@ enum AppConfig {
     /// real key for release builds.
     static var turnstileSiteKey: String {
         // Runtime override (set in the Xcode scheme's Run → Arguments,
-        // alongside CT_BASE) so a dev build can use the real production
+        // alongside FH_BASE) so a dev build can use the real production
         // sitekey against production without touching build settings.
         // Public sitekeys aren't secrets, so passing one via env is safe.
-        if let env = ProcessInfo.processInfo.environment["CT_TURNSTILE_SITEKEY"],
+        if let env = ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"],
            !env.isEmpty {
             return env
         }

@@ -2,19 +2,19 @@ import Foundation
 import FiHavenCore
 
 /// Optional end-to-end checks against a running server. Enabled only when
-/// `CT_LIVE_TOKEN` is set (a token-mode session id), so the default run
-/// stays hermetic. `CT_BASE` overrides the base URL.
+/// `FH_LIVE_TOKEN` is set (a token-mode session id), so the default run
+/// stays hermetic. `FH_BASE` overrides the base URL.
 ///
-///   node seed-a-token … ; CT_LIVE_TOKEN=<id> swift run FiHavenCoreChecks
+///   node seed-a-token … ; FH_LIVE_TOKEN=<id> swift run FiHavenCoreChecks
 func runLiveChecks() async {
     let env = ProcessInfo.processInfo.environment
-    guard let token = env["CT_LIVE_TOKEN"], !token.isEmpty else {
-        print("• Live server checks — skipped (set CT_LIVE_TOKEN to enable)")
+    guard let token = env["FH_LIVE_TOKEN"], !token.isEmpty else {
+        print("• Live server checks — skipped (set FH_LIVE_TOKEN to enable)")
         return
     }
-    let base = env["CT_BASE"] ?? "http://localhost:5222"
+    let base = env["FH_BASE"] ?? "http://localhost:5222"
     guard let url = URL(string: base) else {
-        check(false, "CT_BASE is not a valid URL: \(base)")
+        check(false, "FH_BASE is not a valid URL: \(base)")
         return
     }
     let client = APIClient(config: APIConfig(baseURL: url), tokens: InMemoryTokenStore(token))

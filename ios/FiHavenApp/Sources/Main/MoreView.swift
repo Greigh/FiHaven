@@ -50,11 +50,11 @@ struct MoreView: View {
         }
     }
 
-    /// DEBUG: `CT_ROUTE=budget` auto-pushes a sub-screen for screenshots.
+    /// DEBUG: `FH_ROUTE=budget` auto-pushes a sub-screen for screenshots.
     private func applyDebugRoute() {
         #if DEBUG
         guard path.isEmpty,
-              let raw = ProcessInfo.processInfo.environment["CT_ROUTE"],
+              let raw = ProcessInfo.processInfo.environment["FH_ROUTE"],
               let route = MoreRoute(rawValue: raw) else { return }
         path.append(route)
         #endif

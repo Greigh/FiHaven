@@ -24,7 +24,7 @@
 
   <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
-  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%233D6FE1'/%3E%3Cg fill='white'%3E%3Crect x='16' y='17' width='7' height='30' rx='2'/%3E%3Crect x='16' y='17' width='22' height='7' rx='2'/%3E%3Crect x='16' y='29' width='17' height='6' rx='2'/%3E%3Crect x='41' y='27' width='7' height='20' rx='2'/%3E%3Ccircle cx='44.5' cy='20' r='4'/%3E%3C/g%3E%3C/svg%3E"/>
 
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="css/styles.css"/>
@@ -180,6 +180,13 @@
             <p>Every paid bill and card is recorded with the date, amount, and a note — grouped by month for easy review.</p>
           </article>
           <article class="marketing-feature">
+            <div class="marketing-feature-icon icon-orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19"/><path d="M6 14h5"/></svg>
+            </div>
+            <h3>Bills on your cards</h3>
+            <p>Tag the card each subscription is charged to and see a running monthly total per card — so your statement never surprises you.</p>
+          </article>
+          <article class="marketing-feature">
             <div class="marketing-feature-icon icon-teal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>
             </div>
@@ -214,6 +221,45 @@
         </ol>
       </section>
 
+      <!-- ═══ PRICING / PRO ═══════════════════════════════════ -->
+      <section class="marketing-section" id="pricing">
+        <div class="marketing-section-head">
+          <span class="marketing-kicker">Pricing</span>
+          <h2 class="marketing-section-title">Free to start.<br/>Pro when you want cruise control.</h2>
+        </div>
+        <div class="marketing-plans">
+          <!-- Free -->
+          <article class="marketing-plan">
+            <div class="marketing-plan-name">Free</div>
+            <div class="marketing-plan-lead">The calm, manual workspace — yours for nothing.</div>
+            <ul class="marketing-plan-list">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Unlimited bills, cards &amp; 0% promo tracking</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> One dashboard with upcoming payments</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Mark paid, partial payments &amp; monthly budget</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Bills-on-cards grouping &amp; CSV/JSON export</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Synced to your account across the web</li>
+            </ul>
+            <a class="btn btn-ghost btn-lg" href="/login" data-login-cta>Create your free account</a>
+          </article>
+          <!-- Pro -->
+          <article class="marketing-plan marketing-plan-pro">
+            <div class="marketing-plan-name">FiHaven Pro</div>
+            <div class="marketing-plan-lead">Everything in Free, plus the automated overlay.</div>
+            <ul class="marketing-plan-list">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Debt payoff planner — snowball, avalanche &amp; minimums</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Calendar view &amp; private iCal feed</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Full, searchable payment history</li>
+              <li class="muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Bank linking via Plaid <span class="pill-soon">Coming soon</span></li>
+              <li class="muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Auto-fetched balances &amp; matched payments <span class="pill-soon">Coming soon</span></li>
+            </ul>
+            <a class="btn btn-primary btn-lg" href="/login" data-login-cta>Start free, upgrade anytime</a>
+          </article>
+        </div>
+        <p style="text-align:center;color:var(--muted);font-size:13px;max-width:620px;margin:0 auto;">
+          Plaid bank linking is always optional. FiHaven works fully by hand — automation is just a convenience layer on top, so a dropped bank connection never breaks your dashboard.
+        </p>
+      </section>
+
       <!-- ═══ SECURITY ════════════════════════════════════════ -->
       <section class="marketing-section">
         <div class="marketing-section-head">
@@ -242,6 +288,29 @@
             <h3>Secure sessions</h3>
             <p>You stay signed in through a private HttpOnly cookie only your browser can use. Changing your password signs out every other device.</p>
           </article>
+        </div>
+      </section>
+
+      <!-- ═══ NATIVE APPS (COMING SOON) ═══════════════════════ -->
+      <section class="marketing-section marketing-section-soft" id="apps">
+        <div class="marketing-apps">
+          <div class="marketing-section-head">
+            <span class="marketing-kicker">On the go</span>
+            <h2 class="marketing-section-title">Native apps are on the way.</h2>
+            <p class="marketing-sub" style="margin:14px auto 0;text-align:center;">
+              The same calm dashboard, built natively for iPhone and Android — with the same account and server-side sync. Coming soon to the App Store and Google Play.
+            </p>
+          </div>
+          <div class="app-badges">
+            <span class="app-badge" aria-disabled="true" role="img" aria-label="FiHaven for iOS — coming soon to the App Store">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.36 12.78c.02 2.7 2.37 3.6 2.4 3.61-.02.07-.37 1.28-1.23 2.53-.74 1.08-1.51 2.16-2.73 2.18-1.2.02-1.58-.71-2.95-.71-1.37 0-1.79.69-2.92.73-1.18.04-2.07-1.17-2.82-2.25-1.53-2.2-2.7-6.23-1.13-8.95.78-1.35 2.17-2.2 3.68-2.23 1.15-.02 2.24.79 2.95.79.7 0 2.02-.97 3.41-.83.58.02 2.21.24 3.26 1.78-.08.05-1.95 1.14-1.93 3.4M14.13 5.6c.63-.76 1.05-1.82.93-2.88-.9.04-2 .6-2.65 1.36-.58.67-1.09 1.75-.95 2.78 1.01.08 2.04-.51 2.67-1.26"/></svg>
+              <span class="app-badge-text"><small>Coming soon to the</small><strong>App Store</strong></span>
+            </span>
+            <span class="app-badge" aria-disabled="true" role="img" aria-label="FiHaven for Android — coming soon to Google Play">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3.5v17a1 1 0 0 0 1.5.86l14.5-8.5a1 1 0 0 0 0-1.72L5.5 2.64A1 1 0 0 0 4 3.5z"/></svg>
+              <span class="app-badge-text"><small>Coming soon on</small><strong>Google Play</strong></span>
+            </span>
+          </div>
         </div>
       </section>
 

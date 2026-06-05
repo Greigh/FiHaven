@@ -321,122 +321,8 @@ import MfaSection from '../svelte/MfaSection.svelte';
     /* ── FiHaven Pro (subscription + promo) ──────────────── */
     initProSection();
 
-    /* ── Admin (revealed only for admins) ──────────────────── */
-    initAdminSection();
-  }
-
-  /* ── Admin: user & entitlement management ─────────────────── */
-  function adminFetch(path, method, body) {
-    if (!method || method === 'GET') {
-      return fetch('/api/admin/' + path, { credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json().catch(function () { return {}; })
-            .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
-        });
-    }
-    return csrfToken().then(function (token) {
-      var opts = { method: method, headers: { 'X-CSRF-Token': token || '' }, credentials: 'same-origin' };
-      if (body !== undefined) {
-        opts.headers['Content-Type'] = 'application/json';
-        opts.body = JSON.stringify(body);
-      }
-      return fetch('/api/admin/' + path, opts).then(function (r) {
-        return r.json().catch(function () { return {}; })
-          .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
-      });
-    });
-  }
-
-  function escapeHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = String(s == null ? '' : s);
-    return d.innerHTML;
-  }
-
-  function adminErrorText(code) {
-    if (code === 'cannot-demote-self') return "You can't remove your own admin access.";
-    if (code === 'forbidden') return 'Admins only.';
-    return 'That action failed. Please try again.';
-  }
-
-  function initAdminSection() {
-    var group = document.querySelector('[data-admin-group]');
-    if (!group) return;
-    var auth = window.AppAuth;
-    if (!auth) return;
-    // Only reveal the panel to admins (role comes from /api/auth/me).
-    auth.me().then(function (user) {
-      if (!user || user.role !== 'admin') return; // stays hidden
-      group.hidden = false;
-      setupAdminPanel();
-    });
-  }
-
-  function setupAdminPanel() {
-    var search = document.querySelector('[data-admin-search]');
-    var listEl = document.querySelector('[data-admin-users]');
-    if (!search || !listEl) return;
-
-    function smallBtn(label, onClick) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn btn-secondary';
-      b.style.cssText = 'padding:6px 12px;font-size:13px;';
-      b.textContent = label;
-      b.addEventListener('click', onClick);
-      return b;
-    }
-
-    function act(path, body, onOk) {
-      adminFetch(path, 'POST', body).then(function (res) {
-        if (res.ok) { onOk(); }
-        else if (!handledSessionLoss(res)) {
-          showMessage('admin', adminErrorText(res.data && res.data.error), true);
-        }
-      }).catch(function () { showMessage('admin', errorText('network'), true); });
-    }
-
-    function render(users) {
-      listEl.innerHTML = '';
-      if (!users.length) {
-        listEl.innerHTML = '<div style="color:var(--muted);padding:12px 0;">No matching users.</div>';
-        return;
-      }
-      users.forEach(function (u) {
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:12px 0;border-top:1px solid var(--border);flex-wrap:wrap;';
-        var info = document.createElement('div');
-        info.style.cssText = 'flex:1;min-width:170px;';
-        var sub = (u.role === 'admin' ? 'Admin · ' : '') + (u.pro ? 'Pro' : 'Free');
-        info.innerHTML =
-          '<div style="font-weight:600;">' + escapeHtml(u.name || u.email) + '</div>' +
-          '<div style="font-size:12px;color:var(--muted);">' +
-          (u.name ? escapeHtml(u.email) + ' · ' : '') + sub + '</div>';
-        row.appendChild(info);
-        row.appendChild(smallBtn(u.pro ? 'Revoke Pro' : 'Grant Pro', function () {
-          act('users/' + u.id + '/pro', { grant: !u.pro }, function () { reload(); });
-        }));
-        row.appendChild(smallBtn(u.role === 'admin' ? 'Remove admin' : 'Make admin', function () {
-          act('users/' + u.id + '/role', { role: u.role === 'admin' ? 'user' : 'admin' }, function () { reload(); });
-        }));
-        listEl.appendChild(row);
-      });
-    }
-
-    function reload() {
-      showMessage('admin', '', false);
-      adminFetch('users?limit=50&q=' + encodeURIComponent(search.value || '')).then(function (res) {
-        if (res.ok) render(res.data.users || []);
-        else if (!handledSessionLoss(res)) showMessage('admin', 'Could not load users.', true);
-      }).catch(function () { showMessage('admin', errorText('network'), true); });
-    }
-
-    var debounce;
-    search.addEventListener('input', function () {
-      clearTimeout(debounce);
-      debounce = setTimeout(reload, 250);
-    });
-    reload();
+    /* ── Bank connections (Plaid, Pro-gated) ─────────────── */
+    initPlaidSection();
   }
 
   /* ── FiHaven Pro ───────────────────────────────────────── */
@@ -1112,6 +998,208 @@ import MfaSection from '../svelte/MfaSection.svelte';
         }
       });
     });
+  }
+
+  /* ── Bank connections (Plaid) ──────────────────────────────
+     Pro-gated, optional bank linking. The section starts hidden and
+     settings.js asks /api/plaid/status which of three states to show:
+     unavailable (no server creds), upsell (Free user), or connected
+     (Pro). Manual entry is always the default, so this never blocks
+     the rest of the page. */
+  function plaidFetch(path, method, body) {
+    return csrfToken().then(function (token) {
+      var opts = {
+        method: method,
+        headers: { 'X-CSRF-Token': token || '' },
+        credentials: 'same-origin',
+      };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch('/api/plaid/' + path, opts).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: r.ok, status: r.status, data: data };
+        });
+      });
+    });
+  }
+
+  // Lazy-load Plaid Link's script only when a Pro user actually links.
+  var plaidScriptPromise = null;
+  function loadPlaidLink() {
+    if (window.Plaid) return Promise.resolve(window.Plaid);
+    if (plaidScriptPromise) return plaidScriptPromise;
+    plaidScriptPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+      s.async = true;
+      s.onload = function () { resolve(window.Plaid); };
+      s.onerror = function () { reject(new Error('plaid-script')); };
+      document.head.appendChild(s);
+    });
+    return plaidScriptPromise;
+  }
+
+  function plaidMoney(n, cur) {
+    if (n == null) return '—';
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur || 'USD' }).format(n);
+    } catch (_) {
+      return '$' + Number(n).toFixed(2);
+    }
+  }
+
+  function initPlaidSection() {
+    var card = document.querySelector('[data-plaid-card]');
+    if (!card) return;
+
+    var unavailEl  = card.querySelector('[data-plaid-unavailable]');
+    var upsellEl   = card.querySelector('[data-plaid-upsell]');
+    var connEl     = card.querySelector('[data-plaid-connected]');
+    var listEl     = card.querySelector('[data-plaid-list]');
+    var connectBtn = card.querySelector('[data-plaid-connect]');
+    var refreshBtn = card.querySelector('[data-plaid-refresh]');
+
+    function show(el, on) { if (el) el.hidden = !on; }
+
+    function render(status) {
+      var configured = !!(status && status.configured);
+      var pro = !!(status && status.pro);
+      show(unavailEl, !configured);
+      show(upsellEl, configured && !pro);
+      show(connEl, configured && pro);
+      if (!(configured && pro)) return;
+
+      var items = (status && status.items) || [];
+      listEl.innerHTML = '';
+      if (!items.length) {
+        var empty = document.createElement('div');
+        empty.className = 'card';
+        empty.style.cssText = 'padding:14px 16px;color:var(--muted);font-size:14px;';
+        empty.textContent = 'No banks linked yet. Connect one to auto-fetch balances.';
+        listEl.appendChild(empty);
+      } else {
+        items.forEach(function (it) { listEl.appendChild(renderItem(it)); });
+      }
+      show(refreshBtn, items.length > 0);
+    }
+
+    function renderItem(it) {
+      var box = document.createElement('div');
+      box.className = 'card';
+      box.style.cssText = 'padding:14px 16px;';
+
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;gap:10px;';
+      var name = document.createElement('strong');
+      name.textContent = it.institutionName || 'Bank';
+      head.appendChild(name);
+      if (it.status && it.status !== 'active') {
+        var badge = document.createElement('span');
+        badge.className = 'badge badge-orange';
+        badge.textContent = it.status === 'login_required' ? 'Reconnect needed' : it.status;
+        head.appendChild(badge);
+      }
+      var del = document.createElement('button');
+      del.className = 'btn btn-danger btn-sm';
+      del.style.marginLeft = 'auto';
+      del.textContent = 'Disconnect';
+      del.addEventListener('click', function () { disconnect(it.id, del); });
+      head.appendChild(del);
+      box.appendChild(head);
+
+      (it.accounts || []).forEach(function (a) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);margin-top:8px;';
+        var left = document.createElement('span');
+        left.textContent = (a.name || a.subtype || 'Account') + (a.mask ? ' ••' + a.mask : '');
+        var right = document.createElement('span');
+        right.style.cssText = 'color:var(--text);font-weight:600;';
+        right.textContent = plaidMoney(a.currentBalance, a.isoCurrency);
+        row.appendChild(left);
+        row.appendChild(right);
+        box.appendChild(row);
+      });
+      return box;
+    }
+
+    function refreshStatus() {
+      return plaidFetch('status', 'GET').then(function (res) {
+        if (res.ok) render(res.data);
+      }).catch(function () { /* leave section hidden on error */ });
+    }
+
+    function connect() {
+      showMessage('plaid', 'Opening your bank…', false);
+      connectBtn.disabled = true;
+      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST')]).then(function (out) {
+        var Plaid = out[0];
+        var res = out[1];
+        connectBtn.disabled = false;
+        if (!res.ok || !res.data.linkToken) {
+          showMessage('plaid', res.status === 402
+            ? 'Bank linking is a Pro feature.'
+            : 'Could not start linking. Please try again.', true);
+          return;
+        }
+        var handler = Plaid.create({
+          token: res.data.linkToken,
+          onSuccess: function (publicToken, metadata) {
+            showMessage('plaid', 'Linking…', false);
+            plaidFetch('link/exchange', 'POST', {
+              public_token: publicToken,
+              institution: metadata && metadata.institution,
+            }).then(function (ex) {
+              if (ex.ok) { showMessage('plaid', 'Bank linked.', false); refreshStatus(); }
+              else showMessage('plaid', 'Could not finish linking. Please try again.', true);
+            }).catch(function () { showMessage('plaid', errorText('network'), true); });
+          },
+          onExit: function (err) {
+            if (err) showMessage('plaid', 'Linking was cancelled.', false);
+          },
+        });
+        handler.open();
+      }).catch(function () {
+        connectBtn.disabled = false;
+        showMessage('plaid', 'Could not load Plaid. Check your connection.', true);
+      });
+    }
+
+    function disconnect(id, btn) {
+      if (!window.confirm('Disconnect this bank? Your manually entered data is unaffected.')) return;
+      btn.disabled = true;
+      plaidFetch('item/' + id + '/remove', 'POST').then(function (res) {
+        if (res.ok) { showMessage('plaid', 'Disconnected.', false); refreshStatus(); }
+        else { btn.disabled = false; showMessage('plaid', 'Could not disconnect. Please try again.', true); }
+      }).catch(function () { btn.disabled = false; showMessage('plaid', errorText('network'), true); });
+    }
+
+    function refreshBalances() {
+      refreshBtn.disabled = true;
+      showMessage('plaid', 'Refreshing balances…', false);
+      plaidFetch('refresh', 'POST').then(function (res) {
+        refreshBtn.disabled = false;
+        if (res.ok) {
+          showMessage('plaid', 'Balances updated.', false);
+          render({ configured: true, pro: true, items: res.data.items });
+        } else {
+          showMessage('plaid', 'Could not refresh. Please try again.', true);
+        }
+      }).catch(function () { refreshBtn.disabled = false; showMessage('plaid', errorText('network'), true); });
+    }
+
+    if (connectBtn) connectBtn.addEventListener('click', connect);
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshBalances);
+
+    var upsellLink = card.querySelector('[data-plaid-upsell-link]');
+    if (upsellLink) upsellLink.addEventListener('click', function (e) {
+      e.preventDefault();
+      var pro = document.querySelector('[data-pro-upgrade]') || document.querySelector('[data-pro-status]');
+      if (pro) pro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    refreshStatus();
   }
 
   if (document.readyState === 'loading') {

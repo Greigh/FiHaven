@@ -4,7 +4,7 @@
   import) automatically re-render this list.
 -->
 <script>
-  import { bills, save } from '../js/storage.svelte.js';
+  import { bills, cards, save } from '../js/storage.svelte.js';
   import {
     ICONS, fmt, monthKey, daysUntilDue, nextDueDate, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
@@ -14,6 +14,13 @@
   import Sparkline from './Sparkline.svelte';
 
   const mk = monthKey();
+
+  // Resolve the "charged to" card name for a bill, if it still exists.
+  function cardNameFor(b) {
+    if (b.cardId == null) return null;
+    const c = cards.find((c) => String(c.id) === String(b.cardId));
+    return c ? (c.name || 'Card') : null;
+  }
 
   // A bill is "stale" if it has any payment history but the most
   // recent one is older than this threshold. Suggests the
@@ -58,6 +65,9 @@
                 <span class="badge badge-orange" style="margin-left:6px;" title="No payment recorded in {sinceLast} days">
                   ⚠ stale {sinceLast}d
                 </span>
+              {/if}
+              {#if cardNameFor(b)}
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">💳 {cardNameFor(b)}</div>
               {/if}
               {#if b.notes}
                 <div style="font-size:11px;color:var(--muted);margin-top:1px;">{b.notes}</div>

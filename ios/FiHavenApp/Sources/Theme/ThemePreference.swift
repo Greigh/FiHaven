@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The user's appearance choice. Stored locally per device — mirroring
-/// the web app's `ct_theme` localStorage value — with "system" added as
+/// the web app's `fh_theme` localStorage value — with "system" added as
 /// the mobile-idiomatic default that follows the OS. Driving
 /// `.preferredColorScheme` at the root flips every dynamic color in
 /// `Theme` (they resolve off the trait collection's userInterfaceStyle).
@@ -32,7 +32,7 @@ enum ThemePreference: String, CaseIterable, Identifiable {
 /// re-apply `.preferredColorScheme`.
 @MainActor
 final class ThemeStore: ObservableObject {
-    private static let key = "ct_theme"
+    private static let key = "fh_theme"
 
     @Published var preference: ThemePreference {
         didSet { UserDefaults.standard.set(preference.rawValue, forKey: Self.key) }

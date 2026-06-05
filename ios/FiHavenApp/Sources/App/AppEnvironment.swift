@@ -39,13 +39,13 @@ final class AppEnvironment: ObservableObject {
         Task { await bootstrap() }
     }
 
-    /// Pick the API base URL. A `CT_BASE` environment variable (set in the
+    /// Pick the API base URL. A `FH_BASE` environment variable (set in the
     /// Xcode scheme's Run → Arguments) overrides everything — point a dev
-    /// build at production with `CT_BASE=https://fihaven.app`
+    /// build at production with `FH_BASE=https://fihaven.app`
     /// and no rebuild. Otherwise DEBUG uses the local server, release uses
-    /// production. Mirrors the CT_BASE knob in FiHavenCoreChecks.
+    /// production. Mirrors the FH_BASE knob in FiHavenCoreChecks.
     private static func resolveConfig() -> APIConfig {
-        if let raw = ProcessInfo.processInfo.environment["CT_BASE"],
+        if let raw = ProcessInfo.processInfo.environment["FH_BASE"],
            !raw.isEmpty, let url = URL(string: raw) {
             return APIConfig(baseURL: url)
         }
@@ -76,8 +76,8 @@ final class AppEnvironment: ObservableObject {
             // token is accepted; no widget needed for the automated path.
             let env = ProcessInfo.processInfo.environment
             await login(
-                email: env["CT_DEV_EMAIL"] ?? "demo@fihaven.app",
-                password: env["CT_DEV_PASSWORD"] ?? "demopassword11",
+                email: env["FH_DEV_EMAIL"] ?? "demo@fihaven.app",
+                password: env["FH_DEV_PASSWORD"] ?? "demopassword11",
                 captchaToken: "dev-bypass-token",
                 startedAtOverride: APIClient.now() - 3000
             )
@@ -192,7 +192,7 @@ final class AppEnvironment: ObservableObject {
 
     private var autoLoginRequested: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.environment["CT_AUTOLOGIN"] == "1"
+        return ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1"
         #else
         return false
         #endif

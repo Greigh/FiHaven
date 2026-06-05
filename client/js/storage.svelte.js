@@ -19,7 +19,7 @@
 const SYNCED_KEYS = { fh_bills: 1, fh_cards: 1, fh_payments: 1, fh_settings: 1 };
 const SYNC_DEBOUNCE_MS = 800;
 
-/* One-time migration of legacy ClearTab keys (ct_*) to the FiHaven
+/* One-time migration of legacy keys (ct_*) to the FiHaven
    namespace (fh_*). Copies each only when the new key is absent, so it's
    safe on every load and never clobbers fresher data; then drops the old
    key. Lets returning users keep their offline cache across the rename. */

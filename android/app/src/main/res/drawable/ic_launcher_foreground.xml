@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FiHaven adaptive-icon foreground: white "Fi" monogram.
+     Drawn in the 64-grid used by the web icon; the letters sit
+     inside the adaptive-icon safe zone when scaled to 108dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18,17 H21 A2,2 0 0 1 23,19 V45 A2,2 0 0 1 21,47 H18 A2,2 0 0 1 16,45 V19 A2,2 0 0 1 18,17 Z M18,17 H36 A2,2 0 0 1 38,19 V22 A2,2 0 0 1 36,24 H18 A2,2 0 0 1 16,22 V19 A2,2 0 0 1 18,17 Z M18,29 H31 A2,2 0 0 1 33,31 V33 A2,2 0 0 1 31,35 H18 A2,2 0 0 1 16,33 V31 A2,2 0 0 1 18,29 Z M43,27 H46 A2,2 0 0 1 48,29 V45 A2,2 0 0 1 46,47 H43 A2,2 0 0 1 41,45 V29 A2,2 0 0 1 43,27 Z M40.5,20 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0 Z" />
+</vector>

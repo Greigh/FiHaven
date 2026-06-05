@@ -152,6 +152,44 @@ db.exec(`
     UNIQUE(code, user_id)
   );
   CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(user_id);
+
+  -- Plaid (optional, Pro-gated bank linking). One row per linked
+  -- "item" (a bank login). access_token is a bank credential, so it
+  -- is stored ENCRYPTED (AES-256-GCM via mfa.js) — never in plaintext.
+  -- The cursor column holds the transactions-sync cursor; status
+  -- reflects the last known item health.
+  CREATE TABLE IF NOT EXISTS plaid_items (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id           TEXT NOT NULL UNIQUE,        -- Plaid item_id
+    access_token_enc  TEXT NOT NULL,               -- encrypted access_token
+    institution_id    TEXT,
+    institution_name  TEXT,
+    status            TEXT NOT NULL DEFAULT 'active', -- 'active'|'login_required'|'error'
+    cursor            TEXT,                         -- transactions sync cursor
+    error             TEXT,
+    created_at        INTEGER NOT NULL,
+    updated_at        INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_plaid_items_user ON plaid_items(user_id);
+
+  -- Accounts under each item, with the most recent balance snapshot.
+  CREATE TABLE IF NOT EXISTS plaid_accounts (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_pk           INTEGER NOT NULL REFERENCES plaid_items(id) ON DELETE CASCADE,
+    account_id        TEXT NOT NULL UNIQUE,         -- Plaid account_id
+    name              TEXT,
+    official_name     TEXT,
+    mask              TEXT,
+    type              TEXT,
+    subtype           TEXT,
+    current_balance   REAL,
+    available_balance REAL,
+    limit_balance     REAL,
+    iso_currency      TEXT,
+    updated_at        INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_plaid_accounts_item ON plaid_accounts(item_pk);
 `);
 
 // Idempotent column additions for older databases created before
@@ -341,6 +379,51 @@ const stmt = {
         AND (r.grant_expires_at IS NULL OR r.grant_expires_at > ?)
       ORDER BY r.grant_expires_at DESC`
   ),
+
+  /* ── Plaid items / accounts ────────────────────────────── */
+  insertPlaidItem: db.prepare(
+    `INSERT INTO plaid_items
+       (user_id, item_id, access_token_enc, institution_id, institution_name, status, cursor, error, created_at, updated_at)
+     VALUES (@user_id, @item_id, @access_token_enc, @institution_id, @institution_name, @status, @cursor, @error, @created_at, @updated_at)`
+  ),
+  listPlaidItems: db.prepare(
+    `SELECT id, user_id, item_id, institution_id, institution_name, status, error, created_at, updated_at
+       FROM plaid_items WHERE user_id = ? ORDER BY created_at DESC`
+  ),
+  findPlaidItemById: db.prepare(
+    `SELECT * FROM plaid_items WHERE id = ? AND user_id = ?`
+  ),
+  findPlaidItemByItemId: db.prepare(
+    `SELECT * FROM plaid_items WHERE item_id = ?`
+  ),
+  setPlaidItemCursor: db.prepare(
+    `UPDATE plaid_items SET cursor = ?, updated_at = ? WHERE id = ?`
+  ),
+  setPlaidItemStatus: db.prepare(
+    `UPDATE plaid_items SET status = ?, error = ?, updated_at = ? WHERE id = ?`
+  ),
+  deletePlaidItem: db.prepare(`DELETE FROM plaid_items WHERE id = ? AND user_id = ?`),
+  upsertPlaidAccount: db.prepare(
+    `INSERT INTO plaid_accounts
+       (item_pk, account_id, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at)
+     VALUES (@item_pk, @account_id, @name, @official_name, @mask, @type, @subtype, @current_balance, @available_balance, @limit_balance, @iso_currency, @updated_at)
+     ON CONFLICT(account_id) DO UPDATE SET
+       item_pk           = excluded.item_pk,
+       name              = excluded.name,
+       official_name     = excluded.official_name,
+       mask              = excluded.mask,
+       type              = excluded.type,
+       subtype           = excluded.subtype,
+       current_balance   = excluded.current_balance,
+       available_balance = excluded.available_balance,
+       limit_balance     = excluded.limit_balance,
+       iso_currency      = excluded.iso_currency,
+       updated_at        = excluded.updated_at`
+  ),
+  listPlaidAccountsByItem: db.prepare(
+    `SELECT account_id, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at
+       FROM plaid_accounts WHERE item_pk = ? ORDER BY name`
+  ),
 };
 
 /* ── thin function wrappers ──────────────────────────────────── */
@@ -505,6 +588,22 @@ function findPromoRedemption(code, userId) {
 }
 function activePromoGrants(userId)      { return stmt.activePromoGrants.all(userId, Date.now()); }
 
+/* ── Plaid wrappers ─────────────────────────────────────────── */
+function insertPlaidItem(row) {
+  const info = stmt.insertPlaidItem.run(row);
+  return info.lastInsertRowid;
+}
+function listPlaidItems(userId)              { return stmt.listPlaidItems.all(userId); }
+function findPlaidItemById(id, userId)       { return stmt.findPlaidItemById.get(id, userId); }
+function findPlaidItemByItemId(itemId)       { return stmt.findPlaidItemByItemId.get(itemId); }
+function setPlaidItemCursor(id, cursor)      { stmt.setPlaidItemCursor.run(cursor, Date.now(), id); }
+function setPlaidItemStatus(id, status, error) {
+  stmt.setPlaidItemStatus.run(status, error || null, Date.now(), id);
+}
+function deletePlaidItem(id, userId)         { return stmt.deletePlaidItem.run(id, userId).changes; }
+function upsertPlaidAccount(row)             { stmt.upsertPlaidAccount.run(row); }
+function listPlaidAccountsByItem(itemPk)     { return stmt.listPlaidAccountsByItem.all(itemPk); }
+
 module.exports = {
   db,
   DB_PATH,
@@ -565,4 +664,14 @@ module.exports = {
   insertPromoRedemption,
   findPromoRedemption,
   activePromoGrants,
+  // Plaid
+  insertPlaidItem,
+  listPlaidItems,
+  findPlaidItemById,
+  findPlaidItemByItemId,
+  setPlaidItemCursor,
+  setPlaidItemStatus,
+  deletePlaidItem,
+  upsertPlaidAccount,
+  listPlaidAccountsByItem,
 };

@@ -31,7 +31,7 @@ struct MainTabView: View {
         .tint(Theme.accent)
         .onAppear {
             #if DEBUG
-            if ProcessInfo.processInfo.environment["CT_SCREEN"] == "paywall" {
+            if ProcessInfo.processInfo.environment["FH_SCREEN"] == "paywall" {
                 debugPaywall = true
             }
             #endif
@@ -39,10 +39,10 @@ struct MainTabView: View {
         .sheet(isPresented: $debugPaywall) { PaywallView() }
     }
 
-    /// DEBUG: `CT_TAB=bills` (etc.) picks the launch tab for screenshots.
+    /// DEBUG: `FH_TAB=bills` (etc.) picks the launch tab for screenshots.
     static func initialTab() -> AppTab {
         #if DEBUG
-        if let raw = ProcessInfo.processInfo.environment["CT_TAB"],
+        if let raw = ProcessInfo.processInfo.environment["FH_TAB"],
            let t = AppTab(rawValue: raw) {
             return t
         }

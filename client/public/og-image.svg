@@ -12,12 +12,15 @@
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect width="1200" height="630" fill="url(#orb)"/>
 
-  <!-- Brand mark — browser-tab silhouette with a ledger row -->
+  <!-- Brand mark — "Fi" monogram tile -->
   <g transform="translate(80 96)">
     <rect width="68" height="68" rx="16" fill="#3D6FE1"/>
-    <g transform="scale(1.0625)">
-      <path d="M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z" fill="white"/>
-      <rect x="20" y="34" width="24" height="4" rx="2" fill="#3D6FE1"/>
+    <g transform="scale(1.0625)" fill="#fff">
+      <rect x="16" y="17" width="7" height="30" rx="2"/>
+      <rect x="16" y="17" width="22" height="7" rx="2"/>
+      <rect x="16" y="29" width="17" height="6" rx="2"/>
+      <rect x="41" y="27" width="7" height="20" rx="2"/>
+      <circle cx="44.5" cy="20" r="4"/>
     </g>
   </g>
   <text x="170" y="146" font-family="Manrope, system-ui, sans-serif" font-weight="800" font-size="36" fill="#15161A" letter-spacing="-1">

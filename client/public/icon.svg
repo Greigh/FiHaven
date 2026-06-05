@@ -1,5 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#3D6FE1"/>
-  <path d="M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z" fill="white"/>
-  <rect x="20" y="34" width="24" height="4" rx="2" fill="#3D6FE1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FiHaven">
+  <defs>
+    <linearGradient id="fh-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C7DF0"/>
+      <stop offset="1" stop-color="#3D6FE1"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed tile so the single SVG works as a maskable icon. -->
+  <rect width="64" height="64" rx="15" fill="url(#fh-bg)"/>
+  <!-- "Fi" monogram, kept inside the maskable safe zone. -->
+  <g fill="#fff">
+    <rect x="16" y="17" width="7" height="30" rx="2"/>
+    <rect x="16" y="17" width="22" height="7" rx="2"/>
+    <rect x="16" y="29" width="17" height="6" rx="2"/>
+    <rect x="41" y="27" width="7" height="20" rx="2"/>
+    <circle cx="44.5" cy="20" r="4"/>
+  </g>
 </svg>

@@ -378,6 +378,117 @@
   max-width: 460px;
 }
 
+/* ── Pricing / Pro ──────────────────────────────────────── */
+.marketing-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.marketing-plan {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 20px;
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.marketing-plan-pro {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.marketing-plan-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.marketing-plan-pro .marketing-plan-name { color: var(--accent); }
+.marketing-plan-lead {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.25;
+}
+.marketing-plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.marketing-plan-list li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.marketing-plan-list svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--green);
+}
+.marketing-plan-list .muted { color: var(--muted); }
+.pill-soon {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.marketing-plan .btn { margin-top: auto; }
+
+/* ── App-store badges (pre-launch / coming soon) ────────── */
+.marketing-apps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+}
+.app-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--surface);
+  min-width: 210px;
+}
+.app-badge[aria-disabled="true"] { cursor: default; opacity: .94; }
+.app-badge svg { width: 26px; height: 26px; flex: none; }
+.app-badge-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+}
+.app-badge-text small { font-size: 10px; opacity: .72; letter-spacing: .02em; }
+.app-badge-text strong { font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 980px) {
   .marketing-hero-grid {

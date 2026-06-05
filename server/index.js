@@ -39,6 +39,7 @@ const accountRouter = require('./routes/account');
 const calendarRouter = require('./routes/calendar');
 const mfaRouter = require('./routes/mfa');
 const billingRouter = require('./routes/billing');
+const plaidRouter = require('./routes/plaid');
 const adminRouter = require('./routes/admin');
 
 /* ── config validation ──────────────────────────────────────── */
@@ -89,6 +90,7 @@ sub.use('/api/data', dataRouter);
 sub.use('/api/account', accountRouter);
 sub.use('/api/account/mfa', mfaRouter);
 sub.use('/api/billing', billingRouter);
+sub.use('/api/plaid', plaidRouter);
 sub.use('/api/admin', adminRouter);
 // Public iCal subscription feed; auth is via the token in the URL.
 sub.use('/api/calendar', calendarRouter);

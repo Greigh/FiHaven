@@ -10,6 +10,8 @@
    <script> tags before navbar.js.
 ═══════════════════════════════════════════════════════════ */
 
+import { openAdminTools } from './admin.js';
+
     /* ── Inline SVG icons (Feather-style, 1.75 stroke) ─────── */
   var ICONS = {
     dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
@@ -26,18 +28,23 @@
     home:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2v-9z"/></svg>',
     doc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
     shield:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3z"/></svg>',
+    admin:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v5.5c0 4.6-3.2 7.4-8 8.5-4.8-1.1-8-3.9-8-8.5V6l8-3z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.6c.6-1.6 2-2.5 3.6-2.5s3 .9 3.6 2.5"/></svg>',
     arrow:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>',
   };
 
-  // Brand mark — browser-tab silhouette with a ledger row. Tracks
-  // the accent via currentColor so the wordmark + mark stay in sync.
-  // The inner rect is painted the same accent color so the "row" cuts
-  // through the white tab face.
+  // Brand mark — "Fi" monogram on a rounded accent tile. The tile
+  // tracks the accent via currentColor so the wordmark + mark stay in
+  // sync; the letters are always white.
   var BRAND_MARK =
     '<svg class="appbar-mark" viewBox="0 0 64 64" aria-hidden="true">' +
-      '<rect width="64" height="64" rx="16" fill="currentColor"/>' +
-      '<path d="M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z" fill="white"/>' +
-      '<rect x="20" y="34" width="24" height="4" rx="2" fill="currentColor"/>' +
+      '<rect width="64" height="64" rx="15" fill="currentColor"/>' +
+      '<g fill="#fff">' +
+        '<rect x="16" y="17" width="7" height="30" rx="2"/>' +
+        '<rect x="16" y="17" width="22" height="7" rx="2"/>' +
+        '<rect x="16" y="29" width="17" height="6" rx="2"/>' +
+        '<rect x="41" y="27" width="7" height="20" rx="2"/>' +
+        '<circle cx="44.5" cy="20" r="4"/>' +
+      '</g>' +
     '</svg>';
 
   function brand(href) {
@@ -94,6 +101,9 @@
           '<a class="appbar-menu-item" role="menuitem" href="/settings">' +
             ICONS.user + '<span>Settings</span>' +
           '</a>' +
+          '<button class="appbar-menu-item" type="button" role="menuitem" data-admin-menu-item hidden>' +
+            ICONS.admin + '<span>Admin</span>' +
+          '</button>' +
           '<button class="appbar-menu-item" type="button" role="menuitem" data-theme-menu-item>' +
             ICONS.theme + '<span>Theme</span>' +
             '<span class="appbar-menu-meta" data-theme-label>—</span>' +
@@ -114,6 +124,7 @@
     var emailEl = host.querySelector('[data-account-email]');
     var nameEl = host.querySelector('[data-account-name]');
     var initialsEl = host.querySelector('[data-initials]');
+    var adminItem = host.querySelector('[data-admin-menu-item]');
     if (!btn || !panel) return;
 
     function syncThemeLabel() {
@@ -150,6 +161,12 @@
         syncThemeLabel();
       });
     }
+    if (adminItem) {
+      adminItem.addEventListener('click', function () {
+        close();
+        openAdminTools();
+      });
+    }
 
     // Render the menu header + avatar initials from /me. Re-runs on
     // 'fihaven:user-changed' (dispatched by Settings after a name
@@ -167,6 +184,8 @@
       }
       if (emailEl) emailEl.textContent = user.email;
       if (initialsEl) initialsEl.textContent = initials(user);
+      // Reveal the Admin entry only for admins.
+      if (adminItem) adminItem.hidden = user.role !== 'admin';
     }
 
     if (window.AppAuth && window.AppAuth.me) {

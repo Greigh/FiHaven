@@ -1,0 +1,191 @@
+/* ═══════════════════════════════════════════════════════════
+   plaid.js — Plaid client wrapper for the OPTIONAL, Pro-gated
+   bank-linking feature.
+
+   FiHaven is manual-first: linking a bank via Plaid is a paid
+   convenience overlay, never a requirement. This module is a thin
+   wrapper around the official `plaid` SDK that:
+     • lazily builds a client from PLAID_CLIENT_ID / PLAID_SECRET,
+     • creates Link tokens, exchanges public tokens,
+     • pulls account balances and (cursor-based) transactions,
+     • removes items on disconnect.
+
+   Access tokens are bank credentials, so they are encrypted at
+   rest with the same AES-256-GCM helper that protects TOTP
+   secrets (see mfa.js) — only the ciphertext is stored.
+
+   PLAID_ENV defaults to 'sandbox'; nothing here talks to a real
+   bank until you set production credentials.
+═════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+const {
+  Configuration,
+  PlaidApi,
+  PlaidEnvironments,
+  Products,
+  CountryCode,
+} = require('plaid');
+
+// Reuse the vetted at-rest encryption used for MFA secrets so the
+// Plaid access_token is never stored in plaintext.
+const { encrypt, decrypt } = require('./mfa');
+
+// Only 'sandbox' and 'production' exist in the v42 SDK. Anything else
+// (including the retired 'development') falls back to sandbox.
+function plaidEnv() {
+  const e = (process.env.PLAID_ENV || 'sandbox').toLowerCase();
+  return PlaidEnvironments[e] ? e : 'sandbox';
+}
+
+// The client_id is the same across environments, so accept a generic
+// name or either env-specific one.
+function plaidClientId() {
+  return (
+    process.env.PLAID_CLIENT_ID ||
+    process.env.PLAID_SANDBOX_CLIENT_ID ||
+    process.env.PLAID_PRODUCTION_CLIENT_ID ||
+    ''
+  );
+}
+
+// The secret IS per-environment. Prefer the one matching PLAID_ENV,
+// then fall back to a generic PLAID_SECRET.
+function plaidSecret() {
+  if (plaidEnv() === 'production') {
+    return process.env.PLAID_SECRET || process.env.PLAID_PRODUCTION_SECRET || '';
+  }
+  return process.env.PLAID_SECRET || process.env.PLAID_SANDBOX_SECRET || '';
+}
+
+function plaidConfigured() {
+  return !!(plaidClientId() && plaidSecret());
+}
+
+let _client = null;
+function client() {
+  if (!plaidConfigured()) throw new Error('plaid-not-configured');
+  if (_client) return _client;
+  _client = new PlaidApi(
+    new Configuration({
+      basePath: PlaidEnvironments[plaidEnv()],
+      baseOptions: {
+        headers: {
+          'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+          'PLAID-SECRET': process.env.PLAID_SECRET,
+          'Plaid-Version': '2020-09-14',
+        },
+      },
+    })
+  );
+  return _client;
+}
+
+// Map the comma-separated env lists onto the SDK enums, dropping
+// anything unrecognized and falling back to sane defaults.
+function products() {
+  const valid = new Set(Object.values(Products));
+  const out = (process.env.PLAID_PRODUCTS || 'transactions')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => valid.has(s));
+  return out.length ? out : [Products.Transactions];
+}
+function countryCodes() {
+  const valid = new Set(Object.values(CountryCode));
+  const out = (process.env.PLAID_COUNTRY_CODES || 'US')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => valid.has(s));
+  return out.length ? out : [CountryCode.Us];
+}
+
+/* ── Link / exchange ─────────────────────────────────────────── */
+
+// Create a short-lived Link token the browser hands to Plaid Link.
+async function createLinkToken(user) {
+  const req = {
+    user: { client_user_id: String(user.id) },
+    client_name: 'FiHaven',
+    language: 'en',
+    products: products(),
+    country_codes: countryCodes(),
+  };
+  if (process.env.PLAID_WEBHOOK_URL) req.webhook = process.env.PLAID_WEBHOOK_URL;
+  if (process.env.PLAID_REDIRECT_URI) req.redirect_uri = process.env.PLAID_REDIRECT_URI;
+  const resp = await client().linkTokenCreate(req);
+  return resp.data; // { link_token, expiration, request_id }
+}
+
+// Trade the one-time public_token from Link for a long-lived
+// access_token + item_id.
+async function exchangePublicToken(publicToken) {
+  const resp = await client().itemPublicTokenExchange({ public_token: publicToken });
+  return { accessToken: resp.data.access_token, itemId: resp.data.item_id };
+}
+
+async function getInstitution(institutionId) {
+  if (!institutionId) return null;
+  try {
+    const resp = await client().institutionsGetById({
+      institution_id: institutionId,
+      country_codes: countryCodes(),
+    });
+    return resp.data.institution || null;
+  } catch (_) {
+    return null; // institution metadata is best-effort
+  }
+}
+
+/* ── Data pulls ──────────────────────────────────────────────── */
+
+// Accounts + live balances for an item.
+async function getAccounts(accessToken) {
+  const resp = await client().accountsBalanceGet({ access_token: accessToken });
+  return { item: resp.data.item, accounts: resp.data.accounts || [] };
+}
+
+// Cursor-based transactions sync. Paginates until caught up and
+// returns the diff plus the next cursor. We don't persist individual
+// transactions yet (no transactions UI) — advancing the cursor proves
+// the pipeline and leaves a hook for future bill auto-matching.
+async function syncTransactions(accessToken, cursor) {
+  let added = [];
+  let modified = [];
+  let removed = [];
+  let next = cursor || null;
+  let hasMore = true;
+  while (hasMore) {
+    const resp = await client().transactionsSync({
+      access_token: accessToken,
+      cursor: next || undefined,
+    });
+    const d = resp.data;
+    added = added.concat(d.added || []);
+    modified = modified.concat(d.modified || []);
+    removed = removed.concat(d.removed || []);
+    next = d.next_cursor;
+    hasMore = d.has_more;
+  }
+  return { added, modified, removed, cursor: next };
+}
+
+async function removeItem(accessToken) {
+  await client().itemRemove({ access_token: accessToken });
+}
+
+module.exports = {
+  plaidConfigured,
+  plaidEnv,
+  createLinkToken,
+  exchangePublicToken,
+  getInstitution,
+  getAccounts,
+  syncTransactions,
+  removeItem,
+  // Re-export the at-rest helpers so the route/db layer encrypts the
+  // access_token without reaching into mfa.js directly.
+  encryptToken: encrypt,
+  decryptToken: decrypt,
+};

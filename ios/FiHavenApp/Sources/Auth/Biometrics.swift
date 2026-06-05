@@ -50,7 +50,7 @@ enum BiometricAuth {
 /// content is gated on `locked` (see RootView).
 @MainActor
 final class BiometricStore: ObservableObject {
-    private static let key = "ct_biometric"
+    private static let key = "fh_biometric"
 
     @Published private(set) var enabled: Bool
     @Published private(set) var locked: Bool
@@ -61,7 +61,7 @@ final class BiometricStore: ObservableObject {
         #if DEBUG
         // Screenshot/demo aid: show the toggle even on a simulator without
         // enrolled biometrics.
-        if ProcessInfo.processInfo.environment["CT_BIO_DEMO"] == "1" { return true }
+        if ProcessInfo.processInfo.environment["FH_BIO_DEMO"] == "1" { return true }
         #endif
         return BiometricAuth.isAvailable
     }

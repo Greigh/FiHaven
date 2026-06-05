@@ -11,7 +11,7 @@
 
   <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
-  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%233D6FE1'/%3E%3Cg fill='white'%3E%3Crect x='16' y='17' width='7' height='30' rx='2'/%3E%3Crect x='16' y='17' width='22' height='7' rx='2'/%3E%3Crect x='16' y='29' width='17' height='6' rx='2'/%3E%3Crect x='41' y='27' width='7' height='20' rx='2'/%3E%3Ccircle cx='44.5' cy='20' r='4'/%3E%3C/g%3E%3C/svg%3E"/>
 
   <title>Settings — FiHaven</title>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
@@ -142,6 +142,43 @@
         </section>
       </div>
 
+      <!-- ═══════════════ Bank connections (Plaid) ═══════════════ -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h2>Bank connections</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <section class="auth-card" data-plaid-card>
+          <h2 style="font-size:20px;letter-spacing:-.03em;">
+            Linked banks <span class="badge badge-gray" style="vertical-align:middle;">Pro</span>
+          </h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Optionally link a bank with Plaid to auto-fetch balances. It's a convenience overlay — FiHaven works fully by hand, so a dropped connection never breaks your dashboard.
+          </p>
+
+          <!-- States below are toggled by settings.js based on /api/plaid/status. -->
+          <div data-plaid-unavailable hidden class="card" style="padding:14px 16px;margin-top:14px;color:var(--muted);font-size:14px;">
+            Bank linking isn’t enabled on this server yet.
+          </div>
+
+          <div data-plaid-upsell hidden class="card" style="padding:14px 16px;margin-top:14px;font-size:14px;">
+            Linking your bank is a <strong>Pro</strong> feature.
+            <a href="#" data-plaid-upsell-link>Upgrade above</a> to connect an account.
+          </div>
+
+          <div data-plaid-connected hidden style="margin-top:14px;">
+            <div data-plaid-list style="display:flex;flex-direction:column;gap:10px;"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+              <button class="btn btn-primary" type="button" data-plaid-connect>+ Connect a bank</button>
+              <button class="btn btn-ghost" type="button" data-plaid-refresh hidden>Refresh balances</button>
+            </div>
+          </div>
+
+          <div class="auth-error" data-message="plaid" aria-live="polite" style="margin-top:10px;"></div>
+        </section>
+      </div>
+
       <!-- ═══════════════ Security ═══════════════ -->
       <div class="settings-group">
         <div class="settings-group-header">
@@ -198,25 +235,7 @@
         <div id="mfa-section-mount"></div>
       </div>
 
-      <!-- ═══════════════ Admin (revealed only for admins) ═══════════════ -->
-      <div class="settings-group" data-admin-group hidden>
-        <div class="settings-group-header">
-          <h2>Admin</h2>
-          <span class="settings-group-rule"></span>
-        </div>
-        <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">User management</h2>
-          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
-            Grant or revoke Pro, and manage admin access. Changes take effect immediately.
-          </p>
-          <div class="auth-field" style="margin-top:14px;">
-            <label for="admin-search">Search users</label>
-            <input type="search" id="admin-search" data-admin-search autocomplete="off" placeholder="email or name…"/>
-          </div>
-          <div class="auth-error" data-message="admin" aria-live="polite"></div>
-          <div data-admin-users style="margin-top:8px;"></div>
-        </section>
-      </div>
+      <!-- Admin tools moved to the appbar account menu (admins only). -->
 
       <!-- ═══════════════ Data ═══════════════ -->
       <div class="settings-group">
