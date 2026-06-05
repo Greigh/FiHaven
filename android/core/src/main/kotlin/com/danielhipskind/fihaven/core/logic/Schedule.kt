@@ -1,0 +1,158 @@
+package com.danielhipskind.fihaven.core.logic
+
+import com.danielhipskind.fihaven.core.CTConstants
+import com.danielhipskind.fihaven.core.model.Bill
+import com.danielhipskind.fihaven.core.model.Card
+import com.danielhipskind.fihaven.core.model.Payment
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.math.max
+
+data class UpcomingItem(
+    val name: String,
+    val amount: Double,
+    val days: Int,
+    val nextDue: LocalDate?,
+    val type: String,      // "bill" | "card"
+    val refId: String,
+    val autopay: Boolean,
+    val icon: String,
+)
+
+/// Upcoming-items + paid-state helpers, ported from utils.js.
+object Schedule {
+    fun promoNeeded(card: Card, zone: ZoneId, now: Instant = Instant.now()): Double {
+        val bal = card.promoBalance?.takeIf { it != 0.0 }
+            ?: card.balance.takeIf { it != 0.0 }
+            ?: 0.0
+        val months = DateLogic.monthsUntil(card.promoEndDate, zone, now)
+        return if (months <= 0) bal else bal / months
+    }
+
+    fun buildUpcomingItems(
+        bills: List<Bill>,
+        cards: List<Card>,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): List<UpcomingItem> {
+        val items = mutableListOf<UpcomingItem>()
+
+        for (b in bills) {
+            val dd = b.dueDay ?: continue
+            if (dd == 0) continue
+            items.add(
+                UpcomingItem(
+                    name = b.name,
+                    amount = b.amount,
+                    days = DateLogic.daysUntilDue(dd, zone, now),
+                    nextDue = DateLogic.nextDueDate(dd, zone, now),
+                    type = "bill",
+                    refId = b.id.toString(),
+                    autopay = b.autopay,
+                    icon = CTConstants.iconForCategory(b.category),
+                )
+            )
+        }
+
+        for (c in cards) {
+            val dd = c.dueDay ?: continue
+            if (dd == 0) continue
+            val needed = if (c.hasPromo) max(c.minPayment, promoNeeded(c, zone, now)) else c.minPayment
+            items.add(
+                UpcomingItem(
+                    name = c.name + " (payment)",
+                    amount = needed,
+                    days = DateLogic.daysUntilDue(dd, zone, now),
+                    nextDue = DateLogic.nextDueDate(dd, zone, now),
+                    type = "card",
+                    refId = c.id.toString(),
+                    autopay = c.autopay,
+                    icon = CTConstants.cardIcon,
+                )
+            )
+        }
+
+        return items.sortedBy { it.days }
+    }
+
+    fun isPaid(payments: List<Payment>, type: String, refId: String, monthKey: String): Boolean =
+        payments.any { it.type == type && it.refId == refId && it.monthKey == monthKey }
+
+    fun paidAmount(payments: List<Payment>, type: String, refId: String, monthKey: String): Double =
+        payments.filter { it.type == type && it.refId == refId && it.monthKey == monthKey }
+            .sumOf { it.amount }
+
+    /** Cent-level tolerance so a goal met to the penny reads as full. */
+    const val PAID_EPSILON = 0.005
+
+    /**
+     * The "recommended" payment for a card (mirrors recommendedAmount in utils.js).
+     * A per-card override wins; otherwise promo cards spread the balance to clear it
+     * before the promo ends (never below the minimum) and non-promo cards recommend
+     * paying off the remaining balance.
+     */
+    fun recommendedAmount(card: Card, zone: ZoneId, now: Instant = Instant.now()): Double {
+        card.recommendedPayment?.let { if (it > 0) return it }
+        return if (card.hasPromo) max(card.minPayment, promoNeeded(card, zone, now)) else card.balance
+    }
+
+    /** A bill's fully-paid goal is always its full amount. */
+    fun goalAmount(bill: Bill): Double = bill.amount
+
+    /**
+     * A card's fully-paid goal under the active policy. For [PaidGoalPolicy.FULL],
+     * card payments decrement the live balance, so this month's payments are added
+     * back to keep the goal stable as installments land (mirrors goalAmountFor in utils.js).
+     */
+    fun goalAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: List<Payment>,
+        monthKey: String,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Double {
+        val paid = paidAmount(payments, "card", card.id.toString(), monthKey)
+        // "full" and a non-promo "recommended" both target paying the balance
+        // to zero. Card payments decrement the live balance, so add this
+        // month's payments back to keep that goal stable across installments.
+        val startBalance = card.balance + paid
+        return when (policy) {
+            PaidGoalPolicy.MINIMUM -> card.minPayment
+            PaidGoalPolicy.FULL -> startBalance
+            PaidGoalPolicy.RECOMMENDED -> {
+                val override = card.recommendedPayment
+                when {
+                    override != null && override > 0 -> override
+                    card.hasPromo -> max(card.minPayment, promoNeeded(card, zone, now))
+                    else -> startBalance
+                }
+            }
+        }
+    }
+}
+
+/** How much must be paid before a bill/card counts as fully paid. */
+enum class PaidGoalPolicy {
+    MINIMUM, RECOMMENDED, FULL;
+
+    val raw: String
+        get() = when (this) {
+            MINIMUM -> "minimum"
+            RECOMMENDED -> "recommended"
+            FULL -> "full"
+        }
+
+    companion object {
+        /** Lenient parse, defaulting to RECOMMENDED (matches settings.paidGoal on the web). */
+        fun from(raw: String?): PaidGoalPolicy = when (raw) {
+            "minimum" -> MINIMUM
+            "full" -> FULL
+            else -> RECOMMENDED
+        }
+    }
+}
+
+/** Tri-state for badges/rows: nothing paid, some paid, goal reached. */
+enum class PaidState { UNPAID, PARTIAL, FULL }

@@ -1,0 +1,489 @@
+/* ═══════════════════════════════════════════════════════════
+   mobile.css — responsive layer.
+
+   Imported LAST from styles.css so its rules win at equal
+   specificity. It only targets GLOBAL classes (defined in
+   components.css / budget.css); component-scoped styles such as
+   CalendarView carry their own media queries.
+
+   Breakpoints:
+     ≤ 900px  collapse the appbar tab row into a hamburger drawer
+     ≤ 768px  primary phone/tablet layout (touch targets, tables)
+     ≤ 560px  small phone — grids drop to one or two columns
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile navigation — hamburger + slide-out drawer.
+   navbar.js injects `.appbar-burger` into each `.appbar` and a
+   `.mnav-overlay` + `.mnav-drawer` into <body>. All hidden on
+   desktop; revealed below the breakpoint.
+   ───────────────────────────────────────────────────────────── */
+.appbar-burger {
+  display: none;
+}
+.mnav-overlay,
+.mnav-drawer {
+  display: none;
+}
+
+/* Drawer chrome (applies whenever the nodes exist; visibility is
+   gated by the media query below). */
+.mnav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.mnav-title {
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+.mnav-title em {
+  font-style: normal;
+  color: var(--accent);
+}
+.mnav-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.mnav-close:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.mnav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Cloned nav entries keep `.appbar-tab` styling but stack full
+   width with their labels shown. */
+.mnav-list .appbar-tab,
+.mnav-list .appbar-cta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 12px;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.mnav-list .appbar-tab span {
+  display: inline !important;
+}
+.mnav-list .appbar-tab svg {
+  width: 20px;
+  height: 20px;
+}
+.mnav-list .appbar-tab.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.mnav-list .appbar-cta {
+  margin-top: 8px;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  /* Swap the inline tab row for the hamburger. */
+  .appbar {
+    gap: 10px;
+  }
+  .appbar-nav {
+    display: none !important;
+  }
+  .appbar-right {
+    margin-left: auto;
+  }
+  /* Keep the brand wordmark visible next to the hamburger. */
+  .appbar-brand-text {
+    display: inline-flex !important;
+  }
+
+  .appbar-burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 11px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+  .appbar-burger:hover {
+    background: var(--surface2);
+  }
+  .appbar-burger:active {
+    transform: translateY(1px);
+  }
+  .appbar-burger svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mnav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    z-index: 299;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+  .mnav-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mnav-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(82vw, 320px);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  .mnav-drawer.open {
+    transform: translateX(0);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Horizontal-overflow guards.
+
+   On narrow phones a few flex/grid layouts pushed wider than the
+   viewport, and because <body> has overflow-x:hidden the excess
+   was clipped and unreachable rather than scrollable. The root
+   causes:
+     • .alert is display:flex; the dashboard injects bare text +
+       <strong> runs (now wrapped in one <div>), so allow children
+       to shrink and let the inline content wrap.
+     • Flex/grid items default to min-width:auto, which refuses to
+       shrink below their content — the classic grid/flex blowout.
+       Add min-width:0 to the dashboard containers that hold long,
+       unbroken strings (income · due sub-lines, cashflow foot).
+   These apply at all widths (harmless on desktop) so the layout
+   can never exceed its column.
+   ───────────────────────────────────────────────────────────── */
+.alert { flex-wrap: wrap; }
+.alert > * { min-width: 0; }
+.stat-tile,
+.stat-sub,
+.cashflow-card,
+.cashflow-head > div,
+.cashflow-sub,
+.cashflow-foot,
+.upcoming-body { min-width: 0; }
+/* Long sub-line strings (e.g. "$3,091.98 income · $2,748.48 due")
+   must wrap instead of forcing the tile wide. */
+.stat-sub,
+.cashflow-foot { overflow-wrap: anywhere; }
+.cashflow-foot { flex-wrap: wrap; gap: 4px 12px; }
+
+/* ─────────────────────────────────────────────────────────────
+   Touch targets — give small buttons a comfortable tap height.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .btn {
+    min-height: 40px;
+  }
+  .btn-sm {
+    min-height: 36px;
+    padding: 7px 13px;
+    font-size: 12px;
+  }
+  .btn-xs {
+    min-height: 32px;
+    padding: 6px 11px;
+    font-size: 11px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Forms — 16px inputs stop iOS Safari from zooming on focus.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .field input,
+  .field select,
+  .field textarea,
+  .income-input,
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Modals — full-width bottom sheet on small phones.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .modal-overlay {
+    align-items: flex-end;
+  }
+  .modal {
+    width: 100%;
+    max-width: none;
+    padding: 20px;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+  }
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Dashboard — let the header actions fill the width on phones.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .dash-header {
+    align-items: flex-start;
+  }
+  .dash-header-actions {
+    width: 100%;
+  }
+  .dash-header-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Cards / Payoff / Budget summary grids.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .cards-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cards-toolbar-filters {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 560px) {
+  .cards-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .payoff-strat-grid {
+    grid-template-columns: 1fr;
+  }
+  .budget-totals {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Data tables → stacked cards.
+
+   The Bills (9 col), Budget (5 col) and Payoff (6 col) tables are
+   far too wide for a phone. Below 768px each <tr> becomes a card
+   and each <td> a "Label … value" row, with the label pulled from
+   the cell's `data-label` attribute. The first cell (`data-cell=
+   "name"`) becomes the card header and the Bills action cell
+   (`data-cell="actions"`) becomes a right-aligned button row.
+
+   Selectors are id-scoped (`#tab-bills` …) so they override the
+   unscoped `.data-table { min-width:720px }` that theme-dark.css
+   sets at ≤900px without needing !important.
+
+   Tablet range (769–900px): keep the tables intact but let them
+   scroll horizontally inside their wrapping card. Those cards
+   carry an inline `overflow:hidden`, so `!important` is required
+   to re-enable scrolling. (theme-dark.css has older, non-!important
+   rules for the same purpose that this supersedes.)
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  #tab-bills .card,
+  #tab-budget .card,
+  .payoff-table-card {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Wrapping cards: drop the scroll/clip, let the stack flow. */
+  #tab-bills .card,
+  #tab-budget .card,
+  .payoff-table-card {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Table → block stack. */
+  #tab-bills .data-table,
+  #tab-budget .data-table,
+  .payoff-table-card .data-table {
+    display: block;
+    min-width: 0;
+    padding: 12px;
+  }
+  #tab-bills .data-table tbody,
+  #tab-budget .data-table tbody,
+  .payoff-table-card .data-table tbody {
+    display: block;
+  }
+
+  /* Header row: visually hidden, still read by screen readers. */
+  #tab-bills .data-table thead,
+  #tab-budget .data-table thead,
+  .payoff-table-card .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Each row → a bordered card. */
+  #tab-bills .data-table tr,
+  #tab-budget .data-table tr,
+  .payoff-table-card .data-table tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  #tab-bills .data-table tr:last-child,
+  #tab-budget .data-table tr:last-child,
+  .payoff-table-card .data-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Each cell → a "label … value" row. Neutralise zebra/hover
+     backgrounds (set per-td in components.css + theme-dark.css). */
+  #tab-bills .data-table td,
+  #tab-budget .data-table td,
+  .payoff-table-card .data-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    text-align: right;
+    font-size: 14px;
+    background: transparent;
+  }
+  #tab-bills .data-table tr td:last-child,
+  #tab-budget .data-table tr td:last-child,
+  .payoff-table-card .data-table tr td:last-child {
+    border-bottom: none;
+  }
+
+  /* The label, drawn from data-label. */
+  #tab-bills .data-table td[data-label]::before,
+  #tab-budget .data-table td[data-label]::before,
+  .payoff-table-card .data-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    text-align: left;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Cells whose value spans multiple lines (sparkline, due + next
+     date) stack the label above the value instead. */
+  #tab-bills .data-table td[data-label="Recent"],
+  #tab-bills .data-table td[data-label="Due"] {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  /* First cell → card header. `display:block` lets its inner
+     name + notes flow naturally with no label prefix. */
+  #tab-bills .data-table td[data-cell="name"],
+  #tab-budget .data-table td[data-cell="name"],
+  .payoff-table-card .data-table td[data-cell="name"] {
+    display: block;
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 15px;
+    background: color-mix(in srgb, var(--surface2) 55%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Bills action cell → right-aligned button row. The hover-reveal
+     on .action-btns never fires on touch, so force it visible. */
+  #tab-bills .data-table td[data-cell="actions"] {
+    justify-content: flex-end;
+    padding: 12px 14px;
+  }
+  #tab-bills .data-table td[data-cell="actions"] .action-btns {
+    opacity: 1;
+    gap: 8px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   History rows — wrap actions onto their own line if cramped.
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .hist-item {
+    flex-wrap: wrap;
+  }
+  .hist-amount-col {
+    margin-left: auto;
+  }
+  .hist-actions {
+    margin-left: auto;
+  }
+}

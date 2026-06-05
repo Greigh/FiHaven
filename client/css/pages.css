@@ -1,0 +1,457 @@
+/* ── Public Pages / Auth / Footer ──────────────────────── */
+.page-frame {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-main {
+  flex: 1;
+  width: min(1180px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.public-nav {
+  width: min(1180px, calc(100% - 24px));
+}
+
+.public-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.public-copy,
+.public-panel,
+.auth-card,
+.legal-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white) 0%, color-mix(in srgb, var(--surface2) 56%, white) 100%);
+  box-shadow: 0 18px 46px rgba(15,15,20,.06);
+}
+
+.public-copy {
+  padding: 28px;
+}
+
+.public-panel,
+.auth-card,
+.legal-card {
+  padding: 24px;
+}
+
+.public-copy h1,
+.auth-card h1,
+.legal-card h1 {
+  font-size: clamp(2.3rem, 5vw, 4.4rem);
+  line-height: .94;
+  max-width: 12ch;
+}
+
+.public-copy p,
+.auth-card p,
+.legal-card p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.hero-badge,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, white);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.feature-grid,
+.security-grid,
+.legal-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.feature-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.feature-card,
+.security-card,
+.legal-section,
+.auth-note,
+.auth-error {
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, white);
+}
+
+.feature-card,
+.security-card,
+.legal-section {
+  padding: 16px;
+}
+
+.feature-card h3,
+.security-card h3,
+.legal-section h3 {
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.feature-card p,
+.security-card p,
+.legal-section p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.public-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.public-panel .card {
+  background: color-mix(in srgb, var(--surface) 94%, white);
+}
+
+.auth-card {
+  width: min(520px, 100%);
+  margin: 0 auto;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-field label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.auth-field input,
+.auth-field select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+
+.auth-field input:focus,
+.auth-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.auth-field select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 40px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  background-color: var(--surface2);
+}
+
+.auth-field select:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+}
+
+.auth-field select option,
+.auth-field select optgroup {
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.auth-field select optgroup {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.auth-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-note {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.auth-error {
+  padding: 10px 12px;
+  color: var(--red);
+  font-size: 13px;
+}
+.auth-error:empty {
+  display: none;
+}
+
+.auth-legal {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.auth-legal a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.auth-legal a:hover { text-decoration: underline; }
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Settings page: grouped section layout */
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.settings-group {
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 4px;
+  margin-top: 6px;
+}
+
+.settings-group-header h2 {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-group-header .settings-group-rule {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.settings-group.danger .settings-group-header h2 {
+  color: var(--red);
+}
+
+.settings-group .auth-card {
+  width: 100%;
+}
+
+/* Settings page: download buttons row */
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.data-actions a.btn,
+.data-actions button.btn {
+  flex: 0 0 auto;
+}
+
+/* Settings page: file input styled to match the form fields */
+input[type="file"] {
+  width: 100%;
+  padding: 9px 10px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13.5px;
+  border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface2) 55%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+input[type="file"]:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-bg) 35%, var(--surface));
+}
+input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--surface2);
+}
+
+.site-footer {
+  width: min(1180px, calc(100% - 24px));
+  margin: 0 auto 18px;
+  padding: 18px 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-footer a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--accent);
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.site-footer-credit {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.site-footer-credit a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.site-footer-credit a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.site-footer-credit .heart {
+  color: var(--red, #e85a5a);
+  font-style: normal;
+}
+
+.legal-page {
+  width: min(900px, calc(100% - 24px));
+  margin: 0 auto;
+}
+
+.legal-card {
+  display: grid;
+  gap: 18px;
+}
+
+.legal-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.legal-section h3 {
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .public-shell,
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-copy,
+  .public-panel,
+  .auth-card,
+  .legal-card {
+    padding: 20px;
+  }
+
+  .site-footer {
+    width: calc(100% - 16px);
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .page-main {
+    padding: 18px 0 32px;
+  }
+
+  .public-copy h1,
+  .auth-card h1,
+  .legal-card h1 {
+    max-width: none;
+  }
+
+  .auth-actions .btn,
+  .site-footer-links a {
+    width: 100%;
+  }
+
+  .auth-actions .btn {
+    justify-content: center;
+  }
+}
+

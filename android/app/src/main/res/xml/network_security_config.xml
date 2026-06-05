@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release default: HTTPS only — no cleartext to any host. The debug
+     build overrides this file (src/debug/res) to permit the local dev
+     server over http. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

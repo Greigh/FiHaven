@@ -1,0 +1,19 @@
+/* ═══════════════════════════════════════════════════════════
+   FiHaven — styles.css (manifest)
+
+   The actual rules live in the files imported below. Group by
+   concern so they're easier to find and edit:
+     1. tokens      — design tokens (CSS variables) + body bg
+     2. components  — nav, buttons, badges, cards, tables, modals, forms
+     3. theme-dark  — dark-theme overrides
+     4. pages       — page-frame, auth pages, legal pages, footer
+     5. marketing   — home.html (marketing landing)
+     6. budget      — Budget tab (income, summary, totals)
+═══════════════════════════════════════════════════════════ */
+@import './tokens.css';
+@import './components.css';
+@import './theme-dark.css';
+@import './pages.css';
+@import './marketing.css';
+@import './budget.css';
+@import './mobile.css';

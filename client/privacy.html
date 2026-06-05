@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="FiHaven privacy policy. How FiHaven collects, uses, and protects your account and financial data."/>
+  <meta name="robots" content="index,follow"/>
+  <link rel="canonical" href="https://fihaven.app/privacy"/>
+
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="FiHaven"/>
+  <meta property="og:url" content="https://fihaven.app/privacy"/>
+  <meta property="og:title" content="FiHaven — Privacy Policy"/>
+  <meta property="og:description" content="How FiHaven collects, uses, and protects your data."/>
+  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FiHaven — Privacy Policy"/>
+  <meta name="twitter:description" content="How FiHaven collects, uses, and protects your data."/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+
+  <title>Privacy Policy — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="public">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main legal-page">
+      <section class="legal-card hero-shell">
+        <div class="hero-badge">Privacy</div>
+        <h1>Privacy Policy</h1>
+        <p>FiHaven (&ldquo;FiHaven&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) provides a personal bill and debt tracking application. This Privacy Policy explains what information we collect, how we use it, how we protect it, and the choices you have. By creating an account or using the app, you agree to the practices described here.</p>
+        <p class="mono" style="font-size:12px;color:var(--muted);">Last updated: June 4, 2026</p>
+
+        <div class="legal-section">
+          <h3>1. Information we collect</h3>
+          <p>We collect only what is needed to operate the app:</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li><strong>Account information</strong> — your email address, an optional display name, and a securely hashed version of your password. We never store your password in readable form.</li>
+            <li><strong>Financial information you enter</strong> — bills, credit card balances and terms, payment history, income, and related settings. You choose what to add, and you can edit or remove it at any time.</li>
+            <li><strong>Subscription information</strong> — if you upgrade to FiHaven Pro, we store your subscription status and a billing reference (such as a Stripe customer or subscription ID, or an Apple/Google purchase identifier). We never see or store your full card number — see &ldquo;Payments and subscriptions&rdquo; below.</li>
+            <li><strong>Technical information</strong> — when you sign in, we record the IP address and browser (or app) user-agent tied to that session so we can protect your account.</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h3>2. How we use your information</h3>
+          <p>We use your information to:</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li>Provide the service — store your data and sync it so it is available when you sign in.</li>
+            <li>Authenticate you and keep you securely signed in, including sending two-factor login codes when you enable them.</li>
+            <li>Process your FiHaven Pro subscription and confirm your entitlement across your devices.</li>
+            <li>Protect the service and our users against abuse, including rate limiting and bot detection.</li>
+            <li>Contact you about your account if a security or service issue requires it.</li>
+          </ul>
+          <p style="margin-top:8px;">We do not sell your personal information, and we do not use it for advertising.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>3. Cookies</h3>
+          <p>FiHaven uses a single essential cookie to keep you signed in. It is marked HttpOnly (not readable by scripts) and contains only an opaque session identifier — never your password or financial data. It is removed when you log out or when the session expires. We also use a short-lived token to protect against cross-site request forgery on actions you take while signed in. We do not use advertising or analytics cookies. (The mobile apps sign in with a token stored securely on your device rather than a cookie — see &ldquo;Mobile applications&rdquo; below.)</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>4. Third-party services</h3>
+          <p>We rely on a small number of third-party providers, and share with each only what it needs to do its job. We never share the bills, cards, payment history, or other financial data you track with any of them.</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li><strong>Cloudflare Turnstile</strong> — a privacy-respecting CAPTCHA alternative (Cloudflare, Inc.) that keeps bots out of the sign-in and sign-up forms. It runs in <em>invisible</em> mode, so most people never see a challenge. To tell humans from bots, Turnstile may process your IP address and browser signals; this is governed by the <a href="https://www.cloudflare.com/application-services/terms/turnstile-privacy-addendum/" target="_blank" rel="noopener">Cloudflare Turnstile Privacy Addendum</a> and the <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>. We receive only a pass/fail token confirming the challenge was solved.</li>
+            <li><strong>Stripe</strong> — processes FiHaven Pro payments made on the web. Your card details are entered on Stripe&rsquo;s secure checkout and handled by Stripe under its <a href="https://stripe.com/privacy" target="_blank" rel="noopener">privacy policy</a>; we receive only a customer/subscription reference and your subscription status.</li>
+            <li><strong>Apple App Store &amp; Google Play</strong> — process FiHaven Pro purchases made inside the iOS and Android apps. Payment is handled entirely by Apple or Google; we receive only a receipt or purchase token used to confirm your subscription.</li>
+            <li><strong>Email delivery</strong> — we use an email provider to send account and security messages, including email-based login (two-factor) codes.</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h3>5. Payments and subscriptions</h3>
+          <p>FiHaven is free to use; FiHaven Pro is an optional paid subscription. We do <strong>not</strong> collect or store your full card number or bank details — payments are handled entirely by the processor you choose:</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li><strong>On the web</strong>, checkout is handled by Stripe. We store only a Stripe customer/subscription reference and your current status (active, canceled, renewal date).</li>
+            <li><strong>In the iOS and Android apps</strong>, purchases go through Apple In-App Purchase or Google Play Billing. We store only the resulting purchase/receipt identifier needed to verify your entitlement.</li>
+            <li><strong>Promo codes</strong>, where offered, are validated against our own records and may grant Pro access without a payment processor.</li>
+          </ul>
+          <p style="margin-top:8px;">Your Pro entitlement is computed on our server and applies across the web, iOS, and Android.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>6. Mobile applications</h3>
+          <p>The FiHaven iOS and Android apps store and sync the same data through the same secure API as the website, under this same policy. A few app-specific notes:</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li>Your sign-in token is stored in the device&rsquo;s secure storage (the iOS Keychain or Android encrypted storage), not in a cookie.</li>
+            <li>An optional biometric lock (Face ID, Touch ID, or fingerprint) can be enabled. It is enforced on your device by the operating system; we never receive your biometric data.</li>
+            <li>In-app purchases are processed by Apple or Google as described above.</li>
+            <li>The apps do not include third-party advertising or analytics SDKs.</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h3>7. How we protect your data</h3>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li>Passwords are hashed with bcrypt and are never stored or logged in plain text.</li>
+            <li>Sessions are stored server-side; the browser cookie (or the app&rsquo;s on-device token) holds only a random identifier.</li>
+            <li>Optional two-factor authentication — an authenticator app (TOTP), emailed codes, or a passkey (WebAuthn) — adds a second factor at sign-in. Authenticator secrets are encrypted at rest.</li>
+            <li>Sign-in is protected by Cloudflare Turnstile verification and server-side rate limiting.</li>
+            <li>Changing your password signs out all of your other devices.</li>
+          </ul>
+          <p style="margin-top:8px;">No method of storage or transmission is completely secure, and we cannot guarantee absolute security.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>8. Data retention</h3>
+          <p>We keep your account information and the financial data you enter for as long as your account remains open. Expired login sessions are purged automatically. When you delete your account, your account record, all login sessions, and all stored financial data are permanently removed from our database.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>9. Your rights and choices</h3>
+          <p>You can exercise the following directly from the Account page once signed in:</p>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li><strong>Access &amp; portability</strong> — download a complete copy of your data as a JSON file.</li>
+            <li><strong>Correction</strong> — edit your bills, cards, and settings, or update your email and password.</li>
+            <li><strong>Deletion</strong> — permanently delete your account and all associated data.</li>
+          </ul>
+          <p style="margin-top:8px;">Depending on where you live, you may have additional rights under laws such as the EU/UK GDPR or the California CCPA, including the right to access, correct, delete, or restrict the processing of your personal information. Contact us at the address below to make such a request.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>10. Children&rsquo;s privacy</h3>
+          <p>FiHaven is intended for adults managing their own finances. It is not directed to children under 16, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us so we can remove it.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>11. International users</h3>
+          <p>FiHaven may store and process your information on servers located in countries other than your own. By using the app, you consent to that transfer and processing.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>12. Changes to this policy</h3>
+          <p>We may update this Privacy Policy from time to time. When we make material changes, we will revise the &ldquo;Last updated&rdquo; date above. Your continued use of FiHaven after a change takes effect means you accept the revised policy.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>13. Contact us</h3>
+          <p>If you have questions about this policy or your data, contact us at <a href="mailto:me@danielhipskind.com">me@danielhipskind.com</a>.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong style="color:var(--text);">FiHaven</strong> — your privacy matters.
+      </div>
+      <div class="site-footer-links">
+        <a href="/">Home</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms of Use</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/public-entry.js"></script>
+</body>
+</html>

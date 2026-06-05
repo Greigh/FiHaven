@@ -1,0 +1,397 @@
+/* ═══════════════════════════════════════════════════════════
+   Marketing page (home.html) — full-width, generous sections
+═══════════════════════════════════════════════════════════ */
+.marketing-frame {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 22px;
+}
+
+.marketing-main {
+  display: flex;
+  flex-direction: column;
+  gap: 96px;
+  padding: 32px 0 72px;
+}
+
+/* ── HERO ────────────────────────────────────────────────── */
+.marketing-hero {
+  position: relative;
+  padding-top: 32px;
+}
+.marketing-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 56px;
+  align-items: center;
+}
+.marketing-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.marketing-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 13px 6px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--accent-bg) 70%, var(--surface));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.marketing-eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.marketing-headline {
+  font-size: clamp(40px, 5.6vw, 64px);
+  line-height: 1.04;
+  letter-spacing: -.045em;
+  font-weight: 800;
+  margin: 0;
+}
+.marketing-accent {
+  background: linear-gradient(120deg, var(--accent) 20%, color-mix(in srgb, var(--accent) 55%, var(--green)) 80%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+.marketing-sub {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 560px;
+}
+
+.marketing-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.btn-lg {
+  padding: 14px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
+}
+
+.marketing-trust {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.marketing-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.marketing-trust svg {
+  width: 16px;
+  height: 16px;
+  color: var(--green);
+}
+
+/* ── Faux dashboard preview ─────────────────────────────── */
+.marketing-preview {
+  position: relative;
+  isolation: isolate;
+}
+.marketing-preview-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  z-index: 0;
+  pointer-events: none;
+}
+.marketing-preview-orb-a {
+  width: 320px; height: 320px;
+  top: -40px; right: -20px;
+  background: color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.marketing-preview-orb-b {
+  width: 260px; height: 260px;
+  bottom: -30px; left: -30px;
+  background: color-mix(in srgb, var(--green) 22%, transparent);
+}
+
+.marketing-preview-frame {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow:
+    0 32px 80px rgba(15, 18, 30, .14),
+    0 12px 24px rgba(15, 18, 30, .06);
+  transform: rotate(-.6deg);
+  transition: transform .4s ease;
+}
+.marketing-preview-frame:hover { transform: rotate(0); }
+
+.marketing-preview-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  background: color-mix(in srgb, var(--surface2) 65%, var(--surface));
+}
+.marketing-preview-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--border) 75%, transparent);
+}
+.marketing-preview-path {
+  margin-left: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.marketing-preview-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.marketing-preview-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.marketing-preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.marketing-preview-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+}
+.marketing-preview-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+.marketing-preview-stats .sum-card {
+  padding: 14px 16px;
+}
+.marketing-preview-stats .svalue { font-size: 22px; }
+.marketing-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.marketing-preview-list .upcoming-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+.marketing-preview-amount {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -.03em;
+}
+
+/* ── Generic sections ────────────────────────────────────── */
+.marketing-section {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.marketing-section-soft {
+  padding: 56px 32px;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
+    color-mix(in srgb, var(--surface2) 55%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.marketing-section-head { text-align: center; max-width: 720px; margin: 0 auto; }
+.marketing-kicker {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.marketing-section-title {
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -.035em;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* ── Feature grid ────────────────────────────────────────── */
+.marketing-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.marketing-feature {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 18px;
+  padding: 22px;
+  transition: transform .25s, box-shadow .25s, border-color .25s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.marketing-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 36px rgba(15, 18, 30, .08);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.marketing-feature h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.marketing-feature p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.marketing-feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.marketing-feature-icon svg { width: 20px; height: 20px; }
+
+.icon-accent { background: var(--accent-bg); color: var(--accent); }
+.icon-orange { background: var(--orange-bg); color: var(--orange); }
+.icon-green  { background: var(--green-bg);  color: var(--green);  }
+.icon-red    { background: var(--red-bg);    color: var(--red);    }
+.icon-violet {
+  background: color-mix(in srgb, #7B3CC0 16%, var(--surface));
+  color: #7B3CC0;
+}
+[data-theme="dark"] .icon-violet {
+  background: color-mix(in srgb, #B891F0 18%, var(--surface));
+  color: #B891F0;
+}
+.icon-teal {
+  background: color-mix(in srgb, #007080 14%, var(--surface));
+  color: #007080;
+}
+[data-theme="dark"] .icon-teal {
+  background: color-mix(in srgb, #4DC0CC 18%, var(--surface));
+  color: #4DC0CC;
+}
+
+/* ── How-it-works steps ──────────────────────────────────── */
+.marketing-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  counter-reset: step;
+}
+.marketing-steps li {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 18px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.marketing-step-num {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  color: var(--accent);
+}
+.marketing-steps li h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.marketing-steps li p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ── Final CTA band ─────────────────────────────────────── */
+.marketing-cta-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 40px 36px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 80% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+.marketing-cta-text h2 {
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  margin-bottom: 6px;
+}
+.marketing-cta-text p {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 460px;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .marketing-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .marketing-preview-frame { transform: none; }
+  .marketing-main { gap: 72px; }
+}
+@media (max-width: 640px) {
+  .marketing-frame { padding: 0 16px; }
+  .marketing-main { gap: 56px; padding-top: 16px; }
+  .marketing-section-soft { padding: 36px 18px; }
+  .marketing-cta-band { padding: 28px 22px; }
+  .marketing-preview-stats { grid-template-columns: 1fr !important; }
+}
+

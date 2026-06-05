@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Your FiHaven settings."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+
+  <title>Settings — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="required">
+  <div class="page-frame">
+    <header data-app-nav data-variant="settings"></header>
+
+    <main class="page-main settings-stack">
+
+      <!-- ═══ Settings overview ═══ -->
+      <section class="auth-card hero-shell" style="width:min(620px,100%);">
+        <div class="hero-badge">Settings</div>
+        <h1 style="margin-top:14px;">Manage your FiHaven settings.</h1>
+        <p style="margin-top:12px;">Update your sign-in details, import or export your data, or close your account.</p>
+        <div class="card" style="padding:14px 16px;margin-top:16px;">
+          <div class="section-title" style="font-size:12px;">Signed in as</div>
+          <div data-current-identity style="font-size:18px;font-weight:600;margin-top:4px;line-height:1.3;">…</div>
+        </div>
+      </section>
+
+      <!-- ═══════════════ Profile ═══════════════ -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h2>Profile</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <!-- ── Display name ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Display name</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Shown in the navbar's "Signed in as" panel. Leave blank to fall back to your email.</p>
+          <form class="auth-form" data-form="name" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="display-name">Your name</label>
+              <input type="text" id="display-name" autocomplete="name" maxlength="80" placeholder="e.g., Daniel Hipskind"/>
+            </div>
+            <div class="auth-error" data-message="name" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save name</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Time zone ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Time zone</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Controls what "today" means when FiHaven counts down to a due date. Defaults to your browser's detected zone — change this if you travel often or want a fixed reference.
+          </p>
+          <form class="auth-form" data-form="timezone" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="tz-select">Your time zone</label>
+              <select id="tz-select" data-tz-select></select>
+            </div>
+            <div class="auth-note" data-tz-effective></div>
+            <div class="auth-error" data-message="timezone" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save time zone</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Payments: fully-paid goal ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Payments</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Choose how much you need to pay before a bill or card counts as <strong>fully paid</strong>. Anything less shows as a partial payment with the remainder still due. Bills always use their full amount; this mainly affects credit cards.
+          </p>
+          <form class="auth-form" data-form="paidgoal" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="paidgoal-select">Mark fully paid at</label>
+              <select id="paidgoal-select" data-paidgoal-select>
+                <option value="minimum">The minimum payment</option>
+                <option value="recommended">The recommended amount (clears 0% promos in time)</option>
+                <option value="full">The full balance / amount</option>
+              </select>
+            </div>
+            <div class="auth-note" data-paidgoal-effective></div>
+            <div class="auth-error" data-message="paidgoal" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save payment goal</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <!-- ═══════════════ FiHaven Pro ═══════════════ -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h2>FiHaven Pro</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Subscription</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Pro unlocks the payoff planner, calendar, and payment history. Your subscription is tied to your account and works across the web, iOS, and Android.
+          </p>
+          <div class="card" style="padding:14px 16px;margin-top:14px;display:flex;align-items:center;gap:10px;">
+            <span class="section-title" style="font-size:12px;">Status</span>
+            <span data-pro-status style="font-weight:600;margin-left:auto;">…</span>
+          </div>
+
+          <!-- Free → upgrade. Buttons are rendered from /stripe/config. -->
+          <div data-pro-upgrade hidden style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+
+          <!-- Pro → manage -->
+          <div data-pro-manage-wrap hidden style="margin-top:14px;">
+            <button class="btn btn-secondary" type="button" data-pro-manage>Manage subscription</button>
+          </div>
+
+          <div class="auth-error" data-message="pro" aria-live="polite" style="margin-top:10px;"></div>
+
+          <form class="auth-form" data-form="promo" style="margin-top:18px;border-top:1px solid var(--border);padding-top:16px;">
+            <div class="auth-field">
+              <label for="promo-code">Have a promo code?</label>
+              <input type="text" id="promo-code" autocomplete="off" autocapitalize="characters" placeholder="e.g. FREEPRO30"/>
+            </div>
+            <div class="auth-error" data-message="promo" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-secondary" type="submit">Redeem</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <!-- ═══════════════ Security ═══════════════ -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h2>Security</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <!-- ── Change email ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Change email</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Your email is also your sign-in name.</p>
+          <form class="auth-form" data-form="email" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="new-email">New email</label>
+              <input type="email" id="new-email" autocomplete="email" placeholder="you@example.com" required/>
+            </div>
+            <div class="auth-field">
+              <label for="email-password">Current password</label>
+              <input type="password" id="email-password" autocomplete="current-password" placeholder="Enter your password" required/>
+            </div>
+            <div class="auth-error" data-message="email" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update email</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Change password ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Change password</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Changing your password signs you out of every other device.</p>
+          <form class="auth-form" data-form="password" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="current-password">Current password</label>
+              <input type="password" id="current-password" autocomplete="current-password" placeholder="Enter your current password" required/>
+            </div>
+            <div class="auth-field">
+              <label for="new-password">New password</label>
+              <input type="password" id="new-password" autocomplete="new-password" placeholder="Enter a new password" required/>
+            </div>
+            <div class="auth-field">
+              <label for="confirm-password">Confirm new password</label>
+              <input type="password" id="confirm-password" autocomplete="new-password" placeholder="Re-enter the new password" required/>
+            </div>
+            <div class="auth-note">At least 10 characters, including at least one letter and one number.</div>
+            <div class="auth-error" data-message="password" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update password</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Two-factor authentication ── -->
+        <div id="mfa-section-mount"></div>
+      </div>
+
+      <!-- ═══════════════ Admin (revealed only for admins) ═══════════════ -->
+      <div class="settings-group" data-admin-group hidden>
+        <div class="settings-group-header">
+          <h2>Admin</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">User management</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Grant or revoke Pro, and manage admin access. Changes take effect immediately.
+          </p>
+          <div class="auth-field" style="margin-top:14px;">
+            <label for="admin-search">Search users</label>
+            <input type="search" id="admin-search" data-admin-search autocomplete="off" placeholder="email or name…"/>
+          </div>
+          <div class="auth-error" data-message="admin" aria-live="polite"></div>
+          <div data-admin-users style="margin-top:8px;"></div>
+        </section>
+      </div>
+
+      <!-- ═══════════════ Data ═══════════════ -->
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <h2>Data</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <!-- ── Calendar subscription ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Calendar subscription</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Subscribe to your bill &amp; card due dates from any calendar app (Apple
+            Calendar, Google Calendar, Outlook). The URL contains a private token —
+            rotate it if you ever share or accidentally publish the link.
+          </p>
+          <div data-ical-panel style="margin-top:14px;">
+            <div data-ical-empty>
+              <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">
+                No subscription URL yet. Generate one to start syncing.
+              </p>
+              <button class="btn btn-primary" type="button" data-ical-generate>Generate subscription URL</button>
+            </div>
+            <div data-ical-active hidden>
+              <label for="ical-url" style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">
+                Your subscription URL
+              </label>
+              <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+                <input id="ical-url" type="text" readonly data-ical-url style="flex:1;min-width:260px;font-family:'IBM Plex Mono',monospace;font-size:12px;"/>
+                <button class="btn btn-ghost btn-sm" type="button" data-ical-copy>Copy</button>
+              </div>
+              <div class="auth-actions" style="margin-top:12px;">
+                <button class="btn btn-ghost btn-sm" type="button" data-ical-rotate>Rotate token</button>
+                <button class="btn btn-danger btn-sm" type="button" data-ical-disable>Disable subscription</button>
+              </div>
+              <div class="auth-error" data-message="ical" aria-live="polite"></div>
+              <p style="font-size:12px;color:var(--muted);margin-top:10px;">
+                <strong>Apple Calendar:</strong> File → New Calendar Subscription, paste the URL.<br/>
+                <strong>Google Calendar:</strong> Other calendars → From URL, paste the URL.<br/>
+                Most apps refresh once an hour.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Download data ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Download your data</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Grab a full JSON backup or per-area CSV files for spreadsheets.</p>
+          <div class="data-actions" style="margin-top:14px;">
+            <a class="btn btn-primary" href="/api/account/export" download>⬇ All data (JSON)</a>
+            <a class="btn btn-ghost" href="/api/account/export/bills.csv" download>⬇ Bills (CSV)</a>
+            <a class="btn btn-ghost" href="/api/account/export/cards.csv" download>⬇ Cards (CSV)</a>
+            <a class="btn btn-ghost" href="/api/account/export/history.csv" download>⬇ Payment History (CSV)</a>
+            <button class="btn btn-ghost" type="button" data-export-all>⬇ Everything (CSV ×3)</button>
+          </div>
+        </section>
+
+        <!-- ── Import data ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Import data</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Drop a <strong>JSON backup</strong> from the export above to restore a full snapshot, or upload a <strong>CSV</strong> of bills, cards, or history to add records to your account.
+          </p>
+          <form class="auth-form" data-form="import" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="import-file">Choose a file</label>
+              <input
+                type="file"
+                id="import-file"
+                name="import-file"
+                accept=".json,.csv,application/json,text/csv"
+              />
+            </div>
+            <div class="auth-note" data-import-mode hidden></div>
+            <div class="auth-error" data-message="import" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit" disabled data-import-submit>Import file</button>
+              <button class="btn btn-ghost" type="button" data-import-reset>Choose another</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <!-- ═══════════════ Danger zone ═══════════════ -->
+      <div class="settings-group danger">
+        <div class="settings-group-header">
+          <h2>Danger zone</h2>
+          <span class="settings-group-rule"></span>
+        </div>
+
+        <section class="auth-card" style="border-color:var(--red);">
+          <h2 style="font-size:20px;letter-spacing:-.03em;color:var(--red);">Delete account</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">This permanently deletes your account and all of your data — bills, cards, history, and settings. This cannot be undone.</p>
+          <form class="auth-form" data-form="delete" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="delete-password">Current password</label>
+              <input type="password" id="delete-password" autocomplete="current-password" placeholder="Enter your password" required/>
+            </div>
+            <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);">
+              <input type="checkbox" id="delete-confirm" style="margin-top:2px;"/>
+              <span>I understand this permanently deletes my account and all of my data.</span>
+            </label>
+            <div class="auth-error" data-message="delete" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-danger" type="submit">Delete my account</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong style="color:var(--text);">FiHaven</strong> settings.
+      </div>
+      <div class="site-footer-links">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/terms">Terms of Use</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/settings.js"></script>
+</body>
+</html>

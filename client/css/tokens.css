@@ -1,0 +1,86 @@
+/* ═══════════════════════════════════════════════════════════
+   FiHaven — styles.css
+   Design tokens → base → layout → components → utilities
+═══════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ──────────────────────────────────────── */
+/* Palette: refined blue on true-neutral grey.
+   Pure greys with no warm/cool tint, a softened blue accent. */
+:root {
+  --bg:         #FAFAFB;
+  --surface:    #FFFFFF;
+  --surface2:   #F2F3F6;
+  --border:     #E5E7EB;
+  --text:       #15161A;
+  --muted:      #6C6E77;
+  --accent:     #3D6FE1;
+  --accent-hover: #2F5DCB;
+  --accent-bg:  #EAF0FE;
+  --green:      #15803D;
+  --green-bg:   #E7F4EC;
+  --red:        #DC2626;
+  --red-bg:     #FDECEC;
+  --orange:     #C2410C;
+  --orange-bg:  #FDEEE3;
+  --yellow:     #A16207;
+  --yellow-bg:  #FBF5DC;
+  --shadow-sm:  0 1px 2px rgba(15, 18, 30, .04), 0 1px 1px rgba(15, 18, 30, .03);
+  --shadow:     0 4px 14px rgba(15, 18, 30, .06), 0 2px 4px rgba(15, 18, 30, .04);
+  --shadow-lg:  0 18px 40px rgba(15, 18, 30, .10), 0 6px 16px rgba(15, 18, 30, .06);
+  --radius:     10px;
+  --transition: background .25s, color .25s, border-color .25s;
+  --container-max: 1180px;
+  --glass: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme="dark"] {
+  --bg:         #0C0D0F;
+  --surface:    #17181B;
+  --surface2:   #1F2126;
+  --border:     #292B31;
+  --text:       #ECEDF0;
+  --muted:      #868892;
+  --accent:     #6098F6;
+  --accent-hover: #82AEFA;
+  --accent-bg:  #122544;
+  --green:      #34C57B;
+  --green-bg:   #0E2B1A;
+  --red:        #F87171;
+  --red-bg:     #2B1414;
+  --orange:     #FB923C;
+  --orange-bg:  #2B1A0C;
+  --yellow:     #FBBF24;
+  --yellow-bg:  #2B2008;
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, .35);
+  --shadow:     0 4px 14px rgba(0, 0, 0, .45);
+  --shadow-lg:  0 18px 40px rgba(0, 0, 0, .55);
+  --glass:      rgba(23, 24, 27, 0.72);
+}
+
+/* ── Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  min-height: 100vh;
+  transition: var(--transition);
+  overflow-x: hidden;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+[data-theme="dark"] body {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    var(--bg);
+}
+
+h1, h2, h3 {
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: -.04em;
+}
+.mono { font-family: 'IBM Plex Mono', monospace; }

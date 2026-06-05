@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Your FiHaven dashboard."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+
+  <title>FiHaven — Bill Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="required">
+
+<!-- ═══ APP BAR (rendered by js/navbar.js, imported by js/app.js) ═══════════ -->
+<header data-app-nav data-variant="dashboard"></header>
+
+<!-- ═══ MAIN ═══════════════════════════════════════════════ -->
+<main>
+
+  <!-- ═══ NEW MONTH BANNER ══════════════════════════════ -->
+  <div id="new-month-banner" style="display:none;"></div>
+
+  <!-- ── DASHBOARD ──────────────────────────────────────── -->
+  <div id="tab-dashboard" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]">
+    <!-- Dashboard tab content (header + everything) is rendered
+         by client/svelte/DashboardView.svelte. -->
+    <div id="dashboard-mount"></div>
+  </div>
+
+  <!-- ── BILLS ──────────────────────────────────────────── -->
+  <div id="tab-bills" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Bills &amp; Subscriptions</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV('bills')">⬇ CSV</button>
+        <button class="btn btn-primary" onclick="openBillModal()">+ Add Bill</button>
+      </div>
+    </div>
+    <!-- Bills tab is rendered by the Svelte component in
+         client/svelte/BillsList.svelte, mounted by bills.js. -->
+    <div id="bills-mount"></div>
+  </div>
+
+  <!-- ── CREDIT CARDS ───────────────────────────────────── -->
+  <div id="tab-cards" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Credit Cards</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV('cards')">⬇ CSV</button>
+        <button class="btn btn-primary" onclick="openCardModal()">+ Add Card</button>
+      </div>
+    </div>
+    <!-- Cards tab is rendered by client/svelte/CardsList.svelte. -->
+    <div id="cards-mount"></div>
+  </div>
+
+  <!-- ── BUDGET ─────────────────────────────────────────── -->
+  <div id="tab-budget" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Monthly Budget</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV('budget')">⬇ CSV</button>
+      </div>
+    </div>
+    <!-- Budget tab is rendered by client/svelte/BudgetView.svelte. -->
+    <div id="budget-mount"></div>
+  </div>
+
+  <!-- ── HISTORY ────────────────────────────────────────── -->
+  <div id="tab-history" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Payment History</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV('history')">⬇ CSV</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmClearHistory()">Clear All</button>
+      </div>
+    </div>
+    <!-- History tab is rendered by client/svelte/HistoryList.svelte. -->
+    <div class="card" style="overflow:hidden;">
+      <div id="history-mount"></div>
+    </div>
+  </div>
+
+  <!-- ── PAYOFF ──────────────────────────────────────────── -->
+  <div id="tab-payoff" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Debt Payoff Calculator</span>
+    </div>
+    <!-- Payoff tab is rendered by client/svelte/PayoffView.svelte. -->
+    <div id="payoff-mount"></div>
+  </div>
+
+  <!-- ── CALENDAR ────────────────────────────────────────── -->
+  <div id="tab-calendar" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Calendar</span>
+    </div>
+    <!-- Calendar tab is rendered by client/svelte/CalendarView.svelte. -->
+    <div id="calendar-mount"></div>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div>
+    <strong style="color:var(--text);">FiHaven</strong> keeps recurring bills and debt planning in one place.
+  </div>
+  <div class="site-footer-links">
+    <a href="/">Home</a>
+    <a href="/login">Login</a>
+    <a href="/terms">Terms of Use</a>
+    <a href="/privacy">Privacy</a>
+    <a href="#" onclick="logout();return false;">Log Out</a>
+  </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+</footer>
+
+<!-- ═══ BILL MODAL ══════════════════════════════════════ -->
+<div class="modal-overlay" id="bill-modal">
+  <div class="modal">
+    <h2 id="bill-modal-title">Add Bill</h2>
+    <div class="form-grid">
+      <div class="field" style="grid-column:span 2;">
+        <label for="b-name">Bill Name</label>
+        <input type="text" id="b-name" placeholder="e.g. Electric, Netflix, Rent…"/>
+      </div>
+      <div class="field">
+        <label for="b-category">Category</label>
+        <select id="b-category">
+          <option>Housing</option><option>Utilities</option><option>Subscriptions</option>
+          <option>Insurance</option><option>Loan</option><option>Auto</option><option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="b-amount">Amount ($)</label>
+        <input type="number" id="b-amount" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field">
+        <label for="b-dueday">Due Day of Month</label>
+        <input type="number" id="b-dueday" placeholder="1–31" min="1" max="31"/>
+      </div>
+      <div class="field">
+        <label for="b-frequency">Frequency</label>
+        <select id="b-frequency">
+          <option>Monthly</option><option>Weekly</option><option>Bi-weekly</option>
+          <option>Quarterly</option><option>Annually</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column:span 2;">
+        <label for="b-notes">Notes (optional)</label>
+        <input type="text" id="b-notes" placeholder="Account number, website, etc."/>
+      </div>
+      <div class="field" style="grid-column:span 2;">
+        <label class="checkbox-label">
+          <input type="checkbox" id="b-autopay"/> Autopay enabled
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBillModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBill()">Save Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CARD MODAL ══════════════════════════════════════ -->
+<div class="modal-overlay" id="card-modal">
+  <div class="modal">
+    <h2 id="card-modal-title">Add Credit Card</h2>
+    <div class="form-grid">
+      <div class="field" style="grid-column:span 2;">
+        <label for="c-name">Card Name / Issuer</label>
+        <input type="text" id="c-name" placeholder="e.g. Chase Freedom, Citi Double Cash…"/>
+      </div>
+      <div class="field">
+        <label for="c-balance">Current Balance ($)</label>
+        <input type="number" id="c-balance" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field">
+        <label for="c-limit">Credit Limit ($)</label>
+        <input type="number" id="c-limit" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field">
+        <label for="c-minpay">Minimum Payment ($)</label>
+        <input type="number" id="c-minpay" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field">
+        <label for="c-apr">Regular APR (%)</label>
+        <input type="number" id="c-apr" placeholder="e.g. 24.99" step="0.01" min="0"/>
+      </div>
+      <div class="field" style="grid-column:span 2;">
+        <label for="c-recommended">Recommended Payment ($) <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="c-recommended" placeholder="Defaults to the full balance (or promo payoff)" step="0.01" min="0"/>
+      </div>
+      <div class="field" style="grid-column:span 2;">
+        <label class="checkbox-label">
+          <input type="checkbox" id="c-haspromo" onchange="togglePromoFields()"/>
+          This card has a 0% promotional APR
+        </label>
+      </div>
+      <div id="promo-fields" style="display:none;grid-column:span 2;">
+        <div class="form-grid">
+          <div class="field">
+            <label for="c-promoapr">Promo APR (%)</label>
+            <input type="number" id="c-promoapr" value="0" step="0.01" min="0"/>
+          </div>
+          <div class="field">
+            <label for="c-promoend">Promo End Date</label>
+            <input type="date" id="c-promoend"/>
+          </div>
+          <div class="field" style="grid-column:span 2;">
+            <label for="c-promobal">Balance Under Promo ($)
+              <span class="field-hint">(if different from total balance)</span>
+            </label>
+            <input type="number" id="c-promobal" placeholder="Leave blank to use total balance" step="0.01" min="0"/>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="c-dueday">Statement Due Day</label>
+        <input type="number" id="c-dueday" placeholder="1–31" min="1" max="31"/>
+      </div>
+      <div class="field">
+        <label class="checkbox-label">
+          <input type="checkbox" id="c-autopay"/> Autopay minimum
+        </label>
+      </div>
+      <div class="field" style="grid-column:span 2;">
+        <label for="c-notes">Notes</label>
+        <input type="text" id="c-notes" placeholder="Rewards program, login, etc."/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCardModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCard()">Save Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAY MODAL ═══════════════════════════════════════ -->
+<div class="modal-overlay" id="pay-modal">
+  <div class="modal" style="max-width:420px;">
+    <h2 id="pay-modal-title">Pay</h2>
+    <div class="form-grid" style="grid-template-columns:1fr;">
+      <div class="field" id="pay-presets-field">
+        <label>How much?</label>
+        <div id="pay-chips" class="pay-chips"></div>
+      </div>
+      <div class="field">
+        <label for="pay-amount">Amount Paid ($)</label>
+        <input type="number" id="pay-amount" name="pay-amount" step="0.01" min="0"/>
+        <div id="pay-goal-hint" class="pay-goal-hint" aria-live="polite"></div>
+      </div>
+      <div class="field">
+        <label for="pay-date">Date Paid</label>
+        <input type="date" id="pay-date" name="pay-date"/>
+      </div>
+      <div class="field">
+        <label for="pay-note">Note (optional)</label>
+        <input type="text" id="pay-note" name="pay-note" placeholder="Confirmation #, etc."/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-green" id="pay-ok-btn" onclick="confirmPay()">Save Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM MODAL ═══════════════════════════════════ -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="max-width:380px;">
+    <h2 id="confirm-title">Are you sure?</h2>
+    <p id="confirm-msg" style="color:var(--muted);font-size:14px;margin:10px 0 22px;line-height:1.5;"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ════════════════════════════════════════════ -->
+<div id="toast"></div>
+
+<!-- Single module entry: app.js imports every dashboard module. -->
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>

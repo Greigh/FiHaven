@@ -1,0 +1,10 @@
+# XcodeGen output — regenerate with `xcodegen generate`.
+FiHaven.xcodeproj/
+*.xcworkspace/
+# Build output: xcodebuild (build/dd/…), SPM (.build/), DerivedData,
+# module caches, SDK stat caches, *.pcm — none belong in the repo.
+build/
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate

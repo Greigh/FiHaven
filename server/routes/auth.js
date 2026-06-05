@@ -1,0 +1,397 @@
+/* ═══════════════════════════════════════════════════════════
+   routes/auth.js — account + session endpoints.
+   Mounted at /api/auth.  Endpoints: signup, login, logout, me.
+═════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+const express = require('express');
+const bcrypt = require('bcrypt');
+
+const dbApi = require('../db');
+const { verifyCaptcha } = require('../captcha');
+const rateLimit = require('../rateLimit');
+const { createSession, destroySession } = require('../session');
+const mfa = require('../mfa');
+const mail = require('../mail');
+const {
+  normalizeEmail,
+  isValidEmail,
+  checkPasswordPolicy,
+  sendError,
+  BCRYPT_COST,
+} = require('../util');
+
+const router = express.Router();
+
+const MIN_SUBMIT_MS = 2500;
+// How long an MFA continuation token is valid for between
+// password verification and second-factor confirmation.
+const MFA_TOKEN_TTL_MS = 5 * 60 * 1000;
+// A pre-computed hash used to run a dummy bcrypt.compare when an
+// account does not exist, keeping login timing constant.
+const DUMMY_HASH = bcrypt.hashSync('fihaven-dummy-password', BCRYPT_COST);
+
+// Native clients send `X-Auth-Mode: token` to request a cookieless,
+// long-lived session whose id comes back as a Bearer token. Web
+// clients omit it and keep the existing HttpOnly-cookie behaviour.
+function authMode(req) {
+  return req.get('x-auth-mode') === 'token' ? 'token' : 'cookie';
+}
+
+// The standard auth-success body. `token` is included only for
+// token-mode logins, so a web response never exposes the session id
+// (which stays HttpOnly in the cookie).
+function sessionResponse(session, user, mode) {
+  const body = {
+    user: { email: user.email, name: user.name || null },
+    csrfToken: session.csrf_token,
+  };
+  if (mode === 'token') body.token = session.id;
+  return body;
+}
+
+// Shared anti-bot gate for signup/login: honeypot + submit timing.
+function botGate(body) {
+  if (body.website && String(body.website).trim() !== '') return 'spam';
+  const startedAt = parseInt(body.loginStartedAt, 10) || 0;
+  if (!startedAt || Date.now() - startedAt < MIN_SUBMIT_MS) return 'too-fast';
+  return null;
+}
+
+/* ── POST /api/auth/signup ───────────────────────────────────── */
+
+router.post('/signup', async (req, res) => {
+  const body = req.body || {};
+
+  const botError = botGate(body);
+  if (botError) return sendError(res, 400, botError);
+
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) return sendError(res, 400, 'invalid-email');
+
+  const pwError = checkPasswordPolicy(body.password, email);
+  if (pwError) return sendError(res, 400, pwError);
+
+  const captcha = await verifyCaptcha(body.captchaToken, req.ip);
+  if (!captcha.ok) return sendError(res, 400, 'captcha-failed');
+
+  if (dbApi.findUserByEmail(email)) return sendError(res, 409, 'email-taken');
+
+  let user;
+  try {
+    const hash = await bcrypt.hash(body.password, BCRYPT_COST);
+    user = dbApi.createUser(email, hash);
+  } catch (err) {
+    // Covers the race where the unique constraint fires after the check.
+    if (err && /UNIQUE/.test(String(err.message))) {
+      return sendError(res, 409, 'email-taken');
+    }
+    console.error('signup failed:', err);
+    return sendError(res, 500, 'server-error');
+  }
+
+  dbApi.touchLastLogin(user.id);
+  const mode = authMode(req);
+  const session = createSession(res, user, req, { mode });
+  return res.status(201).json(sessionResponse(session, user, mode));
+});
+
+/* ── POST /api/auth/login ────────────────────────────────────── */
+
+router.post('/login', async (req, res) => {
+  const body = req.body || {};
+
+  const botError = botGate(body);
+  if (botError) return sendError(res, 400, botError);
+
+  const email = normalizeEmail(body.email);
+
+  const limit = rateLimit.check(req.ip, email);
+  if (!limit.allowed) {
+    return res
+      .status(429)
+      .json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+
+  const captcha = await verifyCaptcha(body.captchaToken, req.ip);
+  if (!captcha.ok) return sendError(res, 400, 'captcha-failed');
+
+  const account = dbApi.findUserByEmail(email);
+  // Always run a bcrypt compare (dummy hash when the user is missing)
+  // so response timing does not reveal whether the email exists.
+  const ok = await bcrypt.compare(
+    String(body.password || ''),
+    account ? account.password_hash : DUMMY_HASH
+  );
+
+  if (!account || !ok) {
+    rateLimit.record(req.ip, email);
+    return sendError(res, 401, 'invalid-credentials');
+  }
+
+  rateLimit.reset(req.ip, email);
+
+  // If the account has any second factor enrolled, do NOT mint a
+  // session yet. Issue a short-lived mfaToken instead; the client
+  // must call /mfa/verify with a TOTP / backup / passkey response
+  // to finish the login.
+  const totp = dbApi.getTotp(account.id);
+  const totpEnabled = !!(totp && totp.enabled_at);
+  const passkeyCount = dbApi.countPasskeys(account.id);
+  const emailEnabled = !!(account.email_mfa_enabled);
+  if (totpEnabled || passkeyCount > 0 || emailEnabled) {
+    const tokenId = mfa.newChallengeId();
+    const now = Date.now();
+    dbApi.insertChallenge({
+      id: tokenId,
+      user_id: account.id,
+      kind: 'mfa-login',
+      payload: null,
+      created_at: now,
+      expires_at: now + MFA_TOKEN_TTL_MS,
+    });
+    const methods = [];
+    if (passkeyCount > 0) methods.push('passkey');
+    if (totpEnabled)       methods.push('totp');
+    if (emailEnabled)      methods.push('email');
+    return res.status(200).json({
+      mfaRequired: true,
+      mfaToken: tokenId,
+      methods,
+    });
+  }
+
+  dbApi.touchLastLogin(account.id);
+  const mode = authMode(req);
+  const session = createSession(res, account, req, { mode });
+  return res.status(200).json(sessionResponse(session, account, mode));
+});
+
+/* ── helpers for the MFA-finish flow ─────────────────────────── */
+
+function consumeMfaToken(tokenId, expectedUserId) {
+  const ch = dbApi.findChallenge(tokenId || '');
+  // Both the initial 'mfa-login' row and the email-stamped
+  // 'mfa-login-email' row should be treated as valid in-flight
+  // tokens; the verify endpoint will inspect kind/payload to
+  // decide which factor to check.
+  if (!ch) return null;
+  if (ch.kind !== 'mfa-login' && ch.kind !== 'mfa-login-email') return null;
+  if (expectedUserId && ch.user_id !== expectedUserId) return null;
+  if (ch.expires_at < Date.now()) {
+    dbApi.deleteChallenge(ch.id);
+    return null;
+  }
+  return ch;
+}
+
+function finishLogin(res, req, account) {
+  dbApi.touchLastLogin(account.id);
+  const mode = authMode(req);
+  const session = createSession(res, account, req, { mode });
+  return res.status(200).json(sessionResponse(session, account, mode));
+}
+
+/* ── POST /api/auth/mfa/email/send ───────────────────────────── */
+// Generates a 6-digit code and emails it. The code's bcrypt hash
+// goes into the mfa-login row's payload field; /mfa/verify checks
+// against it first when the user enters a 6-digit code.
+
+router.post('/mfa/email/send', async (req, res) => {
+  const body = req.body || {};
+  const ch = consumeMfaToken(body.mfaToken);
+  if (!ch) return sendError(res, 401, 'mfa-token-invalid');
+
+  const account = dbApi.findUserById(ch.user_id);
+  if (!account || !account.email_mfa_enabled) {
+    return sendError(res, 400, 'email-mfa-not-enabled');
+  }
+
+  const code = mfa.newEmailCode();
+  const hash = await mfa.hashEmailCode(code);
+
+  // Replace the existing mfa-login row, keeping the same id so the
+  // client's mfaToken still works. payload now carries the bcrypt
+  // hash of the emailed code.
+  const now = Date.now();
+  dbApi.deleteChallenge(ch.id);
+  dbApi.insertChallenge({
+    id: ch.id,
+    user_id: ch.user_id,
+    kind: 'mfa-login-email',
+    payload: hash,
+    created_at: now,
+    expires_at: now + MFA_TOKEN_TTL_MS,
+  });
+
+  try {
+    await mail.sendMail({
+      to: account.email,
+      subject: 'Your FiHaven sign-in code',
+      text:
+        `Your FiHaven sign-in code is: ${code}\n\n` +
+        `Enter this code on the sign-in page to finish logging in.\n` +
+        `The code expires in 5 minutes.\n\n` +
+        `If you didn't try to sign in, change your password right away.`,
+      html:
+        `<p>Your FiHaven sign-in code:</p>` +
+        `<p style="font-size:24px;font-family:monospace;letter-spacing:.15em;"><strong>${code}</strong></p>` +
+        `<p>Enter this code on the sign-in page to finish logging in. The code expires in 5 minutes.</p>` +
+        `<p style="color:#888;font-size:12px;">If you didn't try to sign in, change your password right away.</p>`,
+    });
+  } catch (err) {
+    console.error('mfa/email/send failed:', err && err.message);
+    return sendError(res, 500, 'mail-send-failed');
+  }
+  res.json({ ok: true });
+});
+
+/* ── POST /api/auth/mfa/verify  (TOTP / backup / email code) ──── */
+
+router.post('/mfa/verify', async (req, res) => {
+  const body = req.body || {};
+  const ch = consumeMfaToken(body.mfaToken);
+  if (!ch) return sendError(res, 401, 'mfa-token-invalid');
+
+  const account = dbApi.findUserById(ch.user_id);
+  if (!account) {
+    dbApi.deleteChallenge(ch.id);
+    return sendError(res, 401, 'mfa-token-invalid');
+  }
+
+  const code = String(body.code || '').trim();
+  if (!code) return sendError(res, 400, 'invalid-totp-code');
+
+  // Hyphen / letter → backup code path.
+  const looksLikeBackup = /[A-Za-z]/.test(code) || code.includes('-');
+
+  if (looksLikeBackup) {
+    const rows = dbApi.listBackupCodes(account.id);
+    for (const row of rows) {
+      if (row.used_at) continue;
+      if (await mfa.compareBackupCode(code, row.code_hash)) {
+        dbApi.markBackupCodeUsed(row.id);
+        dbApi.deleteChallenge(ch.id);
+        return finishLogin(res, req, account);
+      }
+    }
+    return sendError(res, 401, 'invalid-totp-code');
+  }
+
+  // Email-code path takes priority when an email code is outstanding.
+  if (ch.kind === 'mfa-login-email' && ch.payload) {
+    if (await mfa.compareEmailCode(code, ch.payload)) {
+      dbApi.deleteChallenge(ch.id);
+      return finishLogin(res, req, account);
+    }
+    return sendError(res, 401, 'invalid-totp-code');
+  }
+
+  const totp = dbApi.getTotp(account.id);
+  if (!totp || !totp.enabled_at) return sendError(res, 400, 'totp-not-enabled');
+  let secret;
+  try { secret = mfa.decrypt(totp.secret_enc); }
+  catch (_) { return sendError(res, 500, 'decrypt-failed'); }
+  if (!mfa.verifyTotpCode(secret, code, account.email)) {
+    return sendError(res, 401, 'invalid-totp-code');
+  }
+  dbApi.touchTotpUsed(account.id);
+  dbApi.deleteChallenge(ch.id);
+  return finishLogin(res, req, account);
+});
+
+/* ── POST /api/auth/mfa/passkey/start ────────────────────────── */
+
+router.post('/mfa/passkey/start', async (req, res) => {
+  const body = req.body || {};
+  const ch = consumeMfaToken(body.mfaToken);
+  if (!ch) return sendError(res, 401, 'mfa-token-invalid');
+
+  const allowed = dbApi.listPasskeysForChallenge(ch.user_id);
+  if (!allowed.length) return sendError(res, 400, 'no-passkeys');
+
+  const options = await mfa.startPasskeyAuthentication(allowed, req);
+  // Stash the WebAuthn challenge on top of the same mfa-login token
+  // so passkey/finish can validate it. We keep the row (overwriting
+  // payload) instead of issuing a separate challenge id.
+  const now = Date.now();
+  dbApi.deleteChallenge(ch.id);
+  dbApi.insertChallenge({
+    id: ch.id,
+    user_id: ch.user_id,
+    kind: 'mfa-login',
+    payload: options.challenge,
+    created_at: now,
+    expires_at: now + MFA_TOKEN_TTL_MS,
+  });
+  res.json({ options });
+});
+
+/* ── POST /api/auth/mfa/passkey/finish ───────────────────────── */
+
+router.post('/mfa/passkey/finish', async (req, res) => {
+  const body = req.body || {};
+  const ch = consumeMfaToken(body.mfaToken);
+  if (!ch) return sendError(res, 401, 'mfa-token-invalid');
+  if (!ch.payload) return sendError(res, 400, 'bad-challenge');
+
+  const credId = body.response && body.response.id;
+  if (!credId) return sendError(res, 400, 'bad-response');
+  const credential = dbApi.findPasskeyByCredId(credId);
+  if (!credential || credential.user_id !== ch.user_id) {
+    return sendError(res, 401, 'passkey-unknown');
+  }
+
+  let verification;
+  try {
+    verification = await mfa.finishPasskeyAuthentication(
+      { response: body.response, expectedChallenge: ch.payload, credential },
+      req
+    );
+  } catch (err) {
+    dbApi.deleteChallenge(ch.id);
+    console.error('passkey login failed:', err && err.message);
+    return sendError(res, 401, 'passkey-verify-failed');
+  }
+  if (!verification.verified) {
+    dbApi.deleteChallenge(ch.id);
+    return sendError(res, 401, 'passkey-verify-failed');
+  }
+  const newCounter = (verification.authenticationInfo && verification.authenticationInfo.newCounter) || credential.counter || 0;
+  dbApi.bumpPasskeyUsage(credential.id, newCounter);
+  dbApi.deleteChallenge(ch.id);
+
+  const account = dbApi.findUserById(ch.user_id);
+  return finishLogin(res, req, account);
+});
+
+/* ── POST /api/auth/logout ───────────────────────────────────── */
+
+router.post('/logout', (req, res) => {
+  if (!req.session) return res.status(204).end();
+  // Cookie clients must echo the CSRF token; Bearer clients are exempt
+  // (the header is never auto-attached by a browser).
+  if (req.authVia !== 'bearer') {
+    const supplied = req.get('x-csrf-token');
+    if (!supplied || supplied !== req.session.csrf_token) {
+      return sendError(res, 403, 'bad-csrf-token');
+    }
+  }
+  destroySession(req, res);
+  return res.status(204).end();
+});
+
+/* ── GET /api/auth/me ────────────────────────────────────────── */
+
+// A session-check endpoint: returns 200 in both cases (signed in or
+// not) so an anonymous visitor does not generate a console error.
+router.get('/me', (req, res) => {
+  if (!req.user) return res.status(200).json({ user: null });
+  return res.status(200).json({
+    user: { email: req.user.email, name: req.user.name || null, role: req.user.role || 'user' },
+    csrfToken: req.session.csrf_token,
+  });
+});
+
+module.exports = router;

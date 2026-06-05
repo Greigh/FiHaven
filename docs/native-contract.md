@@ -1,0 +1,429 @@
+# FiHaven — Native Client Contract
+
+The single source of truth for the iOS/macOS (SwiftUI) and Android
+(Kotlin/Compose) apps. Both are **thin native clients** over the existing
+Express + SQLite API: the server is authoritative, the apps render and
+edit a synced data blob. Keep this file in lock-step with the server —
+if an endpoint or field changes, change it here first.
+
+Companion to the web client in [`client/`](../client/). When in doubt,
+the web client's behaviour (see the referenced JS files) is the spec.
+
+---
+
+## 1. Architecture at a glance
+
+- **Backend (unchanged):** Express 5 + better-sqlite3, mounted under the
+  `/fihaven` subpath. Per-user data is one JSON blob; auth is an opaque
+  session id.
+- **Auth for native:** token / Bearer (added in Phase 0). The native
+  client sends `X-Auth-Mode: token` on the request that mints the
+  session; the server returns a long-lived (30-day) session id as
+  `token`, sets **no cookie**, and the client stores it in OS secure
+  storage and sends it as `Authorization: Bearer <token>`. Bearer
+  clients are exempt from CSRF (the header is never auto-attached).
+  See [`server/session.js`](../server/session.js),
+  [`server/routes/auth.js`](../server/routes/auth.js).
+- **Sync model:** `GET /api/data` loads the whole blob into memory;
+  edits mutate in memory; a debounced `PUT /api/data` writes the full
+  snapshot back. An on-device cache mirrors the blob for offline reads
+  (the native equivalent of the web's localStorage cache in
+  [`storage.svelte.js`](../client/js/storage.svelte.js)).
+
+---
+
+## 2. Base URLs
+
+| Environment | Base | Notes |
+|---|---|---|
+| Production | `https://danielhipskind.com/fihaven` | App store builds point here. |
+| Local dev | `http://localhost:5222/fihaven` | `node server/index.js`. iOS simulator can reach `localhost`; Android emulator uses `http://10.0.2.2:5222/fihaven`. |
+
+All paths below are **relative to the base** (so `/api/data` →
+`https://danielhipskind.com/fihaven/api/data`).
+
+> Dev uses plaintext HTTP. iOS ATS and Android cleartext-traffic policy
+> must allow `localhost` / `10.0.2.2` in **debug builds only**; release
+> builds are HTTPS-only.
+
+---
+
+## 3. Authentication
+
+### 3.1 Standard headers
+
+| Header | When | Value |
+|---|---|---|
+| `X-Auth-Mode: token` | On every request that **creates** a session (signup, login-without-MFA, the MFA *finish* call) | literal `token` |
+| `Authorization: Bearer <token>` | Every authenticated request after login | stored token |
+| `Content-Type: application/json` | Any request with a JSON body | — |
+
+The web client's `X-CSRF-Token` and cookies are **not used** by native
+clients. The `csrfToken` returned in auth bodies can be ignored.
+
+### 3.2 Anti-bot fields (signup + login bodies)
+
+`/signup` and `/login` run a honeypot + timing gate
+([`auth.js` `botGate`](../server/routes/auth.js)) and a Turnstile check.
+Every signup/login body must include:
+
+```jsonc
+{
+  "email": "...",
+  "password": "...",
+  "captchaToken": "<Cloudflare Turnstile token>",
+  "loginStartedAt": 1730000000000, // epoch ms; must be ≥ 2500ms before submit
+  "website": ""                     // honeypot — always empty
+}
+```
+
+- **Turnstile:** the native apps must render a Turnstile widget
+  (managed/invisible) and pass its token. Sitekey is public; dev uses the
+  always-pass test sitekey `1x00000000000000000000AA`. Without a valid
+  token the server returns `400 captcha-failed`.
+- **`loginStartedAt`:** set when the auth screen appears; the submit must
+  be ≥ 2500 ms later or the server returns `400 too-fast`.
+
+### 3.3 Flows
+
+**Signup** — `POST /api/auth/signup` (+ `X-Auth-Mode: token`)
+→ `201 { user:{email,name}, csrfToken, token }`. Password policy: 10–128
+chars, at least one letter and one digit, not equal to the email local
+part ([`util.js`](../server/util.js)).
+
+**Login** — `POST /api/auth/login` (+ `X-Auth-Mode: token`)
+- No MFA enrolled → `200 { user, csrfToken, token }`. **Store `token`.**
+- MFA enrolled → `200 { mfaRequired:true, mfaToken, methods:[...] }`
+  where `methods ⊆ ["passkey","totp","email"]`. **No token yet** — finish
+  a second factor below. `mfaToken` lives 5 minutes.
+
+**Finish MFA (TOTP / backup / email code)** —
+`POST /api/auth/mfa/verify` (+ `X-Auth-Mode: token`)
+`{ mfaToken, code }` → `200 { user, csrfToken, token }`. `code` is a
+6-digit TOTP/email code, or a backup code (contains a letter or hyphen —
+the server routes on that).
+
+**Email code** — `POST /api/auth/mfa/email/send` `{ mfaToken }` →
+`200 { ok:true }` mails a 6-digit code; submit it via `/mfa/verify`.
+
+**Finish MFA (passkey)** — *(deferred to Phase 4 for native)*
+`POST /api/auth/mfa/passkey/start` `{ mfaToken }` → `{ options }`
+(WebAuthn request options) → platform authenticator → `POST
+/api/auth/mfa/passkey/finish` (+ `X-Auth-Mode: token`) `{ mfaToken,
+response }`. Requires associated-domain / Digital-Asset-Links setup.
+
+**Session check** — `GET /api/auth/me` → `200 { user:null }` (anon) or
+`200 { user:{email,name}, csrfToken }`. Use on launch to validate a
+stored token; treat `user:null` or `401` as "logged out".
+
+**Logout** — `POST /api/auth/logout` (Bearer) → `204`. Deletes the
+session row server-side. Clear the stored token regardless of response.
+
+### 3.4 Error codes (`{ "error": "<code>" }`)
+
+| HTTP | code | Meaning |
+|---|---|---|
+| 400 | `invalid-email` / `weak-password` | validation |
+| 400 | `captcha-failed` / `too-fast` / `spam` | anti-bot |
+| 401 | `invalid-credentials` | wrong email/password |
+| 409 | `email-taken` | signup |
+| 429 | `rate-limited` (+ `retryAfter` seconds) | login throttle |
+| 401 | `mfa-token-invalid` | expired/used `mfaToken` |
+| 401 | `invalid-totp-code` | wrong TOTP/email/backup code |
+| 401 | `unauthenticated` | missing/invalid Bearer token → re-login |
+| 404 | `not-found` / 500 `server-error` | — |
+
+A `401 unauthenticated` on any authenticated call means the token
+expired or was revoked: drop to the login screen, keep the offline cache.
+
+---
+
+## 4. Data sync
+
+**`GET /api/data`** (Bearer) →
+```jsonc
+{ "email": "...", "bills": [...], "cards": [...], "payments": [...], "settings": {...} }
+```
+
+**`PUT /api/data`** (Bearer, no CSRF needed) — body is the **full**
+snapshot `{ bills, cards, payments, settings }`. The server stores a
+canonical shape and ignores unknown top-level keys
+([`data.js`](../server/routes/data.js)). Returns `200 { ok:true }`.
+
+Native sync rules (mirror [`storage.svelte.js`](../client/js/storage.svelte.js)):
+1. On launch: `GET /api/data`, replace in-memory state, write the
+   offline cache. On network failure, load from the offline cache and
+   surface an "Offline" indicator.
+2. On any edit: update in memory + cache immediately, then **debounce
+   ~800 ms** and `PUT` the whole snapshot. Coalesce rapid edits.
+3. Flush the pending `PUT` on background/terminate.
+4. The web client's pre-account localStorage→server *migration* is
+   web-only; native clients skip it (they always have an account).
+
+> Concurrency: last-write-wins on the whole blob; there is no field-level
+> merge. Acceptable for a single-user app; avoid editing the same account
+> on two devices simultaneously.
+
+---
+
+## 5. Account & MFA management endpoints
+
+All require Bearer auth; state-changing ones need a re-entered password
+where noted. CSRF is auto-satisfied for Bearer.
+([`account.js`](../server/routes/account.js),
+[`routes/mfa.js`](../server/routes/mfa.js))
+
+| Method | Path | Body / notes |
+|---|---|---|
+| POST | `/api/account/change-password` | `{ currentPassword, newPassword }` — logs out other sessions |
+| POST | `/api/account/change-name` | `{ name }` |
+| POST | `/api/account/change-email` | `{ password, email }` |
+| POST | `/api/account/delete` | `{ password }` — destroys account |
+| GET | `/api/account/export` | full JSON export |
+| GET | `/api/account/export/{bills,cards,history}.csv` | CSV downloads |
+| GET / POST / DELETE | `/api/account/ical-token` | read / (re)generate / revoke the iCal token. Feed URL: `/api/calendar/<token>.ics` |
+| GET | `/api/account/mfa/status` | enrolled factors summary |
+| POST | `/api/account/mfa/totp/setup` → `/totp/confirm` → `/totp/disable` | TOTP enrolment (returns otpauth URI + QR) |
+| POST | `/api/account/mfa/email/{enable,confirm,disable}` | email-code MFA |
+| POST | `/api/account/mfa/backup-codes/regenerate` | returns fresh backup codes |
+| POST | `/api/account/mfa/passkey/{register-start,register-finish,delete}` · GET `/passkey/list` | passkeys (Phase 4) |
+
+---
+
+## 6. Data model
+
+Field types below are the canonical shapes the web client produces
+(seed data in [`app.js`](../client/js/app.js), store in
+[`storage.svelte.js`](../client/js/storage.svelte.js)). Money is a plain
+number (dollars). Be lenient on read (fields may be missing on old data),
+strict on write.
+
+### Bill
+```jsonc
+{
+  "id": 1,                 // number, client-generated unique
+  "name": "Rent",          // string
+  "category": "Housing",   // see Categories below
+  "amount": 1450,          // number, dollars
+  "dueDay": 1,             // number 1–31 (day of month)
+  "frequency": "Monthly",  // display label; engine treats every bill as monthly-on-dueDay
+  "autopay": true,         // bool
+  "notes": "Oakwood Apts"  // string, may be ""
+}
+```
+Frequency labels seen in the UI: `Monthly`, `Weekly`, `Bi-weekly`,
+`Quarterly`, `Annually`. **Informational only** — `buildUpcomingItems`
+schedules by `dueDay` monthly regardless.
+
+### Card
+```jsonc
+{
+  "id": 10,
+  "name": "Chase Freedom Flex",
+  "balance": 2340,          // number
+  "limit": 8000,            // number (credit limit)
+  "minPayment": 35,         // number
+  "regularAPR": 24.99,      // number, percent
+  "hasPromo": true,         // bool
+  "promoAPR": 0,            // number|null, percent (usually 0)
+  "promoEndDate": "2026-10-01", // "YYYY-MM-DD"|null
+  "promoBalance": 2340,     // number|null (balance under the promo)
+  "dueDay": 18,             // number 1–31
+  "autopay": false,         // bool
+  "notes": "1.5% cashback"  // string
+}
+```
+
+### Payment
+```jsonc
+{
+  "id": 1730000000000,  // number (timestamp-ish unique)
+  "type": "bill",       // "bill" | "card"
+  "refId": "1",         // string id of the bill/card (compare as String)
+  "name": "Rent",       // snapshot of the item name at pay time
+  "amount": 1450,       // number
+  "date": "2026-06-01", // ISO date string
+  "monthKey": "2026-06",// "YYYY-MM" — the month this payment satisfies
+  "note": ""            // string, optional
+}
+```
+A bill/card is "paid this month" iff a payment exists with matching
+`type`, `String(refId)`, and `monthKey` ([`utils.js isPaid`](../client/js/utils.js)).
+
+### Settings (open key/value bag)
+The server stores `settings` verbatim as an object. Known keys:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `incomes` | `[{ id, label, amount, frequency }]` | multi-source income (preferred) |
+| `income` | number | legacy single monthly income (fallback) |
+| `lastVisitKey` | `"YYYY-MM"` | last month opened; drives the new-month reset |
+| `timezone` | string IANA tz | day/date computations |
+| `theme` | `"light"|"dark"` | (web persists theme here; native may keep its own) |
+
+`incomes[].frequency` ∈ `weekly | biweekly | semimonthly | monthly | annual`.
+
+---
+
+## 7. Business logic to port (the "brains")
+
+Port these **exactly** so all three clients agree. References are to the
+web implementation.
+
+### 7.1 Dates & month key ([`utils.js`](../client/js/utils.js), [`tz.js`](../client/js/tz.js))
+- All "today" reads use the user's `settings.timezone`.
+- `monthKey(d) = "YYYY-MM"` (1-based month, zero-padded).
+- `daysUntilDue(dueDay)`: days from today to this month's `dueDay`; if
+  that's more than 1 day in the past, roll to next month's. Day-diff via
+  `Math.round((dateA - dateB) / 86_400_000)` (DST-safe).
+- `nextDueDate(dueDay)`: this month's `dueDay` if ≥ today, else next
+  month's.
+
+### 7.2 New-month reset ([`app.js checkNewMonth`](../client/js/app.js))
+On launch compare `monthKey()` to `settings.lastVisitKey`. If different,
+the new month "resets" paid state (paid is per-`monthKey`, so this is
+implicit), surface a welcome banner noting how many of last month's items
+were never marked paid, then set `lastVisitKey = monthKey()`.
+
+### 7.3 Income → monthly ([`income.js`](../client/js/income.js))
+`perMonth` factors: `weekly 52/12`, `biweekly 26/12`, `semimonthly 2`,
+`monthly 1`, `annual 1/12`. Monthly income =
+`Σ amount × perMonth(frequency)` over `settings.incomes`, falling back to
+`settings.income`.
+
+### 7.4 Upcoming items ([`utils.js buildUpcomingItems`](../client/js/utils.js))
+One entry per bill (with `dueDay`) and per card (with `dueDay`):
+- Card amount = `hasPromo ? max(minPayment, promoNeeded) : minPayment`.
+- `promoNeeded(card)` = `promoBalance (or balance) / monthsUntil(promoEndDate)`,
+  or the whole balance if `monthsUntil ≤ 0`.
+- Sort ascending by `days` (soonest first).
+
+### 7.5 Payoff simulation ([`payoff.js runPayoffSim`](../client/js/payoff.js))
+Pure month-by-month sim over cards with `balance > 0`. Strategies:
+`none` (minimums only), `snowball` (sort by smallest balance), `avalanche`
+(sort by highest APR). Each month: accrue interest
+(`balance × regularAPR/100/12`, **skipped while inside a promo** —
+`hasPromo && promoEndDate ≥ targetMonth`), pay each minimum, then apply
+the `extra` pool down the sorted list; freed minimums roll into the pool
+(debt-snowball rollover). Cap 360 months. Returns
+`{ months, totalInterest, cards[], payoffDate }`. **Port this loop
+verbatim** — small differences change the numbers.
+
+---
+
+## 8. Design system
+
+Port the tokens from [`tokens.css`](../client/css/tokens.css) into native
+theme files (Asset Catalog colors / Compose `ColorScheme`). Provide both
+light and dark; follow the OS appearance by default.
+
+### Palette
+
+| Token | Light | Dark |
+|---|---|---|
+| bg | `#FAFAFB` | `#0C0D0F` |
+| surface | `#FFFFFF` | `#17181B` |
+| surface2 | `#F2F3F6` | `#1F2126` |
+| border | `#E5E7EB` | `#292B31` |
+| text | `#15161A` | `#ECEDF0` |
+| muted | `#6C6E77` | `#868892` |
+| accent | `#3D6FE1` | `#6098F6` |
+| accent-hover | `#2F5DCB` | `#82AEFA` |
+| accent-bg | `#EAF0FE` | `#122544` |
+| green / green-bg | `#15803D` / `#E7F4EC` | `#34C57B` / `#0E2B1A` |
+| red / red-bg | `#DC2626` / `#FDECEC` | `#F87171` / `#2B1414` |
+| orange / orange-bg | `#C2410C` / `#FDEEE3` | `#FB923C` / `#2B1A0C` |
+| yellow / yellow-bg | `#A16207` / `#FBF5DC` | `#FBBF24` / `#2B2008` |
+
+- **Accent header glow:** a faint radial gradient of `accent` at ~8%
+  (light) / ~14% (dark) at the top-center of the background.
+- **Corner radius:** base `10px` (cards ~14px, pills ~11px on mobile).
+- **Shadows:** soft, low-opacity (see `--shadow*`); on dark, near-black.
+
+### Typography
+- **UI / headings:** Manrope (weights to 800). Headings use
+  `letter-spacing: -0.04em`.
+- **Numbers / monospace:** IBM Plex Mono (amounts, due labels).
+- Base body ~15px, line-height ~1.55.
+- Bundle both fonts in each app (don't rely on system availability).
+
+### Iconography & color helpers ([`utils.js`](../client/js/utils.js))
+- Category icons: Housing 🏠, Utilities ⚡, Subscriptions 📱,
+  Insurance 🛡️, Loan 🏦, Auto 🚗, Other 📌. Cards use 💳.
+- Card accent palette: `#1A6BFF #C0392B #1A7A4A #7B3CC0 #C06010 #007080 #8B5A00`.
+- Currency: `fmt` = `$1,450.00` (2 dp), `fmtShort` = `$1,450` (0 dp),
+  `en-US` grouping.
+
+---
+
+## 9. Feature surface (parity targets)
+
+Tabs mirror the web nav: **Dashboard, Bills, Cards, Budget, Calendar,
+History, Payoff**, plus **Settings** (profile, password/email, MFA, iCal,
+export, delete) and the **Login/Signup + MFA** auth flow.
+
+- Dashboard: monthly overview, runway, upcoming items, new-month banner.
+- Bills / Cards: list + add/edit/delete, mark-paid, payment history
+  sparkline.
+- Budget: income sources editor, monthly totals, month switcher.
+- Calendar: due-date calendar ([`CalendarView.svelte`](../client/svelte/CalendarView.svelte)).
+- History: payment log with edit/delete.
+- Payoff: strategy + extra-payment simulator (§7.5).
+
+---
+
+## 10. Billing & entitlement (Pro subscription)
+
+The server is the **single source of truth** for a user's Pro entitlement,
+derived from store subscriptions + promo grants ([`server/billing.js`](../server/billing.js),
+[`routes/billing.js`](../server/routes/billing.js)). Clients verify a store
+transaction or redeem a promo, then read the entitlement back.
+
+**Products** (must match App Store Connect / Play Console and the server map):
+`com.danielhipskind.fihaven.pro.monthly`, `…pro.yearly` (auto-renewing subs).
+
+**Entitlement shape** (in `GET /api/data` and `GET /api/billing/status`):
+```json
+{ "pro": true, "source": "apple|google|promo", "productId": "…",
+  "plan": "monthly|yearly", "expiresAt": 1812068865760 }
+```
+`expiresAt` is epoch-ms (null = lifetime/none). The effective entitlement is
+the longest-lasting active grant across subscriptions + promos.
+
+**Endpoints** (all Bearer-auth; state-changing ones are CSRF-exempt for token clients):
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/api/billing/status` | — | `{ entitlement }` |
+| POST | `/api/billing/apple/verify` | `{ signedTransaction }` (StoreKit JWS) | `{ entitlement }` |
+| POST | `/api/billing/google/verify` | `{ productId, purchaseToken }` | `{ entitlement }` |
+| POST | `/api/billing/promo/redeem` | `{ code }` | `{ ok, kind, offer?, entitlement }` |
+| POST | `/api/billing/promo` | `{ code, kind, grantDays?, … }` (admin) | `{ ok, code, kind }` |
+| POST | `/api/billing/{apple,google}/notifications` | store webhook | `{ ok }` |
+
+**Promo codes** (two kinds): `free_sub` grants Pro directly server-side
+(works for free unlocks); `store_offer` returns a native offer
+(`{ platform, productId, offerId }`) the client redeems through the store
+(the only way to discount a *real* purchase — Apple Offer Codes / Play promo
+codes). One redemption per user; `code-exhausted` / `code-expired` /
+`already-redeemed` / `invalid-code` errors are 409.
+
+**Verification modes** (`IAP_VERIFY_MODE`): `dev-trust` (default off-prod) decodes
+and trusts the client transaction so the flow is testable locally;
+`production` requires wiring the Apple JWS cert-chain / Play Developer API hooks
+(`APPLE_VERIFY_ENABLED` / `GOOGLE_VERIFY_ENABLED`). Admin promo creation is gated
+by `ADMIN_EMAILS`.
+
+**Pro gating** (free vs Pro): core bill tracking is free; the planning/insight
+layer — **Payoff, Calendar, History** — is gated behind Pro on both native apps.
+
+**Theme**: appearance (System/Light/Dark) is a **local, per-device** preference
+(`ct_theme`, mirroring the web's localStorage), not synced data — overrides the
+OS color scheme; the dark palette is §8.
+
+---
+
+## 11. Deferred / phase 4
+Native passkeys (associated domains / Digital Asset Links +
+`ASAuthorization` / Credential Manager), local due-date notifications,
+home-screen widgets, share-to-system-calendar. Until then, password +
+TOTP/email/backup MFA fully covers auth.

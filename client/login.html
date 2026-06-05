@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Sign in to your FiHaven account or create one in seconds. Track recurring bills, credit cards, and payoff plans in one calm view."/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <link rel="canonical" href="https://fihaven.app/login"/>
+
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="FiHaven"/>
+  <meta property="og:url" content="https://fihaven.app/login"/>
+  <meta property="og:title" content="FiHaven — Sign in"/>
+  <meta property="og:description" content="Sign in to FiHaven to track recurring bills, credit cards, and payoff plans."/>
+  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FiHaven — Sign in"/>
+  <meta name="twitter:description" content="Sign in to FiHaven to track recurring bills, credit cards, and payoff plans."/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%233D6FE1'/%3E%3Cpath d='M14 52 L14 24 Q14 18 20 18 L44 18 Q50 18 50 24 L50 52 Z' fill='white'/%3E%3Crect x='20' y='34' width='24' height='4' rx='2' fill='%233D6FE1'/%3E%3C/svg%3E"/>
+
+  <title>Log In — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=ctTurnstileOnload&render=explicit" async defer></script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="login">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main" style="display:flex;align-items:center;justify-content:center;">
+      <section class="auth-card hero-shell" style="width:min(560px,100%);">
+        <div class="hero-badge">Secure access</div>
+        <h1 style="margin-top:14px;" data-auth-heading>Sign in to your FiHaven workspace.</h1>
+        <p style="margin-top:12px;">Accounts are backed by a real server: passwords are hashed, sessions are stored server-side in an HttpOnly cookie, and a Cloudflare Turnstile check guards every sign-in.</p>
+
+        <div class="auth-mode-toggle nav-tabs" style="margin-top:18px;display:inline-flex;">
+          <button type="button" class="tab-btn" data-auth-mode="login">Log In</button>
+          <button type="button" class="tab-btn" data-auth-mode="signup">Create account</button>
+        </div>
+
+        <!-- Second-step (MFA) panel — revealed after the password step
+             succeeds for an MFA-enrolled account. -->
+        <div data-mfa-step hidden style="margin-top:14px;">
+          <p style="margin:0 0 12px;color:var(--muted);font-size:14px;" data-mfa-intro>One more step — confirm with your authenticator.</p>
+
+          <div data-mfa-passkey-row hidden style="margin-bottom:14px;">
+            <button class="btn btn-primary" type="button" data-mfa-use-passkey>Sign in with a passkey</button>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px;">Uses Touch ID, Face ID, Windows Hello, or a security key.</div>
+          </div>
+
+          <div data-mfa-email-row hidden style="margin-bottom:14px;">
+            <button class="btn btn-ghost" type="button" data-mfa-send-email>Email me a sign-in code</button>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px;" data-mfa-email-status></div>
+          </div>
+
+          <form data-mfa-code-form>
+            <div class="auth-field">
+              <label for="mfa-code" data-mfa-code-label>6-digit code from your authenticator app</label>
+              <input type="text" id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="000000" required/>
+            </div>
+            <div class="auth-error" data-mfa-message aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Verify</button>
+              <button class="btn btn-ghost" type="button" data-mfa-toggle-backup>Use a backup code</button>
+            </div>
+          </form>
+
+          <div class="auth-actions" style="margin-top:6px;">
+            <button class="btn btn-ghost btn-sm" type="button" data-mfa-cancel>← Back to password</button>
+          </div>
+        </div>
+
+        <form class="auth-form" data-login-form>
+          <input type="hidden" name="loginStartedAt" value=""/>
+          <div class="auth-field auth-honeypot">
+            <label for="login-website">Website</label>
+            <input type="text" id="login-website" data-honeypot autocomplete="off" tabindex="-1" aria-hidden="true"/>
+          </div>
+          <div class="auth-field">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" autocomplete="email" placeholder="you@example.com" required/>
+          </div>
+          <div class="auth-field">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" autocomplete="current-password" placeholder="Enter password" required/>
+          </div>
+          <div class="auth-note" data-password-hint hidden>
+            Password must be at least 10 characters and include at least one letter and one number.
+          </div>
+          <!-- Cloudflare Turnstile mount. The widget mode (Managed /
+               Non-Interactive / Invisible) is configured on the sitekey in
+               the Cloudflare dashboard; in Invisible mode this renders
+               nothing and the token is delivered to the render callback. -->
+          <div data-turnstile data-sitekey="%VITE_TURNSTILE_SITEKEY%"></div>
+          <div class="auth-error" data-login-message aria-live="polite"></div>
+          <div class="auth-actions">
+            <button class="btn btn-primary" type="submit">Continue</button>
+          </div>
+          <p class="auth-legal" data-terms-notice hidden>
+            By creating an account you agree to our
+            <a href="/terms">Terms of Use</a>
+            and
+            <a href="/privacy">Privacy Policy</a>.
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong style="color:var(--text);">FiHaven</strong> signs you into your finance workspace.
+      </div>
+      <div class="site-footer-links">
+        <a href="/">Home</a>
+        <a href="/terms">Terms of Use</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/public-entry.js"></script>
+</body>
+</html>

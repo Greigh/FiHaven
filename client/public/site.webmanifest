@@ -1,0 +1,18 @@
+{
+  "name": "FiHaven",
+  "short_name": "FiHaven",
+  "description": "A focused bill and debt dashboard. Track recurring payments, credit cards, and payoff plans in one calm view.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#3D6FE1",
+  "background_color": "#FAFAFB",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,340 @@
+<!--
+  BudgetView.svelte — Monthly Budget tab.
+  Owns: month offset, the income-sources list (multiple paychecks
+  with frequency per source), the bill/card breakdown, and totals.
+  The shared budgetMonthOffset value is mirrored back into
+  budget.js so exportCSV('budget') stays accurate.
+-->
+<script>
+  import { bills, cards, settings, save } from '../js/storage.svelte.js';
+  import {
+    ICONS, fmt, monthKey, monthLabel, offsetDate,
+    paidState, paidAmount, goalAmountFor, remainingForItem, promoNeeded,
+  } from '../js/utils.js';
+  import { openPayModal } from '../js/modals.js';
+  import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
+  import { FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf } from '../js/income.js';
+
+  /* ── Migration from the old single-income model ───────────── */
+  function readIncomes() {
+    const list = Array.isArray(settings.incomes) ? settings.incomes : null;
+    if (list && list.length) return list.map(normalizeSource);
+    if (parseFloat(settings.income) > 0) {
+      return [{
+        id: 'src-1',
+        label: 'Primary income',
+        amount: parseFloat(settings.income) || 0,
+        frequency: 'monthly',
+      }];
+    }
+    return [];
+  }
+  function normalizeSource(s) {
+    return {
+      id: s.id || ('src-' + Math.random().toString(36).slice(2, 9)),
+      label: s.label || '',
+      amount: parseFloat(s.amount) || 0,
+      frequency: FREQ_MAP[s.frequency] ? s.frequency : 'monthly',
+    };
+  }
+  function freshSource() {
+    return {
+      id: 'src-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      label: '',
+      amount: 0,
+      frequency: 'biweekly',
+    };
+  }
+
+  /* ── Reactive state ──────────────────────────────────────── */
+  let monthOffset = $state(getBudgetMonthOffset());
+  let incomes     = $state(readIncomes());
+
+  $effect(() => { setBudgetMonthOffset(monthOffset); });
+
+  /* ── Income mutations (write through to storage) ─────────── */
+  function persist() {
+    settings.incomes = incomes.map((s) => ({
+      id: s.id, label: s.label, amount: parseFloat(s.amount) || 0, frequency: s.frequency,
+    }));
+    // Keep settings.income synced to the new monthly total for any
+    // legacy consumer (and so the dashboard / exports stay correct
+    // if they ever read it).
+    settings.income = totalMonthlyIncome;
+    save('fh_settings', settings);
+  }
+
+  function addIncome() {
+    incomes = [...incomes, freshSource()];
+    persist();
+  }
+  function removeIncome(i) {
+    incomes = incomes.filter((_, idx) => idx !== i);
+    persist();
+  }
+  function updateIncome(i, patch) {
+    incomes = incomes.map((s, idx) => idx === i ? { ...s, ...patch } : s);
+    persist();
+  }
+
+  /* ── Month + computed bill rows ──────────────────────────── */
+  let d         = $derived(offsetDate(monthOffset));
+  let mk        = $derived(monthKey(d));
+  let isCurrent = $derived(mk === monthKey());
+  let monthName = $derived(monthLabel(d));
+
+  // Budgeted amount per row is the fully-paid goal under the active
+  // policy; `remaining` is what's still owed toward it this month.
+  let rows = $derived.by(() => {
+    const rs = [];
+    bills.forEach((b) => rs.push({
+      type: 'bill', refId: String(b.id), name: b.name,
+      icon: ICONS[b.category] || '📌', category: b.category,
+      amount: goalAmountFor('bill', String(b.id), mk),
+      state: paidState('bill', String(b.id), mk),
+      paidAmt: paidAmount('bill', String(b.id), mk),
+      remaining: remainingForItem('bill', String(b.id), mk),
+      autopay: b.autopay,
+    }));
+    cards.forEach((c) => {
+      rs.push({
+        type: 'card', refId: String(c.id), name: c.name + ' (payment)',
+        icon: '💳', category: 'Credit Card',
+        amount: goalAmountFor('card', String(c.id), mk),
+        state: paidState('card', String(c.id), mk),
+        paidAmt: paidAmount('card', String(c.id), mk),
+        remaining: remainingForItem('card', String(c.id), mk),
+        autopay: c.autopay,
+      });
+    });
+    return rs;
+  });
+
+  let totalMonthlyIncome = $derived(incomes.reduce((s, src) => s + monthlyOf(src), 0));
+  let totalBudgeted = $derived(rows.reduce((s, r) => s + r.amount, 0));
+  let totalPaid     = $derived(rows.reduce((s, r) => s + r.paidAmt, 0));
+  let totalUnpaid   = $derived(rows.reduce((s, r) => s + r.remaining, 0));
+  let surplus       = $derived(totalMonthlyIncome - totalBudgeted);
+  let surplusPct    = $derived(totalMonthlyIncome > 0
+    ? Math.min(100, Math.max(0, Math.round((1 - totalBudgeted / totalMonthlyIncome) * 100)))
+    : 0);
+  let surplusColor  = $derived(surplus >= 0 ? 'var(--green)' : 'var(--red)');
+</script>
+
+<!-- Month navigation -->
+<div class="budget-monthbar">
+  <button class="btn btn-ghost btn-sm" onclick={() => monthOffset--}>‹ Prev</button>
+  <div class="budget-monthbar-label">
+    <span class="budget-monthbar-caption">Viewing</span>
+    <span class="budget-monthbar-name">{monthName}</span>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick={() => monthOffset++}>Next ›</button>
+</div>
+
+<!-- Income sources card -->
+<section class="budget-card budget-income">
+  <header class="budget-card-head">
+    <div>
+      <div class="budget-card-kicker">Income</div>
+      <h3 class="budget-card-title">Paychecks &amp; other income</h3>
+      <p class="budget-card-sub">Add every source — a job, a partner's paycheck, a side hustle. Pick how often each one lands and we'll convert to a monthly equivalent.</p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick={addIncome}>+ Add source</button>
+  </header>
+
+  {#if incomes.length === 0}
+    <div class="budget-income-empty">
+      <p>No income sources yet.</p>
+      <button class="btn btn-primary" onclick={addIncome}>+ Add your first paycheck</button>
+    </div>
+  {:else}
+    <div class="budget-income-list">
+      {#each incomes as src, i (src.id)}
+        {@const mo = monthlyOf(src)}
+        <div class="budget-income-row">
+          <div class="budget-income-handle" aria-hidden="true">💼</div>
+          <label class="budget-income-field budget-income-label" for={`income-label-${src.id}`}>
+            <span>Label</span>
+            <input
+              id={`income-label-${src.id}`}
+              name="income-label"
+              type="text" placeholder="e.g. Acme paycheck"
+              autocomplete="off"
+              value={src.label}
+              oninput={(e) => updateIncome(i, { label: e.currentTarget.value })}
+            />
+          </label>
+          <label class="budget-income-field budget-income-amount" for={`income-amount-${src.id}`}>
+            <span>Amount</span>
+            <div class="budget-income-amount-input">
+              <span>$</span>
+              <input
+                id={`income-amount-${src.id}`}
+                name="income-amount"
+                type="number" min="0" step="100" placeholder="0"
+                autocomplete="off"
+                value={src.amount || ''}
+                oninput={(e) => updateIncome(i, { amount: parseFloat(e.currentTarget.value) || 0 })}
+              />
+            </div>
+          </label>
+          <label class="budget-income-field budget-income-freq" for={`income-freq-${src.id}`}>
+            <span>Frequency</span>
+            <select
+              id={`income-freq-${src.id}`}
+              name="income-freq"
+              value={src.frequency}
+              onchange={(e) => updateIncome(i, { frequency: e.currentTarget.value })}
+            >
+              {#each FREQUENCIES as f (f.key)}
+                <option value={f.key}>{f.label}</option>
+              {/each}
+            </select>
+          </label>
+          <div class="budget-income-monthly" title="Monthly equivalent">
+            <span>Per month</span>
+            <strong>{fmt(mo)}</strong>
+          </div>
+          <button
+            class="budget-income-remove"
+            type="button"
+            aria-label="Remove this income source"
+            onclick={() => removeIncome(i)}
+          >×</button>
+        </div>
+      {/each}
+    </div>
+    <footer class="budget-income-foot">
+      <span class="budget-income-foot-label">Total monthly income</span>
+      <span class="budget-income-foot-value">{fmt(totalMonthlyIncome)}</span>
+    </footer>
+  {/if}
+</section>
+
+<!-- Surplus / deficit summary -->
+{#if rows.length > 0}
+  <section class="budget-card budget-summary">
+    <div>
+      <div class="budget-card-kicker">After bills</div>
+      <div class="budget-summary-value" style="color:{surplusColor};">
+        {surplus >= 0 ? '+' : ''}{fmt(surplus)}
+      </div>
+      <div class="budget-summary-sub">
+        {#if totalMonthlyIncome > 0}
+          {surplus >= 0 ? 'Surplus left after every bill is paid' : 'Deficit — bills exceed income'}
+        {:else}
+          Add income above to see your surplus or deficit.
+        {/if}
+      </div>
+    </div>
+    <div class="budget-summary-bar-wrap">
+      <div class="budget-summary-bar">
+        <div class="budget-summary-bar-fill" style="width:{surplusPct}%;background:{surplusColor};"></div>
+      </div>
+      <div class="budget-summary-bar-meta">
+        <span>{fmt(totalBudgeted)} budgeted</span>
+        <span>{fmt(totalMonthlyIncome)} income</span>
+      </div>
+    </div>
+  </section>
+{/if}
+
+<!-- Bills / cards table -->
+<section class="budget-card budget-table-card">
+  <header class="budget-card-head">
+    <div>
+      <div class="budget-card-kicker">{monthName}</div>
+      <h3 class="budget-card-title">Bills &amp; card minimums</h3>
+    </div>
+  </header>
+
+  {#if rows.length === 0}
+    <div class="empty">
+      <div class="empty-icon">📊</div>
+      <h3>Nothing to show</h3>
+      <p>Add bills and credit cards to see your monthly budget breakdown.</p>
+    </div>
+  {:else}
+    <div class="card" style="overflow:hidden;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Budgeted</th>
+            <th>Autopay</th>
+            <th>This Month</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each rows as r (r.type + ':' + r.refId)}
+            <tr class:paid-row={r.state === 'full'}>
+              <td data-cell="name">
+                <div class="budget-name-cell">
+                  <span class="budget-name-icon">{r.icon}</span>
+                  <strong>{r.name}</strong>
+                </div>
+              </td>
+              <td data-label="Type">
+                <span class="badge badge-gray">{r.category}</span>
+              </td>
+              <td data-label="Budgeted">
+                <span style="font-family:'Manrope',sans-serif;font-weight:700;letter-spacing:-.03em;">{fmt(r.amount)}</span>
+              </td>
+              <td data-label="Autopay">
+                {#if r.autopay}
+                  <span class="badge badge-green">✓ Auto</span>
+                {:else}
+                  <span class="badge badge-gray">Manual</span>
+                {/if}
+              </td>
+              <td data-label="This month">
+                {#if r.state === 'full'}
+                  <span class="badge badge-green">✓ Paid {fmt(r.paidAmt)}</span>
+                {:else if isCurrent}
+                  {#if r.state === 'partial'}
+                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+                      <span class="badge badge-orange" title="{fmt(r.remaining)} still due">Paid {fmt(r.paidAmt)} of {fmt(r.amount)}</span>
+                      <button class="btn btn-green btn-xs" onclick={() => openPayModal(r.type, r.refId, r.name, r.remaining)}>
+                        Pay {fmt(r.remaining)} more
+                      </button>
+                    </div>
+                  {:else}
+                    <button class="btn btn-green btn-xs" onclick={() => openPayModal(r.type, r.refId, r.name, r.amount)}>
+                      ✓ Pay
+                    </button>
+                  {/if}
+                {:else if r.state === 'partial'}
+                  <span class="badge badge-orange">Paid {fmt(r.paidAmt)} of {fmt(r.amount)}</span>
+                {:else}
+                  <span class="badge badge-gray">Unpaid</span>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="budget-totals">
+      <div>
+        <div class="budget-totals-label">Total Budgeted</div>
+        <div class="budget-totals-value">{fmt(totalBudgeted)}</div>
+      </div>
+      <div>
+        <div class="budget-totals-label">Paid So Far</div>
+        <div class="budget-totals-value" style="color:var(--green);">{fmt(totalPaid)}</div>
+      </div>
+      <div>
+        <div class="budget-totals-label">Still Owed</div>
+        <div class="budget-totals-value" style="color:{totalUnpaid > 0 ? 'var(--orange)' : 'var(--green)'};">{fmt(totalUnpaid)}</div>
+      </div>
+      {#if totalMonthlyIncome > 0}
+        <div>
+          <div class="budget-totals-label">After Bills</div>
+          <div class="budget-totals-value" style="color:{surplusColor};">{fmt(surplus)}</div>
+        </div>
+      {/if}
+    </footer>
+  {/if}
+</section>

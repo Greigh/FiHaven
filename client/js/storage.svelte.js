@@ -1,0 +1,291 @@
+/* ═══════════════════════════════════════════════════════════
+   storage.svelte.js — shared data store with per-user backend sync.
+
+   The four arrays/objects (bills, cards, payments, settings)
+   are Svelte 5 `$state` proxies — any module that mutates them
+   in place (push/splice/property assignment) automatically
+   triggers reactivity in every Svelte component reading them.
+   Full-array replacement goes through the setX helpers, which
+   clear-and-refill in place so the proxy identity (and every
+   importer's binding) stays stable.
+
+   localStorage is kept as an offline cache; the server copy is
+   authoritative and re-applied at bootstrap.
+
+   The `.svelte.js` extension is required so Vite/Svelte runs
+   the runes transform on this file.
+═══════════════════════════════════════════════════════════ */
+
+const SYNCED_KEYS = { fh_bills: 1, fh_cards: 1, fh_payments: 1, fh_settings: 1 };
+const SYNC_DEBOUNCE_MS = 800;
+
+/* One-time migration of legacy ClearTab keys (ct_*) to the FiHaven
+   namespace (fh_*). Copies each only when the new key is absent, so it's
+   safe on every load and never clobbers fresher data; then drops the old
+   key. Lets returning users keep their offline cache across the rename. */
+(function migrateLegacyKeys() {
+  try {
+    var map = {
+      ct_bills:      'fh_bills',
+      ct_cards:      'fh_cards',
+      ct_payments:   'fh_payments',
+      ct_settings:   'fh_settings',
+      ct_data_owner: 'fh_data_owner',
+      ct_snoozes:    'fh_snoozes',
+      ct_theme:      'fh_theme',
+    };
+    Object.keys(map).forEach(function (oldKey) {
+      var oldVal = localStorage.getItem(oldKey);
+      if (oldVal === null) return;
+      if (localStorage.getItem(map[oldKey]) === null) {
+        localStorage.setItem(map[oldKey], oldVal);
+      }
+      localStorage.removeItem(oldKey);
+    });
+  } catch (e) {
+    /* storage unavailable — nothing to migrate */
+  }
+})();
+
+export function load(key, defaultVal) {
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? JSON.parse(v) : defaultVal;
+  } catch {
+    return defaultVal;
+  }
+}
+
+export function save(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    /* quota/full — server sync is still attempted below */
+  }
+  if (SYNCED_KEYS[key]) scheduleSync();
+}
+
+/* ── Shared state — Svelte 5 $state proxies ─────────────────
+   Every module mutates these in place; Svelte tracks the
+   property accesses automatically, so components re-render
+   without any event bus or refresh trigger.
+─────────────────────────────────────────────────────────────── */
+export const bills    = $state([]);
+export const cards    = $state([]);
+export const payments = $state([]);  // { id, type, refId, name, amount, date, monthKey, note }
+export const settings = $state({ income: 0 });
+// Effective Pro entitlement, server-derived (read-only on the client).
+export const entitlement = $state({ pro: false, source: null, productId: null, plan: null, expiresAt: null });
+
+export function setEntitlement(e) {
+  const next = e && typeof e === 'object' ? e : {};
+  entitlement.pro = !!next.pro;
+  entitlement.source = next.source ?? null;
+  entitlement.productId = next.productId ?? null;
+  entitlement.plan = next.plan ?? null;
+  entitlement.expiresAt = next.expiresAt ?? null;
+}
+
+// Re-fetch the authoritative entitlement (after a checkout return / redeem).
+export function refreshEntitlement() {
+  return fetch('/api/billing/status', { credentials: 'same-origin' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (d) setEntitlement(d.entitlement); return entitlement; })
+    .catch(() => entitlement);
+}
+
+/* Replace-helpers: mutate the existing proxy in place rather
+   than reassigning the binding, so consumers keep the same
+   reactive object reference. */
+function replaceArray(target, src) {
+  target.length = 0;
+  if (Array.isArray(src)) target.push(...src);
+}
+function replaceObject(target, src) {
+  for (const k of Object.keys(target)) delete target[k];
+  if (src && typeof src === 'object' && !Array.isArray(src)) Object.assign(target, src);
+}
+export function setBills(arr)    { replaceArray(bills, arr); }
+export function setCards(arr)    { replaceArray(cards, arr); }
+export function setPayments(arr) { replaceArray(payments, arr); }
+export function setSettings(obj) {
+  replaceObject(settings, obj);
+  // Restore the default income shape so reactive readers don't
+  // crash on a freshly-cleared settings object.
+  if (!('income' in settings)) settings.income = 0;
+}
+
+/* ── Sync status indicator ───────────────────────────────── */
+export function setSyncStatus(state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const labels = {
+    saving: 'Saving…',
+    saved: 'All changes saved',
+    offline: 'Offline — saved on device',
+  };
+  // The pill's color comes from CSS via [data-state]; an empty
+  // label (the idle state) hides the pill via :empty.
+  el.textContent = labels[state] || '';
+  el.dataset.state = state || 'idle';
+}
+
+/* ── Server sync ─────────────────────────────────────────── */
+let syncTimer = null;
+
+function snapshot() {
+  return { bills, cards, payments, settings };
+}
+
+// Mirror the in-memory state into the localStorage offline cache
+// without triggering another sync.
+function cacheLocally() {
+  try {
+    localStorage.setItem('fh_bills', JSON.stringify(bills));
+    localStorage.setItem('fh_cards', JSON.stringify(cards));
+    localStorage.setItem('fh_payments', JSON.stringify(payments));
+    localStorage.setItem('fh_settings', JSON.stringify(settings));
+  } catch (e) {
+    /* ignore quota errors — the server copy is authoritative */
+  }
+}
+
+function applyData(d) {
+  d = d || {};
+  setBills(d.bills);
+  setCards(d.cards);
+  setPayments(d.payments);
+  setSettings(d.settings);
+}
+
+// Push the full dataset to the server. `keepalive` is used when
+// the page is unloading so a pending change still reaches the
+// server.
+function pushData(keepalive) {
+  setSyncStatus('saving');
+  const auth = window.AppAuth;
+
+  function send(token) {
+    return fetch('/api/data', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token || '',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(snapshot()),
+      keepalive: keepalive === true,
+    });
+  }
+
+  function done(r) {
+    if (!r) return;
+    if (r.status === 401) {
+      window.location.replace('/login');
+      return;
+    }
+    setSyncStatus(r.ok ? 'saved' : 'offline');
+  }
+
+  const token = auth && auth.getCsrfToken && auth.getCsrfToken();
+  if (token || keepalive || !auth) {
+    send(token).then(done).catch(() => setSyncStatus('offline'));
+  } else {
+    auth
+      .me()
+      .then(() => send(auth.getCsrfToken()))
+      .then(done)
+      .catch(() => setSyncStatus('offline'));
+  }
+}
+
+export function scheduleSync() {
+  if (syncTimer) clearTimeout(syncTimer);
+  setSyncStatus('saving');
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    pushData(false);
+  }, SYNC_DEBOUNCE_MS);
+}
+
+// Flush a pending sync immediately — used when the tab is hidden
+// or closed so a debounced change is not lost.
+export function flushSync() {
+  if (!syncTimer) return;
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  pushData(true);
+}
+
+window.addEventListener('pagehide', flushSync);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushSync();
+});
+
+/* ── Startup load ────────────────────────────────────────── */
+// Resolves once bills/cards/payments/settings are populated.
+// Server data wins; a pre-account localStorage dataset is
+// migrated up on first login; offline falls back to this
+// device's cache.
+export function bootstrapData() {
+  return fetch('/api/data', { credentials: 'same-origin' })
+    .then((r) => {
+      if (r.status === 401) {
+        window.location.replace('/login');
+        return Promise.reject('unauth');
+      }
+      if (!r.ok) return Promise.reject('http');
+      return r.json();
+    })
+    .then((server) => {
+      setEntitlement(server.entitlement);
+      const owner = server.email || '';
+      const serverEmpty =
+        !(server.bills && server.bills.length) &&
+        !(server.cards && server.cards.length) &&
+        !(server.payments && server.payments.length);
+
+      if (!serverEmpty) {
+        applyData(server);
+        localStorage.setItem('fh_data_owner', owner);
+        cacheLocally();
+        return;
+      }
+
+      // Server has nothing yet. If this browser holds a genuine
+      // pre-account dataset (no owner recorded), migrate it up.
+      const prevOwner = localStorage.getItem('fh_data_owner');
+      const localBills = load('fh_bills', []);
+      const localCards = load('fh_cards', []);
+      const hasLocal =
+        (localBills && localBills.length) || (localCards && localCards.length);
+
+      if (hasLocal && !prevOwner) {
+        applyData({
+          bills: localBills,
+          cards: localCards,
+          payments: load('fh_payments', []),
+          settings: load('fh_settings', { income: 0 }),
+        });
+        localStorage.setItem('fh_data_owner', owner);
+        scheduleSync(); // push the migrated data into the account
+        return;
+      }
+
+      // Brand-new account — start clean (app.js may seed demo data).
+      applyData({});
+      localStorage.setItem('fh_data_owner', owner);
+      cacheLocally();
+    })
+    .catch((err) => {
+      if (err === 'unauth') return Promise.reject(err);
+      // Offline or server error — fall back to this device's cache.
+      applyData({
+        bills: load('fh_bills', []),
+        cards: load('fh_cards', []),
+        payments: load('fh_payments', []),
+        settings: load('fh_settings', { income: 0 }),
+      });
+      setSyncStatus('offline');
+    });
+}

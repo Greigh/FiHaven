@@ -1,0 +1,1121 @@
+/* ═══════════════════════════════════════════════════════════
+   account.js — drives account.html: change email, change
+   password, and delete account. Talks to /api/account/*.
+   Also serves as the account page's module entry — pulls in
+   theme, auth, and the app-bar renderer.
+═══════════════════════════════════════════════════════════ */
+
+import './theme.js';
+import './auth.js';
+import './navbar.js';
+import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
+import { mount } from 'svelte';
+import MfaSection from '../svelte/MfaSection.svelte';
+
+    function showMessage(form, text, isError) {
+    var el = document.querySelector('[data-message="' + form + '"]');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isError ? 'var(--red)' : 'var(--green)';
+  }
+
+  function errorText(code) {
+    switch (code) {
+      case 'wrong-password':
+        return 'That password is incorrect.';
+      case 'weak-password':
+        return 'Password must be at least 10 characters with one letter and one number.';
+      case 'password-unchanged':
+        return 'That is already your current password.';
+      case 'invalid-email':
+        return 'Enter a valid email address.';
+      case 'email-unchanged':
+        return 'That is already your email address.';
+      case 'email-taken':
+        return 'That email is already in use by another account.';
+      case 'invalid-name':
+        return 'Names cannot contain line breaks or control characters.';
+      case 'bad-csrf-token':
+        return 'Your session expired. Please reload the page and try again.';
+      case 'network':
+        return 'Could not reach the server. Please try again.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  }
+
+  // Resolve the CSRF token, fetching a session via me() if needed.
+  function csrfToken() {
+    var auth = window.AppAuth;
+    var token = auth && auth.getCsrfToken && auth.getCsrfToken();
+    if (token) return Promise.resolve(token);
+    return auth.me().then(function () {
+      return auth.getCsrfToken();
+    });
+  }
+
+  function postJson(path, body) {
+    return accountFetch(path, 'POST', body);
+  }
+
+  function accountFetch(path, method, body) {
+    return csrfToken().then(function (token) {
+      var opts = {
+        method: method,
+        headers: { 'X-CSRF-Token': token || '' },
+        credentials: 'same-origin',
+      };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch('/api/account/' + path, opts).then(function (r) {
+        return r
+          .json()
+          .catch(function () { return {}; })
+          .then(function (data) {
+            return { ok: r.ok, status: r.status, data: data };
+          });
+      });
+    });
+  }
+
+  function setBusy(form, busy) {
+    var btn = form.querySelector('[type="submit"]');
+    if (btn) btn.disabled = busy;
+  }
+
+  // Returns true (and redirects) when the session is no longer valid.
+  function handledSessionLoss(res) {
+    if (res.status === 401 && res.data && res.data.error === 'unauthenticated') {
+      window.location.replace('/login');
+      return true;
+    }
+    return false;
+  }
+
+  function clearLocalData() {
+    ['fh_bills', 'fh_cards', 'fh_payments', 'fh_settings', 'fh_data_owner'].forEach(
+      function (key) {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    );
+  }
+
+  function init() {
+    var auth = window.AppAuth;
+    if (!auth) return;
+
+    // Render the "Signed in as" panel — show the display name (if
+    // set) above the email, or the email alone otherwise. Also seed
+    // the name input so the user can edit their existing value.
+    function renderIdentity(user) {
+      var el = document.querySelector('[data-current-identity]');
+      if (!el) return;
+      var name = user && user.name ? String(user.name) : '';
+      var email = user && user.email ? String(user.email) : '';
+      el.innerHTML = '';
+      if (name) {
+        var nameDiv = document.createElement('div');
+        nameDiv.textContent = name;
+        el.appendChild(nameDiv);
+        var emailDiv = document.createElement('div');
+        emailDiv.style.cssText = 'font-size:13px;font-weight:500;color:var(--muted);';
+        emailDiv.textContent = email;
+        el.appendChild(emailDiv);
+      } else {
+        el.textContent = email;
+      }
+    }
+
+    auth.me().then(function (user) {
+      if (!user) return; // auth.js already redirects unauthenticated users
+      renderIdentity(user);
+      var nameInput = document.getElementById('display-name');
+      if (nameInput) nameInput.value = user.name || '';
+    });
+
+    /* ── Display name ──────────────────────────────────────── */
+    var nameForm = document.querySelector('[data-form="name"]');
+    if (nameForm) {
+      nameForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var name = document.getElementById('display-name').value.trim();
+        setBusy(nameForm, true);
+        showMessage('name', 'Saving…', false);
+        postJson('change-name', { name: name })
+          .then(function (res) {
+            setBusy(nameForm, false);
+            if (handledSessionLoss(res)) return;
+            if (res.ok) {
+              showMessage('name', name ? 'Name updated.' : 'Name cleared.', false);
+              // Refresh the "Signed in as" panel and the navbar.
+              auth.me().then(function (u) {
+                if (u) {
+                  renderIdentity(u);
+                  window.dispatchEvent(new CustomEvent('fihaven:user-changed'));
+                }
+              });
+            } else {
+              showMessage('name', errorText(res.data && res.data.error), true);
+            }
+          })
+          .catch(function () {
+            setBusy(nameForm, false);
+            showMessage('name', errorText('network'), true);
+          });
+      });
+    }
+
+    /* ── Change email ──────────────────────────────────────── */
+    var emailForm = document.querySelector('[data-form="email"]');
+    if (emailForm) {
+      emailForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var newEmail = document.getElementById('new-email').value.trim();
+        var password = document.getElementById('email-password').value;
+        if (!newEmail || !password) {
+          showMessage('email', 'Fill in both fields.', true);
+          return;
+        }
+        setBusy(emailForm, true);
+        showMessage('email', 'Working…', false);
+        postJson('change-email', { newEmail: newEmail, password: password })
+          .then(function (res) {
+            setBusy(emailForm, false);
+            if (handledSessionLoss(res)) return;
+            if (res.ok) {
+              showMessage('email', 'Email updated.', false);
+              auth.me().then(function (u) {
+                if (u) {
+                  renderIdentity(u);
+                  window.dispatchEvent(new CustomEvent('fihaven:user-changed'));
+                }
+              });
+              emailForm.reset();
+            } else {
+              showMessage('email', errorText(res.data && res.data.error), true);
+            }
+          })
+          .catch(function () {
+            setBusy(emailForm, false);
+            showMessage('email', errorText('network'), true);
+          });
+      });
+    }
+
+    /* ── Change password ───────────────────────────────────── */
+    var pwForm = document.querySelector('[data-form="password"]');
+    if (pwForm) {
+      pwForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var current = document.getElementById('current-password').value;
+        var next = document.getElementById('new-password').value;
+        var confirm = document.getElementById('confirm-password').value;
+        if (!current || !next) {
+          showMessage('password', 'Fill in all fields.', true);
+          return;
+        }
+        if (next !== confirm) {
+          showMessage('password', 'New passwords do not match.', true);
+          return;
+        }
+        setBusy(pwForm, true);
+        showMessage('password', 'Working…', false);
+        postJson('change-password', { currentPassword: current, newPassword: next })
+          .then(function (res) {
+            setBusy(pwForm, false);
+            if (handledSessionLoss(res)) return;
+            if (res.ok) {
+              showMessage(
+                'password',
+                'Password updated. Other devices have been signed out.',
+                false
+              );
+              pwForm.reset();
+            } else {
+              showMessage('password', errorText(res.data && res.data.error), true);
+            }
+          })
+          .catch(function () {
+            setBusy(pwForm, false);
+            showMessage('password', errorText('network'), true);
+          });
+      });
+    }
+
+    /* ── Delete account ────────────────────────────────────── */
+    var deleteForm = document.querySelector('[data-form="delete"]');
+    if (deleteForm) {
+      deleteForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var password = document.getElementById('delete-password').value;
+        var confirmed = document.getElementById('delete-confirm').checked;
+        if (!confirmed) {
+          showMessage('delete', 'Please tick the confirmation box first.', true);
+          return;
+        }
+        if (!password) {
+          showMessage('delete', 'Enter your password to confirm.', true);
+          return;
+        }
+        if (
+          !window.confirm(
+            'Permanently delete your FiHaven account and all of your data? This cannot be undone.'
+          )
+        ) {
+          return;
+        }
+        setBusy(deleteForm, true);
+        showMessage('delete', 'Deleting…', false);
+        postJson('delete', { password: password })
+          .then(function (res) {
+            if (res.ok) {
+              clearLocalData();
+              window.location.replace('/');
+              return;
+            }
+            setBusy(deleteForm, false);
+            if (handledSessionLoss(res)) return;
+            showMessage('delete', errorText(res.data && res.data.error), true);
+          })
+          .catch(function () {
+            setBusy(deleteForm, false);
+            showMessage('delete', errorText('network'), true);
+          });
+      });
+    }
+
+    /* ── Download: "Everything (CSV ×3)" ─────────────────── */
+    var everyBtn = document.querySelector('[data-export-all]');
+    if (everyBtn) {
+      everyBtn.addEventListener('click', function () {
+        // Spawn three sequential downloads. The browser handles
+        // them via Content-Disposition: attachment on each route.
+        downloadUrl('/api/account/export/bills.csv');
+        setTimeout(function () { downloadUrl('/api/account/export/cards.csv'); }, 350);
+        setTimeout(function () { downloadUrl('/api/account/export/history.csv'); }, 700);
+      });
+    }
+
+    /* ── Two-factor authentication (Svelte component) ──────── */
+    var mfaTarget = document.getElementById('mfa-section-mount');
+    if (mfaTarget) mount(MfaSection, { target: mfaTarget });
+
+    /* ── Time zone selector ────────────────────────────────── */
+    initTimezoneSection();
+
+    /* ── Payment goal policy ───────────────────────────────── */
+    initPaymentGoalSection();
+
+    /* ── Calendar subscription (iCal) ──────────────────────── */
+    initIcalSection();
+
+    /* ── Import a file (JSON backup or single-type CSV) ──── */
+    initImportForm();
+
+    /* ── FiHaven Pro (subscription + promo) ──────────────── */
+    initProSection();
+
+    /* ── Admin (revealed only for admins) ──────────────────── */
+    initAdminSection();
+  }
+
+  /* ── Admin: user & entitlement management ─────────────────── */
+  function adminFetch(path, method, body) {
+    if (!method || method === 'GET') {
+      return fetch('/api/admin/' + path, { credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; })
+            .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
+        });
+    }
+    return csrfToken().then(function (token) {
+      var opts = { method: method, headers: { 'X-CSRF-Token': token || '' }, credentials: 'same-origin' };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch('/api/admin/' + path, opts).then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
+      });
+    });
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+  }
+
+  function adminErrorText(code) {
+    if (code === 'cannot-demote-self') return "You can't remove your own admin access.";
+    if (code === 'forbidden') return 'Admins only.';
+    return 'That action failed. Please try again.';
+  }
+
+  function initAdminSection() {
+    var group = document.querySelector('[data-admin-group]');
+    if (!group) return;
+    var auth = window.AppAuth;
+    if (!auth) return;
+    // Only reveal the panel to admins (role comes from /api/auth/me).
+    auth.me().then(function (user) {
+      if (!user || user.role !== 'admin') return; // stays hidden
+      group.hidden = false;
+      setupAdminPanel();
+    });
+  }
+
+  function setupAdminPanel() {
+    var search = document.querySelector('[data-admin-search]');
+    var listEl = document.querySelector('[data-admin-users]');
+    if (!search || !listEl) return;
+
+    function smallBtn(label, onClick) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-secondary';
+      b.style.cssText = 'padding:6px 12px;font-size:13px;';
+      b.textContent = label;
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    function act(path, body, onOk) {
+      adminFetch(path, 'POST', body).then(function (res) {
+        if (res.ok) { onOk(); }
+        else if (!handledSessionLoss(res)) {
+          showMessage('admin', adminErrorText(res.data && res.data.error), true);
+        }
+      }).catch(function () { showMessage('admin', errorText('network'), true); });
+    }
+
+    function render(users) {
+      listEl.innerHTML = '';
+      if (!users.length) {
+        listEl.innerHTML = '<div style="color:var(--muted);padding:12px 0;">No matching users.</div>';
+        return;
+      }
+      users.forEach(function (u) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:12px 0;border-top:1px solid var(--border);flex-wrap:wrap;';
+        var info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:170px;';
+        var sub = (u.role === 'admin' ? 'Admin · ' : '') + (u.pro ? 'Pro' : 'Free');
+        info.innerHTML =
+          '<div style="font-weight:600;">' + escapeHtml(u.name || u.email) + '</div>' +
+          '<div style="font-size:12px;color:var(--muted);">' +
+          (u.name ? escapeHtml(u.email) + ' · ' : '') + sub + '</div>';
+        row.appendChild(info);
+        row.appendChild(smallBtn(u.pro ? 'Revoke Pro' : 'Grant Pro', function () {
+          act('users/' + u.id + '/pro', { grant: !u.pro }, function () { reload(); });
+        }));
+        row.appendChild(smallBtn(u.role === 'admin' ? 'Remove admin' : 'Make admin', function () {
+          act('users/' + u.id + '/role', { role: u.role === 'admin' ? 'user' : 'admin' }, function () { reload(); });
+        }));
+        listEl.appendChild(row);
+      });
+    }
+
+    function reload() {
+      showMessage('admin', '', false);
+      adminFetch('users?limit=50&q=' + encodeURIComponent(search.value || '')).then(function (res) {
+        if (res.ok) render(res.data.users || []);
+        else if (!handledSessionLoss(res)) showMessage('admin', 'Could not load users.', true);
+      }).catch(function () { showMessage('admin', errorText('network'), true); });
+    }
+
+    var debounce;
+    search.addEventListener('input', function () {
+      clearTimeout(debounce);
+      debounce = setTimeout(reload, 250);
+    });
+    reload();
+  }
+
+  /* ── FiHaven Pro ───────────────────────────────────────── */
+  function billingFetch(path, method, body) {
+    return csrfToken().then(function (token) {
+      var opts = {
+        method: method,
+        headers: { 'X-CSRF-Token': token || '' },
+        credentials: 'same-origin',
+      };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch('/api/billing/' + path, opts).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: r.ok, status: r.status, data: data };
+        });
+      });
+    });
+  }
+
+  var PLAN_LABELS = {
+    trial: 'Trial', monthly: 'Monthly', three_month: '3 months', yearly: 'Yearly',
+  };
+
+  function proStatusLabel(ent) {
+    if (!ent || !ent.pro) return 'Free';
+    if (ent.source === 'promo') return 'Pro · Promo';
+    if (ent.plan && PLAN_LABELS[ent.plan]) return 'Pro · ' + PLAN_LABELS[ent.plan];
+    return 'Pro';
+  }
+
+  function promoError(code) {
+    switch (code) {
+      case 'already-redeemed': return 'You’ve already used that code.';
+      case 'code-exhausted': return 'That code has reached its limit.';
+      case 'code-expired': return 'That code has expired.';
+      case 'invalid-code': return 'That code isn’t valid.';
+      default: return 'Could not redeem that code.';
+    }
+  }
+
+  function initProSection() {
+    var statusEl = document.querySelector('[data-pro-status]');
+    if (!statusEl) return;
+    var upgradeWrap = document.querySelector('[data-pro-upgrade]');
+    var manageWrap = document.querySelector('[data-pro-manage-wrap]');
+    var promoForm = document.querySelector('[data-form="promo"]');
+
+    function render(ent) {
+      statusEl.textContent = proStatusLabel(ent);
+      statusEl.style.color = ent && ent.pro ? 'var(--green)' : 'var(--muted)';
+      if (upgradeWrap) upgradeWrap.hidden = !!(ent && ent.pro);
+      if (manageWrap) manageWrap.hidden = !(ent && ent.pro);
+    }
+    function refresh() {
+      return fetch('/api/billing/status', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) render(d.entitlement); })
+        .catch(function () { /* leave default */ });
+    }
+    refresh();
+
+    // Handle the Stripe Checkout return.
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('pro') === 'success') {
+      showMessage('pro', 'Thanks! Your Pro subscription is now active.', false);
+      refresh();
+      history.replaceState({}, '', '/settings');
+    } else if (params.get('pro') === 'cancel') {
+      showMessage('pro', 'Checkout cancelled — no charge was made.', true);
+      history.replaceState({}, '', '/settings');
+    }
+
+    // Render an upgrade button per configured Stripe plan.
+    function startCheckout(plan, btn) {
+      btn.disabled = true;
+      showMessage('pro', 'Redirecting to checkout…', false);
+      billingFetch('stripe/checkout', 'POST', { plan: plan })
+        .then(function (res) {
+          if (res.ok && res.data && res.data.url) {
+            window.location.assign(res.data.url);
+          } else {
+            btn.disabled = false;
+            showMessage('pro', 'Could not start checkout. Please try again.', true);
+          }
+        })
+        .catch(function () { btn.disabled = false; showMessage('pro', errorText('network'), true); });
+    }
+
+    function renderPlans(plans) {
+      if (!upgradeWrap) return;
+      upgradeWrap.innerHTML = '';
+      (plans || []).forEach(function (p, i) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn ' + (i === 0 ? 'btn-primary' : 'btn-secondary');
+        btn.setAttribute('data-pro-plan', p.plan);
+        btn.textContent = (p.plan === 'trial' ? 'Start ' : 'Go Pro — ') + (p.label || p.plan);
+        btn.addEventListener('click', function () { startCheckout(p.plan, btn); });
+        upgradeWrap.appendChild(btn);
+      });
+      if (!plans || !plans.length) {
+        upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
+      }
+    }
+
+    fetch('/api/billing/stripe/config', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (cfg) { renderPlans(cfg && cfg.plans); })
+      .catch(function () { /* leave empty */ });
+
+    var manageBtn = document.querySelector('[data-pro-manage]');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', function () {
+        manageBtn.disabled = true;
+        billingFetch('stripe/portal', 'POST')
+          .then(function (res) {
+            if (res.ok && res.data && res.data.url) {
+              window.location.assign(res.data.url);
+            } else {
+              manageBtn.disabled = false;
+              showMessage('pro', 'The manage portal isn’t available yet.', true);
+            }
+          })
+          .catch(function () { manageBtn.disabled = false; showMessage('pro', errorText('network'), true); });
+      });
+    }
+
+    if (promoForm) {
+      promoForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var code = (document.getElementById('promo-code').value || '').trim();
+        if (!code) return;
+        showMessage('promo', 'Redeeming…', false);
+        billingFetch('promo/redeem', 'POST', { code: code })
+          .then(function (res) {
+            if (res.ok) {
+              if (res.data && res.data.kind === 'store_offer') {
+                showMessage('promo', 'That code applies in the app stores — redeem it on iOS or Android.', false);
+              } else {
+                showMessage('promo', 'Code applied — you’re now on FiHaven Pro!', false);
+              }
+              refresh();
+            } else {
+              showMessage('promo', promoError(res.data && res.data.error), true);
+            }
+          })
+          .catch(function () { showMessage('promo', errorText('network'), true); });
+      });
+    }
+  }
+
+  /* ── Time zone ──────────────────────────────────────────── */
+  function initTimezoneSection() {
+    var form     = document.querySelector('[data-form="timezone"]');
+    var select   = document.querySelector('[data-tz-select]');
+    var effectEl = document.querySelector('[data-tz-effective]');
+    if (!form || !select) return;
+
+    // Build the dropdown: auto + curated groups. Sets of zones are
+    // grouped via <optgroup> so the user can scan by region.
+    select.innerHTML = '';
+    var autoOpt = document.createElement('option');
+    autoOpt.value = '';
+    autoOpt.textContent = 'Auto-detect (' + BROWSER_TZ + ')';
+    select.appendChild(autoOpt);
+    COMMON_TIMEZONES.forEach(function (g) {
+      var og = document.createElement('optgroup');
+      og.label = g.group;
+      g.zones.forEach(function (z) {
+        var opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z.replace(/_/g, ' ');
+        og.appendChild(opt);
+      });
+      select.appendChild(og);
+    });
+
+    function describeEffective(saved) {
+      var effective = saved || BROWSER_TZ;
+      var sample;
+      try {
+        sample = new Intl.DateTimeFormat('en-US', {
+          timeZone: effective,
+          weekday: 'short', month: 'short', day: 'numeric',
+          hour: 'numeric', minute: '2-digit',
+        }).format(new Date());
+      } catch (e) {
+        sample = '(invalid time zone)';
+      }
+      effectEl.textContent = 'In ' + effective + ' it is currently ' + sample + '.';
+    }
+
+    // Load current snapshot to populate the selector.
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        select.value = s.timezone || '';
+        // If a stored zone isn't in our common list, append it so the
+        // current value is selectable.
+        if (s.timezone && select.value !== s.timezone) {
+          var custom = document.createElement('option');
+          custom.value = s.timezone;
+          custom.textContent = s.timezone.replace(/_/g, ' ') + ' (custom)';
+          select.appendChild(custom);
+          select.value = s.timezone;
+        }
+        describeEffective(s.timezone);
+      })
+      .catch(function () {
+        describeEffective('');
+      });
+
+    select.addEventListener('change', function () {
+      describeEffective(select.value);
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var chosen = select.value || '';
+      setBusy(form, true);
+      showMessage('timezone', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { timezone: chosen }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('timezone', chosen
+            ? 'Time zone saved as ' + chosen + '.'
+            : 'Now using your browser’s detected time zone.', false);
+          describeEffective(chosen);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('timezone', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Payment goal policy ────────────────────────────────── */
+  function initPaymentGoalSection() {
+    var form   = document.querySelector('[data-form="paidgoal"]');
+    var select = document.querySelector('[data-paidgoal-select]');
+    var noteEl = document.querySelector('[data-paidgoal-effective]');
+    if (!form || !select) return;
+
+    var DESCRIPTIONS = {
+      minimum:     'Paying at least the minimum marks a card fully paid. Bills still need their full amount.',
+      recommended: 'Cards must reach the recommended amount (enough to clear a 0% promo before it ends). Bills need their full amount.',
+      full:        'Cards must be paid down to a zero balance to count as fully paid. Bills need their full amount.',
+    };
+    function normalize(v) {
+      return (v === 'minimum' || v === 'full') ? v : 'recommended';
+    }
+    function describe(v) {
+      if (noteEl) noteEl.textContent = DESCRIPTIONS[normalize(v)];
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        select.value = normalize(s.paidGoal);
+        describe(select.value);
+      })
+      .catch(function () { describe(select.value); });
+
+    select.addEventListener('change', function () { describe(select.value); });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var chosen = normalize(select.value);
+      setBusy(form, true);
+      showMessage('paidgoal', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { paidGoal: chosen }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('paidgoal', 'Payment goal saved.', false);
+          describe(chosen);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('paidgoal', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── iCal subscription ──────────────────────────────────── */
+  function initIcalSection() {
+    var emptyEl    = document.querySelector('[data-ical-empty]');
+    var activeEl   = document.querySelector('[data-ical-active]');
+    var urlInput   = document.querySelector('[data-ical-url]');
+    var genBtn     = document.querySelector('[data-ical-generate]');
+    var rotateBtn  = document.querySelector('[data-ical-rotate]');
+    var disableBtn = document.querySelector('[data-ical-disable]');
+    var copyBtn    = document.querySelector('[data-ical-copy]');
+    if (!emptyEl || !activeEl) return;
+
+    function urlFor(token) {
+      return window.location.origin + '/api/calendar/' + token + '.ics';
+    }
+    function render(token) {
+      if (token) {
+        emptyEl.hidden = true;
+        activeEl.hidden = false;
+        urlInput.value = urlFor(token);
+      } else {
+        emptyEl.hidden = false;
+        activeEl.hidden = true;
+        urlInput.value = '';
+      }
+    }
+
+    // Initial state.
+    accountFetch('ical-token', 'GET').then(function (res) {
+      if (res.ok) render(res.data.token || null);
+    });
+
+    function setTokenViaApi(method, label) {
+      showMessage('ical', label + '…', false);
+      accountFetch('ical-token', method).then(function (res) {
+        if (handledSessionLoss(res)) return;
+        if (res.ok) {
+          render(res.data.token || null);
+          showMessage('ical', method === 'DELETE' ? 'Subscription disabled.' : 'Subscription URL updated.', false);
+        } else {
+          showMessage('ical', errorText(res.data && res.data.error), true);
+        }
+      }).catch(function () {
+        showMessage('ical', errorText('network'), true);
+      });
+    }
+
+    if (genBtn)    genBtn.addEventListener('click', function () { setTokenViaApi('POST', 'Generating'); });
+    if (rotateBtn) rotateBtn.addEventListener('click', function () { setTokenViaApi('POST', 'Rotating'); });
+    if (disableBtn) disableBtn.addEventListener('click', function () {
+      if (!confirm('Disable the subscription? Existing calendar apps will stop receiving updates.')) return;
+      setTokenViaApi('DELETE', 'Disabling');
+    });
+    if (copyBtn) copyBtn.addEventListener('click', function () {
+      if (!urlInput.value) return;
+      navigator.clipboard.writeText(urlInput.value).then(
+        function () { showMessage('ical', 'URL copied to clipboard.', false); },
+        function () {
+          urlInput.select();
+          showMessage('ical', 'Press ⌘C / Ctrl+C to copy.', false);
+        }
+      );
+    });
+  }
+
+  function downloadUrl(url) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     IMPORT — JSON full restore + per-type CSV append
+  ════════════════════════════════════════════════════════════ */
+
+  function initImportForm() {
+    var form     = document.querySelector('[data-form="import"]');
+    if (!form) return;
+    var fileEl   = document.getElementById('import-file');
+    var submit   = form.querySelector('[data-import-submit]');
+    var resetBtn = form.querySelector('[data-import-reset]');
+    var modeEl   = form.querySelector('[data-import-mode]');
+
+    var pending = null; // { kind: 'json'|'csv', mode: 'replace'|'append', payload, summary }
+
+    fileEl.addEventListener('change', function () {
+      pending = null;
+      submit.disabled = true;
+      showMessage('import', '', false);
+      modeEl.hidden = true;
+      var file = fileEl.files && fileEl.files[0];
+      if (!file) return;
+      if (file.size > 1024 * 1024) {
+        showMessage('import', 'File is over 1 MB — that\'s much bigger than a normal export.', true);
+        return;
+      }
+      file.text().then(function (text) {
+        parseFile(file.name, text);
+      }).catch(function () {
+        showMessage('import', 'Could not read the file.', true);
+      });
+    });
+
+    resetBtn.addEventListener('click', function () {
+      fileEl.value = '';
+      pending = null;
+      submit.disabled = true;
+      modeEl.hidden = true;
+      showMessage('import', '', false);
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!pending) return;
+      submit.disabled = true;
+      showMessage('import', 'Importing…', false);
+
+      if (pending.mode === 'replace') {
+        if (!window.confirm('Replace ALL your current bills, cards, payments, and settings with this file? This cannot be undone.')) {
+          submit.disabled = false;
+          showMessage('import', 'Cancelled.', false);
+          return;
+        }
+        pushData(pending.payload).then(onImportDone).catch(onImportError);
+      } else {
+        // Append: GET current, merge, PUT.
+        fetchData()
+          .then(function (current) {
+            var merged = mergeIntoCurrent(current, pending);
+            return pushData(merged);
+          })
+          .then(onImportDone)
+          .catch(onImportError);
+      }
+    });
+
+    function onImportDone() {
+      showMessage('import', pending.summary + ' Reload the dashboard to see the changes.', false);
+      pending = null;
+      fileEl.value = '';
+      modeEl.hidden = true;
+      submit.disabled = true;
+    }
+    function onImportError(err) {
+      var msg = (err && err.message) || 'Import failed.';
+      showMessage('import', msg, true);
+      submit.disabled = false;
+    }
+
+    function parseFile(name, text) {
+      var lower = name.toLowerCase();
+      try {
+        if (lower.endsWith('.json')) {
+          pending = parseJsonImport(text);
+        } else if (lower.endsWith('.csv')) {
+          pending = parseCsvImport(text);
+        } else {
+          // Best-effort guess by content.
+          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+            pending = parseJsonImport(text);
+          } else {
+            pending = parseCsvImport(text);
+          }
+        }
+      } catch (e) {
+        showMessage('import', e.message || 'Could not parse the file.', true);
+        return;
+      }
+      modeEl.textContent =
+        pending.mode === 'replace'
+          ? 'JSON backup — will REPLACE all your current data. ' + pending.summary
+          : 'CSV file — will ADD records to your account. ' + pending.summary;
+      modeEl.hidden = false;
+      submit.disabled = false;
+    }
+  }
+
+  /* ── JSON ─────────────────────────────────────────────────── */
+  function parseJsonImport(text) {
+    var data;
+    try { data = JSON.parse(text); }
+    catch { throw new Error('Not a valid JSON file.'); }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('JSON file is not an object.');
+    }
+    var bills = Array.isArray(data.bills) ? data.bills : [];
+    var cards = Array.isArray(data.cards) ? data.cards : [];
+    var payments = Array.isArray(data.payments) ? data.payments : [];
+    var settings = data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)
+      ? data.settings : {};
+    if (!bills.length && !cards.length && !payments.length && !Object.keys(settings).length) {
+      throw new Error('JSON does not look like a FiHaven backup.');
+    }
+    return {
+      kind: 'json',
+      mode: 'replace',
+      payload: { bills: bills, cards: cards, payments: payments, settings: settings },
+      summary: bills.length + ' bills · ' + cards.length + ' cards · ' + payments.length + ' payments.',
+    };
+  }
+
+  /* ── CSV ──────────────────────────────────────────────────── */
+  // Minimal RFC-4180-ish parser: supports "quoted, ""escaped"" fields".
+  function parseCsv(text) {
+    var rows = [];
+    var cur = [], field = '', inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (inQuotes) {
+        if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else field += ch;
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === ',') { cur.push(field); field = ''; }
+        else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+        else if (ch === '\r') { /* skip */ }
+        else field += ch;
+      }
+    }
+    if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+    return rows.filter(function (r) { return r.length > 1 || (r.length === 1 && r[0].length); });
+  }
+
+  function parseCsvImport(text) {
+    var rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV file looks empty.');
+    var header = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+    var body = rows.slice(1);
+
+    var has = function (k) { return header.indexOf(k) !== -1; };
+
+    if (has('credit limit') || (has('balance') && has('regular apr'))) {
+      var cards = body.map(function (row) {
+        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        return {
+          id: Date.now() + Math.floor(Math.random() * 1e6),
+          name: get('name'),
+          balance: numOrZero(get('balance')),
+          limit: numOrZero(get('credit limit')),
+          minPayment: numOrZero(get('min payment')),
+          regularAPR: numOrZero(get('regular apr')),
+          hasPromo: yesLike(get('has promo')),
+          promoAPR: get('promo apr') ? numOrZero(get('promo apr')) : null,
+          promoEndDate: get('promo end date') || null,
+          promoBalance: get('promo balance') ? numOrZero(get('promo balance')) : null,
+          dueDay: get('due day') ? parseInt(get('due day'), 10) : null,
+          autopay: yesLike(get('autopay')),
+          notes: get('notes'),
+        };
+      }).filter(function (c) { return c.name; });
+      return {
+        kind: 'csv', mode: 'append',
+        payload: { type: 'cards', items: cards },
+        summary: cards.length + ' card' + (cards.length !== 1 ? 's' : '') + ' detected.',
+      };
+    }
+
+    if (has('category') && has('due day') && has('frequency')) {
+      var bills = body.map(function (row) {
+        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        return {
+          id: Date.now() + Math.floor(Math.random() * 1e6),
+          name: get('name'),
+          category: get('category') || 'Other',
+          amount: numOrZero(get('amount')),
+          dueDay: get('due day') ? parseInt(get('due day'), 10) : null,
+          frequency: get('frequency') || 'Monthly',
+          autopay: yesLike(get('autopay')),
+          notes: get('notes'),
+        };
+      }).filter(function (b) { return b.name; });
+      return {
+        kind: 'csv', mode: 'append',
+        payload: { type: 'bills', items: bills },
+        summary: bills.length + ' bill' + (bills.length !== 1 ? 's' : '') + ' detected.',
+      };
+    }
+
+    if (has('date') && has('amount') && (has('type') || has('name'))) {
+      var payments = body.map(function (row) {
+        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        var date = get('date');
+        var mk = get('month') || (date ? date.slice(0, 7) : '');
+        return {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+          type: (get('type') || 'bill').toLowerCase(),
+          refId: '',           // filled in below by matching name
+          name: get('name'),
+          amount: numOrZero(get('amount')),
+          date: date,
+          monthKey: mk,
+          note: get('note'),
+        };
+      }).filter(function (p) { return p.name && p.date; });
+      return {
+        kind: 'csv', mode: 'append',
+        payload: { type: 'history', items: payments },
+        summary: payments.length + ' payment' + (payments.length !== 1 ? 's' : '') + ' detected. Names are matched back to your existing bills/cards.',
+      };
+    }
+
+    throw new Error('Could not recognise the CSV. Headers: ' + header.join(', '));
+  }
+
+  function numOrZero(v) {
+    var n = parseFloat(v);
+    return isFinite(n) ? n : 0;
+  }
+  function yesLike(v) { return /^(yes|true|1)$/i.test(String(v || '').trim()); }
+
+  /* ── Merge a CSV-derived list into the current account ──── */
+  function mergeIntoCurrent(current, pending) {
+    var bills    = Array.isArray(current.bills)    ? current.bills.slice()    : [];
+    var cards    = Array.isArray(current.cards)    ? current.cards.slice()    : [];
+    var payments = Array.isArray(current.payments) ? current.payments.slice() : [];
+    var settings = current.settings && typeof current.settings === 'object' && !Array.isArray(current.settings)
+      ? current.settings : {};
+
+    var t = pending.payload.type;
+    if (t === 'bills') {
+      bills = bills.concat(pending.payload.items);
+    } else if (t === 'cards') {
+      cards = cards.concat(pending.payload.items);
+    } else if (t === 'history') {
+      // Best-effort name match → refId on existing bills/cards.
+      pending.payload.items.forEach(function (p) {
+        var byName;
+        if (p.type === 'card') {
+          byName = cards.find(function (c) { return c.name && c.name.toLowerCase() === p.name.toLowerCase(); });
+        } else {
+          byName = bills.find(function (b) { return b.name && b.name.toLowerCase() === p.name.toLowerCase(); });
+        }
+        if (byName) p.refId = String(byName.id);
+      });
+      payments = payments.concat(pending.payload.items);
+    }
+
+    return { bills: bills, cards: cards, payments: payments, settings: settings };
+  }
+
+  /* ── Auth-aware fetch helpers ─────────────────────────────── */
+  function fetchData() {
+    return fetch('/api/data', { credentials: 'same-origin' }).then(function (r) {
+      if (!r.ok) throw new Error('Could not load your current data.');
+      return r.json();
+    });
+  }
+
+  function pushData(snapshot) {
+    return csrfToken().then(function (token) {
+      return fetch('/api/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token || '' },
+        credentials: 'same-origin',
+        body: JSON.stringify(snapshot),
+      }).then(function (r) {
+        if (!r.ok) {
+          if (r.status === 401) {
+            window.location.replace('/login');
+            throw new Error('Session expired.');
+          }
+          if (r.status === 413) throw new Error('That file is too large for the server.');
+          throw new Error('Server rejected the upload (' + r.status + ').');
+        }
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
