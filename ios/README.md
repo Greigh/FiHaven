@@ -28,7 +28,7 @@ Optional live round-trip against a running dev server
 (`node server/index.js`), using a seeded token-mode session id:
 
 ```sh
-CT_LIVE_TOKEN=<session id> CT_BASE=http://localhost:5222/fihaven \
+FH_LIVE_TOKEN=<session id> FH_BASE=http://localhost:5222/fihaven \
   swift run FiHavenCoreChecks
 ```
 
@@ -55,13 +55,13 @@ project settings is needed to flip them:
 
 | Env var | Effect |
 |---|---|
-| `CT_BASE` | Override the API base URL (e.g. point a debug build at production). |
-| `CT_TURNSTILE_SITEKEY` | Override the Turnstile sitekey (the build ships Cloudflare's always-pass **test** key). |
-| `CT_AUTOLOGIN=1` | Auto-login the dev demo account (DEBUG only). |
-| `CT_TAB` / `CT_ROUTE` / `CT_SCREEN` | Jump to a tab / More route / present the paywall — screenshot helpers (DEBUG). |
+| `FH_BASE` | Override the API base URL (e.g. point a debug build at production). |
+| `FH_TURNSTILE_SITEKEY` | Override the Turnstile sitekey (the build ships Cloudflare's always-pass **test** key). |
+| `FH_AUTOLOGIN=1` | Auto-login the dev demo account (DEBUG only). |
+| `FH_TAB` / `FH_ROUTE` / `FH_SCREEN` | Jump to a tab / More route / present the paywall — screenshot helpers (DEBUG). |
 
 To run a dev build against **production** with a real account, set both
-`CT_BASE=https://danielhipskind.com/fihaven` and `CT_TURNSTILE_SITEKEY`
+`FH_BASE=https://danielhipskind.com/fihaven` and `FH_TURNSTILE_SITEKEY`
 to your real public sitekey.
 
 ## FiHaven Pro (StoreKit 2)
@@ -80,7 +80,7 @@ to your real public sitekey.
 ## Dark mode & fonts
 
 - Appearance toggle (System / Light / Dark) in Settings, persisted locally
-  (`ct_theme`, mirroring the web) and applied via `.preferredColorScheme`.
+  (`fh_theme`, mirroring the web) and applied via `.preferredColorScheme`.
 - Bundled OFL fonts: **Manrope** (variable, UI) + **IBM Plex Mono**
   (numbers), in `Sources/Resources/Fonts/` and registered via `UIAppFonts`.
 

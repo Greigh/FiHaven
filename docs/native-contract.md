@@ -417,7 +417,7 @@ by `ADMIN_EMAILS`.
 layer — **Payoff, Calendar, History** — is gated behind Pro on both native apps.
 
 **Theme**: appearance (System/Light/Dark) is a **local, per-device** preference
-(`ct_theme`, mirroring the web's localStorage), not synced data — overrides the
+(`fh_theme`, mirroring the web's localStorage), not synced data — overrides the
 OS color scheme; the dark palette is §8.
 
 ---

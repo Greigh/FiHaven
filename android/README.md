@@ -63,7 +63,7 @@ cross-platform parity.
 - **Cleartext:** release forbids it (`res/xml/network_security_config.xml`);
   a debug override allows only `10.0.2.2` / `localhost`.
 - **Appearance:** System / Light / Dark toggle in Settings, persisted
-  locally (`ct_theme`) and applied in `FiHavenTheme`.
+  locally (`fh_theme`) and applied in `FiHavenTheme`.
 - **Fonts:** bundled OFL **Manrope** (variable, UI) + **IBM Plex Mono**
   (numbers) in `res/font/`.
 

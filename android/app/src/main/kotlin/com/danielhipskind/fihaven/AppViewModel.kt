@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-private const val BIO_KEY = "ct_biometric"
+private const val BIO_KEY = "fh_biometric"
 
 sealed interface Session {
     data object Loading : Session
@@ -64,7 +64,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val isPro: Boolean get() = _entitlement.value.pro
 
     // ── Biometric app lock (local, per-device) ───────────────────────
-    private val prefs = app.getSharedPreferences("ct_prefs", Context.MODE_PRIVATE)
+    private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
     private val _biometricEnabled = MutableStateFlow(prefs.getBoolean(BIO_KEY, false))
     val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
     // Cold launch starts locked when enabled; a fresh login clears it.

@@ -11,7 +11,7 @@ client/css/tailwind-built.css
 dist/
 data/
 .claude/
-upload.sh
+*upload.sh
 
 .env
 .env.local

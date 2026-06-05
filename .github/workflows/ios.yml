@@ -1,0 +1,43 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      - name: Run FiHavenCore checks
+        working-directory: ios/FiHavenCore
+        run: swift run FiHavenCoreChecks
+
+  app:
+    runs-on: macos-latest
+    needs: core
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios/FiHavenApp
+        run: xcodegen generate
+
+      - name: Build iOS app
+        working-directory: ios/FiHavenApp
+        run: xcodebuild -project FiHaven.xcodeproj -scheme FiHaven -destination 'generic/platform=iOS Simulator' build

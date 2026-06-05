@@ -30,10 +30,10 @@ targets:
       storeKitConfiguration: FiHaven.storekit
       # Baked into the generated scheme so `xcodegen generate` can't wipe
       # them. The app talks to PRODUCTION by default. To run against the
-      # local dev server, flip CT_BASE here (or in Xcode's scheme) to
+      # local dev server, flip FH_BASE here (or in Xcode's scheme) to
       # http://localhost:5222/fihaven and start `node server/index.js`.
       environmentVariables:
-        - variable: CT_BASE
+        - variable: FH_BASE
           value: https://danielhipskind.com/fihaven
           isEnabled: true
     dependencies:
@@ -89,6 +89,6 @@ targets:
         # so safe to commit). Verifies against the production secret; the
         # local dev server's .env holds the matching secret too, so it also
         # works against localhost. For automated/simulator testing without a
-        # real challenge, override CT_TURNSTILE_SITEKEY=1x00000000000000000000AA
+        # real challenge, override FH_TURNSTILE_SITEKEY=1x00000000000000000000AA
         # (the always-pass test key) in the scheme.
         TURNSTILE_SITEKEY: 0x4AAAAAADVKKZMye086WePX

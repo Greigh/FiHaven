@@ -4,6 +4,18 @@
   "description": "A focused bill and debt dashboard for people who'd rather spend five calm minutes a week than a frantic afternoon every payday. Track recurring bills, credit cards (including 0% promo periods), monthly budget, payment history, and debt-payoff strategies — all behind a real account with server-side sync.",
   "license": "GNU AGPLv3",
   "author": "Greigh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Greigh/FiHaven.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Greigh/FiHaven/issues"
+  },
+  "homepage": "https://fihaven.app/",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "packageManager": "npm@11.7.0",
   "type": "commonjs",
   "main": "server/index.js",
   "scripts": {
@@ -14,6 +26,7 @@
     "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "build:vite": "vite build",
     "build": "npm run build:css && npm run build:vite",
+    "ci": "npm run build",
     "preview": "vite preview",
     "deploy": "bash upload.sh",
     "promo": "node scripts/promo.js"
