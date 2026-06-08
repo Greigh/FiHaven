@@ -29,7 +29,7 @@
       <section class="auth-card hero-shell" style="width:min(720px,100%);">
         <div class="hero-badge">Settings</div>
         <h1 style="margin-top:14px;">Manage your FiHaven settings.</h1>
-        <p style="margin-top:12px;">Update your profile and preferences, secure your account, manage Pro, or export your data.</p>
+        <p style="margin-top:12px;">Update your profile and preferences, secure your account, or export your data. Manage <strong>FiHaven Pro</strong> from the account menu.</p>
         <div class="card" style="padding:14px 16px;margin-top:16px;">
           <div class="section-title" style="font-size:12px;">Signed in as</div>
           <div data-current-identity style="font-size:18px;font-weight:600;margin-top:4px;line-height:1.3;">…</div>
@@ -41,7 +41,6 @@
         <button class="tab-btn active" type="button" role="tab" data-tab="profile">Profile</button>
         <button class="tab-btn" type="button" role="tab" data-tab="security">Security</button>
         <button class="tab-btn" type="button" role="tab" data-tab="notifications">Notifications</button>
-        <button class="tab-btn" type="button" role="tab" data-tab="pro">Pro</button>
         <button class="tab-btn" type="button" role="tab" data-tab="bank">Bank</button>
         <button class="tab-btn" type="button" role="tab" data-tab="data">Data</button>
         <button class="tab-btn" type="button" role="tab" data-tab="danger">Danger</button>
@@ -244,41 +243,6 @@
         </section>
       </div>
 
-      <!-- ═══════════════ FiHaven Pro ═══════════════ -->
-      <div class="settings-panel" data-tab-panel="pro" hidden>
-        <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">Subscription</h2>
-          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
-            Pro unlocks the payoff planner, calendar, and payment history. Your subscription is tied to your account and works across the web, iOS, and Android.
-          </p>
-          <div class="card" style="padding:14px 16px;margin-top:14px;display:flex;align-items:center;gap:10px;">
-            <span class="section-title" style="font-size:12px;">Status</span>
-            <span data-pro-status style="font-weight:600;margin-left:auto;">…</span>
-          </div>
-
-          <!-- Free → upgrade. Buttons are rendered from /stripe/config. -->
-          <div data-pro-upgrade hidden style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;"></div>
-
-          <!-- Pro → manage -->
-          <div data-pro-manage-wrap hidden style="margin-top:14px;">
-            <button class="btn btn-secondary" type="button" data-pro-manage>Manage subscription</button>
-          </div>
-
-          <div class="auth-error" data-message="pro" aria-live="polite" style="margin-top:10px;"></div>
-
-          <form class="auth-form" data-form="promo" style="margin-top:18px;border-top:1px solid var(--border);padding-top:16px;">
-            <div class="auth-field">
-              <label for="promo-code">Have a promo code?</label>
-              <input type="text" id="promo-code" autocomplete="off" autocapitalize="characters" placeholder="e.g. FREEPRO30"/>
-            </div>
-            <div class="auth-error" data-message="promo" aria-live="polite"></div>
-            <div class="auth-actions">
-              <button class="btn btn-secondary" type="submit">Redeem</button>
-            </div>
-          </form>
-        </section>
-      </div>
-
       <!-- ═══════════════ Bank connections (Plaid) ═══════════════ -->
       <div class="settings-panel" data-tab-panel="bank" hidden>
         <section class="auth-card" data-plaid-card>
@@ -296,7 +260,7 @@
 
           <div data-plaid-upsell hidden class="card" style="padding:14px 16px;margin-top:14px;font-size:14px;">
             Linking your bank is a <strong>Pro</strong> feature.
-            <a href="#" data-plaid-upsell-link>Upgrade in the Pro tab</a> to connect an account.
+            <a href="#" data-plaid-upsell-link>Upgrade to Pro</a> to connect an account.
           </div>
 
           <div data-plaid-connected hidden style="margin-top:14px;">
@@ -424,6 +388,7 @@
         <a href="/privacy">Privacy</a>
       </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+      <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>
     </footer>
   </div>
 

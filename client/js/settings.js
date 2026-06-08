@@ -318,9 +318,6 @@ import MfaSection from '../svelte/MfaSection.svelte';
     /* ── Import a file (JSON backup or single-type CSV) ──── */
     initImportForm();
 
-    /* ── FiHaven Pro (subscription + promo) ──────────────── */
-    initProSection();
-
     /* ── Bank connections (Plaid, Pro-gated) ─────────────── */
     initPlaidSection();
 
@@ -466,158 +463,6 @@ import MfaSection from '../svelte/MfaSection.svelte';
     if (summary) summary.addEventListener('change', function () {
       saveToggle('monthlySummary', summary.checked, summary);
     });
-  }
-
-  /* ── FiHaven Pro ───────────────────────────────────────── */
-  function billingFetch(path, method, body) {
-    return csrfToken().then(function (token) {
-      var opts = {
-        method: method,
-        headers: { 'X-CSRF-Token': token || '' },
-        credentials: 'same-origin',
-      };
-      if (body !== undefined) {
-        opts.headers['Content-Type'] = 'application/json';
-        opts.body = JSON.stringify(body);
-      }
-      return fetch('/api/billing/' + path, opts).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (data) {
-          return { ok: r.ok, status: r.status, data: data };
-        });
-      });
-    });
-  }
-
-  var PLAN_LABELS = {
-    trial: 'Trial', monthly: 'Monthly', three_month: '3 months', yearly: 'Yearly',
-  };
-
-  function proStatusLabel(ent) {
-    if (!ent || !ent.pro) return 'Free';
-    if (ent.source === 'promo') return 'Pro · Promo';
-    if (ent.plan && PLAN_LABELS[ent.plan]) return 'Pro · ' + PLAN_LABELS[ent.plan];
-    return 'Pro';
-  }
-
-  function promoError(code) {
-    switch (code) {
-      case 'already-redeemed': return 'You’ve already used that code.';
-      case 'code-exhausted': return 'That code has reached its limit.';
-      case 'code-expired': return 'That code has expired.';
-      case 'invalid-code': return 'That code isn’t valid.';
-      default: return 'Could not redeem that code.';
-    }
-  }
-
-  function initProSection() {
-    var statusEl = document.querySelector('[data-pro-status]');
-    if (!statusEl) return;
-    var upgradeWrap = document.querySelector('[data-pro-upgrade]');
-    var manageWrap = document.querySelector('[data-pro-manage-wrap]');
-    var promoForm = document.querySelector('[data-form="promo"]');
-
-    function render(ent) {
-      statusEl.textContent = proStatusLabel(ent);
-      statusEl.style.color = ent && ent.pro ? 'var(--green)' : 'var(--muted)';
-      if (upgradeWrap) upgradeWrap.hidden = !!(ent && ent.pro);
-      if (manageWrap) manageWrap.hidden = !(ent && ent.pro);
-    }
-    function refresh() {
-      return fetch('/api/billing/status', { credentials: 'same-origin' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d) render(d.entitlement); })
-        .catch(function () { /* leave default */ });
-    }
-    refresh();
-
-    // Handle the Stripe Checkout return.
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('pro') === 'success') {
-      showMessage('pro', 'Thanks! Your Pro subscription is now active.', false);
-      refresh();
-      history.replaceState({}, '', '/settings');
-    } else if (params.get('pro') === 'cancel') {
-      showMessage('pro', 'Checkout cancelled — no charge was made.', true);
-      history.replaceState({}, '', '/settings');
-    }
-
-    // Render an upgrade button per configured Stripe plan.
-    function startCheckout(plan, btn) {
-      btn.disabled = true;
-      showMessage('pro', 'Redirecting to checkout…', false);
-      billingFetch('stripe/checkout', 'POST', { plan: plan })
-        .then(function (res) {
-          if (res.ok && res.data && res.data.url) {
-            window.location.assign(res.data.url);
-          } else {
-            btn.disabled = false;
-            showMessage('pro', 'Could not start checkout. Please try again.', true);
-          }
-        })
-        .catch(function () { btn.disabled = false; showMessage('pro', errorText('network'), true); });
-    }
-
-    function renderPlans(plans) {
-      if (!upgradeWrap) return;
-      upgradeWrap.innerHTML = '';
-      (plans || []).forEach(function (p, i) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn ' + (i === 0 ? 'btn-primary' : 'btn-secondary');
-        btn.setAttribute('data-pro-plan', p.plan);
-        btn.textContent = (p.plan === 'trial' ? 'Start ' : 'Go Pro — ') + (p.label || p.plan);
-        btn.addEventListener('click', function () { startCheckout(p.plan, btn); });
-        upgradeWrap.appendChild(btn);
-      });
-      if (!plans || !plans.length) {
-        upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
-      }
-    }
-
-    fetch('/api/billing/stripe/config', { credentials: 'same-origin' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (cfg) { renderPlans(cfg && cfg.plans); })
-      .catch(function () { /* leave empty */ });
-
-    var manageBtn = document.querySelector('[data-pro-manage]');
-    if (manageBtn) {
-      manageBtn.addEventListener('click', function () {
-        manageBtn.disabled = true;
-        billingFetch('stripe/portal', 'POST')
-          .then(function (res) {
-            if (res.ok && res.data && res.data.url) {
-              window.location.assign(res.data.url);
-            } else {
-              manageBtn.disabled = false;
-              showMessage('pro', 'The manage portal isn’t available yet.', true);
-            }
-          })
-          .catch(function () { manageBtn.disabled = false; showMessage('pro', errorText('network'), true); });
-      });
-    }
-
-    if (promoForm) {
-      promoForm.addEventListener('submit', function (event) {
-        event.preventDefault();
-        var code = (document.getElementById('promo-code').value || '').trim();
-        if (!code) return;
-        showMessage('promo', 'Redeeming…', false);
-        billingFetch('promo/redeem', 'POST', { code: code })
-          .then(function (res) {
-            if (res.ok) {
-              if (res.data && res.data.kind === 'store_offer') {
-                showMessage('promo', 'That code applies in the app stores — redeem it on iOS or Android.', false);
-              } else {
-                showMessage('promo', 'Code applied — you’re now on FiHaven Pro!', false);
-              }
-              refresh();
-            } else {
-              showMessage('promo', promoError(res.data && res.data.error), true);
-            }
-          })
-          .catch(function () { showMessage('promo', errorText('network'), true); });
-      });
-    }
   }
 
   /* ── Time zone ──────────────────────────────────────────── */
@@ -1338,8 +1183,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
     var upsellLink = card.querySelector('[data-plaid-upsell-link]');
     if (upsellLink) upsellLink.addEventListener('click', function (e) {
       e.preventDefault();
-      var pro = document.querySelector('[data-pro-upgrade]') || document.querySelector('[data-pro-status]');
-      if (pro) pro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (window.openProDialog) window.openProDialog();
     });
 
     refreshStatus();

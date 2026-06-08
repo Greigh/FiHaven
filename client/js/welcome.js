@@ -66,7 +66,7 @@ function wire() {
   var dash = document.querySelector('[data-go-dashboard]');
   if (dash) dash.addEventListener('click', function () { finishTo('/dashboard'); });
   var pro = document.querySelector('[data-go-pro]');
-  if (pro) pro.addEventListener('click', function () { finishTo('/settings#pro'); });
+  if (pro) pro.addEventListener('click', function () { finishTo('/dashboard?pro=open'); });
   var finish = document.querySelector('[data-finish]');
   if (finish) finish.addEventListener('click', function () { finishTo('/dashboard'); });
 }

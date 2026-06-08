@@ -318,7 +318,85 @@
   gap: 16px;
 }
 .settings-panel[hidden] { display: none; }
-.settings-panel .auth-card { width: 100%; }
+
+/* Settings sections reuse the .auth-card markup, but inside a panel we
+   give them the app's flatter .card look (see components.css .card) so
+   Settings reads as part of the product, not a marketing page. */
+.settings-panel .auth-card {
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+
+[data-theme="dark"] .settings-panel .auth-card {
+  background: #17171d;
+  border-color: rgba(255, 255, 255, .07);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .22);
+}
+
+/* ── FiHaven Pro nudge (dashboard, Free users) ────────────── */
+.pro-nudge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface));
+  box-shadow: var(--shadow-sm);
+}
+
+.pro-nudge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.pro-nudge-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pro-nudge-copy strong { font-size: 15px; letter-spacing: -.01em; }
+.pro-nudge-copy span { font-size: 13px; color: var(--muted); }
+
+.pro-nudge-cta { flex: none; padding: 8px 16px; font-size: 14px; }
+
+.pro-nudge-dismiss {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.pro-nudge-dismiss:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+@media (max-width: 560px) {
+  .pro-nudge { flex-wrap: wrap; padding-right: 40px; }
+  .pro-nudge-cta { width: 100%; order: 4; }
+  .pro-nudge-dismiss { position: absolute; top: 10px; right: 10px; }
+}
 
 /* A clean on/off switch for toggle settings */
 .settings-toggle-row { display: flex; align-items: center; gap: 16px; }
@@ -439,6 +517,26 @@ input[type="file"]::file-selector-button:hover {
 .site-footer-credit .heart {
   color: var(--red, #e85a5a);
   font-style: normal;
+}
+
+.site-footer-legal {
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding-top: 8px;
+  letter-spacing: 0.01em;
+}
+
+.site-footer-legal a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+.site-footer-legal a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .legal-page {

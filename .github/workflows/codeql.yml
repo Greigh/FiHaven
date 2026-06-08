@@ -57,9 +57,9 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          # Analyze Kotlin source directly. Autobuild can't drive this Android
+          # Gradle project on the runner, and a build adds nothing for scanning.
+          build-mode: none
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3

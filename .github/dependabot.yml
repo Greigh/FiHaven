@@ -4,6 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Tailwind v4 drops the standalone CLI and the JS-config (`-c`) flag this
+      # project's build:css relies on; stay on v3 until a deliberate migration.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "gradle"
     directory: "/android"

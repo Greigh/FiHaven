@@ -22,6 +22,12 @@ jobs:
       - name: Run FiHavenCore checks
         working-directory: ios/FiHavenCore
         run: swift run FiHavenCoreChecks
+        env:
+          # Optional end-to-end checks against a live server. They stay skipped
+          # unless an FH_LIVE_TOKEN secret (a token-mode session id) is set; add
+          # the secret — and optionally an FH_BASE repo variable — to enable.
+          FH_LIVE_TOKEN: ${{ secrets.FH_LIVE_TOKEN }}
+          FH_BASE: ${{ vars.FH_BASE }}
 
   app:
     runs-on: macos-latest

@@ -11,6 +11,7 @@
 ═══════════════════════════════════════════════════════════ */
 
 import { openAdminTools } from './admin.js';
+import { openProDialog } from './pro.js';
 
     /* ── Inline SVG icons (Feather-style, 1.75 stroke) ─────── */
   var ICONS = {
@@ -29,6 +30,7 @@ import { openAdminTools } from './admin.js';
     doc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
     shield:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3z"/></svg>',
     admin:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v5.5c0 4.6-3.2 7.4-8 8.5-4.8-1.1-8-3.9-8-8.5V6l8-3z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.6c.6-1.6 2-2.5 3.6-2.5s3 .9 3.6 2.5"/></svg>',
+    pro:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 16l-1.2-8 4.7 3.4L12 6l3.5 5.4L20 8l-1.2 8H5z"/><path d="M5 19h14"/></svg>',
     arrow:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>',
   };
 
@@ -101,6 +103,10 @@ import { openAdminTools } from './admin.js';
           '<a class="appbar-menu-item" role="menuitem" href="/settings">' +
             ICONS.user + '<span>Settings</span>' +
           '</a>' +
+          '<button class="appbar-menu-item appbar-menu-pro" type="button" role="menuitem" data-pro-menu-item>' +
+            ICONS.pro + '<span>FiHaven Pro</span>' +
+            '<span class="appbar-menu-meta" data-pro-menu-status hidden></span>' +
+          '</button>' +
           '<button class="appbar-menu-item" type="button" role="menuitem" data-admin-menu-item hidden>' +
             ICONS.admin + '<span>Admin</span>' +
           '</button>' +
@@ -125,6 +131,9 @@ import { openAdminTools } from './admin.js';
     var nameEl = host.querySelector('[data-account-name]');
     var initialsEl = host.querySelector('[data-initials]');
     var adminItem = host.querySelector('[data-admin-menu-item]');
+    var proItem = host.querySelector('[data-pro-menu-item]');
+    var proStatus = host.querySelector('[data-pro-menu-status]');
+    var proLoaded = false;
     if (!btn || !panel) return;
 
     function syncThemeLabel() {
@@ -144,6 +153,20 @@ import { openAdminTools } from './admin.js';
       btn.setAttribute('aria-expanded', 'true');
       document.addEventListener('mousedown', onOutside);
       document.addEventListener('keydown', onKey);
+      // Lazily label the Pro entry "Pro"/"Free" the first time the menu
+      // opens, so authed pages don't pay a billing fetch up front.
+      if (!proLoaded && proStatus) {
+        proLoaded = true;
+        fetch('/api/billing/status', { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            var pro = d && d.entitlement && d.entitlement.pro;
+            proStatus.textContent = pro ? 'Pro' : 'Free';
+            proStatus.style.color = pro ? 'var(--green)' : 'var(--muted)';
+            proStatus.hidden = false;
+          })
+          .catch(function () { /* leave hidden */ });
+      }
     }
     function onOutside(e) {
       if (!host.contains(e.target)) close();
@@ -165,6 +188,12 @@ import { openAdminTools } from './admin.js';
       adminItem.addEventListener('click', function () {
         close();
         openAdminTools();
+      });
+    }
+    if (proItem) {
+      proItem.addEventListener('click', function () {
+        close();
+        openProDialog();
       });
     }
 

@@ -24,7 +24,7 @@ calendar app.
 | **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, in-memory login rate limiter |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
-| **Deploy** | `bash upload.sh` builds locally, rsyncs `dist/` + `server/` + a sanitized `.env` to the VPS, then `npm ci --omit=dev` + `pm2 restart` on the remote |
+| **Deploy** | A local, gitignored `upload.sh` (not shipped in this repo) builds, rsyncs `dist/` + `server/` + a sanitized `.env` to the VPS, then `npm ci --omit=dev` + `pm2 restart` on the remote |
 
 Single deployable unit — Express serves the API *and* the static
 client (raw `client/` in dev, the Vite-built `dist/` in production),
@@ -89,14 +89,16 @@ entitlement is server-authoritative and unified across web (Stripe), iOS
 ```
 fihaven/
 ├── client/
-│   ├── *.html                       page entries (home, login, terms,
-│   │                                privacy, dashboard, settings, 404, 500)
+│   ├── *.html                       page entries: home, login, dashboard,
+│   │                                settings, welcome (onboarding),
+│   │                                verify-email, reset (password),
+│   │                                recover (lost-2FA), terms, privacy, 404, 500
 │   ├── css/
 │   │   ├── styles.css               manifest — @imports the others
 │   │   ├── tokens.css               design tokens + body bg
 │   │   ├── components.css           nav, buttons, badges, cards, modals…
 │   │   ├── theme-dark.css           dark-mode overrides
-│   │   ├── pages.css                page-frame, auth, legal, footer
+│   │   ├── pages.css                page-frame, auth, legal, footer, settings
 │   │   ├── marketing.css            home/landing styles
 │   │   ├── budget.css               Budget tab
 │   │   ├── mobile.css               responsive layer (loaded last): hamburger
@@ -104,23 +106,28 @@ fihaven/
 │   │   └── tailwind-input.css       (Tailwind source for utility classes)
 │   ├── js/
 │   │   ├── app.js                   dashboard entry — imports the lot
-│   │   ├── settings.js              /settings entry
+│   │   ├── settings.js              /settings entry (tabbed sections)
 │   │   ├── public-entry.js          /, /login, /terms, /privacy entry
 │   │   ├── auth.js                  /api/auth client, MFA second-step UI
-│   │   ├── utils.js                 formatters + due-date math (tz-aware)
+│   │   ├── welcome.js               onboarding flow (/welcome)
+│   │   ├── verify-email.js          email-verification page
+│   │   ├── reset.js                 forgot / reset-password page
+│   │   ├── recover.js               lost-2FA recovery page
+│   │   ├── admin.js                 admin dashboard panel
+│   │   ├── utils.js                 formatters (currency-aware) + due-date math
 │   │   ├── tz.js                    IANA-timezone `today()` helper
 │   │   ├── income.js                shared frequency-to-monthly math
 │   │   ├── modals.js                bill/card/pay/confirm modal logic
-│   │   ├── navbar.js                renders the appbar into <header data-app-nav>
-│   │   │                            + the mobile hamburger / slide-out drawer
+│   │   ├── navbar.js                appbar + mobile drawer + FiHaven Pro entry
 │   │   ├── theme.js                 light/dark theme handling
 │   │   ├── export.js                CSV builders for the dashboard tabs
+│   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
+│   │   ├── snoozes.svelte.js        per-bill snooze state
 │   │   └── dashboard.js / bills.js / cards.js / budget.js /
 │   │       history.js / payoff.js /
-│   │       calendar.js / hero.js     thin mount shims for each Svelte view
+│   │       calendar.js               thin mount shims for each Svelte view
 │   ├── svelte/                      Svelte 5 components
 │   │   ├── DashboardView.svelte
-│   │   ├── HeroPanel.svelte         live snapshot at the top of the dashboard
 │   │   ├── BillsList.svelte         + variance sparklines, stale-bill audit
 │   │   ├── CardsList.svelte
 │   │   ├── BudgetView.svelte        + "Cushion after bills" runway
@@ -128,8 +135,7 @@ fihaven/
 │   │   ├── HistoryList.svelte
 │   │   ├── PayoffView.svelte
 │   │   ├── Sparkline.svelte         tiny inline SVG sparkline
-│   │   ├── MfaSection.svelte        Settings → 2FA UI (TOTP/passkey/email)
-│   │   └── storage.svelte.js        shared `$state` proxies + debounced sync
+│   │   └── MfaSection.svelte        Settings → 2FA UI (TOTP/passkey/email)
 │   ├── public/                      copied verbatim to dist root
 │   │   ├── robots.txt
 │   │   ├── sitemap.xml
@@ -138,25 +144,33 @@ fihaven/
 │   │   └── og-image.svg
 │   └── svelte.config.js
 ├── server/
-│   ├── index.js                     Express entry — env loading, routes,
-│   │                                static, 404/500, dev-user seed, /fihaven base
+│   ├── index.js                     Express entry — env, routes, static,
+│   │                                page gates, scheduler boot, /fihaven base
 │   ├── db.js                        better-sqlite3 + schema + statements
-│   ├── session.js                   loadSession / requireAuth / requireCsrf
+│   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
+│   ├── tokens.js                    single-use email tokens (verify / reset / recover)
+│   ├── emails.js                    branded HTML emails (verify, reset, recovery, reminders)
+│   ├── scheduler.js                 tz-aware bill-reminder + monthly-summary mailer
 │   ├── captcha.js                   Cloudflare Turnstile siteverify
 │   ├── mfa.js                       AES-256-GCM, TOTP, backup codes, passkeys, email codes
+│   ├── billing.js                   Stripe + entitlement (FiHaven Pro)
+│   ├── plaid.js                     optional Plaid bank-linking helpers
 │   ├── mail.js                      thin nodemailer wrapper
 │   ├── rateLimit.js                 in-memory IP+email throttle (5 / 15 min)
 │   ├── util.js                      email + password policy, BCRYPT_COST
 │   └── routes/
-│       ├── auth.js                  signup, login, logout, me, MFA second step
-│       ├── data.js                  GET/PUT /api/data
+│       ├── auth.js                  signup, login, logout, me, verify, reset, recover
+│       ├── data.js                  GET/PUT /api/data (verified-gated)
 │       ├── account.js               change-email/password/name, delete, export,
-│       │                            export/<type>.csv, iCal token CRUD
+│       │                            export/<type>.csv, iCal token CRUD, onboarded
 │       ├── mfa.js                   /api/account/mfa (enroll/manage second factors)
+│       ├── billing.js               Stripe checkout / portal / webhook + entitlement
+│       ├── plaid.js                 Pro-gated bank linking (link / exchange / refresh)
+│       ├── admin.js                 admin-only stats + user management
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
 ├── data/                            SQLite file + mfa.key live here (gitignored)
 ├── dist/                            Vite build output (gitignored)
-├── upload.sh                        production deploy script (build + rsync + pm2)
+├── upload.sh                        local deploy script — gitignored, not in repo
 ├── .env                             local secrets (gitignored)
 ├── .env.development                 dev defaults (committed — TEST keys)
 ├── .env.example                     template
@@ -178,7 +192,7 @@ fihaven/
 | `npm run build` | `build:css` + `vite build` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
 | `npm start` | `NODE_ENV=production node server/index.js` — serves `dist/` + the API. |
-| `npm run deploy` | Runs `bash upload.sh` — builds, rsyncs `dist/` + `server/` + sanitized `.env`, `npm ci --omit=dev` + `pm2 restart` on the remote. |
+| `npm run deploy` | Runs `bash upload.sh` (a local, gitignored deploy script — **not included in this repo**; bring your own) — builds, rsyncs `dist/` + `server/` + sanitized `.env`, `npm ci --omit=dev` + `pm2 restart` on the remote. |
 
 ---
 
@@ -540,9 +554,11 @@ scrollable.
 
 ## Production deploy
 
-The repo ships an `upload.sh` script (run via `npm run deploy`) that
-handles the full local-build → remote-restart flow for a Node + PM2
-+ nginx VPS. It:
+Deploys run through a local `upload.sh` script (invoked by `npm run
+deploy`). The script is **gitignored and intentionally not included in
+this repo** — it carries host-specific paths and credentials. Bring
+your own; the reference implementation handles the full local-build →
+remote-restart flow for a Node + PM2 + nginx VPS by:
 
 1. Builds the Tailwind utility CSS and the Vite client into `dist/`.
 2. Pre-gzips static assets for `gzip_static`.
