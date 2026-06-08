@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    vite.config.js — multi-page client build, served at a subpath.
 
-   The app lives at https://danielhipskind.com/fihaven/ in
+   The app lives at https://fihaven.app/ in
    production. Every emitted asset URL, every clean-URL redirect,
    and the Vite dev proxy all bake in the BASE prefix.
 
@@ -111,6 +111,10 @@ export default defineConfig({
         dashboard: clientFile('dashboard.html'),
         home:      clientFile('home.html'),
         login:     clientFile('login.html'),
+        reset:     clientFile('reset.html'),
+        recover:   clientFile('recover.html'),
+        verifyEmail: clientFile('verify-email.html'),
+        welcome:   clientFile('welcome.html'),
         settings:  clientFile('settings.html'),
         terms:     clientFile('terms.html'),
         privacy:   clientFile('privacy.html'),

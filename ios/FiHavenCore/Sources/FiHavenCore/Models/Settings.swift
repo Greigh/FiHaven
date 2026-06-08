@@ -61,4 +61,28 @@ public struct Settings: Codable, Equatable, Sendable {
         get { raw["paidGoal"]?.asString }
         set { raw["paidGoal"] = newValue.map { .string($0) } ?? .null }
     }
+
+    /// ISO 4217 display currency (e.g. "USD", "GBP"). Drives Money formatting.
+    public var currency: String? {
+        get { raw["currency"]?.asString }
+        set { raw["currency"] = newValue.map { .string($0) } ?? .null }
+    }
+
+    /// Which tab the app opens to ("dashboard" | "bills" | "cards" | …).
+    public var landingView: String? {
+        get { raw["landingView"]?.asString }
+        set { raw["landingView"] = newValue.map { .string($0) } ?? .null }
+    }
+
+    /// Opt-in: email me a few days before a bill is due (server scheduler).
+    public var billReminders: Bool {
+        get { raw["billReminders"]?.asBool ?? false }
+        set { raw["billReminders"] = .bool(newValue) }
+    }
+
+    /// Opt-in: email me a monthly summary on the 1st (server scheduler).
+    public var monthlySummary: Bool {
+        get { raw["monthlySummary"]?.asBool ?? false }
+        set { raw["monthlySummary"] = .bool(newValue) }
+    }
 }

@@ -7,8 +7,10 @@ enum AppTab: String, Hashable { case home, bills, cards, payoff, more }
 /// Settings live under "More".
 struct MainTabView: View {
     let user: User
+    @EnvironmentObject var store: AppStore
     @State private var tab: AppTab = MainTabView.initialTab()
     @State private var debugPaywall = false
+    @State private var didApplyLanding = false
 
     var body: some View {
         TabView(selection: $tab) {
@@ -36,7 +38,26 @@ struct MainTabView: View {
             }
             #endif
         }
+        // Open to the user's saved default view, once the data has loaded.
+        .task(id: store.loaded) {
+            guard store.loaded, !didApplyLanding, let t = landingTab() else { return }
+            didApplyLanding = true
+            tab = t
+        }
         .sheet(isPresented: $debugPaywall) { PaywallView() }
+    }
+
+    /// Map the synced `landingView` setting to a primary tab (Budget /
+    /// Calendar / History live under More).
+    private func landingTab() -> AppTab? {
+        switch store.data.settings.landingView {
+        case "dashboard": return .home
+        case "bills": return .bills
+        case "cards": return .cards
+        case "payoff": return .payoff
+        case "budget", "calendar", "history": return .more
+        default: return nil
+        }
     }
 
     /// DEBUG: `FH_TAB=bills` (etc.) picks the launch tab for screenshots.

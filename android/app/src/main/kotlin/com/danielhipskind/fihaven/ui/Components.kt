@@ -49,7 +49,7 @@ fun MadeWithLove(modifier: Modifier = Modifier) {
             "Daniel Hipskind",
             color = Ct.colors.accent,
             fontSize = 13.sp,
-            modifier = Modifier.clickable { uriHandler.openUri("https://danielhipskind.com") },
+            modifier = Modifier.clickable { uriHandler.openUri("https://fihaven.app/") },
         )
     }
 }

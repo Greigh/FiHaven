@@ -25,23 +25,30 @@
 
     <main class="page-main settings-stack">
 
-      <!-- ═══ Settings overview ═══ -->
-      <section class="auth-card hero-shell" style="width:min(620px,100%);">
+      <!-- ═══ Overview ═══ -->
+      <section class="auth-card hero-shell" style="width:min(720px,100%);">
         <div class="hero-badge">Settings</div>
         <h1 style="margin-top:14px;">Manage your FiHaven settings.</h1>
-        <p style="margin-top:12px;">Update your sign-in details, import or export your data, or close your account.</p>
+        <p style="margin-top:12px;">Update your profile and preferences, secure your account, manage Pro, or export your data.</p>
         <div class="card" style="padding:14px 16px;margin-top:16px;">
           <div class="section-title" style="font-size:12px;">Signed in as</div>
           <div data-current-identity style="font-size:18px;font-weight:600;margin-top:4px;line-height:1.3;">…</div>
         </div>
       </section>
 
+      <!-- ═══ Section tabs ═══ -->
+      <div class="nav-tabs settings-tabs" role="tablist" data-settings-tabs>
+        <button class="tab-btn active" type="button" role="tab" data-tab="profile">Profile</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="security">Security</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="notifications">Notifications</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="pro">Pro</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="bank">Bank</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="data">Data</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="danger">Danger</button>
+      </div>
+
       <!-- ═══════════════ Profile ═══════════════ -->
-      <div class="settings-group">
-        <div class="settings-group-header">
-          <h2>Profile</h2>
-          <span class="settings-group-rule"></span>
-        </div>
+      <div class="settings-panel" data-tab-panel="profile">
 
         <!-- ── Display name ── -->
         <section class="auth-card">
@@ -78,6 +85,58 @@
           </form>
         </section>
 
+        <!-- ── Currency ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Currency</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">How amounts are shown across FiHaven — sets the symbol and number formatting everywhere.</p>
+          <form class="auth-form" data-form="currency" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="currency-select">Display currency</label>
+              <select id="currency-select" data-currency-select>
+                <option value="USD">USD — US Dollar ($)</option>
+                <option value="CAD">CAD — Canadian Dollar ($)</option>
+                <option value="AUD">AUD — Australian Dollar ($)</option>
+                <option value="GBP">GBP — British Pound (£)</option>
+                <option value="EUR">EUR — Euro (€)</option>
+                <option value="JPY">JPY — Japanese Yen (¥)</option>
+                <option value="INR">INR — Indian Rupee (₹)</option>
+                <option value="CHF">CHF — Swiss Franc</option>
+                <option value="MXN">MXN — Mexican Peso ($)</option>
+                <option value="BRL">BRL — Brazilian Real (R$)</option>
+              </select>
+            </div>
+            <div class="auth-note" data-currency-sample></div>
+            <div class="auth-error" data-message="currency" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save currency</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Default view ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Default view</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Which tab opens first when you go to your dashboard.</p>
+          <form class="auth-form" data-form="landing" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="landing-select">Open the dashboard to</label>
+              <select id="landing-select" data-landing-select>
+                <option value="dashboard">Dashboard (overview)</option>
+                <option value="bills">Bills</option>
+                <option value="cards">Cards</option>
+                <option value="budget">Budget</option>
+                <option value="calendar">Calendar</option>
+                <option value="history">History</option>
+                <option value="payoff">Payoff</option>
+              </select>
+            </div>
+            <div class="auth-error" data-message="landing" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save default view</button>
+            </div>
+          </form>
+        </section>
+
         <!-- ── Payments: fully-paid goal ── -->
         <section class="auth-card">
           <h2 style="font-size:20px;letter-spacing:-.03em;">Payments</h2>
@@ -102,13 +161,91 @@
         </section>
       </div>
 
-      <!-- ═══════════════ FiHaven Pro ═══════════════ -->
-      <div class="settings-group">
-        <div class="settings-group-header">
-          <h2>FiHaven Pro</h2>
-          <span class="settings-group-rule"></span>
-        </div>
+      <!-- ═══════════════ Security ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="security" hidden>
 
+        <!-- ── Change email ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Change email</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Your email is also your sign-in name.</p>
+          <form class="auth-form" data-form="email" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="new-email">New email</label>
+              <input type="email" id="new-email" autocomplete="email" placeholder="you@example.com" required/>
+            </div>
+            <div class="auth-field">
+              <label for="email-password">Current password</label>
+              <input type="password" id="email-password" autocomplete="current-password" placeholder="Enter your password" required/>
+            </div>
+            <div class="auth-error" data-message="email" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update email</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Change password ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Change password</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Changing your password signs out every other session — only this device stays signed in.</p>
+          <form class="auth-form" data-form="password" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="current-password">Current password</label>
+              <input type="password" id="current-password" autocomplete="current-password" placeholder="Enter your current password" required/>
+            </div>
+            <div class="auth-field">
+              <label for="new-password">New password</label>
+              <input type="password" id="new-password" autocomplete="new-password" placeholder="Enter a new password" required/>
+            </div>
+            <div class="auth-field">
+              <label for="confirm-password">Confirm new password</label>
+              <input type="password" id="confirm-password" autocomplete="new-password" placeholder="Re-enter the new password" required/>
+            </div>
+            <div class="auth-note">At least 10 characters, including at least one letter and one number.</div>
+            <div class="auth-error" data-message="password" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update password</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Two-factor authentication ── -->
+        <div id="mfa-section-mount"></div>
+      </div>
+
+      <!-- ═══════════════ Notifications ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="notifications" hidden>
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Email notifications</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Optional emails to your verified address, sent in your time zone.</p>
+          <div style="margin-top:16px;">
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-copy">
+                <div class="settings-toggle-title">Bill reminders</div>
+                <div class="settings-toggle-desc">Email me 3 days before a bill is due.</div>
+              </div>
+              <label class="fh-switch">
+                <input type="checkbox" data-reminders-toggle aria-label="Bill reminders"/>
+                <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-copy">
+                <div class="settings-toggle-title">Monthly summary</div>
+                <div class="settings-toggle-desc">A recap of what you paid, your bills, and debt — on the 1st of each month.</div>
+              </div>
+              <label class="fh-switch">
+                <input type="checkbox" data-summary-toggle aria-label="Monthly summary"/>
+                <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+          <div class="auth-error" data-message="notifications" aria-live="polite" style="margin-top:12px;"></div>
+        </section>
+      </div>
+
+      <!-- ═══════════════ FiHaven Pro ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="pro" hidden>
         <section class="auth-card">
           <h2 style="font-size:20px;letter-spacing:-.03em;">Subscription</h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">
@@ -143,12 +280,7 @@
       </div>
 
       <!-- ═══════════════ Bank connections (Plaid) ═══════════════ -->
-      <div class="settings-group">
-        <div class="settings-group-header">
-          <h2>Bank connections</h2>
-          <span class="settings-group-rule"></span>
-        </div>
-
+      <div class="settings-panel" data-tab-panel="bank" hidden>
         <section class="auth-card" data-plaid-card>
           <h2 style="font-size:20px;letter-spacing:-.03em;">
             Linked banks <span class="badge badge-gray" style="vertical-align:middle;">Pro</span>
@@ -164,7 +296,7 @@
 
           <div data-plaid-upsell hidden class="card" style="padding:14px 16px;margin-top:14px;font-size:14px;">
             Linking your bank is a <strong>Pro</strong> feature.
-            <a href="#" data-plaid-upsell-link>Upgrade above</a> to connect an account.
+            <a href="#" data-plaid-upsell-link>Upgrade in the Pro tab</a> to connect an account.
           </div>
 
           <div data-plaid-connected hidden style="margin-top:14px;">
@@ -179,70 +311,8 @@
         </section>
       </div>
 
-      <!-- ═══════════════ Security ═══════════════ -->
-      <div class="settings-group">
-        <div class="settings-group-header">
-          <h2>Security</h2>
-          <span class="settings-group-rule"></span>
-        </div>
-
-        <!-- ── Change email ── -->
-        <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">Change email</h2>
-          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Your email is also your sign-in name.</p>
-          <form class="auth-form" data-form="email" style="margin-top:14px;">
-            <div class="auth-field">
-              <label for="new-email">New email</label>
-              <input type="email" id="new-email" autocomplete="email" placeholder="you@example.com" required/>
-            </div>
-            <div class="auth-field">
-              <label for="email-password">Current password</label>
-              <input type="password" id="email-password" autocomplete="current-password" placeholder="Enter your password" required/>
-            </div>
-            <div class="auth-error" data-message="email" aria-live="polite"></div>
-            <div class="auth-actions">
-              <button class="btn btn-primary" type="submit">Update email</button>
-            </div>
-          </form>
-        </section>
-
-        <!-- ── Change password ── -->
-        <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">Change password</h2>
-          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Changing your password signs you out of every other device.</p>
-          <form class="auth-form" data-form="password" style="margin-top:14px;">
-            <div class="auth-field">
-              <label for="current-password">Current password</label>
-              <input type="password" id="current-password" autocomplete="current-password" placeholder="Enter your current password" required/>
-            </div>
-            <div class="auth-field">
-              <label for="new-password">New password</label>
-              <input type="password" id="new-password" autocomplete="new-password" placeholder="Enter a new password" required/>
-            </div>
-            <div class="auth-field">
-              <label for="confirm-password">Confirm new password</label>
-              <input type="password" id="confirm-password" autocomplete="new-password" placeholder="Re-enter the new password" required/>
-            </div>
-            <div class="auth-note">At least 10 characters, including at least one letter and one number.</div>
-            <div class="auth-error" data-message="password" aria-live="polite"></div>
-            <div class="auth-actions">
-              <button class="btn btn-primary" type="submit">Update password</button>
-            </div>
-          </form>
-        </section>
-
-        <!-- ── Two-factor authentication ── -->
-        <div id="mfa-section-mount"></div>
-      </div>
-
-      <!-- Admin tools moved to the appbar account menu (admins only). -->
-
       <!-- ═══════════════ Data ═══════════════ -->
-      <div class="settings-group">
-        <div class="settings-group-header">
-          <h2>Data</h2>
-          <span class="settings-group-rule"></span>
-        </div>
+      <div class="settings-panel" data-tab-panel="data" hidden>
 
         <!-- ── Calendar subscription ── -->
         <section class="auth-card">
@@ -321,12 +391,7 @@
       </div>
 
       <!-- ═══════════════ Danger zone ═══════════════ -->
-      <div class="settings-group danger">
-        <div class="settings-group-header">
-          <h2>Danger zone</h2>
-          <span class="settings-group-rule"></span>
-        </div>
-
+      <div class="settings-panel" data-tab-panel="danger" hidden>
         <section class="auth-card" style="border-color:var(--red);">
           <h2 style="font-size:20px;letter-spacing:-.03em;color:var(--red);">Delete account</h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">This permanently deletes your account and all of your data — bills, cards, history, and settings. This cannot be undone.</p>

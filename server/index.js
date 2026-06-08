@@ -32,7 +32,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const dbApi = require('./db');
-const { loadSession } = require('./session');
+const { loadSession, requireVerified } = require('./session');
 const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
 const accountRouter = require('./routes/account');
@@ -41,6 +41,7 @@ const mfaRouter = require('./routes/mfa');
 const billingRouter = require('./routes/billing');
 const plaidRouter = require('./routes/plaid');
 const adminRouter = require('./routes/admin');
+const scheduler = require('./scheduler');
 
 /* ── config validation ──────────────────────────────────────── */
 
@@ -84,11 +85,14 @@ app.use(loadSession);
 // for free; redirects out of it use `${BASE}/...` explicitly.
 const sub = express.Router({ mergeParams: true });
 
-// API routes.
+// API routes. The data + MFA mounts are gated behind requireVerified:
+// an authenticated-but-unverified session gets 403 'email-unverified',
+// which makes the dashboard non-functional until the email is confirmed.
+// (Billing is left open here because its Stripe webhook is unauthenticated.)
 sub.use('/api/auth', authRouter);
-sub.use('/api/data', dataRouter);
+sub.use('/api/data', requireVerified, dataRouter);
 sub.use('/api/account', accountRouter);
-sub.use('/api/account/mfa', mfaRouter);
+sub.use('/api/account/mfa', requireVerified, mfaRouter);
 sub.use('/api/billing', billingRouter);
 sub.use('/api/plaid', plaidRouter);
 sub.use('/api/admin', adminRouter);
@@ -114,10 +118,26 @@ sub.get(Object.keys(LEGACY), (req, res) =>
 );
 
 // Server-side gate for the private pages — works even with JS
-// disabled. Anonymous visitors get sent to the marketing landing.
+// disabled. Anonymous visitors get the marketing landing; signed-in
+// but unverified users get the verify-email page until they confirm.
 sub.get(['/dashboard', '/settings'], (req, res, next) => {
-  if (req.user) return next();
-  return res.redirect(BASE + '/');
+  if (!req.user) return res.redirect(BASE + '/');
+  if (!req.user.emailVerified) return res.redirect(BASE + '/verify-email');
+  // New, verified accounts run the welcome flow first. Only /dashboard
+  // forces it — /settings stays reachable so onboarding can deep-link there.
+  if (!req.user.onboarded && req.path === '/dashboard') {
+    return res.redirect(BASE + '/welcome');
+  }
+  return next();
+});
+
+// The welcome (onboarding) page: signed-in + verified users who haven't
+// finished onboarding. Everyone else is bounced to where they belong.
+sub.get('/welcome', (req, res, next) => {
+  if (!req.user) return res.redirect(BASE + '/login');
+  if (!req.user.emailVerified) return res.redirect(BASE + '/verify-email');
+  if (req.user.onboarded) return res.redirect(BASE + '/dashboard');
+  return next();
 });
 
 // In production CLIENT_DIR is dist/ (Vite has already merged the
@@ -204,9 +224,20 @@ function ensureAdmins() {
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (emails.length) dbApi.seedAdminEmails(emails);
+  if (emails.length) {
+    dbApi.seedAdminEmails(emails);
+    // Admins are trusted bootstrap accounts — keep them verified so the
+    // required-verification gate can never lock the operator out.
+    dbApi.seedVerifiedEmails(emails);
+  }
 }
 ensureAdmins();
+
+// Email reminders + monthly summaries. Off by default in dev so it can
+// never send real mail from a laptop; set ENABLE_SCHEDULER=1 to test.
+if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === '1') {
+  scheduler.start();
+}
 
 app.listen(PORT, () => {
   console.log(`FiHaven server listening on http://localhost:${PORT}`);

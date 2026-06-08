@@ -2,6 +2,7 @@ package com.danielhipskind.fihaven
 
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielhipskind.fihaven.core.model.AppData
@@ -14,9 +15,13 @@ import com.danielhipskind.fihaven.core.model.PromoResult
 import com.danielhipskind.fihaven.core.model.incomes
 import com.danielhipskind.fihaven.core.model.paidGoal
 import com.danielhipskind.fihaven.core.model.timezoneSetting
+import com.danielhipskind.fihaven.core.model.currency
 import com.danielhipskind.fihaven.core.model.withIncomes
 import com.danielhipskind.fihaven.core.model.withPaidGoal
+import com.danielhipskind.fihaven.core.model.withSetting
 import com.danielhipskind.fihaven.core.model.withTimezone
+import com.danielhipskind.fihaven.core.Money
+import kotlinx.serialization.json.JsonPrimitive
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.logic.PaidState
@@ -37,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val BIO_KEY = "fh_biometric"
 
@@ -44,6 +50,7 @@ sealed interface Session {
     data object Loading : Session
     data object SignedOut : Session
     data class Mfa(val challenge: MfaChallenge) : Session
+    data class Unverified(val user: User) : Session
     data class SignedIn(val user: User) : Session
 }
 
@@ -61,7 +68,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _entitlement = MutableStateFlow(Entitlement())
     val entitlement: StateFlow<Entitlement> = _entitlement.asStateFlow()
-    val isPro: Boolean get() = _entitlement.value.pro
 
     // ── Biometric app lock (local, per-device) ───────────────────────
     private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
@@ -73,7 +79,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setBiometricEnabled(on: Boolean) {
         _biometricEnabled.value = on
-        prefs.edit().putBoolean(BIO_KEY, on).apply()
+        prefs.edit { putBoolean(BIO_KEY, on) }
         _locked.value = false
     }
 
@@ -142,6 +148,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         login("demo@fihaven.app", "demopassword11", "dev-bypass-token", ApiClient.now() - 3000)
 
     private suspend fun enterSignedIn(user: User, fresh: Boolean = false) {
+        // Unconfirmed email → the verify screen, never the dashboard. The
+        // server also returns email-unverified on data calls, but gating
+        // here avoids fetching the data at all.
+        if (!user.emailVerified) {
+            _session.value = Session.Unverified(user)
+            return
+        }
         // A fresh password/MFA sign-in already authenticated the user, so
         // don't gate behind biometrics; a token-restored session stays locked.
         if (fresh) _locked.value = false
@@ -149,9 +162,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         loadData()
     }
 
+    /** Re-send the verification email. Returns true on success. */
+    suspend fun resendVerification(): Boolean =
+        runCatching { api.resendVerification() }.isSuccess
+
+    /** Re-check verification after the user opens the email link elsewhere.
+     *  Enters the app when confirmed; returns false (and stays put) if not. */
+    suspend fun refreshVerification(): Boolean =
+        try {
+            val user = api.me()
+            when {
+                user == null -> { _session.value = Session.SignedOut; false }
+                user.emailVerified -> { enterSignedIn(user, fresh = true); true }
+                else -> { _session.value = Session.Unverified(user); false }
+            }
+        } catch (e: ApiError) {
+            _authError.value = e.userMessage; false
+        } catch (e: Exception) {
+            _authError.value = e.message ?: "Something went wrong."; false
+        }
+
     private suspend fun loadData() {
         runCatching {
             _data.value = api.fetchData()
+            Money.setCurrency(_data.value.settings.currency)
             // Seed entitlement from the data fetch, then refresh authoritatively.
             _data.value.entitlement?.let { _entitlement.value = it }
         }
@@ -173,15 +207,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Redeem a server promo code. onResult(result, errorMessage). */
     fun redeemPromo(code: String, onResult: (PromoResult?, String?) -> Unit) = viewModelScope.launch {
-        try {
-            val result = api.redeemPromo(code.trim())
-            result.entitlement?.let { _entitlement.value = it }
-            onResult(result, null)
-        } catch (e: ApiError) {
-            onResult(null, promoError(e))
-        } catch (e: Exception) {
-            onResult(null, "Couldn’t redeem that code.")
-        }
+        runCatching { api.redeemPromo(code.trim()) }
+            .onSuccess { result ->
+                result.entitlement?.let { _entitlement.value = it }
+                onResult(result, null)
+            }
+            .onFailure { e ->
+                onResult(null, (e as? ApiError)?.let(::promoError) ?: "Couldn’t redeem that code.")
+            }
     }
 
     private fun promoError(e: ApiError): String = when ((e as? ApiError.Http)?.code) {
@@ -234,7 +267,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _data.value = transform(_data.value)
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
-            delay(800)
+            delay(800.milliseconds)
             runCatching { api.saveData(_data.value) }
         }
     }
@@ -280,17 +313,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setPaidGoal(policy: PaidGoalPolicy) =
         mutate { it.copy(settings = it.settings.withPaidGoal(policy.raw)) }
 
-    fun setPaid(type: String, refId: String, name: String, amount: Double, paid: Boolean) = mutate { d ->
-        val mk = DateLogic.currentMonthKey(zone())
-        val existing = d.payments.indexOfFirst { it.type == type && it.refId == refId && it.monthKey == mk }
-        val payments = d.payments.toMutableList()
-        if (paid && existing < 0) {
-            payments.add(Payment(System.currentTimeMillis(), type, refId, name, amount, todayIso(), mk, ""))
-        } else if (!paid && existing >= 0) {
-            payments.removeAt(existing)
-        }
-        d.copy(payments = payments)
+    fun setCurrency(code: String) {
+        Money.setCurrency(code)
+        mutate { it.copy(settings = it.settings.withSetting("currency", JsonPrimitive(code))) }
     }
+
+    fun setLandingView(view: String) =
+        mutate { it.copy(settings = it.settings.withSetting("landingView", JsonPrimitive(view))) }
+
+    fun setBillReminders(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("billReminders", JsonPrimitive(on))) }
+
+    fun setMonthlySummary(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("monthlySummary", JsonPrimitive(on))) }
 
     /**
      * Record a payment of [amount] toward a bill/card on [date]. Payments accumulate
@@ -318,12 +353,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
     }
-
-    fun togglePaid(item: UpcomingItem) =
-        setPaid(item.type, item.refId, item.name, item.amount, !isPaid(item))
-
-    fun isPaid(item: UpcomingItem): Boolean =
-        Schedule.isPaid(_data.value.payments, item.type, item.refId, DateLogic.currentMonthKey(zone()))
 
     // ── Fully-paid goal logic (mirrors utils.js) ────────────────────────────
     fun paidGoalPolicy(): PaidGoalPolicy = PaidGoalPolicy.from(_data.value.settings.paidGoal)
@@ -361,9 +390,4 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun paidState(item: UpcomingItem) = paidState(item.type, item.refId)
 
     fun zone(): ZoneId = DateLogic.zone(_data.value.settings.timezoneSetting)
-
-    private fun todayIso(): String {
-        val d = DateLogic.today(zone())
-        return "%04d-%02d-%02d".format(d.year, d.monthValue, d.dayOfMonth)
-    }
 }

@@ -8,7 +8,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
-data class User(val email: String, val name: String? = null)
+data class User(
+    val email: String,
+    val name: String? = null,
+    // Whether the email is confirmed. The app gates the dashboard behind
+    // this; the server returns `email-unverified` on data calls until it's
+    // true. Defaults true so an older payload never falsely locks anyone out.
+    val emailVerified: Boolean = true,
+)
 
 data class AuthSession(val token: String, val user: User)
 

@@ -33,6 +33,7 @@ final class AppStore: ObservableObject {
     func load() async {
         do {
             data = try await api.fetchData()
+            Money.setCurrency(data.settings.currency)
             loaded = true
             syncState = .saved
         } catch {

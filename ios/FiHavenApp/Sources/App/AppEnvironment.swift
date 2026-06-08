@@ -7,6 +7,7 @@ enum SessionState {
     case loading
     case signedOut
     case mfa(MfaChallenge)
+    case unverified(User)
     case signedIn(User)
 }
 
@@ -134,6 +135,36 @@ final class AppEnvironment: ObservableObject {
         authError = nil
     }
 
+    /// Re-send the verification email for the current unverified session.
+    /// Returns true on success (the view shows a status from it).
+    func resendVerification() async -> Bool {
+        do { try await api.resendVerification(); return true }
+        catch { return false }
+    }
+
+    /// Re-check verification after the user opens the email link elsewhere.
+    /// Enters the app when confirmed; returns false (and stays put) if not.
+    func refreshVerification() async -> Bool {
+        do {
+            if let user = try await api.me() {
+                if user.emailVerified {
+                    await enterSignedIn(user, fresh: true)
+                    return true
+                }
+                session = .unverified(user)
+                return false
+            }
+            session = .signedOut
+            return false
+        } catch let error as APIError {
+            authError = error.userMessage
+            return false
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
     func logout() async {
         try? await api.logout()
         billing.reset()
@@ -163,6 +194,13 @@ final class AppEnvironment: ObservableObject {
     // ── helpers ──────────────────────────────────────────────────────
 
     private func enterSignedIn(_ user: User, fresh: Bool = false) async {
+        // Unconfirmed email → the verify screen, never the dashboard. The
+        // server also returns email-unverified on data calls, but gating
+        // here avoids loading the store at all.
+        guard user.emailVerified else {
+            session = .unverified(user)
+            return
+        }
         // A fresh password/MFA sign-in already authenticated the user, so
         // don't gate behind biometrics; a token-restored session (cold
         // launch) stays locked until unlocked.

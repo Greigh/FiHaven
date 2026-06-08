@@ -11,9 +11,11 @@ const bcrypt = require('bcrypt');
 const dbApi = require('../db');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
-const { createSession, destroySession } = require('../session');
+const { createSession, destroySession, requireAuth } = require('../session');
 const mfa = require('../mfa');
 const mail = require('../mail');
+const tokens = require('../tokens');
+const emails = require('../emails');
 const {
   normalizeEmail,
   isValidEmail,
@@ -44,7 +46,12 @@ function authMode(req) {
 // (which stays HttpOnly in the cookie).
 function sessionResponse(session, user, mode) {
   const body = {
-    user: { email: user.email, name: user.name || null },
+    user: {
+      email: user.email,
+      name: user.name || null,
+      emailVerified: !!user.email_verified,
+      onboarded: !!user.onboarded,
+    },
     csrfToken: session.csrf_token,
   };
   if (mode === 'token') body.token = session.id;
@@ -91,10 +98,170 @@ router.post('/signup', async (req, res) => {
     return sendError(res, 500, 'server-error');
   }
 
+  // Kick off email verification. The account is unverified until the
+  // link is clicked, and the app gates data access until then.
+  try {
+    const raw = tokens.issue(user.id, 'verify-email');
+    await emails.sendVerifyEmail(user.email, raw);
+  } catch (err) {
+    console.error('verification email failed:', err && err.message);
+    // Non-fatal: the user can resend from the verify screen.
+  }
+
   dbApi.touchLastLogin(user.id);
   const mode = authMode(req);
   const session = createSession(res, user, req, { mode });
   return res.status(201).json(sessionResponse(session, user, mode));
+});
+
+/* ── POST /api/auth/forgot ───────────────────────────────────── */
+// Request a password-reset link. Always responds 200 with the same body
+// whether or not the account exists, so it can't be used to enumerate
+// registered emails. Mail failures are logged, never surfaced.
+
+router.post('/forgot', async (req, res) => {
+  const body = req.body || {};
+
+  const botError = botGate(body);
+  if (botError) return sendError(res, 400, botError);
+
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) return sendError(res, 400, 'invalid-email');
+
+  const limit = rateLimit.check(req.ip, email);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+
+  const captcha = await verifyCaptcha(body.captchaToken, req.ip);
+  if (!captcha.ok) return sendError(res, 400, 'captcha-failed');
+
+  // Count the request so the endpoint can't be used to spam reset emails.
+  rateLimit.record(req.ip, email);
+
+  const account = dbApi.findUserByEmail(email);
+  if (account) {
+    try {
+      const raw = tokens.issue(account.id, 'password-reset');
+      await emails.sendPasswordReset(account.email, raw);
+    } catch (err) {
+      console.error('password-reset email failed:', err);
+      // Swallow — responding the same way avoids account enumeration.
+    }
+  }
+
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/auth/reset ────────────────────────────────────── */
+// Complete a password reset with the emailed token. Single-use token,
+// password policy enforced, and every existing session is killed so a
+// thief who still holds an old session is locked out.
+
+router.post('/reset', async (req, res) => {
+  const body = req.body || {};
+
+  const found = tokens.check(body.token, 'password-reset');
+  if (!found) return sendError(res, 400, 'invalid-token');
+
+  const user = dbApi.findUserById(found.userId);
+  if (!user) return sendError(res, 400, 'invalid-token');
+
+  const pwError = checkPasswordPolicy(body.password, user.email);
+  if (pwError) return sendError(res, 400, pwError);
+
+  const hash = await bcrypt.hash(body.password, BCRYPT_COST);
+  dbApi.updateUserPassword(user.id, hash);
+  tokens.consume(found.id);
+  dbApi.deleteUserSessions(user.id);
+
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/auth/recover-2fa/request ──────────────────────── */
+// Request a 2FA-recovery link for a locked-out account. Always 200 (no
+// enumeration); only actually sends when the account has a second factor.
+
+router.post('/recover-2fa/request', async (req, res) => {
+  const body = req.body || {};
+
+  const botError = botGate(body);
+  if (botError) return sendError(res, 400, botError);
+
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) return sendError(res, 400, 'invalid-email');
+
+  const limit = rateLimit.check(req.ip, email);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+
+  const captcha = await verifyCaptcha(body.captchaToken, req.ip);
+  if (!captcha.ok) return sendError(res, 400, 'captcha-failed');
+
+  rateLimit.record(req.ip, email);
+
+  const account = dbApi.findUserByEmail(email);
+  if (account && dbApi.userHasMfa(account.id)) {
+    try {
+      const raw = tokens.issue(account.id, 'recover-2fa');
+      await emails.sendRecovery(account.email, raw);
+    } catch (err) {
+      console.error('2fa-recovery email failed:', err && err.message);
+    }
+  }
+
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/auth/recover-2fa/confirm ──────────────────────── */
+// Confirm recovery with the emailed token. DESTRUCTIVE: disables every
+// second factor and erases bills/cards/payments (settings kept), then
+// revokes all sessions. The token is the proof; no other auth.
+
+router.post('/recover-2fa/confirm', (req, res) => {
+  const found = tokens.check((req.body || {}).token, 'recover-2fa');
+  if (!found) return sendError(res, 400, 'invalid-token');
+  dbApi.recover2faWipe(found.userId);
+  tokens.consume(found.id);
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/auth/verify-email ─────────────────────────────── */
+// Confirm an email with the emailed token. Unauthenticated — the token
+// itself is proof, so the link works from any device or inbox.
+
+router.post('/verify-email', (req, res) => {
+  const found = tokens.check((req.body || {}).token, 'verify-email');
+  if (!found) return sendError(res, 400, 'invalid-token');
+  dbApi.setEmailVerified(found.userId, Date.now());
+  tokens.consume(found.id);
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/auth/resend-verification ──────────────────────── */
+// Re-send the verification email. Requires a session (signup/login mint
+// one even while unverified) and is rate-limited per IP+email.
+
+router.post('/resend-verification', requireAuth, async (req, res) => {
+  const user = dbApi.findUserById(req.user.id);
+  if (!user) return sendError(res, 401, 'unauthenticated');
+  if (user.email_verified) return res.json({ ok: true, alreadyVerified: true });
+
+  const limit = rateLimit.check(req.ip, user.email);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+  rateLimit.record(req.ip, user.email);
+
+  try {
+    const raw = tokens.issue(user.id, 'verify-email');
+    await emails.sendVerifyEmail(user.email, raw);
+  } catch (err) {
+    console.error('verification email failed:', err && err.message);
+    return sendError(res, 500, 'mail-send-failed');
+  }
+  return res.json({ ok: true });
 });
 
 /* ── POST /api/auth/login ────────────────────────────────────── */
@@ -389,7 +556,13 @@ router.post('/logout', (req, res) => {
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(200).json({ user: null });
   return res.status(200).json({
-    user: { email: req.user.email, name: req.user.name || null, role: req.user.role || 'user' },
+    user: {
+      email: req.user.email,
+      name: req.user.name || null,
+      role: req.user.role || 'user',
+      emailVerified: !!req.user.emailVerified,
+      onboarded: !!req.user.onboarded,
+    },
     csrfToken: req.session.csrf_token,
   });
 });

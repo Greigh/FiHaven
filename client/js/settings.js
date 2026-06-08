@@ -323,6 +323,149 @@ import MfaSection from '../svelte/MfaSection.svelte';
 
     /* ── Bank connections (Plaid, Pro-gated) ─────────────── */
     initPlaidSection();
+
+    /* ── Display preferences (currency, default view) ────── */
+    initCurrencySection();
+    initLandingSection();
+
+    /* ── Email notifications (reminders, monthly summary) ── */
+    initNotificationsSection();
+
+    /* ── Section tabs ────────────────────────────────────── */
+    initTabs();
+  }
+
+  /* ── Section tabs ──────────────────────────────────────── */
+  function initTabs() {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-settings-tabs] .tab-btn'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
+    if (!tabs.length) return;
+
+    function activate(name) {
+      tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-tab-panel') !== name; });
+      try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    }
+
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { activate(t.dataset.tab); });
+    });
+
+    // Honor a #hash deep-link (e.g. /settings#security from onboarding).
+    var hash = (window.location.hash || '').replace('#', '');
+    if (hash && panels.some(function (p) { return p.getAttribute('data-tab-panel') === hash; })) {
+      activate(hash);
+    }
+  }
+
+  /* ── Currency ──────────────────────────────────────────── */
+  function initCurrencySection() {
+    var form = document.querySelector('[data-form="currency"]');
+    var select = document.querySelector('[data-currency-select]');
+    var sample = document.querySelector('[data-currency-sample]');
+    if (!form || !select) return;
+
+    function describe() {
+      try {
+        sample.textContent = 'Example: ' + new Intl.NumberFormat(undefined, {
+          style: 'currency', currency: select.value,
+        }).format(1234.5);
+      } catch (e) { sample.textContent = ''; }
+    }
+
+    fetchData().then(function (server) {
+      var s = (server && server.settings) || {};
+      if (s.currency) select.value = s.currency;
+      describe();
+    }).catch(describe);
+
+    select.addEventListener('change', describe);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var chosen = select.value;
+      setBusy(form, true);
+      showMessage('currency', 'Saving…', false);
+      fetchData().then(function (server) {
+        return pushData({
+          bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+          settings: Object.assign({}, server.settings || {}, { currency: chosen }),
+        });
+      }).then(function () {
+        setBusy(form, false);
+        showMessage('currency', 'Currency saved — amounts update next time your dashboard loads.', false);
+      }).catch(function (err) {
+        setBusy(form, false);
+        showMessage('currency', (err && err.message) || errorText('network'), true);
+      });
+    });
+  }
+
+  /* ── Default view ──────────────────────────────────────── */
+  function initLandingSection() {
+    var form = document.querySelector('[data-form="landing"]');
+    var select = document.querySelector('[data-landing-select]');
+    if (!form || !select) return;
+
+    fetchData().then(function (server) {
+      var s = (server && server.settings) || {};
+      if (s.landingView) select.value = s.landingView;
+    }).catch(function () {});
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var chosen = select.value;
+      setBusy(form, true);
+      showMessage('landing', 'Saving…', false);
+      fetchData().then(function (server) {
+        return pushData({
+          bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+          settings: Object.assign({}, server.settings || {}, { landingView: chosen }),
+        });
+      }).then(function () {
+        setBusy(form, false);
+        showMessage('landing', 'Default view saved.', false);
+      }).catch(function (err) {
+        setBusy(form, false);
+        showMessage('landing', (err && err.message) || errorText('network'), true);
+      });
+    });
+  }
+
+  /* ── Email notifications (save on toggle) ──────────────── */
+  function initNotificationsSection() {
+    var reminders = document.querySelector('[data-reminders-toggle]');
+    var summary = document.querySelector('[data-summary-toggle]');
+    if (!reminders && !summary) return;
+
+    fetchData().then(function (server) {
+      var s = (server && server.settings) || {};
+      if (reminders) reminders.checked = !!s.billReminders;
+      if (summary) summary.checked = !!s.monthlySummary;
+    }).catch(function () {});
+
+    function saveToggle(key, value, el) {
+      showMessage('notifications', 'Saving…', false);
+      fetchData().then(function (server) {
+        var patch = {}; patch[key] = value;
+        return pushData({
+          bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+          settings: Object.assign({}, server.settings || {}, patch),
+        });
+      }).then(function () {
+        showMessage('notifications', value ? 'On — we’ll email you.' : 'Turned off.', false);
+      }).catch(function (err) {
+        if (el) el.checked = !value; // revert on failure
+        showMessage('notifications', (err && err.message) || errorText('network'), true);
+      });
+    }
+
+    if (reminders) reminders.addEventListener('change', function () {
+      saveToggle('billReminders', reminders.checked, reminders);
+    });
+    if (summary) summary.addEventListener('change', function () {
+      saveToggle('monthlySummary', summary.checked, summary);
+    });
   }
 
   /* ── FiHaven Pro ───────────────────────────────────────── */

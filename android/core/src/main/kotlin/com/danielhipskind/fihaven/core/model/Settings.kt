@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
@@ -24,6 +26,16 @@ val JsonObject.theme: String? get() = prim("theme")?.contentOrNull
 /// "minimum" | "recommended" | "full" — how much must be paid before a
 /// bill/card counts as fully paid. Parse via PaidGoalPolicy.from.
 val JsonObject.paidGoal: String? get() = prim("paidGoal")?.contentOrNull
+
+/// ISO 4217 display currency (e.g. "USD"). Drives Money formatting.
+val JsonObject.currency: String? get() = prim("currency")?.contentOrNull
+
+/// Which view the app opens to ("dashboard" | "bills" | "cards" | …).
+val JsonObject.landingView: String? get() = prim("landingView")?.contentOrNull
+
+/// Opt-in email reminders / monthly summary (server scheduler).
+val JsonObject.billReminders: Boolean get() = prim("billReminders")?.booleanOrNull ?: false
+val JsonObject.monthlySummary: Boolean get() = prim("monthlySummary")?.booleanOrNull ?: false
 
 val JsonObject.incomes: List<IncomeSource>
     get() {
@@ -50,6 +62,13 @@ fun JsonObject.withTimezone(tz: String?): JsonObject = buildJsonObject {
 fun JsonObject.withPaidGoal(policy: String): JsonObject = buildJsonObject {
     this@withPaidGoal.forEach { (k, v) -> if (k != "paidGoal") put(k, v) }
     put("paidGoal", policy)
+}
+
+/// Return a copy with one arbitrary setting key set (used for currency,
+/// landingView, billReminders, monthlySummary).
+fun JsonObject.withSetting(key: String, value: JsonElement): JsonObject = buildJsonObject {
+    this@withSetting.forEach { (k, v) -> if (k != key) put(k, v) }
+    put(key, value)
 }
 
 /// Return a copy with the income list replaced.

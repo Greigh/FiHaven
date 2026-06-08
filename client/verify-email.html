@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+  <meta name="description" content="Confirm your FiHaven email."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+
+  <title>Confirm your email — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main" style="display:flex;align-items:center;justify-content:center;">
+      <section class="auth-card hero-shell" style="width:min(560px,100%);">
+        <div class="hero-badge">Email verification</div>
+        <h1 style="margin-top:14px;" data-verify-heading>Confirm your email</h1>
+        <p style="margin-top:12px;" data-verify-status>Checking…</p>
+
+        <!-- Pending: signed in but not yet verified -->
+        <div data-verify-pending hidden style="margin-top:8px;">
+          <p style="color:var(--muted);font-size:14px;">
+            We sent a confirmation link to <strong data-verify-email>your email</strong>.
+            Open it to unlock your dashboard. The link is valid for 24 hours.
+          </p>
+          <div class="auth-error" data-resend-status aria-live="polite" style="min-height:1em;"></div>
+          <div class="auth-actions" style="margin-top:12px;">
+            <button class="btn btn-primary" type="button" data-resend>Resend the email</button>
+            <button class="btn btn-ghost" type="button" data-switch-account>Use a different account</button>
+          </div>
+        </div>
+
+        <!-- No session on this device (e.g. opened the link elsewhere) -->
+        <div data-verify-loggedout hidden style="margin-top:8px;">
+          <p style="color:var(--muted);font-size:14px;">
+            Open the link from the device where you signed up, or sign in to resend it.
+          </p>
+          <div class="auth-actions" style="margin-top:12px;">
+            <a class="btn btn-primary" href="/login">Go to sign in</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><strong style="color:var(--text);">FiHaven</strong> keeps your finances calm.</div>
+      <div class="site-footer-links">
+        <a href="/">Home</a>
+        <a href="/login">Sign in</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/verify-email.js"></script>
+</body>
+</html>

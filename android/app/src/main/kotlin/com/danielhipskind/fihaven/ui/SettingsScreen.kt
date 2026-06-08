@@ -45,6 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.AppViewModel
+import com.danielhipskind.fihaven.core.model.billReminders
+import com.danielhipskind.fihaven.core.model.currency
+import com.danielhipskind.fihaven.core.model.landingView
+import com.danielhipskind.fihaven.core.model.monthlySummary
 import com.danielhipskind.fihaven.core.model.paidGoal
 import com.danielhipskind.fihaven.core.model.timezoneSetting
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
@@ -125,7 +129,23 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Time zone", data.settings.timezoneSetting ?: "Auto") { dialog = "timezone" }
                     HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Currency", data.settings.currency ?: "USD") { dialog = "currency" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Default view", defaultViewLabel(data.settings.landingView)) { dialog = "defaultview" }
+                    HorizontalDivider(color = Ct.colors.border)
                     NavRow("Mark fully paid at", paidGoalLabel(PaidGoalPolicy.from(data.settings.paidGoal))) { dialog = "paidgoal" }
+                }
+            }
+            item {
+                Section("NOTIFICATIONS") {
+                    SwitchRow("Bill reminders", data.settings.billReminders) { vm.setBillReminders(it) }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Monthly summary", data.settings.monthlySummary) { vm.setMonthlySummary(it) }
+                    Text(
+                        "Optional emails to your verified address, sent in your time zone. Reminders 3 days before a bill is due; the summary on the 1st.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                    )
                 }
             }
             item {
@@ -158,6 +178,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "backup" -> BackupCodesDialog(vm, close)
         "timezone" -> TimezoneDialog(vm, close)
         "paidgoal" -> PaidGoalDialog(vm, close)
+        "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
+        "defaultview" -> DefaultViewDialog(vm, data.settings.landingView ?: "dashboard", close)
         "appearance" -> AppearanceDialog(themeController) { dialog = null }
     }
 }
@@ -166,6 +188,53 @@ private fun paidGoalLabel(policy: PaidGoalPolicy): String = when (policy) {
     PaidGoalPolicy.MINIMUM -> "Minimum"
     PaidGoalPolicy.RECOMMENDED -> "Recommended"
     PaidGoalPolicy.FULL -> "Full amount"
+}
+
+private fun defaultViewLabel(v: String?): String = when (v) {
+    "bills" -> "Bills"
+    "cards" -> "Cards"
+    "payoff" -> "Payoff"
+    "budget" -> "Budget"
+    "calendar" -> "Calendar"
+    "history" -> "History"
+    else -> "Dashboard"
+}
+
+@Composable
+private fun CurrencyDialog(vm: AppViewModel, current: String, onDone: () -> Unit) {
+    val options = listOf(
+        "USD" to "US Dollar ($)", "CAD" to "Canadian Dollar ($)", "AUD" to "Australian Dollar ($)",
+        "GBP" to "British Pound (£)", "EUR" to "Euro (€)", "JPY" to "Japanese Yen (¥)",
+        "INR" to "Indian Rupee (₹)", "CHF" to "Swiss Franc", "MXN" to "Mexican Peso ($)",
+        "BRL" to "Brazilian Real (R$)",
+    )
+    FormDialog("Currency", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("How amounts are shown across FiHaven.", color = Ct.colors.muted, fontSize = 13.sp)
+        options.forEach { (code, label) ->
+            Text(
+                "$code — $label",
+                color = if (code == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { vm.setCurrency(code); onDone() }.padding(vertical = 11.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DefaultViewDialog(vm: AppViewModel, current: String, onDone: () -> Unit) {
+    val options = listOf(
+        "dashboard" to "Dashboard", "bills" to "Bills", "cards" to "Cards", "payoff" to "Payoff",
+    )
+    FormDialog("Default view", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("Which screen the app opens to.", color = Ct.colors.muted, fontSize = 13.sp)
+        options.forEach { (value, label) ->
+            Text(
+                label,
+                color = if (value == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { vm.setLandingView(value); onDone() }.padding(vertical = 12.dp),
+            )
+        }
+    }
 }
 
 @Composable

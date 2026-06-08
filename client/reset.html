@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+  <meta name="description" content="Reset your FiHaven password."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+
+  <title>Reset password — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=ctTurnstileOnload&render=explicit" async defer></script>
+</head>
+<body class="min-h-screen text-(--text) antialiased">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main" style="display:flex;align-items:center;justify-content:center;">
+      <section class="auth-card hero-shell" style="width:min(560px,100%);">
+
+        <!-- ── Request a reset link (no token in URL) ── -->
+        <div data-reset-request>
+          <div class="hero-badge">Account recovery</div>
+          <h1 style="margin-top:14px;">Reset your password</h1>
+          <p style="margin-top:12px;">Enter the email on your account and we'll send a link to choose a new password. The link is valid for 30 minutes.</p>
+
+          <form class="auth-form" data-request-form style="margin-top:18px;">
+            <input type="hidden" name="loginStartedAt" value=""/>
+            <div class="auth-field auth-honeypot">
+              <label for="reset-website">Website</label>
+              <input type="text" id="reset-website" data-honeypot autocomplete="off" tabindex="-1" aria-hidden="true"/>
+            </div>
+            <div class="auth-field">
+              <label for="reset-email">Email</label>
+              <input type="email" id="reset-email" autocomplete="email" placeholder="you@example.com" required/>
+            </div>
+            <div data-turnstile data-sitekey="%VITE_TURNSTILE_SITEKEY%"></div>
+            <div class="auth-error" data-request-message aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Send reset link</button>
+              <a class="btn btn-ghost" href="/login">Back to sign in</a>
+            </div>
+          </form>
+        </div>
+
+        <!-- ── Choose a new password (token in URL) ── -->
+        <div data-reset-form hidden>
+          <div class="hero-badge">Account recovery</div>
+          <h1 style="margin-top:14px;">Choose a new password</h1>
+          <p style="margin-top:12px;">Set a new password for your FiHaven account. For your security, this signs out every other device.</p>
+
+          <form class="auth-form" data-new-password-form style="margin-top:18px;">
+            <div class="auth-field">
+              <label for="new-password">New password</label>
+              <input type="password" id="new-password" autocomplete="new-password" placeholder="Enter a new password" required/>
+            </div>
+            <div class="auth-field">
+              <label for="confirm-password">Confirm new password</label>
+              <input type="password" id="confirm-password" autocomplete="new-password" placeholder="Re-enter the new password" required/>
+            </div>
+            <div class="auth-note">At least 10 characters, including at least one letter and one number.</div>
+            <div class="auth-error" data-reset-message aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update password</button>
+            </div>
+          </form>
+        </div>
+
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><strong style="color:var(--text);">FiHaven</strong> keeps your finances calm.</div>
+      <div class="site-footer-links">
+        <a href="/">Home</a>
+        <a href="/login">Sign in</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/reset.js"></script>
+</body>
+</html>

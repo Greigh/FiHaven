@@ -56,6 +56,7 @@ fun RootScreen(
         is Session.Loading -> LoadingScreen()
         is Session.SignedOut -> AuthScreen(vm)
         is Session.Mfa -> MfaScreen(vm, s.challenge)
+        is Session.Unverified -> VerifyEmailScreen(vm, s.user)
         is Session.SignedIn ->
             if (locked) LockScreen(vm) else MainScaffold(vm, s.user, initialTab, initialRoute)
     }
@@ -65,8 +66,8 @@ fun RootScreen(
 fun Wordmark(size: Int = 30) {
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(color = Ct.colors.text)) { append("Clear") }
-            withStyle(SpanStyle(color = Ct.colors.accent)) { append("Tab") }
+            withStyle(SpanStyle(color = Ct.colors.text)) { append("Fi") }
+            withStyle(SpanStyle(color = Ct.colors.accent)) { append("Haven") }
         },
         fontSize = size.sp,
         fontWeight = FontWeight.ExtraBold,
