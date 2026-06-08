@@ -80,6 +80,11 @@ class ApiClient(
 
     suspend fun me(): User? = decode<MeResponse>(send(makeRequest("api/auth/me", HttpMethod.GET))).user
 
+    /** Re-send the email-verification message for the current session. */
+    suspend fun resendVerification() {
+        send(makeRequest("api/auth/resend-verification", HttpMethod.POST))
+    }
+
     suspend fun logout() {
         runCatching { send(makeRequest("api/auth/logout", HttpMethod.POST)) }
         tokens.clear()

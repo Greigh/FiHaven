@@ -154,6 +154,13 @@ public final class APIClient: Sendable {
         return try decode(MeResponse.self, from: data).user
     }
 
+    /// Re-send the email-verification message for the current (signed-in
+    /// but unverified) session. Authed via the Bearer token.
+    public func resendVerification() async throws {
+        let req = try makeRequest(path: "api/auth/resend-verification", method: .POST)
+        try await send(req)
+    }
+
     /// Revoke the session server-side and clear the local token.
     public func logout() async throws {
         let req = try makeRequest(path: "api/auth/logout", method: .POST)

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+  <meta name="description" content="Welcome to FiHaven — let's get you set up."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+
+  <title>Welcome — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+  <style>
+    .onboard-dot{width:28px;height:5px;border-radius:3px;background:var(--border);transition:background .2s;}
+    .onboard-dot.active{background:var(--accent,#3D6FE1);}
+  </style>
+</head>
+<body class="min-h-screen text-(--text) antialiased">
+  <div class="page-frame">
+    <main class="page-main" style="display:flex;align-items:center;justify-content:center;">
+      <section class="auth-card hero-shell" style="width:min(560px,100%);" data-onboard hidden>
+
+        <!-- Progress -->
+        <div style="display:flex;gap:6px;margin-bottom:18px;" aria-hidden="true">
+          <span class="onboard-dot" data-dot="1"></span>
+          <span class="onboard-dot" data-dot="2"></span>
+          <span class="onboard-dot" data-dot="3"></span>
+          <span class="onboard-dot" data-dot="4"></span>
+        </div>
+
+        <!-- Step 1 — Welcome -->
+        <div data-step="1">
+          <div class="hero-badge">Email confirmed ✓</div>
+          <h1 style="margin-top:14px;">Welcome to FiHaven<span data-welcome-name></span>.</h1>
+          <p style="margin-top:12px;">You're all set. Let's take a minute to secure your account and get your money organized — you can skip any step and do it later.</p>
+          <div class="auth-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" data-next>Get started</button>
+            <button class="btn btn-ghost" type="button" data-skip-all>Skip for now</button>
+          </div>
+        </div>
+
+        <!-- Step 2 — Secure (2FA + settings) -->
+        <div data-step="2" hidden>
+          <div class="hero-badge">Step 2 · Security</div>
+          <h1 style="margin-top:14px;">Add an extra layer.</h1>
+          <p style="margin-top:12px;">Protect your account with two-factor authentication — an authenticator app, a passkey, or email codes. You can also fine-tune your preferences (time zone, theme, and more) in Settings.</p>
+          <div class="auth-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" data-go-settings>Set up two-factor</button>
+            <button class="btn btn-ghost" type="button" data-next>Maybe later</button>
+          </div>
+        </div>
+
+        <!-- Step 3 — Bills & cards -->
+        <div data-step="3" hidden>
+          <div class="hero-badge">Step 3 · Your money</div>
+          <h1 style="margin-top:14px;">Add your bills & cards.</h1>
+          <p style="margin-top:12px;">FiHaven comes alive once it knows your recurring bills and credit cards — including any 0% promo periods. Add a few now and your dashboard, calendar, and payoff plans fill in automatically.</p>
+          <div class="auth-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" data-go-dashboard>Add bills & cards</button>
+            <button class="btn btn-ghost" type="button" data-next>I'll do it later</button>
+          </div>
+        </div>
+
+        <!-- Step 4 — Pro -->
+        <div data-step="4" hidden>
+          <div class="hero-badge">Step 4 · FiHaven Pro</div>
+          <h1 style="margin-top:14px;">Go further with Pro.</h1>
+          <p style="margin-top:12px;">Pro unlocks the full payoff planner, advanced insights, and more. Start a free trial any time — or keep using FiHaven free.</p>
+          <div class="auth-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" data-go-pro>See Pro plans</button>
+            <button class="btn btn-ghost" type="button" data-finish>Continue to FiHaven</button>
+          </div>
+        </div>
+
+        <div class="auth-error" data-onboard-message aria-live="polite" style="margin-top:12px;"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><strong style="color:var(--text);">FiHaven</strong> keeps your finances calm.</div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/welcome.js"></script>
+</body>
+</html>

@@ -22,19 +22,46 @@ export const CARD_COLORS = [
   '#7B3CC0', '#C06010', '#007080', '#8B5A00',
 ];
 
-/* ── Currency Formatters ────────────────────────────────── */
-export function fmt(n) {
-  return '$' + Number(n || 0).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/* ── Currency Formatters ────────────────────────────────────
+   Amounts render in the user's chosen currency. setMoneyFormat()
+   is called on load from the synced `currency` setting (default
+   USD). Each currency carries a sensible locale so digit grouping
+   and symbol placement match the region. */
+var CURRENCY_LOCALES = {
+  USD: 'en-US', CAD: 'en-CA', AUD: 'en-AU', GBP: 'en-GB', EUR: 'en-IE',
+  JPY: 'ja-JP', INR: 'en-IN', CHF: 'de-CH', MXN: 'es-MX', BRL: 'pt-BR',
+};
+export var SUPPORTED_CURRENCIES = Object.keys(CURRENCY_LOCALES);
+
+var moneyCurrency = 'USD';
+var _fmtCache = {};
+
+function _nf(opts) {
+  var key = moneyCurrency + ':' + JSON.stringify(opts);
+  if (!_fmtCache[key]) {
+    var locale = CURRENCY_LOCALES[moneyCurrency] || 'en-US';
+    _fmtCache[key] = new Intl.NumberFormat(
+      locale,
+      Object.assign({ style: 'currency', currency: moneyCurrency }, opts)
+    );
+  }
+  return _fmtCache[key];
 }
 
+// Switch the active currency (no-op for unknown codes).
+export function setMoneyFormat(currency) {
+  if (currency && CURRENCY_LOCALES[currency]) moneyCurrency = currency;
+}
+
+// Full amount, with the currency's natural decimal places (2 for USD,
+// 0 for JPY, etc.).
+export function fmt(n) {
+  return _nf({}).format(Number(n || 0));
+}
+
+// Rounded, no decimals — for compact chips/labels.
 export function fmtShort(n) {
-  return '$' + Number(n || 0).toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
+  return _nf({ maximumFractionDigits: 0 }).format(Number(n || 0));
 }
 
 /* ── Date / Month Helpers ───────────────────────────────────

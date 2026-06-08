@@ -16,7 +16,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 const dbApi = require('../db');
-const { requireAuth, requireCsrf, destroySession } = require('../session');
+const { requireAuth, requireVerified, requireCsrf, destroySession } = require('../session');
 const {
   normalizeEmail,
   isValidEmail,
@@ -56,6 +56,15 @@ router.post('/change-password', requireAuth, requireCsrf, async (req, res) => {
   // Log out every other device; keep the current session.
   dbApi.deleteOtherSessions(user.id, req.session.id);
 
+  return res.json({ ok: true });
+});
+
+/* ── POST /api/account/onboarded ─────────────────────────────── */
+// Mark the first-run onboarding flow complete (idempotent). Every exit
+// from the welcome flow calls this so it shows only once.
+
+router.post('/onboarded', requireAuth, requireVerified, requireCsrf, (req, res) => {
+  dbApi.setOnboarded(req.user.id);
   return res.json({ ok: true });
 });
 

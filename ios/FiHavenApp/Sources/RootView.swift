@@ -16,6 +16,8 @@ struct RootView: View {
                 AuthView()
             case .mfa(let challenge):
                 MFAView(challenge: challenge)
+            case .unverified(let user):
+                VerifyEmailView(user: user)
             case .signedIn(let user):
                 if biometric.locked {
                     LockView()

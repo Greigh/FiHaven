@@ -12,6 +12,7 @@ import {
 } from './storage.svelte.js';
 import {
   monthKey, monthKeyLabel, buildUpcomingItems, isPaid, refreshAll, renderTab,
+  setMoneyFormat,
 } from './utils.js';
 
 // Side-effect imports — each renderer self-registers via setRenderer,
@@ -176,7 +177,10 @@ function dismissBanner() {
 function startApp() {
   seedIfEmpty();
   checkNewMonth();
-  renderTab('dashboard');
+  // Apply display preferences from synced settings.
+  setMoneyFormat(settings.currency);
+  var landing = TABS.indexOf(settings.landingView) >= 0 ? settings.landingView : 'dashboard';
+  showTab(landing);
 }
 
 Object.assign(window, { showTab, dismissBanner, refreshAll });

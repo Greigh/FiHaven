@@ -77,6 +77,9 @@
           <div class="auth-actions" style="margin-top:6px;">
             <button class="btn btn-ghost btn-sm" type="button" data-mfa-cancel>← Back to password</button>
           </div>
+          <div style="margin-top:10px;">
+            <a href="/recover" style="font-size:13px;color:var(--muted);">Lost access to your authenticator?</a>
+          </div>
         </div>
 
         <form class="auth-form" data-login-form>
@@ -92,6 +95,9 @@
           <div class="auth-field">
             <label for="login-password">Password</label>
             <input type="password" id="login-password" autocomplete="current-password" placeholder="Enter password" required/>
+          </div>
+          <div data-forgot-link style="margin-top:-4px;">
+            <a href="/reset" style="font-size:13px;color:var(--muted);">Forgot your password?</a>
           </div>
           <div class="auth-note" data-password-hint hidden>
             Password must be at least 10 characters and include at least one letter and one number.

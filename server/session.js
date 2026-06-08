@@ -91,7 +91,14 @@ function loadSession(req, res, next) {
     if (row && row.expires_at > Date.now()) {
       req.session = row;
       req.authVia = found.via;
-      req.user = { id: row.user_id, email: row.email, name: row.name || null, role: row.role || 'user' };
+      req.user = {
+        id: row.user_id,
+        email: row.email,
+        name: row.name || null,
+        role: row.role || 'user',
+        emailVerified: !!row.email_verified,
+        onboarded: !!row.onboarded,
+      };
     } else if (row) {
       dbApi.deleteSession(found.id);
     }
@@ -103,6 +110,16 @@ function loadSession(req, res, next) {
 // on protected data endpoints.
 function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'unauthenticated' });
+  next();
+}
+
+// Middleware: rejects authenticated-but-unverified users. Applied at
+// the data + MFA mounts so the app is unusable until the email is
+// confirmed. Anonymous requests get the same 401 as requireAuth, so
+// it composes cleanly when used at a router mount.
+function requireVerified(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'unauthenticated' });
+  if (!req.user.emailVerified) return res.status(403).json({ error: 'email-unverified' });
   next();
 }
 
@@ -136,6 +153,7 @@ module.exports = {
   destroySession,
   loadSession,
   requireAuth,
+  requireVerified,
   requireAdmin,
   requireCsrf,
 };

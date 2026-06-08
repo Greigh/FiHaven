@@ -98,6 +98,15 @@
     window.location.replace(url);
   }
 
+  // After a successful auth, unverified accounts go to the verify
+  // screen; verified ones land in the app.
+  function routeAfterAuth(data) {
+    var u = data && data.user;
+    if (u && u.emailVerified === false) { go('/verify-email'); return; }
+    if (u && u.onboarded === false) { go('/welcome'); return; }
+    go('/dashboard');
+  }
+
   // Maps a backend error code to a friendly, user-facing message.
   function errorMessage(error) {
     switch (error) {
@@ -203,6 +212,7 @@
     var passwordInput = form.querySelector('#login-password');
     var passwordHint = document.querySelector('[data-password-hint]');
     var termsNotice  = document.querySelector('[data-terms-notice]');
+    var forgotLink   = document.querySelector('[data-forgot-link]');
 
     function applyMode(next) {
       mode = next;
@@ -217,6 +227,7 @@
       if (passwordInput) passwordInput.setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
       if (passwordHint) passwordHint.hidden = !isSignup;
       if (termsNotice) termsNotice.hidden = !isSignup;
+      if (forgotLink) forgotLink.hidden = isSignup;
       showMessage(message, '', false);
     }
 
@@ -266,7 +277,7 @@
             beginMfaStep(form, result.data);
             return;
           }
-          go('/dashboard');
+          routeAfterAuth(result.data);
           return;
         }
         resetCaptcha();
@@ -359,7 +370,7 @@
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
-          if (res.ok) { go('/dashboard'); return; }
+          if (res.ok) { routeAfterAuth(res.data); return; }
           showMfaMsg(errorMessage(res.data && res.data.error), true);
         })
         .catch(function () { showMfaMsg(errorMessage('network'), true); });
@@ -429,7 +440,7 @@
             }).then(function (r) {
               return r.json().then(function (d) { return { ok: r.ok, data: d }; });
             }).then(function (res2) {
-              if (res2.ok) { go('/dashboard'); return; }
+              if (res2.ok) { routeAfterAuth(res2.data); return; }
               showMfaMsg(errorMessage(res2.data && res2.data.error), true);
             });
           })
@@ -452,15 +463,19 @@
     me().then(function (user) {
       // Anonymous visitors land on the marketing home (matches the
       // server-side gate). Session expiries mid-use are handled by
-      // storage.js / account.js routing straight to /login.
-      if (!user) go('/');
+      // storage.js / account.js routing straight to /login. Unverified
+      // accounts are sent to confirm their email before the dashboard.
+      if (!user) { go('/'); return; }
+      if (!user.emailVerified) go('/verify-email');
     });
   }
 
   function initLoginGate() {
     me().then(function (user) {
       if (user) {
-        go('/dashboard');
+        if (!user.emailVerified) go('/verify-email');
+        else if (!user.onboarded) go('/welcome');
+        else go('/dashboard');
       } else {
         initAuthPage();
       }

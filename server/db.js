@@ -44,6 +44,21 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
+  -- Single-use, expiring tokens delivered by email for email
+  -- verification, password reset, and 2FA recovery. The raw token only
+  -- ever lives in the emailed link; we persist its SHA-256 hash.
+  CREATE TABLE IF NOT EXISTS email_tokens (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose     TEXT NOT NULL,        -- 'verify-email' | 'password-reset' | 'recover-2fa'
+    token_hash  TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    expires_at  INTEGER NOT NULL,
+    used_at     INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
+
   CREATE TABLE IF NOT EXISTS user_data (
     user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     data       TEXT NOT NULL,
@@ -201,6 +216,18 @@ db.exec(`
   if (!cols.includes('ical_token'))         db.exec(`ALTER TABLE users ADD COLUMN ical_token TEXT`);
   if (!cols.includes('email_mfa_enabled'))  db.exec(`ALTER TABLE users ADD COLUMN email_mfa_enabled INTEGER DEFAULT 0`);
   if (!cols.includes('role'))               db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
+  if (!cols.includes('email_verified'))     db.exec(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`);
+  if (!cols.includes('email_verified_at'))  db.exec(`ALTER TABLE users ADD COLUMN email_verified_at INTEGER`);
+  if (!cols.includes('onboarded')) {
+    db.exec(`ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0`);
+    // Grandfather every existing account so only NEW signups get the
+    // first-run onboarding flow.
+    db.exec(`UPDATE users SET onboarded = 1`);
+  }
+  // Scheduler de-dup stamps: the local day a reminder last went out, and
+  // the local month a summary last went out, so neither double-sends.
+  if (!cols.includes('last_reminder_day'))  db.exec(`ALTER TABLE users ADD COLUMN last_reminder_day TEXT`);
+  if (!cols.includes('last_summary_month')) db.exec(`ALTER TABLE users ADD COLUMN last_summary_month TEXT`);
 })();
 
 // Unique index for iCal token lookups (the column allows NULL so
@@ -214,10 +241,10 @@ const stmt = {
     `INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)`
   ),
   findUserByEmail: db.prepare(
-    `SELECT id, email, password_hash, name, email_mfa_enabled FROM users WHERE email = ?`
+    `SELECT id, email, password_hash, name, email_mfa_enabled, email_verified, onboarded FROM users WHERE email = ?`
   ),
   findUserById: db.prepare(
-    `SELECT id, email, password_hash, name, ical_token, email_mfa_enabled, role FROM users WHERE id = ?`
+    `SELECT id, email, password_hash, name, ical_token, email_mfa_enabled, role, email_verified, onboarded FROM users WHERE id = ?`
   ),
   setEmailMfa: db.prepare(`UPDATE users SET email_mfa_enabled = ? WHERE id = ?`),
   findUserByIcalToken: db.prepare(
@@ -235,6 +262,9 @@ const stmt = {
   deleteUser: db.prepare(`DELETE FROM users WHERE id = ?`),
   setUserRole: db.prepare(`UPDATE users SET role = ? WHERE id = ?`),
   setRoleByEmail: db.prepare(`UPDATE users SET role = ? WHERE email = ?`),
+  setVerifiedByEmail: db.prepare(
+    `UPDATE users SET email_verified = 1, email_verified_at = ? WHERE email = ? AND email_verified = 0`
+  ),
   listUsers: db.prepare(
     `SELECT id, email, name, role, created_at, last_login_at
        FROM users
@@ -250,7 +280,7 @@ const stmt = {
      VALUES (@id, @user_id, @csrf_token, @created_at, @expires_at, @user_agent, @ip)`
   ),
   findSession: db.prepare(
-    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.email, u.name, u.role
+    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.email, u.name, u.role, u.email_verified, u.onboarded
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ?`
   ),
@@ -259,6 +289,33 @@ const stmt = {
   deleteOtherSessions: db.prepare(
     `DELETE FROM sessions WHERE user_id = ? AND id != ?`
   ),
+  deleteUserSessions: db.prepare(`DELETE FROM sessions WHERE user_id = ?`),
+
+  /* ── Email tokens (verify / reset / recover) ───────────────── */
+  insertEmailToken: db.prepare(
+    `INSERT INTO email_tokens (user_id, purpose, token_hash, created_at, expires_at)
+     VALUES (@user_id, @purpose, @token_hash, @created_at, @expires_at)`
+  ),
+  findEmailTokenByHash: db.prepare(
+    `SELECT id, user_id, purpose, expires_at, used_at FROM email_tokens WHERE token_hash = ?`
+  ),
+  markEmailTokenUsed: db.prepare(`UPDATE email_tokens SET used_at = ? WHERE id = ?`),
+  deleteEmailTokensByPurpose: db.prepare(
+    `DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`
+  ),
+  setEmailVerified: db.prepare(
+    `UPDATE users SET email_verified = 1, email_verified_at = ? WHERE id = ?`
+  ),
+  setOnboarded: db.prepare(`UPDATE users SET onboarded = 1 WHERE id = ?`),
+
+  /* ── Scheduler (reminders / summaries) ─────────────────────── */
+  allUsersWithData: db.prepare(
+    `SELECT u.id, u.email, u.email_verified, u.last_reminder_day, u.last_summary_month, ud.data
+       FROM users u JOIN user_data ud ON ud.user_id = u.id
+      WHERE u.email_verified = 1`
+  ),
+  setReminderDay: db.prepare(`UPDATE users SET last_reminder_day = ? WHERE id = ?`),
+  setSummaryMonth: db.prepare(`UPDATE users SET last_summary_month = ? WHERE id = ?`),
   getUserData: db.prepare(`SELECT data FROM user_data WHERE user_id = ?`),
   upsertUserData: db.prepare(
     `INSERT INTO user_data (user_id, data, updated_at) VALUES (?, ?, ?)
@@ -481,6 +538,16 @@ function seedAdminEmails(emails) {
   }
 }
 
+// Auto-verify trusted bootstrap emails on boot, so a "require everyone"
+// verification rollout never locks the operator/admins out of their own
+// accounts. Only flips unverified rows (won't re-stamp the timestamp).
+function seedVerifiedEmails(emails) {
+  const now = Date.now();
+  for (const email of emails) {
+    if (email) stmt.setVerifiedByEmail.run(now, email);
+  }
+}
+
 function listUsers(query, limit = 50) {
   const like = `%${query || ''}%`;
   return stmt.listUsers.all(like, like, limit);
@@ -494,6 +561,46 @@ function deleteCompSubscription(userId) { stmt.deleteCompSubscription.run(userId
 function deleteOtherSessions(userId, keepSessionId) {
   return stmt.deleteOtherSessions.run(userId, keepSessionId).changes;
 }
+
+// Logs out ALL devices (password reset / 2FA recovery).
+function deleteUserSessions(userId) {
+  return stmt.deleteUserSessions.run(userId).changes;
+}
+
+/* ── Email tokens (verify / reset / recover) ────────────────── */
+function insertEmailToken(row) { stmt.insertEmailToken.run(row); }
+function findEmailTokenByHash(tokenHash) { return stmt.findEmailTokenByHash.get(tokenHash); }
+function markEmailTokenUsed(id, ts) { stmt.markEmailTokenUsed.run(ts, id); }
+function deleteEmailTokensByPurpose(userId, purpose) {
+  stmt.deleteEmailTokensByPurpose.run(userId, purpose);
+}
+function setEmailVerified(userId, ts) { stmt.setEmailVerified.run(ts, userId); }
+function setOnboarded(userId) { stmt.setOnboarded.run(userId); }
+
+/* ── Scheduler ──────────────────────────────────────────────── */
+// All verified users with their parsed app data — for the reminder /
+// summary scheduler. Small user counts make a full scan fine.
+function allUsersWithData() {
+  return stmt.allUsersWithData.all().map((r) => {
+    let data;
+    try { data = JSON.parse(r.data); } catch (e) { data = {}; }
+    return {
+      id: r.id,
+      email: r.email,
+      email_verified: r.email_verified,
+      last_reminder_day: r.last_reminder_day,
+      last_summary_month: r.last_summary_month,
+      data: {
+        bills: Array.isArray(data.bills) ? data.bills : [],
+        cards: Array.isArray(data.cards) ? data.cards : [],
+        payments: Array.isArray(data.payments) ? data.payments : [],
+        settings: (data.settings && typeof data.settings === 'object') ? data.settings : {},
+      },
+    };
+  });
+}
+function setReminderDay(userId, ymd) { stmt.setReminderDay.run(ymd, userId); }
+function setSummaryMonth(userId, ym) { stmt.setSummaryMonth.run(ym, userId); }
 
 function touchLastLogin(userId) {
   stmt.touchLastLogin.run(Date.now(), userId);
@@ -540,6 +647,33 @@ function getUserData(userId) {
 function upsertUserData(userId, data) {
   stmt.upsertUserData.run(userId, JSON.stringify(data), Date.now());
 }
+
+// True when the account has any second factor enrolled (TOTP, a passkey,
+// or email codes). Used to decide whether 2FA recovery applies.
+function userHasMfa(userId) {
+  const totp = stmt.getTotp.get(userId);
+  if (totp && totp.enabled_at) return true;
+  if (stmt.listPasskeys.all(userId).length) return true;
+  const u = stmt.findUserById.get(userId);
+  return !!(u && u.email_mfa_enabled);
+}
+
+// 2FA recovery (the data-wipe path the user chose): disable every second
+// factor, erase the user's financial data while PRESERVING settings, and
+// revoke all sessions. One transaction so it fully lands or not at all.
+const recover2faTxn = db.transaction((userId) => {
+  stmt.deleteTotp.run(userId);
+  stmt.deleteBackupCodes.run(userId);
+  stmt.deleteAllPasskeys.run(userId);
+  stmt.setEmailMfa.run(0, userId);
+  const current = getUserData(userId);
+  upsertUserData(userId, {
+    bills: [], cards: [], payments: [],
+    settings: current.settings || {},
+  });
+  stmt.deleteUserSessions.run(userId);
+});
+function recover2faWipe(userId) { recover2faTxn(userId); }
 
 /* ── TOTP wrappers ──────────────────────────────────────────── */
 function getTotp(userId)          { return stmt.getTotp.get(userId); }
@@ -620,6 +754,7 @@ module.exports = {
   deleteUser,
   setUserRole,
   seedAdminEmails,
+  seedVerifiedEmails,
   listUsers,
   deleteCompSubscription,
   insertSession,
@@ -627,8 +762,21 @@ module.exports = {
   deleteSession,
   deleteExpiredSessions,
   deleteOtherSessions,
+  deleteUserSessions,
+  // Email tokens / verification
+  insertEmailToken,
+  findEmailTokenByHash,
+  markEmailTokenUsed,
+  deleteEmailTokensByPurpose,
+  setEmailVerified,
+  setOnboarded,
+  allUsersWithData,
+  setReminderDay,
+  setSummaryMonth,
   getUserData,
   upsertUserData,
+  userHasMfa,
+  recover2faWipe,
   // TOTP
   getTotp,
   upsertTotp,

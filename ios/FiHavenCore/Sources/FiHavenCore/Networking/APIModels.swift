@@ -25,10 +25,26 @@ public struct APIConfig: Sendable {
 public struct User: Codable, Equatable, Sendable {
     public var email: String
     public var name: String?
+    /// Whether the email has been confirmed. The app gates the dashboard
+    /// behind this; the server returns `email-unverified` on data calls
+    /// until it's true.
+    public var emailVerified: Bool
 
-    public init(email: String, name: String?) {
+    public init(email: String, name: String?, emailVerified: Bool = true) {
         self.email = email
         self.name = name
+        self.emailVerified = emailVerified
+    }
+
+    enum CodingKeys: String, CodingKey { case email, name, emailVerified }
+
+    // Tolerant decode: a missing flag (older payloads) is treated as
+    // verified so we never falsely lock out a legitimate session.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        email = try c.decode(String.self, forKey: .email)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? true
     }
 }
 

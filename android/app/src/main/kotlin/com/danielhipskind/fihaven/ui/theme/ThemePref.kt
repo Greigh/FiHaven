@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.core.content.edit
 
 /** Appearance choice. Stored locally per device — mirroring the web app's
  *  `fh_theme` localStorage value — with SYSTEM following the OS. */
@@ -29,7 +30,7 @@ class ThemeController(context: Context) {
 
     fun set(value: ThemePref) {
         pref = value
-        prefs.edit().putString(KEY, value.name).apply()
+        prefs.edit { putString(KEY, value.name) }
     }
 
     private fun load(): ThemePref =

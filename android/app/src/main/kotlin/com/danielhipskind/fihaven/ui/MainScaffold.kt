@@ -16,8 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -41,7 +41,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danielhipskind.fihaven.core.model.landingView
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.billing.BillingManager
 import com.danielhipskind.fihaven.core.Money
@@ -59,15 +61,25 @@ import java.util.Locale
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Filled.Home),
-    BILLS("Bills", Icons.Filled.ReceiptLong),
+    BILLS("Bills", Icons.AutoMirrored.Filled.ReceiptLong),
     CARDS("Cards", Icons.Filled.CreditCard),
-    PAYOFF("Payoff", Icons.Filled.ShowChart),
+    PAYOFF("Payoff", Icons.AutoMirrored.Filled.ShowChart),
     MORE("More", Icons.Filled.MoreHoriz),
 }
 
 @Composable
 fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initialRoute: String? = null) {
     var tab by remember { mutableStateOf(tabFor(initialTab)) }
+
+    // Open to the user's saved default view, once the data has loaded.
+    val scaffoldData by vm.data.collectAsStateWithLifecycle()
+    var appliedLanding by remember { mutableStateOf(false) }
+    LaunchedEffect(scaffoldData.settings.landingView) {
+        if (!appliedLanding && initialTab == null && scaffoldData.settings.landingView != null) {
+            appliedLanding = true
+            tab = tabFor(scaffoldData.settings.landingView)
+        }
+    }
 
     // Play Billing client, scoped to the signed-in session. Provided to
     // the subtree so the paywall can list products / launch purchases.

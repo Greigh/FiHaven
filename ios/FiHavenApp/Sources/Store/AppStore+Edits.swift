@@ -132,6 +132,23 @@ extension AppStore {
         mutate { $0.settings.paidGoal = policy.rawValue }
     }
 
+    func setCurrency(_ code: String) {
+        Money.setCurrency(code)
+        mutate { $0.settings.currency = code }
+    }
+
+    func setLandingView(_ view: String) {
+        mutate { $0.settings.landingView = view }
+    }
+
+    func setBillReminders(_ on: Bool) {
+        mutate { $0.settings.billReminders = on }
+    }
+
+    func setMonthlySummary(_ on: Bool) {
+        mutate { $0.settings.monthlySummary = on }
+    }
+
     // ── History ──────────────────────────────────────────────────────
     func deletePayment(_ payment: Payment) {
         mutate { data in

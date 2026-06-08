@@ -31,10 +31,10 @@ targets:
       # Baked into the generated scheme so `xcodegen generate` can't wipe
       # them. The app talks to PRODUCTION by default. To run against the
       # local dev server, flip FH_BASE here (or in Xcode's scheme) to
-      # http://localhost:5222/fihaven and start `node server/index.js`.
+      # http://localhost:5222 and start `node server/index.js`.
       environmentVariables:
         - variable: FH_BASE
-          value: https://danielhipskind.com/fihaven
+          value: https://fihaven.app
           isEnabled: true
     dependencies:
       - package: FiHavenCore
