@@ -35,6 +35,29 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isSignedIn)
+        .task {
+            // Defer heavy startup until after first frame to avoid launch aborts
+            await Task.yield()
+            print("[RootView] starting bootstrap")
+            await env.bootstrap()
+            print("[RootView] bootstrap finished")
+
+            // Under the debugger, allow a tiny delay or complete skip of StoreKit
+            #if DEBUG
+            if isDebuggerAttached() {
+                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            }
+            // Default to skipping StoreKit in Debug builds unless explicitly overridden
+            if ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] != "0" {
+                print("[RootView] skipping StoreKit (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
+                return
+            }
+            #endif
+
+            print("[RootView] starting StoreKit")
+            await env.billing.start()
+            print("[RootView] StoreKit started")
+        }
     }
 
     private var isSignedIn: Bool {
@@ -53,3 +76,4 @@ struct LoadingView: View {
         .background(Theme.bg.ignoresSafeArea())
     }
 }
+

@@ -33,11 +33,13 @@ final class AppEnvironment: ObservableObject {
     init() {
         let tokenStore = KeychainTokenStore(service: "com.danielhipskind.fihaven")
         let config = Self.resolveConfig()
+        print("[AppEnvironment] API base URL = \(config.baseURL.absoluteString)")
         let api = APIClient(config: config, tokens: tokenStore)
         self.tokens = tokenStore
         self.api = api
         self.billing = StoreManager(api: api)
-        Task { await bootstrap() }
+        self.session = .signedOut
+        print("[AppEnvironment] Initialized — deferring bootstrap to first view task")
     }
 
     /// Pick the API base URL. A `FH_BASE` environment variable (set in the
@@ -51,7 +53,13 @@ final class AppEnvironment: ObservableObject {
             return APIConfig(baseURL: url)
         }
         #if DEBUG
+        #if targetEnvironment(simulator)
+        // Simulator can talk to localhost
         return .localhost
+        #else
+        // Physical devices can't reach Mac localhost; default to production
+        return .production
+        #endif
         #else
         return .production
         #endif
@@ -67,10 +75,12 @@ final class AppEnvironment: ObservableObject {
     func markAuthStarted() { authStartedAt = APIClient.now() }
 
     func bootstrap() async {
+        print("[AppEnvironment] bootstrap() begin")
         if tokens.get() != nil {
             do {
                 if let user = try await api.me() {
                     await enterSignedIn(user)
+                    print("[AppEnvironment] bootstrap() restored session; entering signed-in")
                     return
                 }
             } catch {
@@ -89,9 +99,11 @@ final class AppEnvironment: ObservableObject {
                 startedAtOverride: APIClient.now() - 3000
             )
             if case .loading = session { session = .signedOut }
+            print("[AppEnvironment] bootstrap() auto-login path completed; session=\(String(describing: session))")
             return
         }
         session = .signedOut
+        print("[AppEnvironment] bootstrap() finished; session=signedOut")
     }
 
     func login(
@@ -211,11 +223,13 @@ final class AppEnvironment: ObservableObject {
     // ── helpers ──────────────────────────────────────────────────────
 
     private func enterSignedIn(_ user: User, fresh: Bool = false) async {
+        print("[AppEnvironment] enterSignedIn(fresh:\(fresh)) begin")
         // Unconfirmed email → the verify screen, never the dashboard. The
         // server also returns email-unverified on data calls, but gating
         // here avoids loading the store at all.
         guard user.emailVerified else {
             session = .unverified(user)
+            print("[AppEnvironment] enterSignedIn end; session=\(session)")
             return
         }
         // A fresh password/MFA sign-in already authenticated the user, so
@@ -229,7 +243,17 @@ final class AppEnvironment: ObservableObject {
         // Seed the entitlement from the data fetch to avoid a gating
         // flicker, then start StoreKit (authoritative refresh + listener).
         billing.seed(store.data.entitlement)
+        #if DEBUG
+        // Default to skipping StoreKit in Debug unless explicitly overridden
+        if ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] == "0" {
+            await billing.start()
+        } else {
+            print("[AppEnvironment] Skipping StoreKit start (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
+        }
+        #else
         await billing.start()
+        #endif
+        print("[AppEnvironment] enterSignedIn end; session=\(session)")
     }
 
     private func runAuth(_ op: @escaping () async throws -> Void) async {
@@ -253,3 +277,4 @@ final class AppEnvironment: ObservableObject {
         #endif
     }
 }
+
