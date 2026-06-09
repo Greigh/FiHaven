@@ -46,47 +46,78 @@ function requirePlaid(req, res, next) {
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
-// Persist the accounts + balance snapshot for an item.
+// Encrypt/decrypt a single string for at-rest storage, reusing the vetted
+// AES-256-GCM helper used for access tokens. decField tolerates legacy
+// plaintext (rows written before encryption) by returning it unchanged.
+function encField(v) { return v == null ? null : plaid.encryptToken(String(v)); }
+function decField(v) {
+  if (v == null) return null;
+  try { return plaid.decryptToken(v); } catch (_) { return v; }
+}
+
+// Persist the accounts + balance snapshot for an item. Every consumer field
+// (names, masks, balances) is encrypted at rest as a single AES-256-GCM blob.
 function saveAccounts(itemPk, accounts) {
   const now = Date.now();
   for (const a of accounts) {
     const bal = a.balances || {};
-    dbApi.upsertPlaidAccount({
-      item_pk: itemPk,
-      account_id: a.account_id,
+    const blob = JSON.stringify({
       name: a.name || null,
       official_name: a.official_name || null,
       mask: a.mask || null,
       type: a.type || null,
       subtype: a.subtype || null,
-      current_balance: bal.current ?? null,
-      available_balance: bal.available ?? null,
-      limit_balance: bal.limit ?? null,
-      iso_currency: bal.iso_currency_code || bal.unofficial_currency_code || null,
+      current: bal.current ?? null,
+      available: bal.available ?? null,
+      limit: bal.limit ?? null,
+      iso: bal.iso_currency_code || bal.unofficial_currency_code || null,
+    });
+    dbApi.upsertPlaidAccount({
+      item_pk: itemPk,
+      account_id: a.account_id,
+      enc: plaid.encryptToken(blob),
       updated_at: now,
     });
   }
 }
 
-// Shape an item (+ its accounts) for the client. Never leaks the token.
+// Shape an item (+ its accounts) for the client. Never leaks the token, and
+// decrypts the at-rest consumer fields (with a plaintext fallback for any
+// rows written before encryption).
 function serializeItem(item) {
   return {
     id: item.id,
-    institutionName: item.institution_name || 'Bank',
+    institutionName: decField(item.institution_name) || 'Bank',
     institutionId: item.institution_id || null,
     status: item.status,
     error: item.error || null,
     updatedAt: item.updated_at,
-    accounts: dbApi.listPlaidAccountsByItem(item.id).map((a) => ({
-      accountId: a.account_id,
-      name: a.name,
-      mask: a.mask,
-      type: a.type,
-      subtype: a.subtype,
-      currentBalance: a.current_balance,
-      availableBalance: a.available_balance,
-      isoCurrency: a.iso_currency,
-    })),
+    accounts: dbApi.listPlaidAccountsByItem(item.id).map((a) => {
+      let d = null;
+      if (a.enc) { try { d = JSON.parse(plaid.decryptToken(a.enc)); } catch (_) { d = null; } }
+      if (d) {
+        return {
+          accountId: a.account_id,
+          name: d.name,
+          mask: d.mask,
+          type: d.type,
+          subtype: d.subtype,
+          currentBalance: d.current,
+          availableBalance: d.available,
+          isoCurrency: d.iso,
+        };
+      }
+      return {
+        accountId: a.account_id,
+        name: a.name,
+        mask: a.mask,
+        type: a.type,
+        subtype: a.subtype,
+        currentBalance: a.current_balance,
+        availableBalance: a.available_balance,
+        isoCurrency: a.iso_currency,
+      };
+    }),
   };
 }
 
@@ -135,7 +166,7 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
       item_id: itemId,
       access_token_enc: plaid.encryptToken(accessToken),
       institution_id: institutionId,
-      institution_name: institutionName,
+      institution_name: encField(institutionName),
       status: 'active',
       cursor: null,
       error: null,

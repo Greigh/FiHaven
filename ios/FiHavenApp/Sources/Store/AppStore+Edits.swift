@@ -141,6 +141,11 @@ extension AppStore {
         mutate { $0.settings.landingView = view }
     }
 
+    /// Persist the bottom-bar tab order (ids). Tabs not listed fall under More.
+    func setTabs(_ ids: [String]) {
+        mutate { $0.settings.tabs = ids }
+    }
+
     func setBillReminders(_ on: Bool) {
         mutate { $0.settings.billReminders = on }
     }

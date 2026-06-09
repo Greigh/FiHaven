@@ -29,22 +29,29 @@ public struct User: Codable, Equatable, Sendable {
     /// behind this; the server returns `email-unverified` on data calls
     /// until it's true.
     public var emailVerified: Bool
+    /// Whether first-run onboarding has been completed. The app shows the
+    /// onboarding flow once while this is false (server-tracked, so it's
+    /// shown once across web/iOS/Android — not per device).
+    public var onboarded: Bool
 
-    public init(email: String, name: String?, emailVerified: Bool = true) {
+    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true) {
         self.email = email
         self.name = name
         self.emailVerified = emailVerified
+        self.onboarded = onboarded
     }
 
-    enum CodingKeys: String, CodingKey { case email, name, emailVerified }
+    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded }
 
     // Tolerant decode: a missing flag (older payloads) is treated as
-    // verified so we never falsely lock out a legitimate session.
+    // verified / onboarded so we never falsely lock out or re-onboard a
+    // legitimate session.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         email = try c.decode(String.self, forKey: .email)
         name = try c.decodeIfPresent(String.self, forKey: .name)
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? true
+        onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
     }
 }
 
@@ -112,4 +119,40 @@ struct MeResponse: Decodable {
 
 struct ErrorBody: Decodable {
     let error: String
+}
+
+// ── Plaid (bank linking) ─────────────────────────────────────────
+public struct PlaidAccount: Decodable, Equatable, Sendable, Identifiable {
+    public var accountId: String
+    public var name: String?
+    public var mask: String?
+    public var type: String?
+    public var subtype: String?
+    public var currentBalance: Double?
+    public var availableBalance: Double?
+    public var isoCurrency: String?
+    public var id: String { accountId }
+}
+
+public struct PlaidItem: Decodable, Equatable, Sendable, Identifiable {
+    public var id: Int
+    public var institutionName: String
+    public var institutionId: String?
+    public var status: String
+    public var error: String?
+    public var accounts: [PlaidAccount]
+}
+
+/// `GET /api/plaid/status`: server credentials present? user Pro? linked items.
+public struct PlaidStatus: Decodable, Equatable, Sendable {
+    public var configured: Bool
+    public var pro: Bool
+    public var items: [PlaidItem]
+}
+
+struct PlaidLinkTokenResponse: Decodable { let linkToken: String }
+struct PlaidItemsResponse: Decodable { let items: [PlaidItem] }
+struct PlaidExchangeBody: Encodable {
+    let publicToken: String
+    enum CodingKeys: String, CodingKey { case publicToken = "public_token" }
 }

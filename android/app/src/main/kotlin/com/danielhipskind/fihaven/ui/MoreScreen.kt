@@ -1,5 +1,6 @@
 package com.danielhipskind.fihaven.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -10,9 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.HorizontalDivider
@@ -33,33 +31,42 @@ import com.danielhipskind.fihaven.core.net.User
 import com.danielhipskind.fihaven.ui.theme.Ct
 
 @Composable
-fun MoreScreen(vm: AppViewModel, user: User, padding: PaddingValues, initialRoute: String? = null) {
+fun MoreScreen(
+    vm: AppViewModel,
+    user: User,
+    padding: PaddingValues,
+    initialRoute: String? = null,
+    overflow: List<TabId> = emptyList(),
+) {
     var route by remember { mutableStateOf(initialRoute) }
     val back = { route = null }
-    when (route) {
+    // Any sub-route returns to the menu on system back — covers the primary
+    // tab screens (Dashboard/Bills/Cards/Payoff) that have no back arrow.
+    if (route != null) BackHandler(onBack = back)
+    when (val r = route) {
+        null -> Menu(padding, overflow) { route = it }
         "pro" -> ProScreen(vm, padding, back)
-        "budget" -> BudgetScreen(vm, padding, back)
-        "calendar" -> ProGate(vm, ProFeature.CALENDAR, padding, onBack = back) { CalendarScreen(vm, padding, back) }
-        "history" -> ProGate(vm, ProFeature.HISTORY, padding, onBack = back) { HistoryScreen(vm, padding, back) }
         "settings" -> SettingsScreen(vm, user, padding, back)
-        else -> Menu(padding) { route = it }
+        else -> {
+            val tab = TabId.from(r)
+            if (tab != null) TabContent(tab, vm, padding, back)
+            else Menu(padding, overflow) { route = it }
+        }
     }
 }
 
 @Composable
-private fun Menu(padding: PaddingValues, onOpen: (String) -> Unit) {
+private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("More")
         Column(Modifier.padding(16.dp)) {
             CtCard(padding = 0) {
                 Column {
+                    overflow.forEach { t ->
+                        item(t.label, t.icon) { onOpen(t.id) }
+                        HorizontalDivider(color = Ct.colors.border)
+                    }
                     item("FiHaven Pro", Icons.Filled.WorkspacePremium) { onOpen("pro") }
-                    HorizontalDivider(color = Ct.colors.border)
-                    item("Budget", Icons.Filled.PieChart) { onOpen("budget") }
-                    HorizontalDivider(color = Ct.colors.border)
-                    item("Calendar", Icons.Filled.CalendarMonth) { onOpen("calendar") }
-                    HorizontalDivider(color = Ct.colors.border)
-                    item("History", Icons.Filled.History) { onOpen("history") }
                     HorizontalDivider(color = Ct.colors.border)
                     item("Settings", Icons.Filled.Settings) { onOpen("settings") }
                 }

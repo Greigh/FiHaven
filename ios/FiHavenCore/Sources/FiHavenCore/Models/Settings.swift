@@ -74,6 +74,14 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["landingView"] = newValue.map { .string($0) } ?? .null }
     }
 
+    /// Ordered tab ids shown in the bottom bar; tabs not listed fall under
+    /// "More". nil = the app's default layout. Synced so a user's tab
+    /// arrangement follows them across devices.
+    public var tabs: [String]? {
+        get { raw["tabs"]?.asArray?.compactMap { $0.asString } }
+        set { raw["tabs"] = newValue.map { .array($0.map { .string($0) }) } ?? .null }
+    }
+
     /// Opt-in: email me a few days before a bill is due (server scheduler).
     public var billReminders: Bool {
         get { raw["billReminders"]?.asBool ?? false }

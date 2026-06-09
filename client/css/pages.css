@@ -243,6 +243,31 @@
 }
 .auth-legal a:hover { text-decoration: underline; }
 
+/* Required signup consent checkbox row. */
+.auth-consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  cursor: pointer;
+}
+.auth-consent input {
+  margin: 3px 0 0;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.auth-consent a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.auth-consent a:hover { text-decoration: underline; }
+
 .auth-actions {
   display: flex;
   flex-wrap: wrap;

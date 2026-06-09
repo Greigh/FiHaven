@@ -17,6 +17,11 @@ options:
 packages:
   FiHavenCore:
     path: ../FiHavenCore
+  # Plaid Link iOS SDK for in-app bank connections (Pro). Drives the
+  # existing /api/plaid link-token + exchange endpoints.
+  LinkKit:
+    url: https://github.com/plaid/plaid-link-ios-spm
+    exactVersion: 6.4.7
 
 targets:
   FiHaven:
@@ -38,6 +43,7 @@ targets:
           isEnabled: true
     dependencies:
       - package: FiHavenCore
+      - package: LinkKit
     info:
       path: Sources/Info.plist
       properties:

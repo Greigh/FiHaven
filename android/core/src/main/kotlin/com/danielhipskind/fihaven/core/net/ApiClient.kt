@@ -85,6 +85,29 @@ class ApiClient(
         send(makeRequest("api/auth/resend-verification", HttpMethod.POST))
     }
 
+    /** Mark first-run onboarding complete (CSRF is skipped for Bearer auth). */
+    suspend fun markOnboarded() {
+        send(makeRequest("api/account/onboarded", HttpMethod.POST))
+    }
+
+    // ── Plaid (bank linking, Pro-gated) ──────────────────────────────
+    suspend fun plaidStatus(): PlaidStatus =
+        decode(send(makeRequest("api/plaid/status", HttpMethod.GET)))
+
+    suspend fun plaidLinkToken(): String =
+        decode<PlaidLinkTokenResponse>(send(makeRequest("api/plaid/link/token", HttpMethod.POST))).linkToken
+
+    suspend fun plaidExchange(publicToken: String) {
+        send(makeRequest("api/plaid/link/exchange", HttpMethod.POST, encode(PlaidExchangeBody(publicToken))))
+    }
+
+    suspend fun plaidRemove(itemId: Int) {
+        send(makeRequest("api/plaid/item/$itemId/remove", HttpMethod.POST))
+    }
+
+    suspend fun plaidRefresh(): List<PlaidItem> =
+        decode<PlaidItemsResponse>(send(makeRequest("api/plaid/refresh", HttpMethod.POST))).items
+
     suspend fun logout() {
         runCatching { send(makeRequest("api/auth/logout", HttpMethod.POST)) }
         tokens.clear()

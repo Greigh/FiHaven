@@ -6,6 +6,8 @@ import FiHavenCore
 struct RootView: View {
     @EnvironmentObject var env: AppEnvironment
     @EnvironmentObject var biometric: BiometricStore
+    // First-run intro is local (no account yet) — shown once before auth.
+    @AppStorage("fh_intro_seen") private var introSeen = false
 
     var body: some View {
         Group {
@@ -13,7 +15,7 @@ struct RootView: View {
             case .loading:
                 LoadingView()
             case .signedOut:
-                AuthView()
+                if introSeen { AuthView() } else { IntroView() }
             case .mfa(let challenge):
                 MFAView(challenge: challenge)
             case .unverified(let user):
@@ -21,6 +23,8 @@ struct RootView: View {
             case .signedIn(let user):
                 if biometric.locked {
                     LockView()
+                } else if !user.onboarded {
+                    OnboardingView()
                 } else if let store = env.store {
                     MainTabView(user: user)
                         .environmentObject(store)

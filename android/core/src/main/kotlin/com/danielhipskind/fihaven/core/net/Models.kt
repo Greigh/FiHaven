@@ -4,6 +4,7 @@ import com.danielhipskind.fihaven.core.model.Bill
 import com.danielhipskind.fihaven.core.model.Card
 import com.danielhipskind.fihaven.core.model.Entitlement
 import com.danielhipskind.fihaven.core.model.Payment
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -15,6 +16,10 @@ data class User(
     // this; the server returns `email-unverified` on data calls until it's
     // true. Defaults true so an older payload never falsely locks anyone out.
     val emailVerified: Boolean = true,
+    // Whether first-run onboarding is complete. Server-tracked (shown once
+    // across web/iOS/Android). Defaults true so older payloads never
+    // falsely re-onboard a session.
+    val onboarded: Boolean = true,
 )
 
 data class AuthSession(val token: String, val user: User)
@@ -103,3 +108,37 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
 @Serializable data class BackupCodesResult(val backupCodes: List<String> = emptyList())
 @Serializable data class EmailEnableResult(val challengeId: String)
 @Serializable data class PasskeyListResult(val passkeys: List<PasskeyInfo> = emptyList())
+
+// ── Plaid (bank linking) ─────────────────────────────────────────
+@Serializable
+data class PlaidAccount(
+    val accountId: String,
+    val name: String? = null,
+    val mask: String? = null,
+    val type: String? = null,
+    val subtype: String? = null,
+    val currentBalance: Double? = null,
+    val availableBalance: Double? = null,
+    val isoCurrency: String? = null,
+)
+
+@Serializable
+data class PlaidItem(
+    val id: Int,
+    val institutionName: String = "Bank",
+    val institutionId: String? = null,
+    val status: String = "active",
+    val error: String? = null,
+    val accounts: List<PlaidAccount> = emptyList(),
+)
+
+@Serializable
+data class PlaidStatus(
+    val configured: Boolean = false,
+    val pro: Boolean = false,
+    val items: List<PlaidItem> = emptyList(),
+)
+
+@Serializable data class PlaidLinkTokenResponse(val linkToken: String)
+@Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
+@Serializable data class PlaidExchangeBody(@SerialName("public_token") val publicToken: String)

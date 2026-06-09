@@ -33,6 +33,11 @@ val JsonObject.currency: String? get() = prim("currency")?.contentOrNull
 /// Which view the app opens to ("dashboard" | "bills" | "cards" | …).
 val JsonObject.landingView: String? get() = prim("landingView")?.contentOrNull
 
+/// Ordered tab ids shown in the bottom bar; tabs not listed live under
+/// "More". null = the app's default layout. Synced across devices.
+val JsonObject.tabBar: List<String>?
+    get() = (this["tabs"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+
 /// Opt-in email reminders / monthly summary (server scheduler).
 val JsonObject.billReminders: Boolean get() = prim("billReminders")?.booleanOrNull ?: false
 val JsonObject.monthlySummary: Boolean get() = prim("monthlySummary")?.booleanOrNull ?: false

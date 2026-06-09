@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import com.danielhipskind.fihaven.BuildConfig
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +53,7 @@ import com.danielhipskind.fihaven.core.model.currency
 import com.danielhipskind.fihaven.core.model.landingView
 import com.danielhipskind.fihaven.core.model.monthlySummary
 import com.danielhipskind.fihaven.core.model.paidGoal
+import com.danielhipskind.fihaven.core.model.tabBar
 import com.danielhipskind.fihaven.core.model.timezoneSetting
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.net.ApiError
@@ -71,6 +75,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     var mfa by remember { mutableStateOf<MfaStatus?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     val current = vm.currentUser ?: user
+    val uriHandler = LocalUriHandler.current
 
     LaunchedEffect(reload) { mfa = runCatching { vm.api.mfaStatus() }.getOrNull() }
     val close: () -> Unit = { dialog = null; reload++ }
@@ -133,6 +138,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Default view", defaultViewLabel(data.settings.landingView)) { dialog = "defaultview" }
                     HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Customize tabs", null) { dialog = "tabs" }
+                    HorizontalDivider(color = Ct.colors.border)
                     NavRow("Mark fully paid at", paidGoalLabel(PaidGoalPolicy.from(data.settings.paidGoal))) { dialog = "paidgoal" }
                 }
             }
@@ -146,6 +153,24 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
                     )
+                }
+            }
+            item {
+                Section("BANK") {
+                    NavRow("Bank connections", null) { dialog = "bank" }
+                }
+            }
+            item {
+                Section("ABOUT") {
+                    NavRow("Open-source licenses", null) { dialog = "licenses" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("License", "AGPL-3.0", Ct.colors.accent) {
+                        uriHandler.openUri("https://github.com/Greigh/FiHaven/blob/main/LICENSE")
+                    }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Source code", null) { uriHandler.openUri("https://github.com/Greigh/FiHaven") }
+                    HorizontalDivider(color = Ct.colors.border)
+                    KeyValueRow("Version", BuildConfig.VERSION_NAME)
                 }
             }
             item {
@@ -181,6 +206,93 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
         "defaultview" -> DefaultViewDialog(vm, data.settings.landingView ?: "dashboard", close)
         "appearance" -> AppearanceDialog(themeController) { dialog = null }
+        "licenses" -> LicensesDialog(close)
+        "tabs" -> TabsDialog(vm, close)
+        "bank" -> BankDialog(vm, close)
+    }
+}
+
+@Composable
+private fun TabsDialog(vm: AppViewModel, onDone: () -> Unit) {
+    val resolved = remember { resolveTabs(vm.data.value.settings.tabBar) }
+    var bottom by remember { mutableStateOf(resolved.first) }
+    var more by remember { mutableStateOf(resolved.second) }
+
+    fun persist(newBottom: List<TabId>) {
+        bottom = newBottom
+        vm.setTabs(newBottom.map { it.id })
+    }
+
+    FormDialog("Customize tabs", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("BOTTOM BAR", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        bottom.forEachIndexed { i, t ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(t.label, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = { if (i > 0) persist(bottom.toMutableList().apply { add(i - 1, removeAt(i)) }) },
+                    enabled = i > 0,
+                ) { Text("↑", color = Ct.colors.accent) }
+                TextButton(
+                    onClick = { if (i < bottom.lastIndex) persist(bottom.toMutableList().apply { add(i + 1, removeAt(i)) }) },
+                    enabled = i < bottom.lastIndex,
+                ) { Text("↓", color = Ct.colors.accent) }
+                TextButton(onClick = { more = listOf(t) + more; persist(bottom - t) }) {
+                    Text("Remove", color = Ct.colors.red)
+                }
+            }
+        }
+        Text("MORE", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp))
+        more.forEach { t ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(t.label, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = { if (bottom.size < MAX_BOTTOM_TABS) { more = more - t; persist(bottom + t) } },
+                    enabled = bottom.size < MAX_BOTTOM_TABS,
+                ) { Text("Add", color = Ct.colors.accent) }
+            }
+        }
+        Text(
+            "Up to $MAX_BOTTOM_TABS tabs in the bottom bar; the rest live under More. Free accounts always show a Get Pro tab.",
+            color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun LicensesDialog(onDone: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    // Third-party libraries bundled in the Android APK. Apache-2.0 asks
+    // that we ship its license text / a notice on redistribution; Play
+    // Billing is under Google's Android SDK license.
+    val libs = listOf(
+        "Jetpack Compose (UI, Material 3, Icons)" to "Apache-2.0",
+        "AndroidX (Activity, Lifecycle)" to "Apache-2.0",
+        "Kotlin & kotlinx (Coroutines, Serialization)" to "Apache-2.0",
+        "AndroidX Security Crypto (Tink)" to "Apache-2.0",
+        "AndroidX Biometric" to "Apache-2.0",
+        "Google Play Billing Library" to "Android SDK License",
+        "Plaid Link (com.plaid.link)" to "Plaid SDK License",
+    )
+    FormDialog("Open-source licenses", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text(
+            "FiHaven for Android bundles these open-source libraries; most are under the Apache License 2.0.",
+            color = Ct.colors.muted, fontSize = 13.sp,
+        )
+        libs.forEach { (name, license) ->
+            Column(Modifier.fillMaxWidth()) {
+                Text(name, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(license, color = Ct.colors.muted, fontSize = 12.sp)
+            }
+        }
+        TextButton(
+            onClick = { uriHandler.openUri("https://www.apache.org/licenses/LICENSE-2.0") },
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text("View the Apache License 2.0", color = Ct.colors.accent, fontSize = 13.sp)
+        }
+        HorizontalDivider(color = Ct.colors.border)
+        Text("FiHaven itself is licensed under AGPL-3.0.", color = Ct.colors.muted, fontSize = 12.sp)
     }
 }
 

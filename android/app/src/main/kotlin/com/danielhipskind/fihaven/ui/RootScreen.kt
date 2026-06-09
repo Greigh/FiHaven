@@ -37,6 +37,7 @@ fun RootScreen(
 ) {
     val session by vm.session.collectAsStateWithLifecycle()
     val locked by vm.locked.collectAsStateWithLifecycle()
+    val introSeen by vm.introSeen.collectAsStateWithLifecycle()
 
     LaunchedEffect(session, autoLogin) {
         if (autoLogin && session is Session.SignedOut) vm.devAutoLogin()
@@ -54,11 +55,14 @@ fun RootScreen(
 
     when (val s = session) {
         is Session.Loading -> LoadingScreen()
-        is Session.SignedOut -> AuthScreen(vm)
+        is Session.SignedOut -> if (introSeen) AuthScreen(vm) else IntroScreen(vm)
         is Session.Mfa -> MfaScreen(vm, s.challenge)
         is Session.Unverified -> VerifyEmailScreen(vm, s.user)
-        is Session.SignedIn ->
-            if (locked) LockScreen(vm) else MainScaffold(vm, s.user, initialTab, initialRoute)
+        is Session.SignedIn -> when {
+            locked -> LockScreen(vm)
+            !s.user.onboarded -> OnboardingScreen(vm)
+            else -> MainScaffold(vm, s.user, initialTab, initialRoute)
+        }
     }
 }
 

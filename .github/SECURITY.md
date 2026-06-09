@@ -21,3 +21,7 @@ Include as much detail as possible:
 ## What to expect
 
 We will review the report, confirm the impact, and coordinate a fix before public disclosure when appropriate.
+
+## Information security policy
+
+FiHaven's documented information security policy — covering risk management, data handling, encryption, access control, incident response, third-party processors, and Plaid data handling — is maintained at [`docs/information-security-policy.md`](../docs/information-security-policy.md).

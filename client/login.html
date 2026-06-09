@@ -108,15 +108,19 @@
                nothing and the token is delivered to the render callback. -->
           <div data-turnstile data-sitekey="%VITE_TURNSTILE_SITEKEY%"></div>
           <div class="auth-error" data-login-message aria-live="polite"></div>
+          <label class="auth-consent" data-terms-notice hidden>
+            <input type="checkbox" data-consent-check />
+            <span>I agree to FiHaven&rsquo;s
+              <a href="/terms" target="_blank" rel="noopener">Terms of Use</a> and
+              <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and I consent to the
+              collection, processing, and storage of my data as described there. Optional bank connections use
+              <a href="https://plaid.com/legal/#consumers" target="_blank" rel="noopener">Plaid</a> and
+              payments use <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe</a>,
+              each subject to their own privacy policies.</span>
+          </label>
           <div class="auth-actions">
             <button class="btn btn-primary" type="submit">Continue</button>
           </div>
-          <p class="auth-legal" data-terms-notice hidden>
-            By creating an account you agree to our
-            <a href="/terms">Terms of Use</a>
-            and
-            <a href="/privacy">Privacy Policy</a>.
-          </p>
         </form>
       </section>
     </main>

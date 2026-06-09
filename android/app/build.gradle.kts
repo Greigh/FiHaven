@@ -68,4 +68,8 @@ dependencies {
     // Biometric app lock (fingerprint / face). BiometricPrompt needs the
     // host to be a FragmentActivity.
     implementation("androidx.biometric:biometric:1.1.0")
+
+    // Plaid Link for in-app bank connections (Pro). Drives the existing
+    // /api/plaid link-token + exchange endpoints.
+    implementation("com.plaid.link:sdk-core:5.1.1")
 }

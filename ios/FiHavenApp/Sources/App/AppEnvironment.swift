@@ -57,6 +57,12 @@ final class AppEnvironment: ObservableObject {
         #endif
     }
 
+    /// Base URL of the web app (same origin as the API). Used to open
+    /// browser-only flows — e.g. lost-2FA recovery at `/recover`, which
+    /// deliberately lives on the web so the destructive wipe is confirmed
+    /// from an emailed link rather than inside the app.
+    static var webBaseURL: URL { resolveConfig().baseURL }
+
     /// Mark when the auth screen appeared (anti-bot timing gate).
     func markAuthStarted() { authStartedAt = APIClient.now() }
 
@@ -181,6 +187,17 @@ final class AppEnvironment: ObservableObject {
     /// Reflect a profile change (name/email) in the displayed user.
     func applyUser(_ user: User) {
         if case .signedIn = session { session = .signedIn(user) }
+    }
+
+    /// Mark first-run onboarding complete, then drop the gate so the tab
+    /// shell appears. Best-effort: we flip the local flag regardless so a
+    /// transient network error doesn't trap the user on the intro.
+    func completeOnboarding() async {
+        try? await api.markOnboarded()
+        if var user = currentUser {
+            user.onboarded = true
+            applyUser(user)
+        }
     }
 
     /// Called after account deletion: drop straight to signed-out.

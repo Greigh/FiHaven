@@ -34,7 +34,7 @@ import java.util.Date
 /** "FiHaven Pro" — a standalone More screen for subscription status,
  *  upgrade/manage, and promo redemption (lifted out of Settings). */
 @Composable
-fun ProScreen(vm: AppViewModel, padding: PaddingValues, onBack: () -> Unit) {
+fun ProScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     var showPaywall by remember { mutableStateOf(false) }
     var showRedeem by remember { mutableStateOf(false) }

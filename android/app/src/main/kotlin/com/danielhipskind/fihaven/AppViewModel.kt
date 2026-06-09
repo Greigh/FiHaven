@@ -22,6 +22,8 @@ import com.danielhipskind.fihaven.core.model.withSetting
 import com.danielhipskind.fihaven.core.model.withTimezone
 import com.danielhipskind.fihaven.core.Money
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.logic.PaidState
@@ -76,6 +78,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Cold launch starts locked when enabled; a fresh login clears it.
     private val _locked = MutableStateFlow(prefs.getBoolean(BIO_KEY, false))
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
+
+    // First-run intro is local (no account yet) — shown once before auth.
+    private val _introSeen = MutableStateFlow(prefs.getBoolean("intro_seen", false))
+    val introSeen: StateFlow<Boolean> = _introSeen.asStateFlow()
+
+    fun markIntroSeen() {
+        prefs.edit { putBoolean("intro_seen", true) }
+        _introSeen.value = true
+    }
 
     fun setBiometricEnabled(on: Boolean) {
         _biometricEnabled.value = on
@@ -246,6 +257,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (_session.value is Session.SignedIn) _session.value = Session.SignedIn(user)
     }
 
+    /** Mark first-run onboarding complete, then drop the gate. Best-effort:
+     *  the local flag flips regardless so a network error never traps the
+     *  user on the intro. */
+    fun completeOnboarding() {
+        viewModelScope.launch {
+            runCatching { api.markOnboarded() }
+            currentUser?.let { applyUser(it.copy(onboarded = true)) }
+        }
+    }
+
     fun deleteAccount(password: String, onError: (String) -> Unit) = viewModelScope.launch {
         try {
             api.deleteAccount(password)
@@ -320,6 +341,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setLandingView(view: String) =
         mutate { it.copy(settings = it.settings.withSetting("landingView", JsonPrimitive(view))) }
+
+    /// Persist the bottom-bar tab order (ids). Tabs not listed fall under More.
+    fun setTabs(ids: List<String>) =
+        mutate { it.copy(settings = it.settings.withSetting("tabs", buildJsonArray { ids.forEach { id -> add(id) } })) }
 
     fun setBillReminders(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("billReminders", JsonPrimitive(on))) }

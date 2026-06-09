@@ -1,0 +1,160 @@
+import SwiftUI
+import UIKit
+import FiHavenCore
+import LinkKit
+
+/// Pro-gated bank linking via Plaid's native Link SDK. Status, balances,
+/// and disconnect run through the existing /api/plaid endpoints; "Connect"
+/// opens Plaid Link with a server-issued link token and exchanges the
+/// resulting public token back to the server.
+struct BankView: View {
+    @EnvironmentObject var env: AppEnvironment
+    @State private var status: PlaidStatus?
+    @State private var message: String?
+    @State private var busy = false
+    @State private var handler: Handler?
+
+    var body: some View {
+        List {
+            Section {
+                Text("Optionally link a bank with Plaid to auto-fetch balances. FiHaven works fully by hand, so a dropped connection never breaks your dashboard.")
+                    .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            }
+            if let status {
+                content(status)
+            } else {
+                Section { HStack { Text("Loading…").foregroundStyle(Theme.muted); Spacer(); ProgressView() } }
+            }
+            if let message {
+                Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.bg.ignoresSafeArea())
+        .navigationTitle("Bank connections")
+        .task { await load() }
+    }
+
+    @ViewBuilder
+    private func content(_ s: PlaidStatus) -> some View {
+        if !s.configured {
+            Section { Text("Bank linking isn't enabled on this server yet.").font(Theme.ui(14)).foregroundStyle(Theme.muted) }
+        } else if !s.pro {
+            Section { Text("Linking your bank is a Pro feature. Upgrade from the Get Pro tab to connect an account.").font(Theme.ui(14)) }
+        } else {
+            Section {
+                if s.items.isEmpty {
+                    Text("No banks linked yet.").font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                } else {
+                    ForEach(s.items) { item in itemView(item) }
+                }
+            }
+            Section {
+                Button { connect() } label: { Text(busy ? "Opening…" : "Connect a bank") }
+                    .disabled(busy)
+                if !s.items.isEmpty {
+                    Button("Refresh balances") { refresh() }
+                }
+            } footer: {
+                Text("By connecting, you agree to Plaid's End User Privacy Policy. You authenticate with your bank inside Plaid; we never see your bank login.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
+        }
+    }
+
+    private func itemView(_ item: PlaidItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(item.institutionName).font(Theme.ui(15, weight: .medium))
+                Spacer()
+                Button("Disconnect", role: .destructive) { disconnect(item.id) }
+                    .font(Theme.ui(13))
+            }
+            ForEach(item.accounts) { a in
+                HStack {
+                    Text((a.name ?? a.subtype ?? "Account") + (a.mask.map { " ••\($0)" } ?? ""))
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                    Spacer()
+                    Text(a.currentBalance.map { Money.fmt($0) } ?? "—").font(Theme.ui(13, weight: .medium))
+                }
+            }
+        }
+    }
+
+    private func load() async {
+        status = try? await env.api.plaidStatus()
+    }
+
+    private func connect() {
+        busy = true
+        message = nil
+        Task {
+            do {
+                let token = try await env.api.plaidLinkToken()
+                await MainActor.run { present(token: token) }
+            } catch {
+                await MainActor.run { busy = false; message = "Could not start linking. Please try again." }
+            }
+        }
+    }
+
+    @MainActor
+    private func present(token: String) {
+        busy = false
+        var config = LinkTokenConfiguration(token: token, onSuccess: { success in
+            let token = success.publicToken
+            Task { @MainActor in self.exchange(token) }
+        })
+        config.onExit = { _ in
+            Task { @MainActor in self.message = "Linking cancelled." }
+        }
+        switch Plaid.create(config) {
+        case .success(let h):
+            handler = h
+            if let vc = Self.topViewController() {
+                h.open(presentUsing: .viewController(vc))
+            } else {
+                message = "Could not present Plaid Link."
+            }
+        case .failure:
+            message = "Could not start linking. Please try again."
+        }
+    }
+
+    private func exchange(_ publicToken: String) {
+        message = "Linking…"
+        Task {
+            let ok = (try? await env.api.plaidExchange(publicToken: publicToken)) != nil
+            await MainActor.run { message = ok ? "Bank linked." : "Could not finish linking. Please try again." }
+            await load()
+        }
+    }
+
+    private func disconnect(_ id: Int) {
+        Task {
+            try? await env.api.plaidRemove(itemId: id)
+            await load()
+        }
+    }
+
+    private func refresh() {
+        message = "Refreshing balances…"
+        Task {
+            let ok = (try? await env.api.plaidRefresh()) != nil
+            await MainActor.run { message = ok ? "Balances updated." : "Could not refresh. Please try again." }
+            await load()
+        }
+    }
+
+    /// Topmost view controller to present Link from (SwiftUI has no direct
+    /// presenter).
+    private static func topViewController() -> UIViewController? {
+        let scene = (UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes.first) as? UIWindowScene
+        var top = scene?.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            ?? scene?.windows.first?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        return top
+    }
+}

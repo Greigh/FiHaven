@@ -5,6 +5,7 @@ import FiHavenCore
 /// TOTP / backup / email codes (passkeys are a later phase).
 struct MFAView: View {
     @EnvironmentObject var env: AppEnvironment
+    @Environment(\.openURL) private var openURL
     let challenge: MfaChallenge
 
     @State private var code = ""
@@ -71,6 +72,14 @@ struct MFAView: View {
                     }
                 }
                 .ctCard(padding: 20)
+
+                Button {
+                    openURL(AppEnvironment.webBaseURL.appendingPathComponent("recover"))
+                } label: {
+                    Text("Lost your 2FA device?")
+                        .font(Theme.ui(13, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                }
 
                 Button {
                     env.cancelMfa()

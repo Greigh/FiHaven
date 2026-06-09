@@ -161,6 +161,48 @@ public final class APIClient: Sendable {
         try await send(req)
     }
 
+    /// Mark first-run onboarding complete for the current session. Authed
+    /// via the Bearer token (CSRF is skipped for token auth server-side).
+    public func markOnboarded() async throws {
+        let req = try makeRequest(path: "api/account/onboarded", method: .POST)
+        try await send(req)
+    }
+
+    // ── Plaid (bank linking, Pro-gated) ──────────────────────────────
+
+    /// Current Plaid state: whether the server has credentials, whether the
+    /// user is Pro, and their linked items + balances.
+    public func plaidStatus() async throws -> PlaidStatus {
+        let req = try makeRequest(path: "api/plaid/status", method: .GET)
+        return try decode(PlaidStatus.self, from: try await send(req))
+    }
+
+    /// Create a Plaid Link token to open the native Link flow.
+    public func plaidLinkToken() async throws -> String {
+        let req = try makeRequest(path: "api/plaid/link/token", method: .POST)
+        return try decode(PlaidLinkTokenResponse.self, from: try await send(req)).linkToken
+    }
+
+    /// Exchange the Link `public_token` for a stored item (server pulls
+    /// balances immediately).
+    public func plaidExchange(publicToken: String) async throws {
+        let req = try makeRequest(path: "api/plaid/link/exchange", method: .POST,
+                                  body: AnyEncodable(PlaidExchangeBody(publicToken: publicToken)))
+        _ = try await send(req)
+    }
+
+    /// Disconnect a linked item.
+    public func plaidRemove(itemId: Int) async throws {
+        let req = try makeRequest(path: "api/plaid/item/\(itemId)/remove", method: .POST)
+        _ = try await send(req)
+    }
+
+    /// Re-pull balances for every linked item; returns the refreshed list.
+    public func plaidRefresh() async throws -> [PlaidItem] {
+        let req = try makeRequest(path: "api/plaid/refresh", method: .POST)
+        return try decode(PlaidItemsResponse.self, from: try await send(req)).items
+    }
+
     /// Revoke the session server-side and clear the local token.
     public func logout() async throws {
         let req = try makeRequest(path: "api/auth/logout", method: .POST)

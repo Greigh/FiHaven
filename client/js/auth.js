@@ -260,6 +260,13 @@
         showMessage(message, errorMessage('missing-captcha'), true);
         return;
       }
+      // Explicit consent is required to create an account (collection /
+      // processing / storage of data, incl. Plaid + Stripe processors).
+      var consentEl = form.querySelector('[data-consent-check]');
+      if (mode === 'signup' && consentEl && !consentEl.checked) {
+        showMessage(message, 'Please agree to the Terms of Use and Privacy Policy to create an account.', true);
+        return;
+      }
 
       if (submitBtn) submitBtn.disabled = true;
       showMessage(message, 'Working…', false);

@@ -7,15 +7,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Button
@@ -44,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.core.model.landingView
+import com.danielhipskind.fihaven.core.model.tabBar
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.billing.BillingManager
 import com.danielhipskind.fihaven.core.Money
@@ -59,25 +65,54 @@ import com.danielhipskind.fihaven.ui.theme.Ct
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    HOME("Home", Icons.Filled.Home),
-    BILLS("Bills", Icons.AutoMirrored.Filled.ReceiptLong),
-    CARDS("Cards", Icons.Filled.CreditCard),
-    PAYOFF("Payoff", Icons.AutoMirrored.Filled.ShowChart),
-    MORE("More", Icons.Filled.MoreHoriz),
+/// The customizable app tabs (everything except the fixed "More" overflow
+/// and the Free-only "Get Pro" slot). Declaration order is the default order.
+enum class TabId(val id: String, val label: String, val icon: ImageVector) {
+    DASHBOARD("dashboard", "Home", Icons.Filled.Home),
+    BILLS("bills", "Bills", Icons.AutoMirrored.Filled.ReceiptLong),
+    CARDS("cards", "Cards", Icons.Filled.CreditCard),
+    PAYOFF("payoff", "Payoff", Icons.AutoMirrored.Filled.ShowChart),
+    BUDGET("budget", "Budget", Icons.Filled.PieChart),
+    CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
+    HISTORY("history", "History", Icons.Filled.History),
+    ;
+    companion object { fun from(id: String?): TabId? = entries.find { it.id == id } }
+}
+
+private val defaultBottomTabs = listOf(TabId.DASHBOARD, TabId.BILLS, TabId.CARDS, TabId.PAYOFF)
+const val MAX_BOTTOM_TABS = 4
+
+/// Resolve the saved tab order into (bottom-bar, overflow) lists. Unknown
+/// ids are dropped; tabs not listed fall into overflow in catalog order.
+fun resolveTabs(saved: List<String>?): Pair<List<TabId>, List<TabId>> {
+    val savedItems = saved?.mapNotNull { TabId.from(it) } ?: defaultBottomTabs
+    val bottom = savedItems.distinct()
+    val overflow = TabId.entries.filter { it !in bottom }
+    return bottom to overflow
 }
 
 @Composable
 fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initialRoute: String? = null) {
-    var tab by remember { mutableStateOf(tabFor(initialTab)) }
+    val scaffoldData by vm.data.collectAsStateWithLifecycle()
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val isPro = ent.pro
+
+    val (bottomAll, overflowAll) = resolveTabs(scaffoldData.settings.tabBar)
+    // Free users give up one bottom slot to the always-present Get Pro tab.
+    val bottomCount = if (isPro) MAX_BOTTOM_TABS else MAX_BOTTOM_TABS - 1
+    val shownBottom = bottomAll.take(bottomCount)
+    val moreItems = bottomAll.drop(bottomCount) + overflowAll
+
+    var selected by remember { mutableStateOf(initialTab ?: shownBottom.firstOrNull()?.id ?: "dashboard") }
 
     // Open to the user's saved default view, once the data has loaded.
-    val scaffoldData by vm.data.collectAsStateWithLifecycle()
     var appliedLanding by remember { mutableStateOf(false) }
     LaunchedEffect(scaffoldData.settings.landingView) {
-        if (!appliedLanding && initialTab == null && scaffoldData.settings.landingView != null) {
+        val lv = scaffoldData.settings.landingView
+        if (!appliedLanding && initialTab == null && lv != null) {
             appliedLanding = true
-            tab = tabFor(scaffoldData.settings.landingView)
+            val item = TabId.from(lv)
+            selected = if (item != null && shownBottom.contains(item)) item.id else "more"
         }
     }
 
@@ -97,41 +132,60 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
             containerColor = Ct.colors.bg,
             bottomBar = {
                 NavigationBar(containerColor = Ct.colors.surface) {
-                    Tab.entries.forEach { t ->
-                        NavigationBarItem(
-                            selected = tab == t,
-                            onClick = { tab = t },
-                            icon = { Icon(t.icon, contentDescription = t.label) },
-                            label = { Text(t.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Ct.colors.accent,
-                                selectedTextColor = Ct.colors.accent,
-                                indicatorColor = Ct.colors.accentBg,
-                                unselectedIconColor = Ct.colors.muted,
-                                unselectedTextColor = Ct.colors.muted,
-                            ),
-                        )
+                    shownBottom.forEach { t ->
+                        NavBarItem(selected == t.id, t.label, t.icon) { selected = t.id }
                     }
+                    if (!isPro) {
+                        NavBarItem(selected == "getpro", "Get Pro", Icons.Filled.WorkspacePremium) { selected = "getpro" }
+                    }
+                    NavBarItem(selected == "more", "More", Icons.Filled.MoreHoriz) { selected = "more" }
                 }
             },
         ) { padding ->
-            when (tab) {
-                Tab.HOME -> DashboardScreen(vm, padding)
-                Tab.BILLS -> BillsScreen(vm, padding)
-                Tab.CARDS -> CardsScreen(vm, padding)
-                Tab.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding) { PayoffScreen(vm, padding) }
-                Tab.MORE -> MoreScreen(vm, user, padding, initialRoute)
+            when (val sel = selected) {
+                "getpro" -> ProScreen(vm, padding)
+                "more" -> MoreScreen(vm, user, padding, initialRoute, moreItems)
+                else -> {
+                    val tab = TabId.from(sel)
+                    if (tab != null) TabContent(tab, vm, padding)
+                    else MoreScreen(vm, user, padding, initialRoute, moreItems)
+                }
             }
         }
     }
 }
 
-private fun tabFor(name: String?): Tab = when (name) {
-    "bills" -> Tab.BILLS
-    "cards" -> Tab.CARDS
-    "payoff" -> Tab.PAYOFF
-    "more" -> Tab.MORE
-    else -> Tab.HOME
+@Composable
+private fun RowScope.NavBarItem(selected: Boolean, label: String, icon: ImageVector, onClick: () -> Unit) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = label) },
+        label = { Text(label) },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = Ct.colors.accent,
+            selectedTextColor = Ct.colors.accent,
+            indicatorColor = Ct.colors.accentBg,
+            unselectedIconColor = Ct.colors.muted,
+            unselectedTextColor = Ct.colors.muted,
+        ),
+    )
+}
+
+/// Render a tab's content. `onBack` is supplied when shown from "More"
+/// (overflow) so the back-aware screens show an arrow; the primary screens
+/// without one rely on the caller's BackHandler.
+@Composable
+internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
+    when (tab) {
+        TabId.DASHBOARD -> DashboardScreen(vm, padding)
+        TabId.BILLS -> BillsScreen(vm, padding)
+        TabId.CARDS -> CardsScreen(vm, padding)
+        TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding) }
+        TabId.BUDGET -> BudgetScreen(vm, padding, onBack)
+        TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
+        TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
+    }
 }
 
 @Composable

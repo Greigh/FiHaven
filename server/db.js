@@ -202,6 +202,7 @@ db.exec(`
     available_balance REAL,
     limit_balance     REAL,
     iso_currency      TEXT,
+    enc               TEXT,                         -- AES-256-GCM blob of all consumer fields
     updated_at        INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_plaid_accounts_item ON plaid_accounts(item_pk);
@@ -228,6 +229,15 @@ db.exec(`
   // the local month a summary last went out, so neither double-sends.
   if (!cols.includes('last_reminder_day'))  db.exec(`ALTER TABLE users ADD COLUMN last_reminder_day TEXT`);
   if (!cols.includes('last_summary_month')) db.exec(`ALTER TABLE users ADD COLUMN last_summary_month TEXT`);
+})();
+
+// Encrypt-at-rest for Plaid account data: add the `enc` blob column to
+// databases created before it existed. Account names/masks/balances are now
+// stored only as an AES-256-GCM ciphertext blob (see routes/plaid.js); the
+// legacy plaintext columns remain for read-fallback but are no longer written.
+(function migratePlaidColumns() {
+  const cols = db.prepare(`PRAGMA table_info(plaid_accounts)`).all().map((c) => c.name);
+  if (!cols.includes('enc')) db.exec(`ALTER TABLE plaid_accounts ADD COLUMN enc TEXT`);
 })();
 
 // Unique index for iCal token lookups (the column allows NULL so
@@ -461,25 +471,19 @@ const stmt = {
   ),
   deletePlaidItem: db.prepare(`DELETE FROM plaid_items WHERE id = ? AND user_id = ?`),
   upsertPlaidAccount: db.prepare(
-    `INSERT INTO plaid_accounts
-       (item_pk, account_id, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at)
-     VALUES (@item_pk, @account_id, @name, @official_name, @mask, @type, @subtype, @current_balance, @available_balance, @limit_balance, @iso_currency, @updated_at)
+    `INSERT INTO plaid_accounts (item_pk, account_id, enc, updated_at)
+     VALUES (@item_pk, @account_id, @enc, @updated_at)
      ON CONFLICT(account_id) DO UPDATE SET
-       item_pk           = excluded.item_pk,
-       name              = excluded.name,
-       official_name     = excluded.official_name,
-       mask              = excluded.mask,
-       type              = excluded.type,
-       subtype           = excluded.subtype,
-       current_balance   = excluded.current_balance,
-       available_balance = excluded.available_balance,
-       limit_balance     = excluded.limit_balance,
-       iso_currency      = excluded.iso_currency,
-       updated_at        = excluded.updated_at`
+       item_pk    = excluded.item_pk,
+       enc        = excluded.enc,
+       updated_at = excluded.updated_at,
+       -- Scrub any legacy plaintext now that everything lives in the enc blob.
+       name = NULL, official_name = NULL, mask = NULL, type = NULL, subtype = NULL,
+       current_balance = NULL, available_balance = NULL, limit_balance = NULL, iso_currency = NULL`
   ),
   listPlaidAccountsByItem: db.prepare(
-    `SELECT account_id, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at
-       FROM plaid_accounts WHERE item_pk = ? ORDER BY name`
+    `SELECT account_id, enc, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at
+       FROM plaid_accounts WHERE item_pk = ? ORDER BY updated_at`
   ),
 };
 

@@ -1,21 +1,28 @@
 import SwiftUI
 import FiHavenCore
 
-enum MoreRoute: String, Hashable { case pro, budget, calendar, history, settings }
+/// Destinations reachable from the "More" tab.
+enum MoreDest: Hashable { case tab(TabItem), pro, settings }
 
-/// The "More" tab: a menu linking to the secondary screens.
+/// The "More" tab: the overflow tabs (those not in the bottom bar) plus
+/// FiHaven Pro and Settings.
 struct MoreView: View {
     let user: User
+    var overflow: [TabItem] = []
     @State private var path = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                if !overflow.isEmpty {
+                    Section {
+                        ForEach(overflow) { item in
+                            row(.tab(item), item.title, item.symbol)
+                        }
+                    }
+                }
                 Section {
                     row(.pro, "FiHaven Pro", "crown.fill")
-                    row(.budget, "Budget", "chart.pie.fill")
-                    row(.calendar, "Calendar", "calendar")
-                    row(.history, "History", "clock.arrow.circlepath")
                     row(.settings, "Settings", "gearshape.fill")
                 } footer: {
                     MadeWithLove()
@@ -27,12 +34,10 @@ struct MoreView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("More")
-            .navigationDestination(for: MoreRoute.self) { route in
-                switch route {
+            .navigationDestination(for: MoreDest.self) { dest in
+                switch dest {
+                case .tab(let item): item.destination
                 case .pro: ProView()
-                case .budget: BudgetView()
-                case .calendar: ProGate(feature: .calendar) { CalendarView() }
-                case .history: ProGate(feature: .history) { HistoryView() }
                 case .settings: SettingsView(user: user)
                 }
             }
@@ -40,8 +45,8 @@ struct MoreView: View {
         .onAppear(perform: applyDebugRoute)
     }
 
-    private func row(_ route: MoreRoute, _ title: String, _ icon: String) -> some View {
-        NavigationLink(value: route) {
+    private func row(_ dest: MoreDest, _ title: String, _ icon: String) -> some View {
+        NavigationLink(value: dest) {
             Label {
                 Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
             } icon: {
@@ -54,9 +59,10 @@ struct MoreView: View {
     private func applyDebugRoute() {
         #if DEBUG
         guard path.isEmpty,
-              let raw = ProcessInfo.processInfo.environment["FH_ROUTE"],
-              let route = MoreRoute(rawValue: raw) else { return }
-        path.append(route)
+              let raw = ProcessInfo.processInfo.environment["FH_ROUTE"] else { return }
+        if raw == "pro" { path.append(MoreDest.pro) }
+        else if raw == "settings" { path.append(MoreDest.settings) }
+        else if let item = TabItem(rawValue: raw) { path.append(MoreDest.tab(item)) }
         #endif
     }
 }

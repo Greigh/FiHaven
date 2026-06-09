@@ -23,9 +23,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.danielhipskind.fihaven.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.core.net.MfaChallenge
@@ -94,6 +96,7 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
     val working by vm.working.collectAsStateWithLifecycle()
     val error by vm.authError.collectAsStateWithLifecycle()
     var code by remember { mutableStateOf("") }
+    val uriHandler = LocalUriHandler.current
 
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(22.dp),
@@ -121,6 +124,14 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 ) { Text(if (working) "Verifying…" else "Verify") }
             }
+        }
+        // Lost-2FA recovery lives on the web: it triggers a destructive
+        // wipe confirmed from an emailed link, so it stays out of the app.
+        TextButton(
+            onClick = { uriHandler.openUri(BuildConfig.API_BASE.trimEnd('/') + "/recover") },
+            modifier = Modifier.padding(top = 6.dp),
+        ) {
+            Text("Lost your 2FA device?", color = Ct.colors.accent)
         }
         TextButton(onClick = { vm.cancelMfa() }, modifier = Modifier.padding(top = 6.dp)) {
             Text("Cancel", color = Ct.colors.muted)

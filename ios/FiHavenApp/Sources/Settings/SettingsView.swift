@@ -29,6 +29,8 @@ struct SettingsView: View {
             preferencesSection
             notificationsSection
             dataSection
+            bankSection
+            aboutSection
             signOutSection
         }
         .listStyle(.insetGrouped)
@@ -154,6 +156,8 @@ struct SettingsView: View {
                 ForEach(Self.views, id: \.0) { Text($0.1).tag($0.0) }
             }
             .pickerStyle(.menu)
+
+            NavigationLink { TabsEditorView() } label: { Text("Customize tabs") }
         }
     }
 
@@ -190,6 +194,18 @@ struct SettingsView: View {
                 HStack { Text("Export data"); Spacer(); if busy { ProgressView() } }
             }
             Button("Delete account", role: .destructive) { sheet = .deleteAccount }
+        }
+    }
+
+    private var bankSection: some View {
+        Section {
+            NavigationLink { BankView() } label: { Text("Bank connections") }
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            NavigationLink { AboutView() } label: { Text("About & licenses") }
         }
     }
 
