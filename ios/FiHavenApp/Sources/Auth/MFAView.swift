@@ -34,6 +34,15 @@ struct MFAView: View {
                         .font(Theme.mono(20, weight: .medium))
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
+                        .autocorrectionDisabled()
+                        .onChange(of: code) { newValue in
+                            // Keep digits only, but never reassign during the
+                            // same update (avoids an autofill feedback hang).
+                            let filtered = newValue.filter { $0.isNumber }
+                            if filtered != newValue {
+                                DispatchQueue.main.async { code = filtered }
+                            }
+                        }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 11)
                         .background(Theme.surface2)

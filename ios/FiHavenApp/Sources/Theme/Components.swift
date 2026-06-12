@@ -27,8 +27,8 @@ struct Wordmark: View {
     var size: CGFloat = 30
     var body: some View {
         HStack(spacing: 0) {
-            Text("Clear").foregroundStyle(Theme.text)
-            Text("Tab").foregroundStyle(Theme.accent)
+            Text("Fi").foregroundStyle(Theme.text)
+            Text("Haven").foregroundStyle(Theme.accent)
         }
         .font(Theme.title(size))
     }
@@ -52,16 +52,15 @@ struct PrimaryButtonStyle: ButtonStyle {
 /// The web's footer credit: "Made with ♥ by Daniel Hipskind".
 struct MadeWithLove: View {
     var body: some View {
-        HStack(spacing: 0) {
-            Text("Made with ")
+        HStack(spacing: 4) {
+            Text("Made with")
             Text("♥").foregroundStyle(Theme.red)
-            Text(" by ")
+            Text("by")
             Link("Daniel Hipskind", destination: URL(string: "https://danielhipskind.com")!)
                 .foregroundStyle(Theme.accent)
         }
         .font(Theme.ui(13))
         .foregroundStyle(Theme.muted)
-        .multilineTextAlignment(.center)
     }
 }
 

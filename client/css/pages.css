@@ -243,7 +243,9 @@
 }
 .auth-legal a:hover { text-decoration: underline; }
 
-/* Required signup consent checkbox row. */
+/* Required signup consent checkbox row. Only shown in signup mode — the
+   [hidden] rule must beat `display:flex`, or it leaks onto the login form. */
+.auth-consent[hidden] { display: none; }
 .auth-consent {
   display: flex;
   gap: 10px;
@@ -361,6 +363,54 @@
   border-color: rgba(255, 255, 255, .07);
   box-shadow: 0 12px 26px rgba(0, 0, 0, .22);
 }
+
+/* ── FiHaven Pro dialog (pro.js) ──────────────────────────── */
+/* The dialog reuses .auth-card markup, whose marketing gradient reads as a
+   harsh black/white block in dark mode. Give it a flat, theme-aware surface. */
+.pro-panel {
+  background: var(--surface);
+  border-radius: 20px;
+}
+[data-theme="dark"] .pro-panel {
+  background: #17171d;
+  border-color: rgba(255, 255, 255, .07);
+}
+
+/* Plan choices as a clean vertical option list (was a cluttered button row). */
+.pro-plan {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.pro-plan:hover { border-color: var(--accent); }
+.pro-plan-best {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.pro-plan-name { font-weight: 600; font-size: 15px; flex: 1; }
+.pro-plan-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.pro-plan-cta { color: var(--muted); font-size: 13px; font-weight: 600; }
+[data-theme="dark"] .pro-plan { background: #1d1d25; }
+[data-theme="dark"] .pro-plan-best { background: color-mix(in srgb, var(--accent) 16%, #1d1d25); }
 
 /* ── FiHaven Pro nudge (dashboard, Free users) ────────────── */
 .pro-nudge {
@@ -622,3 +672,83 @@ input[type="file"]::file-selector-button:hover {
   }
 }
 
+
+/* ── Sort + filter bar (Bills / Cards) ─────────────────────── */
+.sf-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.sf-sort { display:flex; align-items:center; gap:8px; }
+.sf-sort-label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.sf-sort select { padding:6px 10px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text); font:inherit; }
+.sf-bar-actions { display:flex; align-items:center; gap:6px; }
+.sf-panel { display:flex; flex-wrap:wrap; gap:14px 18px; padding:12px 14px; margin-bottom:12px; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+.sf-row { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text); }
+.sf-row-toggle { cursor:pointer; }
+.sf-row-select span { color:var(--muted); font-size:13px; }
+.sf-row-select select { padding:5px 9px; border-radius:9px; border:1px solid var(--border); background:var(--surface); color:var(--text); font:inherit; }
+
+/* ── Net worth panel (Cards tab) ───────────────────────────── */
+.networth-card { border:1px solid var(--border); border-radius:18px; background:var(--surface); padding:16px 18px; margin-bottom:16px; }
+.networth-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.networth-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.networth-value { font-family:'Manrope',sans-serif; font-weight:800; letter-spacing:-.03em; font-size:30px; line-height:1.1; }
+.networth-breakdown { display:flex; gap:18px; }
+.networth-breakdown > div { display:flex; flex-direction:column; align-items:flex-end; }
+.networth-bd-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.networth-bd-val { font-family:'Manrope',sans-serif; font-weight:700; }
+.networth-accts-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:16px 0 10px; font-size:13px; font-weight:600; color:var(--text); }
+.networth-empty { color:var(--muted); font-size:14px; margin:4px 0 0; }
+
+/* ── Savings goals (Budget tab) ────────────────────────────── */
+.goals-list { display:flex; flex-direction:column; gap:12px; }
+.goal-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:12px 14px; }
+.goal-row-top { display:flex; align-items:center; gap:8px; }
+.goal-name { flex:1; min-width:0; background:transparent; border:none; border-bottom:1px solid transparent; color:var(--text); font:inherit; font-weight:600; padding:4px 0; }
+.goal-name:focus { outline:none; border-bottom-color:var(--border); }
+.goal-bar { height:8px; border-radius:999px; background:var(--surface2,var(--border)); overflow:hidden; margin:10px 0; }
+.goal-bar-fill { height:100%; background:var(--green); border-radius:999px; transition:width .2s; }
+.goal-fields { display:flex; flex-wrap:wrap; gap:10px 16px; }
+.goal-field { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--muted); }
+.goal-field input { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:5px 8px; color:var(--text); font:inherit; }
+.goal-amount { display:flex; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:0 8px; }
+.goal-amount span { color:var(--muted); }
+.goal-amount input { border:none; background:transparent; width:90px; padding:5px 2px; color:var(--text); font:inherit; }
+.goal-meta { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--muted); }
+.goal-suggest { color:var(--green); font-weight:600; }
+
+/* ── Spending panel (Budget tab) ───────────────────────────── */
+.spend-add { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+.spend-add-amt { display:flex; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:0 8px; }
+.spend-add-amt span { color:var(--muted); }
+.spend-add-amt input { border:none; background:transparent; width:84px; padding:7px 2px; color:var(--text); font:inherit; }
+.spend-add select, .spend-add input[type="text"], .spend-add input[type="date"] { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:7px 9px; color:var(--text); font:inherit; }
+.spend-add-merchant { flex:1; min-width:120px; }
+.spend-cats { display:flex; flex-direction:column; gap:10px; }
+.spend-cat { border-bottom:1px solid color-mix(in srgb, var(--border) 55%, transparent); padding-bottom:10px; }
+.spend-cat-top { display:flex; justify-content:space-between; gap:10px; font-size:14px; }
+.spend-cat-name { font-weight:500; }
+.spend-cat-val { font-family:'Manrope',sans-serif; font-weight:600; }
+.spend-budget { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted); }
+.spend-recent-head { margin:14px 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.spend-recent { display:flex; flex-direction:column; gap:2px; }
+.spend-tx { display:flex; align-items:center; gap:10px; padding:6px 0; }
+.spend-tx-icon { font-size:16px; }
+.spend-tx-main { flex:1; min-width:0; font-size:14px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spend-tx-sub { color:var(--muted); font-size:12px; }
+.spend-tx-amt { font-family:'Manrope',sans-serif; font-weight:600; }
+
+/* ── Subscriptions panel (Bills tab) ───────────────────────── */
+.subs-card { border:1px solid var(--border); border-radius:16px; background:var(--surface); padding:14px 16px; margin-bottom:14px; }
+.subs-head { display:flex; align-items:flex-start; justify-content:space-between; }
+.subs-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.subs-total { font-family:'Manrope',sans-serif; font-weight:800; letter-spacing:-.03em; font-size:24px; }
+.subs-total-sub { font-size:12px; font-weight:500; color:var(--muted); margin-left:6px; }
+.subs-list { display:flex; flex-direction:column; margin-top:8px; }
+.subs-item { display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.subs-item:first-child { border-top:none; }
+.subs-item-icon { font-size:16px; }
+.subs-item-main { flex:1; min-width:0; }
+.subs-item-name { font-size:14px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.subs-item-sub { font-size:12px; color:var(--muted); }
+.subs-flag-up { color:var(--orange); font-weight:600; }
+.subs-flag-stale { color:var(--red); font-weight:600; margin-left:6px; }
+.subs-item-amt { font-family:'Manrope',sans-serif; font-weight:700; }
+.subs-item-mo { font-size:11px; color:var(--muted); font-weight:500; }

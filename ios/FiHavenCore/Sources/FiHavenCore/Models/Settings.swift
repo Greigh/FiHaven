@@ -28,6 +28,12 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["incomes"] = .array(newValue.map { $0.json }) }
     }
 
+    /// One-off / recurring per-period income changes (bonus, unpaid time off, raise).
+    public var incomeAdjustments: [IncomeAdjustment] {
+        get { (raw["incomeAdjustments"]?.asArray ?? []).compactMap { IncomeAdjustment(json: $0) } }
+        set { raw["incomeAdjustments"] = .array(newValue.map { $0.json }) }
+    }
+
     /// Legacy single monthly income; used as a fallback when `incomes`
     /// is empty (see Income.monthlyIncome).
     public var income: Double {
@@ -62,6 +68,22 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["paidGoal"] = newValue.map { .string($0) } ?? .null }
     }
 
+    /// Budget-period mode: "calendar" | "startDay" | "rolling" (see Period).
+    public var periodMode: String? {
+        get { raw["periodMode"]?.asString }
+        set { raw["periodMode"] = newValue.map { .string($0) } ?? .null }
+    }
+    /// Day-of-month a "startDay" period begins on (1–28).
+    public var periodStartDay: Int? {
+        get { raw["periodStartDay"]?.asDouble.map { Int($0) } }
+        set { raw["periodStartDay"] = newValue.map { .number(Double($0)) } ?? .null }
+    }
+    /// Length in days of a "rolling" period (7–90).
+    public var periodLength: Int? {
+        get { raw["periodLength"]?.asDouble.map { Int($0) } }
+        set { raw["periodLength"] = newValue.map { .number(Double($0)) } ?? .null }
+    }
+
     /// ISO 4217 display currency (e.g. "USD", "GBP"). Drives Money formatting.
     public var currency: String? {
         get { raw["currency"]?.asString }
@@ -92,5 +114,27 @@ public struct Settings: Codable, Equatable, Sendable {
     public var monthlySummary: Bool {
         get { raw["monthlySummary"]?.asBool ?? false }
         set { raw["monthlySummary"] = .bool(newValue) }
+    }
+
+    /// Per-category monthly spending budgets (category → amount).
+    public var categoryBudgets: [String: Double] {
+        get {
+            guard let o = raw["categoryBudgets"]?.asObject else { return [:] }
+            var m: [String: Double] = [:]
+            for (k, v) in o { if let d = v.asDouble { m[k] = d } }
+            return m
+        }
+        set { raw["categoryBudgets"] = .object(newValue.mapValues { .number($0) }) }
+    }
+
+    /// Opt-in: auto-mark autopay bills/cards paid on their due date.
+    public var autopayMark: Bool {
+        get { raw["autopayMark"]?.asBool ?? false }
+        set { raw["autopayMark"] = .bool(newValue) }
+    }
+    /// Local hour (0–23) the server auto-marks autopay items.
+    public var autopayMarkHour: Int {
+        get { raw["autopayMarkHour"]?.asDouble.map { Int($0) } ?? 9 }
+        set { raw["autopayMarkHour"] = .number(Double(newValue)) }
     }
 }

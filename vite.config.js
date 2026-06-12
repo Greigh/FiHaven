@@ -120,6 +120,7 @@ export default defineConfig({
         privacy:   clientFile('privacy.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
+        devPortal: clientFile('dev-portal.html'),
       },
     },
   },

@@ -28,22 +28,29 @@ import { setRenderer } from './utils.js';
  */
 export function runPayoffSim(strategy, userExtra) {
   const now       = new Date();
-  const debtCards = cards.filter((c) => parseFloat(c.balance) > 0);
+  const debtCards = cards.filter((c) => {
+    const bal = c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance);
+    return bal > 0;
+  });
   if (!debtCards.length) return null;
 
-  const sim = debtCards.map((c) => ({
-    id:           c.id,
-    name:         c.name,
-    balance:      parseFloat(c.balance) || 0,
-    origBalance:  parseFloat(c.balance) || 0,
-    minPayment:   Math.max(parseFloat(c.minPayment) || 0, 1),
-    apr:          parseFloat(c.regularAPR) || 0,
-    monthlyRate:  (parseFloat(c.regularAPR) || 0) / 100 / 12,
-    hasPromo:     !!c.hasPromo,
-    promoEndDate: c.promoEndDate || null,
-    paidOffMonth: null,
-    interestPaid: 0,
-  }));
+  const sim = debtCards.map((c) => {
+    const bal = c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance);
+    return {
+      id:           c.id,
+      name:         c.name,
+      type:         c.type || 'card',
+      balance:      bal || 0,
+      origBalance:  bal || 0,
+      minPayment:   Math.max(parseFloat(c.minPayment) || 0, 1),
+      apr:          parseFloat(c.regularAPR) || 0,
+      monthlyRate:  (parseFloat(c.regularAPR) || 0) / 100 / 12,
+      hasPromo:     c.type !== 'loan' && !!c.hasPromo,
+      promoEndDate: c.type !== 'loan' ? c.promoEndDate || null : null,
+      paidOffMonth: null,
+      interestPaid: 0,
+    };
+  });
 
   if (strategy === 'snowball') {
     sim.sort((a, b) => a.origBalance - b.origBalance);

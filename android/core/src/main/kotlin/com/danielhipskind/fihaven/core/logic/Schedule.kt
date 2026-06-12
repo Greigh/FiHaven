@@ -77,11 +77,54 @@ object Schedule {
     }
 
     fun isPaid(payments: List<Payment>, type: String, refId: String, monthKey: String): Boolean =
-        payments.any { it.type == type && it.refId == refId && it.monthKey == monthKey }
+        payments.any { !it.skipped && it.type == type && it.refId == refId && it.monthKey == monthKey }
+
+    /**
+     * True if this bill/card was skipped for the month — a payment record
+     * flagged `skipped` (amount 0). It owes nothing and drops out of
+     * "still owed", but isn't a real payment.
+     */
+    fun isSkipped(payments: List<Payment>, type: String, refId: String, monthKey: String): Boolean =
+        payments.any { it.skipped && it.type == type && it.refId == refId && it.monthKey == monthKey }
 
     fun paidAmount(payments: List<Payment>, type: String, refId: String, monthKey: String): Double =
-        payments.filter { it.type == type && it.refId == refId && it.monthKey == monthKey }
+        payments.filter { !it.skipped && it.type == type && it.refId == refId && it.monthKey == monthKey }
             .sumOf { it.amount }
+
+    // ── Period-aware variants (match by date range, see Period) ──────
+    fun isPaid(payments: List<Payment>, type: String, refId: String, bounds: PeriodBounds): Boolean =
+        payments.any { !it.skipped && it.type == type && it.refId == refId && bounds.contains(it) }
+
+    fun isSkipped(payments: List<Payment>, type: String, refId: String, bounds: PeriodBounds): Boolean =
+        payments.any { it.skipped && it.type == type && it.refId == refId && bounds.contains(it) }
+
+    fun paidAmount(payments: List<Payment>, type: String, refId: String, bounds: PeriodBounds): Double =
+        payments.filter { !it.skipped && it.type == type && it.refId == refId && bounds.contains(it) }
+            .sumOf { it.amount }
+
+    fun goalAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: List<Payment>,
+        bounds: PeriodBounds,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Double {
+        val paid = paidAmount(payments, "card", card.id.toString(), bounds)
+        val startBalance = card.balance + paid
+        return when (policy) {
+            PaidGoalPolicy.MINIMUM -> card.minPayment
+            PaidGoalPolicy.FULL -> startBalance
+            PaidGoalPolicy.RECOMMENDED -> {
+                val override = card.recommendedPayment
+                when {
+                    override != null && override > 0 -> override
+                    card.hasPromo -> max(card.minPayment, promoNeeded(card, zone, now))
+                    else -> startBalance
+                }
+            }
+        }
+    }
 
     /** Cent-level tolerance so a goal met to the penny reads as full. */
     const val PAID_EPSILON = 0.005

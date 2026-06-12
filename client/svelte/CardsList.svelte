@@ -11,19 +11,39 @@
 <script>
   import { cards, save } from '../js/storage.svelte.js';
   import {
-    CARD_COLORS, fmt, monthKey, daysUntilDue, nextDueDate, shortDate,
+    CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded,
     paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats,
   } from '../js/utils.js';
   import { askDelete, openPayModal, editCard } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
+  import SortFilterBar from './SortFilterBar.svelte';
+  import NetWorthPanel from './NetWorthPanel.svelte';
 
-  const mk = monthKey();
+  const mk = currentPeriodKey();
 
-  /* ── Toolbar state (per-session, local to this view) ──── */
-  let sortBy = $state('due');     // 'due' | 'balance' | 'apr' | 'util' | 'name'
-  let filter = $state('all');     // 'all' | 'promo' | 'balance' | 'overdue'
+  /* ── Sort + filter state (per-session, local to this view) ──── */
+  let sort = $state('due');
+  let activeFilters = $state({});
   let openPromos = $state({});    // { [cardId]: true } — promo block open
+
+  const SORTS = [
+    { key: 'due', label: 'Due date (soonest)' },
+    { key: 'balance', label: 'Largest balance' },
+    { key: 'apr', label: 'Highest APR' },
+    { key: 'util', label: 'Highest utilization' },
+    { key: 'promo', label: '0% promo first' },
+    { key: 'name', label: 'Name (A–Z)' },
+  ];
+  const FILTERS = [
+    { key: 'balance', label: 'Has a balance', type: 'toggle' },
+    { key: 'promo', label: 'Has 0% promo', type: 'toggle' },
+    { key: 'overdue', label: 'Overdue', type: 'toggle' },
+    { key: 'type', label: 'Type', type: 'select', options: [
+      { key: 'all', label: 'All' }, { key: 'card', label: 'Cards' }, { key: 'loan', label: 'Loans' },
+    ] },
+  ];
+  const utilOf = (c) => { const b = parseFloat(c.balance) || 0, l = parseFloat(c.limit) || 0; return l > 0 ? b / l : 0; };
 
   /* ── Helpers ─────────────────────────────────────────── */
   function deleteCard(i) {
@@ -73,37 +93,30 @@
 
   /* ── Summary totals ─────────────────────────────────── */
   let totalBalance = $derived(cards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
-  let totalLimit   = $derived(cards.reduce((s, c) => s + (parseFloat(c.limit)   || 0), 0));
+  let totalLimit   = $derived(cards.reduce((s, c) => s + (c.type === 'loan' ? 0 : (parseFloat(c.limit) || 0)), 0));
   let totalMin     = $derived(cards.reduce((s, c) => s + (parseFloat(c.minPayment) || 0), 0));
-  let overallUtil  = $derived(totalLimit > 0 ? Math.round((totalBalance / totalLimit) * 100) : 0);
-  let promoCount   = $derived(cards.filter((c) => c.hasPromo && c.promoEndDate).length);
+  let overallUtil  = $derived(totalLimit > 0 ? Math.round((cards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
+  let promoCount   = $derived(cards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
 
   /* ── Filtered + sorted view ─────────────────────────── */
-  function filteredCards() {
-    return cards.filter((c) => {
-      if (filter === 'promo')   return c.hasPromo && c.promoEndDate;
-      if (filter === 'balance') return parseFloat(c.balance) > 0;
-      if (filter === 'overdue') {
-        if (!c.dueDay) return false;
-        return daysUntilDue(parseInt(c.dueDay)) < 0;
-      }
+  let displayCards = $derived.by(() => {
+    const f = activeFilters;
+    const list = cards.filter((c) => {
+      if (f.balance && !(parseFloat(c.balance) > 0)) return false;
+      if (f.promo && !(c.hasPromo && c.promoEndDate)) return false;
+      if (f.overdue && !(c.dueDay && daysUntilDue(parseInt(c.dueDay)) < 0)) return false;
+      if (f.type && f.type !== 'all' && (c.type === 'loan' ? 'loan' : 'card') !== f.type) return false;
       return true;
     });
-  }
-  function sortCards(list) {
     const out = list.slice();
-    if (sortBy === 'balance')  out.sort((a, b) => (parseFloat(b.balance) || 0) - (parseFloat(a.balance) || 0));
-    else if (sortBy === 'apr') out.sort((a, b) => (parseFloat(b.regularAPR) || 0) - (parseFloat(a.regularAPR) || 0));
-    else if (sortBy === 'util') {
-      const u = (c) => {
-        const b = parseFloat(c.balance) || 0;
-        const l = parseFloat(c.limit)   || 0;
-        return l > 0 ? b / l : 0;
-      };
-      out.sort((a, b) => u(b) - u(a));
-    }
-    else if (sortBy === 'name') out.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    else { // 'due' — soonest first, no dueDay last
+    if (sort === 'balance')      out.sort((a, b) => (parseFloat(b.balance) || 0) - (parseFloat(a.balance) || 0));
+    else if (sort === 'apr')     out.sort((a, b) => (parseFloat(b.regularAPR) || 0) - (parseFloat(a.regularAPR) || 0));
+    else if (sort === 'util')    out.sort((a, b) => utilOf(b) - utilOf(a));
+    else if (sort === 'name')    out.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    else if (sort === 'promo') {
+      const pr = (c) => (c.hasPromo && c.promoEndDate ? monthsUntil(c.promoEndDate) : 9999);
+      out.sort((a, b) => pr(a) - pr(b));
+    } else { // 'due' — soonest first, no dueDay last
       out.sort((a, b) => {
         const aH = a.dueDay ? 0 : 1;
         const bH = b.dueDay ? 0 : 1;
@@ -113,20 +126,14 @@
       });
     }
     return out;
-  }
-  let displayCards = $derived(sortCards(filteredCards()));
-
-  const FILTERS = [
-    { key: 'all',     label: 'All',          countFn: () => cards.length },
-    { key: 'balance', label: 'Has balance',  countFn: () => cards.filter((c) => parseFloat(c.balance) > 0).length },
-    { key: 'promo',   label: '0% promos',    countFn: () => promoCount },
-    { key: 'overdue', label: 'Overdue',      countFn: () => cards.filter((c) => c.dueDay && daysUntilDue(parseInt(c.dueDay)) < 0).length },
-  ];
+  });
 
   function originalIndex(card) {
     return cards.findIndex((c) => c.id === card.id);
   }
 </script>
+
+<NetWorthPanel />
 
 {#if cards.length === 0}
   <div class="empty">
@@ -161,34 +168,8 @@
     </div>
   </div>
 
-  <!-- ── Toolbar ───────────────────────────────────────── -->
-  <div class="cards-toolbar">
-    <div class="cards-toolbar-filters" role="tablist">
-      {#each FILTERS as f (f.key)}
-        {@const count = f.countFn()}
-        <button
-          class="cards-filter-chip"
-          class:is-active={filter === f.key}
-          type="button"
-          onclick={() => (filter = f.key)}
-          disabled={count === 0 && f.key !== 'all'}
-        >
-          {f.label}
-          <span class="cards-filter-count">{count}</span>
-        </button>
-      {/each}
-    </div>
-    <label class="cards-toolbar-sort">
-      <span>Sort</span>
-      <select bind:value={sortBy}>
-        <option value="due">Due date</option>
-        <option value="balance">Balance (high → low)</option>
-        <option value="apr">APR (high → low)</option>
-        <option value="util">Utilization (high → low)</option>
-        <option value="name">Name (A → Z)</option>
-      </select>
-    </label>
-  </div>
+  <!-- ── Sort + filter ─────────────────────────────────── -->
+  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
 
   <!-- ── Card list ─────────────────────────────────────── -->
   {#if displayCards.length === 0}
@@ -219,12 +200,16 @@
         <!-- Header: identity + due + action -->
         <header class="card-row-head">
           <div class="card-row-identity">
-            <div class="card-row-chip" style="background:{color};">💳</div>
+            <div class="card-row-chip" style="background:{color};">{c.type === 'loan' ? '🏦' : '💳'}</div>
             <div class="card-row-naming">
-              <div class="card-row-name">{c.name}</div>
+              <div class="card-row-name">
+                {#if c.issuer}<span style="color:var(--muted);font-weight:500;">{c.issuer} · </span>{/if}
+                {c.name}
+              </div>
               <div class="card-row-meta">
                 <span style="color:{aprColor(c.regularAPR)};font-weight:600;">{c.regularAPR}% APR</span>
-                {#if hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
+                {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
+                {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
                 {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
                 {#if c.notes}<span class="card-row-notes">{c.notes}</span>{/if}
               </div>
@@ -275,25 +260,32 @@
         <!-- Stats: balance + limit + min + util -->
         <div class="card-row-stats">
           <div class="card-row-stat">
-            <div class="card-row-stat-label">Balance</div>
+            <div class="card-row-stat-label">{c.type === 'loan' ? 'Remaining Principal' : 'Statement Balance'}</div>
             <div class="card-row-stat-value" style="color:{bal > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(bal)}</div>
+            {#if c.type !== 'loan' && c.currentBalance > 0}
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">Current: {fmt(c.currentBalance)}</div>
+            {/if}
           </div>
+          {#if c.type !== 'loan'}
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">Credit limit</div>
+              <div class="card-row-stat-value">{limit > 0 ? fmt(limit) : '—'}</div>
+            </div>
+          {/if}
           <div class="card-row-stat">
-            <div class="card-row-stat-label">Credit limit</div>
-            <div class="card-row-stat-value">{limit > 0 ? fmt(limit) : '—'}</div>
-          </div>
-          <div class="card-row-stat">
-            <div class="card-row-stat-label">Min payment</div>
+            <div class="card-row-stat-label">{c.type === 'loan' ? 'Monthly payment' : 'Min payment'}</div>
             <div class="card-row-stat-value">{fmt(c.minPayment || 0)}</div>
           </div>
-          <div class="card-row-stat">
-            <div class="card-row-stat-label">Utilization</div>
-            <div class="card-row-stat-value" style="color:{uColor};">{limit > 0 ? util + '%' : '—'}</div>
-          </div>
+          {#if c.type !== 'loan'}
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">Utilization</div>
+              <div class="card-row-stat-value" style="color:{uColor};">{limit > 0 ? util + '%' : '—'}</div>
+            </div>
+          {/if}
         </div>
 
         <!-- Utilization bar (only when limit known) -->
-        {#if limit > 0}
+        {#if c.type !== 'loan' && limit > 0}
           <div class="card-row-util">
             <div class="pbar"><div class="pbar-fill" style="width:{util}%;background:{uColor};"></div></div>
             <div class="card-row-util-foot">
@@ -317,7 +309,7 @@
         {/if}
 
         <!-- Collapsible promo block -->
-        {#if hasPromo}
+        {#if c.type !== 'loan' && hasPromo}
           {@const p = promoMeta(c)}
           <div class="card-promo-wrap">
             <button

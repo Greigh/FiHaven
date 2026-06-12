@@ -14,6 +14,7 @@ import {
   monthKey, monthKeyLabel, buildUpcomingItems, isPaid, refreshAll, renderTab,
   setMoneyFormat,
 } from './utils.js';
+import { runAutopayMark } from './autopay.js';
 
 // Side-effect imports — each renderer self-registers via setRenderer,
 // modals.js wires backdrop handlers + exposes window.* for inline
@@ -177,6 +178,9 @@ function dismissBanner() {
 function startApp() {
   seedIfEmpty();
   checkNewMonth();
+  // Auto-mark any autopay items whose due date has passed this period
+  // (opt-in; mirrors the server scheduler so it works either way).
+  runAutopayMark();
   // Apply display preferences from synced settings.
   setMoneyFormat(settings.currency);
   var landing = TABS.indexOf(settings.landingView) >= 0 ? settings.landingView : 'dashboard';

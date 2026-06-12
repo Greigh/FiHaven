@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Developer billing portal."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <title>Developer Subscription Portal — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="required">
+  <div class="page-frame" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 16px;">
+    <main class="auth-card" style="width:min(500px,100%);box-shadow:0 24px 60px rgba(0,0,0,.15);">
+      <div class="hero-badge" style="background:var(--accent-muted);color:var(--accent);">Dev Portal</div>
+      <h1 style="margin-top:14px;font-size:24px;letter-spacing:-.03em;">Developer Subscription Portal</h1>
+      <p style="margin-top:8px;color:var(--muted);font-size:14px;">
+        Simulate subscription changes and cancellation in the local development environment (when STRIPE_SECRET_KEY is empty).
+      </p>
+
+      <div class="card" style="padding:14px 16px;margin-top:20px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;">
+          <span class="section-title" style="font-size:12px;">Current Status</span>
+          <span data-dev-status style="font-weight:600;margin-left:auto;">Loading…</span>
+        </div>
+        <div data-dev-details-row hidden style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">
+          <div style="display:flex;align-items:center;font-size:13px;color:var(--muted);">
+            <span>Provider</span>
+            <span data-dev-provider style="margin-left:auto;color:var(--text);">…</span>
+          </div>
+          <div style="display:flex;align-items:center;font-size:13px;color:var(--muted);">
+            <span data-dev-expiry-label>Expires</span>
+            <span data-dev-expiry style="margin-left:auto;color:var(--text);">…</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;">
+        <h3 style="font-size:14px;font-weight:600;color:var(--muted);">Select a simulated subscription plan:</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <button class="btn btn-secondary" type="button" data-plan="monthly">Go Pro — Monthly</button>
+          <button class="btn btn-secondary" type="button" data-plan="three_month">Go Pro — 3 Months</button>
+          <button class="btn btn-secondary" type="button" data-plan="yearly">Go Pro — Yearly</button>
+          <button class="btn btn-secondary" type="button" data-plan="trial">Start Trial</button>
+        </div>
+        <button class="btn btn-danger" type="button" data-cancel-btn style="margin-top:8px;width:100%;">Cancel Subscription</button>
+      </div>
+
+      <div data-dev-msg aria-live="polite" style="margin-top:14px;min-height:1.2em;font-size:14px;text-align:center;"></div>
+
+      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px;text-align:center;">
+        <a class="btn btn-secondary" href="/settings" style="width:100%;display:inline-block;box-sizing:border-box;">Return to Settings</a>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="js/dev-portal.js"></script>
+</body>
+</html>

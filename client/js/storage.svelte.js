@@ -16,7 +16,7 @@
    the runes transform on this file.
 ═══════════════════════════════════════════════════════════ */
 
-const SYNCED_KEYS = { fh_bills: 1, fh_cards: 1, fh_payments: 1, fh_settings: 1 };
+const SYNCED_KEYS = { fh_bills: 1, fh_cards: 1, fh_payments: 1, fh_accounts: 1, fh_goals: 1, fh_transactions: 1, fh_settings: 1 };
 const SYNC_DEBOUNCE_MS = 800;
 
 /* One-time migration of legacy keys (ct_*) to the FiHaven
@@ -73,6 +73,9 @@ export function save(key, val) {
 export const bills    = $state([]);
 export const cards    = $state([]);
 export const payments = $state([]);  // { id, type, refId, name, amount, date, monthKey, note }
+export const accounts = $state([]);  // assets: { id, name, type, balance, notes }
+export const goals    = $state([]);  // savings goals: { id, name, target, saved, targetDate, notes }
+export const transactions = $state([]); // spending: { id, date, amount, category, merchant, account, note }
 export const settings = $state({ income: 0 });
 // Effective Pro entitlement, server-derived (read-only on the client).
 export const entitlement = $state({ pro: false, source: null, productId: null, plan: null, expiresAt: null });
@@ -108,6 +111,9 @@ function replaceObject(target, src) {
 export function setBills(arr)    { replaceArray(bills, arr); }
 export function setCards(arr)    { replaceArray(cards, arr); }
 export function setPayments(arr) { replaceArray(payments, arr); }
+export function setAccounts(arr) { replaceArray(accounts, arr); }
+export function setGoals(arr)    { replaceArray(goals, arr); }
+export function setTransactions(arr) { replaceArray(transactions, arr); }
 export function setSettings(obj) {
   replaceObject(settings, obj);
   // Restore the default income shape so reactive readers don't
@@ -134,7 +140,7 @@ export function setSyncStatus(state) {
 let syncTimer = null;
 
 function snapshot() {
-  return { bills, cards, payments, settings };
+  return { bills, cards, payments, accounts, goals, transactions, settings };
 }
 
 // Mirror the in-memory state into the localStorage offline cache
@@ -144,6 +150,9 @@ function cacheLocally() {
     localStorage.setItem('fh_bills', JSON.stringify(bills));
     localStorage.setItem('fh_cards', JSON.stringify(cards));
     localStorage.setItem('fh_payments', JSON.stringify(payments));
+    localStorage.setItem('fh_accounts', JSON.stringify(accounts));
+    localStorage.setItem('fh_goals', JSON.stringify(goals));
+    localStorage.setItem('fh_transactions', JSON.stringify(transactions));
     localStorage.setItem('fh_settings', JSON.stringify(settings));
   } catch (e) {
     /* ignore quota errors — the server copy is authoritative */
@@ -155,6 +164,9 @@ function applyData(d) {
   setBills(d.bills);
   setCards(d.cards);
   setPayments(d.payments);
+  setAccounts(d.accounts);
+  setGoals(d.goals);
+  setTransactions(d.transactions);
   setSettings(d.settings);
 }
 
@@ -284,6 +296,9 @@ export function bootstrapData() {
         bills: load('fh_bills', []),
         cards: load('fh_cards', []),
         payments: load('fh_payments', []),
+        accounts: load('fh_accounts', []),
+        goals: load('fh_goals', []),
+        transactions: load('fh_transactions', []),
         settings: load('fh_settings', { income: 0 }),
       });
       setSyncStatus('offline');

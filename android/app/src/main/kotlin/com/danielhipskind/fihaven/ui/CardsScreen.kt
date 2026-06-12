@@ -35,11 +35,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Color
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.core.CTConstants
 import com.danielhipskind.fihaven.core.Money
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidState
+import com.danielhipskind.fihaven.core.model.Account
 import com.danielhipskind.fihaven.core.model.Card
 import com.danielhipskind.fihaven.ui.theme.Ct
 import kotlin.math.min
@@ -50,24 +60,128 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
     var editing by remember { mutableStateOf<Card?>(null) }
     var creating by remember { mutableStateOf(false) }
     var paying by remember { mutableStateOf<Card?>(null) }
-    val cards = data.cards.sortedByDescending { it.balance }
+    var sortKey by remember { mutableStateOf("due") }
+    var showFilters by remember { mutableStateOf(false) }
+    var fBalance by remember { mutableStateOf(false) }
+    var fPromo by remember { mutableStateOf(false) }
+    var fOverdue by remember { mutableStateOf(false) }
+    var fType by remember { mutableStateOf("all") }
+    var editingAccount by remember { mutableStateOf<Account?>(null) }
+    var creatingAccount by remember { mutableStateOf(false) }
+    val zone = vm.zone()
+
+    val assets = data.accounts.sumOf { it.balance }
+    val liabilities = data.cards.sumOf { it.balance }
+    val netWorth = assets - liabilities
+
+    val filtered = data.cards.filter { c ->
+        if (fBalance && !(c.balance > 0)) return@filter false
+        if (fPromo && !(c.hasPromo && !c.promoEndDate.isNullOrEmpty())) return@filter false
+        if (fOverdue && !(c.dueDay != null && DateLogic.daysUntilDue(c.dueDay!!, zone) < 0)) return@filter false
+        if (fType != "all" && (if (c.type == "loan") "loan" else "card") != fType) return@filter false
+        true
+    }
+    val cards = when (sortKey) {
+        "balance" -> filtered.sortedByDescending { it.balance }
+        "apr" -> filtered.sortedByDescending { it.regularAPR }
+        "util" -> filtered.sortedByDescending { if (it.limit > 0) it.balance / it.limit else 0.0 }
+        "name" -> filtered.sortedBy { it.name.lowercase() }
+        "promo" -> filtered.sortedBy {
+            if (it.hasPromo && !it.promoEndDate.isNullOrEmpty()) DateLogic.monthsUntil(it.promoEndDate, zone) else 9999
+        }
+        else -> filtered.sortedBy { it.dueDay ?: 99 }
+    }
+    val filterCount = listOf(fBalance, fPromo, fOverdue).count { it } + if (fType != "all") 1 else 0
+    val typeLabel = when (fType) { "card" -> "Cards"; "loan" -> "Loans"; else -> "All" }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Cards", onAdd = { creating = true })
+        SortFilterBar(
+            sortOptions = listOf(
+                "due" to "Due date", "balance" to "Largest balance", "apr" to "Highest APR",
+                "util" to "Highest utilization", "promo" to "0% promo first", "name" to "Name (A–Z)",
+            ),
+            sortKey = sortKey, onSortChange = { sortKey = it },
+            filterCount = filterCount, onFilters = { showFilters = true },
+        )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { NetWorthCard(netWorth, assets, liabilities, accountsEmpty = data.accounts.isEmpty()) }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("ACCOUNTS YOU OWN", color = Ct.colors.muted, fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
+                        modifier = Modifier.clickable { creatingAccount = true })
+                }
+            }
+            items(data.accounts, key = { "acct-${it.id}" }) { acct ->
+                AccountRow(acct) { editingAccount = acct }
+            }
             if (cards.isEmpty()) {
                 item { CtCard { Text("No cards yet. Tap + to add one.", color = Ct.colors.muted) } }
             }
             items(cards, key = { it.id }) { card ->
-                CardRow(
-                    card = card,
-                    zone = vm.zone(),
-                    state = vm.paidState("card", card.id.toString()),
-                    paidSoFar = vm.paidAmountFor("card", card.id.toString()),
-                    goal = vm.goalAmount("card", card.id.toString()),
-                    onPay = { paying = card },
-                    onEdit = { editing = card },
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { value ->
+                        if (value == SwipeToDismissBoxValue.StartToEnd) {
+                            paying = card
+                            false
+                        } else if (value == SwipeToDismissBoxValue.EndToStart) {
+                            vm.deleteCard(card)
+                            true
+                        } else {
+                            false
+                        }
+                    }
                 )
+                SwipeToDismissBox(
+                    state = dismissState,
+                    backgroundContent = {
+                        val color = when (dismissState.dismissDirection) {
+                            SwipeToDismissBoxValue.StartToEnd -> Ct.colors.green
+                            SwipeToDismissBoxValue.EndToStart -> Ct.colors.red
+                            else -> Color.Transparent
+                        }
+                        val alignment = when (dismissState.dismissDirection) {
+                            SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                            SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                            else -> Alignment.Center
+                        }
+                        val icon = when (dismissState.dismissDirection) {
+                            SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Check
+                            SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                            else -> null
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(color)
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = alignment
+                        ) {
+                            icon?.let {
+                                Icon(
+                                    imageVector = it,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                ) {
+                    CardRow(
+                        card = card,
+                        zone = vm.zone(),
+                        state = vm.paidState("card", card.id.toString()),
+                        paidSoFar = vm.paidAmountFor("card", card.id.toString()),
+                        goal = vm.goalAmount("card", card.id.toString()),
+                        onPay = { paying = card },
+                        onEdit = { editing = card },
+                    )
+                }
             }
         }
     }
@@ -75,6 +189,24 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
     if (creating) CardEditorDialog(null, vm, onDismiss = { creating = false })
     editing?.let { CardEditorDialog(it, vm, onDismiss = { editing = null }) }
     paying?.let { PayDialog(vm, "card", it.id.toString(), it.name) { paying = null } }
+    if (creatingAccount) AccountEditorDialog(null, vm) { creatingAccount = false }
+    editingAccount?.let { AccountEditorDialog(it, vm) { editingAccount = null } }
+
+    if (showFilters) {
+        FormDialog("Filter cards", saveEnabled = true, onSave = { showFilters = false },
+            onDismiss = { showFilters = false }) {
+            FilterSwitch("Has a balance", fBalance) { fBalance = it }
+            FilterSwitch("Has 0% promo", fPromo) { fPromo = it }
+            FilterSwitch("Overdue only", fOverdue) { fOverdue = it }
+            DropdownField("Type", listOf("All", "Cards", "Loans"), typeLabel) {
+                fType = when (it) { "Cards" -> "card"; "Loans" -> "loan"; else -> "all" }
+            }
+            Text("Clear filters", color = Ct.colors.accent, fontSize = 14.sp,
+                modifier = Modifier.clickable {
+                    fBalance = false; fPromo = false; fOverdue = false; fType = "all"
+                }.padding(top = 6.dp))
+        }
+    }
 }
 
 @Composable
@@ -87,31 +219,60 @@ private fun CardRow(
     onPay: () -> Unit,
     onEdit: () -> Unit,
 ) {
+    val isLoan = card.type == "loan"
     val util = if (card.limit > 0) min(1.0, card.balance / card.limit) else 0.0
     val promoActive = card.hasPromo && DateLogic.monthsUntil(card.promoEndDate, zone) > 0
     CtCard(Modifier.clickable(onClick = onEdit)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(CTConstants.cardIcon, fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
-                Text(card.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f))
+                Text(if (isLoan) CTConstants.loanIcon else CTConstants.cardIcon, fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(card.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        val lastDigits = card.lastDigits
+                        if (!lastDigits.isNullOrBlank()) {
+                            Text(
+                                listOfNotNull(card.network?.takeIf { it.isNotBlank() }, "•••• $lastDigits").joinToString(" "),
+                                color = Ct.colors.muted, fontSize = 11.sp, fontFamily = PlexMono,
+                            )
+                        }
+                    }
+                    val issuer = card.issuer
+                    if (!issuer.isNullOrBlank()) {
+                        Text(issuer, color = Ct.colors.muted, fontSize = 12.sp)
+                    }
+                }
                 Text(Money.fmt(card.balance), color = Ct.colors.text, fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
             }
-            LinearProgressIndicator(
-                progress = { util.toFloat() },
-                color = if (util > 0.5) Ct.colors.orange else Ct.colors.accent,
-                trackColor = Ct.colors.surface2,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(3.dp)),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${(util * 100).toInt()}% of ${Money.fmtShort(card.limit)}",
-                    color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                if (promoActive) {
-                    Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono)
-                } else {
+            if (!isLoan) {
+                LinearProgressIndicator(
+                    progress = { util.toFloat() },
+                    color = if (util > 0.5) Ct.colors.orange else Ct.colors.accent,
+                    trackColor = Ct.colors.surface2,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(3.dp)),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${(util * 100).toInt()}% of ${Money.fmtShort(card.limit)}",
+                            color = Ct.colors.muted, fontSize = 12.sp)
+                        card.currentBalance?.let { cur ->
+                            if (cur > 0) {
+                                Text("Current: ${Money.fmtShort(cur)}", color = Ct.colors.muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (promoActive) {
+                        Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono)
+                    } else {
+                        Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
+                            fontSize = 11.sp, fontFamily = PlexMono)
+                    }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
-                        fontSize = 11.sp, fontFamily = PlexMono)
+                        fontSize = 11.sp, fontFamily = PlexMono, modifier = Modifier.weight(1f))
                 }
             }
             HorizontalDivider(color = Ct.colors.border, modifier = Modifier.padding(vertical = 8.dp))
@@ -120,7 +281,7 @@ private fun CardRow(
                     when (state) {
                         PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
                         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-                        PaidState.UNPAID -> "Not paid this month"
+                        PaidState.UNPAID -> if (isLoan) "Monthly payment: ${Money.fmt(card.minPayment)}" else "Not paid this month"
                     },
                     color = when (state) {
                         PaidState.FULL -> Ct.colors.green
@@ -142,6 +303,11 @@ private fun CardRow(
 @Composable
 fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(card?.name ?: "") }
+    var type by remember { mutableStateOf(card?.type ?: "card") }
+    var issuer by remember { mutableStateOf(card?.issuer ?: "") }
+    var currentBalance by remember { mutableStateOf(card?.currentBalance?.takeIf { it != 0.0 }?.toString() ?: "") }
+    var lastDigits by remember { mutableStateOf(card?.lastDigits ?: "") }
+    var network by remember { mutableStateOf(card?.network ?: "") }
     var balance by remember { mutableStateOf(card?.balance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var limit by remember { mutableStateOf(card?.limit?.takeIf { it != 0.0 }?.toString() ?: "") }
     var minPayment by remember { mutableStateOf(card?.minPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
@@ -155,23 +321,34 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
     var promoBalance by remember { mutableStateOf(card?.promoBalance?.toString() ?: "") }
     var promoEnd by remember { mutableStateOf(card?.promoEndDate ?: "") }
 
+    val isLoan = type == "loan"
+
     FormDialog(
-        title = if (card == null) "New Card" else "Edit Card",
+        title = if (card == null) {
+            if (isLoan) "New Loan" else "New Card"
+        } else {
+            if (isLoan) "Edit Loan" else "Edit Card"
+        },
         saveEnabled = name.isNotBlank(),
         onSave = {
             vm.upsertCard(
                 Card(
                     id = card?.id ?: System.currentTimeMillis().toInt(),
                     name = name.trim(),
+                    type = type,
+                    issuer = issuer.trim().takeIf { it.isNotBlank() },
+                    currentBalance = if (isLoan) null else currentBalance.toDoubleOrNull(),
+                    lastDigits = lastDigits.trim().takeIf { it.isNotBlank() },
+                    network = network.takeIf { it.isNotBlank() },
                     balance = balance.toDoubleOrNull() ?: 0.0,
-                    limit = limit.toDoubleOrNull() ?: 0.0,
+                    limit = if (isLoan) 0.0 else (limit.toDoubleOrNull() ?: 0.0),
                     minPayment = minPayment.toDoubleOrNull() ?: 0.0,
                     recommendedPayment = recommendedPayment.toDoubleOrNull()?.takeIf { it > 0.0 },
                     regularAPR = apr.toDoubleOrNull() ?: 0.0,
-                    hasPromo = hasPromo,
-                    promoAPR = if (hasPromo) promoApr.toDoubleOrNull() else null,
-                    promoEndDate = if (hasPromo) promoEnd.ifBlank { null } else null,
-                    promoBalance = if (hasPromo) promoBalance.toDoubleOrNull() else null,
+                    hasPromo = if (isLoan) false else hasPromo,
+                    promoAPR = if (!isLoan && hasPromo) promoApr.toDoubleOrNull() else null,
+                    promoEndDate = if (!isLoan && hasPromo) promoEnd.ifBlank { null } else null,
+                    promoBalance = if (!isLoan && hasPromo) promoBalance.toDoubleOrNull() else null,
                     dueDay = dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1,
                     autopay = autopay, notes = notes,
                 )
@@ -181,10 +358,27 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
         onDismiss = onDismiss,
         onDelete = card?.let { { vm.deleteCard(it); onDismiss() } },
     ) {
-        OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        money(balance, "Balance") { balance = it }
-        money(limit, "Credit limit") { limit = it }
-        money(minPayment, "Minimum payment") { minPayment = it }
+        DropdownField(
+            label = "Account Type",
+            options = listOf("Credit Card", "Loan"),
+            selected = if (isLoan) "Loan" else "Credit Card"
+        ) {
+            type = if (it == "Loan") "loan" else "card"
+        }
+
+        OutlinedTextField(name, { name = it }, label = { Text(if (isLoan) "Loan Name" else "Card Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(issuer, { issuer = it }, label = { Text("Issuer / Bank") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(lastDigits, { lastDigits = it.filter(Char::isDigit).take(5) }, label = { Text("Ends in (last 4 or 5 digits)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        DropdownField("Network", listOf("—", "Visa", "Mastercard", "Amex", "Discover", "Other"), network.ifBlank { "—" }) { network = if (it == "—") "" else it }
+
+        money(balance, if (isLoan) "Remaining Principal" else "Statement Balance") { balance = it }
+
+        if (!isLoan) {
+            money(limit, "Credit limit") { limit = it }
+            money(currentBalance, "Current Balance (optional)") { currentBalance = it }
+        }
+
+        money(minPayment, if (isLoan) "Monthly payment" else "Minimum payment") { minPayment = it }
         money(recommendedPayment, "Recommended payment (optional)") { recommendedPayment = it }
         Text("Leave blank to default to the full balance (or the 0%-promo payoff).",
             color = Ct.colors.muted, fontSize = 12.sp)
@@ -196,16 +390,18 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
             Text("Autopay", color = Ct.colors.text, modifier = Modifier.weight(1f))
             Switch(checked = autopay, onCheckedChange = { autopay = it })
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("0% / promo APR", color = Ct.colors.text, modifier = Modifier.weight(1f))
-            Switch(checked = hasPromo, onCheckedChange = { hasPromo = it })
-        }
-        if (hasPromo) {
-            OutlinedTextField(promoApr, { promoApr = it }, label = { Text("Promo APR %") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
-            money(promoBalance, "Promo balance") { promoBalance = it }
-            OutlinedTextField(promoEnd, { promoEnd = it }, label = { Text("Promo ends (YYYY-MM-DD)") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
+        if (!isLoan) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("0% / promo APR", color = Ct.colors.text, modifier = Modifier.weight(1f))
+                Switch(checked = hasPromo, onCheckedChange = { hasPromo = it })
+            }
+            if (hasPromo) {
+                OutlinedTextField(promoApr, { promoApr = it }, label = { Text("Promo APR %") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                money(promoBalance, "Promo balance") { promoBalance = it }
+                OutlinedTextField(promoEnd, { promoEnd = it }, label = { Text("Promo ends (YYYY-MM-DD)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
     }
@@ -216,4 +412,92 @@ private fun money(value: String, label: String, onChange: (String) -> Unit) {
     OutlinedTextField(value, onChange, label = { Text(label) }, prefix = { Text("$") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true, modifier = Modifier.fillMaxWidth())
+}
+
+private val ACCOUNT_TYPES = listOf(
+    "checking" to "Checking", "savings" to "Savings", "investment" to "Investments",
+    "property" to "Property", "cash" to "Cash", "other" to "Other",
+)
+private fun accountTypeLabel(t: String) = ACCOUNT_TYPES.firstOrNull { it.first == t }?.second ?: "Checking"
+private fun accountIcon(t: String) = when (t) {
+    "savings" -> "💰"; "investment" -> "📈"; "property" -> "🏠"; "cash" -> "💵"; "other" -> "📦"; else -> "🏦"
+}
+
+@Composable
+private fun NetWorthCard(netWorth: Double, assets: Double, liabilities: Double, accountsEmpty: Boolean) {
+    CtCard(padding = 16) {
+        Column {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("NET WORTH", color = Ct.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(Money.fmt(netWorth), color = if (netWorth >= 0) Ct.colors.green else Ct.colors.red,
+                        fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlexMono)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Assets", color = Ct.colors.muted, fontSize = 11.sp)
+                        Text(Money.fmt(assets), color = Ct.colors.green, fontSize = 13.sp, fontFamily = PlexMono)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Debts", color = Ct.colors.muted, fontSize = 11.sp)
+                        Text("-${Money.fmt(liabilities)}", color = Ct.colors.red, fontSize = 13.sp, fontFamily = PlexMono)
+                    }
+                }
+            }
+            if (accountsEmpty) {
+                Text("Add savings, checking, investments, or property to track your net worth.",
+                    color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountRow(a: Account, onEdit: () -> Unit) {
+    CtCard(Modifier.clickable(onClick = onEdit)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(accountIcon(a.type), fontSize = 20.sp, modifier = Modifier.padding(end = 10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(a.name.ifBlank { accountTypeLabel(a.type) }, color = Ct.colors.text,
+                    fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(accountTypeLabel(a.type), color = Ct.colors.muted, fontSize = 12.sp)
+            }
+            Text(Money.fmt(a.balance), color = Ct.colors.green, fontSize = 15.sp,
+                fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+        }
+    }
+}
+
+@Composable
+fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(account?.name ?: "") }
+    var type by remember { mutableStateOf(account?.type ?: "checking") }
+    var balance by remember { mutableStateOf(account?.balance?.takeIf { it != 0.0 }?.toString() ?: "") }
+    var notes by remember { mutableStateOf(account?.notes ?: "") }
+    FormDialog(
+        title = if (account == null) "New Account" else "Edit Account",
+        saveEnabled = name.isNotBlank(),
+        onSave = {
+            vm.upsertAccount(
+                Account(
+                    id = account?.id ?: System.currentTimeMillis().toInt(),
+                    name = name.trim(), type = type,
+                    balance = balance.toDoubleOrNull() ?: 0.0, notes = notes,
+                )
+            )
+            onDismiss()
+        },
+        onDismiss = onDismiss,
+        onDelete = account?.let { { vm.deleteAccount(it); onDismiss() } },
+    ) {
+        OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth())
+        DropdownField("Type", ACCOUNT_TYPES.map { it.second }, accountTypeLabel(type)) { label ->
+            type = ACCOUNT_TYPES.firstOrNull { it.second == label }?.first ?: "checking"
+        }
+        OutlinedTextField(balance, { balance = it }, label = { Text("Balance") }, prefix = { Text("$") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+            modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+    }
 }

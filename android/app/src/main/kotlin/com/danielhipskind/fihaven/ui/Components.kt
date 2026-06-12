@@ -41,15 +41,19 @@ fun CtCard(
 @Composable
 fun MadeWithLove(modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        Text("Made with ", color = Ct.colors.muted, fontSize = 13.sp)
+    Row(
+        modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+    ) {
+        Text("Made with", color = Ct.colors.muted, fontSize = 13.sp)
         Text("♥", color = Ct.colors.red, fontSize = 13.sp)
-        Text(" by ", color = Ct.colors.muted, fontSize = 13.sp)
+        Text("by", color = Ct.colors.muted, fontSize = 13.sp)
         Text(
             "Daniel Hipskind",
             color = Ct.colors.accent,
             fontSize = 13.sp,
-            modifier = Modifier.clickable { uriHandler.openUri("https://fihaven.app/") },
+            modifier = Modifier.clickable { uriHandler.openUri("https://danielhipskind.com") },
         )
     }
 }

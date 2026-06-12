@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cold-start launch screen (API 26–30): brand fill + centered logo.
+     API 31+ uses the system splash (see values-v31/themes.xml). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/fh_brand"/>
+    <item
+        android:width="240dp"
+        android:height="240dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_launcher_foreground"/>
+</layer-list>

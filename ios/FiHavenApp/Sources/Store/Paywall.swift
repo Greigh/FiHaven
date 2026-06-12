@@ -227,7 +227,7 @@ struct PaywallView: View {
         guard let ms = e.expiresAt else { return e.source == "promo" ? "Granted by promo code." : nil }
         let date = Date(timeIntervalSince1970: Double(ms) / 1000)
         let f = DateFormatter(); f.dateStyle = .medium
-        let verb = e.source == "promo" ? "Access until" : "Renews"
+        let verb = (e.autoRenew == true) ? "Renews" : "Expires"
         return "\(verb) \(f.string(from: date))"
     }
 

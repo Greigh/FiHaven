@@ -10,6 +10,7 @@ public enum CTConstants {
         "Insurance": "🛡️",
         "Loan": "🏦",
         "Auto": "🚗",
+        "Investment": "📈",
         "Other": "📌",
     ]
 
@@ -22,7 +23,7 @@ public enum CTConstants {
     /// Bill category names, in the order the web presents them.
     public static let categories = [
         "Housing", "Utilities", "Subscriptions",
-        "Insurance", "Loan", "Auto", "Other",
+        "Insurance", "Loan", "Auto", "Investment", "Other",
     ]
 
     /// Card accent colors as hex strings (see utils.js CARD_COLORS).

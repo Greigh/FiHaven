@@ -5,6 +5,13 @@
 
 import { bills, cards, payments, settings } from './storage.svelte.js';
 import { today as todayInTz } from './tz.js';
+import {
+  boundsForKey, currentPeriodKey, paymentInBounds,
+  periodKeyForPayment, periodKeyLabel,
+} from './period.js';
+
+// Re-export the period helpers so components can keep importing from utils.
+export { currentPeriodKey, periodKeyLabel, periodKeyForPayment };
 
 /* ── Constants ──────────────────────────────────────────── */
 export const ICONS = {
@@ -14,6 +21,7 @@ export const ICONS = {
   Insurance:     '🛡️',
   Loan:          '🏦',
   Auto:          '🚗',
+  Investment:    '📈',
   Other:         '📌',
 };
 
@@ -90,6 +98,7 @@ export function monthKeyLabel(mk) {
   var parts = mk.split('-');
   var y = parseInt(parts[0], 10);
   var m = parseInt(parts[1], 10);
+  if (isNaN(y) || isNaN(m)) return mk;  // e.g. an "Unknown" bucket
   return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
@@ -193,21 +202,36 @@ export function promoNeeded(card) {
   return months <= 0 ? bal : bal / months;
 }
 
-/* ── Payment Helpers ────────────────────────────────────── */
+/* ── Payment Helpers ────────────────────────────────────────
+   Paid/owed is matched by whether a payment's date falls inside the
+   active period's [start, end) — resolved from the period key — so
+   the same logic serves calendar, custom-start-day and rolling modes
+   with no data migration. `mk` is a period key (currentPeriodKey()). */
 export function isPaid(type, refId, mk) {
-  mk = mk || monthKey();
+  var bounds = boundsForKey(mk || currentPeriodKey());
   return payments.some(function(p) {
-    return p.type === type && String(p.refId) === String(refId) && p.monthKey === mk;
+    return !p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds);
   });
 }
 
 export function paidAmount(type, refId, mk) {
-  mk = mk || monthKey();
+  var bounds = boundsForKey(mk || currentPeriodKey());
   return payments
     .filter(function(p) {
-      return p.type === type && String(p.refId) === String(refId) && p.monthKey === mk;
+      return !p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds);
     })
     .reduce(function(s, p) { return s + parseFloat(p.amount || 0); }, 0);
+}
+
+// A bill/card can be "skipped" for a period — stored as a payment record
+// flagged `skipped` (amount 0). A skipped item owes nothing that period and
+// drops out of Upcoming, but it isn't a real payment (excluded from totals
+// and history). Reversible by deleting the skip record.
+export function isSkipped(type, refId, mk) {
+  var bounds = boundsForKey(mk || currentPeriodKey());
+  return payments.some(function (p) {
+    return p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds);
+  });
 }
 
 /* ── Payment goal / fully-paid logic ─────────────────────────
@@ -249,7 +273,7 @@ export function paidGoalPolicy() {
 //                 back to keep the goal stable as installments land
 //                 (otherwise a partial payment would look "complete").
 export function goalAmountFor(type, refId, mk) {
-  mk = mk || monthKey();
+  mk = mk || currentPeriodKey();
   if (type === 'bill') {
     var b = bills.find(function (x) { return String(x.id) === String(refId); });
     return b ? parseFloat(b.amount || 0) : 0;
@@ -270,9 +294,11 @@ export function goalAmountFor(type, refId, mk) {
   return startBalance;
 }
 
-// Amount still owed toward the goal this month (0 once the goal is met).
+// Amount still owed toward the goal this period (0 once the goal is met).
+// A skipped item owes nothing.
 export function remainingForItem(type, refId, mk) {
-  mk = mk || monthKey();
+  mk = mk || currentPeriodKey();
+  if (isSkipped(type, refId, mk)) return 0;
   return Math.max(0, goalAmountFor(type, refId, mk) - paidAmount(type, refId, mk));
 }
 
@@ -281,9 +307,10 @@ export function isFullyPaid(type, refId, mk) {
   return remainingForItem(type, refId, mk) <= PAID_EPSILON;
 }
 
-// Tri-state for badges/rows: 'unpaid' | 'partial' | 'full'.
+// State for badges/rows: 'skipped' | 'unpaid' | 'partial' | 'full'.
 export function paidState(type, refId, mk) {
-  mk = mk || monthKey();
+  mk = mk || currentPeriodKey();
+  if (isSkipped(type, refId, mk)) return 'skipped';
   if (isFullyPaid(type, refId, mk)) return 'full';
   return paidAmount(type, refId, mk) > PAID_EPSILON ? 'partial' : 'unpaid';
 }

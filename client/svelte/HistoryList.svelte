@@ -7,16 +7,20 @@
 -->
 <script>
   import { payments } from '../js/storage.svelte.js';
-  import { fmt, monthKeyLabel } from '../js/utils.js';
+  import { fmt, periodKeyForPayment, periodKeyLabel } from '../js/utils.js';
   import { openEditPayment } from '../js/modals.js';
   import { deletePayment } from '../js/history.js';
 
-  // Group sorted-descending payments by month-key.
+  // Group sorted-descending payments by the active period. Tolerate
+  // records with a missing/empty date — a single bad row must not throw
+  // and blank out the whole tab.
   let byMonth = $derived.by(() => {
-    const sorted = payments.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sorted = payments
+      .filter((p) => !p.skipped)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const map = {};
     sorted.forEach((p) => {
-      const mk = p.monthKey || p.date.slice(0, 7);
+      const mk = periodKeyForPayment(p) || 'Unknown';
       (map[mk] = map[mk] || []).push(p);
     });
     return map;
@@ -28,10 +32,14 @@
     return ps.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
   }
   function labelFor(mk) {
-    return monthKeyLabel(mk);
+    return mk === 'Unknown' ? 'Unknown' : periodKeyLabel(mk);
   }
   function dateStr(p) {
-    return new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (!p.date) return '';
+    const [year, month, day] = p.date.split('-').map(Number);
+    if (!year || !month || !day) return '';
+    const d = new Date(year, month - 1, day);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 </script>
 

@@ -10,6 +10,7 @@ struct AuthView: View {
     @State private var password = ""
     @State private var captchaToken: String?
     @State private var captchaReloadID = UUID()
+    @State private var turnstileHeight: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,15 +36,35 @@ struct AuthView: View {
                             .textContentType(mode == .login ? .password : .newPassword)
                     }
 
-                    // Cloudflare Turnstile — single-use token captured here.
-                    TurnstileView(
-                        siteKey: AppConfig.turnstileSiteKey,
-                        onToken: { captchaToken = $0 },
-                        onError: { captchaToken = nil }
-                    )
-                    .id(captchaReloadID)
-                    .frame(height: 72)
-                    .frame(maxWidth: .infinity)
+                    if mode == .login {
+                        HStack {
+                            Spacer()
+                            Link("Forgot Password?", destination: AppEnvironment.webBaseURL.appendingPathComponent("reset"))
+                                .font(Theme.ui(13, weight: .medium))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .padding(.top, -4)
+                    }
+
+                    if captchaToken == nil {
+                        // Cloudflare Turnstile — single-use token captured here.
+                        TurnstileView(
+                            siteKey: AppConfig.turnstileSiteKey,
+                            onToken: { token in
+                                withAnimation { captchaToken = token }
+                            },
+                            onError: {
+                                withAnimation { captchaToken = nil }
+                            },
+                            onHeight: { h in
+                                withAnimation { turnstileHeight = min(max(h, 0), 120) }
+                            }
+                        )
+                        .id(captchaReloadID)
+                        .frame(height: turnstileHeight)
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity)
+                    }
 
                     if let error = env.authError {
                         Text(error)
@@ -91,13 +112,13 @@ struct AuthView: View {
 
     private func submit() async {
         guard let token = captchaToken else { return }
-        captchaToken = nil  // tokens are single-use
+        withAnimation { captchaToken = nil } // tokens are single-use
         switch mode {
         case .login: await env.login(email: email, password: password, captchaToken: token)
         case .signup: await env.signup(email: email, password: password, captchaToken: token)
         }
         // If we're still on this screen (auth failed), get a fresh token.
-        captchaReloadID = UUID()
+        withAnimation { captchaReloadID = UUID() }
     }
 
     @ViewBuilder

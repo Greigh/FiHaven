@@ -229,6 +229,8 @@ db.exec(`
   // the local month a summary last went out, so neither double-sends.
   if (!cols.includes('last_reminder_day'))  db.exec(`ALTER TABLE users ADD COLUMN last_reminder_day TEXT`);
   if (!cols.includes('last_summary_month')) db.exec(`ALTER TABLE users ADD COLUMN last_summary_month TEXT`);
+  // The local day autopay items were last auto-marked, so it runs once/day.
+  if (!cols.includes('last_autopay_day'))   db.exec(`ALTER TABLE users ADD COLUMN last_autopay_day TEXT`);
 })();
 
 // Encrypt-at-rest for Plaid account data: add the `enc` blob column to
@@ -320,12 +322,13 @@ const stmt = {
 
   /* ── Scheduler (reminders / summaries) ─────────────────────── */
   allUsersWithData: db.prepare(
-    `SELECT u.id, u.email, u.email_verified, u.last_reminder_day, u.last_summary_month, ud.data
+    `SELECT u.id, u.email, u.email_verified, u.last_reminder_day, u.last_summary_month, u.last_autopay_day, ud.data
        FROM users u JOIN user_data ud ON ud.user_id = u.id
       WHERE u.email_verified = 1`
   ),
   setReminderDay: db.prepare(`UPDATE users SET last_reminder_day = ? WHERE id = ?`),
   setSummaryMonth: db.prepare(`UPDATE users SET last_summary_month = ? WHERE id = ?`),
+  setAutopayDay: db.prepare(`UPDATE users SET last_autopay_day = ? WHERE id = ?`),
   getUserData: db.prepare(`SELECT data FROM user_data WHERE user_id = ?`),
   upsertUserData: db.prepare(
     `INSERT INTO user_data (user_id, data, updated_at) VALUES (?, ?, ?)
@@ -594,6 +597,7 @@ function allUsersWithData() {
       email_verified: r.email_verified,
       last_reminder_day: r.last_reminder_day,
       last_summary_month: r.last_summary_month,
+      last_autopay_day: r.last_autopay_day,
       data: {
         bills: Array.isArray(data.bills) ? data.bills : [],
         cards: Array.isArray(data.cards) ? data.cards : [],
@@ -603,6 +607,7 @@ function allUsersWithData() {
     };
   });
 }
+function setAutopayDay(userId, ymd) { stmt.setAutopayDay.run(ymd, userId); }
 function setReminderDay(userId, ymd) { stmt.setReminderDay.run(ymd, userId); }
 function setSummaryMonth(userId, ym) { stmt.setSummaryMonth.run(ym, userId); }
 
@@ -626,7 +631,7 @@ function deleteExpiredSessions() {
   return stmt.deleteExpiredSessions.run(Date.now()).changes;
 }
 
-const EMPTY_DATA = { bills: [], cards: [], payments: [], settings: {} };
+const EMPTY_DATA = { bills: [], cards: [], payments: [], accounts: [], goals: [], transactions: [], settings: {} };
 
 // Returns the user's saved app data, or empty defaults when none exists.
 function getUserData(userId) {
@@ -638,6 +643,9 @@ function getUserData(userId) {
       bills: Array.isArray(parsed.bills) ? parsed.bills : [],
       cards: Array.isArray(parsed.cards) ? parsed.cards : [],
       payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+      accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
+      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
+      transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
       settings:
         parsed.settings && typeof parsed.settings === 'object'
           ? parsed.settings
@@ -777,6 +785,7 @@ module.exports = {
   allUsersWithData,
   setReminderDay,
   setSummaryMonth,
+  setAutopayDay,
   getUserData,
   upsertUserData,
   userHasMfa,

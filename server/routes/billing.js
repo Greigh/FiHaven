@@ -27,7 +27,7 @@ function sendError(res, code, error) {
 // request-derived host (use it behind a proxy / in production).
 function appBaseUrl(req) {
   const origin = process.env.PUBLIC_ORIGIN || `${req.protocol}://${req.get('host')}`;
-  return `${origin}/fihaven`;
+  return origin;
 }
 
 /* ── GET /api/billing/status ─────────────────────────────────── */
@@ -120,10 +120,42 @@ router.post('/stripe/checkout', requireAuth, requireCsrf, async (req, res) => {
 router.post('/stripe/portal', requireAuth, requireCsrf, async (req, res) => {
   try {
     const url = await billing.createStripePortal(req.user, appBaseUrl(req));
-    if (!url) return sendError(res, 400, 'portal-unavailable');
+    if (!url) {
+      if (!billing.stripeConfigured()) {
+        return res.json({ url: '/dev-portal' });
+      }
+      return sendError(res, 400, 'portal-unavailable');
+    }
     res.json({ url });
   } catch (err) {
     sendError(res, 400, 'portal-failed');
+  }
+});
+
+// POST /api/billing/stripe/portal/dev-cancel — (dev-only) cancel subscription
+router.post('/stripe/portal/dev-cancel', requireAuth, requireCsrf, (req, res) => {
+  if (process.env.NODE_ENV === 'production' && billing.stripeConfigured()) {
+    return sendError(res, 403, 'forbidden');
+  }
+  try {
+    const entitlement = billing.devCancelSubscription(req.user.id);
+    res.json({ entitlement });
+  } catch (err) {
+    sendError(res, 400, 'dev-cancel-failed');
+  }
+});
+
+// POST /api/billing/stripe/portal/dev-change — (dev-only) change plan
+router.post('/stripe/portal/dev-change', requireAuth, requireCsrf, (req, res) => {
+  if (process.env.NODE_ENV === 'production' && billing.stripeConfigured()) {
+    return sendError(res, 403, 'forbidden');
+  }
+  const plan = (req.body || {}).plan;
+  try {
+    const entitlement = billing.devChangeSubscription(req.user.id, plan);
+    res.json({ entitlement });
+  } catch (err) {
+    sendError(res, 400, err.message === 'unknown-plan' ? 'unknown-plan' : 'dev-change-failed');
   }
 });
 

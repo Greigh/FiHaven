@@ -51,20 +51,22 @@ object Payoff {
         zone: ZoneId,
         now: Instant = Instant.now(),
     ): PayoffResult? {
-        val debtCards = cards.filter { it.balance > 0 }
+        val debtCards = cards.filter { (it.currentBalance ?: it.balance) > 0 }
         if (debtCards.isEmpty()) return null
 
         val sim = debtCards.map { c ->
+            val startingBalance = c.currentBalance ?: c.balance
+            val isLoan = c.type == "loan"
             Sim(
                 id = c.id,
                 name = c.name,
-                balance = c.balance,
-                origBalance = c.balance,
+                balance = startingBalance,
+                origBalance = startingBalance,
                 minPayment = max(c.minPayment, 1.0),
                 apr = c.regularAPR,
                 monthlyRate = c.regularAPR / 100.0 / 12.0,
-                hasPromo = c.hasPromo,
-                promoEnd = DateLogic.parseDate(c.promoEndDate),
+                hasPromo = if (isLoan) false else c.hasPromo,
+                promoEnd = if (isLoan) null else DateLogic.parseDate(c.promoEndDate),
                 paidOffMonth = null,
                 interestPaid = 0.0,
             )

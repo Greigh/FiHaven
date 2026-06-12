@@ -51,6 +51,17 @@ export function today() {
   }
 }
 
+// "Today" as a YYYY-MM-DD string in the user's chosen time zone. This is the
+// correct default for a payment date — `new Date().toISOString()` uses UTC and
+// rolls to tomorrow for users behind UTC in the evening (the "dates are off"
+// bug), so payments recorded at night landed on the wrong day.
+export function todayISO() {
+  var d = today();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 // Convenience: a list of common IANA zones grouped for a Settings
 // dropdown. The full Intl.supportedValuesOf('timeZone') list is
 // long; this is a curated subset. The selector lets users type to

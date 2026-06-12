@@ -5,7 +5,11 @@ import com.danielhipskind.fihaven.core.logic.Income
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.logic.Payoff
 import com.danielhipskind.fihaven.core.logic.PayoffStrategy
+import com.danielhipskind.fihaven.core.logic.Period
+import com.danielhipskind.fihaven.core.logic.PeriodConfig
 import com.danielhipskind.fihaven.core.logic.Schedule
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import com.danielhipskind.fihaven.core.model.Bill
 import com.danielhipskind.fihaven.core.model.Card
 import com.danielhipskind.fihaven.core.model.FiHavenJson
@@ -110,9 +114,9 @@ class ScheduleTest {
 
     @Test fun paidHelpers() {
         val payments = listOf(
-            Payment(id = 1, type = "bill", refId = "1", amount = 100.0, monthKey = "2026-06"),
-            Payment(id = 2, type = "bill", refId = "1", amount = 50.0, monthKey = "2026-06"),
-            Payment(id = 3, type = "bill", refId = "1", amount = 999.0, monthKey = "2026-05"),
+            Payment(id = "1", type = "bill", refId = "1", amount = 100.0, monthKey = "2026-06"),
+            Payment(id = "2", type = "bill", refId = "1", amount = 50.0, monthKey = "2026-06"),
+            Payment(id = "3", type = "bill", refId = "1", amount = 999.0, monthKey = "2026-05"),
         )
         assertTrue(Schedule.isPaid(payments, "bill", "1", "2026-06"))
         assertTrue(!Schedule.isPaid(payments, "card", "1", "2026-06"))
@@ -128,13 +132,59 @@ class ScheduleTest {
 
         // Recommended goal is stabilized to the start-of-month balance
         // (balance + payments already made this month).
-        val paid = listOf(Payment(id = 1, type = "card", refId = "1", amount = 500.0, monthKey = "2026-06"))
+        val paid = listOf(Payment(id = "1", type = "card", refId = "1", amount = 500.0, monthKey = "2026-06"))
         assertEquals(2500.0, Schedule.goalAmount(card, PaidGoalPolicy.RECOMMENDED, paid, "2026-06", UTC, NOW), 1e-6)
         assertEquals(2500.0, Schedule.goalAmount(card, PaidGoalPolicy.FULL, paid, "2026-06", UTC, NOW), 1e-6)
         // Minimum policy ignores the balance.
         assertEquals(50.0, Schedule.goalAmount(card, PaidGoalPolicy.MINIMUM, paid, "2026-06", UTC, NOW), 1e-6)
         // Override is a fixed monthly target (not stabilized).
         assertEquals(300.0, Schedule.goalAmount(card.copy(recommendedPayment = 300.0), PaidGoalPolicy.RECOMMENDED, paid, "2026-06", UTC, NOW), 1e-6)
+    }
+}
+
+class PeriodTest {
+    @Test fun calendarMatchesLegacyMonth() {
+        val cfg = PeriodConfig.normalized("calendar", null, null)
+        val b = Period.bounds(LocalDate.of(2026, 6, 15), cfg)
+        assertEquals("2026-06", b.key)
+        assertEquals("2026-06-01", b.startKey)
+        assertEquals("2026-07-01", b.endKey)
+        assertTrue(b.contains(Payment(id = "a", type = "bill", refId = "1", date = "2026-06-20")))
+        assertTrue(!b.contains(Payment(id = "b", type = "bill", refId = "1", date = "2026-07-01")))
+    }
+
+    @Test fun startDayGroupsEarlyMonthBills() {
+        val cfg = PeriodConfig.normalized("startDay", 25, null)
+        val b = Period.bounds(LocalDate.of(2026, 6, 15), cfg)
+        assertEquals("2026-05-25", b.key)
+        assertEquals("2026-06-25", b.endKey)
+        // Rent paid Jun 1 belongs to the period that began May 25.
+        assertTrue(b.contains(Payment(id = "a", type = "bill", refId = "1", date = "2026-06-01")))
+        // The 25th itself starts the next period.
+        assertTrue(!b.contains(Payment(id = "b", type = "bill", refId = "1", date = "2026-06-25")))
+    }
+
+    @Test fun rollingBucketsAreFixedLength() {
+        val cfg = PeriodConfig.normalized("rolling", null, 35)
+        val b = Period.bounds(LocalDate.of(2026, 6, 15), cfg)
+        assertEquals(35, ChronoUnit.DAYS.between(b.start, b.end).toInt())
+        assertTrue(b.contains(Payment(id = "a", type = "bill", refId = "1", date = b.startKey)))
+        assertTrue(!b.contains(Payment(id = "b", type = "bill", refId = "1", date = b.endKey)))
+    }
+
+    @Test fun boundsForKeyRoundTrips() {
+        val cfg = PeriodConfig.normalized("startDay", 25, null)
+        val b = Period.bounds(LocalDate.of(2026, 6, 15), cfg)
+        val resolved = Period.boundsForKey(b.key, cfg)
+        assertEquals(b.key, resolved.key)
+        assertEquals(b.startKey, resolved.startKey)
+        assertEquals(b.endKey, resolved.endKey)
+    }
+
+    @Test fun clampsOutOfRange() {
+        val cfg = PeriodConfig.normalized("startDay", 99, 999)
+        assertEquals(28, cfg.startDay)
+        assertEquals(90, cfg.length)
     }
 }
 

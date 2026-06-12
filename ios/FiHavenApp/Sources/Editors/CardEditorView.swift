@@ -1,15 +1,18 @@
 import SwiftUI
 import FiHavenCore
 
-/// Add/edit a credit card, including 0%-promo tracking.
+/// Add/edit a credit card or loan.
 struct CardEditorView: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
 
     let card: Card?
 
+    @State private var type = "card"
     @State private var name = ""
+    @State private var issuer = ""
     @State private var balance: Double = 0
+    @State private var currentBalance = ""
     @State private var limit: Double = 0
     @State private var minPayment: Double = 0
     @State private var recommendedPayment: Double = 0
@@ -17,6 +20,8 @@ struct CardEditorView: View {
     @State private var dueDay = 1
     @State private var autopay = false
     @State private var notes = ""
+    @State private var lastDigits = ""
+    @State private var network = ""
 
     @State private var hasPromo = false
     @State private var promoAPR: Double = 0
@@ -27,11 +32,47 @@ struct CardEditorView: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("Account Type", selection: $type) {
+                        Text("Credit Card").tag("card")
+                        Text("Loan").tag("loan")
+                    }
+                    .pickerStyle(.segmented)
+                    
                     TextField("Name", text: $name)
-                    money("Balance", $balance)
-                    money("Credit limit", $limit)
-                    money("Minimum payment", $minPayment)
-                    money("Recommended payment", $recommendedPayment)
+                    TextField("Issuer / Bank", text: $issuer)
+                    TextField("Ends in (Last 4/5 digits)", text: $lastDigits)
+                        .keyboardType(.numberPad)
+                        .onChange(of: lastDigits) { newValue in
+                            if newValue.count > 5 {
+                                lastDigits = String(newValue.prefix(5))
+                            }
+                        }
+                    Picker("Network", selection: $network) {
+                        Text("—").tag("")
+                        ForEach(["Visa", "Mastercard", "Amex", "Discover", "Other"], id: \.self) { Text($0).tag($0) }
+                    }
+                }
+
+                Section {
+                    money(type == "loan" ? "Remaining Principal" : "Statement Balance", $balance)
+                    
+                    if type == "card" {
+                        HStack {
+                            Text("Current Balance (Optional)")
+                            Spacer()
+                            Text("$").foregroundStyle(Theme.muted)
+                            TextField("0", text: $currentBalance)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                        }
+                        money("Credit limit", $limit)
+                    }
+                    
+                    money(type == "loan" ? "Monthly payment" : "Minimum payment", $minPayment)
+                    
+                    if type == "card" {
+                        money("Recommended payment", $recommendedPayment)
+                    }
+                    
                     HStack {
                         Text("Regular APR")
                         Spacer()
@@ -44,21 +85,25 @@ struct CardEditorView: View {
                     }
                     Toggle("Autopay", isOn: $autopay)
                 } footer: {
-                    Text("Recommended payment is optional — leave it at 0 to default to the full balance (or the 0%-promo payoff).")
+                    if type == "card" {
+                        Text("Recommended payment is optional — leave it at 0 to default to the full balance (or the 0%-promo payoff).")
+                    }
                 }
 
-                Section {
-                    Toggle("0% / promo APR", isOn: $hasPromo)
-                    if hasPromo {
-                        HStack {
-                            Text("Promo APR")
-                            Spacer()
-                            TextField("APR", value: $promoAPR, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                            Text("%").foregroundStyle(Theme.muted)
+                if type == "card" {
+                    Section {
+                        Toggle("0% / promo APR", isOn: $hasPromo)
+                        if hasPromo {
+                            HStack {
+                                Text("Promo APR")
+                                Spacer()
+                                TextField("APR", value: $promoAPR, format: .number)
+                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                                Text("%").foregroundStyle(Theme.muted)
+                            }
+                            money("Promo balance", $promoBalance)
+                            DatePicker("Promo ends", selection: $promoEnd, displayedComponents: .date)
                         }
-                        money("Promo balance", $promoBalance)
-                        DatePicker("Promo ends", selection: $promoEnd, displayedComponents: .date)
                     }
                 }
 
@@ -68,14 +113,14 @@ struct CardEditorView: View {
 
                 if card != nil {
                     Section {
-                        Button("Delete card", role: .destructive) {
+                        Button(type == "loan" ? "Delete loan" : "Delete card", role: .destructive) {
                             if let card { store.deleteCard(card) }
                             dismiss()
                         }
                     }
                 }
             }
-            .navigationTitle(card == nil ? "New Card" : "Edit Card")
+            .navigationTitle(card == nil ? (type == "loan" ? "New Loan" : "New Card") : (type == "loan" ? "Edit Loan" : "Edit Card"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -99,8 +144,11 @@ struct CardEditorView: View {
 
     private func load() {
         guard let card else { return }
+        type = card.type ?? "card"
         name = card.name
+        issuer = card.issuer ?? ""
         balance = card.balance
+        currentBalance = card.currentBalance.map { String($0) } ?? ""
         limit = card.limit
         minPayment = card.minPayment
         recommendedPayment = card.recommendedPayment ?? 0
@@ -108,6 +156,8 @@ struct CardEditorView: View {
         dueDay = card.dueDay ?? 1
         autopay = card.autopay
         notes = card.notes
+        lastDigits = card.lastDigits ?? ""
+        network = card.network ?? ""
         hasPromo = card.hasPromo
         promoAPR = card.promoAPR ?? 0
         promoBalance = card.promoBalance ?? card.balance
@@ -122,21 +172,27 @@ struct CardEditorView: View {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
 
+        let isLoan = type == "loan"
         let saved = Card(
             id: card?.id ?? AppStore.newID(),
             name: name.trimmingCharacters(in: .whitespaces),
             balance: balance,
-            limit: limit,
+            limit: isLoan ? 0 : limit,
             minPayment: minPayment,
-            recommendedPayment: recommendedPayment > 0 ? recommendedPayment : nil,
+            recommendedPayment: isLoan ? nil : (recommendedPayment > 0 ? recommendedPayment : nil),
             regularAPR: regularAPR,
-            hasPromo: hasPromo,
-            promoAPR: hasPromo ? promoAPR : nil,
-            promoEndDate: hasPromo ? f.string(from: promoEnd) : nil,
-            promoBalance: hasPromo ? promoBalance : nil,
+            hasPromo: isLoan ? false : hasPromo,
+            promoAPR: (isLoan ? false : hasPromo) ? promoAPR : nil,
+            promoEndDate: (isLoan ? false : hasPromo) ? f.string(from: promoEnd) : nil,
+            promoBalance: (isLoan ? false : hasPromo) ? promoBalance : nil,
             dueDay: dueDay,
             autopay: autopay,
-            notes: notes
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            type: type,
+            issuer: issuer.isEmpty ? nil : issuer.trimmingCharacters(in: .whitespaces),
+            currentBalance: isLoan ? nil : Double(currentBalance),
+            lastDigits: lastDigits.isEmpty ? nil : lastDigits.trimmingCharacters(in: .whitespaces),
+            network: network.isEmpty ? nil : network
         )
         store.upsertCard(saved)
         dismiss()

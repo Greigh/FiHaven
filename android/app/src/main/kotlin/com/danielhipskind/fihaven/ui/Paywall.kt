@@ -180,7 +180,7 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     }
 
                     if (ent.pro) {
-                        ActiveCard(ent.source, ent.expiresAt)
+                        ActiveCard(ent)
                     } else if (products.isEmpty()) {
                         Text(
                             "Subscriptions aren’t available right now. You can still redeem a code below.",
@@ -220,18 +220,20 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ActiveCard(source: String?, expiresAt: Long?) {
+private fun ActiveCard(ent: com.danielhipskind.fihaven.core.model.Entitlement) {
     CtCard {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.CheckCircle, null, tint = Ct.colors.green, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(6.dp))
             Text("You’re on FiHaven Pro", color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+            val expiresAt = ent.expiresAt
             val line = when {
                 expiresAt != null -> {
                     val d = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(expiresAt))
-                    (if (source == "promo") "Access until " else "Renews ") + d
+                    val verb = if (ent.autoRenew == true) "Renews " else "Expires "
+                    verb + d
                 }
-                source == "promo" -> "Granted by promo code."
+                ent.source == "promo" -> "Granted by promo code."
                 else -> null
             }
             if (line != null) {

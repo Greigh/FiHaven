@@ -67,7 +67,13 @@ final class BiometricStore: ObservableObject {
     }
 
     init() {
-        let on = UserDefaults.standard.bool(forKey: Self.key)
+        let defaults = UserDefaults.standard
+        // Default the lock ON when the device can authenticate (Face/Touch ID
+        // or passcode). Once the user explicitly toggles it, their choice is
+        // honored. `object(forKey:)` distinguishes "never set" from "set false".
+        let configured = defaults.object(forKey: Self.key) != nil
+        let on = configured ? defaults.bool(forKey: Self.key) : BiometricAuth.isAvailable
+        if !configured { defaults.set(on, forKey: Self.key) }
         enabled = on
         // Cold launch starts locked when enabled; a fresh interactive
         // login clears it (AppEnvironment calls markUnlocked).

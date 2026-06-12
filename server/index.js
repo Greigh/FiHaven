@@ -85,6 +85,18 @@ app.use(loadSession);
 // for free; redirects out of it use `${BASE}/...` explicitly.
 const sub = express.Router({ mergeParams: true });
 
+// ── Anti-DDoS: per-IP rate limits ───────────────────────────────
+// A broad global cap blunts floods across everything; tighter caps
+// guard the API and the unauthenticated auth surface. In-memory, single
+// process — front with a CDN/WAF for volumetric attacks. Disabled under
+// test so the suite isn't throttled.
+const { ipRateLimiter } = require('./rateLimit');
+if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
+  sub.use(ipRateLimiter({ windowMs: 60 * 1000, max: 600, name: 'global' }));
+  sub.use('/api', ipRateLimiter({ windowMs: 60 * 1000, max: 240, name: 'api' }));
+  sub.use('/api/auth', ipRateLimiter({ windowMs: 60 * 1000, max: 40, name: 'auth' }));
+}
+
 // API routes. The data + MFA mounts are gated behind requireVerified:
 // an authenticated-but-unverified session gets 403 'email-unverified',
 // which makes the dashboard non-functional until the email is confirmed.

@@ -106,9 +106,9 @@ func runScheduleChecks() {
 
     section("Schedule — isPaid / paidAmount") {
         let payments = [
-            Payment(id: 1, type: "bill", refId: "1", amount: 100, monthKey: "2026-06"),
-            Payment(id: 2, type: "bill", refId: "1", amount: 50, monthKey: "2026-06"),
-            Payment(id: 3, type: "bill", refId: "1", amount: 999, monthKey: "2026-05"),
+            Payment(id: "1", type: "bill", refId: "1", amount: 100, monthKey: "2026-06"),
+            Payment(id: "2", type: "bill", refId: "1", amount: 50, monthKey: "2026-06"),
+            Payment(id: "3", type: "bill", refId: "1", amount: 999, monthKey: "2026-05"),
         ]
         check(Schedule.isPaid(payments, type: "bill", refId: "1", monthKey: "2026-06"), "isPaid true")
         check(!Schedule.isPaid(payments, type: "card", refId: "1", monthKey: "2026-06"), "wrong type not paid")
@@ -122,7 +122,7 @@ func runScheduleChecks() {
         var override = card; override.recommendedPayment = 300
         checkClose(Schedule.recommendedAmount(override, tz: tz), 300, "override wins", tol: 0.001)
 
-        let paid = [Payment(id: 1, type: "card", refId: "1", amount: 500, monthKey: "2026-06")]
+        let paid = [Payment(id: "1", type: "card", refId: "1", amount: 500, monthKey: "2026-06")]
         checkClose(Schedule.goalAmount(card: card, policy: .recommended, payments: paid, monthKey: "2026-06", tz: tz),
                    2500, "recommended goal stabilized to start-of-month balance", tol: 0.001)
         checkClose(Schedule.goalAmount(card: card, policy: .minimum, payments: paid, monthKey: "2026-06", tz: tz),

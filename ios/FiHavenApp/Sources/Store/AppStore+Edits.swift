@@ -30,6 +30,59 @@ extension AppStore {
         }
     }
 
+    // ── Asset accounts (net worth) ──────────────────────────────────
+    func upsertAccount(_ account: Account) {
+        mutate { data in
+            if let i = data.accounts.firstIndex(where: { $0.id == account.id }) {
+                data.accounts[i] = account
+            } else {
+                data.accounts.append(account)
+            }
+        }
+    }
+
+    func deleteAccount(_ account: Account) {
+        mutate { $0.accounts.removeAll { $0.id == account.id } }
+    }
+
+    // ── Savings goals ───────────────────────────────────────────────
+    func upsertGoal(_ goal: SavingsGoal) {
+        mutate { data in
+            if let i = data.goals.firstIndex(where: { $0.id == goal.id }) {
+                data.goals[i] = goal
+            } else {
+                data.goals.append(goal)
+            }
+        }
+    }
+
+    func deleteGoal(_ goal: SavingsGoal) {
+        mutate { $0.goals.removeAll { $0.id == goal.id } }
+    }
+
+    // ── Spending transactions + category budgets ────────────────────
+    func addTransaction(amount: Double, category: String, merchant: String, date: Date) {
+        let iso = isoDay(date)
+        mutate { data in
+            data.transactions.append(SpendTransaction(
+                id: Self.newPaymentID(), date: iso, amount: amount,
+                category: category, merchant: merchant, note: ""
+            ))
+        }
+    }
+
+    func deleteTransaction(_ tx: SpendTransaction) {
+        mutate { $0.transactions.removeAll { $0.id == tx.id } }
+    }
+
+    func setCategoryBudget(_ category: String, _ amount: Double) {
+        mutate { data in
+            var b = data.settings.categoryBudgets
+            if amount > 0 { b[category] = amount } else { b.removeValue(forKey: category) }
+            data.settings.categoryBudgets = b
+        }
+    }
+
     func deleteCard(_ card: Card) {
         mutate { $0.cards.removeAll { $0.id == card.id } }
     }
@@ -46,7 +99,7 @@ extension AppStore {
                 data.payments.remove(at: i)
             } else {
                 data.payments.append(Payment(
-                    id: Self.newID(),
+                    id: Self.newPaymentID(),
                     type: item.type,
                     refId: item.refId,
                     name: item.name,
@@ -68,7 +121,7 @@ extension AppStore {
         let mk  = DateLogic.monthKey(date, tz: tz)
         mutate { data in
             data.payments.append(Payment(
-                id: Self.newID(), type: type, refId: refId, name: name,
+                id: Self.newPaymentID(), type: type, refId: refId, name: name,
                 amount: amount, date: iso, monthKey: mk, note: note
             ))
             if type == "card" { Self.applyCardPaymentDelta(refId, amount, in: &data) }
@@ -96,12 +149,42 @@ extension AppStore {
             }
             if paid, existing == nil {
                 data.payments.append(Payment(
-                    id: Self.newID(), type: type, refId: refId,
+                    id: Self.newPaymentID(), type: type, refId: refId,
                     name: name, amount: amount, date: self.todayISO(),
                     monthKey: mk, note: ""
                 ))
             } else if !paid, let i = existing {
                 data.payments.remove(at: i)
+            }
+        }
+    }
+
+    /// Skip a bill/card for the current period: records a `skipped` payment
+    /// (amount 0) so the item owes nothing and drops out of "still owed".
+    /// Matched by the active period (date range); the stored monthKey is
+    /// the calendar month, for back-compat.
+    func skipMonth(type: String, refId: String, name: String) {
+        let bounds = currentBounds
+        let mk = currentMonthKey
+        mutate { data in
+            let exists = data.payments.contains {
+                $0.skipped && $0.type == type && $0.refId == refId && bounds.contains($0)
+            }
+            guard !exists else { return }
+            data.payments.append(Payment(
+                id: Self.newPaymentID(), type: type, refId: refId,
+                name: name, amount: 0, date: self.todayISO(),
+                monthKey: mk, note: "Skipped this period", skipped: true
+            ))
+        }
+    }
+
+    /// Reverse a skip for the current period.
+    func unskip(type: String, refId: String) {
+        let bounds = currentBounds
+        mutate { data in
+            data.payments.removeAll {
+                $0.skipped && $0.type == type && $0.refId == refId && bounds.contains($0)
             }
         }
     }
@@ -123,6 +206,23 @@ extension AppStore {
         mutate { $0.settings.incomes.removeAll { $0.id == source.id } }
     }
 
+    // ── Income adjustments (settings.incomeAdjustments) ──────────────
+    func upsertAdjustment(_ adj: IncomeAdjustment) {
+        mutate { data in
+            var list = data.settings.incomeAdjustments
+            if let i = list.firstIndex(where: { $0.id == adj.id }) {
+                list[i] = adj
+            } else {
+                list.append(adj)
+            }
+            data.settings.incomeAdjustments = list
+        }
+    }
+
+    func deleteAdjustment(_ adj: IncomeAdjustment) {
+        mutate { $0.settings.incomeAdjustments.removeAll { $0.id == adj.id } }
+    }
+
     // ── Preferences ──────────────────────────────────────────────────
     func setTimezone(_ tz: String?) {
         mutate { $0.settings.timezone = tz }
@@ -131,6 +231,11 @@ extension AppStore {
     func setPaidGoal(_ policy: PaidGoalPolicy) {
         mutate { $0.settings.paidGoal = policy.rawValue }
     }
+
+    // ── Budget period ─────────────────────────────────────────────────
+    func setPeriodMode(_ mode: String) { mutate { $0.settings.periodMode = mode } }
+    func setPeriodStartDay(_ day: Int) { mutate { $0.settings.periodStartDay = min(max(day, 1), 28) } }
+    func setPeriodLength(_ len: Int) { mutate { $0.settings.periodLength = min(max(len, 7), 90) } }
 
     func setCurrency(_ code: String) {
         Money.setCurrency(code)
@@ -154,6 +259,14 @@ extension AppStore {
         mutate { $0.settings.monthlySummary = on }
     }
 
+    func setAutopayMark(_ on: Bool) {
+        mutate { $0.settings.autopayMark = on }
+        if on { runAutopayMark() }
+    }
+    func setAutopayMarkHour(_ hour: Int) {
+        mutate { $0.settings.autopayMarkHour = min(23, max(0, hour)) }
+    }
+
     // ── History ──────────────────────────────────────────────────────
     func deletePayment(_ payment: Payment) {
         mutate { data in
@@ -170,8 +283,18 @@ extension AppStore {
     }
 
     // ── helpers ──────────────────────────────────────────────────────
-    /// A new unique id (timestamp ms), matching how the web mints ids.
+    /// A new unique id (timestamp ms) for bills/cards.
     static func newID() -> Int { Int(Date().timeIntervalSince1970 * 1000) }
+
+    /// A new unique *string* id for payments, matching the web's format
+    /// (`Date.now().toString(36) + Math.random().toString(36)`). Keeping the
+    /// id a string avoids collisions when web-created payments (string ids)
+    /// are decoded natively.
+    static func newPaymentID() -> String {
+        let ts = String(Int(Date().timeIntervalSince1970 * 1000), radix: 36)
+        let rand = String(UInt32.random(in: 0 ..< .max), radix: 36)
+        return ts + rand
+    }
 
     func todayISO() -> String { isoDay(Date()) }
 

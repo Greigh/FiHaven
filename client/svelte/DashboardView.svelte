@@ -7,14 +7,15 @@
 <script>
   import { bills, cards, payments, settings } from '../js/storage.svelte.js';
   import {
-    fmt, monthKey, monthLabel, shortDate,
+    fmt, currentPeriodKey, periodKeyLabel, shortDate,
     monthsUntil, daysUntilDate, promoNeeded,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem,
   } from '../js/utils.js';
-  import { monthlyIncomeFromSettings } from '../js/income.js';
+  import { boundsForKey, paymentInBounds } from '../js/period.js';
+  import { monthlyIncomeForMonth } from '../js/income.js';
   import {
-    openPayModal, editBillById, editCardById,
+    openPayModal, editBillById, editCardById, skipMonth,
   } from '../js/modals.js';
   import {
     snoozes, isSnoozed, snoozeUntilTomorrow, unsnooze, pruneExpiredSnoozes,
@@ -22,34 +23,9 @@
 
   pruneExpiredSnoozes();
 
-  const mk        = monthKey();
-  const monthName = monthLabel(new Date());
-
-  /* ── Bills charged to a credit card ──────────────────────
-     Bills can name the card they're paid on (b.cardId). Group
-     them under each card so you can see, at a glance, what
-     recurring charges land on each statement. */
-  function monthlyEquiv(b) {
-    const amt = parseFloat(b.amount || 0);
-    switch (b.frequency) {
-      case 'Weekly':    return (amt * 52) / 12;
-      case 'Bi-weekly': return (amt * 26) / 12;
-      case 'Quarterly': return amt / 3;
-      case 'Annually':  return amt / 12;
-      default:          return amt; // Monthly
-    }
-  }
-  let cardBillGroups = $derived.by(() =>
-    cards
-      .map((c) => {
-        const list = bills.filter(
-          (b) => b.cardId != null && String(b.cardId) === String(c.id)
-        );
-        return { card: c, bills: list, monthly: list.reduce((s, b) => s + monthlyEquiv(b), 0) };
-      })
-      .filter((g) => g.bills.length > 0)
-  );
-  let totalCardCharges = $derived(cardBillGroups.reduce((s, g) => s + g.monthly, 0));
+  const mk        = currentPeriodKey();
+  const monthName = periodKeyLabel(mk);
+  const periodBnds = boundsForKey(mk);
 
   /* ── Top stat tiles ──────────────────────────────────── */
   let totalDebt = $derived(cards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
@@ -59,7 +35,7 @@
   let allItems   = $derived(buildUpcomingItems());
   let paidThisMo = $derived(
     payments
-      .filter((p) => p.monthKey === mk)
+      .filter((p) => !p.skipped && paymentInBounds(p, periodBnds))
       .reduce((s, p) => s + parseFloat(p.amount || 0), 0)
   );
   // "Still due" = sum of each item's remaining-to-goal, so partial
@@ -72,7 +48,7 @@
     monthBudgeted > 0 ? Math.min(100, Math.round((paidThisMo / monthBudgeted) * 100)) : 0
   );
 
-  let monthlyIncome = $derived(monthlyIncomeFromSettings(settings));
+  let monthlyIncome = $derived(monthlyIncomeForMonth(settings, mk));
   let runway        = $derived(monthlyIncome - unpaidAmt);
   let hasIncome     = $derived(monthlyIncome > 0);
 
@@ -258,6 +234,10 @@
                 onclick={() => snoozeUntilTomorrow(u.type, u.refId)}>
                 Snooze
               </button>
+              <button class="btn btn-ghost btn-xs" title="Skip this month — owes nothing, no payment recorded"
+                onclick={() => skipMonth(u.type, u.refId, u.name)}>
+                Skip
+              </button>
               <button class="btn btn-ghost btn-xs" title="Edit details"
                 onclick={() => editItem(u)}>
                 ✎
@@ -311,42 +291,3 @@
     </div>
   {/if}
 </div>
-
-<!-- ─── Bills charged to a card ──────────────────────────── -->
-{#if cardBillGroups.length > 0}
-  <div class="upcoming-wrap" style="margin-top:18px;">
-    <div class="section-header" style="margin-bottom:0;">
-      <span class="section-title">On your cards</span>
-      <span class="mono" style="font-size:11px;color:var(--muted);">{fmt(totalCardCharges)}/mo charged</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      {#each cardBillGroups as g (g.card.id)}
-        <div style="border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--surface);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb, var(--surface2) 60%, var(--surface));">
-            <span style="font-weight:600;display:flex;align-items:center;gap:7px;">
-              💳 {g.card.name}
-              <span class="badge badge-gray">{g.bills.length} bill{g.bills.length === 1 ? '' : 's'}</span>
-            </span>
-            <span style="font-family:'Manrope',sans-serif;font-weight:700;letter-spacing:-.02em;">{fmt(g.monthly)}<span style="color:var(--muted);font-weight:500;font-size:12px;"> /mo</span></span>
-          </div>
-          <div>
-            {#each g.bills as b (b.id)}
-              <button
-                type="button"
-                onclick={() => editBillById(b.id)}
-                title="Edit {b.name}"
-                style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;background:none;border:none;border-top:1px solid var(--border);cursor:pointer;text-align:left;color:inherit;font:inherit;"
-              >
-                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{b.name}</span>
-                <span style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;">
-                  {#if b.frequency && b.frequency !== 'Monthly'}<span class="badge badge-gray">{b.frequency}</span>{/if}
-                  <span style="color:var(--text);font-family:'Manrope',sans-serif;font-weight:600;">{fmt(parseFloat(b.amount || 0))}</span>
-                </span>
-              </button>
-            {/each}
-          </div>
-        </div>
-      {/each}
-    </div>
-  </div>
-{/if}

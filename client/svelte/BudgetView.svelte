@@ -8,12 +8,18 @@
 <script>
   import { bills, cards, settings, save } from '../js/storage.svelte.js';
   import {
-    ICONS, fmt, monthKey, monthLabel, offsetDate,
+    ICONS, fmt, monthKeyLabel,
     paidState, paidAmount, goalAmountFor, remainingForItem, promoNeeded,
   } from '../js/utils.js';
+  import { currentPeriod, shiftPeriod, periodLabel } from '../js/period.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
-  import { FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf } from '../js/income.js';
+  import GoalsPanel from './GoalsPanel.svelte';
+  import SpendingPanel from './SpendingPanel.svelte';
+  import {
+    FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf,
+    normalizeAdjustment, adjustmentAppliesTo,
+  } from '../js/income.js';
 
   /* ── Migration from the old single-income model ───────────── */
   function readIncomes() {
@@ -46,11 +52,39 @@
     };
   }
 
+  /* ── Income adjustments (bonuses / unpaid time off / raises) ── */
+  function readAdjustments() {
+    const list = Array.isArray(settings.incomeAdjustments) ? settings.incomeAdjustments : [];
+    return list.map(normalizeAdjustment);
+  }
+
   /* ── Reactive state ──────────────────────────────────────── */
   let monthOffset = $state(getBudgetMonthOffset());
   let incomes     = $state(readIncomes());
+  let adjustments = $state(readAdjustments());
 
   $effect(() => { setBudgetMonthOffset(monthOffset); });
+
+  function persistAdjustments() {
+    settings.incomeAdjustments = adjustments.map(normalizeAdjustment);
+    save('fh_settings', settings);
+  }
+  function addAdjustment(kind) {
+    adjustments = [...adjustments, normalizeAdjustment({
+      kind,
+      monthKey: kind === 'once' ? mk : '',
+      startMonth: kind === 'recurring' ? mk : '',
+    })];
+    persistAdjustments();
+  }
+  function removeAdjustment(id) {
+    adjustments = adjustments.filter((a) => a.id !== id);
+    persistAdjustments();
+  }
+  function updateAdjustment(id, patch) {
+    adjustments = adjustments.map((a) => (a.id === id ? { ...a, ...patch } : a));
+    persistAdjustments();
+  }
 
   /* ── Income mutations (write through to storage) ─────────── */
   function persist() {
@@ -77,11 +111,12 @@
     persist();
   }
 
-  /* ── Month + computed bill rows ──────────────────────────── */
-  let d         = $derived(offsetDate(monthOffset));
-  let mk        = $derived(monthKey(d));
-  let isCurrent = $derived(mk === monthKey());
-  let monthName = $derived(monthLabel(d));
+  /* ── Period + computed bill rows ─────────────────────────── */
+  // monthOffset is a whole-period offset from the current period.
+  let periodBnds = $derived(shiftPeriod(currentPeriod(), monthOffset));
+  let mk         = $derived(periodBnds.key);
+  let isCurrent  = $derived(monthOffset === 0);
+  let monthName  = $derived(periodLabel(periodBnds));
 
   // Budgeted amount per row is the fully-paid goal under the active
   // policy; `remaining` is what's still owed toward it this month.
@@ -110,7 +145,12 @@
     return rs;
   });
 
-  let totalMonthlyIncome = $derived(incomes.reduce((s, src) => s + monthlyOf(src), 0));
+  // Adjustments that affect the viewed month (one-time for this month, or
+  // any recurring change whose window covers it).
+  let periodAdjustments = $derived(adjustments.filter((a) => adjustmentAppliesTo(a, mk)));
+  let periodAdjustTotal = $derived(periodAdjustments.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0));
+  let baseMonthlyIncome = $derived(incomes.reduce((s, src) => s + monthlyOf(src), 0));
+  let totalMonthlyIncome = $derived(baseMonthlyIncome + periodAdjustTotal);
   let totalBudgeted = $derived(rows.reduce((s, r) => s + r.amount, 0));
   let totalPaid     = $derived(rows.reduce((s, r) => s + r.paidAmt, 0));
   let totalUnpaid   = $derived(rows.reduce((s, r) => s + r.remaining, 0));
@@ -205,7 +245,83 @@
       {/each}
     </div>
     <footer class="budget-income-foot">
-      <span class="budget-income-foot-label">Total monthly income</span>
+      <span class="budget-income-foot-label">Base monthly income</span>
+      <span class="budget-income-foot-value">{fmt(baseMonthlyIncome)}</span>
+    </footer>
+  {/if}
+</section>
+
+<!-- Income adjustments card (bonuses / unpaid time off / raises) -->
+<section class="budget-card budget-income">
+  <header class="budget-card-head">
+    <div>
+      <div class="budget-card-kicker">Adjustments</div>
+      <h3 class="budget-card-title">Extra or reduced income — {monthName}</h3>
+      <p class="budget-card-sub">Got a bonus, or took unpaid time off? Add a one-time change for this month. A raise or new ongoing income? Add a recurring change from this month forward. Use a negative amount to reduce income.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick={() => addAdjustment('once')}>+ One-time</button>
+      <button class="btn btn-ghost btn-sm" onclick={() => addAdjustment('recurring')}>+ Recurring</button>
+    </div>
+  </header>
+
+  {#if periodAdjustments.length === 0}
+    <div class="budget-income-empty">
+      <p>No adjustments for {monthName}.</p>
+    </div>
+  {:else}
+    <div class="budget-income-list">
+      {#each periodAdjustments as adj (adj.id)}
+        <div class="budget-income-row">
+          <div class="budget-income-handle" aria-hidden="true">{adj.amount < 0 ? '➖' : '➕'}</div>
+          <label class="budget-income-field budget-income-label" for={`adj-label-${adj.id}`}>
+            <span>Label</span>
+            <input
+              id={`adj-label-${adj.id}`}
+              name="adj-label"
+              type="text" placeholder={adj.amount < 0 ? 'e.g. Unpaid PTO' : 'e.g. Bonus'}
+              autocomplete="off"
+              value={adj.label}
+              oninput={(e) => updateAdjustment(adj.id, { label: e.currentTarget.value })}
+            />
+          </label>
+          <label class="budget-income-field budget-income-amount" for={`adj-amount-${adj.id}`}>
+            <span>Amount (− to reduce)</span>
+            <div class="budget-income-amount-input">
+              <span>$</span>
+              <input
+                id={`adj-amount-${adj.id}`}
+                name="adj-amount"
+                type="number" step="50" placeholder="0"
+                autocomplete="off"
+                value={adj.amount || ''}
+                oninput={(e) => updateAdjustment(adj.id, { amount: parseFloat(e.currentTarget.value) || 0 })}
+              />
+            </div>
+          </label>
+          <div class="budget-income-monthly" title="When this applies">
+            <span>Scope</span>
+            <strong style="font-size:12px;font-weight:600;">
+              {#if adj.kind === 'recurring'}Monthly from {monthKeyLabel(adj.startMonth)}{:else}Just {monthKeyLabel(adj.monthKey)}{/if}
+            </strong>
+          </div>
+          <button
+            class="budget-income-remove"
+            type="button"
+            aria-label="Remove this adjustment"
+            onclick={() => removeAdjustment(adj.id)}
+          >×</button>
+        </div>
+      {/each}
+    </div>
+    <footer class="budget-income-foot">
+      <span class="budget-income-foot-label">Adjustments this month</span>
+      <span class="budget-income-foot-value" style="color:{periodAdjustTotal < 0 ? 'var(--red)' : 'var(--green)'};">
+        {periodAdjustTotal >= 0 ? '+' : ''}{fmt(periodAdjustTotal)}
+      </span>
+    </footer>
+    <footer class="budget-income-foot">
+      <span class="budget-income-foot-label">Effective income — {monthName}</span>
       <span class="budget-income-foot-value">{fmt(totalMonthlyIncome)}</span>
     </footer>
   {/if}
@@ -338,3 +454,7 @@
     </footer>
   {/if}
 </section>
+
+<SpendingPanel />
+
+<GoalsPanel />

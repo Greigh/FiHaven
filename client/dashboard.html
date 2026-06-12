@@ -134,15 +134,19 @@
   <div class="modal">
     <h2 id="bill-modal-title">Add Bill</h2>
     <div class="form-grid">
-      <div class="field" style="grid-column:span 2;">
+      <div class="field">
         <label for="b-name">Bill Name</label>
-        <input type="text" id="b-name" placeholder="e.g. Electric, Netflix, Rent…"/>
+        <input type="text" id="b-name" placeholder="e.g. Rent, Streaming, etc."/>
+      </div>
+      <div class="field">
+        <label for="b-business">Business / Provider</label>
+        <input type="text" id="b-business" placeholder="e.g. Netflix, landlord, etc."/>
       </div>
       <div class="field">
         <label for="b-category">Category</label>
         <select id="b-category">
           <option>Housing</option><option>Utilities</option><option>Subscriptions</option>
-          <option>Insurance</option><option>Loan</option><option>Auto</option><option>Other</option>
+          <option>Insurance</option><option>Loan</option><option>Auto</option><option>Investment</option><option>Other</option>
         </select>
       </div>
       <div class="field">
@@ -187,33 +191,63 @@
 <!-- ═══ CARD MODAL ══════════════════════════════════════ -->
 <div class="modal-overlay" id="card-modal">
   <div class="modal">
-    <h2 id="card-modal-title">Add Credit Card</h2>
+    <h2 id="card-modal-title">Add Card / Loan</h2>
     <div class="form-grid">
       <div class="field" style="grid-column:span 2;">
-        <label for="c-name">Card Name / Issuer</label>
-        <input type="text" id="c-name" placeholder="e.g. Chase Freedom, Citi Double Cash…"/>
+        <label for="c-type">Account Type</label>
+        <select id="c-type" onchange="toggleCardTypeFields()">
+          <option value="card">Credit Card</option>
+          <option value="loan">Loan</option>
+        </select>
       </div>
       <div class="field">
-        <label for="c-balance">Current Balance ($)</label>
+        <label for="c-name">Card/Loan Name</label>
+        <input type="text" id="c-name" placeholder="e.g. Double Cash, Model 3 Loan…"/>
+      </div>
+      <div class="field">
+        <label for="c-issuer">Issuer / Bank</label>
+        <input type="text" id="c-issuer" placeholder="e.g. Citi, Chase, Tesla Finance…"/>
+      </div>
+      <div class="field">
+        <label id="lbl-c-balance" for="c-balance">Statement Balance ($)</label>
         <input type="number" id="c-balance" placeholder="0.00" step="0.01" min="0"/>
       </div>
-      <div class="field">
+      <div class="field" id="c-current-balance-field">
+        <label id="lbl-c-current-balance" for="c-current-balance">Current Balance ($) <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="c-current-balance" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field" id="c-limit-field">
         <label for="c-limit">Credit Limit ($)</label>
         <input type="number" id="c-limit" placeholder="0.00" step="0.01" min="0"/>
       </div>
       <div class="field">
-        <label for="c-minpay">Minimum Payment ($)</label>
+        <label id="lbl-c-minpay" for="c-minpay">Minimum Payment ($)</label>
         <input type="number" id="c-minpay" placeholder="0.00" step="0.01" min="0"/>
+      </div>
+      <div class="field" id="c-recommended-field" style="grid-column:span 2;">
+        <label for="c-recommended">Recommended Payment ($) <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="c-recommended" placeholder="Defaults to the full balance (or promo payoff)" step="0.01" min="0"/>
       </div>
       <div class="field">
         <label for="c-apr">Regular APR (%)</label>
         <input type="number" id="c-apr" placeholder="e.g. 24.99" step="0.01" min="0"/>
       </div>
-      <div class="field" style="grid-column:span 2;">
-        <label for="c-recommended">Recommended Payment ($) <span style="color:var(--muted);font-weight:400;">— optional</span></label>
-        <input type="number" id="c-recommended" placeholder="Defaults to the full balance (or promo payoff)" step="0.01" min="0"/>
+      <div class="field" id="c-network-field">
+        <label for="c-network">Network</label>
+        <select id="c-network">
+          <option value="">—</option>
+          <option>Visa</option>
+          <option>Mastercard</option>
+          <option>Amex</option>
+          <option>Discover</option>
+          <option>Other</option>
+        </select>
       </div>
-      <div class="field" style="grid-column:span 2;">
+      <div class="field">
+        <label for="c-lastdigits">Ends In (last 4 — Amex 5)</label>
+        <input type="text" id="c-lastdigits" inputmode="numeric" placeholder="e.g. 1234" maxlength="5"/>
+      </div>
+      <div class="field" id="c-haspromo-field" style="grid-column:span 2;">
         <label class="checkbox-label">
           <input type="checkbox" id="c-haspromo" onchange="togglePromoFields()"/>
           This card has a 0% promotional APR
@@ -242,8 +276,8 @@
         <input type="number" id="c-dueday" placeholder="1–31" min="1" max="31"/>
       </div>
       <div class="field">
-        <label class="checkbox-label">
-          <input type="checkbox" id="c-autopay"/> Autopay minimum
+        <label class="checkbox-label" style="margin-top:28px;">
+          <input type="checkbox" id="c-autopay"/> <span id="lbl-c-autopay">Autopay minimum</span>
         </label>
       </div>
       <div class="field" style="grid-column:span 2;">

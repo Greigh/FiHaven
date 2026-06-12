@@ -12,6 +12,7 @@ data class Entitlement(
     val productId: String? = null,
     val plan: String? = null,
     val expiresAt: Long? = null,
+    val autoRenew: Boolean? = null,
 )
 
 /** Native store offer returned when a `store_offer` promo is redeemed. */

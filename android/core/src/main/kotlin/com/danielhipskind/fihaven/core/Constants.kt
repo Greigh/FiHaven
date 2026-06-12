@@ -9,16 +9,18 @@ object CTConstants {
         "Insurance" to "🛡️",
         "Loan" to "🏦",
         "Auto" to "🚗",
+        "Investment" to "📈",
         "Other" to "📌",
     )
 
     fun iconForCategory(category: String): String = categoryIcons[category] ?: "📌"
 
     const val cardIcon = "💳"
+    const val loanIcon = "🏦"
 
     val categories = listOf(
         "Housing", "Utilities", "Subscriptions",
-        "Insurance", "Loan", "Auto", "Other",
+        "Insurance", "Loan", "Auto", "Investment", "Other",
     )
 
     val cardColors = listOf(

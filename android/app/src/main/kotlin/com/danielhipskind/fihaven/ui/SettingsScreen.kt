@@ -48,14 +48,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.AppViewModel
+import com.danielhipskind.fihaven.core.model.autopayMark
+import com.danielhipskind.fihaven.core.model.autopayMarkHour
 import com.danielhipskind.fihaven.core.model.billReminders
 import com.danielhipskind.fihaven.core.model.currency
 import com.danielhipskind.fihaven.core.model.landingView
 import com.danielhipskind.fihaven.core.model.monthlySummary
 import com.danielhipskind.fihaven.core.model.paidGoal
+import com.danielhipskind.fihaven.core.model.periodLength
+import com.danielhipskind.fihaven.core.model.periodMode
+import com.danielhipskind.fihaven.core.model.periodStartDay
 import com.danielhipskind.fihaven.core.model.tabBar
 import com.danielhipskind.fihaven.core.model.timezoneSetting
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
+import kotlinx.serialization.json.JsonObject
 import com.danielhipskind.fihaven.core.net.ApiError
 import com.danielhipskind.fihaven.core.net.MfaStatus
 import com.danielhipskind.fihaven.core.net.User
@@ -141,6 +147,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Customize tabs", null) { dialog = "tabs" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Mark fully paid at", paidGoalLabel(PaidGoalPolicy.from(data.settings.paidGoal))) { dialog = "paidgoal" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
                 }
             }
             item {
@@ -156,12 +164,30 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                 }
             }
             item {
+                Section("AUTOMATION") {
+                    SwitchRow("Auto-mark autopay paid", data.settings.autopayMark) { vm.setAutopayMark(it) }
+                    if (data.settings.autopayMark) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Server marks at", hourLabel(data.settings.autopayMarkHour)) { dialog = "autopayhour" }
+                    }
+                    Text(
+                        "Bills and cards flagged Autopay are recorded paid on their due date — on this device and on the server at the chosen hour. If a real autopay fails, delete the auto-marked payment.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                    )
+                }
+            }
+            item {
                 Section("BANK") {
                     NavRow("Bank connections", null) { dialog = "bank" }
                 }
             }
             item {
                 Section("ABOUT") {
+                    NavRow("Privacy Policy", null) { uriHandler.openUri("https://fihaven.app/privacy") }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Terms of Service", null) { uriHandler.openUri("https://fihaven.app/terms") }
+                    HorizontalDivider(color = Ct.colors.border)
                     NavRow("Open-source licenses", null) { dialog = "licenses" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("License", "AGPL-3.0", Ct.colors.accent) {
@@ -203,6 +229,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "backup" -> BackupCodesDialog(vm, close)
         "timezone" -> TimezoneDialog(vm, close)
         "paidgoal" -> PaidGoalDialog(vm, close)
+        "period" -> PeriodDialog(vm, data.settings, close)
+        "autopayhour" -> AutopayHourDialog(vm, data.settings.autopayMarkHour, close)
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
         "defaultview" -> DefaultViewDialog(vm, data.settings.landingView ?: "dashboard", close)
         "appearance" -> AppearanceDialog(themeController) { dialog = null }
@@ -273,10 +301,16 @@ private fun LicensesDialog(onDone: () -> Unit) {
         "AndroidX Biometric" to "Apache-2.0",
         "Google Play Billing Library" to "Android SDK License",
         "Plaid Link (com.plaid.link)" to "Plaid SDK License",
+        "Manrope Font" to "SIL Open Font License 1.1",
+        "IBM Plex Mono Font" to "SIL Open Font License 1.1"
     )
     FormDialog("Open-source licenses", saveEnabled = false, onSave = {}, onDismiss = onDone) {
         Text(
-            "FiHaven for Android bundles these open-source libraries; most are under the Apache License 2.0.",
+            "FiHaven is free software with an optional subscription purchase.",
+            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            "FiHaven for Android bundles these open-source libraries and resources:",
             color = Ct.colors.muted, fontSize = 13.sp,
         )
         libs.forEach { (name, license) ->
@@ -364,6 +398,74 @@ private fun PaidGoalDialog(vm: AppViewModel, onDone: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().clickable {
                     vm.setPaidGoal(policy); onDone()
                 }.padding(vertical = 12.dp))
+        }
+    }
+}
+
+private fun hourLabel(h: Int): String {
+    val hr = h.coerceIn(0, 23)
+    val ampm = if (hr < 12) "AM" else "PM"
+    val h12 = if (hr % 12 == 0) 12 else hr % 12
+    return "$h12:00 $ampm"
+}
+
+@Composable
+private fun AutopayHourDialog(vm: AppViewModel, current: Int, onDone: () -> Unit) {
+    FormDialog("Auto-mark time", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("The hour (your time zone) the server records autopay items as paid on their due date.",
+            color = Ct.colors.muted, fontSize = 13.sp)
+        (0..23).forEach { h ->
+            Text(hourLabel(h),
+                color = if (h == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { vm.setAutopayMarkHour(h); onDone() }
+                    .padding(vertical = 10.dp))
+        }
+    }
+}
+
+private fun periodModeLabel(mode: String?): String = when (mode) {
+    "startDay" -> "Custom start day"
+    "rolling" -> "Rolling window"
+    else -> "Calendar month"
+}
+
+@Composable
+private fun PeriodDialog(vm: AppViewModel, settings: JsonObject, onDone: () -> Unit) {
+    var mode by remember { mutableStateOf(settings.periodMode ?: "calendar") }
+    var startDay by remember { mutableStateOf((settings.periodStartDay ?: 1).toString()) }
+    var length by remember { mutableStateOf((settings.periodLength ?: 35).toString()) }
+    val options = listOf(
+        "calendar" to "Calendar month",
+        "startDay" to "Custom start day",
+        "rolling" to "Rolling window",
+    )
+    FormDialog("Budget period", saveEnabled = true, onSave = {
+        vm.setPeriodMode(mode)
+        if (mode == "startDay") vm.setPeriodStartDay(startDay.toIntOrNull() ?: 1)
+        if (mode == "rolling") vm.setPeriodLength(length.toIntOrNull() ?: 35)
+        onDone()
+    }, onDismiss = onDone) {
+        Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for; a rolling window tracks a fixed number of days.",
+            color = Ct.colors.muted, fontSize = 13.sp)
+        options.forEach { (value, label) ->
+            Row(Modifier.fillMaxWidth().clickable { mode = value }.padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(if (mode == value) "●" else "○", color = if (mode == value) Ct.colors.accent else Ct.colors.muted,
+                    fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+                Text(label, color = Ct.colors.text, fontSize = 16.sp)
+            }
+        }
+        if (mode == "startDay") {
+            OutlinedTextField(startDay, { startDay = it.filter(Char::isDigit).take(2) },
+                label = { Text("Start day (1–28)") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth())
+        }
+        if (mode == "rolling") {
+            OutlinedTextField(length, { length = it.filter(Char::isDigit).take(2) },
+                label = { Text("Window length, days (7–90)") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth())
         }
     }
 }

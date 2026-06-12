@@ -93,9 +93,23 @@ function build() {
         proFeature('Full payment history & CSV exports') +
         proFeature('Optional bank linking to auto-fetch balances') +
       '</ul>' +
-      '<div class="card" style="padding:14px 16px;margin-top:16px;display:flex;align-items:center;gap:10px;">' +
+      '<div data-pro-status-card class="card" style="padding:14px 16px;margin-top:16px;display:flex;align-items:center;gap:10px;">' +
         '<span class="section-title" style="font-size:12px;">Status</span>' +
         '<span data-pro-status style="font-weight:600;margin-left:auto;">…</span>' +
+      '</div>' +
+      '<div data-pro-details-card style="display:none;flex-direction:column;gap:8px;padding:14px 16px;margin-top:16px;" class="card">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span class="section-title" style="font-size:12px;">Status</span>' +
+          '<span data-pro-detail-status style="font-weight:600;margin-left:auto;color:var(--green);">…</span>' +
+        '</div>' +
+        '<div data-pro-provider-row style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">' +
+          '<span>Provider</span>' +
+          '<span data-pro-provider style="margin-left:auto;color:var(--text);">…</span>' +
+        '</div>' +
+        '<div data-pro-expiry-row style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);">' +
+          '<span data-pro-expiry-label>Renews</span>' +
+          '<span data-pro-expiry style="margin-left:auto;color:var(--text);">…</span>' +
+        '</div>' +
       '</div>' +
       '<div data-pro-upgrade hidden style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;"></div>' +
       '<div data-pro-manage-wrap hidden style="margin-top:14px;">' +
@@ -138,13 +152,60 @@ function hide() { if (overlay) overlay.style.display = 'none'; }
 
 /* ── Status + plans + actions ─────────────────────────────── */
 function render(ent) {
-  var statusEl = overlay.querySelector('[data-pro-status]');
+  var statusCard = overlay.querySelector('[data-pro-status-card]');
+  var detailsCard = overlay.querySelector('[data-pro-details-card]');
   var upgradeWrap = overlay.querySelector('[data-pro-upgrade]');
   var manageWrap = overlay.querySelector('[data-pro-manage-wrap]');
-  statusEl.textContent = statusLabel(ent);
-  statusEl.style.color = ent && ent.pro ? 'var(--green)' : 'var(--muted)';
-  if (upgradeWrap) upgradeWrap.hidden = !!(ent && ent.pro);
-  if (manageWrap) manageWrap.hidden = !(ent && ent.pro);
+
+  var isPro = !!(ent && ent.pro);
+
+  if (upgradeWrap) {
+    upgradeWrap.style.display = isPro ? 'none' : 'flex';
+  }
+  if (manageWrap) {
+    manageWrap.style.display = isPro ? 'block' : 'none';
+  }
+
+  if (isPro) {
+    if (statusCard) statusCard.style.display = 'none';
+    if (detailsCard) {
+      detailsCard.style.display = 'flex';
+      detailsCard.querySelector('[data-pro-detail-status]').textContent = statusLabel(ent);
+
+      var providerEl = detailsCard.querySelector('[data-pro-provider]');
+      var providerRow = detailsCard.querySelector('[data-pro-provider-row]');
+      var providers = { stripe: 'Stripe', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code' };
+      var providerName = providers[ent.source] || (ent.source ? ent.source.charAt(0).toUpperCase() + ent.source.slice(1) : '');
+      if (providerName) {
+        providerEl.textContent = providerName;
+        providerRow.style.display = 'flex';
+      } else {
+        providerRow.style.display = 'none';
+      }
+
+      var expiryEl = detailsCard.querySelector('[data-pro-expiry]');
+      var expiryLabel = detailsCard.querySelector('[data-pro-expiry-label]');
+      var expiryRow = detailsCard.querySelector('[data-pro-expiry-row]');
+      if (ent.expiresAt) {
+        var date = new Date(ent.expiresAt);
+        expiryEl.textContent = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        expiryLabel.textContent = ent.autoRenew ? 'Renews' : 'Expires';
+        expiryRow.style.display = 'flex';
+      } else {
+        expiryRow.style.display = 'none';
+      }
+    }
+  } else {
+    if (statusCard) {
+      statusCard.style.display = 'flex';
+      var statusEl = statusCard.querySelector('[data-pro-status]');
+      if (statusEl) {
+        statusEl.textContent = 'Free';
+        statusEl.style.color = 'var(--muted)';
+      }
+    }
+    if (detailsCard) detailsCard.style.display = 'none';
+  }
 }
 
 function refresh() {
@@ -169,19 +230,27 @@ function startCheckout(plan, btn) {
 function renderPlans(plans) {
   var upgradeWrap = overlay.querySelector('[data-pro-upgrade]');
   if (!upgradeWrap) return;
+  upgradeWrap.style.flexDirection = 'column';
   upgradeWrap.innerHTML = '';
-  (plans || []).forEach(function (p, i) {
+  var list = plans || [];
+  if (!list.length) {
+    upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
+    return;
+  }
+  list.forEach(function (p) {
+    var isTrial = p.plan === 'trial';
+    var isBest = p.plan === 'yearly';
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn ' + (i === 0 ? 'btn-primary' : 'btn-secondary');
+    btn.className = 'pro-plan' + (isBest ? ' pro-plan-best' : '');
     btn.setAttribute('data-pro-plan', p.plan);
-    btn.textContent = (p.plan === 'trial' ? 'Start ' : 'Go Pro — ') + (p.label || p.plan);
+    btn.innerHTML =
+      '<span class="pro-plan-name">' + (isTrial ? 'Start free trial' : (p.label || p.plan)) + '</span>' +
+      (isBest ? '<span class="pro-plan-badge">Best value</span>' : '') +
+      '<span class="pro-plan-cta">' + (isTrial ? 'Try free' : 'Choose') + ' ›</span>';
     btn.addEventListener('click', function () { startCheckout(p.plan, btn); });
     upgradeWrap.appendChild(btn);
   });
-  if (!plans || !plans.length) {
-    upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
-  }
 }
 
 function wire() {

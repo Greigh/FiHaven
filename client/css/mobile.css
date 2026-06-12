@@ -341,6 +341,11 @@
    to re-enable scrolling. (theme-dark.css has older, non-!important
    rules for the same purpose that this supersedes.)
    ───────────────────────────────────────────────────────────── */
+
+/* The compact bills meta line only appears in the mobile stacked
+   card (re-shown in the ≤768px block); hide it on desktop. */
+.bill-meta-mobile { display: none; }
+
 @media (max-width: 900px) {
   #tab-bills .card,
   #tab-budget .card,
@@ -439,13 +444,36 @@
     color: var(--muted);
   }
 
-  /* Cells whose value spans multiple lines (sparkline, due + next
-     date) stack the label above the value instead. */
-  #tab-bills .data-table td[data-label="Recent"],
+  /* Cells whose value spans multiple lines (due + next date) stack
+     the label above the value instead. */
   #tab-bills .data-table td[data-label="Due"] {
     flex-direction: column;
     align-items: flex-start;
     text-align: left;
+  }
+
+  /* Compact bills card: the sparkline reads poorly at phone width and
+     Category/Frequency/Autopay each as a full row makes the card tall
+     and noisy. Hide them and fold the latter three into one meta line
+     inside the header (see .bill-meta-mobile). */
+  #tab-bills .data-table td[data-label="Recent"],
+  #tab-bills .data-table td[data-label="Category"],
+  #tab-bills .data-table td[data-label="Frequency"],
+  #tab-bills .data-table td[data-label="Autopay"] {
+    display: none;
+  }
+  #tab-bills .bill-meta-mobile {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  /* Amounts shouldn't wrap; let the name column breathe. */
+  #tab-bills .data-table td[data-label="Amount"] {
+    white-space: nowrap;
   }
 
   /* First cell → card header. `display:block` lets its inner

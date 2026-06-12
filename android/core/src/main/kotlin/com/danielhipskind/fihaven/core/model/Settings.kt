@@ -27,6 +27,13 @@ val JsonObject.theme: String? get() = prim("theme")?.contentOrNull
 /// bill/card counts as fully paid. Parse via PaidGoalPolicy.from.
 val JsonObject.paidGoal: String? get() = prim("paidGoal")?.contentOrNull
 
+/// Budget-period mode: "calendar" | "startDay" | "rolling" (see Period).
+val JsonObject.periodMode: String? get() = prim("periodMode")?.contentOrNull
+/// Day-of-month a "startDay" period begins on (1–28).
+val JsonObject.periodStartDay: Int? get() = prim("periodStartDay")?.doubleOrNull?.toInt()
+/// Length in days of a "rolling" period (7–90).
+val JsonObject.periodLength: Int? get() = prim("periodLength")?.doubleOrNull?.toInt()
+
 /// ISO 4217 display currency (e.g. "USD"). Drives Money formatting.
 val JsonObject.currency: String? get() = prim("currency")?.contentOrNull
 
@@ -41,6 +48,30 @@ val JsonObject.tabBar: List<String>?
 /// Opt-in email reminders / monthly summary (server scheduler).
 val JsonObject.billReminders: Boolean get() = prim("billReminders")?.booleanOrNull ?: false
 val JsonObject.monthlySummary: Boolean get() = prim("monthlySummary")?.booleanOrNull ?: false
+
+/// Opt-in: auto-mark autopay bills/cards paid on their due date, and the
+/// local hour (0–23) the server runs it.
+val JsonObject.autopayMark: Boolean get() = prim("autopayMark")?.booleanOrNull ?: false
+val JsonObject.autopayMarkHour: Int get() = prim("autopayMarkHour")?.doubleOrNull?.toInt() ?: 9
+
+/// Spending categories used for transactions + budgets.
+val SPENDING_CATEGORIES = listOf(
+    "Groceries", "Dining", "Shopping", "Transport", "Entertainment", "Health", "Bills", "Other",
+)
+
+/// Per-category monthly spending budgets (category → amount).
+val JsonObject.categoryBudgets: Map<String, Double>
+    get() {
+        val o = this["categoryBudgets"] as? JsonObject ?: return emptyMap()
+        return o.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.doubleOrNull?.let { k to it } }.toMap()
+    }
+
+fun JsonObject.withCategoryBudget(category: String, amount: Double): JsonObject = buildJsonObject {
+    this@withCategoryBudget.forEach { (k, v) -> if (k != "categoryBudgets") put(k, v) }
+    val existing = this@withCategoryBudget.categoryBudgets.toMutableMap()
+    if (amount > 0) existing[category] = amount else existing.remove(category)
+    put("categoryBudgets", buildJsonObject { existing.forEach { (k, v) -> put(k, v) } })
+}
 
 val JsonObject.incomes: List<IncomeSource>
     get() {
@@ -86,6 +117,43 @@ fun JsonObject.withIncomes(incomes: List<IncomeSource>): JsonObject = buildJsonO
                 put("label", src.label)
                 put("amount", src.amount)
                 put("frequency", src.frequency)
+            })
+        }
+    })
+}
+
+/// One-off / recurring per-period income adjustments.
+val JsonObject.incomeAdjustments: List<IncomeAdjustment>
+    get() {
+        val arr = this["incomeAdjustments"] as? JsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            (el as? JsonObject)?.let { o ->
+                IncomeAdjustment(
+                    id = o.prim("id")?.contentOrNull ?: "",
+                    label = o.prim("label")?.contentOrNull ?: "",
+                    amount = o.prim("amount")?.doubleOrNull ?: 0.0,
+                    kind = if (o.prim("kind")?.contentOrNull == "recurring") "recurring" else "once",
+                    monthKey = o.prim("monthKey")?.contentOrNull ?: "",
+                    startMonth = o.prim("startMonth")?.contentOrNull ?: "",
+                    endMonth = o.prim("endMonth")?.contentOrNull ?: "",
+                )
+            }
+        }
+    }
+
+/// Return a copy with the income-adjustments list replaced.
+fun JsonObject.withIncomeAdjustments(list: List<IncomeAdjustment>): JsonObject = buildJsonObject {
+    this@withIncomeAdjustments.forEach { (k, v) -> if (k != "incomeAdjustments") put(k, v) }
+    put("incomeAdjustments", buildJsonArray {
+        list.forEach { adj ->
+            add(buildJsonObject {
+                put("id", adj.id)
+                put("label", adj.label)
+                put("amount", adj.amount)
+                put("kind", adj.kind)
+                put("monthKey", adj.monthKey)
+                put("startMonth", adj.startMonth)
+                put("endMonth", adj.endMonth)
             })
         }
     })

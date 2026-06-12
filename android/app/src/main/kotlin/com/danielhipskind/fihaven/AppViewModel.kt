@@ -2,20 +2,29 @@ package com.danielhipskind.fihaven
 
 import android.app.Application
 import android.content.Context
+import androidx.biometric.BiometricManager
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.danielhipskind.fihaven.core.model.AppData
+import com.danielhipskind.fihaven.core.model.Account
 import com.danielhipskind.fihaven.core.model.Bill
 import com.danielhipskind.fihaven.core.model.Card
 import com.danielhipskind.fihaven.core.model.Entitlement
+import com.danielhipskind.fihaven.core.model.IncomeAdjustment
 import com.danielhipskind.fihaven.core.model.IncomeSource
 import com.danielhipskind.fihaven.core.model.Payment
 import com.danielhipskind.fihaven.core.model.PromoResult
+import com.danielhipskind.fihaven.core.model.SavingsGoal
+import com.danielhipskind.fihaven.core.model.SpendTransaction
+import com.danielhipskind.fihaven.core.model.withCategoryBudget
+import com.danielhipskind.fihaven.core.model.autopayMark
+import com.danielhipskind.fihaven.core.model.incomeAdjustments
 import com.danielhipskind.fihaven.core.model.incomes
 import com.danielhipskind.fihaven.core.model.paidGoal
 import com.danielhipskind.fihaven.core.model.timezoneSetting
 import com.danielhipskind.fihaven.core.model.currency
+import com.danielhipskind.fihaven.core.model.withIncomeAdjustments
 import com.danielhipskind.fihaven.core.model.withIncomes
 import com.danielhipskind.fihaven.core.model.withPaidGoal
 import com.danielhipskind.fihaven.core.model.withSetting
@@ -27,6 +36,9 @@ import kotlinx.serialization.json.buildJsonArray
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.logic.PaidState
+import com.danielhipskind.fihaven.core.logic.Period
+import com.danielhipskind.fihaven.core.logic.PeriodBounds
+import com.danielhipskind.fihaven.core.logic.PeriodConfig
 import com.danielhipskind.fihaven.core.logic.Schedule
 import com.danielhipskind.fihaven.core.logic.UpcomingItem
 import com.danielhipskind.fihaven.core.net.ApiClient
@@ -73,10 +85,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Biometric app lock (local, per-device) ───────────────────────
     private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
-    private val _biometricEnabled = MutableStateFlow(prefs.getBoolean(BIO_KEY, false))
+    // Default the lock ON for new installs when the device can authenticate
+    // (biometric or device credential). Once the user explicitly toggles it,
+    // their choice is honored — `contains` distinguishes "never set".
+    private val bioDefault: Boolean = if (prefs.contains(BIO_KEY)) {
+        prefs.getBoolean(BIO_KEY, false)
+    } else {
+        val can = BiometricManager.from(app).canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_WEAK
+        ) == BiometricManager.BIOMETRIC_SUCCESS
+        prefs.edit().putBoolean(BIO_KEY, can).apply()
+        can
+    }
+    private val _biometricEnabled = MutableStateFlow(bioDefault)
     val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
     // Cold launch starts locked when enabled; a fresh login clears it.
-    private val _locked = MutableStateFlow(prefs.getBoolean(BIO_KEY, false))
+    private val _locked = MutableStateFlow(bioDefault)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
 
     // First-run intro is local (no account yet) — shown once before auth.
@@ -199,8 +223,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Money.setCurrency(_data.value.settings.currency)
             // Seed entitlement from the data fetch, then refresh authoritatively.
             _data.value.entitlement?.let { _entitlement.value = it }
+            runAutopayMark()
         }
         refreshEntitlement()
+    }
+
+    /** Opt-in: auto-mark autopay bills/cards paid once their due date in the
+     *  current period has arrived and they have no payment yet. Mirrors
+     *  autopay.js + the server scheduler safety net. */
+    fun runAutopayMark() {
+        val d = _data.value
+        if (!d.settings.autopayMark) return
+        val bounds = currentBounds()
+        val todayD = DateLogic.today(zone())
+        val mkCal = DateLogic.currentMonthKey(zone())
+
+        fun occ(base: LocalDate, dueDay: Int) = base.withDayOfMonth(1).plusDays((dueDay - 1).toLong())
+        fun dueInPeriod(dueDay: Int): LocalDate? {
+            var due = occ(bounds.start, dueDay)
+            if (due.isBefore(bounds.start)) due = occ(bounds.start.plusMonths(1), dueDay)
+            return if (due.isBefore(bounds.end)) due else null
+        }
+
+        val newPayments = mutableListOf<Payment>()
+        fun consider(type: String, refId: String, name: String, dueDay: Int?, autopay: Boolean, amount: Double) {
+            if (!autopay || dueDay == null || dueDay <= 0) return
+            val due = dueInPeriod(dueDay) ?: return
+            if (due.isAfter(todayD)) return
+            if (Schedule.paidAmount(d.payments, type, refId, bounds) > Schedule.PAID_EPSILON) return
+            if (Schedule.isSkipped(d.payments, type, refId, bounds)) return
+            val iso = "%04d-%02d-%02d".format(todayD.year, todayD.monthValue, todayD.dayOfMonth)
+            newPayments.add(Payment(newPaymentId(), type, refId, name, amount, iso, mkCal, "Auto-marked (autopay)", false))
+        }
+        d.bills.forEach { consider("bill", it.id.toString(), it.name, it.dueDay, it.autopay, it.amount) }
+        d.cards.forEach { consider("card", it.id.toString(), it.name + " (payment)", it.dueDay, it.autopay,
+            goalAmount("card", it.id.toString())) }
+        if (newPayments.isNotEmpty()) mutate { it.copy(payments = it.payments + newPayments) }
     }
 
     // ── Billing / entitlement ────────────────────────────────────────
@@ -311,6 +369,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteCard(card: Card) = mutate { it.copy(cards = it.cards.filterNot { c -> c.id == card.id }) }
 
+    fun upsertAccount(account: Account) = mutate { d ->
+        val list = d.accounts.toMutableList()
+        val i = list.indexOfFirst { it.id == account.id }
+        if (i >= 0) list[i] = account else list.add(account)
+        d.copy(accounts = list)
+    }
+
+    fun deleteAccount(account: Account) =
+        mutate { it.copy(accounts = it.accounts.filterNot { a -> a.id == account.id }) }
+
+    fun upsertGoal(goal: SavingsGoal) = mutate { d ->
+        val list = d.goals.toMutableList()
+        val i = list.indexOfFirst { it.id == goal.id }
+        if (i >= 0) list[i] = goal else list.add(goal)
+        d.copy(goals = list)
+    }
+
+    fun deleteGoal(goal: SavingsGoal) =
+        mutate { it.copy(goals = it.goals.filterNot { g -> g.id == goal.id }) }
+
+    fun addTransaction(amount: Double, category: String, merchant: String, dateIso: String) = mutate { d ->
+        d.copy(transactions = d.transactions + SpendTransaction(newPaymentId(), dateIso, amount, category, merchant, ""))
+    }
+
+    fun deleteTransaction(tx: SpendTransaction) =
+        mutate { it.copy(transactions = it.transactions.filterNot { t -> t.id == tx.id }) }
+
+    fun setCategoryBudget(category: String, amount: Double) =
+        mutate { it.copy(settings = it.settings.withCategoryBudget(category, amount)) }
+
     fun deletePayment(payment: Payment) = mutate { d ->
         val payments = d.payments.filterNot { p -> p.id == payment.id }
         // Undo the balance decrement a card payment applied.
@@ -329,10 +417,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteIncome(source: IncomeSource) =
         mutate { d -> d.copy(settings = d.settings.withIncomes(d.settings.incomes.filterNot { it.id == source.id })) }
 
+    fun upsertAdjustment(adj: IncomeAdjustment) = mutate { d ->
+        val list = d.settings.incomeAdjustments.toMutableList()
+        val i = list.indexOfFirst { it.id == adj.id }
+        if (i >= 0) list[i] = adj else list.add(adj)
+        d.copy(settings = d.settings.withIncomeAdjustments(list))
+    }
+
+    fun deleteAdjustment(adj: IncomeAdjustment) = mutate { d ->
+        d.copy(settings = d.settings.withIncomeAdjustments(d.settings.incomeAdjustments.filterNot { it.id == adj.id }))
+    }
+
     fun setTimezone(tz: String?) = mutate { it.copy(settings = it.settings.withTimezone(tz)) }
 
     fun setPaidGoal(policy: PaidGoalPolicy) =
         mutate { it.copy(settings = it.settings.withPaidGoal(policy.raw)) }
+
+    fun setPeriodMode(mode: String) =
+        mutate { it.copy(settings = it.settings.withSetting("periodMode", JsonPrimitive(mode))) }
+    fun setPeriodStartDay(day: Int) =
+        mutate { it.copy(settings = it.settings.withSetting("periodStartDay", JsonPrimitive(day.coerceIn(1, 28)))) }
+    fun setPeriodLength(len: Int) =
+        mutate { it.copy(settings = it.settings.withSetting("periodLength", JsonPrimitive(len.coerceIn(7, 90)))) }
 
     fun setCurrency(code: String) {
         Money.setCurrency(code)
@@ -352,6 +458,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setMonthlySummary(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("monthlySummary", JsonPrimitive(on))) }
 
+    fun setAutopayMark(on: Boolean) {
+        mutate { it.copy(settings = it.settings.withSetting("autopayMark", JsonPrimitive(on))) }
+        if (on) runAutopayMark()
+    }
+    fun setAutopayMarkHour(hour: Int) =
+        mutate { it.copy(settings = it.settings.withSetting("autopayMarkHour", JsonPrimitive(hour.coerceIn(0, 23)))) }
+
     /**
      * Record a payment of [amount] toward a bill/card on [date]. Payments accumulate
      * toward the monthly goal (partial installments are kept). Card payments decrement
@@ -362,10 +475,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val mk = DateLogic.monthKey(date)
             val iso = "%04d-%02d-%02d".format(date.year, date.monthValue, date.dayOfMonth)
             val payments = d.payments.toMutableList()
-            payments.add(Payment(System.currentTimeMillis(), type, refId, name, amount, iso, mk, note))
+            payments.add(Payment(newPaymentId(), type, refId, name, amount, iso, mk, note))
             val cards = if (type == "card") applyCardPaymentDelta(d.cards, refId, amount) else d.cards
             d.copy(payments = payments, cards = cards)
         }
+
+    /// A new unique string id for payments, matching the web's format
+    /// (base36 timestamp + random) so ids round-trip across platforms.
+    private fun newPaymentId(): String {
+        val charset = ('a'..'z') + ('0'..'9')
+        val rand = (1..8).map { charset.random() }.joinToString("")
+        return System.currentTimeMillis().toString(36) + rand
+    }
 
     /** Decrement a card's balance (and promo balance) by [delta]; negative reverses. */
     private fun applyCardPaymentDelta(cards: List<Card>, refId: String, delta: Double): List<Card> {
@@ -379,6 +500,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ── Budget period (calendar / startDay / rolling) ───────────────────────
+    fun periodConfig(): PeriodConfig = Period.config(_data.value.settings)
+    fun currentBounds(): PeriodBounds = Period.currentBounds(periodConfig(), zone())
+    fun currentPeriodKey(): String = currentBounds().key
+
     // ── Fully-paid goal logic (mirrors utils.js) ────────────────────────────
     fun paidGoalPolicy(): PaidGoalPolicy = PaidGoalPolicy.from(_data.value.settings.paidGoal)
 
@@ -388,16 +514,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             d.bills.firstOrNull { it.id.toString() == refId }?.let { Schedule.goalAmount(it) } ?: 0.0
         } else {
             d.cards.firstOrNull { it.id.toString() == refId }?.let {
-                Schedule.goalAmount(it, paidGoalPolicy(), d.payments, DateLogic.currentMonthKey(zone()), zone())
+                Schedule.goalAmount(it, paidGoalPolicy(), d.payments, currentBounds(), zone())
             } ?: 0.0
         }
     }
 
     fun paidAmountFor(type: String, refId: String): Double =
-        Schedule.paidAmount(_data.value.payments, type, refId, DateLogic.currentMonthKey(zone()))
+        Schedule.paidAmount(_data.value.payments, type, refId, currentBounds())
+
+    fun isSkipped(type: String, refId: String): Boolean =
+        Schedule.isSkipped(_data.value.payments, type, refId, currentBounds())
 
     fun remainingFor(type: String, refId: String): Double =
-        (goalAmount(type, refId) - paidAmountFor(type, refId)).coerceAtLeast(0.0)
+        if (isSkipped(type, refId)) 0.0
+        else (goalAmount(type, refId) - paidAmountFor(type, refId)).coerceAtLeast(0.0)
 
     fun isFullyPaid(type: String, refId: String): Boolean =
         remainingFor(type, refId) <= Schedule.PAID_EPSILON
@@ -413,6 +543,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun paidAmountFor(item: UpcomingItem) = paidAmountFor(item.type, item.refId)
     fun remainingFor(item: UpcomingItem) = remainingFor(item.type, item.refId)
     fun paidState(item: UpcomingItem) = paidState(item.type, item.refId)
+    fun isSkipped(item: UpcomingItem) = isSkipped(item.type, item.refId)
+
+    /** Skip a bill/card for the current period: a `skipped` payment (amount 0).
+     *  Matched by the active period (date range); the stored monthKey is the
+     *  calendar month, for back-compat. */
+    fun skipMonth(type: String, refId: String, name: String) = mutate { d ->
+        val bounds = currentBounds()
+        val exists = d.payments.any { it.skipped && it.type == type && it.refId == refId && bounds.contains(it) }
+        if (exists) return@mutate d
+        val t = DateLogic.today(zone())
+        val iso = "%04d-%02d-%02d".format(t.year, t.monthValue, t.dayOfMonth)
+        val mk = DateLogic.currentMonthKey(zone())
+        val payments = d.payments + Payment(newPaymentId(), type, refId, name, 0.0, iso, mk, "Skipped this period", true)
+        d.copy(payments = payments)
+    }
+
+    /** Reverse a skip for the current period. */
+    fun unskip(type: String, refId: String) = mutate { d ->
+        val bounds = currentBounds()
+        d.copy(payments = d.payments.filterNot { it.skipped && it.type == type && it.refId == refId && bounds.contains(it) })
+    }
 
     fun zone(): ZoneId = DateLogic.zone(_data.value.settings.timezoneSetting)
 }

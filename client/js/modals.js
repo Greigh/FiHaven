@@ -11,10 +11,12 @@ import { bills, cards, payments, save, setPayments } from './storage.svelte.js';
 import {
   fmt, monthKey, toast, refreshAll,
   recommendedAmount, goalAmountFor, paidAmount, paidGoalPolicy,
-  isFullyPaid, remainingForItem,
+  isFullyPaid, remainingForItem, currentPeriodKey,
 } from './utils.js';
+import { boundsForKey, paymentInBounds } from './period.js';
 import { renderBills } from './bills.js';
 import { renderCards } from './cards.js';
+import { todayISO } from './tz.js';
 
 /* ── Shared modal state ──────────────────────────────────── */
 let editBillId       = null;
@@ -94,6 +96,7 @@ export function openBillModal(idx) {
 
   var b = (editBillId !== null) ? bills[editBillId] : {};
   document.getElementById('b-name').value      = b.name      || '';
+  document.getElementById('b-business').value  = b.business  || '';
   document.getElementById('b-category').value  = b.category  || 'Housing';
   document.getElementById('b-amount').value    = b.amount    || '';
   document.getElementById('b-dueday').value    = b.dueDay    || '';
@@ -113,6 +116,8 @@ export function saveBill() {
   var name = document.getElementById('b-name').value.trim();
   if (!name) { alert('Please enter a bill name.'); return; }
 
+  var business = document.getElementById('b-business').value.trim();
+
   // "Charged to" links the bill to a card as its payment method; the
   // empty value means it's paid directly (bank/cash). Store null in
   // that case so the field stays clean in exports/sync.
@@ -121,6 +126,7 @@ export function saveBill() {
   var obj = {
     id:        (editBillId !== null) ? bills[editBillId].id : Date.now(),
     name:      name,
+    business:  business || null,
     category:  document.getElementById('b-category').value,
     amount:    parseFloat(document.getElementById('b-amount').value) || 0,
     dueDay:    parseInt(document.getElementById('b-dueday').value) || null,
@@ -154,17 +160,43 @@ export function togglePromoFields() {
     document.getElementById('c-haspromo').checked ? 'grid' : 'none';
 }
 
+export function toggleCardTypeFields() {
+  var isLoan = document.getElementById('c-type').value === 'loan';
+  
+  document.getElementById('c-limit-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-current-balance-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-recommended-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-haspromo-field').style.display = isLoan ? 'none' : '';
+  
+  if (isLoan) {
+    document.getElementById('c-haspromo').checked = false;
+  }
+  togglePromoFields();
+
+  document.getElementById('lbl-c-balance').textContent = isLoan ? 'Remaining Principal / Balance ($)' : 'Statement Balance ($)';
+  document.getElementById('lbl-c-minpay').textContent = isLoan ? 'Monthly Payment ($)' : 'Minimum Payment ($)';
+  document.getElementById('lbl-c-autopay').textContent = isLoan ? 'Autopay enabled' : 'Autopay minimum';
+
+  document.getElementById('card-modal-title').textContent = editCardId !== null 
+    ? (isLoan ? 'Edit Loan' : 'Edit Card')
+    : (isLoan ? 'Add Loan' : 'Add Credit Card');
+}
+
 export function openCardModal(idx) {
   editCardId = (idx === undefined) ? null : idx;
-  document.getElementById('card-modal-title').textContent = editCardId !== null ? 'Edit Card' : 'Add Credit Card';
-
+  
   var c = (editCardId !== null) ? cards[editCardId] : {};
+  document.getElementById('c-type').value      = c.type        || 'card';
   document.getElementById('c-name').value      = c.name        || '';
+  document.getElementById('c-issuer').value    = c.issuer      || '';
   document.getElementById('c-balance').value   = c.balance     || '';
+  document.getElementById('c-current-balance').value = c.currentBalance || '';
   document.getElementById('c-limit').value     = c.limit       || '';
   document.getElementById('c-minpay').value    = c.minPayment  || '';
   document.getElementById('c-recommended').value = c.recommendedPayment || '';
   document.getElementById('c-apr').value       = c.regularAPR  || '';
+  document.getElementById('c-lastdigits').value = c.lastDigits  || '';
+  document.getElementById('c-network').value   = c.network     || '';
   document.getElementById('c-haspromo').checked = !!c.hasPromo;
   document.getElementById('c-promoapr').value  = c.promoAPR    || 0;
   document.getElementById('c-promoend').value  = c.promoEndDate|| '';
@@ -173,7 +205,7 @@ export function openCardModal(idx) {
   document.getElementById('c-autopay').checked = !!c.autopay;
   document.getElementById('c-notes').value     = c.notes       || '';
 
-  togglePromoFields();
+  toggleCardTypeFields();
   document.getElementById('card-modal').classList.add('open');
 }
 
@@ -183,16 +215,28 @@ export function closeCardModal() {
 
 export function saveCard() {
   var name = document.getElementById('c-name').value.trim();
-  if (!name) { alert('Please enter a card name.'); return; }
+  if (!name) { alert('Please enter a name.'); return; }
 
-  var hasPromo = document.getElementById('c-haspromo').checked;
+  var type = document.getElementById('c-type').value;
+  var issuer = document.getElementById('c-issuer').value.trim() || null;
+  var lastDigits = document.getElementById('c-lastdigits').value.trim() || null;
+  var network = document.getElementById('c-network').value || null;
+  var isLoan = type === 'loan';
+  var hasPromo = !isLoan && document.getElementById('c-haspromo').checked;
+  var currentBalance = isLoan ? null : (parseFloat(document.getElementById('c-current-balance').value) || null);
+
   var obj = {
     id:           (editCardId !== null) ? cards[editCardId].id : Date.now(),
     name:         name,
+    type:         type,
+    issuer:       issuer,
+    lastDigits:   lastDigits,
+    network:      network,
     balance:      parseFloat(document.getElementById('c-balance').value) || 0,
-    limit:        parseFloat(document.getElementById('c-limit').value)   || 0,
+    currentBalance: currentBalance,
+    limit:        isLoan ? 0 : (parseFloat(document.getElementById('c-limit').value) || 0),
     minPayment:   parseFloat(document.getElementById('c-minpay').value)  || 0,
-    recommendedPayment: parseFloat(document.getElementById('c-recommended').value) || null,
+    recommendedPayment: isLoan ? null : (parseFloat(document.getElementById('c-recommended').value) || null),
     regularAPR:   parseFloat(document.getElementById('c-apr').value)     || 0,
     hasPromo:     hasPromo,
     promoAPR:     hasPromo ? parseFloat(document.getElementById('c-promoapr').value) || 0 : null,
@@ -337,11 +381,11 @@ function updateGoalHint() {
     return;
   }
 
-  var mk        = monthKey();
+  var mk        = currentPeriodKey();
   var already   = paidAmount(pendingPayType, pendingPayRefId, mk);
   var amt       = parseFloat(document.getElementById('pay-amount').value) || 0;
   var projected = already + amt;
-  var soFar     = already > 0.005 ? ' Already paid ' + fmt(already) + ' this month.' : '';
+  var soFar     = already > 0.005 ? ' Already paid ' + fmt(already) + ' this period.' : '';
 
   if (projected >= goal - 0.005) {
     hint.classList.add('is-full');
@@ -350,6 +394,37 @@ function updateGoalHint() {
     hint.innerHTML = 'Goal is <strong>' + fmt(goal) + '</strong> (' + policyLabel + '). <strong>' +
       fmt(goal - projected) + '</strong> will remain after this.' + soFar;
   }
+}
+
+// ── Skip a bill/card for the current period ─────────────────
+// A skip is a payment record flagged `skipped` (amount 0). It owes
+// nothing and drops out of Upcoming, but isn't a real payment (excluded
+// from history and totals). Matched by the active period (date range),
+// so it works in calendar / start-day / rolling modes. Reversible.
+export function skipMonth(type, refId, name) {
+  const bounds = boundsForKey(currentPeriodKey());
+  const exists = payments.some(
+    (p) => p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds)
+  );
+  if (exists) return;
+  payments.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+    // Store the calendar monthKey for back-compat; matching is date-based.
+    type, refId, name, amount: 0, date: todayISO(), monthKey: monthKey(),
+    note: 'Skipped this period', skipped: true,
+  });
+  save('fh_payments', payments);
+  refreshAll();
+  toast((name || 'Item') + ' skipped for this period.');
+}
+
+export function unskipMonth(type, refId) {
+  const bounds = boundsForKey(currentPeriodKey());
+  setPayments(payments.filter(
+    (p) => !(p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds))
+  ));
+  save('fh_payments', payments);
+  refreshAll();
 }
 
 // Open the pay-modal in CREATE mode for a given bill/card row.
@@ -365,14 +440,14 @@ export function openPayModal(type, refId, name, defaultAmt) {
 
   // Default to whatever still gets the item to its goal: the
   // remaining-to-goal if partly paid, else the full goal.
-  var mk        = monthKey();
+  var mk        = currentPeriodKey();
   var goal      = goalAmountFor(type, refId, mk);
   var already   = paidAmount(type, refId, mk);
   var remaining = Math.max(0, goal - already);
   var initial   = remaining > 0.005 ? remaining : (goal > 0 ? goal : (Number(defaultAmt) || 0));
 
   document.getElementById('pay-amount').value = Number(initial).toFixed(2);
-  document.getElementById('pay-date').value   = new Date().toISOString().split('T')[0];
+  document.getElementById('pay-date').value   = todayISO();
   document.getElementById('pay-note').value   = '';
 
   highlightActiveChip();
@@ -395,7 +470,7 @@ export function openEditPayment(payment) {
   renderPayChips();
 
   document.getElementById('pay-amount').value = Number(payment.amount || 0).toFixed(2);
-  document.getElementById('pay-date').value   = payment.date || new Date().toISOString().split('T')[0];
+  document.getElementById('pay-date').value   = payment.date || todayISO();
   document.getElementById('pay-note').value   = payment.note || '';
 
   updateGoalHint();
@@ -410,7 +485,7 @@ export function closePayModal() {
 
 export function confirmPay() {
   const amt  = parseFloat(document.getElementById('pay-amount').value) || 0;
-  const date = document.getElementById('pay-date').value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('pay-date').value || todayISO();
   const note = document.getElementById('pay-note').value.trim();
   // Use noon to avoid timezone-shifting the date.
   const mk   = monthKey(new Date(date + 'T12:00:00'));
@@ -437,6 +512,18 @@ export function confirmPay() {
     }
   } else {
     // CREATE path.
+    if (pendingPayType === 'card') {
+      const payDate = new Date(date + 'T12:00:00');
+      const payDay = payDate.getDate();
+      if (payDay >= 15) {
+        const alreadyPaidAmt = paidAmount('card', pendingPayRefId, mk);
+        if (alreadyPaidAmt > 0) {
+          const confirmed = confirm('You have already recorded ' + fmt(alreadyPaidAmt) + ' in payments for this card/loan this month. Is this an additional payment?');
+          if (!confirmed) return;
+        }
+      }
+    }
+
     const record = {
       id:       Date.now().toString(36) + Math.random().toString(36).slice(2),
       type:     pendingPayType,
@@ -499,7 +586,7 @@ export function askDelete(fn) {
 /* ── Expose for inline onclick handlers ───────────────────── */
 Object.assign(window, {
   openBillModal, closeBillModal, saveBill, editBill, editBillById,
-  openCardModal, closeCardModal, saveCard, editCard, editCardById, togglePromoFields,
+  openCardModal, closeCardModal, saveCard, editCard, editCardById, togglePromoFields, toggleCardTypeFields,
   openPayModal, openEditPayment, closePayModal, confirmPay,
   openConfirm, closeConfirmModal, askDelete,
 });

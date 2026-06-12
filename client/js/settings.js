@@ -312,6 +312,12 @@ import MfaSection from '../svelte/MfaSection.svelte';
     /* ── Payment goal policy ───────────────────────────────── */
     initPaymentGoalSection();
 
+    /* ── Budget period ─────────────────────────────────────── */
+    initPeriodSection();
+
+    /* ── Autopay auto-mark ─────────────────────────────────── */
+    initAutopaySection();
+
     /* ── Calendar subscription (iCal) ──────────────────────── */
     initIcalSection();
 
@@ -613,6 +619,157 @@ import MfaSection from '../svelte/MfaSection.svelte';
         .catch(function (err) {
           setBusy(form, false);
           showMessage('paidgoal', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Budget period ──────────────────────────────────────── */
+  function initPeriodSection() {
+    var form      = document.querySelector('[data-form="period"]');
+    var modeSel   = document.querySelector('[data-period-mode]');
+    var dayField  = document.querySelector('[data-period-startday-field]');
+    var dayInput  = document.querySelector('[data-period-startday]');
+    var lenField  = document.querySelector('[data-period-length-field]');
+    var lenInput  = document.querySelector('[data-period-length]');
+    var noteEl    = document.querySelector('[data-period-effective]');
+    if (!form || !modeSel) return;
+
+    function normMode(v) {
+      return (v === 'startDay' || v === 'rolling') ? v : 'calendar';
+    }
+    function clampDay(v) { v = parseInt(v, 10); return (v >= 1 && v <= 28) ? v : 1; }
+    function clampLen(v) { v = parseInt(v, 10); return (v >= 7 && v <= 90) ? v : 35; }
+
+    function syncVisibility() {
+      var mode = normMode(modeSel.value);
+      if (dayField) dayField.hidden = mode !== 'startDay';
+      if (lenField) lenField.hidden = mode !== 'rolling';
+    }
+    function describe() {
+      if (!noteEl) return;
+      var mode = normMode(modeSel.value);
+      if (mode === 'startDay') {
+        noteEl.textContent = 'Each period runs from day ' + clampDay(dayInput && dayInput.value) +
+          ' to the day before it next month. A payment counts toward the period its date falls in.';
+      } else if (mode === 'rolling') {
+        noteEl.textContent = 'Periods are fixed ' + clampLen(lenInput && lenInput.value) +
+          '-day windows. A payment counts toward whichever window its date falls in.';
+      } else {
+        noteEl.textContent = 'Periods follow the calendar month (the default).';
+      }
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        modeSel.value = normMode(s.periodMode);
+        if (dayInput) dayInput.value = clampDay(s.periodStartDay);
+        if (lenInput) lenInput.value = clampLen(s.periodLength);
+        syncVisibility();
+        describe();
+      })
+      .catch(function () { syncVisibility(); describe(); });
+
+    modeSel.addEventListener('change', function () { syncVisibility(); describe(); });
+    if (dayInput) dayInput.addEventListener('input', describe);
+    if (lenInput) lenInput.addEventListener('input', describe);
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var mode = normMode(modeSel.value);
+      var day  = clampDay(dayInput && dayInput.value);
+      var len  = clampLen(lenInput && lenInput.value);
+      setBusy(form, true);
+      showMessage('period', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, {
+              periodMode: mode, periodStartDay: day, periodLength: len,
+            }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('period', 'Budget period saved. Reload to apply everywhere.', false);
+          describe();
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('period', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Autopay auto-mark ──────────────────────────────────── */
+  function initAutopaySection() {
+    var form    = document.querySelector('[data-form="autopay"]');
+    var toggle  = document.querySelector('[data-autopay-toggle]');
+    var hourSel = document.querySelector('[data-autopay-hour]');
+    var timeFld = document.querySelector('[data-autopay-time-field]');
+    var noteEl  = document.querySelector('[data-autopay-effective]');
+    if (!form || !toggle || !hourSel) return;
+
+    // Populate 0–23 as friendly clock times.
+    for (var h = 0; h < 24; h++) {
+      var ampm = h < 12 ? 'AM' : 'PM';
+      var h12 = h % 12 === 0 ? 12 : h % 12;
+      var opt = document.createElement('option');
+      opt.value = String(h);
+      opt.textContent = h12 + ':00 ' + ampm;
+      hourSel.appendChild(opt);
+    }
+    function clampHour(v) { v = parseInt(v, 10); return (v >= 0 && v <= 23) ? v : 9; }
+    function sync() {
+      if (timeFld) timeFld.style.display = toggle.checked ? '' : 'none';
+      if (noteEl) {
+        noteEl.textContent = toggle.checked
+          ? 'Autopay items are recorded paid on their due date.'
+          : 'You confirm each payment yourself.';
+      }
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        toggle.checked = !!s.autopayMark;
+        hourSel.value = String(clampHour(s.autopayMarkHour != null ? s.autopayMarkHour : 9));
+        sync();
+      })
+      .catch(function () { sync(); });
+
+    toggle.addEventListener('change', sync);
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var on = !!toggle.checked;
+      var hour = clampHour(hourSel.value);
+      setBusy(form, true);
+      showMessage('autopay', 'Saving…', false);
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, {
+              autopayMark: on, autopayMarkHour: hour,
+            }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('autopay', 'Autopay setting saved.', false);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('autopay', (err && err.message) || errorText('network'), true);
         });
     });
   }

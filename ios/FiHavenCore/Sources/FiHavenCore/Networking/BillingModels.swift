@@ -10,19 +10,22 @@ public struct Entitlement: Codable, Equatable, Sendable {
     public var productId: String?
     public var plan: String?
     public var expiresAt: Int64?
+    public var autoRenew: Bool?
 
     public init(
         pro: Bool = false,
         source: String? = nil,
         productId: String? = nil,
         plan: String? = nil,
-        expiresAt: Int64? = nil
+        expiresAt: Int64? = nil,
+        autoRenew: Bool? = nil
     ) {
         self.pro = pro
         self.source = source
         self.productId = productId
         self.plan = plan
         self.expiresAt = expiresAt
+        self.autoRenew = autoRenew
     }
 }
 

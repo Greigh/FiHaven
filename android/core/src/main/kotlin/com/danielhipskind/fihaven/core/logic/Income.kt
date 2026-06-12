@@ -1,7 +1,9 @@
 package com.danielhipskind.fihaven.core.logic
 
+import com.danielhipskind.fihaven.core.model.IncomeAdjustment
 import com.danielhipskind.fihaven.core.model.IncomeSource
 import com.danielhipskind.fihaven.core.model.income
+import com.danielhipskind.fihaven.core.model.incomeAdjustments
 import com.danielhipskind.fihaven.core.model.incomes
 import kotlinx.serialization.json.JsonObject
 
@@ -22,8 +24,21 @@ object Income {
 
     fun monthly(source: IncomeSource): Double = source.amount * factor(source.frequency)
 
+    /// Base monthly income (recurring sources only).
     fun monthlyIncome(settings: JsonObject): Double {
         val sources = settings.incomes
         return if (sources.isNotEmpty()) sources.sumOf { monthly(it) } else settings.income
     }
+
+    /// Adjustments (bonuses / unpaid time off / raises) affecting period [mk].
+    fun adjustmentsFor(settings: JsonObject, mk: String): List<IncomeAdjustment> =
+        settings.incomeAdjustments.filter { it.appliesTo(mk) }
+
+    /// Signed total of all adjustments affecting period [mk].
+    fun adjustmentsTotal(settings: JsonObject, mk: String): Double =
+        adjustmentsFor(settings, mk).sumOf { it.amount }
+
+    /// Effective income for a period: base income + applicable adjustments.
+    fun monthlyIncome(settings: JsonObject, mk: String): Double =
+        monthlyIncome(settings) + adjustmentsTotal(settings, mk)
 }

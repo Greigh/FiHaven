@@ -158,6 +158,60 @@
             </div>
           </form>
         </section>
+
+        <!-- ── Budget period ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Budget period</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Choose how a <strong>period</strong> is defined for paid/owed tracking. Calendar months are the default. A custom start day (e.g. the 25th) groups early-next-month bills into the period you'd plan for. A rolling window tracks a fixed number of days.
+          </p>
+          <form class="auth-form" data-form="period" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="period-mode">Period type</label>
+              <select id="period-mode" data-period-mode>
+                <option value="calendar">Calendar month</option>
+                <option value="startDay">Custom start day</option>
+                <option value="rolling">Rolling window</option>
+              </select>
+            </div>
+            <div class="auth-field" data-period-startday-field hidden>
+              <label for="period-startday">Start on day of month (1–28)</label>
+              <input id="period-startday" type="number" min="1" max="28" step="1" data-period-startday>
+            </div>
+            <div class="auth-field" data-period-length-field hidden>
+              <label for="period-length">Window length in days (7–90)</label>
+              <input id="period-length" type="number" min="7" max="90" step="1" data-period-length>
+            </div>
+            <div class="auth-note" data-period-effective></div>
+            <div class="auth-error" data-message="period" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save period</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Autopay auto-mark ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Autopay auto-mark</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            When on, bills and cards flagged <strong>Autopay</strong> are automatically recorded as paid on their due date — on your devices and on the server at the time you pick (so it works even if no app is open). Turn it off to confirm every payment yourself. If a real autopay ever fails, just delete the auto-marked payment.
+          </p>
+          <form class="auth-form" data-form="autopay" style="margin-top:14px;">
+            <div class="auth-field" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;">
+              <label for="autopay-toggle" style="margin:0;">Auto-mark autopay items paid</label>
+              <input type="checkbox" id="autopay-toggle" data-autopay-toggle>
+            </div>
+            <div class="auth-field" data-autopay-time-field>
+              <label for="autopay-hour">Server marks at (your time zone)</label>
+              <select id="autopay-hour" data-autopay-hour></select>
+            </div>
+            <div class="auth-note" data-autopay-effective></div>
+            <div class="auth-error" data-message="autopay" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save autopay</button>
+            </div>
+          </form>
+        </section>
       </div>
 
       <!-- ═══════════════ Security ═══════════════ -->

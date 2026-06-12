@@ -24,6 +24,9 @@ router.get('/', requireAuth, (req, res) => {
     bills: data.bills,
     cards: data.cards,
     payments: data.payments,
+    accounts: data.accounts,
+    goals: data.goals,
+    transactions: data.transactions,
     settings: data.settings,
     // Effective Pro entitlement so clients can gate features without a
     // second round-trip. Authoritative copy lives at /api/billing/status.
@@ -40,6 +43,9 @@ router.put('/', requireAuth, requireCsrf, (req, res) => {
     bills: Array.isArray(body.bills) ? body.bills : [],
     cards: Array.isArray(body.cards) ? body.cards : [],
     payments: Array.isArray(body.payments) ? body.payments : [],
+    accounts: Array.isArray(body.accounts) ? body.accounts : [],
+    goals: Array.isArray(body.goals) ? body.goals : [],
+    transactions: Array.isArray(body.transactions) ? body.transactions : [],
     settings:
       body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
         ? body.settings

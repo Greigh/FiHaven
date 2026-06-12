@@ -36,4 +36,19 @@ public enum Income {
         }
         return settings.income
     }
+
+    /// Adjustments (bonuses / unpaid time off / raises) affecting period `mk`.
+    public static func adjustments(from settings: Settings, monthKey mk: String) -> [IncomeAdjustment] {
+        settings.incomeAdjustments.filter { $0.applies(to: mk) }
+    }
+
+    /// Signed total of all adjustments affecting period `mk`.
+    public static func adjustmentsTotal(from settings: Settings, monthKey mk: String) -> Double {
+        adjustments(from: settings, monthKey: mk).reduce(0) { $0 + $1.amount }
+    }
+
+    /// Effective income for a specific period: base income + applicable adjustments.
+    public static func monthlyIncome(from settings: Settings, monthKey mk: String) -> Double {
+        monthlyIncome(from: settings) + adjustmentsTotal(from: settings, monthKey: mk)
+    }
 }

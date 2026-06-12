@@ -245,4 +245,44 @@
     }
     .chip-amt { display: none; }
   }
+
+  @media (max-width: 600px) {
+    .calendar-grid {
+      padding: 4px;
+      gap: 3px;
+    }
+    /* Day number on its own row, then the per-payment icon dots WRAP
+       horizontally below it (instead of a vertical column that overflows). */
+    .calendar-cell {
+      min-height: 56px;
+      padding: 3px;
+      flex-flow: row wrap;
+      align-content: flex-start;
+      justify-content: center;
+      gap: 3px;
+    }
+    .calendar-day-num {
+      flex-basis: 100%;
+      text-align: center;
+      font-size: 10px;
+      margin-bottom: 1px;
+    }
+    .calendar-chip {
+      padding: 0;
+      justify-content: center;
+      align-items: center;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+    }
+    .chip-name, .chip-amt {
+      display: none;
+    }
+    .chip-icon {
+      font-size: 11px;
+      line-height: 1;
+      margin: 0;
+    }
+  }
 </style>

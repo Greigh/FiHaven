@@ -49,23 +49,45 @@ struct ProView: View {
                     .font(Theme.ui(15, weight: .semibold))
                     .foregroundStyle(billing.isPro ? Theme.green : Theme.text)
             }
-            if billing.isPro, let renewal = renewalLabel {
-                HStack {
-                    Text(billing.entitlement.source == "promo" ? "Access until" : "Renews")
-                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    Spacer()
-                    Text(renewal).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            if billing.isPro {
+                if let sourceLabel = sourceLabel {
+                    HStack {
+                        Text("Provider").font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text(sourceLabel).font(Theme.ui(13)).foregroundStyle(Theme.text)
+                    }
+                }
+                if let renewal = renewalLabel {
+                    HStack {
+                        Text((billing.entitlement.autoRenew == true) ? "Renews" : "Expires")
+                            .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text(renewal).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                    }
                 }
             }
         }
         .ctCard()
     }
 
+    private var sourceLabel: String? {
+        guard let s = billing.entitlement.source else { return nil }
+        switch s {
+        case "stripe": return "Stripe"
+        case "apple": return "App Store"
+        case "google": return "Play Store"
+        case "promo": return "Promo Code"
+        default: return s.capitalized
+        }
+    }
+
     private var planLabel: String {
         let e = billing.entitlement
         if e.source == "promo" { return "Pro · Promo" }
         switch e.plan {
+        case "trial": return "Pro · Trial"
         case "monthly": return "Pro · Monthly"
+        case "three_month": return "Pro · 3 Months"
         case "yearly": return "Pro · Yearly"
         default: return "Pro"
         }

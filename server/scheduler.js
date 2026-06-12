@@ -49,6 +49,43 @@ function daysUntilDue(dueDay, lp) {
   return diff;
 }
 
+// A web-compatible payment id (base36 timestamp + random), matching the
+// client's format so ids round-trip.
+function newPaymentId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+// Auto-mark autopay bills/cards paid on their due day (opt-in). Mutates
+// `data.payments`; returns true if anything was added. Idempotent: only
+// adds when the item has no (non-skip) payment for the current month.
+// Bills mark their full amount; cards mark the minimum payment (what an
+// autopay typically covers) — the client reconciles to the policy goal.
+function markAutopay(data, lp) {
+  const payments = data.payments || (data.payments = []);
+  const monthKey = lp.ym;
+  let changed = false;
+
+  const markIfDue = (item, type, amount, name) => {
+    if (!item || !item.autopay || !item.dueDay) return;
+    if (parseInt(item.dueDay, 10) !== lp.d) return; // only on the due day
+    const refId = String(item.id);
+    const already = payments.some(
+      (p) => !p.skipped && p.type === type && String(p.refId) === refId && p.monthKey === monthKey
+    );
+    if (already) return;
+    payments.push({
+      id: newPaymentId(), type, refId, name,
+      amount: Number(amount) || 0, date: lp.ymd, monthKey,
+      note: 'Auto-marked (autopay)',
+    });
+    changed = true;
+  };
+
+  (data.bills || []).forEach((b) => markIfDue(b, 'bill', b.amount, b.name || 'Bill'));
+  (data.cards || []).forEach((c) => markIfDue(c, 'card', c.minPayment, (c.name || 'Card') + ' (payment)'));
+  return changed;
+}
+
 // Stats for the monthly summary (covers the month that just ended).
 function summarize(data, lp) {
   const bills = data.bills || [];
@@ -82,33 +119,55 @@ async function runChecks(now = new Date(), deps = {}) {
   for (const u of users) {
     if (!u.email_verified) continue;
     const s = (u.data && u.data.settings) || {};
-    if (!s.billReminders && !s.monthlySummary) continue;
+    if (!s.billReminders && !s.monthlySummary && !s.autopayMark) continue;
 
     let lp;
     try { lp = localParts(now, s.timezone || DEFAULT_TZ); }
     catch (e) {
       try { lp = localParts(now, DEFAULT_TZ); } catch (e2) { continue; }
     }
-    if (lp.hour !== SEND_HOUR) continue;
     const currency = s.currency || 'USD';
 
-    // Bill reminders — bills whose next due day is exactly LEAD days out.
-    if (s.billReminders && u.last_reminder_day !== lp.ymd) {
-      const due = (u.data.bills || []).filter(
-        (b) => b.dueDay && daysUntilDue(parseInt(b.dueDay, 10), lp) === REMINDER_LEAD_DAYS
-      );
-      if (due.length) {
-        try { await mailer.sendBillReminder(u.email, due, REMINDER_LEAD_DAYS, currency); }
-        catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+    // Auto-mark autopay items paid on their due day, at the user's chosen
+    // local hour (default 9). Writes back to the user's data blob; clients
+    // pick it up on next sync.
+    if (s.autopayMark) {
+      const markHour = Math.min(23, Math.max(0, parseInt(s.autopayMarkHour, 10) || 9));
+      if (lp.hour === markHour && u.last_autopay_day !== lp.ymd) {
+        try {
+          if (markAutopay(u.data, lp)) {
+            db.upsertUserData(u.id, {
+              bills: u.data.bills || [],
+              cards: u.data.cards || [],
+              payments: u.data.payments || [],
+              settings: u.data.settings || {},
+            });
+          }
+          if (db.setAutopayDay) db.setAutopayDay(u.id, lp.ymd);
+        } catch (e) { console.error('autopay-mark failed', u.email, e && e.message); }
       }
-      db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
     }
 
-    // Monthly summary — the 1st of the local month.
-    if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
-      try { await mailer.sendMonthlySummary(u.email, summarize(u.data, lp), currency); }
-      catch (e) { console.error('summary send failed', u.email, e && e.message); }
-      db.setSummaryMonth(u.id, lp.ym);
+    // Reminders + summary send at the fixed SEND_HOUR.
+    if (lp.hour === SEND_HOUR) {
+      // Bill reminders — bills whose next due day is exactly LEAD days out.
+      if (s.billReminders && u.last_reminder_day !== lp.ymd) {
+        const due = (u.data.bills || []).filter(
+          (b) => b.dueDay && daysUntilDue(parseInt(b.dueDay, 10), lp) === REMINDER_LEAD_DAYS
+        );
+        if (due.length) {
+          try { await mailer.sendBillReminder(u.email, due, REMINDER_LEAD_DAYS, currency); }
+          catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+        }
+        db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
+      }
+
+      // Monthly summary — the 1st of the local month.
+      if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
+        try { await mailer.sendMonthlySummary(u.email, summarize(u.data, lp), currency); }
+        catch (e) { console.error('summary send failed', u.email, e && e.message); }
+        db.setSummaryMonth(u.id, lp.ym);
+      }
     }
   }
 }

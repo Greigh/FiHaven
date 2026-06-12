@@ -27,7 +27,7 @@ struct MoreView: View {
                 } footer: {
                     MadeWithLove()
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 18)
+                        .padding(.top, 8)
                 }
             }
             .listStyle(.insetGrouped)

@@ -17,6 +17,11 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var dueDay: Int?
     public var autopay: Bool
     public var notes: String
+    public var type: String?           // "card" | "loan"
+    public var issuer: String?
+    public var currentBalance: Double?
+    public var lastDigits: String?
+    public var network: String?          // "Visa" | "Mastercard" | "Amex" | "Discover" | …
 
     public init(
         id: Int,
@@ -32,7 +37,12 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         promoBalance: Double? = nil,
         dueDay: Int? = nil,
         autopay: Bool = false,
-        notes: String = ""
+        notes: String = "",
+        type: String? = "card",
+        issuer: String? = nil,
+        currentBalance: Double? = nil,
+        lastDigits: String? = nil,
+        network: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -48,12 +58,18 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.dueDay = dueDay
         self.autopay = autopay
         self.notes = notes
+        self.type = type
+        self.issuer = issuer
+        self.currentBalance = currentBalance
+        self.lastDigits = lastDigits
+        self.network = network
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, balance, limit, minPayment, recommendedPayment, regularAPR
         case hasPromo, promoAPR, promoEndDate, promoBalance
         case dueDay, autopay, notes
+        case type, issuer, currentBalance, lastDigits, network
     }
 
     public init(from decoder: Decoder) throws {
@@ -72,5 +88,10 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         dueDay = c.flexibleInt(.dueDay)
         autopay = c.flexibleBool(.autopay) ?? false
         notes = c.flexibleString(.notes) ?? ""
+        type = c.flexibleString(.type) ?? "card"
+        issuer = c.flexibleString(.issuer)
+        currentBalance = c.flexibleDouble(.currentBalance)
+        lastDigits = c.flexibleString(.lastDigits)
+        network = c.flexibleString(.network)
     }
 }

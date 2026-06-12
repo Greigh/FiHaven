@@ -5,14 +5,19 @@ import WebKit
 /// reports the solved token back to SwiftUI. Mirrors the web login page's
 /// inline widget (docs/native-contract.md §3.2). Tokens are single-use;
 /// give the view a fresh `.id(...)` to reset after a failed submit.
+///
+/// Also reports the widget's rendered height so the caller can size the
+/// frame to fit — invisible-mode sitekeys render nothing, so the host can
+/// collapse the space instead of leaving an awkward fixed-height gap.
 struct TurnstileView: UIViewRepresentable {
     let siteKey: String
     var baseURL: URL? = AppConfig.turnstileBaseURL
     var onToken: (String) -> Void
     var onError: () -> Void = {}
+    var onHeight: (CGFloat) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onToken: onToken, onError: onError)
+        Coordinator(onToken: onToken, onError: onError, onHeight: onHeight)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -41,10 +46,14 @@ struct TurnstileView: UIViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler {
         let onToken: (String) -> Void
         let onError: () -> Void
+        let onHeight: (CGFloat) -> Void
 
-        init(onToken: @escaping (String) -> Void, onError: @escaping () -> Void) {
+        init(onToken: @escaping (String) -> Void,
+             onError: @escaping () -> Void,
+             onHeight: @escaping (CGFloat) -> Void) {
             self.onToken = onToken
             self.onError = onError
+            self.onHeight = onHeight
         }
 
         func userContentController(
@@ -53,9 +62,14 @@ struct TurnstileView: UIViewRepresentable {
         ) {
             guard let body = message.body as? [String: Any],
                   let type = body["type"] as? String else { return }
-            if type == "token" {
+            switch type {
+            case "token":
                 onToken((body["token"] as? String) ?? "")
-            } else {
+            case "height":
+                if let raw = body["value"] as? String, let v = Double(raw) {
+                    onHeight(CGFloat(v))
+                }
+            default:
                 onError()
             }
         }
@@ -70,7 +84,7 @@ struct TurnstileView: UIViewRepresentable {
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
           <style>
             html, body { margin: 0; padding: 0; background: transparent; }
-            .wrap { display: flex; justify-content: center; padding-top: 2px; }
+            .wrap { display: flex; justify-content: center; }
           </style>
         </head>
         <body>
@@ -84,14 +98,19 @@ struct TurnstileView: UIViewRepresentable {
                  data-timeout-callback="onErr"></div>
           </div>
           <script>
-            function post(type, token) {
+            function send(type, payload) {
               try {
-                window.webkit.messageHandlers.turnstile.postMessage({ type: type, token: token || "" });
+                window.webkit.messageHandlers.turnstile.postMessage(Object.assign({ type: type }, payload || {}));
               } catch (e) {}
             }
-            function onOK(t)  { post("token", t); }
-            function onErr()  { post("error"); }
-            function onExp()  { post("expired"); }
+            function onOK(t)  { send("token", { token: t || "" }); }
+            function onErr()  { send("error"); }
+            function onExp()  { send("expired"); }
+            // Report the actual rendered height so the host can fit (or
+            // collapse, for invisible sitekeys) instead of a fixed gap.
+            function postHeight() { send("height", { value: String(Math.ceil(document.body.scrollHeight)) }); }
+            try { new ResizeObserver(postHeight).observe(document.body); } catch (e) {}
+            window.addEventListener("load", function () { postHeight(); setTimeout(postHeight, 600); });
           </script>
         </body>
         </html>

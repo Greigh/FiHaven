@@ -7,7 +7,7 @@ import Darwin
 func isDebuggerAttached() -> Bool {
     var kp = kinfo_proc()
     var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
-    var size = MemoryLayout<kinfo_proc>.stride
+    let size = MemoryLayout<kinfo_proc>.stride
     let result = mib.withUnsafeMutableBufferPointer { ptr -> Int32 in
         var length = size
         return sysctl(ptr.baseAddress, u_int(ptr.count), &kp, &length, nil, 0)

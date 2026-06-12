@@ -6,14 +6,16 @@
 <script>
   import { bills, cards, save } from '../js/storage.svelte.js';
   import {
-    ICONS, fmt, monthKey, daysUntilDue, nextDueDate, shortDate,
+    ICONS, fmt, currentPeriodKey, daysUntilDue, nextDueDate, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
     paymentStats, daysSinceLastPayment,
   } from '../js/utils.js';
-  import { askDelete, openPayModal, editBill } from '../js/modals.js';
+  import { askDelete, openPayModal, editBillById, skipMonth, unskipMonth } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
+  import SortFilterBar from './SortFilterBar.svelte';
+  import SubscriptionsPanel from './SubscriptionsPanel.svelte';
 
-  const mk = monthKey();
+  const mk = currentPeriodKey();
 
   // Resolve the "charged to" card name for a bill, if it still exists.
   function cardNameFor(b) {
@@ -27,13 +29,63 @@
   // subscription was cancelled but the row was never deleted.
   const STALE_DAYS = 60;
 
-  function deleteBill(i) {
+  function deleteBill(bill) {
     askDelete(() => {
-      bills.splice(i, 1);
+      const idx = bills.findIndex((b) => b.id === bill.id);
+      if (idx >= 0) bills.splice(idx, 1);
       save('fh_bills', bills);
     });
   }
+
+  /* ── Sort + filter ──────────────────────────────────────── */
+  let sort = $state('due');
+  let activeFilters = $state({});
+
+  const SORTS = [
+    { key: 'due', label: 'Due date (soonest)' },
+    { key: 'amount-desc', label: 'Largest first' },
+    { key: 'amount-asc', label: 'Smallest first' },
+    { key: 'unpaid', label: 'Need to pay first' },
+    { key: 'name', label: 'Name (A–Z)' },
+  ];
+  const FILTERS = [
+    { key: 'unpaid', label: 'Unpaid only', type: 'toggle' },
+    { key: 'overdue', label: 'Overdue only', type: 'toggle' },
+    { key: 'autopay', label: 'Autopay only', type: 'toggle' },
+    { key: 'oncard', label: 'Charged to a card', type: 'toggle' },
+    { key: 'category', label: 'Category', type: 'select',
+      options: [{ key: 'all', label: 'All' }, ...Object.keys(ICONS).map((c) => ({ key: c, label: c }))] },
+  ];
+
+  const dueDays = (b) => (b.dueDay ? daysUntilDue(parseInt(b.dueDay)) : 9999);
+
+  let visibleBills = $derived.by(() => {
+    const f = activeFilters;
+    const list = bills.filter((b) => {
+      if (f.unpaid && paidState('bill', String(b.id), mk) === 'full') return false;
+      if (f.overdue && !(b.dueDay && daysUntilDue(parseInt(b.dueDay)) < 0)) return false;
+      if (f.autopay && !b.autopay) return false;
+      if (f.oncard && b.cardId == null) return false;
+      if (f.category && f.category !== 'all' && b.category !== f.category) return false;
+      return true;
+    });
+    const arr = list.slice();
+    if (sort === 'amount-desc')      arr.sort((a, b) => (parseFloat(b.amount) || 0) - (parseFloat(a.amount) || 0));
+    else if (sort === 'amount-asc')  arr.sort((a, b) => (parseFloat(a.amount) || 0) - (parseFloat(b.amount) || 0));
+    else if (sort === 'name')        arr.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    else if (sort === 'unpaid') {
+      const rank = (b) => (paidState('bill', String(b.id), mk) === 'full' ? 1 : 0);
+      arr.sort((a, b) => rank(a) - rank(b) || dueDays(a) - dueDays(b));
+    } else arr.sort((a, b) => dueDays(a) - dueDays(b)); // 'due'
+    return arr;
+  });
 </script>
+
+<SubscriptionsPanel />
+
+{#if bills.length > 0}
+  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
+{/if}
 
 <div class="card" style="overflow:hidden;">
   {#if bills.length === 0}
@@ -41,6 +93,12 @@
       <div class="empty-icon">📋</div>
       <h3>No bills yet</h3>
       <p>Add rent, utilities, subscriptions, loans, and other recurring costs.</p>
+    </div>
+  {:else if visibleBills.length === 0}
+    <div class="empty">
+      <div class="empty-icon">🔍</div>
+      <h3>No bills match</h3>
+      <p>No bills match the current filters. Adjust or clear them above.</p>
     </div>
   {:else}
     <table class="data-table">
@@ -51,7 +109,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each bills as b, i (b.id)}
+        {#each visibleBills as b (b.id)}
           {@const state = paidState('bill', String(b.id), mk)}
           {@const days  = b.dueDay ? daysUntilDue(parseInt(b.dueDay)) : null}
           {@const next  = b.dueDay ? nextDueDate(b.dueDay) : null}
@@ -61,17 +119,30 @@
           <tr class:paid-row={state === 'full'}>
             <td data-cell="name">
               <strong>{b.name}</strong>
+              {#if b.business}
+                <span style="font-weight:400;color:var(--muted);margin-left:4px;">· {b.business}</span>
+              {/if}
               {#if stale}
                 <span class="badge badge-orange" style="margin-left:6px;" title="No payment recorded in {sinceLast} days">
                   ⚠ stale {sinceLast}d
                 </span>
               {/if}
               {#if cardNameFor(b)}
-                <div style="font-size:11px;color:var(--muted);margin-top:2px;">💳 {cardNameFor(b)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;"
+                     title="Paid with this card — it lands on the card statement, not a direct bank withdrawal.">
+                  💳 Charged to {cardNameFor(b)} · not a bank debit
+                </div>
               {/if}
               {#if b.notes}
                 <div style="font-size:11px;color:var(--muted);margin-top:1px;">{b.notes}</div>
               {/if}
+              <!-- Mobile-only: folds Category / Frequency / Autopay (hidden as
+                   separate rows on phones) into one compact meta line. -->
+              <div class="bill-meta-mobile">
+                <span>{ICONS[b.category] || '📌'} {b.category}</span>
+                <span>· {b.frequency}</span>
+                {#if b.autopay}<span class="badge badge-green">✓ Auto</span>{/if}
+              </div>
             </td>
             <td data-label="Category">{ICONS[b.category] || '📌'} {b.category}</td>
             <td data-label="Amount">
@@ -118,7 +189,14 @@
               {/if}
             </td>
             <td data-label="This month">
-              {#if state === 'full'}
+              {#if state === 'skipped'}
+                <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+                  <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
+                  <button class="btn btn-ghost btn-xs" onclick={() => unskipMonth('bill', String(b.id))}>
+                    Undo skip
+                  </button>
+                </div>
+              {:else if state === 'full'}
                 <span class="badge badge-green">
                   ✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}
                 </span>
@@ -135,18 +213,27 @@
                   </button>
                 </div>
               {:else}
-                <button
-                  class="btn btn-green btn-xs"
-                  onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
-                >
-                  ✓ Pay
-                </button>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <button
+                    class="btn btn-green btn-xs"
+                    onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
+                  >
+                    ✓ Pay
+                  </button>
+                  <button
+                    class="btn btn-ghost btn-xs"
+                    title="Skip this bill this month — owes nothing, no payment recorded"
+                    onclick={() => skipMonth('bill', String(b.id), b.name)}
+                  >
+                    Skip
+                  </button>
+                </div>
               {/if}
             </td>
             <td data-cell="actions">
               <div class="action-btns">
-                <button class="btn btn-ghost btn-sm" onclick={() => editBill(i)}>Edit</button>
-                <button class="btn btn-danger btn-sm" onclick={() => deleteBill(i)}>Del</button>
+                <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
+                <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
               </div>
             </td>
           </tr>

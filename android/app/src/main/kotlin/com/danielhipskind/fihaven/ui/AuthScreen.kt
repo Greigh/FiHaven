@@ -69,6 +69,15 @@ fun AuthScreen(vm: AppViewModel) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 )
+                if (!signup) {
+                    val uriHandler = LocalUriHandler.current
+                    TextButton(
+                        onClick = { uriHandler.openUri(BuildConfig.API_BASE.trimEnd('/') + "/reset") },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Forgot Password?", color = Ct.colors.accent, fontSize = 13.sp)
+                    }
+                }
                 error?.let {
                     Text(it, color = Ct.colors.red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                 }
@@ -76,7 +85,7 @@ fun AuthScreen(vm: AppViewModel) {
                     onClick = { if (signup) vm.signup(email, password) else vm.login(email, password) },
                     enabled = !working && email.contains("@") && password.length >= 6,
                     colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = if (signup) 16.dp else 4.dp),
                 ) {
                     Text(if (working) "Please wait…" else if (signup) "Create account" else "Sign in")
                 }

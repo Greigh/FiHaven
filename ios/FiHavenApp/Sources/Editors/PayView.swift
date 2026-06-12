@@ -34,6 +34,7 @@ struct PayView: View {
     @State private var date = Date()
     @State private var note = ""
     @State private var started = false
+    @State private var showDuplicateAlert = false
 
     private struct Preset: Identifiable {
         let id = UUID()
@@ -140,6 +141,12 @@ struct PayView: View {
                 }
             }
             .onAppear(perform: start)
+            .alert("Additional Payment?", isPresented: $showDuplicateAlert) {
+                Button("Save Payment") { performSave() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You have already recorded \(Money.fmt(alreadyPaid)) in payments for this card/loan this month. Is this an additional payment?")
+            }
         }
     }
 
@@ -152,6 +159,15 @@ struct PayView: View {
     }
 
     private func save() {
+        let day = Calendar.current.component(.day, from: date)
+        if target.type == "card" && day >= 15 && alreadyPaid > Schedule.paidEpsilon {
+            showDuplicateAlert = true
+        } else {
+            performSave()
+        }
+    }
+
+    private func performSave() {
         store.recordPayment(
             type: target.type, refId: target.refId, name: target.name,
             amount: amount, date: date, note: note

@@ -6,7 +6,9 @@ struct HistoryView: View {
     @EnvironmentObject var store: AppStore
 
     private var grouped: [(month: String, items: [Payment])] {
-        Dictionary(grouping: store.paymentsByDateDesc, by: { $0.monthKey })
+        let cfg = store.periodConfig
+        return Dictionary(grouping: store.paymentsByDateDesc.filter { !$0.skipped },
+                          by: { Period.keyForPayment($0, config: cfg, tz: store.tz) })
             .map { ($0.key, $0.value) }
             .sorted { $0.0 > $1.0 }
     }
@@ -14,13 +16,13 @@ struct HistoryView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                if store.data.payments.isEmpty {
+                if grouped.isEmpty {
                     Text(store.loaded ? "No payments recorded yet." : "Loading…")
                         .font(Theme.ui(15)).foregroundStyle(Theme.muted).ctCard()
                 }
                 ForEach(grouped, id: \.month) { group in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(DateLogic.monthKeyLabel(group.month, tz: store.tz))
+                        Text(Period.labelForKey(group.month, config: store.periodConfig, tz: store.tz))
                             .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { i, p in

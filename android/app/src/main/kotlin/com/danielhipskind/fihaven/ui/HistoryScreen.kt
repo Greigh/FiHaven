@@ -30,6 +30,7 @@ import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.core.CTConstants
 import com.danielhipskind.fihaven.core.Money
 import com.danielhipskind.fihaven.core.logic.DateLogic
+import com.danielhipskind.fihaven.core.logic.Period
 import com.danielhipskind.fihaven.core.model.Payment
 import com.danielhipskind.fihaven.ui.theme.Ct
 import java.time.format.DateTimeFormatter
@@ -40,22 +41,25 @@ private val prettyDate = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.
 @Composable
 fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
-    val groups = data.payments
+    // Skips are markers, not real payments — exclude them from history.
+    val realPayments = data.payments.filterNot { it.skipped }
+    val cfg = vm.periodConfig()
+    val groups = realPayments
         .sortedByDescending { it.date }
-        .groupBy { it.monthKey }
+        .groupBy { Period.keyForPayment(it, cfg) }
         .toList()
         .sortedByDescending { it.first }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("History", onBack = onBack)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (data.payments.isEmpty()) {
+            if (realPayments.isEmpty()) {
                 item { CtCard { Text("No payments recorded yet.", color = Ct.colors.muted) } }
             }
             groups.forEach { (monthKey, items) ->
                 item(key = monthKey) {
                     Column {
-                        Text(DateLogic.monthKeyLabel(monthKey), color = Ct.colors.muted,
+                        Text(Period.labelForKey(monthKey, cfg), color = Ct.colors.muted,
                             fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(bottom = 8.dp))
                         CtCard(padding = 0) {

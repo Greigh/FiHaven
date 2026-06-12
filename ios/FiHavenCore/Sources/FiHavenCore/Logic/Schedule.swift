@@ -79,7 +79,7 @@ public enum Schedule {
         return items
     }
 
-    /// True if a payment exists for this bill/card in the given month.
+    /// True if a (real, non-skip) payment exists for this bill/card in the month.
     public static func isPaid(
         _ payments: [Payment],
         type: String,
@@ -87,11 +87,25 @@ public enum Schedule {
         monthKey: String
     ) -> Bool {
         payments.contains {
-            $0.type == type && $0.refId == refId && $0.monthKey == monthKey
+            !$0.skipped && $0.type == type && $0.refId == refId && $0.monthKey == monthKey
         }
     }
 
-    /// Total paid toward this bill/card in the given month.
+    /// True if this bill/card has been skipped for the given month. A skip is
+    /// a payment record flagged `skipped` (amount 0): it owes nothing and drops
+    /// out of "still owed", but isn't a real payment.
+    public static func isSkipped(
+        _ payments: [Payment],
+        type: String,
+        refId: String,
+        monthKey: String
+    ) -> Bool {
+        payments.contains {
+            $0.skipped && $0.type == type && $0.refId == refId && $0.monthKey == monthKey
+        }
+    }
+
+    /// Total paid toward this bill/card in the given month (skips excluded).
     public static func paidAmount(
         _ payments: [Payment],
         type: String,
@@ -99,8 +113,43 @@ public enum Schedule {
         monthKey: String
     ) -> Double {
         payments
-            .filter { $0.type == type && $0.refId == refId && $0.monthKey == monthKey }
+            .filter { !$0.skipped && $0.type == type && $0.refId == refId && $0.monthKey == monthKey }
             .reduce(0) { $0 + $1.amount }
+    }
+
+    // ── Period-aware variants (match by date range, see Period) ──────
+    public static func isPaid(_ payments: [Payment], type: String, refId: String, in bounds: PeriodBounds) -> Bool {
+        payments.contains { !$0.skipped && $0.type == type && $0.refId == refId && bounds.contains($0) }
+    }
+
+    public static func isSkipped(_ payments: [Payment], type: String, refId: String, in bounds: PeriodBounds) -> Bool {
+        payments.contains { $0.skipped && $0.type == type && $0.refId == refId && bounds.contains($0) }
+    }
+
+    public static func paidAmount(_ payments: [Payment], type: String, refId: String, in bounds: PeriodBounds) -> Double {
+        payments
+            .filter { !$0.skipped && $0.type == type && $0.refId == refId && bounds.contains($0) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    public static func goalAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: [Payment],
+        in bounds: PeriodBounds,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Double {
+        let paid = paidAmount(payments, type: "card", refId: String(card.id), in: bounds)
+        let startBalance = card.balance + paid
+        switch policy {
+        case .minimum: return card.minPayment
+        case .full:    return startBalance
+        case .recommended:
+            if let override = card.recommendedPayment, override > 0 { return override }
+            if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
+            return startBalance
+        }
     }
 
     /// Cent-level tolerance so a goal met to the penny reads as full.

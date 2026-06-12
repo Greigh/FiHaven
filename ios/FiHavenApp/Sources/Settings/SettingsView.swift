@@ -28,6 +28,7 @@ struct SettingsView: View {
             securitySection
             preferencesSection
             notificationsSection
+            autopaySection
             dataSection
             bankSection
             aboutSection
@@ -138,6 +139,29 @@ struct SettingsView: View {
             Text("How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
+            Picker("Budget period", selection: Binding(
+                get: { store.data.settings.periodMode ?? "calendar" },
+                set: { store.setPeriodMode($0) }
+            )) {
+                Text("Calendar month").tag("calendar")
+                Text("Custom start day").tag("startDay")
+                Text("Rolling window").tag("rolling")
+            }
+            .pickerStyle(.menu)
+            if (store.data.settings.periodMode ?? "calendar") == "startDay" {
+                Stepper("Starts on day \(store.data.settings.periodStartDay ?? 1)",
+                        value: Binding(get: { store.data.settings.periodStartDay ?? 1 },
+                                       set: { store.setPeriodStartDay($0) }),
+                        in: 1...28)
+            } else if (store.data.settings.periodMode ?? "calendar") == "rolling" {
+                Stepper("Window: \(store.data.settings.periodLength ?? 35) days",
+                        value: Binding(get: { store.data.settings.periodLength ?? 35 },
+                                       set: { store.setPeriodLength($0) }),
+                        in: 7...90)
+            }
+            Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
             Picker("Currency", selection: Binding(
                 get: { store.data.settings.currency ?? "USD" },
                 set: { store.setCurrency($0) }
@@ -188,6 +212,34 @@ struct SettingsView: View {
     ]
 
     // ── Data ─────────────────────────────────────────────────────────
+    private var autopaySection: some View {
+        Section("Automation") {
+            Toggle("Auto-mark autopay items paid", isOn: Binding(
+                get: { store.data.settings.autopayMark },
+                set: { store.setAutopayMark($0) }
+            )).tint(Theme.accent)
+            if store.data.settings.autopayMark {
+                Picker("Server marks at", selection: Binding(
+                    get: { store.data.settings.autopayMarkHour },
+                    set: { store.setAutopayMarkHour($0) }
+                )) {
+                    ForEach(0..<24, id: \.self) { h in
+                        Text(Self.hourLabel(h)).tag(h)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            Text("Bills and cards flagged Autopay are recorded paid on their due date — on this device and on the server at the chosen hour (your time zone). If a real autopay fails, delete the auto-marked payment.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+        }
+    }
+
+    private static func hourLabel(_ h: Int) -> String {
+        let ampm = h < 12 ? "AM" : "PM"
+        let h12 = h % 12 == 0 ? 12 : h % 12
+        return "\(h12):00 \(ampm)"
+    }
+
     private var dataSection: some View {
         Section("Data") {
             Button { Task { await exportData() } } label: {

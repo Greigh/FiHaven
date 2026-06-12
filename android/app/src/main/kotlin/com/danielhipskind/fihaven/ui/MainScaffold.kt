@@ -55,6 +55,7 @@ import com.danielhipskind.fihaven.billing.BillingManager
 import com.danielhipskind.fihaven.core.Money
 import androidx.compose.foundation.clickable
 import com.danielhipskind.fihaven.core.logic.DateLogic
+import com.danielhipskind.fihaven.core.logic.Period
 import com.danielhipskind.fihaven.core.logic.Income
 import com.danielhipskind.fihaven.core.logic.PaidState
 import com.danielhipskind.fihaven.core.logic.Schedule
@@ -192,8 +193,9 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
 private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
     val zone = DateLogic.zone(data.settings.timezoneSetting)
-    val monthKey = DateLogic.currentMonthKey(zone)
-    val income = Income.monthlyIncome(data.settings)
+    val periodBounds = vm.currentBounds()
+    val periodLabel = Period.label(periodBounds, vm.periodConfig())
+    val income = Income.monthlyIncome(data.settings, periodBounds.key)
     val upcoming = Schedule.buildUpcomingItems(data.bills, data.cards, zone)
     // "Left to pay" = sum of each item's remaining-to-goal, so partial
     // payments shrink it and fully-paid items drop to zero.
@@ -206,7 +208,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text(DateLogic.monthKeyLabel(monthKey), color = Ct.colors.text,
+            Text(periodLabel, color = Ct.colors.text,
                 fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
         }
         item {

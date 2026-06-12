@@ -12,6 +12,8 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var frequency: String
     public var autopay: Bool
     public var notes: String
+    public var business: String?
+    public var cardId: String?         // "Charged to" — id of the card this bill is paid on
 
     public init(
         id: Int,
@@ -21,7 +23,9 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         dueDay: Int? = nil,
         frequency: String = "Monthly",
         autopay: Bool = false,
-        notes: String = ""
+        notes: String = "",
+        business: String? = nil,
+        cardId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -31,10 +35,12 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         self.frequency = frequency
         self.autopay = autopay
         self.notes = notes
+        self.business = business
+        self.cardId = cardId
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, category, amount, dueDay, frequency, autopay, notes
+        case id, name, category, amount, dueDay, frequency, autopay, notes, business, cardId
     }
 
     public init(from decoder: Decoder) throws {
@@ -47,5 +53,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         frequency = c.flexibleString(.frequency) ?? "Monthly"
         autopay = c.flexibleBool(.autopay) ?? false
         notes = c.flexibleString(.notes) ?? ""
+        business = c.flexibleString(.business)
+        cardId = c.flexibleString(.cardId)
     }
 }

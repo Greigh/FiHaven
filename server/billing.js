@@ -95,7 +95,7 @@ function computeEntitlement(userId) {
   const subs = dbApi.activeSubscriptions(userId);
   const grants = dbApi.activePromoGrants(userId);
 
-  let best = null; // { expiresAt: number|null, source, productId, plan }
+  let best = null; // { expiresAt: number|null, source, productId, plan, autoRenew }
   const consider = (cand) => {
     if (!best) { best = cand; return; }
     if (cand.expiresAt === null) { best = cand; return; }   // lifetime wins
@@ -109,6 +109,7 @@ function computeEntitlement(userId) {
       source: s.platform,
       productId: s.product_id,
       plan: planFor(s.product_id),
+      autoRenew: !!s.auto_renew,
     });
   }
   for (const g of grants) {
@@ -117,6 +118,7 @@ function computeEntitlement(userId) {
       source: 'promo',
       productId: g.product_id || null,
       plan: planFor(g.product_id),
+      autoRenew: false,
     });
   }
 
@@ -126,6 +128,7 @@ function computeEntitlement(userId) {
     productId: best ? best.productId : null,
     plan: best ? best.plan : null,
     expiresAt: best ? best.expiresAt : null,
+    autoRenew: best ? !!best.autoRenew : false,
   };
 }
 
@@ -507,6 +510,56 @@ async function handleStripeWebhook(rawBody, signature) {
   return { received: true, type: event.type };
 }
 
+// Local dev portal mock operations (only allowed if Stripe not configured or not in production)
+function devCancelSubscription(userId) {
+  const subs = dbApi.activeSubscriptions(userId);
+  const stripeSubs = subs.filter(s => s.platform === 'stripe');
+  const now = Date.now();
+  for (const s of stripeSubs) {
+    dbApi.upsertSubscription({
+      user_id: userId,
+      platform: 'stripe',
+      product_id: s.product_id,
+      txn_id: s.txn_id,
+      status: 'expired',
+      expires_at: now - 1000,
+      environment: 'Dev',
+      auto_renew: 0,
+      raw: s.raw,
+      created_at: s.created_at,
+      updated_at: now,
+    });
+  }
+  return computeEntitlement(userId);
+}
+
+function devChangeSubscription(userId, plan) {
+  const def = STRIPE_PLANS[plan];
+  if (!def) throw new Error('unknown-plan');
+  // First expire any existing stripe subscriptions
+  devCancelSubscription(userId);
+
+  const now = Date.now();
+  const expiresAt = now + def.devDays * DAY_MS;
+  const txnId = 'dev_' + userId + '_' + now;
+  const productId = stripePriceForPlan(plan) || ('dev_' + plan);
+
+  dbApi.upsertSubscription({
+    user_id: userId,
+    platform: 'stripe',
+    product_id: productId,
+    txn_id: txnId,
+    status: 'active',
+    expires_at: expiresAt,
+    environment: 'Dev',
+    auto_renew: 1,
+    raw: null,
+    created_at: now,
+    updated_at: now,
+  });
+  return computeEntitlement(userId);
+}
+
 module.exports = {
   products,
   planFor,
@@ -526,4 +579,6 @@ module.exports = {
   createStripeCheckout,
   createStripePortal,
   handleStripeWebhook,
+  devCancelSubscription,
+  devChangeSubscription,
 };

@@ -49,6 +49,15 @@ fun ProScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = 
         else -> "Pro"
     }
 
+    val provider = when (ent.source) {
+        "stripe" -> "Stripe"
+        "apple" -> "App Store"
+        "google" -> "Play Store"
+        "promo" -> "Promo Code"
+        null -> null
+        else -> ent.source?.replaceFirstChar { it.uppercase() }
+    }
+
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("FiHaven Pro", onBack = onBack)
         Column(
@@ -69,10 +78,16 @@ fun ProScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = 
                         Text(status, color = if (ent.pro) Ct.colors.green else Ct.colors.text,
                             fontWeight = FontWeight.SemiBold)
                     }
+                    if (ent.pro && provider != null) {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text("Provider", color = Ct.colors.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Text(provider, color = Ct.colors.text, fontSize = 13.sp)
+                        }
+                    }
                     val exp = ent.expiresAt
                     if (ent.pro && exp != null) {
                         Row(Modifier.fillMaxWidth()) {
-                            Text(if (ent.source == "promo") "Access until" else "Renews",
+                            Text(if (ent.autoRenew == true) "Renews" else "Expires",
                                 color = Ct.colors.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             Text(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(exp)),
                                 color = Ct.colors.muted, fontSize = 13.sp)
