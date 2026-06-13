@@ -94,11 +94,21 @@ class ApiClient(
     suspend fun plaidStatus(): PlaidStatus =
         decode(send(makeRequest("api/plaid/status", HttpMethod.GET)))
 
-    suspend fun plaidLinkToken(): String =
-        decode<PlaidLinkTokenResponse>(send(makeRequest("api/plaid/link/token", HttpMethod.POST))).linkToken
+    // Pass itemId for an update-mode token (re-auth an existing item).
+    suspend fun plaidLinkToken(itemId: Int? = null): String {
+        val req = if (itemId != null)
+            makeRequest("api/plaid/link/token", HttpMethod.POST, encode(PlaidLinkTokenBody(itemId)))
+        else makeRequest("api/plaid/link/token", HttpMethod.POST)
+        return decode<PlaidLinkTokenResponse>(send(req)).linkToken
+    }
 
     suspend fun plaidExchange(publicToken: String) {
         send(makeRequest("api/plaid/link/exchange", HttpMethod.POST, encode(PlaidExchangeBody(publicToken))))
+    }
+
+    // After a successful update-mode Link, mark the item repaired.
+    suspend fun plaidRepaired(itemId: Int) {
+        send(makeRequest("api/plaid/item/$itemId/repaired", HttpMethod.POST))
     }
 
     suspend fun plaidRemove(itemId: Int) {

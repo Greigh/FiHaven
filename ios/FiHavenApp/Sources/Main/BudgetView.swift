@@ -4,6 +4,7 @@ import FiHavenCore
 /// Income sources editor + monthly budget summary.
 struct BudgetView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
     @State private var editing: IncomeSource?
     @State private var creating = false
     @State private var editingAdj: IncomeAdjustment?
@@ -105,7 +106,10 @@ struct BudgetView: View {
                 Text("Spending · this period")
                     .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                 Spacer()
-                Button { editingBudgets = true } label: { Image(systemName: "slider.horizontal.3") }
+                // Per-category budgets are Pro; logging transactions stays free.
+                if billing.isPro {
+                    Button { editingBudgets = true } label: { Image(systemName: "slider.horizontal.3") }
+                }
                 Button { addingTx = true } label: { Image(systemName: "plus") }
             }
             .padding(.top, 4)
@@ -124,11 +128,11 @@ struct BudgetView: View {
                             HStack {
                                 Text("\(Self.catIcon(cat)) \(cat)").font(Theme.ui(13)).foregroundStyle(Theme.text)
                                 Spacer()
-                                Text(budget > 0 ? "\(Money.fmt(spent)) / \(Money.fmt(budget))" : Money.fmt(spent))
+                                Text(billing.isPro && budget > 0 ? "\(Money.fmt(spent)) / \(Money.fmt(budget))" : Money.fmt(spent))
                                     .font(Theme.mono(12))
-                                    .foregroundStyle(budget > 0 && spent > budget ? Theme.red : Theme.muted)
+                                    .foregroundStyle(billing.isPro && budget > 0 && spent > budget ? Theme.red : Theme.muted)
                             }
-                            if budget > 0 {
+                            if billing.isPro && budget > 0 {
                                 ProgressView(value: min(1, spent / budget))
                                     .tint(spent > budget ? Theme.red : Theme.green)
                             }
@@ -145,15 +149,27 @@ struct BudgetView: View {
                         HStack(spacing: 10) {
                             Text(Self.catIcon(tx.category)).font(.system(size: 15))
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(tx.merchant.isEmpty ? tx.category : tx.merchant)
-                                    .font(Theme.ui(13)).foregroundStyle(Theme.text)
+                                HStack(spacing: 5) {
+                                    Text(tx.merchant.isEmpty ? tx.category : tx.merchant)
+                                        .font(Theme.ui(13)).foregroundStyle(Theme.text)
+                                    if tx.isBank {
+                                        Text(tx.pending ? "🏦 pending" : "🏦")
+                                            .font(Theme.ui(10)).foregroundStyle(Theme.accent)
+                                    }
+                                }
                                 Text(tx.date).font(Theme.ui(11)).foregroundStyle(Theme.muted)
                             }
                             Spacer()
                             Text(Money.fmt(tx.amount)).font(Theme.mono(13)).foregroundStyle(Theme.text)
-                            Button { store.deleteTransaction(tx) } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
-                            }.buttonStyle(.plain)
+                            // Bank-synced rows are managed by the linked bank; remove the
+                            // connection in Settings rather than deleting rows here.
+                            if !tx.isBank {
+                                Button { store.deleteTransaction(tx) } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
+                                }.buttonStyle(.plain)
+                            } else {
+                                Image(systemName: "link").font(.caption2).foregroundStyle(Theme.muted.opacity(0.5))
+                            }
                         }
                         .padding(.vertical, 7)
                     }

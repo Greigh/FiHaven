@@ -156,3 +156,4 @@ struct PlaidExchangeBody: Encodable {
     let publicToken: String
     enum CodingKeys: String, CodingKey { case publicToken = "public_token" }
 }
+struct PlaidLinkTokenBody: Encodable { let itemId: Int }

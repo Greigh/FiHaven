@@ -51,6 +51,8 @@ data class Card(
     val dueDay: Int? = null,
     val autopay: Boolean = false,
     val notes: String = "",
+    val rewardBase: Double = 0.0,                       // flat reward % on everything
+    val rewardCategories: Map<String, Double> = emptyMap(),  // per-category reward % overrides
 )
 
 @Serializable
@@ -134,7 +136,14 @@ data class SpendTransaction(
     val category: String = "Other",
     val merchant: String = "",
     val note: String = "",
-)
+    // Provenance: "manual" (default) or "plaid" (bank-synced helper). Bank rows
+    // are additive and preserved on re-encode so a native write keeps the tags.
+    val source: String = "manual",
+    val plaidId: String? = null,
+    val pending: Boolean = false,
+) {
+    val isBank: Boolean get() = source == "plaid"
+}
 
 /// Full per-user blob. `settings` stays a raw JsonObject so unknown
 /// (web-only) keys survive a round-trip.

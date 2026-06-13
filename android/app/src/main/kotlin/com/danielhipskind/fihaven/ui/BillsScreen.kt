@@ -56,6 +56,7 @@ import com.danielhipskind.fihaven.ui.theme.Ct
 @Composable
 fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Bill?>(null) }
     var creating by remember { mutableStateOf(false) }
     var paying by remember { mutableStateOf<Bill?>(null) }
@@ -102,7 +103,8 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (subs.isNotEmpty()) {
+            // Subscription finder is a Pro insight (Balanced tiering).
+            if (ent.pro && subs.isNotEmpty()) {
                 item { SubscriptionsCard(subs) }
             }
             if (bills.isEmpty()) {

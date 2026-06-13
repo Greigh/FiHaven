@@ -1,1 +1,6 @@
-@tailwind utilities;
+/* Tailwind v4 entry. We ship utilities only — preflight stays off so
+   Tailwind never resets the app's own component CSS (pages.css etc.).
+   The JS config (content paths) is loaded explicitly via @config since
+   the v4 CLI no longer takes a -c flag. */
+@import 'tailwindcss/utilities' layer(utilities);
+@config '../../tailwind.config.js';

@@ -4,8 +4,12 @@
   budget bars for the current period; recent transactions list.
 -->
 <script>
-  import { transactions, settings, save } from '../js/storage.svelte.js';
+  import { transactions, settings, save, entitlement } from '../js/storage.svelte.js';
   import { fmt, currentPeriodKey } from '../js/utils.js';
+
+  // Manual transaction logging is free (manual-first); per-category
+  // budgets are the Pro "insight" layer.
+  let pro = $derived(entitlement.pro);
   import { boundsForKey, paymentInBounds } from '../js/period.js';
   import { todayISO } from '../js/tz.js';
 
@@ -97,7 +101,14 @@
     <button class="btn btn-primary btn-sm" onclick={addTx}>Add</button>
   </div>
 
-  <!-- Per-category budget vs actual -->
+  <!-- Per-category budget vs actual (Pro) -->
+  {#if !pro}
+    <div class="spend-pro-upsell">
+      <span class="badge badge-gray" style="background:var(--accent-bg);color:var(--accent);">PRO</span>
+      Set per-category budgets and track them against your spending.
+      <a href="/settings">Go Pro</a>
+    </div>
+  {:else}
   {#if rows.length === 0}
     <p class="networth-empty">No spending yet this period. Add a transaction, or set a category budget below.</p>
   {/if}
@@ -123,6 +134,7 @@
       </div>
     {/each}
   </div>
+  {/if}
 
   <!-- Recent transactions -->
   {#if recent.length > 0}
@@ -131,9 +143,17 @@
       {#each recent as t (t.id)}
         <div class="spend-tx">
           <span class="spend-tx-icon">{ICON[t.category] || '📦'}</span>
-          <span class="spend-tx-main">{t.merchant || t.category}<span class="spend-tx-sub"> · {shortDay(t.date)}</span></span>
+          <span class="spend-tx-main">
+            {t.merchant || t.category}
+            {#if t.source === 'plaid'}<span class="spend-tx-bank" title="Imported from your linked bank{t.pending ? ' (pending)' : ''}">🏦{t.pending ? ' pending' : ''}</span>{/if}
+            <span class="spend-tx-sub"> · {shortDay(t.date)}</span>
+          </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
-          <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
+          {#if t.source === 'plaid'}
+            <span class="btn btn-ghost btn-xs" title="Managed by your bank link — remove the connection in Settings" style="opacity:.4;cursor:default;">🔗</span>
+          {:else}
+            <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
+          {/if}
         </div>
       {/each}
     </div>

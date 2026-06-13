@@ -7,6 +7,7 @@ struct CardEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let card: Card?
+    var defaultType: String = "card"
 
     @State private var type = "card"
     @State private var name = ""
@@ -27,6 +28,9 @@ struct CardEditorView: View {
     @State private var promoAPR: Double = 0
     @State private var promoBalance: Double = 0
     @State private var promoEnd = Date()
+
+    @State private var rewardBase: Double = 0
+    @State private var rewardCats: [String: Double] = [:]
 
     var body: some View {
         NavigationStack {
@@ -107,6 +111,42 @@ struct CardEditorView: View {
                     }
                 }
 
+                if type == "card" {
+                    Section {
+                        Menu {
+                            ForEach(Rewards.cardPresets) { p in
+                                Button(p.label) { applyPreset(p) }
+                            }
+                        } label: {
+                            HStack {
+                                Text("Start from a known card…").foregroundStyle(Theme.accent)
+                                Spacer()
+                                Image(systemName: "chevron.down").font(.caption).foregroundStyle(Theme.muted)
+                            }
+                        }
+                        HStack {
+                            Text("Base reward rate")
+                            Spacer()
+                            TextField("0", value: $rewardBase, format: .number)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                            Text("%").foregroundStyle(Theme.muted)
+                        }
+                        ForEach(Rewards.categories, id: \.self) { cat in
+                            HStack {
+                                Text(cat)
+                                Spacer()
+                                TextField("—", value: catBinding(cat), format: .number)
+                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 64)
+                                Text("%").foregroundStyle(Theme.muted)
+                            }
+                        }
+                    } header: {
+                        Text("Rewards")
+                    } footer: {
+                        Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate; leave a category at 0 to use the base.")
+                    }
+                }
+
                 Section("Notes") {
                     TextField("Optional", text: $notes, axis: .vertical)
                 }
@@ -132,6 +172,21 @@ struct CardEditorView: View {
         }
     }
 
+    // Auto-fill name/issuer/network (without clobbering non-empty fields) and
+    // the reward rates from a preset. Everything stays editable afterward.
+    private func applyPreset(_ p: Rewards.CardPreset) {
+        if name.isEmpty { name = p.name }
+        if issuer.isEmpty { issuer = p.issuer }
+        network = p.network
+        rewardBase = p.rewardBase
+        rewardCats = p.rewardCategories
+    }
+
+    // Binding for an optional per-category reward rate (0 == unset).
+    private func catBinding(_ cat: String) -> Binding<Double> {
+        Binding(get: { rewardCats[cat] ?? 0 }, set: { rewardCats[cat] = $0 })
+    }
+
     private func money(_ label: String, _ value: Binding<Double>) -> some View {
         HStack {
             Text(label)
@@ -143,7 +198,7 @@ struct CardEditorView: View {
     }
 
     private func load() {
-        guard let card else { return }
+        guard let card else { type = defaultType; return }
         type = card.type ?? "card"
         name = card.name
         issuer = card.issuer ?? ""
@@ -164,6 +219,8 @@ struct CardEditorView: View {
         if let parsed = DateLogic.parseDate(card.promoEndDate, tz: store.tz) {
             promoEnd = parsed
         }
+        rewardBase = card.rewardBase
+        rewardCats = card.rewardCategories
     }
 
     private func save() {
@@ -192,7 +249,9 @@ struct CardEditorView: View {
             issuer: issuer.isEmpty ? nil : issuer.trimmingCharacters(in: .whitespaces),
             currentBalance: isLoan ? nil : Double(currentBalance),
             lastDigits: lastDigits.isEmpty ? nil : lastDigits.trimmingCharacters(in: .whitespaces),
-            network: network.isEmpty ? nil : network
+            network: network.isEmpty ? nil : network,
+            rewardBase: isLoan ? 0 : rewardBase,
+            rewardCategories: isLoan ? [:] : rewardCats.filter { $0.value > 0 }
         )
         store.upsertCard(saved)
         dismiss()

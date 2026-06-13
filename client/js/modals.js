@@ -11,9 +11,10 @@ import { bills, cards, payments, save, setPayments } from './storage.svelte.js';
 import {
   fmt, monthKey, toast, refreshAll,
   recommendedAmount, goalAmountFor, paidAmount, paidGoalPolicy,
-  isFullyPaid, remainingForItem, currentPeriodKey,
+  isFullyPaid, remainingForItem, currentPeriodKey, REWARD_CATEGORIES,
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
+import { CARD_PRESETS, cardPresetById } from './cardPresets.js';
 import { renderBills } from './bills.js';
 import { renderCards } from './cards.js';
 import { todayISO } from './tz.js';
@@ -167,7 +168,8 @@ export function toggleCardTypeFields() {
   document.getElementById('c-current-balance-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-recommended-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-haspromo-field').style.display = isLoan ? 'none' : '';
-  
+  document.getElementById('c-rewards-field').style.display = isLoan ? 'none' : '';
+
   if (isLoan) {
     document.getElementById('c-haspromo').checked = false;
   }
@@ -182,11 +184,71 @@ export function toggleCardTypeFields() {
     : (isLoan ? 'Add Loan' : 'Add Credit Card');
 }
 
-export function openCardModal(idx) {
+// Build one number input per reward category into #c-reward-cats,
+// pre-filled from the card's saved rewardCategories map.
+function renderRewardCatInputs(cats) {
+  var box = document.getElementById('c-reward-cats');
+  if (!box) return;
+  box.innerHTML = '';
+  REWARD_CATEGORIES.forEach(function (cat) {
+    var row = document.createElement('div');
+    row.className = 'reward-cat-row';
+    var saved = parseFloat(cats[cat]);
+    row.innerHTML =
+      '<label>' + cat + '</label>' +
+      '<span class="reward-cat-amt">' +
+        '<input type="number" step="0.01" min="0" data-reward-cat="' + cat + '" ' +
+          'value="' + (!isNaN(saved) && saved > 0 ? saved : '') + '" placeholder="—"/>' +
+        '<span class="reward-cat-pct">%</span>' +
+      '</span>';
+    box.appendChild(row);
+  });
+}
+
+// Populate the "start from a known card" picker (once) and wire its change
+// handler to auto-fill the reward fields from the chosen preset.
+function setupRewardPreset() {
+  var sel = document.getElementById('c-reward-preset');
+  if (!sel) return;
+  if (sel.options.length <= 1) {
+    CARD_PRESETS.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.issuer + ' ' + p.name;
+      sel.appendChild(o);
+    });
+  }
+  sel.value = '';
+  sel.onchange = function () { applyCardPreset(sel.value); };
+}
+
+// Fill name/issuer/network (without clobbering non-empty fields) and the
+// reward rates from a preset. Everything stays editable afterward.
+function applyCardPreset(id) {
+  var p = cardPresetById(id);
+  if (!p) return;
+  if (!document.getElementById('c-name').value.trim()) document.getElementById('c-name').value = p.name;
+  if (!document.getElementById('c-issuer').value.trim()) document.getElementById('c-issuer').value = p.issuer;
+  if (p.network) document.getElementById('c-network').value = p.network;
+  document.getElementById('c-reward-base').value = p.rewardBase || '';
+  renderRewardCatInputs(p.rewardCategories || {});
+}
+
+// Collect the per-category inputs back into a map (only positive values).
+function collectRewardCategories() {
+  var out = {};
+  document.querySelectorAll('#c-reward-cats input[data-reward-cat]').forEach(function (inp) {
+    var v = parseFloat(inp.value);
+    if (!isNaN(v) && v > 0) out[inp.getAttribute('data-reward-cat')] = v;
+  });
+  return out;
+}
+
+export function openCardModal(idx, defaultType) {
   editCardId = (idx === undefined) ? null : idx;
-  
+
   var c = (editCardId !== null) ? cards[editCardId] : {};
-  document.getElementById('c-type').value      = c.type        || 'card';
+  document.getElementById('c-type').value      = c.type        || defaultType || 'card';
   document.getElementById('c-name').value      = c.name        || '';
   document.getElementById('c-issuer').value    = c.issuer      || '';
   document.getElementById('c-balance').value   = c.balance     || '';
@@ -204,6 +266,9 @@ export function openCardModal(idx) {
   document.getElementById('c-dueday').value    = c.dueDay      || '';
   document.getElementById('c-autopay').checked = !!c.autopay;
   document.getElementById('c-notes').value     = c.notes       || '';
+  document.getElementById('c-reward-base').value = c.rewardBase || '';
+  renderRewardCatInputs(c.rewardCategories || {});
+  setupRewardPreset();
 
   toggleCardTypeFields();
   document.getElementById('card-modal').classList.add('open');
@@ -245,6 +310,9 @@ export function saveCard() {
     dueDay:       parseInt(document.getElementById('c-dueday').value) || null,
     autopay:      document.getElementById('c-autopay').checked,
     notes:        document.getElementById('c-notes').value.trim(),
+    // Rewards power the "which card should I use?" tool. Loans never earn.
+    rewardBase:        isLoan ? 0 : (parseFloat(document.getElementById('c-reward-base').value) || 0),
+    rewardCategories:  isLoan ? {} : collectRewardCategories(),
   };
 
   if (editCardId !== null) cards[editCardId] = obj; else cards.push(obj);
@@ -287,6 +355,15 @@ function buildPayPresets(type, rec) {
   if (!rec) return presets;
   if (type === 'bill') {
     presets.push({ key: 'full', label: 'Full amount', sub: 'The whole bill', amount: parseFloat(rec.amount || 0) });
+  } else if ((rec.type || 'card') === 'loan') {
+    // Loans offer the scheduled monthly payment, plus paying off the
+    // remaining principal in full as an explicit (rarely-used) option.
+    var monthly = parseFloat(rec.minPayment || 0);
+    presets.push({ key: 'monthly', label: 'Monthly payment', sub: 'Your scheduled payment', amount: monthly });
+    var bal = parseFloat(rec.balance || 0);
+    if (bal > monthly + 0.005) {
+      presets.push({ key: 'full', label: 'Pay off in full', sub: 'Clears the remaining principal', amount: bal });
+    }
   } else {
     var min = parseFloat(rec.minPayment || 0);
     var rec2 = recommendedAmount(rec);

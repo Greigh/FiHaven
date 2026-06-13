@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Finishing your FiHaven bank connection."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+
+  <title>Connecting your bank — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="required">
+  <main style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div class="card" style="max-width:420px;text-align:center;padding:32px;">
+      <div style="font-size:34px;">🏦</div>
+      <h1 style="font-size:20px;letter-spacing:-.03em;margin-top:10px;">Finishing your bank connection…</h1>
+      <p data-oauth-status style="margin-top:8px;color:var(--muted);font-size:14px;">
+        Securely returning you from your bank. This only takes a moment.
+      </p>
+    </div>
+  </main>
+  <script type="module" src="js/plaid-oauth.js"></script>
+</body>
+</html>

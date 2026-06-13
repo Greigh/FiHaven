@@ -7,7 +7,7 @@
    settings.autopayMark.
 ═══════════════════════════════════════════════════════════ */
 
-import { bills, cards, payments, settings, save } from './storage.svelte.js';
+import { bills, cards, payments, settings, save, entitlement } from './storage.svelte.js';
 import {
   currentPeriodKey, paidAmount, goalAmountFor, isSkipped, monthKey,
 } from './utils.js';
@@ -27,7 +27,9 @@ function newId() {
 }
 
 export function runAutopayMark() {
-  if (!settings || !settings.autopayMark) return false;
+  // Pro-only (Balanced tiering) and opt-in. The server scheduler applies the
+  // same gate, so this just mirrors it for an open client.
+  if (!settings || !settings.autopayMark || !entitlement.pro) return false;
   const mk = currentPeriodKey();
   const bounds = boundsForKey(mk);
   const now = today();

@@ -752,3 +752,41 @@ input[type="file"]::file-selector-button:hover {
 .subs-flag-stale { color:var(--red); font-weight:600; margin-left:6px; }
 .subs-item-amt { font-family:'Manrope',sans-serif; font-weight:700; }
 .subs-item-mo { font-size:11px; color:var(--muted); font-weight:500; }
+
+/* ── Rewards optimizer (Rewards tab) ───────────────────────── */
+.rw-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.rw-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.rw-cats { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.rw-cat { border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; transition:all .15s; }
+.rw-cat:hover { border-color:var(--accent); }
+.rw-cat.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+.rw-winner { border:1px solid var(--rw-accent,var(--accent)); border-left:4px solid var(--rw-accent,var(--accent)); border-radius:14px; padding:14px 16px; background:color-mix(in srgb, var(--rw-accent,var(--accent)) 7%, var(--surface)); }
+.rw-winner-label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.rw-winner-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:4px; }
+.rw-winner-name { font-weight:700; font-size:18px; letter-spacing:-.02em; }
+.rw-winner-rate { font-family:'Manrope',sans-serif; font-weight:800; font-size:24px; letter-spacing:-.03em; color:var(--rw-accent,var(--accent)); }
+.rw-list { display:flex; flex-direction:column; gap:2px; margin-top:10px; }
+.rw-item { display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); }
+.rw-item:last-child { border-bottom:none; }
+.rw-dot { width:10px; height:10px; border-radius:3px; flex:none; }
+.rw-item-name { flex:1; min-width:0; }
+.rw-item-rate { font-family:'Manrope',sans-serif; font-weight:700; color:var(--muted); }
+.rw-excluded { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
+.rw-excluded-head { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:8px; }
+.rw-ex-item { padding:8px 0; }
+.rw-ex-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.rw-ex-top .rw-item-name { opacity:.6; }
+.rw-ex-rate { font-size:12px; color:var(--muted); font-weight:600; }
+.rw-ex-reason { font-size:11px; color:var(--orange,var(--muted)); margin-top:2px; line-height:1.4; }
+/* Per-category reward inputs in the card editor. */
+.reward-cats-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px 12px; }
+.reward-cat-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.reward-cat-row label { font-size:13px; color:var(--text); }
+.reward-cat-row .reward-cat-amt { display:flex; align-items:center; gap:3px; }
+.reward-cat-row input { width:64px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:4px 6px; color:var(--text); font:inherit; text-align:right; }
+.reward-cat-row .reward-cat-pct { color:var(--muted); font-size:12px; }
+@media (max-width:560px){ .reward-cats-grid { grid-template-columns:1fr; } }
+/* Inline "this is a Pro feature" hint inside an otherwise-free panel. */
+.spend-pro-upsell { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--muted); background:var(--surface2,var(--border)); border:1px dashed var(--border); border-radius:12px; padding:10px 12px; margin:6px 0; }
+.spend-pro-upsell a { color:var(--accent); font-weight:600; margin-left:auto; }
+.spend-tx-bank { font-size:10px; color:var(--accent); background:var(--accent-bg); border-radius:6px; padding:1px 5px; margin-left:6px; white-space:nowrap; }

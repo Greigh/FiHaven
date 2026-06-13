@@ -4,6 +4,7 @@ import FiHavenCore
 /// Bills list with add / edit / delete and per-bill mark-paid.
 struct BillsView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
     @State private var editing: Bill?
     @State private var creating = false
     @State private var paying: PayTarget?
@@ -86,7 +87,8 @@ struct BillsView: View {
 
     @ViewBuilder
     private var subscriptionsHeader: some View {
-        if !subscriptions.isEmpty {
+        // Subscription finder is a Pro insight (Balanced tiering).
+        if billing.isPro && !subscriptions.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     FieldLabel(text: "Subscriptions")

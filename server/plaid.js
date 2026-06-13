@@ -104,14 +104,20 @@ function countryCodes() {
 /* ── Link / exchange ─────────────────────────────────────────── */
 
 // Create a short-lived Link token the browser hands to Plaid Link.
-async function createLinkToken(user) {
+// Pass `accessToken` to create an UPDATE-MODE token (re-auth an existing
+// item after ITEM_LOGIN_REQUIRED) — update mode omits `products`.
+async function createLinkToken(user, accessToken) {
   const req = {
     user: { client_user_id: String(user.id) },
     client_name: 'FiHaven',
     language: 'en',
-    products: products(),
     country_codes: countryCodes(),
   };
+  if (accessToken) {
+    req.access_token = accessToken; // update mode: re-link the existing item
+  } else {
+    req.products = products();
+  }
   if (process.env.PLAID_WEBHOOK_URL) req.webhook = process.env.PLAID_WEBHOOK_URL;
   if (process.env.PLAID_REDIRECT_URI) req.redirect_uri = process.env.PLAID_REDIRECT_URI;
   const resp = await client().linkTokenCreate(req);
@@ -175,11 +181,60 @@ async function removeItem(accessToken) {
   await client().itemRemove({ access_token: accessToken });
 }
 
+/* ── Webhook verification ────────────────────────────────────── */
+
+const crypto = require('crypto');
+const _jwkCache = new Map(); // kid → JWK (Plaid keys are stable per kid)
+
+// Verify a Plaid webhook: the `Plaid-Verification` header is an ES256 JWT
+// whose `request_body_sha256` claim must equal sha256(raw body), signed by
+// the key Plaid returns for the JWT's `kid`. Replay-guarded via `iat`.
+// Returns true only when everything checks out. (Sandbox sends no header,
+// so callers skip verification there.)
+async function verifyWebhook(headerJwt, rawBody) {
+  try {
+    if (!headerJwt || !rawBody) return false;
+    const [h64, p64, sig64] = String(headerJwt).split('.');
+    if (!h64 || !p64 || !sig64) return false;
+
+    const header = JSON.parse(Buffer.from(h64, 'base64url').toString('utf8'));
+    if (header.alg !== 'ES256' || !header.kid) return false;
+
+    let jwk = _jwkCache.get(header.kid);
+    if (!jwk) {
+      const resp = await client().webhookVerificationKeyGet({ key_id: header.kid });
+      jwk = resp.data.key;
+      if (!jwk || jwk.expired_at) return false;
+      _jwkCache.set(header.kid, jwk);
+    }
+
+    const pubKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+    const ok = crypto.verify(
+      'sha256',
+      Buffer.from(`${h64}.${p64}`),
+      { key: pubKey, dsaEncoding: 'ieee-p1363' },
+      Buffer.from(sig64, 'base64url')
+    );
+    if (!ok) return false;
+
+    const claims = JSON.parse(Buffer.from(p64, 'base64url').toString('utf8'));
+    // Reject stale webhooks (>5 min) to blunt replays.
+    if (!claims.iat || Math.abs(Date.now() / 1000 - claims.iat) > 300) return false;
+
+    const bodyHash = crypto.createHash('sha256').update(rawBody).digest('hex');
+    return typeof claims.request_body_sha256 === 'string' &&
+      crypto.timingSafeEqual(Buffer.from(bodyHash), Buffer.from(claims.request_body_sha256));
+  } catch (_) {
+    return false;
+  }
+}
+
 module.exports = {
   plaidConfigured,
   plaidEnv,
   createLinkToken,
   exchangePublicToken,
+  verifyWebhook,
   getInstitution,
   getAccounts,
   syncTransactions,

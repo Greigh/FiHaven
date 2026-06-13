@@ -132,7 +132,7 @@ sub.get(Object.keys(LEGACY), (req, res) =>
 // Server-side gate for the private pages — works even with JS
 // disabled. Anonymous visitors get the marketing landing; signed-in
 // but unverified users get the verify-email page until they confirm.
-sub.get(['/dashboard', '/settings'], (req, res, next) => {
+sub.get(['/dashboard', '/settings', '/plaid-oauth'], (req, res, next) => {
   if (!req.user) return res.redirect(BASE + '/');
   if (!req.user.emailVerified) return res.redirect(BASE + '/verify-email');
   // New, verified accounts run the welcome flow first. Only /dashboard

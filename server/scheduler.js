@@ -15,6 +15,7 @@
 
 const dbApi = require('./db');
 const emails = require('./emails');
+const billing = require('./billing');
 
 const SEND_HOUR = 8;            // local hour (24h) to send
 const REMINDER_LEAD_DAYS = 3;  // remind this many days before a due day
@@ -130,8 +131,11 @@ async function runChecks(now = new Date(), deps = {}) {
 
     // Auto-mark autopay items paid on their due day, at the user's chosen
     // local hour (default 9). Writes back to the user's data blob; clients
-    // pick it up on next sync.
-    if (s.autopayMark) {
+    // pick it up on next sync. Pro-only (Balanced tiering) — the server is
+    // authoritative, so a non-Pro user toggling it on is a no-op here.
+    let isPro = false;
+    try { isPro = !!billing.computeEntitlement(u.id).pro; } catch (_) { isPro = false; }
+    if (s.autopayMark && isPro) {
       const markHour = Math.min(23, Math.max(0, parseInt(s.autopayMarkHour, 10) || 9));
       if (lp.hour === markHour && u.last_autopay_day !== lp.ymd) {
         try {

@@ -47,6 +47,9 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     var status by remember { mutableStateOf<PlaidStatus?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // Non-null while an update-mode (reconnect) Link session is open, so the
+    // success callback marks the item repaired instead of exchanging a token.
+    var pendingRepairItemId by remember { mutableStateOf<Int?>(null) }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }
@@ -54,14 +57,22 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     val launcher = rememberLauncherForActivityResult(FastOpenPlaidLink()) { result ->
         when (result) {
             is LinkSuccess -> {
-                msg = "Linking…"
+                val repairId = pendingRepairItemId
+                pendingRepairItemId = null
                 scope.launch {
-                    val ok = runCatching { vm.api.plaidExchange(result.publicToken) }.isSuccess
-                    msg = if (ok) "Bank linked." else "Could not finish linking. Please try again."
+                    val ok = if (repairId != null) {
+                        msg = "Reconnecting…"
+                        runCatching { vm.api.plaidRepaired(repairId) }.isSuccess
+                    } else {
+                        msg = "Linking…"
+                        runCatching { vm.api.plaidExchange(result.publicToken) }.isSuccess
+                    }
+                    msg = if (ok) (if (repairId != null) "Bank reconnected." else "Bank linked.")
+                          else "Could not finish. Please try again."
                     load()
                 }
             }
-            is LinkExit -> msg = "Linking cancelled."
+            is LinkExit -> { pendingRepairItemId = null; msg = "Linking cancelled." }
         }
     }
 
@@ -73,6 +84,21 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             busy = false
             if (token == null) { msg = "Could not start linking. Please try again."; return@launch }
             msg = null
+            val config = linkTokenConfiguration { this.token = token }
+            launcher.launch(Plaid.create(context.applicationContext as Application, config))
+        }
+    }
+
+    // Update mode: re-auth an item flagged login_required.
+    fun reconnect(id: Int) {
+        busy = true
+        msg = "Reopening your bank…"
+        scope.launch {
+            val token = runCatching { vm.api.plaidLinkToken(id) }.getOrNull()
+            busy = false
+            if (token == null) { msg = "Could not start reconnect. Please try again."; return@launch }
+            msg = null
+            pendingRepairItemId = id
             val config = linkTokenConfiguration { this.token = token }
             launcher.launch(Plaid.create(context.applicationContext as Application, config))
         }
@@ -94,9 +120,11 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         Text("No banks linked yet.", color = Ct.colors.muted, fontSize = 14.sp)
                     } else {
                         s.items.forEach { item ->
-                            BankItemRow(item) {
-                                scope.launch { runCatching { vm.api.plaidRemove(item.id) }; load() }
-                            }
+                            BankItemRow(
+                                item,
+                                onDisconnect = { scope.launch { runCatching { vm.api.plaidRemove(item.id) }; load() } },
+                                onReconnect = { reconnect(item.id) },
+                            )
                             HorizontalDivider(color = Ct.colors.border)
                         }
                     }
@@ -126,12 +154,21 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
 }
 
 @Composable
-private fun BankItemRow(item: PlaidItem, onDisconnect: () -> Unit) {
+private fun BankItemRow(item: PlaidItem, onDisconnect: () -> Unit, onReconnect: () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(item.institutionName, color = Ct.colors.text, fontSize = 15.sp,
                 fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            if (item.status != "active") {
+                TextButton(onClick = onReconnect) { Text("Reconnect", color = Ct.colors.accent) }
+            }
             TextButton(onClick = onDisconnect) { Text("Disconnect", color = Ct.colors.red) }
+        }
+        if (item.status != "active") {
+            Text(
+                if (item.status == "login_required") "Reconnect needed" else item.status,
+                color = Ct.colors.orange, fontSize = 11.sp,
+            )
         }
         item.accounts.forEach { a ->
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {

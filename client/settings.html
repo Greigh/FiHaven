@@ -39,6 +39,8 @@
       <!-- ═══ Section tabs ═══ -->
       <div class="nav-tabs settings-tabs" role="tablist" data-settings-tabs>
         <button class="tab-btn active" type="button" role="tab" data-tab="profile">Profile</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="preferences">Preferences</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="payments">Payments</button>
         <button class="tab-btn" type="button" role="tab" data-tab="security">Security</button>
         <button class="tab-btn" type="button" role="tab" data-tab="notifications">Notifications</button>
         <button class="tab-btn" type="button" role="tab" data-tab="bank">Bank</button>
@@ -64,6 +66,10 @@
             </div>
           </form>
         </section>
+      </div>
+
+      <!-- ═══════════════ Preferences ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="preferences" hidden>
 
         <!-- ── Time zone ── -->
         <section class="auth-card">
@@ -123,38 +129,17 @@
                 <option value="dashboard">Dashboard (overview)</option>
                 <option value="bills">Bills</option>
                 <option value="cards">Cards</option>
+                <option value="loans">Loans</option>
                 <option value="budget">Budget</option>
                 <option value="calendar">Calendar</option>
                 <option value="history">History</option>
                 <option value="payoff">Payoff</option>
+                <option value="rewards">Rewards</option>
               </select>
             </div>
             <div class="auth-error" data-message="landing" aria-live="polite"></div>
             <div class="auth-actions">
               <button class="btn btn-primary" type="submit">Save default view</button>
-            </div>
-          </form>
-        </section>
-
-        <!-- ── Payments: fully-paid goal ── -->
-        <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">Payments</h2>
-          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
-            Choose how much you need to pay before a bill or card counts as <strong>fully paid</strong>. Anything less shows as a partial payment with the remainder still due. Bills always use their full amount; this mainly affects credit cards.
-          </p>
-          <form class="auth-form" data-form="paidgoal" style="margin-top:14px;">
-            <div class="auth-field">
-              <label for="paidgoal-select">Mark fully paid at</label>
-              <select id="paidgoal-select" data-paidgoal-select>
-                <option value="minimum">The minimum payment</option>
-                <option value="recommended">The recommended amount (clears 0% promos in time)</option>
-                <option value="full">The full balance / amount</option>
-              </select>
-            </div>
-            <div class="auth-note" data-paidgoal-effective></div>
-            <div class="auth-error" data-message="paidgoal" aria-live="polite"></div>
-            <div class="auth-actions">
-              <button class="btn btn-primary" type="submit">Save payment goal</button>
             </div>
           </form>
         </section>
@@ -189,10 +174,39 @@
             </div>
           </form>
         </section>
+      </div>
+
+      <!-- ═══════════════ Payments ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="payments" hidden>
+
+        <!-- ── Payments: fully-paid goal ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Payments</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Choose how much you need to pay before a bill or card counts as <strong>fully paid</strong>. Anything less shows as a partial payment with the remainder still due. Bills always use their full amount; this mainly affects credit cards.
+          </p>
+          <form class="auth-form" data-form="paidgoal" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="paidgoal-select">Mark fully paid at</label>
+              <select id="paidgoal-select" data-paidgoal-select>
+                <option value="minimum">The minimum payment</option>
+                <option value="recommended">The recommended amount (clears 0% promos in time)</option>
+                <option value="full">The full balance / amount</option>
+              </select>
+            </div>
+            <div class="auth-note" data-paidgoal-effective></div>
+            <div class="auth-error" data-message="paidgoal" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save payment goal</button>
+            </div>
+          </form>
+        </section>
 
         <!-- ── Autopay auto-mark ── -->
         <section class="auth-card">
-          <h2 style="font-size:20px;letter-spacing:-.03em;">Autopay auto-mark</h2>
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Autopay auto-mark
+            <span class="badge badge-gray" style="background:var(--accent-bg);color:var(--accent);font-size:11px;vertical-align:middle;">PRO</span>
+          </h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">
             When on, bills and cards flagged <strong>Autopay</strong> are automatically recorded as paid on their due date — on your devices and on the server at the time you pick (so it works even if no app is open). Turn it off to confirm every payment yourself. If a real autopay ever fails, just delete the auto-marked payment.
           </p>

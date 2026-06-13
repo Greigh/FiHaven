@@ -142,6 +142,12 @@ public enum Schedule {
     ) -> Double {
         let paid = paidAmount(payments, type: "card", refId: String(card.id), in: bounds)
         let startBalance = card.balance + paid
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type ?? "card") == "loan" {
+            if let override = card.recommendedPayment, override > 0 { return override }
+            return card.minPayment
+        }
         switch policy {
         case .minimum: return card.minPayment
         case .full:    return startBalance
@@ -161,6 +167,9 @@ public enum Schedule {
     /// paying off the remaining balance. Mirrors recommendedAmount in utils.js.
     public static func recommendedAmount(_ card: Card, tz: TimeZone, now: Date = Date()) -> Double {
         if let override = card.recommendedPayment, override > 0 { return override }
+        // Loans: the recommended payment is the scheduled monthly payment, never
+        // the whole principal (paying it off is still an explicit option).
+        if (card.type ?? "card") == "loan" { return card.minPayment }
         return card.hasPromo ? max(card.minPayment, promoNeeded(card, tz: tz, now: now)) : card.balance
     }
 
@@ -184,6 +193,12 @@ public enum Schedule {
         // to zero. Card payments decrement the live balance, so add this
         // month's payments back to keep that goal stable across installments.
         let startBalance = card.balance + paid
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type ?? "card") == "loan" {
+            if let override = card.recommendedPayment, override > 0 { return override }
+            return card.minPayment
+        }
         switch policy {
         case .minimum: return card.minPayment
         case .full:    return startBalance
