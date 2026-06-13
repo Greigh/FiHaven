@@ -51,6 +51,15 @@ struct PayView: View {
             return [Preset(label: "Full amount", sub: "The whole bill", amount: bill?.amount ?? 0)]
         }
         guard let c = card else { return [] }
+        if (c.type ?? "card") == "loan" {
+            // Loans: scheduled monthly payment, plus paying off the remaining
+            // principal in full as an explicit (rarely-used) option.
+            var ps = [Preset(label: "Monthly payment", sub: "Your scheduled payment", amount: c.minPayment)]
+            if c.balance > c.minPayment + Schedule.paidEpsilon {
+                ps.append(Preset(label: "Pay off in full", sub: "Clears the remaining principal", amount: c.balance))
+            }
+            return ps
+        }
         var ps = [Preset(label: "Minimum", sub: "Minimum payment", amount: c.minPayment)]
         let rec = Schedule.recommendedAmount(c, tz: store.tz)
         if rec > c.minPayment + Schedule.paidEpsilon {

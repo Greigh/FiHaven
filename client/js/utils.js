@@ -25,6 +25,13 @@ export const ICONS = {
   Other:         '📌',
 };
 
+// Spending categories used by the rewards optimizer ("which card should I
+// use?"). Kept in sync with REWARD_CATEGORIES in the native cores.
+export const REWARD_CATEGORIES = [
+  'Dining', 'Groceries', 'Gas', 'Travel',
+  'Transit', 'Online shopping', 'Streaming', 'Drugstores', 'Other',
+];
+
 export const CARD_COLORS = [
   '#1A6BFF', '#C0392B', '#1A7A4A',
   '#7B3CC0', '#C06010', '#007080', '#8B5A00',
@@ -254,6 +261,10 @@ export function recommendedAmount(card) {
   var override = parseFloat(card.recommendedPayment || 0);
   if (override > 0) return override;
   var min = parseFloat(card.minPayment || 0);
+  // Loans: the recommended payment is the scheduled monthly payment, never
+  // the whole principal — you rarely clear a mortgage/auto loan in one go
+  // (paying it off is still offered as an explicit option in the Pay flow).
+  if ((card.type || 'card') === 'loan') return min;
   if (card.hasPromo) return Math.max(min, promoNeeded(card));
   return parseFloat(card.balance || 0);
 }
@@ -280,6 +291,13 @@ export function goalAmountFor(type, refId, mk) {
   }
   var c = cards.find(function (x) { return String(x.id) === String(refId); });
   if (!c) return 0;
+  // Loans: the monthly obligation is the scheduled payment under every policy
+  // — never the full principal (which would leave the row perpetually "unpaid"
+  // and wreck remaining-balance totals). A per-loan override still wins.
+  if ((c.type || 'card') === 'loan') {
+    var loanOverride = parseFloat(c.recommendedPayment || 0);
+    return loanOverride > 0 ? loanOverride : parseFloat(c.minPayment || 0);
+  }
   var policy = paidGoalPolicy();
   if (policy === 'minimum') return parseFloat(c.minPayment || 0);
   // "full" and a non-promo "recommended" both target paying the balance

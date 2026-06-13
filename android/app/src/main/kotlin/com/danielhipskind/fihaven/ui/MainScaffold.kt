@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -72,7 +74,9 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     DASHBOARD("dashboard", "Home", Icons.Filled.Home),
     BILLS("bills", "Bills", Icons.AutoMirrored.Filled.ReceiptLong),
     CARDS("cards", "Cards", Icons.Filled.CreditCard),
+    LOANS("loans", "Loans", Icons.Filled.AccountBalance),
     PAYOFF("payoff", "Payoff", Icons.AutoMirrored.Filled.ShowChart),
+    REWARDS("rewards", "Rewards", Icons.Filled.Stars),
     BUDGET("budget", "Budget", Icons.Filled.PieChart),
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
@@ -182,7 +186,9 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.DASHBOARD -> DashboardScreen(vm, padding)
         TabId.BILLS -> BillsScreen(vm, padding)
         TabId.CARDS -> CardsScreen(vm, padding)
+        TabId.LOANS -> CardsScreen(vm, padding, kind = "loan")
         TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding) }
+        TabId.REWARDS -> ProGate(vm, ProFeature.REWARDS, padding, onBack) { RewardsScreen(vm, padding) }
         TabId.BUDGET -> BudgetScreen(vm, padding, onBack)
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }

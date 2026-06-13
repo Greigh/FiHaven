@@ -129,6 +129,35 @@ func runScheduleChecks() {
                    50, "minimum goal ignores balance", tol: 0.001)
         checkClose(Schedule.goalAmount(card: override, policy: .recommended, payments: paid, monthKey: "2026-06", tz: tz),
                    300, "override goal is the fixed value", tol: 0.001)
+
+        // Loans recommend the scheduled monthly payment, never the principal.
+        var loan = Card(id: 9, name: "Mortgage", balance: 250_000, minPayment: 1600)
+        loan.type = "loan"
+        checkClose(Schedule.recommendedAmount(loan, tz: tz), 1600, "loan recommended = monthly payment", tol: 0.001)
+        checkClose(Schedule.goalAmount(card: loan, policy: .recommended, payments: [], monthKey: "2026-06", tz: tz),
+                   1600, "loan goal = monthly under recommended", tol: 0.001)
+        checkClose(Schedule.goalAmount(card: loan, policy: .full, payments: [], monthKey: "2026-06", tz: tz),
+                   1600, "loan goal = monthly even under full", tol: 0.001)
+    }
+
+    section("Rewards — rank for category") {
+        let tz = TimeZone(identifier: "UTC")!
+        let now = makeDate(2026, 6, 15, tz: tz)
+        let flat = Card(id: 1, name: "Flat 2%", rewardBase: 2)
+        let dining = Card(id: 2, name: "Dining 4%", rewardBase: 1, rewardCategories: ["Dining": 4])
+        var promo = Card(id: 3, name: "Promo 5%", rewardBase: 5)
+        promo.hasPromo = true; promo.promoEndDate = "2026-12-31"
+        let loan = Card(id: 4, name: "Loan", rewardBase: 9); var l = loan; l.type = "loan"
+
+        let r = Rewards.rank([flat, dining, promo, l], category: "Dining", tz: tz, now: now)
+        check(r.eligible.first?.card.id == 2, "dining 4% wins over flat 2%")
+        check(!r.eligible.contains { $0.card.id == 4 }, "loan excluded entirely")
+        check(r.excluded.contains { $0.card.id == 3 }, "active 0% promo card excluded with reason")
+        check(!r.eligible.contains { $0.card.id == 3 }, "promo card not in eligible")
+
+        // Same cards for Groceries → dining card falls back to its 1% base.
+        let g = Rewards.rank([flat, dining], category: "Groceries", tz: tz, now: now)
+        check(g.eligible.first?.card.id == 1, "flat 2% wins groceries (dining card uses 1% base)")
     }
 }
 

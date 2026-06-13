@@ -67,6 +67,19 @@
     <div id="cards-mount"></div>
   </div>
 
+  <!-- ── LOANS ───────────────────────────────────────────── -->
+  <div id="tab-loans" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Loans</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV('cards')">⬇ CSV</button>
+        <button class="btn btn-primary" onclick="openCardModal(undefined, 'loan')">+ Add Loan</button>
+      </div>
+    </div>
+    <!-- Loans tab reuses CardsList.svelte (kind="loan"). -->
+    <div id="loans-mount"></div>
+  </div>
+
   <!-- ── BUDGET ─────────────────────────────────────────── -->
   <div id="tab-budget" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
     <div class="section-header">
@@ -101,6 +114,15 @@
     </div>
     <!-- Payoff tab is rendered by client/svelte/PayoffView.svelte. -->
     <div id="payoff-mount"></div>
+  </div>
+
+  <!-- ── REWARDS ─────────────────────────────────────────── -->
+  <div id="tab-rewards" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Maximize Rewards</span>
+    </div>
+    <!-- Rewards tab is rendered by client/svelte/RewardsView.svelte. -->
+    <div id="rewards-mount"></div>
   </div>
 
   <!-- ── CALENDAR ────────────────────────────────────────── -->
@@ -283,6 +305,19 @@
       <div class="field" style="grid-column:span 2;">
         <label for="c-notes">Notes</label>
         <input type="text" id="c-notes" placeholder="Rewards program, login, etc."/>
+      </div>
+      <div class="field" id="c-rewards-field" style="grid-column:span 2;">
+        <label for="c-reward-base">Rewards <span style="color:var(--muted);font-weight:400;">— powers the “which card?” tool</span></label>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <select id="c-reward-preset" style="max-width:280px;"><option value="">Start from a known card…</option></select>
+          <span style="color:var(--muted);font-size:12px;">auto-fills rates (editable)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <input type="number" id="c-reward-base" placeholder="e.g. 1.5" step="0.01" min="0" style="max-width:120px;"/>
+          <span style="color:var(--muted);font-size:13px;">% base rate on everything</span>
+        </div>
+        <div style="color:var(--muted);font-size:12px;margin:6px 0 4px;">Category bonuses (leave blank to use the base rate)</div>
+        <div id="c-reward-cats" class="reward-cats-grid"></div>
       </div>
     </div>
     <div class="modal-footer">

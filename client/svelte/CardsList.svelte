@@ -22,12 +22,24 @@
 
   const mk = currentPeriodKey();
 
+  // kind === 'loan' renders the Loans tab; default 'card' renders Credit Cards.
+  // Cards and loans share this component (and the editor) but live in separate
+  // tabs, so each view filters the shared `cards` array to its own type.
+  let { kind = 'card' } = $props();
+  const isLoanView = kind === 'loan';
+  let baseCards = $derived(cards.filter((c) => isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan'));
+
   /* ── Sort + filter state (per-session, local to this view) ──── */
   let sort = $state('due');
   let activeFilters = $state({});
   let openPromos = $state({});    // { [cardId]: true } — promo block open
 
-  const SORTS = [
+  const SORTS = isLoanView ? [
+    { key: 'due', label: 'Due date (soonest)' },
+    { key: 'balance', label: 'Largest balance' },
+    { key: 'apr', label: 'Highest APR' },
+    { key: 'name', label: 'Name (A–Z)' },
+  ] : [
     { key: 'due', label: 'Due date (soonest)' },
     { key: 'balance', label: 'Largest balance' },
     { key: 'apr', label: 'Highest APR' },
@@ -35,13 +47,15 @@
     { key: 'promo', label: '0% promo first' },
     { key: 'name', label: 'Name (A–Z)' },
   ];
-  const FILTERS = [
+  const FILTERS = isLoanView ? [
+    { key: 'balance', label: 'Has a balance', type: 'toggle' },
+    { key: 'overdue', label: 'Overdue', type: 'toggle' },
+    { key: 'autopay', label: 'Autopay only', type: 'toggle' },
+  ] : [
     { key: 'balance', label: 'Has a balance', type: 'toggle' },
     { key: 'promo', label: 'Has 0% promo', type: 'toggle' },
     { key: 'overdue', label: 'Overdue', type: 'toggle' },
-    { key: 'type', label: 'Type', type: 'select', options: [
-      { key: 'all', label: 'All' }, { key: 'card', label: 'Cards' }, { key: 'loan', label: 'Loans' },
-    ] },
+    { key: 'autopay', label: 'Autopay only', type: 'toggle' },
   ];
   const utilOf = (c) => { const b = parseFloat(c.balance) || 0, l = parseFloat(c.limit) || 0; return l > 0 ? b / l : 0; };
 
@@ -92,20 +106,20 @@
   }
 
   /* ── Summary totals ─────────────────────────────────── */
-  let totalBalance = $derived(cards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
-  let totalLimit   = $derived(cards.reduce((s, c) => s + (c.type === 'loan' ? 0 : (parseFloat(c.limit) || 0)), 0));
-  let totalMin     = $derived(cards.reduce((s, c) => s + (parseFloat(c.minPayment) || 0), 0));
-  let overallUtil  = $derived(totalLimit > 0 ? Math.round((cards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
-  let promoCount   = $derived(cards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
+  let totalBalance = $derived(baseCards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
+  let totalLimit   = $derived(baseCards.reduce((s, c) => s + (c.type === 'loan' ? 0 : (parseFloat(c.limit) || 0)), 0));
+  let totalMin     = $derived(baseCards.reduce((s, c) => s + (parseFloat(c.minPayment) || 0), 0));
+  let overallUtil  = $derived(totalLimit > 0 ? Math.round((baseCards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
+  let promoCount   = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
 
   /* ── Filtered + sorted view ─────────────────────────── */
   let displayCards = $derived.by(() => {
     const f = activeFilters;
-    const list = cards.filter((c) => {
+    const list = baseCards.filter((c) => {
       if (f.balance && !(parseFloat(c.balance) > 0)) return false;
       if (f.promo && !(c.hasPromo && c.promoEndDate)) return false;
       if (f.overdue && !(c.dueDay && daysUntilDue(parseInt(c.dueDay)) < 0)) return false;
-      if (f.type && f.type !== 'all' && (c.type === 'loan' ? 'loan' : 'card') !== f.type) return false;
+      if (f.autopay && !c.autopay) return false;
       return true;
     });
     const out = list.slice();
@@ -133,21 +147,40 @@
   }
 </script>
 
-<NetWorthPanel />
+{#if !isLoanView}<NetWorthPanel />{/if}
 
-{#if cards.length === 0}
+{#if baseCards.length === 0}
   <div class="empty">
-    <div class="empty-icon">💳</div>
-    <h3>No cards added</h3>
-    <p>Add credit cards — especially any with 0% promo periods so you know exactly how much to pay each month.</p>
+    <div class="empty-icon">{isLoanView ? '🏦' : '💳'}</div>
+    {#if isLoanView}
+      <h3>No loans added</h3>
+      <p>Add mortgages, auto loans, or student loans to track their remaining balance and monthly payment.</p>
+    {:else}
+      <h3>No cards added</h3>
+      <p>Add credit cards — especially any with 0% promo periods so you know exactly how much to pay each month.</p>
+    {/if}
   </div>
 {:else}
   <!-- ── Summary bar ───────────────────────────────────── -->
+  {#if isLoanView}
+    <div class="cards-summary">
+      <div class="cards-summary-tile">
+        <div class="cards-summary-label">Total remaining</div>
+        <div class="cards-summary-value" style="color:{totalBalance > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(totalBalance)}</div>
+        <div class="cards-summary-sub">across {baseCards.length} loan{baseCards.length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="cards-summary-tile">
+        <div class="cards-summary-label">Monthly payments</div>
+        <div class="cards-summary-value">{fmt(totalMin)}</div>
+        <div class="cards-summary-sub">scheduled each month</div>
+      </div>
+    </div>
+  {:else}
   <div class="cards-summary">
     <div class="cards-summary-tile">
       <div class="cards-summary-label">Total balance</div>
       <div class="cards-summary-value" style="color:{totalBalance > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(totalBalance)}</div>
-      <div class="cards-summary-sub">across {cards.length} card{cards.length === 1 ? '' : 's'}</div>
+      <div class="cards-summary-sub">across {baseCards.length} card{baseCards.length === 1 ? '' : 's'}</div>
     </div>
     <div class="cards-summary-tile">
       <div class="cards-summary-label">Total credit</div>
@@ -167,6 +200,7 @@
       <div class="cards-summary-sub">required this cycle</div>
     </div>
   </div>
+  {/if}
 
   <!-- ── Sort + filter ─────────────────────────────────── -->
   <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />

@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,13 +50,17 @@ import com.danielhipskind.fihaven.core.CTConstants
 import com.danielhipskind.fihaven.core.Money
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidState
+import com.danielhipskind.fihaven.core.logic.Rewards
 import com.danielhipskind.fihaven.core.model.Account
 import com.danielhipskind.fihaven.core.model.Card
 import com.danielhipskind.fihaven.ui.theme.Ct
 import kotlin.math.min
 
 @Composable
-fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
+fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card") {
+    // kind == "loan" renders the Loans tab; default "card" renders Credit Cards.
+    // Cards and loans share this screen (and the editor) but live in separate tabs.
+    val isLoanView = kind == "loan"
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Card?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -65,7 +70,6 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
     var fBalance by remember { mutableStateOf(false) }
     var fPromo by remember { mutableStateOf(false) }
     var fOverdue by remember { mutableStateOf(false) }
-    var fType by remember { mutableStateOf("all") }
     var editingAccount by remember { mutableStateOf<Account?>(null) }
     var creatingAccount by remember { mutableStateOf(false) }
     val zone = vm.zone()
@@ -75,10 +79,10 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
     val netWorth = assets - liabilities
 
     val filtered = data.cards.filter { c ->
+        if (((c.type == "loan")) != isLoanView) return@filter false
         if (fBalance && !(c.balance > 0)) return@filter false
         if (fPromo && !(c.hasPromo && !c.promoEndDate.isNullOrEmpty())) return@filter false
         if (fOverdue && !(c.dueDay != null && DateLogic.daysUntilDue(c.dueDay!!, zone) < 0)) return@filter false
-        if (fType != "all" && (if (c.type == "loan") "loan" else "card") != fType) return@filter false
         true
     }
     val cards = when (sortKey) {
@@ -91,13 +95,15 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
         }
         else -> filtered.sortedBy { it.dueDay ?: 99 }
     }
-    val filterCount = listOf(fBalance, fPromo, fOverdue).count { it } + if (fType != "all") 1 else 0
-    val typeLabel = when (fType) { "card" -> "Cards"; "loan" -> "Loans"; else -> "All" }
+    val filterCount = listOf(fBalance, fPromo, fOverdue).count { it }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Cards", onAdd = { creating = true })
+        ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true })
         SortFilterBar(
-            sortOptions = listOf(
+            sortOptions = if (isLoanView) listOf(
+                "due" to "Due date", "balance" to "Largest balance",
+                "apr" to "Highest APR", "name" to "Name (A–Z)",
+            ) else listOf(
                 "due" to "Due date", "balance" to "Largest balance", "apr" to "Highest APR",
                 "util" to "Highest utilization", "promo" to "0% promo first", "name" to "Name (A–Z)",
             ),
@@ -105,21 +111,25 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
             filterCount = filterCount, onFilters = { showFilters = true },
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { NetWorthCard(netWorth, assets, liabilities, accountsEmpty = data.accounts.isEmpty()) }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text("ACCOUNTS YOU OWN", color = Ct.colors.muted, fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold)
-                    Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
-                        modifier = Modifier.clickable { creatingAccount = true })
+            if (!isLoanView) {
+                item { NetWorthCard(netWorth, assets, liabilities, accountsEmpty = data.accounts.isEmpty()) }
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("ACCOUNTS YOU OWN", color = Ct.colors.muted, fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
+                            modifier = Modifier.clickable { creatingAccount = true })
+                    }
+                }
+                items(data.accounts, key = { "acct-${it.id}" }) { acct ->
+                    AccountRow(acct) { editingAccount = acct }
                 }
             }
-            items(data.accounts, key = { "acct-${it.id}" }) { acct ->
-                AccountRow(acct) { editingAccount = acct }
-            }
             if (cards.isEmpty()) {
-                item { CtCard { Text("No cards yet. Tap + to add one.", color = Ct.colors.muted) } }
+                item { CtCard { Text(
+                    if (isLoanView) "No loans yet. Tap + to add one." else "No cards yet. Tap + to add one.",
+                    color = Ct.colors.muted) } }
             }
             items(cards, key = { it.id }) { card ->
                 val dismissState = rememberSwipeToDismissBoxState(
@@ -186,24 +196,21 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues) {
         }
     }
 
-    if (creating) CardEditorDialog(null, vm, onDismiss = { creating = false })
+    if (creating) CardEditorDialog(null, vm, onDismiss = { creating = false }, defaultType = kind)
     editing?.let { CardEditorDialog(it, vm, onDismiss = { editing = null }) }
     paying?.let { PayDialog(vm, "card", it.id.toString(), it.name) { paying = null } }
     if (creatingAccount) AccountEditorDialog(null, vm) { creatingAccount = false }
     editingAccount?.let { AccountEditorDialog(it, vm) { editingAccount = null } }
 
     if (showFilters) {
-        FormDialog("Filter cards", saveEnabled = true, onSave = { showFilters = false },
-            onDismiss = { showFilters = false }) {
+        FormDialog(if (isLoanView) "Filter loans" else "Filter cards", saveEnabled = true,
+            onSave = { showFilters = false }, onDismiss = { showFilters = false }) {
             FilterSwitch("Has a balance", fBalance) { fBalance = it }
-            FilterSwitch("Has 0% promo", fPromo) { fPromo = it }
+            if (!isLoanView) FilterSwitch("Has 0% promo", fPromo) { fPromo = it }
             FilterSwitch("Overdue only", fOverdue) { fOverdue = it }
-            DropdownField("Type", listOf("All", "Cards", "Loans"), typeLabel) {
-                fType = when (it) { "Cards" -> "card"; "Loans" -> "loan"; else -> "all" }
-            }
             Text("Clear filters", color = Ct.colors.accent, fontSize = 14.sp,
                 modifier = Modifier.clickable {
-                    fBalance = false; fPromo = false; fOverdue = false; fType = "all"
+                    fBalance = false; fPromo = false; fOverdue = false
                 }.padding(top = 6.dp))
         }
     }
@@ -301,9 +308,9 @@ private fun CardRow(
 }
 
 @Composable
-fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
+fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defaultType: String = "card") {
     var name by remember { mutableStateOf(card?.name ?: "") }
-    var type by remember { mutableStateOf(card?.type ?: "card") }
+    var type by remember { mutableStateOf(card?.type ?: defaultType) }
     var issuer by remember { mutableStateOf(card?.issuer ?: "") }
     var currentBalance by remember { mutableStateOf(card?.currentBalance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var lastDigits by remember { mutableStateOf(card?.lastDigits ?: "") }
@@ -320,6 +327,12 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
     var promoApr by remember { mutableStateOf(card?.promoAPR?.toString() ?: "0") }
     var promoBalance by remember { mutableStateOf(card?.promoBalance?.toString() ?: "") }
     var promoEnd by remember { mutableStateOf(card?.promoEndDate ?: "") }
+    var rewardBase by remember { mutableStateOf(card?.rewardBase?.takeIf { it != 0.0 }?.toString() ?: "") }
+    val rewardCats = remember {
+        mutableStateMapOf<String, String>().apply {
+            card?.rewardCategories?.forEach { (k, v) -> if (v > 0) put(k, v.toString()) }
+        }
+    }
 
     val isLoan = type == "loan"
 
@@ -351,6 +364,10 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
                     promoBalance = if (!isLoan && hasPromo) promoBalance.toDoubleOrNull() else null,
                     dueDay = dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1,
                     autopay = autopay, notes = notes,
+                    rewardBase = if (isLoan) 0.0 else (rewardBase.toDoubleOrNull() ?: 0.0),
+                    rewardCategories = if (isLoan) emptyMap() else rewardCats.mapNotNull { (k, v) ->
+                        v.toDoubleOrNull()?.takeIf { it > 0.0 }?.let { k to it }
+                    }.toMap(),
                 )
             )
             onDismiss()
@@ -401,6 +418,27 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit) {
                 money(promoBalance, "Promo balance") { promoBalance = it }
                 OutlinedTextField(promoEnd, { promoEnd = it }, label = { Text("Promo ends (YYYY-MM-DD)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        if (!isLoan) {
+            FieldLabel("Rewards")
+            Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate.",
+                color = Ct.colors.muted, fontSize = 12.sp)
+            DropdownField("Start from a known card…", Rewards.CARD_PRESETS.map { it.label }, "Start from a known card…") { picked ->
+                Rewards.CARD_PRESETS.firstOrNull { it.label == picked }?.let { p ->
+                    if (name.isBlank()) name = p.name
+                    if (issuer.isBlank()) issuer = p.issuer
+                    network = p.network
+                    rewardBase = if (p.rewardBase > 0) p.rewardBase.toString() else ""
+                    rewardCats.clear()
+                    p.rewardCategories.forEach { (k, v) -> rewardCats[k] = v.toString() }
+                }
+            }
+            OutlinedTextField(rewardBase, { rewardBase = it }, label = { Text("Base reward % (everything)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+            Rewards.CATEGORIES.forEach { cat ->
+                OutlinedTextField(rewardCats[cat] ?: "", { rewardCats[cat] = it }, label = { Text("$cat %") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
             }
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())

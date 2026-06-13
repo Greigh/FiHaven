@@ -177,10 +177,24 @@ public final class APIClient: Sendable {
         return try decode(PlaidStatus.self, from: try await send(req))
     }
 
-    /// Create a Plaid Link token to open the native Link flow.
-    public func plaidLinkToken() async throws -> String {
-        let req = try makeRequest(path: "api/plaid/link/token", method: .POST)
+    /// Create a Plaid Link token to open the native Link flow. Pass `itemId`
+    /// for an update-mode token (re-auth an existing item).
+    public func plaidLinkToken(itemId: Int? = nil) async throws -> String {
+        let req: URLRequest
+        if let itemId {
+            req = try makeRequest(path: "api/plaid/link/token", method: .POST,
+                                  body: AnyEncodable(PlaidLinkTokenBody(itemId: itemId)))
+        } else {
+            req = try makeRequest(path: "api/plaid/link/token", method: .POST)
+        }
         return try decode(PlaidLinkTokenResponse.self, from: try await send(req)).linkToken
+    }
+
+    /// After a successful update-mode Link, mark the item repaired (no
+    /// public-token exchange happens in update mode).
+    public func plaidRepaired(itemId: Int) async throws {
+        let req = try makeRequest(path: "api/plaid/item/\(itemId)/repaired", method: .POST)
+        _ = try await send(req)
     }
 
     /// Exchange the Link `public_token` for a stored item (server pulls

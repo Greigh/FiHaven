@@ -67,9 +67,17 @@ struct BankView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(item.institutionName).font(Theme.ui(15, weight: .medium))
+                if item.status != "active" {
+                    Text(item.status == "login_required" ? "Reconnect needed" : item.status)
+                        .font(Theme.ui(11, weight: .medium)).foregroundStyle(Theme.orange)
+                }
                 Spacer()
                 Button("Disconnect", role: .destructive) { disconnect(item.id) }
                     .font(Theme.ui(13))
+            }
+            if item.status != "active" {
+                Button("Reconnect") { reconnect(item.id) }
+                    .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.accent)
             }
             ForEach(item.accounts) { a in
                 HStack {
@@ -119,6 +127,49 @@ struct BankView: View {
             }
         case .failure:
             message = "Could not start linking. Please try again."
+        }
+    }
+
+    // Update mode: re-auth an item flagged login_required.
+    private func reconnect(_ id: Int) {
+        busy = true
+        message = nil
+        Task {
+            do {
+                let token = try await env.api.plaidLinkToken(itemId: id)
+                await MainActor.run { presentUpdate(token: token, itemId: id) }
+            } catch {
+                await MainActor.run { busy = false; message = "Could not start reconnect. Please try again." }
+            }
+        }
+    }
+
+    @MainActor
+    private func presentUpdate(token: String, itemId: Int) {
+        busy = false
+        var config = LinkTokenConfiguration(token: token, onSuccess: { _ in
+            Task { @MainActor in self.repaired(itemId) }
+        })
+        config.onExit = { _ in Task { @MainActor in self.message = "Reconnect cancelled." } }
+        switch Plaid.create(config) {
+        case .success(let h):
+            handler = h
+            if let vc = Self.topViewController() {
+                h.open(presentUsing: .viewController(vc))
+            } else {
+                message = "Could not present Plaid Link."
+            }
+        case .failure:
+            message = "Could not start reconnect. Please try again."
+        }
+    }
+
+    private func repaired(_ id: Int) {
+        message = "Reconnecting…"
+        Task {
+            let ok = (try? await env.api.plaidRepaired(itemId: id)) != nil
+            await MainActor.run { message = ok ? "Bank reconnected." : "Could not finish reconnecting." }
+            await load()
         }
     }
 

@@ -22,6 +22,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var currentBalance: Double?
     public var lastDigits: String?
     public var network: String?          // "Visa" | "Mastercard" | "Amex" | "Discover" | …
+    public var rewardBase: Double        // flat reward % on everything (rewards optimizer)
+    public var rewardCategories: [String: Double]   // per-category reward % overrides
 
     public init(
         id: Int,
@@ -42,7 +44,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         issuer: String? = nil,
         currentBalance: Double? = nil,
         lastDigits: String? = nil,
-        network: String? = nil
+        network: String? = nil,
+        rewardBase: Double = 0,
+        rewardCategories: [String: Double] = [:]
     ) {
         self.id = id
         self.name = name
@@ -63,6 +67,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.currentBalance = currentBalance
         self.lastDigits = lastDigits
         self.network = network
+        self.rewardBase = rewardBase
+        self.rewardCategories = rewardCategories
     }
 
     enum CodingKeys: String, CodingKey {
@@ -70,6 +76,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         case hasPromo, promoAPR, promoEndDate, promoBalance
         case dueDay, autopay, notes
         case type, issuer, currentBalance, lastDigits, network
+        case rewardBase, rewardCategories
     }
 
     public init(from decoder: Decoder) throws {
@@ -93,5 +100,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         currentBalance = c.flexibleDouble(.currentBalance)
         lastDigits = c.flexibleString(.lastDigits)
         network = c.flexibleString(.network)
+        rewardBase = c.flexibleDouble(.rewardBase) ?? 0
+        // Web writes a plain { "Dining": 4 } object of numbers; tolerate a
+        // missing or malformed map by falling back to empty.
+        rewardCategories = (try? c.decode([String: Double].self, forKey: .rewardCategories)) ?? [:]
     }
 }

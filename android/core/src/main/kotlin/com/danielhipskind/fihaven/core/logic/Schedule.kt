@@ -112,6 +112,9 @@ object Schedule {
     ): Double {
         val paid = paidAmount(payments, "card", card.id.toString(), bounds)
         val startBalance = card.balance + paid
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type == "loan") return card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
         return when (policy) {
             PaidGoalPolicy.MINIMUM -> card.minPayment
             PaidGoalPolicy.FULL -> startBalance
@@ -137,6 +140,9 @@ object Schedule {
      */
     fun recommendedAmount(card: Card, zone: ZoneId, now: Instant = Instant.now()): Double {
         card.recommendedPayment?.let { if (it > 0) return it }
+        // Loans: the recommended payment is the scheduled monthly payment, never
+        // the whole principal (paying it off is still an explicit option).
+        if (card.type == "loan") return card.minPayment
         return if (card.hasPromo) max(card.minPayment, promoNeeded(card, zone, now)) else card.balance
     }
 
@@ -161,6 +167,9 @@ object Schedule {
         // to zero. Card payments decrement the live balance, so add this
         // month's payments back to keep that goal stable across installments.
         val startBalance = card.balance + paid
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type == "loan") return card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
         return when (policy) {
             PaidGoalPolicy.MINIMUM -> card.minPayment
             PaidGoalPolicy.FULL -> startBalance

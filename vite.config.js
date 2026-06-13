@@ -116,6 +116,7 @@ export default defineConfig({
         verifyEmail: clientFile('verify-email.html'),
         welcome:   clientFile('welcome.html'),
         settings:  clientFile('settings.html'),
+        plaidOauth: clientFile('plaid-oauth.html'),
         terms:     clientFile('terms.html'),
         privacy:   clientFile('privacy.html'),
         notFound:  clientFile('404.html'),

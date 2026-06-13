@@ -231,10 +231,12 @@ import { openProDialog } from './pro.js';
       tab('dashboard', 'Dashboard', { onclick: "showTab('dashboard')", active: true, extraClass: 'tab-btn' }),
       tab('bills',     'Bills',     { onclick: "showTab('bills')",     extraClass: 'tab-btn' }),
       tab('cards',     'Cards',     { onclick: "showTab('cards')",     extraClass: 'tab-btn' }),
+      tab('loans',     'Loans',     { onclick: "showTab('loans')",     extraClass: 'tab-btn' }),
       tab('budget',    'Budget',    { onclick: "showTab('budget')",    extraClass: 'tab-btn' }),
       tab('calendar',  'Calendar',  { onclick: "showTab('calendar')",  extraClass: 'tab-btn' }),
       tab('history',   'History',   { onclick: "showTab('history')",   extraClass: 'tab-btn' }),
       tab('payoff',    'Payoff',    { onclick: "showTab('payoff')",    extraClass: 'tab-btn' }),
+      tab('rewards',   'Rewards',   { onclick: "showTab('rewards')",   extraClass: 'tab-btn' }),
     ].join('');
 
     host.className = 'appbar';

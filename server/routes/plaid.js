@@ -29,6 +29,57 @@ function sendError(res, code, error) {
   return res.status(code).json({ error });
 }
 
+/* ── Structured logging ──────────────────────────────────────────
+   One-line JSON so Plaid issues are greppable. Crucially, failures log
+   Plaid's `request_id` + `error_code`, which Plaid support needs to
+   trace a request. */
+function logPlaid(event, extra) {
+  try { console.log(JSON.stringify({ at: 'plaid', event, ...(extra || {}) })); } catch (_) { /* never throw from logging */ }
+}
+function logPlaidErr(event, err) {
+  const d = (err && err.response && err.response.data) || {};
+  logPlaid(event + ':error', {
+    message: err && err.message,
+    error_code: d.error_code,
+    error_type: d.error_type,
+    request_id: d.request_id,
+  });
+}
+
+/* ── Duplicate-item detection ────────────────────────────────────
+   A "duplicate" is a new link to a bank the user already connected, with
+   the same set of accounts. Plaid bills per Item, so we drop the new one
+   and keep the existing connection. Fingerprint = sorted mask:subtype set
+   (the stable signal we persist); requires a matching institution_id. */
+function plaidAccountFingerprint(accounts) {
+  return (accounts || [])
+    .map((a) => `${a.mask || ''}:${a.subtype || ''}`)
+    .filter((s) => s !== ':')
+    .sort()
+    .join('|');
+}
+function storedAccountFingerprint(itemId) {
+  return dbApi.listPlaidAccountsByItem(itemId)
+    .map((a) => {
+      let d = null;
+      if (a.enc) { try { d = JSON.parse(plaid.decryptToken(a.enc)); } catch (_) { d = null; } }
+      const mask = (d && d.mask) || a.mask || '';
+      const subtype = (d && d.subtype) || a.subtype || '';
+      return `${mask}:${subtype}`;
+    })
+    .filter((s) => s !== ':')
+    .sort()
+    .join('|');
+}
+// The existing item this institution+accounts duplicates, or null.
+function findDuplicateItem(userId, institutionId, accounts) {
+  const fp = plaidAccountFingerprint(accounts);
+  if (!fp) return null;
+  return dbApi.listPlaidItems(userId).find(
+    (it) => it.institution_id === institutionId && storedAccountFingerprint(it.id) === fp
+  ) || null;
+}
+
 // Gate: bank linking is a Pro feature. 402 Payment Required lets the
 // client show an upgrade prompt rather than a generic error.
 function requirePro(req, res, next) {
@@ -121,6 +172,81 @@ function serializeItem(item) {
   };
 }
 
+/* ── Transaction persistence (manual-first, additive) ────────────
+   FiHaven is manual-entry-first; Plaid transactions are a helper that
+   catches what the user missed. Synced transactions are stored in the
+   SAME `data.transactions` array the manual entries use, but tagged
+   `source: 'plaid'` so they're additive and never collide with or
+   overwrite manual rows. Only outflows (spending) are kept. */
+
+// Map a Plaid personal_finance_category onto FiHaven's spend categories.
+function mapPlaidCategory(pfc) {
+  const primary = (pfc && pfc.primary) || '';
+  const detailed = (pfc && pfc.detailed) || '';
+  if (detailed.includes('GROCERIES')) return 'Groceries';
+  switch (primary) {
+    case 'FOOD_AND_DRINK': return 'Dining';
+    case 'GENERAL_MERCHANDISE': return 'Shopping';
+    case 'TRANSPORTATION': return 'Transport';
+    case 'TRAVEL': return 'Transport';
+    case 'ENTERTAINMENT': return 'Entertainment';
+    case 'MEDICAL':
+    case 'PERSONAL_CARE': return 'Health';
+    case 'RENT_AND_UTILITIES':
+    case 'LOAN_PAYMENTS':
+    case 'BANK_FEES': return 'Bills';
+    default: return 'Other';
+  }
+}
+
+// Shape a Plaid transaction like a FiHaven SpendTransaction (+ bank tags).
+function toLocalTx(t) {
+  return {
+    id: 'plaid-' + t.transaction_id,
+    date: t.date || '',
+    amount: Math.abs(t.amount) || 0,
+    category: mapPlaidCategory(t.personal_finance_category),
+    merchant: t.merchant_name || t.name || 'Bank transaction',
+    note: '',
+    source: 'plaid',
+    plaidId: t.transaction_id,
+    pending: !!t.pending,
+  };
+}
+
+const MAX_PLAID_TX = 500; // bound stored bank rows; manual rows are never capped
+
+// Merge a transactionsSync diff into the user's data blob. Additive: manual
+// rows (no source:'plaid') are left untouched; bank rows are keyed by plaidId.
+function mergePlaidTransactions(userId, sync) {
+  if (!sync) return;
+  const added = sync.added || [];
+  const modified = sync.modified || [];
+  const removed = sync.removed || [];
+  if (!added.length && !modified.length && !removed.length) return;
+
+  const data = dbApi.getUserData(userId);
+  const all = Array.isArray(data.transactions) ? data.transactions.slice() : [];
+
+  // Index bank rows by plaidId; keep manual rows aside untouched.
+  const manual = all.filter((t) => t.source !== 'plaid');
+  const bank = new Map();
+  all.filter((t) => t.source === 'plaid').forEach((t) => bank.set(t.plaidId || t.id, t));
+
+  removed.forEach((r) => { const id = r.transaction_id || r; bank.delete(id); });
+  [...added, ...modified].forEach((t) => {
+    if ((t.amount || 0) <= 0) { bank.delete(t.transaction_id); return; } // outflows only
+    bank.set(t.transaction_id, toLocalTx(t));
+  });
+
+  // Cap bank rows to the most recent MAX_PLAID_TX by date.
+  let bankRows = Array.from(bank.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (bankRows.length > MAX_PLAID_TX) bankRows = bankRows.slice(0, MAX_PLAID_TX);
+
+  data.transactions = manual.concat(bankRows);
+  dbApi.upsertUserData(userId, data);
+}
+
 /* ── GET /api/plaid/status ───────────────────────────────────── */
 // Not Pro-gated: the client needs to know whether to show the
 // "Connect a bank" action or the upgrade prompt.
@@ -136,12 +262,43 @@ router.get('/status', requireAuth, (req, res) => {
 /* ── POST /api/plaid/link/token ──────────────────────────────── */
 router.post('/link/token', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   try {
-    const data = await plaid.createLinkToken(req.user);
-    res.json({ linkToken: data.link_token, expiration: data.expiration });
+    // Optional itemId → update-mode token to re-auth an existing item.
+    let accessToken = null;
+    const itemId = parseInt((req.body || {}).itemId, 10);
+    if (itemId) {
+      const item = dbApi.findPlaidItemById(itemId, req.user.id);
+      if (!item) return sendError(res, 404, 'not-found');
+      accessToken = plaid.decryptToken(item.access_token_enc);
+    }
+    const data = await plaid.createLinkToken(req.user, accessToken);
+    res.json({ linkToken: data.link_token, expiration: data.expiration, update: !!accessToken });
   } catch (err) {
-    console.error('plaid link/token error:', err.message);
+    logPlaidErr('link/token', err);
     sendError(res, 502, 'link-token-failed');
   }
+});
+
+/* ── POST /api/plaid/item/:id/repaired ───────────────────────── */
+// After a successful update-mode Link, mark the item active again (no
+// public-token exchange happens in update mode) and refresh its data.
+router.post('/item/:id/repaired', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const item = dbApi.findPlaidItemById(id, req.user.id);
+  if (!item) return sendError(res, 404, 'not-found');
+  try {
+    const accessToken = plaid.decryptToken(item.access_token_enc);
+    const { accounts } = await plaid.getAccounts(accessToken);
+    saveAccounts(item.id, accounts);
+    try {
+      const sync = await plaid.syncTransactions(accessToken, item.cursor);
+      mergePlaidTransactions(req.user.id, sync);
+      if (sync.cursor && sync.cursor !== item.cursor) dbApi.setPlaidItemCursor(item.id, sync.cursor);
+    } catch (_) { /* transactions optional */ }
+    dbApi.setPlaidItemStatus(item.id, 'active', null);
+  } catch (err) {
+    dbApi.setPlaidItemStatus(item.id, 'error', String(err?.response?.data?.error_code || err.message));
+  }
+  res.json({ item: serializeItem(dbApi.findPlaidItemById(id, req.user.id)) });
 });
 
 /* ── POST /api/plaid/link/exchange ───────────────────────────── */
@@ -157,6 +314,15 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
     // Pull accounts + balances now so the UI has something immediately.
     const { item, accounts } = await plaid.getAccounts(accessToken);
     const institutionId = (item && item.institution_id) || meta.institution_id || null;
+
+    // Don't store a second Item for a bank+accounts the user already linked.
+    const dup = findDuplicateItem(req.user.id, institutionId, accounts);
+    if (dup) {
+      try { await plaid.removeItem(accessToken); } catch (_) { /* best-effort revoke */ }
+      logPlaid('exchange:duplicate', { userId: req.user.id, institutionId, existingItem: dup.id });
+      return sendError(res, 409, 'already-linked');
+    }
+
     const inst = await plaid.getInstitution(institutionId);
     const institutionName = (inst && inst.name) || meta.name || 'Bank';
 
@@ -176,9 +342,10 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
     saveAccounts(itemPk, accounts);
 
     const stored = dbApi.findPlaidItemById(itemPk, req.user.id);
+    logPlaid('item-linked', { userId: req.user.id, itemPk, institutionId, accounts: accounts.length });
     res.status(201).json({ item: serializeItem(stored) });
   } catch (err) {
-    console.error('plaid link/exchange error:', err.message);
+    logPlaidErr('link/exchange', err);
     sendError(res, 502, 'exchange-failed');
   }
 });
@@ -195,9 +362,10 @@ router.post('/refresh', requireAuth, requireCsrf, requirePlaid, requirePro, asyn
       const accessToken = plaid.decryptToken(item.access_token_enc);
       const { accounts } = await plaid.getAccounts(accessToken);
       saveAccounts(item.id, accounts);
-      // Advance the transactions cursor (pipeline hook; not persisted yet).
+      // Sync transactions and merge them (additively) into the user's data.
       try {
         const sync = await plaid.syncTransactions(accessToken, item.cursor);
+        mergePlaidTransactions(req.user.id, sync);
         if (sync.cursor && sync.cursor !== item.cursor) {
           dbApi.setPlaidItemCursor(item.id, sync.cursor);
         }
@@ -206,6 +374,7 @@ router.post('/refresh', requireAuth, requireCsrf, requirePlaid, requirePro, asyn
     } catch (err) {
       const code = err?.response?.data?.error_code || err.message;
       dbApi.setPlaidItemStatus(item.id, 'error', String(code));
+      logPlaidErr('refresh-item', err);
     }
   }
   res.json({ items: dbApi.listPlaidItems(req.user.id).map(serializeItem) });
@@ -221,7 +390,7 @@ router.post('/item/:id/remove', requireAuth, requireCsrf, requirePlaid, requireP
   try {
     await plaid.removeItem(plaid.decryptToken(item.access_token_enc));
   } catch (err) {
-    console.error('plaid item/remove (continuing):', err.message);
+    logPlaidErr('item/remove', err);
   }
   dbApi.deletePlaidItem(id, req.user.id);
   res.json({ ok: true });
@@ -230,12 +399,17 @@ router.post('/item/:id/remove', requireAuth, requireCsrf, requirePlaid, requireP
 /* ── POST /api/plaid/webhook ─────────────────────────────────── */
 // Plaid posts item / transactions notifications here. No user auth;
 // we resolve the item by item_id. Always 200 so Plaid stops retrying.
-//
-// PRODUCTION: verify the JWT in the `Plaid-Verification` header against
-// Plaid's JWKS (/webhook_verification_key/get) before trusting the body.
-// In sandbox there's no signature to verify.
+// In production the signed `Plaid-Verification` JWT is verified first (see
+// plaid.verifyWebhook); sandbox sends no signature so it's skipped there.
 router.post('/webhook', async (req, res) => {
+  // In production, verify Plaid's signed JWT before trusting the body.
+  // Sandbox doesn't sign webhooks, so verification is skipped there.
+  if (plaid.plaidEnv() === 'production') {
+    const ok = await plaid.verifyWebhook(req.headers['plaid-verification'], req.rawBody);
+    if (!ok) return sendError(res, 401, 'bad-signature');
+  }
   const body = req.body || {};
+  logPlaid('webhook', { type: body.webhook_type, code: body.webhook_code, item_id: body.item_id });
   try {
     const item = body.item_id ? dbApi.findPlaidItemByItemId(body.item_id) : null;
     if (item) {
@@ -246,17 +420,22 @@ router.post('/webhook', async (req, res) => {
       } else if (type === 'ITEM' && code === 'ERROR') {
         dbApi.setPlaidItemStatus(item.id, 'error', (body.error && body.error.error_code) || 'ERROR');
       } else if (type === 'TRANSACTIONS' || code === 'DEFAULT_UPDATE' || code === 'SYNC_UPDATES_AVAILABLE') {
-        // Fresh data available — refresh balances opportunistically.
+        // Fresh data available — refresh balances and merge new transactions.
         try {
           const accessToken = plaid.decryptToken(item.access_token_enc);
           const { accounts } = await plaid.getAccounts(accessToken);
           saveAccounts(item.id, accounts);
+          try {
+            const sync = await plaid.syncTransactions(accessToken, item.cursor);
+            mergePlaidTransactions(item.user_id, sync);
+            if (sync.cursor && sync.cursor !== item.cursor) dbApi.setPlaidItemCursor(item.id, sync.cursor);
+          } catch (_) { /* transactions product may be unavailable */ }
           dbApi.setPlaidItemStatus(item.id, 'active', null);
         } catch (_) { /* leave status as-is on transient failure */ }
       }
     }
   } catch (err) {
-    console.error('plaid webhook error:', err.message);
+    logPlaidErr('webhook', err);
   }
   res.json({ received: true });
 });

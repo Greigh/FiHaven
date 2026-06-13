@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +64,7 @@ enum class ProFeature(val title: String, val blurb: String, val icon: ImageVecto
     PAYOFF("Payoff Planner", "See snowball & avalanche plans and your debt-free date.", Icons.AutoMirrored.Filled.ShowChart),
     CALENDAR("Calendar", "View every due date on a monthly calendar.", Icons.Filled.CalendarMonth),
     HISTORY("Payment History", "Browse and search your full payment history.", Icons.Filled.History),
+    REWARDS("Rewards Optimizer", "See which card to use for every purchase to earn the most.", Icons.Filled.Stars),
 }
 
 private fun Context.findActivity(): Activity? {

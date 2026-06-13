@@ -49,6 +49,7 @@ import kotlin.math.abs
 @Composable
 fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<IncomeSource?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editingAdj by remember { mutableStateOf<IncomeAdjustment?>(null) }
@@ -166,8 +167,11 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("SPENDING · THIS PERIOD", color = Ct.colors.muted, fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Budgets", color = Ct.colors.accent, fontSize = 14.sp,
-                        modifier = Modifier.clickable { editingBudgets = true }.padding(end = 12.dp))
+                    // Per-category budgets are Pro; logging transactions stays free.
+                    if (ent.pro) {
+                        Text("Budgets", color = Ct.colors.accent, fontSize = 14.sp,
+                            modifier = Modifier.clickable { editingBudgets = true }.padding(end = 12.dp))
+                    }
                     Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
                         modifier = Modifier.clickable { addingTx = true })
                 }
@@ -189,12 +193,12 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                                         Text("${spendIcon(cat)} $cat", color = Ct.colors.text, fontSize = 13.sp,
                                             modifier = Modifier.weight(1f))
                                         Text(
-                                            if (budget > 0) "${Money.fmt(spent)} / ${Money.fmt(budget)}" else Money.fmt(spent),
-                                            color = if (budget > 0 && spent > budget) Ct.colors.red else Ct.colors.muted,
+                                            if (ent.pro && budget > 0) "${Money.fmt(spent)} / ${Money.fmt(budget)}" else Money.fmt(spent),
+                                            color = if (ent.pro && budget > 0 && spent > budget) Ct.colors.red else Ct.colors.muted,
                                             fontSize = 12.sp, fontFamily = PlexMono,
                                         )
                                     }
-                                    if (budget > 0) {
+                                    if (ent.pro && budget > 0) {
                                         LinearProgressIndicator(
                                             progress = { (spent / budget).coerceIn(0.0, 1.0).toFloat() },
                                             modifier = Modifier.fillMaxWidth(),
@@ -213,13 +217,26 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(tx.merchant.ifBlank { tx.category }, color = Ct.colors.text, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(tx.merchant.ifBlank { tx.category }, color = Ct.colors.text, fontSize = 14.sp)
+                                if (tx.isBank) {
+                                    Text(if (tx.pending) "🏦 pending" else "🏦", color = Ct.colors.accent,
+                                        fontSize = 10.sp, modifier = Modifier.padding(start = 5.dp))
+                                }
+                            }
                             Text(tx.date, color = Ct.colors.muted, fontSize = 11.sp)
                         }
                         Text(Money.fmt(tx.amount), color = Ct.colors.text, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                        Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
-                            modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
+                        // Bank-synced rows are managed by the linked bank — remove the
+                        // connection in Settings instead of deleting rows here.
+                        if (!tx.isBank) {
+                            Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
+                                modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
+                        } else {
+                            Text("🔗", color = Ct.colors.muted, fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 12.dp))
+                        }
                     }
                 }
             }

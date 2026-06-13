@@ -5,8 +5,10 @@
   stale (long-unused) subscriptions. Shown atop the Bills tab.
 -->
 <script>
-  import { bills, transactions } from '../js/storage.svelte.js';
+  import { bills, transactions, entitlement } from '../js/storage.svelte.js';
   import { fmt } from '../js/utils.js';
+
+  let pro = $derived(entitlement.pro);
 
   const STALE_DAYS = 60;
 
@@ -69,7 +71,7 @@
   let totalMonthly = $derived(subs.reduce((s, x) => s + x.monthly, 0));
 </script>
 
-{#if subs.length > 0}
+{#if pro && subs.length > 0}
   <section class="subs-card">
     <div class="subs-head">
       <div>

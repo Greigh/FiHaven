@@ -1208,6 +1208,11 @@ import MfaSection from '../svelte/MfaSection.svelte';
 
     function show(el, on) { if (el) el.hidden = !on; }
 
+    // Persist the link token across the OAuth full-page redirect so
+    // /plaid-oauth can resume the flow. Shared key with plaid-oauth.js.
+    function stashOauth(o) { try { localStorage.setItem('fh_plaid_oauth', JSON.stringify(o)); } catch (_) { /* ignore */ } }
+    function clearOauth() { try { localStorage.removeItem('fh_plaid_oauth'); } catch (_) { /* ignore */ } }
+
     function render(status) {
       var configured = !!(status && status.configured);
       var pro = !!(status && status.pro);
@@ -1245,6 +1250,11 @@ import MfaSection from '../svelte/MfaSection.svelte';
         badge.className = 'badge badge-orange';
         badge.textContent = it.status === 'login_required' ? 'Reconnect needed' : it.status;
         head.appendChild(badge);
+        var fix = document.createElement('button');
+        fix.className = 'btn btn-primary btn-sm';
+        fix.textContent = 'Reconnect';
+        fix.addEventListener('click', function () { reconnect(it.id, fix); });
+        head.appendChild(fix);
       }
       var del = document.createElement('button');
       del.className = 'btn btn-danger btn-sm';
@@ -1288,25 +1298,65 @@ import MfaSection from '../svelte/MfaSection.svelte';
             : 'Could not start linking. Please try again.', true);
           return;
         }
+        // Persist the token so /plaid-oauth can resume Link if the bank
+        // sends the browser through a full-page OAuth redirect.
+        stashOauth({ token: res.data.linkToken, mode: 'connect' });
         var handler = Plaid.create({
           token: res.data.linkToken,
           onSuccess: function (publicToken, metadata) {
+            clearOauth();
             showMessage('plaid', 'Linking…', false);
             plaidFetch('link/exchange', 'POST', {
               public_token: publicToken,
               institution: metadata && metadata.institution,
             }).then(function (ex) {
               if (ex.ok) { showMessage('plaid', 'Bank linked.', false); refreshStatus(); }
+              else if (ex.status === 409) { showMessage('plaid', 'That bank is already linked.', false); refreshStatus(); }
               else showMessage('plaid', 'Could not finish linking. Please try again.', true);
             }).catch(function () { showMessage('plaid', errorText('network'), true); });
           },
           onExit: function (err) {
+            clearOauth();
             if (err) showMessage('plaid', 'Linking was cancelled.', false);
           },
         });
         handler.open();
       }).catch(function () {
         connectBtn.disabled = false;
+        showMessage('plaid', 'Could not load Plaid. Check your connection.', true);
+      });
+    }
+
+    // Update mode: re-auth an item flagged login_required. Opens Plaid Link
+    // with an update-mode token (no public-token exchange); on success we
+    // tell the server to mark the item repaired and re-pull its data.
+    function reconnect(id, btn) {
+      btn.disabled = true;
+      showMessage('plaid', 'Reopening your bank…', false);
+      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { itemId: id })]).then(function (out) {
+        var Plaid = out[0];
+        var res = out[1];
+        btn.disabled = false;
+        if (!res.ok || !res.data.linkToken) {
+          showMessage('plaid', 'Could not start reconnect. Please try again.', true);
+          return;
+        }
+        stashOauth({ token: res.data.linkToken, mode: 'update', itemId: id });
+        var handler = Plaid.create({
+          token: res.data.linkToken,
+          onSuccess: function () {
+            clearOauth();
+            showMessage('plaid', 'Reconnecting…', false);
+            plaidFetch('item/' + id + '/repaired', 'POST').then(function (r) {
+              if (r.ok) { showMessage('plaid', 'Bank reconnected.', false); refreshStatus(); }
+              else showMessage('plaid', 'Could not finish reconnecting.', true);
+            }).catch(function () { showMessage('plaid', errorText('network'), true); });
+          },
+          onExit: function (err) { clearOauth(); if (err) showMessage('plaid', 'Reconnect was cancelled.', false); },
+        });
+        handler.open();
+      }).catch(function () {
+        btn.disabled = false;
         showMessage('plaid', 'Could not load Plaid. Check your connection.', true);
       });
     }

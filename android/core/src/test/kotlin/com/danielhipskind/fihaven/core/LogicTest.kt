@@ -7,6 +7,7 @@ import com.danielhipskind.fihaven.core.logic.Payoff
 import com.danielhipskind.fihaven.core.logic.PayoffStrategy
 import com.danielhipskind.fihaven.core.logic.Period
 import com.danielhipskind.fihaven.core.logic.PeriodConfig
+import com.danielhipskind.fihaven.core.logic.Rewards
 import com.danielhipskind.fihaven.core.logic.Schedule
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -139,6 +140,36 @@ class ScheduleTest {
         assertEquals(50.0, Schedule.goalAmount(card, PaidGoalPolicy.MINIMUM, paid, "2026-06", UTC, NOW), 1e-6)
         // Override is a fixed monthly target (not stabilized).
         assertEquals(300.0, Schedule.goalAmount(card.copy(recommendedPayment = 300.0), PaidGoalPolicy.RECOMMENDED, paid, "2026-06", UTC, NOW), 1e-6)
+    }
+
+    @Test fun loanRecommendedIsMonthlyPayment() {
+        // A loan recommends its scheduled monthly payment, never the principal.
+        val loan = Card(id = 9, name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)
+        assertEquals(1600.0, Schedule.recommendedAmount(loan, UTC, NOW), 1e-6)
+        // Goal is the monthly payment under every policy (not the balance).
+        val none = emptyList<Payment>()
+        assertEquals(1600.0, Schedule.goalAmount(loan, PaidGoalPolicy.RECOMMENDED, none, "2026-06", UTC, NOW), 1e-6)
+        assertEquals(1600.0, Schedule.goalAmount(loan, PaidGoalPolicy.FULL, none, "2026-06", UTC, NOW), 1e-6)
+        assertEquals(1600.0, Schedule.goalAmount(loan, PaidGoalPolicy.MINIMUM, none, "2026-06", UTC, NOW), 1e-6)
+        // A per-loan override (e.g. extra principal) still wins.
+        assertEquals(2000.0, Schedule.recommendedAmount(loan.copy(recommendedPayment = 2000.0), UTC, NOW), 1e-6)
+    }
+
+    @Test fun rewardsRankExcludesLoansAndPromos() {
+        val flat = Card(id = 1, name = "Flat 2%", rewardBase = 2.0)
+        val dining = Card(id = 2, name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
+        val promo = Card(id = 3, name = "Promo 5%", rewardBase = 5.0, hasPromo = true, promoEndDate = "2026-12-31")
+        val loan = Card(id = 4, name = "Loan", type = "loan", rewardBase = 9.0)
+
+        val r = Rewards.rank(listOf(flat, dining, promo, loan), "Dining", UTC, NOW)
+        assertEquals(2, r.eligible.first().card.id)                 // dining 4% wins
+        assertTrue(r.eligible.none { it.card.id == 4 })             // loan excluded
+        assertTrue(r.excluded.any { it.card.id == 3 })             // active promo excluded
+        assertTrue(r.eligible.none { it.card.id == 3 })
+
+        // Groceries → dining card falls back to its 1% base, so flat 2% wins.
+        val g = Rewards.rank(listOf(flat, dining), "Groceries", UTC, NOW)
+        assertEquals(1, g.eligible.first().card.id)
     }
 }
 

@@ -4,6 +4,9 @@ import FiHavenCore
 /// Credit-card list with add / edit / delete. Shows balance, utilization,
 /// and an active-promo badge.
 struct CardsView: View {
+    // kind == "loan" renders the Loans tab; default "card" renders Credit Cards.
+    // Cards and loans share this view (and the editor) but live in separate tabs.
+    var kind: String = "card"
     @EnvironmentObject var store: AppStore
     @State private var editing: Card?
     @State private var creating = false
@@ -13,12 +16,16 @@ struct CardsView: View {
     @State private var fBalance = false
     @State private var fPromo = false
     @State private var fOverdue = false
-    @State private var fType = "all"
     @State private var editingAccount: Account?
     @State private var creatingAccount = false
 
+    private var isLoanView: Bool { kind == "loan" }
+    private var baseCards: [Card] {
+        store.sortedCards.filter { ((($0.type ?? "card") == "loan")) == isLoanView }
+    }
+
     private var filterCount: Int {
-        (fBalance ? 1 : 0) + (fPromo ? 1 : 0) + (fOverdue ? 1 : 0) + (fType != "all" ? 1 : 0)
+        (fBalance ? 1 : 0) + (fPromo ? 1 : 0) + (fOverdue ? 1 : 0)
     }
 
     private func util(_ c: Card) -> Double { c.limit > 0 ? c.balance / c.limit : 0 }
@@ -27,11 +34,10 @@ struct CardsView: View {
     }
 
     private var displayedCards: [Card] {
-        var list = store.sortedCards.filter { c in
+        var list = baseCards.filter { c in
             if fBalance && !(c.balance > 0) { return false }
             if fPromo && !(c.hasPromo && !(c.promoEndDate ?? "").isEmpty) { return false }
             if fOverdue && !(c.dueDay.map { DateLogic.daysUntilDue(dueDay: $0, tz: store.tz) < 0 } ?? false) { return false }
-            if fType != "all" && (c.type == "loan" ? "loan" : "card") != fType { return false }
             return true
         }
         switch sortKey {
@@ -51,22 +57,26 @@ struct CardsView: View {
 
     var body: some View {
         List {
-            netWorthHeader
-            ForEach(store.data.accounts) { acct in
-                accountRow(acct).onTapGesture { editingAccount = acct }
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            if !isLoanView {
+                netWorthHeader
+                ForEach(store.data.accounts) { acct in
+                    accountRow(acct).onTapGesture { editingAccount = acct }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                }
+                Button { creatingAccount = true } label: {
+                    Label("Add account", systemImage: "plus.circle").font(Theme.ui(14, weight: .medium))
+                }
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 16))
             }
-            Button { creatingAccount = true } label: {
-                Label("Add account", systemImage: "plus.circle").font(Theme.ui(14, weight: .medium))
-            }
-            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 16))
 
-            if store.sortedCards.isEmpty {
+            if baseCards.isEmpty {
                 HStack {
                     Spacer()
-                    Text(store.loaded ? "No cards yet. Tap + to add one." : "Loading…")
+                    Text(store.loaded
+                        ? (isLoanView ? "No loans yet. Tap + to add one." : "No cards yet. Tap + to add one.")
+                        : "Loading…")
                         .font(Theme.ui(15)).foregroundStyle(Theme.muted)
                     Spacer()
                 }
@@ -124,7 +134,7 @@ struct CardsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Cards & Loans")
+        .navigationTitle(isLoanView ? "Loans" : "Cards")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -148,7 +158,7 @@ struct CardsView: View {
                 Button { creating = true } label: { Image(systemName: "plus") }
             }
         }
-        .sheet(isPresented: $creating) { CardEditorView(card: nil) }
+        .sheet(isPresented: $creating) { CardEditorView(card: nil, defaultType: kind) }
         .sheet(item: $editing) { card in CardEditorView(card: card) }
         .sheet(item: $paying) { target in PayView(target: target) }
         .sheet(isPresented: $showFilters) {
@@ -156,20 +166,15 @@ struct CardsView: View {
                 Form {
                     Section("Filters") {
                         Toggle("Has a balance", isOn: $fBalance)
-                        Toggle("Has 0% promo", isOn: $fPromo)
+                        if !isLoanView { Toggle("Has 0% promo", isOn: $fPromo) }
                         Toggle("Overdue only", isOn: $fOverdue)
-                        Picker("Type", selection: $fType) {
-                            Text("All").tag("all")
-                            Text("Cards").tag("card")
-                            Text("Loans").tag("loan")
-                        }
                     }
                 }
-                .navigationTitle("Filter cards")
+                .navigationTitle(isLoanView ? "Filter loans" : "Filter cards")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Clear") { fBalance = false; fPromo = false; fOverdue = false; fType = "all" }
+                        Button("Clear") { fBalance = false; fPromo = false; fOverdue = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { showFilters = false }

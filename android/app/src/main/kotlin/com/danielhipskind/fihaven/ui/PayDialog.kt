@@ -52,6 +52,15 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                 } else {
                     val card = data.cards.firstOrNull { it.id.toString() == refId }
                     if (card == null) emptyList()
+                    else if (card.type == "loan")
+                    // Loans: scheduled monthly payment, plus paying off the
+                    // remaining principal in full as an explicit option.
+                    buildList {
+                                add(PayPreset("Monthly payment", "Your scheduled payment", card.minPayment))
+                                if (card.balance > card.minPayment + Schedule.PAID_EPSILON) {
+                                    add(PayPreset("Pay off in full", "Clears the remaining principal", card.balance))
+                                }
+                            }
                     else
                             buildList {
                                 add(PayPreset("Minimum", "Minimum payment", card.minPayment))

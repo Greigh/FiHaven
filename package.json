@@ -19,8 +19,8 @@
   "type": "commonjs",
   "main": "server/index.js",
   "scripts": {
-    "build:css": "tailwindcss -c tailwind.config.js -i ./client/css/tailwind-input.css -o ./client/css/tailwind-built.css --minify",
-    "dev:css": "tailwindcss -c tailwind.config.js -i ./client/css/tailwind-input.css -o ./client/css/tailwind-built.css --watch",
+    "build:css": "tailwindcss -i ./client/css/tailwind-input.css -o ./client/css/tailwind-built.css --minify",
+    "dev:css": "tailwindcss -i ./client/css/tailwind-input.css -o ./client/css/tailwind-built.css --watch",
     "dev:server": "node --watch server/index.js",
     "dev:client": "vite",
     "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tailwindcss/cli": "^4.3.1",
     "concurrently": "^10.0.3",
     "svelte": "^5.56.3",
     "tailwindcss": "^4.3.1",
