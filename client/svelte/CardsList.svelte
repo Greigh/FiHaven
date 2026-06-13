@@ -26,7 +26,7 @@
   // Cards and loans share this component (and the editor) but live in separate
   // tabs, so each view filters the shared `cards` array to its own type.
   let { kind = 'card' } = $props();
-  const isLoanView = kind === 'loan';
+  let isLoanView = $derived(kind === 'loan');
   let baseCards = $derived(cards.filter((c) => isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan'));
 
   /* ── Sort + filter state (per-session, local to this view) ──── */
@@ -34,7 +34,7 @@
   let activeFilters = $state({});
   let openPromos = $state({});    // { [cardId]: true } — promo block open
 
-  const SORTS = isLoanView ? [
+  let SORTS = $derived(isLoanView ? [
     { key: 'due', label: 'Due date (soonest)' },
     { key: 'balance', label: 'Largest balance' },
     { key: 'apr', label: 'Highest APR' },
@@ -46,8 +46,8 @@
     { key: 'util', label: 'Highest utilization' },
     { key: 'promo', label: '0% promo first' },
     { key: 'name', label: 'Name (A–Z)' },
-  ];
-  const FILTERS = isLoanView ? [
+  ]);
+  let FILTERS = $derived(isLoanView ? [
     { key: 'balance', label: 'Has a balance', type: 'toggle' },
     { key: 'overdue', label: 'Overdue', type: 'toggle' },
     { key: 'autopay', label: 'Autopay only', type: 'toggle' },
@@ -56,7 +56,7 @@
     { key: 'promo', label: 'Has 0% promo', type: 'toggle' },
     { key: 'overdue', label: 'Overdue', type: 'toggle' },
     { key: 'autopay', label: 'Autopay only', type: 'toggle' },
-  ];
+  ]);
   const utilOf = (c) => { const b = parseFloat(c.balance) || 0, l = parseFloat(c.limit) || 0; return l > 0 ? b / l : 0; };
 
   /* ── Helpers ─────────────────────────────────────────── */
