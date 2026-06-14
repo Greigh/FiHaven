@@ -44,7 +44,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^9.0.0",
     "otpauth": "^9.5.1",
     "plaid": "^42.2.0",
     "qrcode": "^1.5.4",
