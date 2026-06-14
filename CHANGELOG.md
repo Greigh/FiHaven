@@ -141,3 +141,7 @@ Initial release.
   shared backend and `/api/data` model.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
+
+[1.2.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.0
+[1.1.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.1.0
+[1.0.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.0.0

@@ -8,20 +8,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
+      # No test files yet — passWithNoTests keeps the job green and uploads a
+      # 0% baseline to Codecov until a suite is added.
       - name: Run tests
-        run: npx vitest run --coverage
+        run: npx vitest run --coverage --passWithNoTests
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+        if: ${{ !cancelled() }}
