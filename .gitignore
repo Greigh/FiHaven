@@ -9,6 +9,7 @@ node_modules/*
 node_modules
 client/css/tailwind-built.css
 dist/
+coverage/
 # Anchored to the repo root so it only ignores the SQLite data dir, NOT
 # nested source packages like android/.../fihaven/data/.
 /data/

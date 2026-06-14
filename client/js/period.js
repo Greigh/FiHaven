@@ -105,7 +105,13 @@ export function shiftPeriod(bounds, offset, cfg) {
     return periodBounds(new Date(bounds.start.getFullYear(), bounds.start.getMonth() + offset, cfg.startDay), cfg);
   }
   if (cfg.mode === 'rolling') {
-    return periodBounds(new Date(bounds.start.getTime() + offset * cfg.length * DAY), cfg);
+    // Advance from the bucket midpoint: periodBounds snaps each bucket start
+    // to local midnight, so DST hour-drift accumulated since the epoch can
+    // leave `start + length·DAY` an hour short of the next boundary and floor
+    // back into the same bucket. The half-bucket slack lands us solidly inside
+    // the target bucket regardless of that drift.
+    const mid = bounds.start.getTime() + (cfg.length * DAY) / 2;
+    return periodBounds(new Date(mid + offset * cfg.length * DAY), cfg);
   }
   return periodBounds(new Date(bounds.start.getFullYear(), bounds.start.getMonth() + offset, 1), cfg);
 }
