@@ -115,11 +115,20 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
             if biometric.isAvailable {
-                Toggle("Require \(biometric.label)", isOn: Binding(
-                    get: { biometric.enabled },
-                    set: { on in Task { await biometric.setEnabled(on) } }
-                ))
-                .tint(Theme.accent)
+                Picker("Require \(biometric.label) / Passcode after", selection: Binding(
+                    get: { biometric.lockAfterMinutes },
+                    set: { minutes in Task { await biometric.setLockAfterMinutes(minutes) } }
+                )) {
+                    Text("Never").tag(BioLockDelay.never)
+                    Text("Immediately").tag(BioLockDelay.immediately)
+                    Text("1 minute").tag(1)
+                    Text("5 minutes").tag(5)
+                    Text("15 minutes").tag(15)
+                    Text("30 minutes").tag(30)
+                }
+                .pickerStyle(.menu)
+                Text("Choose when FiHaven asks for \(biometric.label) or your device passcode after you leave the app.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
             Button {
                 sheet = .timezone
@@ -160,6 +169,14 @@ struct SettingsView: View {
                         in: 7...90)
             }
             Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
+            Toggle("Hide fully paid on dashboard", isOn: Binding(
+                get: { store.data.settings.hidePaidOnDashboard },
+                set: { store.setHidePaidOnDashboard($0) }
+            ))
+            .tint(Theme.accent)
+            Text("When on, bills and cards you've fully paid this period won't appear in Upcoming on the dashboard.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
             Picker("Currency", selection: Binding(

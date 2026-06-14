@@ -206,14 +206,29 @@ strict on write.
   "category": "Housing",   // see Categories below
   "amount": 1450,          // number, dollars
   "dueDay": 1,             // number 1–31 (day of month)
-  "frequency": "Monthly",  // display label; engine treats every bill as monthly-on-dueDay
+  "frequency": "Monthly",  // Monthly | Weekly | Bi-weekly | Quarterly | Annually — drives due-date scheduling
   "autopay": true,         // bool
-  "notes": "Oakwood Apts"  // string, may be ""
+  "notes": "Oakwood Apts", // string, may be ""
+  "startDate": null,       // optional "YYYY-MM-DD" — "First bill due on"; gates when it begins
+  "endDate": null          // optional "YYYY-MM-DD" — "Stops on"; bill is Ended after this
 }
 ```
-Frequency labels seen in the UI: `Monthly`, `Weekly`, `Bi-weekly`,
-`Quarterly`, `Annually`. **Informational only** — `buildUpcomingItems`
-schedules by `dueDay` monthly regardless.
+Frequency labels: `Monthly`, `Weekly`, `Bi-weekly`, `Quarterly`, `Annually`.
+These **control when a bill is due** via `BillSchedule` / `billSchedule.js`
+(ported to Swift/Kotlin and the server scheduler). Cards remain
+monthly-on-`dueDay` only. Weekly/bi-weekly bills should set `startDate`
+as the recurrence anchor; without it, month-based frequencies anchor to
+January `dueDay` for stable phasing.
+
+**Active window (`startDate` / `endDate`).** Both optional and date-only.
+When `startDate` is set, its day-of-month becomes the recurring `dueDay`
+(the editor derives it on save). A bill is *active* only on/after
+`startDate` and on/before `endDate`; outside that window it is excluded
+from `buildUpcomingItems`, monthly totals, the calendar, autopay, and
+reminders — but stays in the Bills list with a **Starts …** / **Ended**
+badge. Helpers: `billActive` / `billNotStarted` / `billEnded`
+(web `utils.js`; native `DateLogic`). Compared lexicographically against
+today's `YYYY-MM-DD` in the user's tz.
 
 ### Card
 ```jsonc
@@ -296,6 +311,8 @@ One entry per bill (with `dueDay`) and per card (with `dueDay`):
 - Card amount = `hasPromo ? max(minPayment, promoNeeded) : minPayment`.
 - `promoNeeded(card)` = `promoBalance (or balance) / monthsUntil(promoEndDate)`,
   or the whole balance if `monthsUntil ≤ 0`.
+- Bills outside their active window are skipped (`billActive` — a
+  not-yet-started or stopped bill never appears as upcoming; see §6).
 - Sort ascending by `days` (soonest first).
 
 ### 7.5 Payoff simulation ([`payoff.js runPayoffSim`](../client/js/payoff.js))

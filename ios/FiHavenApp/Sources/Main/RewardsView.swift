@@ -75,8 +75,12 @@ struct RewardsView: View {
             HStack {
                 Text("💳 \(best.card.name.isEmpty ? "Card" : best.card.name)")
                     .font(Theme.ui(18, weight: .bold))
+                if isRotating(best.card) { rotBadge }
                 Spacer()
-                Text(ratePct(best.rate)).font(Theme.title(24)).foregroundStyle(Theme.accent)
+                Text(ratePct(best.value)).font(Theme.title(24)).foregroundStyle(Theme.accent)
+            }
+            if let bd = breakdown(best) {
+                Text(bd).font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
         .padding(14)
@@ -89,9 +93,17 @@ struct RewardsView: View {
         VStack(spacing: 0) {
             ForEach(list) { e in
                 HStack {
-                    Text(e.card.name.isEmpty ? "Card" : e.card.name).foregroundStyle(Theme.text)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(e.card.name.isEmpty ? "Card" : e.card.name).foregroundStyle(Theme.text)
+                            if isRotating(e.card) { rotBadge }
+                        }
+                        if let bd = breakdown(e) {
+                            Text(bd).font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        }
+                    }
                     Spacer()
-                    Text(ratePct(e.rate)).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.muted)
+                    Text(ratePct(e.value)).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.muted)
                 }
                 .padding(.vertical, 10)
                 Divider().background(Theme.border)
@@ -112,7 +124,7 @@ struct RewardsView: View {
                         Text(e.card.name.isEmpty ? "Card" : e.card.name)
                             .foregroundStyle(Theme.muted)
                         Spacer()
-                        Text("\(ratePct(e.rate)) · skipped").font(Theme.ui(12, weight: .semibold)).foregroundStyle(Theme.muted)
+                        Text("\(ratePct(e.value)) · skipped").font(Theme.ui(12, weight: .semibold)).foregroundStyle(Theme.muted)
                     }
                     if let reason = e.reason {
                         Text("⚠ \(reason)").font(Theme.ui(11)).foregroundStyle(Theme.orange)
@@ -128,5 +140,26 @@ struct RewardsView: View {
     private func ratePct(_ r: Double) -> String {
         let rounded = (r * 100).rounded() / 100
         return (rounded == rounded.rounded() ? String(Int(rounded)) : String(rounded)) + "%"
+    }
+
+    // This category rotates on the card — its rate only applies while the user
+    // has it activated for the quarter, so flag it.
+    private func isRotating(_ card: Card) -> Bool {
+        card.rotatingPool?.contains(category) ?? false
+    }
+
+    private var rotBadge: some View {
+        Text("rotating")
+            .font(Theme.ui(10, weight: .bold)).textCase(.uppercase)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Theme.accentBg)
+            .foregroundStyle(Theme.accent)
+            .clipShape(Capsule())
+    }
+
+    // For a points card (point value ≠ 1), how the cash-equivalent breaks down.
+    private func breakdown(_ e: Rewards.Ranked) -> String? {
+        guard e.pointValue != 1 else { return nil }
+        return "\(ratePct(e.rate).dropLast())× points · \(e.pointValue)¢/pt"
     }
 }

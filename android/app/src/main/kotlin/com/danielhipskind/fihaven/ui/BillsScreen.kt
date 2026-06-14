@@ -46,17 +46,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.core.CTConstants
+import com.danielhipskind.fihaven.core.logic.BillSchedule
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.Money
 import com.danielhipskind.fihaven.core.logic.PaidState
 import com.danielhipskind.fihaven.core.model.Bill
-import com.danielhipskind.fihaven.core.model.SpendTransaction
 import com.danielhipskind.fihaven.ui.theme.Ct
 
 @Composable
 fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
-    val ent by vm.entitlement.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Bill?>(null) }
     var creating by remember { mutableStateOf(false) }
     var paying by remember { mutableStateOf<Bill?>(null) }
@@ -71,7 +70,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
 
     val filtered = data.bills.filter { b ->
         if (fUnpaid && vm.paidState("bill", b.id.toString()) == PaidState.FULL) return@filter false
-        if (fOverdue && !(b.dueDay != null && DateLogic.daysUntilDue(b.dueDay!!, zone) < 0)) return@filter false
+        if (fOverdue && BillSchedule.daysUntilDue(b, zone) >= 0) return@filter false
         if (fAutopay && !b.autopay) return@filter false
         if (fOnCard && b.cardId == null) return@filter false
         if (fCategory != "All" && b.category != fCategory) return@filter false
@@ -82,12 +81,12 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
         "amount-asc" -> filtered.sortedBy { it.amount }
         "name" -> filtered.sortedBy { it.name.lowercase() }
         "unpaid" -> filtered.sortedWith(
-            compareBy({ if (vm.paidState("bill", it.id.toString()) == PaidState.FULL) 1 else 0 }, { it.dueDay ?: 99 })
+            compareBy({ if (vm.paidState("bill", it.id.toString()) == PaidState.FULL) 1 else 0 },
+                { BillSchedule.daysUntilDue(it, zone) })
         )
-        else -> filtered.sortedBy { it.dueDay ?: 99 }
+        else -> filtered.sortedBy { BillSchedule.daysUntilDue(it, zone) }
     }
     val filterCount = listOf(fUnpaid, fOverdue, fAutopay, fOnCard).count { it } + if (fCategory != "All") 1 else 0
-    val subs = detectSubscriptions(data.bills, data.transactions, zone)
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Bills", onAdd = { creating = true })
@@ -103,10 +102,6 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Subscription finder is a Pro insight (Balanced tiering).
-            if (ent.pro && subs.isNotEmpty()) {
-                item { SubscriptionsCard(subs) }
-            }
             if (bills.isEmpty()) {
                 item { CtCard { Text("No bills yet. Tap + to add one.", color = Ct.colors.muted) } }
             }
@@ -163,10 +158,16 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
                 ) {
                     BillRow(
                         bill = bill,
+                        zone = zone,
                         state = vm.paidState("bill", bill.id.toString()),
                         paidSoFar = vm.paidAmountFor("bill", bill.id.toString()),
                         chargedTo = bill.cardId?.let { id -> data.cards.firstOrNull { it.id.toString() == id }?.name },
                         skipped = vm.isSkipped("bill", bill.id.toString()),
+                        windowLabel = when {
+                            DateLogic.billEnded(bill, zone) -> "⏹ Ended ${friendlyDate(bill.endDate)}"
+                            DateLogic.billNotStarted(bill, zone) -> "Starts ${friendlyDate(bill.startDate)}"
+                            else -> null
+                        },
                         onPay = { paying = bill },
                         onEdit = { editing = bill },
                         onSkip = { vm.skipMonth("bill", bill.id.toString(), bill.name) },
@@ -200,10 +201,12 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
 @Composable
 private fun BillRow(
     bill: Bill,
+    zone: java.time.ZoneId,
     state: PaidState,
     paidSoFar: Double,
     chargedTo: String? = null,
     skipped: Boolean = false,
+    windowLabel: String? = null,
     onPay: () -> Unit,
     onEdit: () -> Unit,
     onSkip: () -> Unit = {},
@@ -233,12 +236,14 @@ private fun BillRow(
                     }
                 }
                 Text(
-                    if (skipped) "⏭ Skipped this month" else when (state) {
+                    windowLabel ?: if (skipped) "⏭ Skipped this month" else when (state) {
                         PaidState.FULL -> "Paid this month"
                         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amount)}"
-                        PaidState.UNPAID -> bill.dueDay?.let { "Due on the $it" } ?: "No due date"
+                        PaidState.UNPAID -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
+                            ?: "No due date"
                     },
-                    color = if (state == PaidState.PARTIAL && !skipped) Ct.colors.orange else Ct.colors.muted, fontSize = 12.sp,
+                    color = if (state == PaidState.PARTIAL && !skipped && windowLabel == null) Ct.colors.orange else Ct.colors.muted,
+                    fontSize = 12.sp,
                 )
                 if (!chargedTo.isNullOrBlank()) {
                     Text("💳 Charged to $chargedTo · not a bank debit",
@@ -248,7 +253,7 @@ private fun BillRow(
                 if (skipped) {
                     Text("Undo skip", color = Ct.colors.accent, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onUnskip).padding(top = 2.dp))
-                } else if (state == PaidState.UNPAID) {
+                } else if (state == PaidState.UNPAID && windowLabel == null) {
                     Text("Skip this month", color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onSkip).padding(top = 2.dp))
                 }
@@ -260,6 +265,17 @@ private fun BillRow(
             }
         }
     }
+}
+
+/// "YYYY-MM-DD" or LocalDate → a short "MMM d" label.
+private fun friendlyDate(s: String?): String =
+    DateLogic.parseDate(s)?.format(
+        java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US)
+    ) ?: ""
+
+private fun friendlyDate(d: java.time.LocalDate): String {
+    val fmt = if (d.year == java.time.LocalDate.now().year) "MMM d" else "MMM d, yyyy"
+    return d.format(java.time.format.DateTimeFormatter.ofPattern(fmt, java.util.Locale.US))
 }
 
 private val BILL_FREQUENCIES = listOf("Monthly", "Weekly", "Bi-weekly", "Quarterly", "Annually")
@@ -275,6 +291,8 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     var autopay by remember { mutableStateOf(bill?.autopay ?: false) }
     var notes by remember { mutableStateOf(bill?.notes ?: "") }
     var cardId by remember { mutableStateOf(bill?.cardId ?: "") }
+    var startDate by remember { mutableStateOf(bill?.startDate ?: "") }
+    var endDate by remember { mutableStateOf(bill?.endDate ?: "") }
     val data by vm.data.collectAsStateWithLifecycle()
     val cardOptions = listOf("Direct (bank / cash)" to "") + data.cards.map { it.name to it.id.toString() }
 
@@ -282,6 +300,12 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
         title = if (bill == null) "New Bill" else "Edit Bill",
         saveEnabled = name.isNotBlank(),
         onSave = {
+            val start = startDate.ifBlank { null }
+            val end = endDate.ifBlank { null }
+            // "First bill due on" derives the recurring day-of-month, so a
+            // start date overrides the due-day field.
+            val derivedDueDay = DateLogic.parseDate(start)?.dayOfMonth
+                ?: dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1
             vm.upsertBill(
                 Bill(
                     id = bill?.id ?: System.currentTimeMillis().toInt(),
@@ -289,9 +313,10 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
                     business = business.trim().takeIf { it.isNotBlank() },
                     category = category,
                     amount = amount.toDoubleOrNull() ?: 0.0,
-                    dueDay = dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1,
+                    dueDay = derivedDueDay,
                     frequency = frequency, autopay = autopay, notes = notes,
                     cardId = cardId.takeIf { it.isNotBlank() },
+                    startDate = start, endDate = end,
                 )
             )
             onDismiss()
@@ -307,6 +332,12 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
         OutlinedTextField(dueDay, { dueDay = it.filter(Char::isDigit).take(2) }, label = { Text("Due day (1–31)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         DropdownField("Frequency", BILL_FREQUENCIES, frequency) { frequency = it }
+        OutlinedTextField(startDate, { startDate = it }, label = { Text("First bill due on (YYYY-MM-DD)") },
+            placeholder = { Text("optional — sets the due day") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(endDate, { endDate = it }, label = { Text("Stops on (YYYY-MM-DD)") },
+            placeholder = { Text("optional — marks the bill Ended after") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
         DropdownField(
             "Charged to",
             cardOptions.map { it.first },
@@ -320,80 +351,3 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     }
 }
 
-private data class SubItem(
-    val id: String, val name: String, val monthly: Double,
-    val source: String, val priceUp: Double?, val stale: Boolean,
-)
-
-private fun monthlyOfBill(b: Bill): Double = when (b.frequency) {
-    "Weekly" -> b.amount * 52 / 12
-    "Bi-weekly" -> b.amount * 26 / 12
-    "Quarterly" -> b.amount / 3
-    "Annually" -> b.amount / 12
-    else -> b.amount
-}
-
-private fun detectSubscriptions(
-    bills: List<Bill>,
-    txs: List<SpendTransaction>,
-    zone: java.time.ZoneId,
-): List<SubItem> {
-    val out = mutableListOf<SubItem>()
-    bills.filter { it.category == "Subscriptions" }.forEach { b ->
-        out.add(SubItem("bill-${b.id}", b.name.ifBlank { "Subscription" }, monthlyOfBill(b), "bill", null, false))
-    }
-    txs.filter { it.merchant.trim().isNotEmpty() }
-        .groupBy { it.merchant.trim().lowercase() }
-        .forEach { (_, list) ->
-            if (list.map { it.date.take(7) }.toSet().size < 2) return@forEach
-            val latest = list.sortedBy { it.date }.last()
-            val minAmt = list.minOf { it.amount }
-            val days = DateLogic.parseDate(latest.date)?.let {
-                java.time.temporal.ChronoUnit.DAYS.between(it, DateLogic.today(zone))
-            } ?: 0L
-            out.add(SubItem("tx-${latest.merchant}", latest.merchant, latest.amount, "tx",
-                if (latest.amount > minAmt + 0.005) minAmt else null, days > 60))
-        }
-    return out.sortedByDescending { it.monthly }
-}
-
-@Composable
-private fun SubscriptionsCard(subs: List<SubItem>) {
-    val total = subs.sumOf { it.monthly }
-    CtCard(padding = 14) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SUBSCRIPTIONS", color = Ct.colors.muted, fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("${Money.fmt(total)}/mo · ${subs.size}", color = Ct.colors.muted,
-                    fontSize = 12.sp, fontFamily = PlexMono)
-            }
-            Column(Modifier.padding(top = 6.dp)) {
-                subs.forEach { s ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
-                        Text(if (s.source == "bill") "📄" else "🔁", fontSize = 15.sp,
-                            modifier = Modifier.padding(end = 10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(s.name, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text(
-                                when {
-                                    s.priceUp != null -> "▲ was ${Money.fmt(s.priceUp)}"
-                                    s.stale -> "⚠ unused 60d+"
-                                    s.source == "bill" -> "Tracked bill"
-                                    else -> "Recurring charge"
-                                },
-                                color = when {
-                                    s.priceUp != null -> Ct.colors.orange
-                                    s.stale -> Ct.colors.red
-                                    else -> Ct.colors.muted
-                                },
-                                fontSize = 11.sp,
-                            )
-                        }
-                        Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
-                    }
-                }
-            }
-        }
-    }
-}

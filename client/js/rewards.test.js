@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { effectiveRate, inActivePromo, rankCardsForCategory } from './rewards.js';
+import { effectiveRate, pointValue, effectiveValue, inActivePromo, rankCardsForCategory } from './rewards.js';
 
 const isoOffsetMonths = (months) => {
   const d = new Date();
@@ -62,5 +62,33 @@ describe('rewards — rankCardsForCategory', () => {
   it('handles empty and undefined input', () => {
     expect(rankCardsForCategory('Gas', [])).toEqual({ eligible: [], excluded: [] });
     expect(rankCardsForCategory('Gas')).toEqual({ eligible: [], excluded: [] });
+  });
+});
+
+describe('rewards — point value (cash-equivalent ranking)', () => {
+  it('pointValue defaults to 1 and reads a positive override', () => {
+    expect(pointValue({})).toBe(1);
+    expect(pointValue({ pointValue: 0 })).toBe(1);   // 0/invalid → cash back
+    expect(pointValue({ pointValue: 2.2 })).toBe(2.2);
+  });
+
+  it('effectiveValue is multiplier × point value', () => {
+    const bilt = { rewardCategories: { Dining: 3 }, pointValue: 2.2 };
+    expect(effectiveValue(bilt, 'Dining')).toBeCloseTo(6.6);
+    const cash = { rewardBase: 2 }; // no pointValue → 1
+    expect(effectiveValue(cash, 'Dining')).toBe(2);
+  });
+
+  it('ranks by cash value, so a points card can beat a higher-multiplier cash card', () => {
+    const list = [
+      { id: 'cash3', rewardCategories: { Dining: 3 } },                  // 3 × 1 = 3
+      { id: 'pts3',  rewardCategories: { Dining: 3 }, pointValue: 2.2 }, // 3 × 2.2 = 6.6
+      { id: 'cash5', rewardCategories: { Dining: 5 } },                  // 5 × 1 = 5
+    ];
+    const { eligible } = rankCardsForCategory('Dining', list);
+    expect(eligible.map((e) => e.card.id)).toEqual(['pts3', 'cash5', 'cash3']);
+    expect(eligible[0].value).toBeCloseTo(6.6);
+    expect(eligible[0].rate).toBe(3);          // raw multiplier preserved
+    expect(eligible[0].pointValue).toBe(2.2);
   });
 });

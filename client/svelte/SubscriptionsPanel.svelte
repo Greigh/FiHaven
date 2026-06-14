@@ -5,10 +5,8 @@
   stale (long-unused) subscriptions. Shown atop the Bills tab.
 -->
 <script>
-  import { bills, transactions, entitlement } from '../js/storage.svelte.js';
-  import { fmt } from '../js/utils.js';
-
-  let pro = $derived(entitlement.pro);
+  import { bills, transactions } from '../js/storage.svelte.js';
+  import { fmt, billEnded, nextBillDueDate, shortDate } from '../js/utils.js';
 
   const STALE_DAYS = 60;
 
@@ -33,11 +31,13 @@
     const out = [];
     // 1) Bills explicitly categorized as subscriptions.
     bills.forEach((b) => {
+      if (billEnded(b)) return;   // stopped subscriptions drop off the finder
       if (b.category === 'Subscriptions') {
         out.push({
           key: 'bill-' + b.id, name: b.name || 'Subscription',
           monthly: monthlyOfBill(b), amount: parseFloat(b.amount) || 0,
           source: 'bill', stale: false, priceUp: null,
+          nextDue: nextBillDueDate(b),
         });
       }
     });
@@ -71,7 +71,7 @@
   let totalMonthly = $derived(subs.reduce((s, x) => s + x.monthly, 0));
 </script>
 
-{#if pro && subs.length > 0}
+{#if subs.length > 0}
   <section class="subs-card">
     <div class="subs-head">
       <div>
@@ -88,7 +88,15 @@
             <div class="subs-item-sub">
               {#if s.priceUp !== null}<span class="subs-flag-up">▲ was {fmt(s.priceUp)}</span>{/if}
               {#if s.stale}<span class="subs-flag-stale">⚠ unused 60d+</span>{/if}
-              {#if s.priceUp === null && !s.stale}{s.source === 'bill' ? 'Tracked bill' : 'Recurring charge'}{/if}
+              {#if s.priceUp === null && !s.stale}
+                {#if s.nextDue}
+                  Next: {shortDate(s.nextDue)}
+                {:else if s.source === 'bill'}
+                  Tracked bill
+                {:else}
+                  Recurring charge
+                {/if}
+              {/if}
             </div>
           </div>
           <div class="subs-item-amt">{fmt(s.monthly)}<span class="subs-item-mo">/mo</span></div>
@@ -96,4 +104,10 @@
       {/each}
     </div>
   </section>
+{:else}
+  <div class="empty">
+    <div class="empty-icon">🔁</div>
+    <h3>No subscriptions detected yet</h3>
+    <p>Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here, with price-increase and stale-subscription flags.</p>
+  </div>
 {/if}

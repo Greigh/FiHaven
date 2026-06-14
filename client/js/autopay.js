@@ -9,18 +9,11 @@
 
 import { bills, cards, payments, settings, save, entitlement } from './storage.svelte.js';
 import {
-  currentPeriodKey, paidAmount, goalAmountFor, isSkipped, monthKey,
+  currentPeriodKey, paidAmount, goalAmountFor, isSkipped, monthKey, billActive,
 } from './utils.js';
 import { boundsForKey } from './period.js';
+import { billDueOnOrBeforeInPeriod } from './billSchedule.js';
 import { today, todayISO } from './tz.js';
-
-// First occurrence of day-of-month `dueDay` within [start, end), or null.
-function dueDateInPeriod(dueDay, bounds) {
-  const start = bounds.start;
-  let d = new Date(start.getFullYear(), start.getMonth(), dueDay);
-  if (d < start) d = new Date(start.getFullYear(), start.getMonth() + 1, dueDay);
-  return d < bounds.end ? d : null;
-}
 
 function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -36,9 +29,19 @@ export function runAutopayMark() {
   let added = false;
 
   const mark = (item, type, name, amount) => {
-    if (!item.autopay || !item.dueDay) return;
-    const due = dueDateInPeriod(parseInt(item.dueDay, 10), bounds);
-    if (!due || due > now) return;                       // not due yet this period
+    if (!item.autopay) return;
+    if (type === 'bill') {
+      if (!item.dueDay && !item.startDate) return;
+      const due = billDueOnOrBeforeInPeriod(item, bounds, now);
+      if (!due) return;
+    } else {
+      if (!item.dueDay) return;
+      const dd = parseInt(item.dueDay, 10);
+      let d = new Date(bounds.start.getFullYear(), bounds.start.getMonth(), dd);
+      if (d < bounds.start) d = new Date(bounds.start.getFullYear(), bounds.start.getMonth() + 1, dd);
+      if (d >= bounds.end || d > now) return;
+    }
+
     const refId = String(item.id);
     if (paidAmount(type, refId, mk) > 0.005) return;     // already has a payment
     if (isSkipped(type, refId, mk)) return;              // explicitly skipped

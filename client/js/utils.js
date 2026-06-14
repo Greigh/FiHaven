@@ -9,6 +9,13 @@ import {
   boundsForKey, currentPeriodKey, paymentInBounds,
   periodKeyForPayment, periodKeyLabel,
 } from './period.js';
+import {
+  billDueOn, nextBillDueDate, daysUntilBillDue, billDueInPeriod,
+} from './billSchedule.js';
+
+export {
+  nextBillDueDate, daysUntilBillDue, billDueOn, billDueInPeriod,
+} from './billSchedule.js';
 
 // Re-export the period helpers so components can keep importing from utils.
 export { currentPeriodKey, periodKeyLabel, periodKeyForPayment };
@@ -138,6 +145,55 @@ export function nextDueDate(dueDay) {
   return thisMonth >= t
     ? thisMonth
     : new Date(t.getFullYear(), t.getMonth() + 1, d);
+}
+
+// "YYYY-MM-DD" for a Date, in its own local fields (which todayInTz()
+// already pins to the user's zone). Lets us compare against a bill's
+// startDate/endDate strings with a plain lexicographic <, > .
+export function ymd(d) {
+  d = d || todayInTz();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+// A bill's optional active window. "First bill due on" (startDate)
+// gates when it begins; "Stops on" (endDate) retires it. Both are
+// optional "YYYY-MM-DD". `atDate` defaults to today (in the user's tz).
+export function billNotStarted(bill, atDate) {
+  if (!bill || !bill.startDate) return false;
+  return ymd(atDate) < bill.startDate;
+}
+export function billEnded(bill, atDate) {
+  if (!bill || !bill.endDate) return false;
+  return ymd(atDate) > bill.endDate;
+}
+// Active = within the window. An ended or not-yet-started bill is
+// excluded from due/overdue, monthly totals, the calendar, and
+// reminders (it still shows in the list with a badge).
+export function billActive(bill, atDate) {
+  return !billNotStarted(bill, atDate) && !billEnded(bill, atDate);
+}
+
+// True if a bill's active window overlaps a budgeting period
+// (matches BudgetView's billInPeriod filter).
+export function billInPeriod(bill, bounds) {
+  if (!bounds || !bounds.start || !bounds.end) return billActive(bill);
+  const lastDay = new Date(bounds.end.getTime() - 864e5);
+  return !billEnded(bill, bounds.start) && !billNotStarted(bill, lastDay);
+}
+
+// Upcoming items that count as obligations in the current period.
+export function periodObligationItems(items, bounds) {
+  return items.filter(function (u) {
+    if (u.type === 'card') return true;
+    var b = bills.find(function (x) { return String(x.id) === String(u.refId); });
+    return b && billDueInPeriod(b, bounds);
+  });
+}
+
+export function hidePaidOnDashboard(s) {
+  return s && s.hidePaidOnDashboard !== false;
 }
 
 // Short calendar label (e.g. "Feb 5"); "Feb 5, 2027" if it's in a
@@ -338,12 +394,14 @@ export function buildUpcomingItems() {
   var items = [];
 
   bills.forEach(function(b) {
-    if (!b.dueDay) return;
+    if (!b.dueDay && !b.startDate) return;
+    if (!billActive(b)) return;
+    if (!nextBillDueDate(b)) return;
     items.push({
       name:    b.name,
       amount:  parseFloat(b.amount || 0),
-      days:    daysUntilDue(parseInt(b.dueDay)),
-      nextDue: nextDueDate(b.dueDay),
+      days:    daysUntilBillDue(b),
+      nextDue: nextBillDueDate(b),
       type:    'bill',
       refId:   String(b.id),
       autopay: b.autopay,

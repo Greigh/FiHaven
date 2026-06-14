@@ -1,31 +1,76 @@
 /* ═══════════════════════════════════════════════════════════
-   cardPresets.js — a small catalog of popular U.S. rewards cards
-   so users can pick their card and auto-fill its reward profile
+   cardPresets.js — a catalog of popular U.S. rewards cards so
+   users can pick their card and auto-fill its reward profile
    instead of hunting down every category rate.
 
    Category keys MUST match REWARD_CATEGORIES (utils.js). Rates are
-   typical published defaults as of 2025 and are fully editable after
-   import — issuers change them and some cards rotate categories.
+   typical published defaults and are fully editable after import —
+   issuers change them over time.
+
+   Rotating / choose-your-category 5% cards carry:
+     rotatingRate  – the elevated rate (e.g. 5)
+     rotatingPool  – the categories that CAN earn it
+   The user ticks which pool categories are active for the current
+   quarter; those get written into rewardCategories at rotatingRate.
+   Always-on bonuses still live in rewardCategories.
+
+   pointValue is cents per point/mile (default 1 = cash back); the
+   optimizer ranks by multiplier × pointValue so a transferable-points
+   card can out-earn a higher-multiplier cash card.
+
    Mirrored by CARD_PRESETS in Rewards.swift / Rewards.kt.
 ═══════════════════════════════════════════════════════════ */
 
 export const CARD_PRESETS = [
-  { id: 'amex-gold',        issuer: 'American Express', name: 'Gold Card',          network: 'Amex',       rewardBase: 1,   rewardCategories: { Dining: 4, Groceries: 4, Travel: 3 } },
-  { id: 'amex-bcp',         issuer: 'American Express', name: 'Blue Cash Preferred', network: 'Amex',      rewardBase: 1,   rewardCategories: { Groceries: 6, Streaming: 6, Gas: 3, Transit: 3 } },
-  { id: 'amex-bce',         issuer: 'American Express', name: 'Blue Cash Everyday',  network: 'Amex',      rewardBase: 1,   rewardCategories: { Groceries: 3, 'Online shopping': 3, Gas: 3 } },
-  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',  network: 'Visa',      rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, 'Online shopping': 3 } },
-  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',    network: 'Visa',      rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3 } },
-  { id: 'chase-cfu',        issuer: 'Chase',            name: 'Freedom Unlimited',   network: 'Visa',      rewardBase: 1.5, rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 } },
-  { id: 'citi-double',      issuer: 'Citi',             name: 'Double Cash',         network: 'Mastercard', rewardBase: 2,  rewardCategories: {} },
-  { id: 'capone-savorone',  issuer: 'Capital One',      name: 'SavorOne',            network: 'Mastercard', rewardBase: 1,  rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
-  { id: 'capone-quicksilver', issuer: 'Capital One',    name: 'Quicksilver',         network: 'Mastercard', rewardBase: 1.5, rewardCategories: {} },
-  { id: 'capone-venture',   issuer: 'Capital One',      name: 'Venture',             network: 'Visa',      rewardBase: 2,   rewardCategories: { Travel: 5 } },
-  { id: 'wf-active-cash',   issuer: 'Wells Fargo',      name: 'Active Cash',         network: 'Visa',      rewardBase: 2,   rewardCategories: {} },
-  { id: 'wf-autograph',     issuer: 'Wells Fargo',      name: 'Autograph',           network: 'Visa',      rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3, Gas: 3, Transit: 3, Streaming: 3 } },
-  { id: 'discover-it',      issuer: 'Discover',         name: 'it Cash Back',        network: 'Discover',  rewardBase: 1,   rewardCategories: {} },
-  { id: 'apple-card',       issuer: 'Apple',            name: 'Apple Card',          network: 'Mastercard', rewardBase: 2,  rewardCategories: {} },
-  { id: 'usbank-altitude-go', issuer: 'U.S. Bank',      name: 'Altitude Go',         network: 'Visa',      rewardBase: 1,   rewardCategories: { Dining: 4, Streaming: 3, Groceries: 2, Gas: 2 } },
-  { id: 'boa-customized',   issuer: 'Bank of America',  name: 'Customized Cash',     network: 'Visa',      rewardBase: 1,   rewardCategories: { Gas: 3, 'Online shopping': 3 } },
+  // ── American Express ──
+  { id: 'amex-gold',        issuer: 'American Express', name: 'Gold Card',           network: 'Amex',       rewardBase: 1,   rewardCategories: { Dining: 4, Groceries: 4, Travel: 3 }, pointValue: 2 },
+  { id: 'amex-platinum',    issuer: 'American Express', name: 'Platinum Card',        network: 'Amex',       rewardBase: 1,   rewardCategories: { Travel: 5 }, pointValue: 2 },
+  { id: 'amex-green',       issuer: 'American Express', name: 'Green Card',           network: 'Amex',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3, Transit: 3 }, pointValue: 2 },
+  { id: 'amex-bcp',         issuer: 'American Express', name: 'Blue Cash Preferred',  network: 'Amex',       rewardBase: 1,   rewardCategories: { Groceries: 6, Streaming: 6, Gas: 3, Transit: 3 } },
+  { id: 'amex-bce',         issuer: 'American Express', name: 'Blue Cash Everyday',   network: 'Amex',       rewardBase: 1,   rewardCategories: { Groceries: 3, 'Online shopping': 3, Gas: 3 } },
+
+  // ── Chase ──
+  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, 'Online shopping': 3 }, pointValue: 2 },
+  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3 }, pointValue: 2 },
+  { id: 'chase-cfu',        issuer: 'Chase',            name: 'Freedom Unlimited',    network: 'Visa',       rewardBase: 1.5, rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5 },
+  { id: 'chase-cff',        issuer: 'Chase',            name: 'Freedom Flex',         network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Transit', 'Online shopping', 'Streaming'] },
+  { id: 'chase-amazon',     issuer: 'Chase',            name: 'Amazon Prime Visa',    network: 'Visa',       rewardBase: 1,   rewardCategories: { 'Online shopping': 5, Dining: 2, Gas: 2, Transit: 2, Drugstores: 2 } },
+
+  // ── Citi ──
+  { id: 'citi-double',      issuer: 'Citi',             name: 'Double Cash',          network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
+  { id: 'citi-strata',      issuer: 'Citi',             name: 'Strata Premier',       network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 3, Dining: 3, Groceries: 3, Gas: 3 }, pointValue: 1.8 },
+  { id: 'citi-custom-cash', issuer: 'Citi',             name: 'Custom Cash',          network: 'Mastercard', rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Dining', 'Groceries', 'Gas', 'Travel', 'Transit', 'Streaming', 'Drugstores'] },
+  { id: 'citi-costco',      issuer: 'Citi',             name: 'Costco Anywhere Visa', network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 4, Dining: 3, Travel: 3 } },
+
+  // ── Capital One ──
+  { id: 'capone-savorone',  issuer: 'Capital One',      name: 'SavorOne',             network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
+  { id: 'capone-savor',     issuer: 'Capital One',      name: 'Savor',                network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
+  { id: 'capone-quicksilver', issuer: 'Capital One',    name: 'Quicksilver',          network: 'Mastercard', rewardBase: 1.5, rewardCategories: {} },
+  { id: 'capone-venture',   issuer: 'Capital One',      name: 'Venture',              network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
+  { id: 'capone-venturex',  issuer: 'Capital One',      name: 'Venture X',            network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
+
+  // ── Wells Fargo ──
+  { id: 'wf-active-cash',   issuer: 'Wells Fargo',      name: 'Active Cash',          network: 'Visa',       rewardBase: 2,   rewardCategories: {} },
+  { id: 'wf-autograph',     issuer: 'Wells Fargo',      name: 'Autograph',            network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3, Gas: 3, Transit: 3, Streaming: 3 }, pointValue: 1.5 },
+
+  // ── Bank of America ──
+  { id: 'boa-customized',   issuer: 'Bank of America',  name: 'Customized Cash',      network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 3, 'Online shopping': 3 } },
+  { id: 'boa-travel',       issuer: 'Bank of America',  name: 'Travel Rewards',       network: 'Visa',       rewardBase: 1.5, rewardCategories: {} },
+  { id: 'boa-premium',      issuer: 'Bank of America',  name: 'Premium Rewards',      network: 'Visa',       rewardBase: 1.5, rewardCategories: { Travel: 2, Dining: 2 } },
+
+  // ── U.S. Bank ──
+  { id: 'usbank-altitude-go', issuer: 'U.S. Bank',      name: 'Altitude Go',          network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 4, Streaming: 3, Groceries: 2, Gas: 2 } },
+  { id: 'usbank-cashplus',  issuer: 'U.S. Bank',        name: 'Cash+',                network: 'Visa',       rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Streaming', 'Groceries', 'Online shopping', 'Transit', 'Drugstores'] },
+
+  // ── Discover ──
+  { id: 'discover-it',      issuer: 'Discover',         name: 'it Cash Back',         network: 'Discover',   rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Dining', 'Online shopping', 'Transit', 'Drugstores'] },
+
+  // ── Other ──
+  { id: 'apple-card',       issuer: 'Apple',            name: 'Apple Card',           network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
+  { id: 'bilt',             issuer: 'Bilt',             name: 'Bilt Mastercard',      network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2 }, pointValue: 2.2 },
+  { id: 'sofi',             issuer: 'SoFi',             name: 'SoFi Credit Card',     network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
+  { id: 'paypal',           issuer: 'PayPal',           name: 'Cashback Mastercard',  network: 'Mastercard', rewardBase: 1.5, rewardCategories: { 'Online shopping': 3 } },
+  { id: 'target-redcard',   issuer: 'Target',           name: 'RedCard',              network: 'Mastercard', rewardBase: 1,   rewardCategories: { Other: 5 } },
 ];
 
 // Look up a preset by id.

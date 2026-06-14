@@ -24,6 +24,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var network: String?          // "Visa" | "Mastercard" | "Amex" | "Discover" | …
     public var rewardBase: Double        // flat reward % on everything (rewards optimizer)
     public var rewardCategories: [String: Double]   // per-category reward % overrides
+    public var rotatingPool: [String]?   // categories that can earn the elevated rotating rate
+    public var rotatingRate: Double?     // elevated rate (e.g. 5) those categories earn when active
+    public var pointValue: Double?       // cents per point/mile (nil → 1 = cash back)
 
     public init(
         id: Int,
@@ -46,7 +49,10 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         lastDigits: String? = nil,
         network: String? = nil,
         rewardBase: Double = 0,
-        rewardCategories: [String: Double] = [:]
+        rewardCategories: [String: Double] = [:],
+        rotatingPool: [String]? = nil,
+        rotatingRate: Double? = nil,
+        pointValue: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -69,6 +75,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.network = network
         self.rewardBase = rewardBase
         self.rewardCategories = rewardCategories
+        self.rotatingPool = rotatingPool
+        self.rotatingRate = rotatingRate
+        self.pointValue = pointValue
     }
 
     enum CodingKeys: String, CodingKey {
@@ -76,7 +85,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         case hasPromo, promoAPR, promoEndDate, promoBalance
         case dueDay, autopay, notes
         case type, issuer, currentBalance, lastDigits, network
-        case rewardBase, rewardCategories
+        case rewardBase, rewardCategories, rotatingPool, rotatingRate, pointValue
     }
 
     public init(from decoder: Decoder) throws {
@@ -104,5 +113,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         // Web writes a plain { "Dining": 4 } object of numbers; tolerate a
         // missing or malformed map by falling back to empty.
         rewardCategories = (try? c.decode([String: Double].self, forKey: .rewardCategories)) ?? [:]
+        rotatingPool = try? c.decode([String].self, forKey: .rotatingPool)
+        rotatingRate = c.flexibleDouble(.rotatingRate)
+        pointValue = c.flexibleDouble(.pointValue)
     }
 }

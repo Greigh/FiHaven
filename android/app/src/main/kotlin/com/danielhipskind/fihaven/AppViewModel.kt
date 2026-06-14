@@ -24,6 +24,7 @@ import com.danielhipskind.fihaven.core.model.incomes
 import com.danielhipskind.fihaven.core.model.paidGoal
 import com.danielhipskind.fihaven.core.model.timezoneSetting
 import com.danielhipskind.fihaven.core.model.currency
+import com.danielhipskind.fihaven.core.model.hidePaidOnDashboard
 import com.danielhipskind.fihaven.core.model.withIncomeAdjustments
 import com.danielhipskind.fihaven.core.model.withIncomes
 import com.danielhipskind.fihaven.core.model.withPaidGoal
@@ -33,6 +34,7 @@ import com.danielhipskind.fihaven.core.Money
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
+import com.danielhipskind.fihaven.core.logic.BillSchedule
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidGoalPolicy
 import com.danielhipskind.fihaven.core.logic.PaidState
@@ -59,6 +61,27 @@ import java.time.ZoneId
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val BIO_KEY = "fh_biometric"
+private const val BIO_LOCK_AFTER_KEY = "fh_bio_lock_after"
+
+/** Local lock-delay values — mirrors BioLockDelay in Biometrics.swift. */
+object BioLockDelay {
+    const val NEVER = -1
+    const val IMMEDIATELY = 0
+    val PRESET_MINUTES = listOf(1, 5, 15, 30)
+
+    fun label(minutes: Int): String = when (minutes) {
+        NEVER -> "Never"
+        IMMEDIATELY -> "Immediately"
+        1 -> "1 minute"
+        else -> "$minutes minutes"
+    }
+
+    fun clamp(minutes: Int): Int = when {
+        minutes < 0 -> NEVER
+        minutes == 0 -> IMMEDIATELY
+        else -> minutes.coerceIn(1, 60)
+    }
+}
 
 sealed interface Session {
     data object Loading : Session
@@ -85,23 +108,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Biometric app lock (local, per-device) ───────────────────────
     private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
-    // Default the lock ON for new installs when the device can authenticate
-    // (biometric or device credential). Once the user explicitly toggles it,
-    // their choice is honored — `contains` distinguishes "never set".
-    private val bioDefault: Boolean = if (prefs.contains(BIO_KEY)) {
-        prefs.getBoolean(BIO_KEY, false)
-    } else {
-        val can = BiometricManager.from(app).canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_WEAK
-        ) == BiometricManager.BIOMETRIC_SUCCESS
-        prefs.edit().putBoolean(BIO_KEY, can).apply()
-        can
+    private val lockAfterDefault: Int = run {
+        val delay = when {
+            prefs.contains(BIO_LOCK_AFTER_KEY) -> prefs.getInt(BIO_LOCK_AFTER_KEY, BioLockDelay.IMMEDIATELY)
+            prefs.contains(BIO_KEY) -> if (prefs.getBoolean(BIO_KEY, false)) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER
+            else -> {
+                val can = BiometricManager.from(app).canAuthenticate(
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK
+                ) == BiometricManager.BIOMETRIC_SUCCESS
+                if (can) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER
+            }
+        }
+        if (!prefs.contains(BIO_LOCK_AFTER_KEY)) {
+            prefs.edit {
+                putInt(BIO_LOCK_AFTER_KEY, delay)
+                putBoolean(BIO_KEY, delay >= 0)
+            }
+        }
+        delay
     }
-    private val _biometricEnabled = MutableStateFlow(bioDefault)
+    private val _lockAfterMinutes = MutableStateFlow(lockAfterDefault)
+    val lockAfterMinutes: StateFlow<Int> = _lockAfterMinutes.asStateFlow()
+    private val _biometricEnabled = MutableStateFlow(lockAfterDefault >= 0)
     val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
-    // Cold launch starts locked when enabled; a fresh login clears it.
-    private val _locked = MutableStateFlow(bioDefault)
+    // Cold launch starts locked when a delay is configured; a fresh login clears it.
+    private val _locked = MutableStateFlow(lockAfterDefault >= 0)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
+    private var backgroundedAt: Long? = null
 
     // First-run intro is local (no account yet) — shown once before auth.
     private val _introSeen = MutableStateFlow(prefs.getBoolean("intro_seen", false))
@@ -112,16 +145,49 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _introSeen.value = true
     }
 
-    fun setBiometricEnabled(on: Boolean) {
-        _biometricEnabled.value = on
-        prefs.edit { putBoolean(BIO_KEY, on) }
+    fun setLockAfterMinutes(minutes: Int) {
+        val clamped = BioLockDelay.clamp(minutes)
+        _lockAfterMinutes.value = clamped
+        _biometricEnabled.value = clamped >= 0
+        prefs.edit {
+            putInt(BIO_LOCK_AFTER_KEY, clamped)
+            putBoolean(BIO_KEY, clamped >= 0)
+        }
         _locked.value = false
+        backgroundedAt = null
     }
 
-    fun lockIfEnabled() { if (_biometricEnabled.value) _locked.value = true }
-    fun confirmUnlock() { _locked.value = false }
+    /** @deprecated Prefer [setLockAfterMinutes]. */
+    fun setBiometricEnabled(on: Boolean) {
+        setLockAfterMinutes(if (on) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER)
+    }
+
+    fun onBackground() {
+        backgroundedAt = System.currentTimeMillis()
+        if (_lockAfterMinutes.value == BioLockDelay.IMMEDIATELY) {
+            _locked.value = true
+        }
+    }
+
+    fun onForeground() {
+        val delay = _lockAfterMinutes.value
+        if (delay <= 0) return
+        val at = backgroundedAt ?: return
+        if (System.currentTimeMillis() - at >= delay * 60_000L) {
+            _locked.value = true
+        }
+    }
+
+    fun confirmUnlock() {
+        _locked.value = false
+        backgroundedAt = null
+    }
+
     /** DEBUG screenshot aid: force the lock screen. */
-    fun demoLock() { _biometricEnabled.value = true; _locked.value = true }
+    fun demoLock() {
+        setLockAfterMinutes(BioLockDelay.IMMEDIATELY)
+        _locked.value = true
+    }
 
     private val _working = MutableStateFlow(false)
     val working: StateFlow<Boolean> = _working.asStateFlow()
@@ -245,8 +311,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return if (due.isBefore(bounds.end)) due else null
         }
 
-        val newPayments = mutableListOf<Payment>()
-        fun consider(type: String, refId: String, name: String, dueDay: Int?, autopay: Boolean, amount: Double) {
+        var newPayments: [Payment] = []
+        fun considerBill(b: com.danielhipskind.fihaven.core.model.Bill) {
+            if (!b.autopay) return
+            if (b.dueDay == null && b.startDate.isNullOrEmpty()) return
+            val due = BillSchedule.dueOnOrBeforeInPeriod(b, bounds, zone, todayD) ?: return
+            val refId = b.id.toString()
+            if (Schedule.paidAmount(d.payments, "bill", refId, bounds) > Schedule.PAID_EPSILON) return
+            if (Schedule.isSkipped(d.payments, "bill", refId, bounds)) return
+            val iso = "%04d-%02d-%02d".format(todayD.year, todayD.monthValue, todayD.dayOfMonth)
+            newPayments.add(Payment(newPaymentId(), "bill", refId, b.name, b.amount, iso, mkCal, "Auto-marked (autopay)", false))
+        }
+        fun considerCard(type: String, refId: String, name: String, dueDay: Int?, autopay: Boolean, amount: Double) {
             if (!autopay || dueDay == null || dueDay <= 0) return
             val due = dueInPeriod(dueDay) ?: return
             if (due.isAfter(todayD)) return
@@ -255,8 +331,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val iso = "%04d-%02d-%02d".format(todayD.year, todayD.monthValue, todayD.dayOfMonth)
             newPayments.add(Payment(newPaymentId(), type, refId, name, amount, iso, mkCal, "Auto-marked (autopay)", false))
         }
-        d.bills.forEach { consider("bill", it.id.toString(), it.name, it.dueDay, it.autopay, it.amount) }
-        d.cards.forEach { consider("card", it.id.toString(), it.name + " (payment)", it.dueDay, it.autopay,
+        d.bills.forEach { considerBill(it) }
+        d.cards.forEach { considerCard("card", it.id.toString(), it.name + " (payment)", it.dueDay, it.autopay,
             goalAmount("card", it.id.toString())) }
         if (newPayments.isNotEmpty()) mutate { it.copy(payments = it.payments + newPayments) }
     }
@@ -455,6 +531,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setBillReminders(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("billReminders", JsonPrimitive(on))) }
 
+    fun setHidePaidOnDashboard(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("hidePaidOnDashboard", JsonPrimitive(on))) }
+
     fun setMonthlySummary(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("monthlySummary", JsonPrimitive(on))) }
 
@@ -544,6 +623,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun remainingFor(item: UpcomingItem) = remainingFor(item.type, item.refId)
     fun paidState(item: UpcomingItem) = paidState(item.type, item.refId)
     fun isSkipped(item: UpcomingItem) = isSkipped(item.type, item.refId)
+
+    fun periodObligationItems(upcoming: List<UpcomingItem>): List<UpcomingItem> {
+        val bounds = currentBounds()
+        return upcoming.filter { item ->
+            if (item.type == "card") return@filter true
+            val bill = _data.value.bills.firstOrNull { it.id.toString() == item.refId } ?: return@filter false
+            BillSchedule.dueInPeriod(bill, bounds)
+        }
+    }
+
+    fun dashboardUpcoming(upcoming: List<UpcomingItem>): List<UpcomingItem> {
+        if (!_data.value.settings.hidePaidOnDashboard) return upcoming
+        return upcoming.filter { !isFullyPaid(it.type, it.refId) }
+    }
 
     /** Skip a bill/card for the current period: a `skipped` payment (amount 0).
      *  Matched by the active period (date range); the stored monthKey is the

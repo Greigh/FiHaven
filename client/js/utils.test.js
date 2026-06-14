@@ -24,6 +24,10 @@ import {
   monthKey,
   monthLabel,
   offsetDate,
+  ymd,
+  billNotStarted,
+  billEnded,
+  billActive,
 } from './utils.js';
 import { setCards, setBills, setPayments, setSettings } from './storage.svelte.js';
 
@@ -281,6 +285,56 @@ describe('utils — buildUpcomingItems', () => {
     for (let k = 1; k < items.length; k++) {
       expect(items[k].days).toBeGreaterThanOrEqual(items[k - 1].days);
     }
+  });
+});
+
+describe('utils — bill active window (start/end dates)', () => {
+  beforeEach(() => setSettings({})); // browser tz
+  const at = (s) => new Date(s + 'T00:00:00');
+
+  it('ymd formats a Date as YYYY-MM-DD in its local fields', () => {
+    expect(ymd(new Date(2026, 5, 7))).toBe('2026-06-07');
+  });
+
+  it('a bill with no dates is always active', () => {
+    expect(billActive({})).toBe(true);
+    expect(billNotStarted({})).toBe(false);
+    expect(billEnded({})).toBe(false);
+  });
+
+  it('billNotStarted is true strictly before startDate, false on/after', () => {
+    const b = { startDate: '2026-06-15' };
+    expect(billNotStarted(b, at('2026-06-14'))).toBe(true);
+    expect(billNotStarted(b, at('2026-06-15'))).toBe(false);
+    expect(billNotStarted(b, at('2026-07-01'))).toBe(false);
+  });
+
+  it('billEnded is true strictly after endDate, false on/before', () => {
+    const b = { endDate: '2026-06-15' };
+    expect(billEnded(b, at('2026-06-15'))).toBe(false);
+    expect(billEnded(b, at('2026-06-16'))).toBe(true);
+  });
+
+  it('billActive honors both bounds inclusively', () => {
+    const b = { startDate: '2026-06-01', endDate: '2026-06-30' };
+    expect(billActive(b, at('2026-05-31'))).toBe(false);
+    expect(billActive(b, at('2026-06-01'))).toBe(true);
+    expect(billActive(b, at('2026-06-30'))).toBe(true);
+    expect(billActive(b, at('2026-07-01'))).toBe(false);
+  });
+
+  it('buildUpcomingItems excludes not-yet-started and ended bills', () => {
+    setPayments([]);
+    setCards([]);
+    setBills([
+      { id: 'A', name: 'Active', amount: 10, dueDay: 1 },
+      { id: 'F', name: 'Future', amount: 10, dueDay: 1, startDate: '2999-01-01' },
+      { id: 'E', name: 'Ended', amount: 10, dueDay: 1, endDate: '2000-01-01' },
+    ]);
+    const names = buildUpcomingItems().map((i) => i.name);
+    expect(names).toContain('Active');
+    expect(names).not.toContain('Future');
+    expect(names).not.toContain('Ended');
   });
 });
 

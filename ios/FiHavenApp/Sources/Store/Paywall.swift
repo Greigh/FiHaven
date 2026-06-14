@@ -4,7 +4,7 @@ import FiHavenCore
 
 /// A feature gated behind FiHaven Pro.
 enum ProFeature {
-    case payoff, calendar, history, rewards
+    case payoff, calendar, history, rewards, subscriptions
 
     var title: String {
         switch self {
@@ -12,6 +12,7 @@ enum ProFeature {
         case .calendar: return "Calendar"
         case .history: return "Payment History"
         case .rewards: return "Rewards Optimizer"
+        case .subscriptions: return "Subscription Finder"
         }
     }
     var icon: String {
@@ -20,6 +21,7 @@ enum ProFeature {
         case .calendar: return "calendar"
         case .history: return "clock.arrow.circlepath"
         case .rewards: return "star.circle.fill"
+        case .subscriptions: return "arrow.triangle.2.circlepath"
         }
     }
     var blurb: String {
@@ -28,6 +30,7 @@ enum ProFeature {
         case .calendar: return "View every due date on a monthly calendar."
         case .history: return "Browse and search your full payment history."
         case .rewards: return "See which card to use for every purchase to earn the most."
+        case .subscriptions: return "Find recurring charges, price hikes, and unused subscriptions."
         }
     }
 }

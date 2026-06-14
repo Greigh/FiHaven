@@ -4,31 +4,30 @@ import FiHavenCore
 /// Income sources editor + monthly budget summary.
 struct BudgetView: View {
     @EnvironmentObject var store: AppStore
-    @EnvironmentObject var billing: StoreManager
     @State private var editing: IncomeSource?
     @State private var creating = false
     @State private var editingAdj: IncomeAdjustment?
     @State private var creatingAdj = false
     @State private var editingGoal: SavingsGoal?
     @State private var creatingGoal = false
-    @State private var addingTx = false
-    @State private var editingBudgets = false
 
     private var periodAdjustments: [IncomeAdjustment] {
         store.data.settings.incomeAdjustments.filter { $0.applies(to: store.currentPeriodKey) }
     }
 
     private var obligations: Double {
-        store.data.bills.reduce(0) { $0 + $1.amount }
+        store.data.bills
+            .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
+            .reduce(0) { $0 + $1.amount }
             + store.data.cards.reduce(0) { $0 + $1.minPayment }
     }
-    private var leftover: Double { store.monthlyIncome - obligations }
+    private var leftover: Double { store.periodIncome - obligations }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(spacing: 0) {
-                    summaryRow("Monthly income", Money.fmt(store.monthlyIncome), Theme.green)
+                    summaryRow(store.incomeLabel, Money.fmt(store.periodIncome), Theme.green)
                     Divider().overlay(Theme.border)
                     summaryRow("Bills + minimums", Money.fmt(obligations), Theme.text)
                     Divider().overlay(Theme.border)
@@ -82,8 +81,6 @@ struct BudgetView: View {
                 ForEach(store.data.goals) { goal in
                     goalRow(goal).onTapGesture { editingGoal = goal }
                 }
-
-                spendingSection
             }
             .padding()
         }
@@ -95,100 +92,6 @@ struct BudgetView: View {
         .sheet(item: $editingAdj) { adj in IncomeAdjustmentEditorView(adjustment: adj, monthKey: store.currentPeriodKey) }
         .sheet(isPresented: $creatingGoal) { GoalEditorView(goal: nil) }
         .sheet(item: $editingGoal) { goal in GoalEditorView(goal: goal) }
-        .sheet(isPresented: $addingTx) { TransactionEditorView() }
-        .sheet(isPresented: $editingBudgets) { CategoryBudgetsView() }
-    }
-
-    // ── Spending (transactions + category budgets) ───────────────────
-    private var spendingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Spending · this period")
-                    .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
-                Spacer()
-                // Per-category budgets are Pro; logging transactions stays free.
-                if billing.isPro {
-                    Button { editingBudgets = true } label: { Image(systemName: "slider.horizontal.3") }
-                }
-                Button { addingTx = true } label: { Image(systemName: "plus") }
-            }
-            .padding(.top, 4)
-
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Total spent").font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    Spacer()
-                    Text(Money.fmt(store.totalSpent)).font(Theme.mono(15, weight: .semibold)).foregroundStyle(Theme.text)
-                }
-                ForEach(spendingCategories, id: \.self) { cat in
-                    let spent = store.spent(category: cat)
-                    let budget = store.data.settings.categoryBudgets[cat] ?? 0
-                    if spent > 0 || budget > 0 {
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text("\(Self.catIcon(cat)) \(cat)").font(Theme.ui(13)).foregroundStyle(Theme.text)
-                                Spacer()
-                                Text(billing.isPro && budget > 0 ? "\(Money.fmt(spent)) / \(Money.fmt(budget))" : Money.fmt(spent))
-                                    .font(Theme.mono(12))
-                                    .foregroundStyle(billing.isPro && budget > 0 && spent > budget ? Theme.red : Theme.muted)
-                            }
-                            if billing.isPro && budget > 0 {
-                                ProgressView(value: min(1, spent / budget))
-                                    .tint(spent > budget ? Theme.red : Theme.green)
-                            }
-                        }
-                    }
-                }
-            }
-            .ctCard()
-
-            if !store.periodTransactions.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(Array(recentTx.enumerated()), id: \.element.id) { i, tx in
-                        if i > 0 { Divider().overlay(Theme.border) }
-                        HStack(spacing: 10) {
-                            Text(Self.catIcon(tx.category)).font(.system(size: 15))
-                            VStack(alignment: .leading, spacing: 1) {
-                                HStack(spacing: 5) {
-                                    Text(tx.merchant.isEmpty ? tx.category : tx.merchant)
-                                        .font(Theme.ui(13)).foregroundStyle(Theme.text)
-                                    if tx.isBank {
-                                        Text(tx.pending ? "🏦 pending" : "🏦")
-                                            .font(Theme.ui(10)).foregroundStyle(Theme.accent)
-                                    }
-                                }
-                                Text(tx.date).font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                            }
-                            Spacer()
-                            Text(Money.fmt(tx.amount)).font(Theme.mono(13)).foregroundStyle(Theme.text)
-                            // Bank-synced rows are managed by the linked bank; remove the
-                            // connection in Settings rather than deleting rows here.
-                            if !tx.isBank {
-                                Button { store.deleteTransaction(tx) } label: {
-                                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
-                                }.buttonStyle(.plain)
-                            } else {
-                                Image(systemName: "link").font(.caption2).foregroundStyle(Theme.muted.opacity(0.5))
-                            }
-                        }
-                        .padding(.vertical, 7)
-                    }
-                }
-                .ctCard()
-            }
-        }
-    }
-
-    private var recentTx: [SpendTransaction] {
-        store.data.transactions.sorted { $0.date > $1.date }.prefix(8).map { $0 }
-    }
-
-    static func catIcon(_ c: String) -> String {
-        switch c {
-        case "Groceries": return "🛒"; case "Dining": return "🍽️"; case "Shopping": return "🛍️"
-        case "Transport": return "🚗"; case "Entertainment": return "🎬"; case "Health": return "💊"
-        case "Bills": return "📄"; default: return "📦"
-        }
     }
 
     private func goalRow(_ g: SavingsGoal) -> some View {

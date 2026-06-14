@@ -16,6 +16,10 @@
 const dbApi = require('./db');
 const emails = require('./emails');
 const billing = require('./billing');
+const {
+  billDueOn, daysUntilBillDue, billDueOnOrBeforeInPeriod,
+  monthBoundsFromParts, atMidnight,
+} = require('./billSchedule');
 
 const SEND_HOUR = 8;            // local hour (24h) to send
 const REMINDER_LEAD_DAYS = 3;  // remind this many days before a due day
@@ -50,6 +54,17 @@ function daysUntilDue(dueDay, lp) {
   return diff;
 }
 
+// A bill's optional active window (bills-only feature; mirrors the
+// client's billActive). `ymd` is the user's local "YYYY-MM-DD". A
+// not-yet-started or stopped bill is excluded from autopay, reminders,
+// and the monthly summary total.
+function billActiveOn(item, ymd) {
+  if (!item) return false;
+  if (item.startDate && ymd < item.startDate) return false;
+  if (item.endDate && ymd > item.endDate) return false;
+  return true;
+}
+
 // A web-compatible payment id (base36 timestamp + random), matching the
 // client's format so ids round-trip.
 function newPaymentId() {
@@ -67,8 +82,15 @@ function markAutopay(data, lp) {
   let changed = false;
 
   const markIfDue = (item, type, amount, name) => {
-    if (!item || !item.autopay || !item.dueDay) return;
-    if (parseInt(item.dueDay, 10) !== lp.d) return; // only on the due day
+    if (!item || !item.autopay) return;
+    if (type === 'bill') {
+      if (!item.dueDay && !item.startDate) return;
+      const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
+      if (!billDueOn(item, today)) return;
+      if (!billActiveOn(item, lp.ymd)) return;
+    } else {
+      if (!item.dueDay || parseInt(item.dueDay, 10) !== lp.d) return;
+    }
     const refId = String(item.id);
     const already = payments.some(
       (p) => !p.skipped && p.type === type && String(p.refId) === refId && p.monthKey === monthKey
@@ -101,9 +123,9 @@ function summarize(data, lp) {
   return {
     month: prev.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
     paid,
-    billsTotal: bills.reduce((s, b) => s + (Number(b.amount) || 0), 0),
+    billsTotal: bills.filter((b) => billActiveOn(b, lp.ymd)).reduce((s, b) => s + (Number(b.amount) || 0), 0),
     debtTotal: cards.reduce((s, c) => s + (Number(c.balance) || 0), 0),
-    billsCount: bills.length,
+    billsCount: bills.filter((b) => billActiveOn(b, lp.ymd)).length,
   };
 }
 
@@ -156,8 +178,11 @@ async function runChecks(now = new Date(), deps = {}) {
     if (lp.hour === SEND_HOUR) {
       // Bill reminders — bills whose next due day is exactly LEAD days out.
       if (s.billReminders && u.last_reminder_day !== lp.ymd) {
+        const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
         const due = (u.data.bills || []).filter(
-          (b) => b.dueDay && daysUntilDue(parseInt(b.dueDay, 10), lp) === REMINDER_LEAD_DAYS
+          (b) => billActiveOn(b, lp.ymd) &&
+            (b.dueDay || b.startDate) &&
+            daysUntilBillDue(b, today) === REMINDER_LEAD_DAYS
         );
         if (due.length) {
           try { await mailer.sendBillReminder(u.email, due, REMINDER_LEAD_DAYS, currency); }

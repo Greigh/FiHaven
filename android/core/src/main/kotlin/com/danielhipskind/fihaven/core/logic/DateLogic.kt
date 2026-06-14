@@ -1,5 +1,6 @@
 package com.danielhipskind.fihaven.core.logic
 
+import com.danielhipskind.fihaven.core.model.Bill
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -61,6 +62,39 @@ object DateLogic {
             return runCatching { LocalDate.of(y, m, 1).plusDays((d - 1).toLong()) }.getOrNull()
         }
         return runCatching { LocalDate.parse(s) }.getOrNull()
+    }
+
+    /// A date as "YYYY-MM-DD" — compared against a bill's start/end dates
+    /// with a plain lexicographic comparison.
+    fun ymd(date: LocalDate): String =
+        "%04d-%02d-%02d".format(date.year, date.monthValue, date.dayOfMonth)
+
+    // A bill's optional active window (bills-only feature). "First bill due
+    // on" (startDate) gates when it begins; "Stops on" (endDate) retires it.
+    // An out-of-window bill is excluded from due/overdue, totals, the
+    // calendar, and reminders (it still shows in the list with a badge).
+    fun billNotStarted(bill: Bill, ymd: String): Boolean {
+        val s = bill.startDate
+        return !s.isNullOrEmpty() && ymd < s
+    }
+    fun billEnded(bill: Bill, ymd: String): Boolean {
+        val e = bill.endDate
+        return !e.isNullOrEmpty() && ymd > e
+    }
+    fun billActive(bill: Bill, ymd: String): Boolean =
+        !billNotStarted(bill, ymd) && !billEnded(bill, ymd)
+
+    fun billNotStarted(bill: Bill, zone: ZoneId, now: Instant = Instant.now()): Boolean =
+        billNotStarted(bill, ymd(today(zone, now)))
+    fun billEnded(bill: Bill, zone: ZoneId, now: Instant = Instant.now()): Boolean =
+        billEnded(bill, ymd(today(zone, now)))
+    fun billActive(bill: Bill, zone: ZoneId, now: Instant = Instant.now()): Boolean =
+        billActive(bill, ymd(today(zone, now)))
+
+    /** True if a bill's active window overlaps a budgeting period. */
+    fun billInPeriod(bill: Bill, bounds: PeriodBounds): Boolean {
+        val lastDay = bounds.end.minusDays(1)
+        return !billEnded(bill, ymd(bounds.start)) && !billNotStarted(bill, ymd(lastDay))
     }
 
     fun monthsUntil(dateStr: String?, zone: ZoneId, now: Instant = Instant.now()): Int {

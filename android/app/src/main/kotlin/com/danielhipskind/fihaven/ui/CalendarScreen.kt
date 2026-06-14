@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.AppViewModel
 import com.danielhipskind.fihaven.core.CTConstants
 import com.danielhipskind.fihaven.core.Money
+import com.danielhipskind.fihaven.core.logic.BillSchedule
 import com.danielhipskind.fihaven.core.logic.DateLogic
 import com.danielhipskind.fihaven.core.logic.PaidState
 import com.danielhipskind.fihaven.core.logic.Schedule
@@ -64,12 +65,16 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     var selected by remember { mutableIntStateOf(today.dayOfMonth) }
     var paying by remember { mutableStateOf<DayItem?>(null) }
 
-    val byDay = remember(data) {
+    val byDay = remember(data, zone) {
         val map = HashMap<Int, MutableList<DayItem>>()
+        val first = today.withDayOfMonth(1)
         data.bills.forEach { b ->
-            b.dueDay?.let { d ->
-                map.getOrPut(d) { mutableListOf() }
-                    .add(DayItem(b.name, b.amount, CTConstants.iconForCategory(b.category), "bill", b.id.toString()))
+            for (day in 1..daysInMonth) {
+                val d = first.plusDays((day - 1).toLong())
+                if (BillSchedule.dueOn(b, d, zone)) {
+                    map.getOrPut(day) { mutableListOf() }
+                        .add(DayItem(b.name, b.amount, CTConstants.iconForCategory(b.category), "bill", b.id.toString()))
+                }
             }
         }
         data.cards.forEach { c ->

@@ -45,59 +45,122 @@ enum BiometricAuth {
     }
 }
 
-/// App-lock state + the local "require Face ID" preference. Stored per
-/// device in UserDefaults (mirrors the web's local prefs). The signed-in
-/// content is gated on `locked` (see RootView).
+/// How long the app may stay unlocked after leaving the foreground.
+/// Stored locally as minutes in UserDefaults (`fh_bio_lock_after`):
+///   -1 = never lock, 0 = immediately, N > 0 = after N minutes.
+enum BioLockDelay {
+    static let never = -1
+    static let immediately = 0
+    static let presets = [1, 5, 15, 30]
+
+    static func label(for minutes: Int) -> String {
+        switch minutes {
+        case never: return "Never"
+        case immediately: return "Immediately"
+        case 1: return "1 minute"
+        default: return "\(minutes) minutes"
+        }
+    }
+
+    static func migrate(from defaults: UserDefaults) -> Int {
+        if defaults.object(forKey: "fh_bio_lock_after") != nil {
+            return defaults.integer(forKey: "fh_bio_lock_after")
+        }
+        // Legacy boolean toggle: on → immediately, off → never.
+        if defaults.object(forKey: "fh_biometric") != nil {
+            return defaults.bool(forKey: "fh_biometric") ? immediately : never
+        }
+        return BiometricAuth.isAvailable ? immediately : never
+    }
+}
+
+/// App-lock state + the local lock-delay preference. Stored per device in
+/// UserDefaults (mirrors the web's local prefs). The signed-in content is
+/// gated on `locked` (see RootView).
 @MainActor
 final class BiometricStore: ObservableObject {
-    private static let key = "fh_biometric"
+    private static let lockAfterKey = "fh_bio_lock_after"
+    private static let legacyKey = "fh_biometric"
 
-    @Published private(set) var enabled: Bool
+    @Published private(set) var lockAfterMinutes: Int
     @Published private(set) var locked: Bool
+
+    private var backgroundedAt: Date?
 
     var label: String { BiometricAuth.label }
     var symbol: String { BiometricAuth.symbol }
     var isAvailable: Bool {
         #if DEBUG
-        // Screenshot/demo aid: show the toggle even on a simulator without
-        // enrolled biometrics.
         if ProcessInfo.processInfo.environment["FH_BIO_DEMO"] == "1" { return true }
         #endif
         return BiometricAuth.isAvailable
     }
 
+    /// True when any lock delay other than "Never" is active.
+    var isLockEnabled: Bool { lockAfterMinutes >= 0 }
+
+    var lockDelayLabel: String { BioLockDelay.label(for: lockAfterMinutes) }
+
     init() {
         let defaults = UserDefaults.standard
-        // Default the lock ON when the device can authenticate (Face/Touch ID
-        // or passcode). Once the user explicitly toggles it, their choice is
-        // honored. `object(forKey:)` distinguishes "never set" from "set false".
-        let configured = defaults.object(forKey: Self.key) != nil
-        let on = configured ? defaults.bool(forKey: Self.key) : BiometricAuth.isAvailable
-        if !configured { defaults.set(on, forKey: Self.key) }
-        enabled = on
-        // Cold launch starts locked when enabled; a fresh interactive
-        // login clears it (AppEnvironment calls markUnlocked).
-        locked = on
+        let delay = BioLockDelay.migrate(from: defaults)
+        if defaults.object(forKey: Self.lockAfterKey) == nil {
+            defaults.set(delay, forKey: Self.lockAfterKey)
+        }
+        lockAfterMinutes = delay
+        // Cold launch starts locked when a delay is configured; a fresh
+        // interactive login clears it (AppEnvironment calls markUnlocked).
+        locked = delay >= 0
     }
 
-    /// Toggle the setting. Enabling first requires a successful auth.
-    func setEnabled(_ on: Bool) async {
-        if on {
+    /// Change the lock delay. Enabling lock (anything other than Never)
+    /// requires a successful auth when coming from Never.
+    func setLockAfterMinutes(_ minutes: Int) async {
+        let clamped: Int
+        if minutes < 0 {
+            clamped = BioLockDelay.never
+        } else if minutes == 0 {
+            clamped = BioLockDelay.immediately
+        } else {
+            clamped = min(max(minutes, 1), 60)
+        }
+
+        if clamped >= 0, lockAfterMinutes < 0 {
             guard await BiometricAuth.authenticate(reason: "Enable \(label) lock") else { return }
         }
-        enabled = on
-        UserDefaults.standard.set(on, forKey: Self.key)
+
+        lockAfterMinutes = clamped
+        UserDefaults.standard.set(clamped, forKey: Self.lockAfterKey)
+        UserDefaults.standard.set(clamped >= 0, forKey: Self.legacyKey)
         locked = false
+        backgroundedAt = nil
     }
 
-    /// Re-lock on background / resume.
-    func lockIfEnabled() { if enabled { locked = true } }
+    /// Record background time; lock immediately when configured to.
+    func noteBackgrounded() {
+        backgroundedAt = Date()
+        if lockAfterMinutes == BioLockDelay.immediately {
+            locked = true
+        }
+    }
+
+    /// Lock on return when the background grace period has elapsed.
+    func maybeLockOnForeground() {
+        guard lockAfterMinutes > 0 else { return }
+        guard let at = backgroundedAt else { return }
+        if Date().timeIntervalSince(at) >= Double(lockAfterMinutes * 60) {
+            locked = true
+        }
+    }
 
     /// Cleared after a fresh password/MFA sign-in (already authenticated).
-    func markUnlocked() { locked = false }
+    func markUnlocked() { locked = false; backgroundedAt = nil }
 
     /// Prompt to unlock; on success reveals the app.
     func unlock() async {
-        if await BiometricAuth.authenticate(reason: "Unlock FiHaven") { locked = false }
+        if await BiometricAuth.authenticate(reason: "Unlock FiHaven") {
+            locked = false
+            backgroundedAt = nil
+        }
     }
 }

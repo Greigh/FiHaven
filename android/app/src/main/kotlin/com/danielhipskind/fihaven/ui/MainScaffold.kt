@@ -15,12 +15,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -78,6 +80,8 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     PAYOFF("payoff", "Payoff", Icons.AutoMirrored.Filled.ShowChart),
     REWARDS("rewards", "Rewards", Icons.Filled.Stars),
     BUDGET("budget", "Budget", Icons.Filled.PieChart),
+    SPENDING("spending", "Spending", Icons.Filled.Payments),
+    SUBSCRIPTIONS("subscriptions", "Subscriptions", Icons.Filled.Autorenew),
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
     ;
@@ -190,6 +194,8 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding) }
         TabId.REWARDS -> ProGate(vm, ProFeature.REWARDS, padding, onBack) { RewardsScreen(vm, padding) }
         TabId.BUDGET -> BudgetScreen(vm, padding, onBack)
+        TabId.SPENDING -> SpendingScreen(vm, padding, onBack)
+        TabId.SUBSCRIPTIONS -> ProGate(vm, ProFeature.SUBSCRIPTIONS, padding, onBack) { SubscriptionsScreen(vm, padding, onBack) }
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
     }
@@ -201,11 +207,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val zone = DateLogic.zone(data.settings.timezoneSetting)
     val periodBounds = vm.currentBounds()
     val periodLabel = Period.label(periodBounds, vm.periodConfig())
-    val income = Income.monthlyIncome(data.settings, periodBounds.key)
+    val cfg = vm.periodConfig()
+    val income = Income.periodIncome(data.settings, periodBounds)
     val upcoming = Schedule.buildUpcomingItems(data.bills, data.cards, zone)
-    // "Left to pay" = sum of each item's remaining-to-goal, so partial
+    val obligations = vm.periodObligationItems(upcoming)
+    val visible = vm.dashboardUpcoming(upcoming)
+    // "Left to pay" = sum of each obligation's remaining-to-goal, so partial
     // payments shrink it and fully-paid items drop to zero.
-    val remaining = upcoming.sumOf { vm.remainingFor(it) }
+    val remaining = obligations.sumOf { vm.remainingFor(it) }
     var paying by remember { mutableStateOf<UpcomingItem?>(null) }
 
     LazyColumn(
@@ -219,18 +228,18 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard("Monthly income", Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
-                StatCard("Left to pay", Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
+                StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
             }
         }
         item {
             Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
         }
-        if (upcoming.isEmpty()) {
+        if (visible.isEmpty()) {
             item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
         } else {
-            items(upcoming, key = { "${it.type}-${it.refId}" }) { item ->
+            items(visible, key = { "${it.type}-${it.refId}" }) { item ->
                 UpcomingRow(
                     item = item,
                     state = vm.paidState(item),

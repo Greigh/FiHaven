@@ -30,4 +30,26 @@ describe('cardPresets', () => {
     expect(effectiveRate(gold, 'Dining')).toBe(4);
     expect(effectiveRate(gold, 'Gas')).toBe(1);
   });
+
+  it('rotating cards carry a pool + rate, and their pool categories are valid', () => {
+    const flex = cardPresetById('chase-cff');
+    expect(flex.rotatingRate).toBe(5);
+    expect(Array.isArray(flex.rotatingPool)).toBe(true);
+    expect(flex.rotatingPool.length).toBeGreaterThan(0);
+    // Rotating pool stays OUT of the always-on rewardCategories (it's opt-in).
+    for (const cat of flex.rotatingPool) {
+      expect(flex.rewardCategories[cat]).toBeUndefined();
+    }
+  });
+
+  it('every rotating pool category is a real reward category', () => {
+    const valid = new Set([
+      'Dining', 'Groceries', 'Gas', 'Travel', 'Transit',
+      'Online shopping', 'Streaming', 'Drugstores', 'Other',
+    ]);
+    for (const p of CARD_PRESETS) {
+      if (!p.rotatingPool) continue;
+      for (const cat of p.rotatingPool) expect(valid.has(cat)).toBe(true);
+    }
+  });
 });

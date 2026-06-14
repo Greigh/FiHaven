@@ -10,12 +10,12 @@
   import {
     ICONS, fmt, monthKeyLabel,
     paidState, paidAmount, goalAmountFor, remainingForItem, promoNeeded,
+    billNotStarted, billEnded, billDueInPeriod,
   } from '../js/utils.js';
   import { currentPeriod, shiftPeriod, periodLabel } from '../js/period.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
   import GoalsPanel from './GoalsPanel.svelte';
-  import SpendingPanel from './SpendingPanel.svelte';
   import {
     FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf,
     normalizeAdjustment, adjustmentAppliesTo,
@@ -120,9 +120,13 @@
 
   // Budgeted amount per row is the fully-paid goal under the active
   // policy; `remaining` is what's still owed toward it this month.
+  // A bill counts toward a budget period only if its active window
+  // overlaps the period (`end` is exclusive, so test the last day).
+  const billCountsInPeriod = (b) => billDueInPeriod(b, periodBnds);
+
   let rows = $derived.by(() => {
     const rs = [];
-    bills.forEach((b) => rs.push({
+    bills.filter(billCountsInPeriod).forEach((b) => rs.push({
       type: 'bill', refId: String(b.id), name: b.name,
       icon: ICONS[b.category] || '📌', category: b.category,
       amount: goalAmountFor('bill', String(b.id), mk),
@@ -454,7 +458,5 @@
     </footer>
   {/if}
 </section>
-
-<SpendingPanel />
 
 <GoalsPanel />

@@ -110,6 +110,12 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["billReminders"] = .bool(newValue) }
     }
 
+    /// When true (default), fully paid items are hidden from the dashboard upcoming list.
+    public var hidePaidOnDashboard: Bool {
+        get { raw["hidePaidOnDashboard"]?.asBool ?? true }
+        set { raw["hidePaidOnDashboard"] = .bool(newValue) }
+    }
+
     /// Opt-in: email me a monthly summary on the 1st (server scheduler).
     public var monthlySummary: Bool {
         get { raw["monthlySummary"]?.asBool ?? false }

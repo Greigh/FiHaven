@@ -75,3 +75,67 @@ export function adjustmentsTotalForMonth(settings, mk) {
 export function monthlyIncomeForMonth(settings, mk) {
   return monthlyIncomeFromSettings(settings) + adjustmentsTotalForMonth(settings, mk);
 }
+
+/* ── Period-aware income (calendar / startDay / rolling) ───────
+   Calendar months use the full monthly total. Other period modes
+   prorate base income by period length and weight one-off /
+   recurring adjustments by how much of each calendar month falls
+   inside the active period. */
+
+export const AVG_MONTH_DAYS = 365 / 12;
+
+export function periodDays(bounds) {
+  if (!bounds || !bounds.start || !bounds.end) return AVG_MONTH_DAYS;
+  return Math.round((bounds.end - bounds.start) / 864e5);
+}
+
+// Each calendar month overlapping [bounds.start, bounds.end) with the
+// fraction of that month covered (0–1).
+export function monthOverlaps(bounds) {
+  if (!bounds || !bounds.start || !bounds.end) return [];
+  const out = [];
+  let cursor = new Date(bounds.start.getFullYear(), bounds.start.getMonth(), 1);
+  while (cursor < bounds.end) {
+    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    const overlapStart = bounds.start > monthStart ? bounds.start : monthStart;
+    const overlapEnd = bounds.end < monthEnd ? bounds.end : monthEnd;
+    const overlapDays = (overlapEnd - overlapStart) / 864e5;
+    const monthDays = (monthEnd - monthStart) / 864e5;
+    if (overlapDays > 0 && monthDays > 0) {
+      const mk = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0');
+      out.push({ mk, fraction: overlapDays / monthDays });
+    }
+    cursor = monthEnd;
+  }
+  return out;
+}
+
+export function adjustmentsTotalForPeriod(settings, bounds) {
+  if (!bounds) return 0;
+  if (bounds.mode === 'calendar') return adjustmentsTotalForMonth(settings, bounds.key);
+  return monthOverlaps(bounds).reduce(
+    (s, { mk, fraction }) => s + adjustmentsTotalForMonth(settings, mk) * fraction,
+    0
+  );
+}
+
+// Effective income for the active budgeting period.
+export function periodIncome(settings, bounds) {
+  const base = monthlyIncomeFromSettings(settings);
+  if (!bounds) return base;
+  if (bounds.mode === 'calendar') {
+    return base + adjustmentsTotalForMonth(settings, bounds.key);
+  }
+  const days = periodDays(bounds);
+  const prorate = days / AVG_MONTH_DAYS;
+  return base * prorate + adjustmentsTotalForPeriod(settings, bounds);
+}
+
+export function incomeLabelFor(cfg) {
+  return cfg && cfg.mode !== 'calendar' ? 'Period income' : 'Monthly income';
+}
+
+export function owedLabelFor(cfg) {
+  return cfg && cfg.mode !== 'calendar' ? 'Still owed this period' : 'Still owed this month';
+}

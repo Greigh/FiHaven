@@ -110,6 +110,50 @@ public enum DateLogic {
         return ISO8601DateFormatter().date(from: s)
     }
 
+    /// A date as "YYYY-MM-DD" in `tz`. Lets us compare against a bill's
+    /// startDate/endDate strings with a plain lexicographic comparison.
+    public static func ymd(_ date: Date, tz: TimeZone) -> String {
+        let c = calendar(tz: tz).dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    // A bill's optional active window. "First bill due on" (startDate)
+    // gates when it begins; "Stops on" (endDate) retires it. Both are
+    // optional "YYYY-MM-DD". An out-of-window bill is excluded from
+    // due/overdue, totals, the calendar, and reminders (it still shows
+    // in the list with a badge).
+    public static func billNotStarted(_ bill: Bill, onYmd ymd: String) -> Bool {
+        guard let s = bill.startDate, !s.isEmpty else { return false }
+        return ymd < s
+    }
+    public static func billEnded(_ bill: Bill, onYmd ymd: String) -> Bool {
+        guard let e = bill.endDate, !e.isEmpty else { return false }
+        return ymd > e
+    }
+    public static func billActive(_ bill: Bill, onYmd ymd: String) -> Bool {
+        !billNotStarted(bill, onYmd: ymd) && !billEnded(bill, onYmd: ymd)
+    }
+
+    /// Convenience: the active checks evaluated against `tz`'s today.
+    public static func billNotStarted(_ bill: Bill, tz: TimeZone, now: Date = Date()) -> Bool {
+        billNotStarted(bill, onYmd: ymd(today(tz: tz, now: now), tz: tz))
+    }
+    public static func billEnded(_ bill: Bill, tz: TimeZone, now: Date = Date()) -> Bool {
+        billEnded(bill, onYmd: ymd(today(tz: tz, now: now), tz: tz))
+    }
+    public static func billActive(_ bill: Bill, tz: TimeZone, now: Date = Date()) -> Bool {
+        billActive(bill, onYmd: ymd(today(tz: tz, now: now), tz: tz))
+    }
+
+    /// True if a bill's active window overlaps a budgeting period.
+    public static func billInPeriod(_ bill: Bill, bounds: PeriodBounds, tz: TimeZone) -> Bool {
+        let cal = calendar(tz: tz)
+        let lastDay = cal.date(byAdding: .day, value: -1, to: bounds.endDate) ?? bounds.startDate
+        let lastYmd = ymd(lastDay, tz: tz)
+        let startYmd = ymd(bounds.startDate, tz: tz)
+        return !billEnded(bill, onYmd: startYmd) && !billNotStarted(bill, onYmd: lastYmd)
+    }
+
     /// "Long Month Year" label for a "YYYY-MM" key (e.g. "June 2026").
     public static func monthKeyLabel(_ mk: String, tz: TimeZone) -> String {
         let parts = mk.split(separator: "-")

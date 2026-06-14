@@ -131,6 +131,8 @@
                 <option value="cards">Cards</option>
                 <option value="loans">Loans</option>
                 <option value="budget">Budget</option>
+                <option value="spending">Spending</option>
+                <option value="subscriptions">Subscriptions</option>
                 <option value="calendar">Calendar</option>
                 <option value="history">History</option>
                 <option value="payoff">Payoff</option>
@@ -198,6 +200,26 @@
             <div class="auth-error" data-message="paidgoal" aria-live="polite"></div>
             <div class="auth-actions">
               <button class="btn btn-primary" type="submit">Save payment goal</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Dashboard display ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Dashboard</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Control what appears on your home dashboard.
+          </p>
+          <form class="auth-form" data-form="dashboard" style="margin-top:14px;">
+            <div class="auth-field">
+              <label class="auth-check">
+                <input type="checkbox" data-hide-paid-dashboard checked>
+                Hide fully paid items from Upcoming Payments
+              </label>
+            </div>
+            <div class="auth-error" data-message="dashboard" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save dashboard settings</button>
             </div>
           </form>
         </section>

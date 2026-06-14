@@ -51,4 +51,64 @@ public enum Income {
     public static func monthlyIncome(from settings: Settings, monthKey mk: String) -> Double {
         monthlyIncome(from: settings) + adjustmentsTotal(from: settings, monthKey: mk)
     }
+
+    /// Average calendar month length — used to prorate income for non-calendar periods.
+    public static let avgMonthDays: Double = 365.0 / 12.0
+
+    /// Whole days in a period (start inclusive, end exclusive).
+    public static func periodDays(_ bounds: PeriodBounds, tz: TimeZone) -> Int {
+        let cal = DateLogic.calendar(tz: tz)
+        return cal.dateComponents([.day], from: bounds.startDate, to: bounds.endDate).day ?? Int(avgMonthDays)
+    }
+
+    /// Calendar months overlapping a period, with the fraction of each month covered.
+    public static func monthOverlaps(_ bounds: PeriodBounds, tz: TimeZone) -> [(mk: String, fraction: Double)] {
+        let cal = DateLogic.calendar(tz: tz)
+        var out: [(String, Double)] = []
+        var cursor = cal.date(from: cal.dateComponents([.year, .month], from: bounds.startDate)) ?? bounds.startDate
+        while cursor < bounds.endDate {
+            let monthStart = cursor
+            guard let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart) else { break }
+            let overlapStart = max(bounds.startDate, monthStart)
+            let overlapEnd = min(bounds.endDate, monthEnd)
+            let overlapDays = cal.dateComponents([.day], from: overlapStart, to: overlapEnd).day ?? 0
+            let monthDays = cal.dateComponents([.day], from: monthStart, to: monthEnd).day ?? 30
+            if overlapDays > 0, monthDays > 0 {
+                let c = cal.dateComponents([.year, .month], from: monthStart)
+                let mk = String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
+                out.append((mk, Double(overlapDays) / Double(monthDays)))
+            }
+            cursor = monthEnd
+        }
+        return out
+    }
+
+    /// Signed total of adjustments affecting a period (prorated for non-calendar modes).
+    public static func adjustmentsTotal(from settings: Settings, bounds: PeriodBounds, tz: TimeZone) -> Double {
+        if bounds.mode == "calendar" {
+            return adjustmentsTotal(from: settings, monthKey: bounds.key)
+        }
+        return monthOverlaps(bounds, tz: tz).reduce(0) { sum, pair in
+            sum + adjustmentsTotal(from: settings, monthKey: pair.mk) * pair.fraction
+        }
+    }
+
+    /// Effective income for the active budgeting period.
+    public static func periodIncome(from settings: Settings, bounds: PeriodBounds, tz: TimeZone) -> Double {
+        let base = monthlyIncome(from: settings)
+        if bounds.mode == "calendar" {
+            return base + adjustmentsTotal(from: settings, monthKey: bounds.key)
+        }
+        let days = Double(periodDays(bounds, tz: tz))
+        let prorate = days / avgMonthDays
+        return base * prorate + adjustmentsTotal(from: settings, bounds: bounds, tz: tz)
+    }
+
+    public static func incomeLabel(for config: PeriodConfig) -> String {
+        config.mode == "calendar" ? "Monthly income" : "Period income"
+    }
+
+    public static func owedLabel(for config: PeriodConfig) -> String {
+        config.mode == "calendar" ? "Left to pay" : "Left this period"
+    }
 }

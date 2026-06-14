@@ -25,6 +25,8 @@ import './bills.js';
 import './cards.js';
 import './loans.js';
 import './budget.js';
+import './spending.js';
+import './subscriptions.js';
 import './history.js';
 import './payoff.js';
 import './rewards.js';
@@ -38,15 +40,16 @@ import './navbar.js';
 
 // Order must match the navbar's tab order so showTab can use the
 // shared index to flip the active class on the right button.
-const TABS = ['dashboard', 'bills', 'cards', 'loans', 'budget', 'calendar', 'history', 'payoff', 'rewards'];
+const TABS = ['dashboard', 'bills', 'cards', 'loans', 'budget', 'spending', 'subscriptions', 'calendar', 'history', 'payoff', 'rewards'];
 
 // Pro-only tabs (parity with the native apps). Free users see an
 // upgrade prompt instead; entitlement is server-authoritative.
 const PRO_TABS = {
-  payoff:   'the payoff planner',
-  calendar: 'the due-date calendar',
-  history:  'your payment history',
-  rewards:  'the rewards optimizer',
+  payoff:        'the payoff planner',
+  calendar:      'the due-date calendar',
+  history:       'your payment history',
+  rewards:       'the rewards optimizer',
+  subscriptions: 'the subscription finder',
 };
 
 /* ── Tab switching ────────────────────────────────────────── */

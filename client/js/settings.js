@@ -312,6 +312,9 @@ import MfaSection from '../svelte/MfaSection.svelte';
     /* ── Payment goal policy ───────────────────────────────── */
     initPaymentGoalSection();
 
+    /* ── Dashboard display ─────────────────────────────────── */
+    initDashboardSection();
+
     /* ── Budget period ─────────────────────────────────────── */
     initPeriodSection();
 
@@ -619,6 +622,45 @@ import MfaSection from '../svelte/MfaSection.svelte';
         .catch(function (err) {
           setBusy(form, false);
           showMessage('paidgoal', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  function initDashboardSection() {
+    var form = document.querySelector('[data-form="dashboard"]');
+    if (!form) return;
+    var checkbox = form.querySelector('[data-hide-paid-dashboard]');
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        if (checkbox) checkbox.checked = s.hidePaidOnDashboard !== false;
+      })
+      .catch(function () { /* keep default checked */ });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var hidePaid = !!(checkbox && checkbox.checked);
+      setBusy(form, true);
+      showMessage('dashboard', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { hidePaidOnDashboard: hidePaid }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('dashboard', 'Dashboard settings saved.', false);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('dashboard', (err && err.message) || errorText('network'), true);
         });
     });
   }

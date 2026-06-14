@@ -17,6 +17,10 @@ struct BillEditorView: View {
     @State private var autopay = false
     @State private var notes = ""
     @State private var cardId = ""
+    @State private var hasStart = false
+    @State private var startDate = Date()
+    @State private var hasEnd = false
+    @State private var endDate = Date()
 
     private let frequencies = ["Monthly", "Weekly", "Bi-weekly", "Quarterly", "Annually"]
 
@@ -46,6 +50,20 @@ struct BillEditorView: View {
                             Text(card.name).tag(String(card.id))
                         }
                     }
+                }
+                Section {
+                    Toggle("First bill due on…", isOn: $hasStart.animation())
+                    if hasStart {
+                        DatePicker("First due", selection: $startDate, displayedComponents: .date)
+                    }
+                    Toggle("Stops on…", isOn: $hasEnd.animation())
+                    if hasEnd {
+                        DatePicker("Stops", selection: $endDate, displayedComponents: .date)
+                    }
+                } header: {
+                    Text("Active window")
+                } footer: {
+                    Text("A first due date sets the recurring due day. After a stop date the bill is marked Ended — kept in the list, but not counted toward totals, the calendar, or reminders.")
                 }
                 Section("Notes") {
                     TextField("Optional", text: $notes, axis: .vertical)
@@ -84,20 +102,35 @@ struct BillEditorView: View {
         autopay = bill.autopay
         notes = bill.notes
         cardId = bill.cardId ?? ""
+        if let s = DateLogic.parseDate(bill.startDate, tz: store.tz) {
+            hasStart = true; startDate = s
+        }
+        if let e = DateLogic.parseDate(bill.endDate, tz: store.tz) {
+            hasEnd = true; endDate = e
+        }
     }
 
     private func save() {
+        // "First bill due on" derives the recurring day-of-month, so a
+        // start date overrides the due-day picker.
+        let startStr = hasStart ? DateLogic.ymd(startDate, tz: store.tz) : nil
+        let endStr = hasEnd ? DateLogic.ymd(endDate, tz: store.tz) : nil
+        let effectiveDueDay = hasStart
+            ? DateLogic.calendar(tz: store.tz).component(.day, from: startDate)
+            : dueDay
         let saved = Bill(
             id: bill?.id ?? AppStore.newID(),
             name: name.trimmingCharacters(in: .whitespaces),
             category: category,
             amount: amount,
-            dueDay: dueDay,
+            dueDay: effectiveDueDay,
             frequency: frequency,
             autopay: autopay,
             notes: notes,
             business: business.isEmpty ? nil : business.trimmingCharacters(in: .whitespaces),
-            cardId: cardId.isEmpty ? nil : cardId
+            cardId: cardId.isEmpty ? nil : cardId,
+            startDate: startStr,
+            endDate: endStr
         )
         store.upsertBill(saved)
         dismiss()

@@ -49,6 +49,9 @@ val JsonObject.tabBar: List<String>?
 val JsonObject.billReminders: Boolean get() = prim("billReminders")?.booleanOrNull ?: false
 val JsonObject.monthlySummary: Boolean get() = prim("monthlySummary")?.booleanOrNull ?: false
 
+/** When true (default), fully paid items are hidden from the dashboard upcoming list. */
+val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true
+
 /// Opt-in: auto-mark autopay bills/cards paid on their due date, and the
 /// local hour (0–23) the server runs it.
 val JsonObject.autopayMark: Boolean get() = prim("autopayMark")?.booleanOrNull ?: false

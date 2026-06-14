@@ -34,11 +34,15 @@ struct CalendarView: View {
 
     private var itemsByDay: [Int: [DayItem]] {
         var map: [Int: [DayItem]] = [:]
+        let first = DateLogic.dateForDay(1, year: year, month: month, cal: cal)
         for b in store.data.bills {
-            guard let d = b.dueDay else { continue }
-            map[d, default: []].append(DayItem(
-                id: "bill-\(b.id)", name: b.name, amount: b.amount,
-                icon: CTConstants.icon(forCategory: b.category), type: "bill", refId: String(b.id)))
+            for day in 1...daysInMonth {
+                let d = cal.date(byAdding: .day, value: day - 1, to: first)!
+                guard BillSchedule.dueOn(b, date: d, tz: store.tz) else { continue }
+                map[day, default: []].append(DayItem(
+                    id: "bill-\(b.id)", name: b.name, amount: b.amount,
+                    icon: CTConstants.icon(forCategory: b.category), type: "bill", refId: String(b.id)))
+            }
         }
         for c in store.data.cards {
             guard let d = c.dueDay else { continue }
