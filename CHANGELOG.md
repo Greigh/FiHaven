@@ -7,6 +7,69 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.2.1] — 2026-06-14
+
+Polish release: bill frequency parity, Spending/Subscriptions tabs, native
+branding, Android production sync, and payment-history editing.
+
+### Added
+
+- **Bill frequency scheduling** — Weekly, Bi-weekly, Quarterly, and Annually
+  bills drive real due dates across web, iOS, Android, and the server
+  (calendar, upcoming, budget obligations, autopay, reminders).
+- **Bill active windows** — optional `startDate` / `endDate`; **Next: {date}**
+  on Bills and Subscriptions.
+- **Spending tab** — manual spend logging moved out of Budget into its own tab
+  on web, iOS, and Android.
+- **Subscriptions screens** — dedicated iOS and Android views (web already had
+  the panel).
+- **Hide fully paid on dashboard** setting — fully paid items drop out of
+  Upcoming.
+- **Bio-lock grace period** — Never, Immediately, or 1 / 5 / 15 / 30 minutes
+  (Android also supports a custom 1–60 minute delay).
+- **Payment history edit/delete** — long-press a row on iOS and Android to
+  edit amount/date/note or delete.
+- **Card preset auto-detect** — adding/editing a card suggests a preset from
+  the rewards database (web, iOS, Android).
+- **Android Turnstile captcha** on the auth screen.
+- **Web navbar “More” dropdown** — Subscriptions, Calendar, History, Payoff,
+  Rewards live under More; primary tabs stay Dashboard / Bills / Cards / Loans
+  / Budget / Spending.
+- **Loans page hero** styling on web.
+- **Vitest suite** for core web logic (~92% coverage).
+
+### Changed
+
+- **Dashboard period model** — prorate income for rolling / custom start-day
+  periods; obligations filter to bills due in the active period.
+- **Card payments** decrement live balance (`applyCardPaymentDelta`).
+- **Rewards** — `pointValue`, rotating 5% category pools, expanded card
+  presets.
+- **Pro paywall perks** aligned across web, iOS, and Android.
+- **Cards tab (native)** — card-only summary (balance / credit / utilization);
+  net worth and asset accounts removed from Cards (still on Budget).
+- **FiHaven branding (native)** — app icons regenerated from
+  `client/public/icon.svg`; toolbar **Fi** monogram on every iOS tab and
+  branded headers on Android; Settings paid-goal control uses segmented / pill
+  UI instead of a cramped menu.
+- **Android** defaults to the production API (`https://fihaven.app`); lenient
+  JSON decode for legacy payment IDs; loading gate with retry/error screen
+  after sign-in.
+- **iOS project** — Xcode 26 recommended settings in `project.yml`, launch
+  screen assets, deployment target 18.6.
+- Dependency bumps: nodemailer 9, Android billing/crypto/lifecycle/coroutines
+  libraries.
+
+### Fixed
+
+- **Android data load** — strict JSON decoding no longer wipes the whole
+  dataset when the server returns legacy numeric payment IDs.
+- **Bills UX (native)** — business/name on separate lines; tap status to
+  pay, undo, or un-skip.
+- **Rolling `shiftPeriod` bug** in web period logic.
+- **CI / security** — green Codecov, AES-GCM biometric key hardening, looped
+  HTML sanitization fix.
+
 ## [1.2.0] — 2026-06-13
 
 A budgeting + rewards release, brought to full parity across web, iOS/macOS,
@@ -142,6 +205,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.2.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.1
 [1.2.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.0.0
