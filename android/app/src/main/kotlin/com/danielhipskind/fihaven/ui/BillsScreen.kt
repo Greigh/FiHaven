@@ -89,7 +89,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
     val filterCount = listOf(fUnpaid, fOverdue, fAutopay, fOnCard).count { it } + if (fCategory != "All") 1 else 0
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Bills", onAdd = { creating = true })
+        ScreenHeader("Bills", onAdd = { creating = true }, branded = true)
         SortFilterBar(
             sortOptions = listOf(
                 "due" to "Due date", "amount-desc" to "Largest first", "amount-asc" to "Smallest first",
@@ -169,6 +169,9 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
                             else -> null
                         },
                         onPay = { paying = bill },
+                        onUnmark = {
+                            vm.setPaid("bill", bill.id.toString(), bill.name, vm.goalAmount("bill", bill.id.toString()), false)
+                        },
                         onEdit = { editing = bill },
                         onSkip = { vm.skipMonth("bill", bill.id.toString(), bill.name) },
                         onUnskip = { vm.unskip("bill", bill.id.toString()) },
@@ -208,16 +211,32 @@ private fun BillRow(
     skipped: Boolean = false,
     windowLabel: String? = null,
     onPay: () -> Unit,
+    onUnmark: () -> Unit = {},
     onEdit: () -> Unit,
     onSkip: () -> Unit = {},
     onUnskip: () -> Unit = {},
 ) {
+    val statusTap: () -> Unit = {
+        when {
+            skipped -> onUnskip()
+            state == PaidState.FULL -> onUnmark()
+            else -> onPay()
+        }
+    }
     CtCard(padding = 14) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPay) {
+            IconButton(onClick = statusTap) {
                 Icon(
-                    if (state == PaidState.FULL && !skipped) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-                    contentDescription = "Pay",
+                    when {
+                        skipped -> Icons.Outlined.Circle
+                        state == PaidState.FULL -> Icons.Filled.CheckCircle
+                        else -> Icons.Outlined.Circle
+                    },
+                    contentDescription = when {
+                        skipped -> "Un-skip"
+                        state == PaidState.FULL -> "Undo payment"
+                        else -> "Pay"
+                    },
                     tint = when {
                         skipped -> Ct.colors.muted
                         state == PaidState.FULL -> Ct.colors.green
@@ -229,11 +248,9 @@ private fun BillRow(
             Text(CTConstants.iconForCategory(bill.category), fontSize = 20.sp,
                 modifier = Modifier.padding(horizontal = 8.dp))
             Column(Modifier.weight(1f).clickable(onClick = onEdit)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(bill.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    if (!bill.business.isNullOrBlank()) {
-                        Text("· ${bill.business}", color = Ct.colors.muted, fontSize = 14.sp)
-                    }
+                Text(bill.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                if (!bill.business.isNullOrBlank()) {
+                    Text(bill.business ?: "", color = Ct.colors.muted, fontSize = 12.sp, maxLines = 1)
                 }
                 Text(
                     windowLabel ?: if (skipped) "⏭ Skipped this month" else when (state) {
@@ -253,6 +270,9 @@ private fun BillRow(
                 if (skipped) {
                     Text("Undo skip", color = Ct.colors.accent, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onUnskip).padding(top = 2.dp))
+                } else if (state == PaidState.FULL) {
+                    Text("Undo payment", color = Ct.colors.accent, fontSize = 12.sp,
+                        modifier = Modifier.clickable(onClick = onUnmark).padding(top = 2.dp))
                 } else if (state == PaidState.UNPAID && windowLabel == null) {
                     Text("Skip this month", color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onSkip).padding(top = 2.dp))

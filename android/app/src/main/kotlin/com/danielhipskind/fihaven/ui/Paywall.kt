@@ -137,7 +137,12 @@ private fun ProLockedScreen(
 private val perks = listOf(
     "Payoff planner — snowball & avalanche plans + your debt-free date",
     "Due-date calendar — every bill and card on a monthly view",
-    "Payment history — search and review everything you’ve paid",
+    "Payment history — search and review everything you've paid",
+    "Rewards optimizer — pick the best card for each purchase",
+    "Subscription finder — spot recurring charges and price hikes",
+    "Category budgets — set limits and track spending by category",
+    "Bank linking — auto-fetch balances via Plaid (optional)",
+    "Autopay mark — auto-mark autopay items paid on their due date",
     "Data export — download your full account any time",
 )
 

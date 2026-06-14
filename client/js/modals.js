@@ -14,7 +14,7 @@ import {
   isFullyPaid, remainingForItem, currentPeriodKey, REWARD_CATEGORIES,
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
-import { CARD_PRESETS, cardPresetById } from './cardPresets.js';
+import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
 import { renderBills } from './bills.js';
 import { renderCards } from './cards.js';
 import { todayISO } from './tz.js';
@@ -262,6 +262,21 @@ function setupRewardPreset() {
   }
   sel.value = '';
   sel.onchange = function () { applyCardPreset(sel.value); };
+  var nameEl = document.getElementById('c-name');
+  var issuerEl = document.getElementById('c-issuer');
+  if (nameEl && !nameEl.dataset.presetSuggest) {
+    nameEl.dataset.presetSuggest = '1';
+    var trySuggest = function () {
+      if (sel.value) return;
+      var hit = suggestCardPreset(nameEl.value, issuerEl && issuerEl.value);
+      if (hit) {
+        sel.value = hit.id;
+        applyCardPreset(hit.id);
+      }
+    };
+    nameEl.addEventListener('blur', trySuggest);
+    if (issuerEl) issuerEl.addEventListener('blur', trySuggest);
+  }
 }
 
 // Fill name/issuer/network (without clobbering non-empty fields) and the

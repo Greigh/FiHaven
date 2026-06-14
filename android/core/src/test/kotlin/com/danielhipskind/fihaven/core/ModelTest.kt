@@ -1,6 +1,7 @@
 package com.danielhipskind.fihaven.core
 
 import com.danielhipskind.fihaven.core.model.AppData
+import com.danielhipskind.fihaven.core.model.decodeAppData
 import com.danielhipskind.fihaven.core.model.FiHavenJson
 import com.danielhipskind.fihaven.core.model.income
 import com.danielhipskind.fihaven.core.model.incomes
@@ -52,5 +53,11 @@ class ModelTest {
     @Test fun emptyDetection() {
         assertTrue(AppData().isEmpty)
         assertTrue(!seed().isEmpty)
+    }
+
+    @Test fun decodeAppDataCoercesNumericPaymentId() {
+        val d = decodeAppData(SEED_JSON)
+        assertEquals(1, d.payments.size)
+        assertEquals("1730000000000", d.payments[0].id)
     }
 }

@@ -52,14 +52,23 @@ const PRO_TABS = {
   subscriptions: 'the subscription finder',
 };
 
+// Tabs tucked under the navbar "More" menu (must stay in sync with navbar.js).
+const MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards'];
+
 /* ── Tab switching ────────────────────────────────────────── */
 function showTab(name) {
-  TABS.forEach(function (t, i) {
+  TABS.forEach(function (t) {
     var pane = document.getElementById('tab-' + t);
     if (pane) pane.style.display = (t === name) ? '' : 'none';
-    var btns = document.querySelectorAll('.tab-btn');
-    if (btns[i]) btns[i].classList.toggle('active', t === name);
   });
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.tab === name);
+  });
+  var more = document.querySelector('[data-more-menu]');
+  if (more) {
+    more.classList.toggle('is-active', MORE_TABS.indexOf(name) >= 0);
+  }
+  window.dispatchEvent(new CustomEvent('fihaven:tab-changed', { detail: { tab: name } }));
   var gated = PRO_TABS[name] && !entitlement.pro;
   applyProGate(name, gated);
   if (!gated) renderTab(name);
@@ -83,7 +92,7 @@ function applyProGate(name, gated) {
         '<div class="card" style="text-align:center;max-width:460px;margin:48px auto;padding:32px;">' +
           '<span class="hero-badge" style="display:inline-block;">PRO</span>' +
           '<h2 style="margin-top:14px;letter-spacing:-.03em;">Unlock ' + PRO_TABS[name] + '</h2>' +
-          '<p style="margin-top:8px;color:var(--muted);">FiHaven Pro adds the payoff planner, calendar, and payment history — across web, iOS, and Android.</p>' +
+          '<p style="margin-top:8px;color:var(--muted);">FiHaven Pro adds payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.</p>' +
           '<a class="btn btn-primary" href="/settings" style="margin-top:18px;display:inline-block;">Go Pro</a>' +
         '</div>';
       pane.appendChild(gate);

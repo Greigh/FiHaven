@@ -33,7 +33,7 @@ struct MoreView: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("More")
+            .brandedNavigationBar("More")
             .navigationDestination(for: MoreDest.self) { dest in
                 switch dest {
                 case .tab(let item): item.destination

@@ -66,7 +66,7 @@ struct CalendarView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle(store.monthLabel)
+        .brandedNavigationBar(store.monthLabel)
         .onAppear { if selectedDay == 0 { selectedDay = todayDay } }
         .sheet(item: $paying) { target in PayView(target: target) }
     }

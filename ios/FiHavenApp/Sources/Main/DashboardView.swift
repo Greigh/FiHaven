@@ -16,8 +16,7 @@ struct DashboardView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle(store.monthLabel)
-        .navigationBarTitleDisplayMode(.large)
+        .brandedNavigationBar(store.monthLabel)
         .overlay {
             if !store.loaded && store.dashboardUpcoming.isEmpty {
                 ProgressView()

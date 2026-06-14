@@ -16,8 +16,6 @@ struct CardsView: View {
     @State private var fBalance = false
     @State private var fPromo = false
     @State private var fOverdue = false
-    @State private var editingAccount: Account?
-    @State private var creatingAccount = false
 
     private var isLoanView: Bool { kind == "loan" }
     private var baseCards: [Card] {
@@ -57,18 +55,8 @@ struct CardsView: View {
 
     var body: some View {
         List {
-            if !isLoanView {
-                netWorthHeader
-                ForEach(store.data.accounts) { acct in
-                    accountRow(acct).onTapGesture { editingAccount = acct }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                }
-                Button { creatingAccount = true } label: {
-                    Label("Add account", systemImage: "plus.circle").font(Theme.ui(14, weight: .medium))
-                }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 16))
+            if !isLoanView && !baseCards.isEmpty {
+                cardsSummaryHeader
             }
 
             if baseCards.isEmpty {
@@ -134,7 +122,7 @@ struct CardsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle(isLoanView ? "Loans" : "Cards")
+        .brandedNavigationBar(isLoanView ? "Loans" : "Cards")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -183,69 +171,45 @@ struct CardsView: View {
             }
             .presentationDetents([.medium])
         }
-        .sheet(isPresented: $creatingAccount) { AccountEditorView(account: nil) }
-        .sheet(item: $editingAccount) { acct in AccountEditorView(account: acct) }
     }
 
-    // ── Net worth header + account rows ──────────────────────────────
-    private var netWorthHeader: some View {
-        VStack(spacing: 10) {
+    // ── Cards summary (credit cards tab only) ────────────────────────
+    private var cardsSummaryHeader: some View {
+        let totalBalance = baseCards.reduce(0.0) { $0 + $1.balance }
+        let totalLimit = baseCards.reduce(0.0) { $0 + $1.limit }
+        let util = totalLimit > 0 ? totalBalance / totalLimit : 0.0
+
+        return VStack(spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    FieldLabel(text: "Net worth")
-                    Text(Money.fmt(store.netWorth))
+                    FieldLabel(text: "Total balance")
+                    Text(Money.fmt(totalBalance))
                         .font(Theme.mono(26, weight: .bold))
-                        .foregroundStyle(store.netWorth >= 0 ? Theme.green : Theme.red)
+                        .foregroundStyle(Theme.text)
                         .minimumScaleFactor(0.6).lineLimit(1)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text("Assets").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        Text(Money.fmt(store.assets)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.green)
+                        Text("Credit").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        Text(Money.fmt(totalLimit)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.text)
                     }
                     HStack(spacing: 6) {
-                        Text("Debts").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        Text("−\(Money.fmt(store.liabilities))").font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.red)
+                        Text("Utilization").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        Text(String(format: "%.0f%%", util * 100))
+                            .font(Theme.mono(13, weight: .medium))
+                            .foregroundStyle(util > 0.3 ? Theme.red : Theme.green)
                     }
                 }
             }
-            if store.data.accounts.isEmpty {
-                Text("Add savings, checking, investments, or property to track your net worth.")
-                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if totalLimit > 0 {
+                ProgressView(value: min(1, util))
+                    .tint(util > 0.3 ? Theme.red : Theme.accent)
             }
         }
-        .ctCard()
+        .ctCard(branded: true)
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
-    }
-
-    private func accountRow(_ a: Account) -> some View {
-        HStack(spacing: 12) {
-            Text(Self.icon(for: a.type)).font(.system(size: 20))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(a.name.isEmpty ? Self.typeLabel(a.type) : a.name)
-                    .font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
-                Text(Self.typeLabel(a.type)).font(Theme.ui(12)).foregroundStyle(Theme.muted)
-            }
-            Spacer()
-            Text(Money.fmt(a.balance)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.green)
-        }
-        .ctCard().contentShape(Rectangle())
-    }
-
-    static func icon(for type: String) -> String {
-        switch type {
-        case "savings": return "💰"; case "investment": return "📈"; case "property": return "🏠"
-        case "cash": return "💵"; case "other": return "📦"; default: return "🏦"
-        }
-    }
-    static func typeLabel(_ t: String) -> String {
-        switch t {
-        case "savings": return "Savings"; case "investment": return "Investments"; case "property": return "Property"
-        case "cash": return "Cash"; case "other": return "Other"; default: return "Checking"
-        }
     }
 }
 

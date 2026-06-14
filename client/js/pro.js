@@ -85,13 +85,17 @@ function build() {
           'background:none;border:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>' +
       '</div>' +
       '<p style="margin:8px 0 0;color:var(--muted);font-size:14px;">' +
-        'Pro unlocks the payoff planner, calendar, and payment history. One subscription, tied to your account — it works across web, iOS, and Android.' +
+        'Pro unlocks payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.' +
       '</p>' +
       '<ul class="pro-features" style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;">' +
         proFeature('Debt payoff planner — snowball & avalanche projections') +
-        proFeature('Calendar view + iCal subscription for due dates') +
+        proFeature('Due-date calendar + iCal subscription') +
         proFeature('Full payment history & CSV exports') +
+        proFeature('Rewards optimizer — best card for each purchase') +
+        proFeature('Subscription finder — recurring charges & price hikes') +
+        proFeature('Category budgets in Spending') +
         proFeature('Optional bank linking to auto-fetch balances') +
+        proFeature('Autopay mark — auto-mark items paid on due date') +
       '</ul>' +
       '<div data-pro-status-card class="card" style="padding:14px 16px;margin-top:16px;display:flex;align-items:center;gap:10px;">' +
         '<span class="section-title" style="font-size:12px;">Status</span>' +
@@ -333,7 +337,7 @@ function renderNudge(slot) {
     '</span>' +
     '<div class="pro-nudge-copy">' +
       '<strong>Go further with FiHaven Pro</strong>' +
-      '<span>Unlock the payoff planner, calendar, and full payment history.</span>' +
+      '<span>Unlock payoff planning, rewards, subscriptions, and more with FiHaven Pro.</span>' +
     '</div>' +
     '<button type="button" class="btn btn-primary pro-nudge-cta">Upgrade</button>' +
     '<button type="button" class="pro-nudge-dismiss" aria-label="Dismiss">×</button>';

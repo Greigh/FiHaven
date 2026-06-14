@@ -71,13 +71,9 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     var fBalance by remember { mutableStateOf(false) }
     var fPromo by remember { mutableStateOf(false) }
     var fOverdue by remember { mutableStateOf(false) }
-    var editingAccount by remember { mutableStateOf<Account?>(null) }
-    var creatingAccount by remember { mutableStateOf(false) }
     val zone = vm.zone()
 
-    val assets = data.accounts.sumOf { it.balance }
-    val liabilities = data.cards.sumOf { it.balance }
-    val netWorth = assets - liabilities
+    val creditCards = data.cards.filter { it.type != "loan" }
 
     val filtered = data.cards.filter { c ->
         if (((c.type == "loan")) != isLoanView) return@filter false
@@ -99,7 +95,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     val filterCount = listOf(fBalance, fPromo, fOverdue).count { it }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true })
+        ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true }, branded = true)
         SortFilterBar(
             sortOptions = if (isLoanView) listOf(
                 "due" to "Due date", "balance" to "Largest balance",
@@ -112,20 +108,8 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
             filterCount = filterCount, onFilters = { showFilters = true },
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!isLoanView) {
-                item { NetWorthCard(netWorth, assets, liabilities, accountsEmpty = data.accounts.isEmpty()) }
-                item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text("ACCOUNTS YOU OWN", color = Ct.colors.muted, fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
-                            modifier = Modifier.clickable { creatingAccount = true })
-                    }
-                }
-                items(data.accounts, key = { "acct-${it.id}" }) { acct ->
-                    AccountRow(acct) { editingAccount = acct }
-                }
+            if (!isLoanView && creditCards.isNotEmpty()) {
+                item { CardsSummaryCard(creditCards) }
             }
             if (cards.isEmpty()) {
                 item { CtCard { Text(
@@ -200,8 +184,6 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     if (creating) CardEditorDialog(null, vm, onDismiss = { creating = false }, defaultType = kind)
     editing?.let { CardEditorDialog(it, vm, onDismiss = { editing = null }) }
     paying?.let { PayDialog(vm, "card", it.id.toString(), it.name) { paying = null } }
-    if (creatingAccount) AccountEditorDialog(null, vm) { creatingAccount = false }
-    editingAccount?.let { AccountEditorDialog(it, vm) { editingAccount = null } }
 
     if (showFilters) {
         FormDialog(if (isLoanView) "Filter loans" else "Filter cards", saveEnabled = true,
@@ -494,46 +476,47 @@ private fun accountIcon(t: String) = when (t) {
 }
 
 @Composable
-private fun NetWorthCard(netWorth: Double, assets: Double, liabilities: Double, accountsEmpty: Boolean) {
-    CtCard(padding = 16) {
-        Column {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun CardsSummaryCard(cards: List<Card>) {
+    val totalBalance = cards.sumOf { it.balance }
+    val totalLimit = cards.sumOf { it.limit }
+    val util = if (totalLimit > 0) min(1.0, totalBalance / totalLimit) else 0.0
+    CtCard(branded = true) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column {
-                    Text("NET WORTH", color = Ct.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    Text(Money.fmt(netWorth), color = if (netWorth >= 0) Ct.colors.green else Ct.colors.red,
-                        fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, fontFamily = PlexMono)
+                    FieldLabel("Total balance")
+                    Text(
+                        Money.fmt(totalBalance),
+                        color = Ct.colors.text,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = PlexMono,
+                    )
                 }
-                Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Assets", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text(Money.fmt(assets), color = Ct.colors.green, fontSize = 13.sp, fontFamily = PlexMono)
+                        Text("Credit", color = Ct.colors.muted, fontSize = 11.sp)
+                        Text(Money.fmt(totalLimit), color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Debts", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text("-${Money.fmt(liabilities)}", color = Ct.colors.red, fontSize = 13.sp, fontFamily = PlexMono)
+                        Text("Utilization", color = Ct.colors.muted, fontSize = 11.sp)
+                        Text(
+                            "${(util * 100).toInt()}%",
+                            color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
+                            fontSize = 13.sp,
+                            fontFamily = PlexMono,
+                        )
                     }
                 }
             }
-            if (accountsEmpty) {
-                Text("Add savings, checking, investments, or property to track your net worth.",
-                    color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            if (totalLimit > 0) {
+                LinearProgressIndicator(
+                    progress = { util.toFloat() },
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                    color = if (util > 0.3) Ct.colors.red else Ct.colors.accent,
+                    trackColor = Ct.colors.border,
+                )
             }
-        }
-    }
-}
-
-@Composable
-private fun AccountRow(a: Account, onEdit: () -> Unit) {
-    CtCard(Modifier.clickable(onClick = onEdit)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(accountIcon(a.type), fontSize = 20.sp, modifier = Modifier.padding(end = 10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(a.name.ifBlank { accountTypeLabel(a.type) }, color = Ct.colors.text,
-                    fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Text(accountTypeLabel(a.type), color = Ct.colors.muted, fontSize = 12.sp)
-            }
-            Text(Money.fmt(a.balance), color = Ct.colors.green, fontSize = 15.sp,
-                fontWeight = FontWeight.Medium, fontFamily = PlexMono)
         }
     }
 }

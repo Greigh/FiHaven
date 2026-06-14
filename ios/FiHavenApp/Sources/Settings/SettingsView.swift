@@ -37,7 +37,7 @@ struct SettingsView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Settings")
+        .brandedNavigationBar("Settings")
         .task { await loadMfa() }
         .sheet(item: $sheet, onDismiss: { Task { await loadMfa() } }) { which in
             sheetView(which)
@@ -136,15 +136,21 @@ struct SettingsView: View {
                 LabeledContent("Time zone",
                                value: CommonTimeZones.label(store.data.settings.timezone ?? "auto"))
             }
-            Picker("Mark fully paid at", selection: Binding(
-                get: { store.paidGoalPolicy },
-                set: { store.setPaidGoal($0) }
-            )) {
-                Text("Minimum payment").tag(PaidGoalPolicy.minimum)
-                Text("Recommended amount").tag(PaidGoalPolicy.recommended)
-                Text("Full balance / amount").tag(PaidGoalPolicy.full)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Mark fully paid at")
+                    .font(Theme.ui(15))
+                    .foregroundStyle(Theme.text)
+                Picker("", selection: Binding(
+                    get: { store.paidGoalPolicy },
+                    set: { store.setPaidGoal($0) }
+                )) {
+                    Text("Minimum").tag(PaidGoalPolicy.minimum)
+                    Text("Recommended").tag(PaidGoalPolicy.recommended)
+                    Text("Full amount").tag(PaidGoalPolicy.full)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
-            .pickerStyle(.menu)
             Text("How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 

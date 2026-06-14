@@ -103,6 +103,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _data = MutableStateFlow(AppData())
     val data: StateFlow<AppData> = _data.asStateFlow()
 
+    private val _dataLoaded = MutableStateFlow(false)
+    val dataLoaded: StateFlow<Boolean> = _dataLoaded.asStateFlow()
+
+    private val _dataError = MutableStateFlow<String?>(null)
+    val dataError: StateFlow<String?> = _dataError.asStateFlow()
+
     private val _entitlement = MutableStateFlow(Entitlement())
     val entitlement: StateFlow<Entitlement> = _entitlement.asStateFlow()
 
@@ -206,7 +212,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val user = api.me()
                 if (user != null) { enterSignedIn(user); return@launch }
-            } catch (_: Exception) { /* fall through */ }
+                tokens.clear()
+            } catch (_: Exception) {
+                tokens.clear()
+            }
         }
         _session.value = Session.SignedOut
     }
@@ -214,7 +223,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun login(
         email: String,
         password: String,
-        captchaToken: String = "dev-bypass-token",
+        captchaToken: String,
         startedAtOverride: Long? = null,
     ) = viewModelScope.launch {
         runAuth {
@@ -225,7 +234,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun signup(email: String, password: String, captchaToken: String = "dev-bypass-token") =
+    fun signup(email: String, password: String, captchaToken: String) =
         viewModelScope.launch {
             runAuth { enterSignedIn(api.signup(email, password, captchaToken, authStartedAt).user, fresh = true) }
         }
@@ -242,6 +251,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _session.value = Session.SignedOut
         _data.value = AppData()
         _entitlement.value = Entitlement()
+        _dataLoaded.value = false
+        _dataError.value = null
     }
 
     /// DEBUG screenshot helper: log in as the dev demo account.
@@ -284,14 +295,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     private suspend fun loadData() {
-        runCatching {
-            _data.value = api.fetchData()
-            Money.setCurrency(_data.value.settings.currency)
-            // Seed entitlement from the data fetch, then refresh authoritatively.
-            _data.value.entitlement?.let { _entitlement.value = it }
+        _dataLoaded.value = false
+        _dataError.value = null
+        try {
+            val fetched = api.fetchData()
+            _data.value = fetched
+            Money.setCurrency(fetched.settings.currency)
+            fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
+            refreshEntitlement()
+            _dataLoaded.value = true
+        } catch (e: ApiError) {
+            _dataError.value = e.userMessage
+        } catch (e: Exception) {
+            _dataError.value = e.message ?: "Couldn't load your data."
         }
-        refreshEntitlement()
+    }
+
+    fun retryDataLoad() = viewModelScope.launch {
+        if (_session.value is Session.SignedIn) loadData()
     }
 
     /** Opt-in: auto-mark autopay bills/cards paid once their due date in the
@@ -311,11 +333,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return if (due.isBefore(bounds.end)) due else null
         }
 
-        var newPayments: [Payment] = []
-        fun considerBill(b: com.danielhipskind.fihaven.core.model.Bill) {
+        val newPayments = mutableListOf<Payment>()
+        fun considerBill(b: Bill) {
             if (!b.autopay) return
             if (b.dueDay == null && b.startDate.isNullOrEmpty()) return
-            val due = BillSchedule.dueOnOrBeforeInPeriod(b, bounds, zone, todayD) ?: return
+            val due = BillSchedule.dueOnOrBeforeInPeriod(b, bounds, zone(), todayD) ?: return
             val refId = b.id.toString()
             if (Schedule.paidAmount(d.payments, "bill", refId, bounds) > Schedule.PAID_EPSILON) return
             if (Schedule.isSkipped(d.payments, "bill", refId, bounds)) return
@@ -483,6 +505,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         d.copy(payments = payments, cards = cards)
     }
 
+    fun updatePayment(payment: Payment, amount: Double, dateIso: String, note: String) = mutate { d ->
+        val i = d.payments.indexOfFirst { it.id == payment.id }
+        if (i < 0) return@mutate d
+        val oldAmt = d.payments[i].amount
+        val mk = DateLogic.parseDate(dateIso)?.let { DateLogic.monthKey(it) } ?: d.payments[i].monthKey
+        val payments = d.payments.toMutableList()
+        payments[i] = payment.copy(amount = amount, date = dateIso, monthKey = mk, note = note)
+        val cards = if (payment.type == "card" && oldAmt != amount)
+            applyCardPaymentDelta(d.cards, payment.refId, amount - oldAmt) else d.cards
+        d.copy(payments = payments, cards = cards)
+    }
+
     fun upsertIncome(source: IncomeSource) = mutate { d ->
         val list = d.settings.incomes.toMutableList()
         val i = list.indexOfFirst { it.id == source.id }
@@ -559,6 +593,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             d.copy(payments = payments, cards = cards)
         }
 
+    /** Mark/unmark paid for the current period (row toggles). */
+    fun setPaid(type: String, refId: String, name: String, amount: Double, paid: Boolean) = mutate { d ->
+        val mk = DateLogic.currentMonthKey(zone())
+        val i = d.payments.indexOfFirst { it.type == type && it.refId == refId && it.monthKey == mk && !it.skipped }
+        val payments = d.payments.toMutableList()
+        var cards = d.cards
+        if (paid && i < 0) {
+            val iso = "%04d-%02d-%02d".format(DateLogic.today(zone()).year, DateLogic.today(zone()).monthValue, DateLogic.today(zone()).dayOfMonth)
+            payments.add(Payment(newPaymentId(), type, refId, name, amount, iso, mk, ""))
+            if (type == "card") cards = applyCardPaymentDelta(cards, refId, amount)
+        } else if (!paid && i >= 0) {
+            val removed = payments.removeAt(i)
+            if (type == "card") cards = applyCardPaymentDelta(cards, refId, -removed.amount)
+        }
+        d.copy(payments = payments, cards = cards)
+    }
+
     /// A new unique string id for payments, matching the web's format
     /// (base36 timestamp + random) so ids round-trip across platforms.
     private fun newPaymentId(): String {
@@ -629,7 +680,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return upcoming.filter { item ->
             if (item.type == "card") return@filter true
             val bill = _data.value.bills.firstOrNull { it.id.toString() == item.refId } ?: return@filter false
-            BillSchedule.dueInPeriod(bill, bounds)
+            BillSchedule.dueInPeriod(bill, bounds, zone())
         }
     }
 

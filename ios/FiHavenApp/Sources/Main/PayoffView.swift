@@ -41,7 +41,7 @@ struct PayoffView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Payoff")
+        .brandedNavigationBar("Payoff")
     }
 
     private var strategyPicker: some View {

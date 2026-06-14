@@ -99,6 +99,28 @@ object Rewards {
         CardPreset("target-redcard", "Target", "RedCard", "Mastercard", 1.0, mapOf("Other" to 5.0)),
     )
 
+    /** Best-effort preset match from a typed card name (and optional issuer). */
+    fun suggestCardPreset(name: String, issuer: String = ""): CardPreset? {
+        val q = "$name $issuer".trim().lowercase()
+        if (q.isEmpty()) return null
+        var best: CardPreset? = null
+        var bestScore = 0
+        for (p in CARD_PRESETS) {
+            var score = 0
+            val pn = p.name.lowercase()
+            val pi = p.issuer.lowercase()
+            val full = "$pi $pn"
+            if (q == pn || q == full) score += 20
+            if (q.contains(pn) || pn.contains(q)) score += 10
+            if (issuer.isNotBlank() && pi.contains(issuer.lowercase())) score += 5
+            for (t in q.split(' ')) {
+                if (t.length >= 3 && (pn.contains(t) || pi.contains(t))) score += 2
+            }
+            if (score > bestScore) { bestScore = score; best = p }
+        }
+        return if (bestScore >= 4) best else null
+    }
+
     /** Per-category multiplier when set (> 0), otherwise the flat base rate. */
     fun effectiveRate(card: Card, category: String): Double {
         val v = card.rewardCategories[category]

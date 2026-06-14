@@ -68,7 +68,7 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     val adjustments = data.settings.incomeAdjustments.filter { it.appliesTo(periodKey) }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Budget", onBack = onBack)
+        ScreenHeader("Budget", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 CtCard(padding = 0) {
