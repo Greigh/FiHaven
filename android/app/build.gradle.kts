@@ -57,7 +57,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Google Play Billing for subscriptions (docs/native-contract.md §billing).
     implementation("com.android.billingclient:billing-ktx:9.0.0")
