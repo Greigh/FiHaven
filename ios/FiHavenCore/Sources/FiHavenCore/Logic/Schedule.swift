@@ -45,12 +45,13 @@ public enum Schedule {
         var items: [UpcomingItem] = []
 
         for b in bills {
-            guard let dd = b.dueDay, dd != 0 else { continue }
+            guard b.dueDay != nil || !(b.startDate ?? "").isEmpty else { continue }
+            guard DateLogic.billActive(b, tz: tz, now: now) else { continue }
             items.append(UpcomingItem(
                 name: b.name,
                 amount: b.amount,
-                days: DateLogic.daysUntilDue(dueDay: dd, tz: tz, now: now),
-                nextDue: DateLogic.nextDueDate(dueDay: dd, tz: tz, now: now),
+                days: BillSchedule.daysUntilDue(b, tz: tz, now: now),
+                nextDue: BillSchedule.nextDueDate(b, tz: tz, from: now),
                 type: "bill",
                 refId: String(b.id),
                 autopay: b.autopay,

@@ -33,9 +33,9 @@ export function exportCSV(type) {
   var rows;
 
   if (type === 'bills') {
-    rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'Autopay', 'Notes']];
+    rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'First Due', 'Stops On', 'Autopay', 'Notes']];
     bills.forEach(function (b) {
-      rows.push([b.name, b.category, b.amount, b.dueDay || '', b.frequency, b.autopay ? 'Yes' : 'No', b.notes || '']);
+      rows.push([b.name, b.category, b.amount, b.dueDay || '', b.frequency, b.startDate || '', b.endDate || '', b.autopay ? 'Yes' : 'No', b.notes || '']);
     });
     downloadCSV('fihaven-bills.csv', toCSV(rows));
     toast('Bills exported to CSV.');

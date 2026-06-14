@@ -11,9 +11,10 @@
     monthsUntil, daysUntilDate, promoNeeded,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem,
+    periodObligationItems, hidePaidOnDashboard,
   } from '../js/utils.js';
-  import { boundsForKey, paymentInBounds } from '../js/period.js';
-  import { monthlyIncomeForMonth } from '../js/income.js';
+  import { boundsForKey, paymentInBounds, getPeriodConfig } from '../js/period.js';
+  import { periodIncome, incomeLabelFor, owedLabelFor } from '../js/income.js';
   import {
     openPayModal, editBillById, editCardById, skipMonth,
   } from '../js/modals.js';
@@ -26,6 +27,7 @@
   const mk        = currentPeriodKey();
   const monthName = periodKeyLabel(mk);
   const periodBnds = boundsForKey(mk);
+  const periodCfg = getPeriodConfig();
 
   /* ── Top stat tiles ──────────────────────────────────── */
   let totalDebt = $derived(cards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
@@ -33,24 +35,28 @@
   let urgentPromo = $derived(promoCards.filter((c) => monthsUntil(c.promoEndDate) <= 3).length);
 
   let allItems   = $derived(buildUpcomingItems());
+  let obligationItems = $derived(periodObligationItems(allItems, periodBnds));
+  let hidePaid   = $derived(hidePaidOnDashboard(settings));
   let paidThisMo = $derived(
     payments
       .filter((p) => !p.skipped && paymentInBounds(p, periodBnds))
       .reduce((s, p) => s + parseFloat(p.amount || 0), 0)
   );
-  // "Still due" = sum of each item's remaining-to-goal, so partial
+  // "Still due" = sum of each obligation's remaining-to-goal, so partial
   // payments shrink the total and fully-paid items drop to zero.
   let unpaidAmt = $derived(
-    allItems.reduce((s, u) => s + remainingForItem(u.type, u.refId, mk), 0)
+    obligationItems.reduce((s, u) => s + remainingForItem(u.type, u.refId, mk), 0)
   );
   let monthBudgeted = $derived(paidThisMo + unpaidAmt);
   let paidPct = $derived(
     monthBudgeted > 0 ? Math.min(100, Math.round((paidThisMo / monthBudgeted) * 100)) : 0
   );
 
-  let monthlyIncome = $derived(monthlyIncomeForMonth(settings, mk));
-  let runway        = $derived(monthlyIncome - unpaidAmt);
-  let hasIncome     = $derived(monthlyIncome > 0);
+  let periodIncomeAmt = $derived(periodIncome(settings, periodBnds));
+  let runway        = $derived(periodIncomeAmt - unpaidAmt);
+  let hasIncome     = $derived(periodIncomeAmt > 0);
+  let incomeLabel   = $derived(incomeLabelFor(periodCfg));
+  let owedLabel     = $derived(owedLabelFor(periodCfg));
 
   /* ── Alerts (overdue + promo deadline) ───────────────── */
   let alerts = $derived.by(() => {
@@ -80,7 +86,7 @@
   let visibleItems = $derived.by(() => {
     void Object.keys(snoozes).length;
     return allItems.filter(
-      (u) => !isFullyPaid(u.type, u.refId, mk) && !isSnoozed(u.type, u.refId)
+      (u) => (!hidePaid || !isFullyPaid(u.type, u.refId, mk)) && !isSnoozed(u.type, u.refId)
     );
   });
 
@@ -135,7 +141,7 @@
 <!-- ─── Stat tiles ──────────────────────────────────────── -->
 <div class="stat-strip">
   <div class="stat-tile {unpaidAmt > 0 ? 'is-warn' : 'is-good'}">
-    <div class="stat-label">Still owed this month</div>
+    <div class="stat-label">{owedLabel}</div>
     <div class="stat-value">{fmt(unpaidAmt)}</div>
     <div class="stat-sub">{visibleItems.length} item{visibleItems.length === 1 ? '' : 's'} left</div>
   </div>
@@ -143,7 +149,7 @@
     <div class="stat-label">Cushion after bills</div>
     {#if hasIncome}
       <div class="stat-value">{fmt(runway)}</div>
-      <div class="stat-sub">{fmt(monthlyIncome)} income · {fmt(unpaidAmt)} due</div>
+      <div class="stat-sub">{fmt(periodIncomeAmt)} {incomeLabel.toLowerCase()} · {fmt(unpaidAmt)} due</div>
     {:else}
       <div class="stat-value stat-value-muted">—</div>
       <div class="stat-sub">Add income in Budget to see this</div>
@@ -166,7 +172,7 @@
   <div class="cashflow-card">
     <div class="cashflow-head">
       <div>
-        <div class="cashflow-title">This month's payments</div>
+        <div class="cashflow-title">This period's payments</div>
         <div class="cashflow-sub">
           <span style="color:var(--green);">{fmt(paidThisMo)} paid</span>
           <span style="opacity:.5;"> · </span>
@@ -179,9 +185,9 @@
       <div class="cashflow-fill" style="width:{paidPct}%;"></div>
     </div>
     <div class="cashflow-foot">
-      <span>{fmt(monthBudgeted)} budgeted across {allItems.length} item{allItems.length === 1 ? '' : 's'}</span>
+      <span>{fmt(monthBudgeted)} budgeted across {obligationItems.length} item{obligationItems.length === 1 ? '' : 's'}</span>
       {#if hasIncome}
-        <span>of {fmt(monthlyIncome)} monthly income</span>
+        <span>of {fmt(periodIncomeAmt)} {incomeLabel.toLowerCase()}</span>
       {/if}
     </div>
   </div>

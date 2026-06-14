@@ -3,6 +3,7 @@ package com.danielhipskind.fihaven.ui
 import com.danielhipskind.fihaven.ui.theme.PlexMono
 
 import android.content.Intent
+import androidx.fragment.app.FragmentActivity
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.background
@@ -48,10 +49,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.danielhipskind.fihaven.AppViewModel
+import com.danielhipskind.fihaven.BioLockDelay
 import com.danielhipskind.fihaven.core.model.autopayMark
 import com.danielhipskind.fihaven.core.model.autopayMarkHour
 import com.danielhipskind.fihaven.core.model.billReminders
 import com.danielhipskind.fihaven.core.model.currency
+import com.danielhipskind.fihaven.core.model.hidePaidOnDashboard
 import com.danielhipskind.fihaven.core.model.landingView
 import com.danielhipskind.fihaven.core.model.monthlySummary
 import com.danielhipskind.fihaven.core.model.paidGoal
@@ -76,7 +79,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     val data by vm.data.collectAsStateWithLifecycle()
     val themeController = LocalThemeController.current
     val activity = LocalContext.current.findFragmentActivity()
-    val bioEnabled by vm.biometricEnabled.collectAsStateWithLifecycle()
+    val lockAfter by vm.lockAfterMinutes.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<String?>(null) }
     var mfa by remember { mutableStateOf<MfaStatus?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -127,15 +130,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Appearance", themeController.pref.label) { dialog = "appearance" }
                     if (activity != null && BiometricAuth.isAvailable(activity)) {
                         HorizontalDivider(color = Ct.colors.border)
-                        SwitchRow("Require biometric unlock", bioEnabled) { want ->
-                            if (want) {
-                                BiometricAuth.authenticate(activity, "Enable biometric lock", "Confirm it's you") { ok ->
-                                    if (ok) vm.setBiometricEnabled(true)
-                                }
-                            } else {
-                                vm.setBiometricEnabled(false)
-                            }
-                        }
+                        NavRow("Require biometric / passcode after", BioLockDelay.label(lockAfter)) { dialog = "biolock" }
                     }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Time zone", data.settings.timezoneSetting ?: "Auto") { dialog = "timezone" }
@@ -149,6 +144,10 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Mark fully paid at", paidGoalLabel(PaidGoalPolicy.from(data.settings.paidGoal))) { dialog = "paidgoal" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Hide fully paid on dashboard", data.settings.hidePaidOnDashboard) {
+                        vm.setHidePaidOnDashboard(it)
+                    }
                 }
             }
             item {
@@ -234,6 +233,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
         "defaultview" -> DefaultViewDialog(vm, data.settings.landingView ?: "dashboard", close)
         "appearance" -> AppearanceDialog(themeController) { dialog = null }
+        "biolock" -> BioLockDialog(vm, activity, lockAfter, close)
         "licenses" -> LicensesDialog(close)
         "tabs" -> TabsDialog(vm, close)
         "bank" -> BankDialog(vm, close)
@@ -379,6 +379,62 @@ private fun DefaultViewDialog(vm: AppViewModel, current: String, onDone: () -> U
                 color = if (value == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
                 modifier = Modifier.fillMaxWidth().clickable { vm.setLandingView(value); onDone() }.padding(vertical = 12.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun BioLockDialog(
+    vm: AppViewModel,
+    activity: FragmentActivity?,
+    current: Int,
+    onDone: () -> Unit,
+) {
+    var customMinutes by remember(current) {
+        mutableIntStateOf(if (current > 0 && current !in BioLockDelay.PRESET_MINUTES) current else 5)
+    }
+    val options = listOf(
+        BioLockDelay.NEVER to BioLockDelay.label(BioLockDelay.NEVER),
+        BioLockDelay.IMMEDIATELY to BioLockDelay.label(BioLockDelay.IMMEDIATELY),
+    ) + BioLockDelay.PRESET_MINUTES.map { it to BioLockDelay.label(it) }
+
+    fun apply(minutes: Int) {
+        val enabling = minutes >= 0 && current < 0
+        if (enabling && activity != null) {
+            BiometricAuth.authenticate(activity, "Enable app lock", "Confirm it's you") { ok ->
+                if (ok) {
+                    vm.setLockAfterMinutes(minutes)
+                    onDone()
+                }
+            }
+        } else {
+            vm.setLockAfterMinutes(minutes)
+            onDone()
+        }
+    }
+
+    FormDialog("Require unlock after", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text(
+            "Choose when FiHaven asks for your fingerprint, face, or device passcode after you leave the app.",
+            color = Ct.colors.muted, fontSize = 13.sp,
+        )
+        options.forEach { (value, label) ->
+            Text(
+                label,
+                color = if (value == current) Ct.colors.accent else Ct.colors.text,
+                fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { apply(value) }.padding(vertical = 12.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Custom:", color = Ct.colors.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = { if (customMinutes > 1) customMinutes-- }) { Text("−", color = Ct.colors.accent) }
+            Text("$customMinutes min", color = Ct.colors.text, fontSize = 15.sp, fontFamily = PlexMono)
+            TextButton(onClick = { if (customMinutes < 60) customMinutes++ }) { Text("+", color = Ct.colors.accent) }
+            TextButton(onClick = { apply(customMinutes) }) { Text("Set", color = Ct.colors.accent) }
         }
     }
 }

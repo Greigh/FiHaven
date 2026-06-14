@@ -141,6 +141,8 @@ extension AppStore {
     }
 
     /// Mark a bill/card paid (idempotent helper used by row toggles).
+    /// Like the Pay sheet, a card toggle reconciles the card balance:
+    /// marking paid decrements it, un-marking restores the recorded amount.
     func setPaid(type: String, refId: String, name: String, amount: Double, paid: Bool) {
         let mk = currentMonthKey
         mutate { data in
@@ -153,8 +155,11 @@ extension AppStore {
                     name: name, amount: amount, date: self.todayISO(),
                     monthKey: mk, note: ""
                 ))
+                if type == "card" { Self.applyCardPaymentDelta(refId, amount, in: &data) }
             } else if !paid, let i = existing {
+                let removed = data.payments[i]
                 data.payments.remove(at: i)
+                if type == "card" { Self.applyCardPaymentDelta(refId, -removed.amount, in: &data) }
             }
         }
     }
@@ -237,6 +242,8 @@ extension AppStore {
     func setPeriodStartDay(_ day: Int) { mutate { $0.settings.periodStartDay = min(max(day, 1), 28) } }
     func setPeriodLength(_ len: Int) { mutate { $0.settings.periodLength = min(max(len, 7), 90) } }
 
+    func setHidePaidOnDashboard(_ on: Bool) { mutate { $0.settings.hidePaidOnDashboard = on } }
+
     func setCurrency(_ code: String) {
         Money.setCurrency(code)
         mutate { $0.settings.currency = code }
@@ -308,7 +315,7 @@ extension AppStore {
     }
 
     var sortedBills: [Bill] {
-        data.bills.sorted { ($0.dueDay ?? 99) < ($1.dueDay ?? 99) }
+        data.bills.sorted { BillSchedule.daysUntilDue($0, tz: tz) < BillSchedule.daysUntilDue($1, tz: tz) }
     }
 
     var sortedCards: [Card] {

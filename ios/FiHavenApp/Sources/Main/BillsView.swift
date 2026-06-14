@@ -4,7 +4,6 @@ import FiHavenCore
 /// Bills list with add / edit / delete and per-bill mark-paid.
 struct BillsView: View {
     @EnvironmentObject var store: AppStore
-    @EnvironmentObject var billing: StoreManager
     @State private var editing: Bill?
     @State private var creating = false
     @State private var paying: PayTarget?
@@ -21,13 +20,13 @@ struct BillsView: View {
     }
 
     private func dueDays(_ b: Bill) -> Int {
-        b.dueDay.map { DateLogic.daysUntilDue(dueDay: $0, tz: store.tz) } ?? 9999
+        BillSchedule.daysUntilDue(b, tz: store.tz)
     }
 
     private var displayedBills: [Bill] {
         var list = store.sortedBills.filter { b in
             if fUnpaid && store.paidState(type: "bill", refId: String(b.id)) == .full { return false }
-            if fOverdue && !(b.dueDay.map { DateLogic.daysUntilDue(dueDay: $0, tz: store.tz) < 0 } ?? false) { return false }
+            if fOverdue && BillSchedule.daysUntilDue(b, tz: store.tz) >= 0 { return false }
             if fAutopay && !b.autopay { return false }
             if fOnCard && b.cardId == nil { return false }
             if fCategory != "all" && b.category != fCategory { return false }
@@ -48,88 +47,8 @@ struct BillsView: View {
         return list
     }
 
-    private struct Sub: Identifiable {
-        let id: String; let name: String; let monthly: Double
-        let source: String; let priceUp: Double?; let stale: Bool
-    }
-    private func monthlyOfBill(_ b: Bill) -> Double {
-        switch b.frequency {
-        case "Weekly": return b.amount * 52 / 12
-        case "Bi-weekly": return b.amount * 26 / 12
-        case "Quarterly": return b.amount / 3
-        case "Annually": return b.amount / 12
-        default: return b.amount
-        }
-    }
-    private func daysSince(_ iso: String) -> Int? {
-        guard let d = DateLogic.parseDate(iso, tz: store.tz) else { return nil }
-        return Calendar.current.dateComponents([.day], from: d, to: Date()).day
-    }
-    private var subscriptions: [Sub] {
-        var out: [Sub] = []
-        for b in store.data.bills where b.category == "Subscriptions" {
-            out.append(Sub(id: "bill-\(b.id)", name: b.name.isEmpty ? "Subscription" : b.name,
-                           monthly: monthlyOfBill(b), source: "bill", priceUp: nil, stale: false))
-        }
-        let withMerchant = store.data.transactions.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
-        let byMerchant = Dictionary(grouping: withMerchant) { $0.merchant.trimmingCharacters(in: .whitespaces).lowercased() }
-        for (_, list) in byMerchant {
-            if Set(list.map { String($0.date.prefix(7)) }).count < 2 { continue }
-            let sorted = list.sorted { $0.date < $1.date }
-            guard let latest = sorted.last else { continue }
-            let minAmt = list.map { $0.amount }.min() ?? 0
-            out.append(Sub(id: "tx-\(latest.merchant)", name: latest.merchant, monthly: latest.amount,
-                           source: "tx", priceUp: latest.amount > minAmt + 0.005 ? minAmt : nil,
-                           stale: (daysSince(latest.date) ?? 0) > 60))
-        }
-        return out.sorted { $0.monthly > $1.monthly }
-    }
-
-    @ViewBuilder
-    private var subscriptionsHeader: some View {
-        // Subscription finder is a Pro insight (Balanced tiering).
-        if billing.isPro && !subscriptions.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    FieldLabel(text: "Subscriptions")
-                    Spacer()
-                    Text("\(Money.fmt(subscriptions.reduce(0) { $0 + $1.monthly }))/mo · \(subscriptions.count)")
-                        .font(Theme.mono(12)).foregroundStyle(Theme.muted)
-                }
-                VStack(spacing: 0) {
-                    ForEach(Array(subscriptions.enumerated()), id: \.element.id) { i, s in
-                        if i > 0 { Divider().overlay(Theme.border) }
-                        HStack(spacing: 10) {
-                            Text(s.source == "bill" ? "📄" : "🔁").font(.system(size: 15))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
-                                HStack(spacing: 6) {
-                                    if let up = s.priceUp {
-                                        Text("▲ was \(Money.fmt(up))").font(Theme.ui(11)).foregroundStyle(Theme.orange)
-                                    }
-                                    if s.stale { Text("⚠ unused 60d+").font(Theme.ui(11)).foregroundStyle(Theme.red) }
-                                    if s.priceUp == nil && !s.stale {
-                                        Text(s.source == "bill" ? "Tracked bill" : "Recurring charge")
-                                            .font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                    }
-                                }
-                            }
-                            Spacer()
-                            Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(13)).foregroundStyle(Theme.text)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                }
-                .ctCard()
-            }
-            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 4, trailing: 16))
-        }
-    }
-
     var body: some View {
         List {
-            subscriptionsHeader
             if store.sortedBills.isEmpty {
                 HStack {
                     Spacer()
@@ -291,9 +210,15 @@ private struct BillRow: View {
                         Text("· \(bus)").font(Theme.ui(14)).foregroundStyle(Theme.muted)
                     }
                 }
-                Text(skipped ? "⏭ Skipped this month" : dueText)
-                    .font(Theme.ui(12))
-                    .foregroundStyle(state == .partial ? Theme.orange : Theme.muted)
+                if DateLogic.billEnded(bill, tz: store.tz) {
+                    Text("⏹ Ended \(friendlyDate(bill.endDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                } else if DateLogic.billNotStarted(bill, tz: store.tz) {
+                    Text("Starts \(friendlyDate(bill.startDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                } else {
+                    Text(skipped ? "⏭ Skipped this month" : dueText)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(state == .partial ? Theme.orange : Theme.muted)
+                }
                 if let cid = bill.cardId, let card = store.data.cards.first(where: { String($0.id) == cid }) {
                     Text("💳 Charged to \(card.name) · not a bank debit")
                         .font(Theme.ui(11)).foregroundStyle(Theme.muted)
@@ -340,17 +265,32 @@ private struct BillRow: View {
         switch state {
         case .full: return "Paid this month"
         case .partial: return "Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(bill.amount))"
-        case .unpaid: return bill.dueDay.map { "Due on the \($0)\(ordinalSuffix($0))" } ?? "No due date"
+        case .unpaid:
+            if let next = BillSchedule.nextDueDate(bill, tz: store.tz) {
+                return "Next: \(friendlyDate(next))"
+            }
+            return "No due date"
         }
     }
 
-    private func ordinalSuffix(_ n: Int) -> String {
-        switch n % 100 {
-        case 11, 12, 13: return "th"
-        default:
-            switch n % 10 {
-            case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th"
-            }
-        }
+    private func friendlyDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = DateLogic.calendar(tz: store.tz)
+        f.timeZone = store.tz
+        f.locale = Locale(identifier: "en_US")
+        f.dateFormat = Calendar.current.component(.year, from: date) == Calendar.current.component(.year, from: Date())
+            ? "MMM d" : "MMM d, yyyy"
+        return f.string(from: date)
+    }
+
+    /// "YYYY-MM-DD" → a short "MMM d" label (e.g. "Jul 15"), or "" if unset.
+    private func friendlyDate(_ s: String?) -> String {
+        guard let date = DateLogic.parseDate(s, tz: store.tz) else { return "" }
+        let f = DateFormatter()
+        f.calendar = DateLogic.calendar(tz: store.tz)
+        f.timeZone = store.tz
+        f.locale = Locale(identifier: "en_US")
+        f.dateFormat = "MMM d"
+        return f.string(from: date)
     }
 }

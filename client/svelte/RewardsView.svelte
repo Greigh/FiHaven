@@ -23,6 +23,13 @@
   const color = (c) => CARD_COLORS[(Math.abs(hash(c.name || '')) % CARD_COLORS.length)];
   function hash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
   const pct = (r) => (Math.round(r * 100) / 100) + '%';
+  // True when this category is one the card rotates — its rate only applies
+  // while activated for the quarter, so the UI flags it.
+  const rotating = (c) => Array.isArray(c.rotatingPool) && c.rotatingPool.includes(category);
+  // For a points card (point value ≠ 1), show how the cash-equivalent breaks
+  // down: "3× points · 2.2¢/pt". Cash-back cards (value == rate) show nothing.
+  const breakdown = (e) => (e.pointValue && e.pointValue !== 1)
+    ? `${e.rate}× points · ${e.pointValue}¢/pt` : '';
 </script>
 
 <div class="card" style="overflow:hidden;">
@@ -56,9 +63,10 @@
       <div class="rw-winner" style="--rw-accent:{color(best.card)};">
         <div class="rw-winner-label">Best for {category.toLowerCase()}</div>
         <div class="rw-winner-row">
-          <span class="rw-winner-name">💳 {best.card.name || 'Card'}</span>
-          <span class="rw-winner-rate">{pct(best.rate)}</span>
+          <span class="rw-winner-name">💳 {best.card.name || 'Card'}{#if rotating(best.card)}<span class="rw-rot" title="Rotating category — confirm it's active this quarter">rotating</span>{/if}</span>
+          <span class="rw-winner-rate">{pct(best.value)}</span>
         </div>
+        {#if breakdown(best)}<div class="rw-winner-bd">{breakdown(best)}</div>{/if}
       </div>
     {/if}
 
@@ -67,8 +75,8 @@
         {#each ranked.eligible.slice(1) as e (e.card.id)}
           <div class="rw-item">
             <span class="rw-dot" style="background:{color(e.card)};"></span>
-            <span class="rw-item-name">{e.card.name || 'Card'}</span>
-            <span class="rw-item-rate">{pct(e.rate)}</span>
+            <span class="rw-item-name">{e.card.name || 'Card'}{#if rotating(e.card)}<span class="rw-rot">rotating</span>{/if}{#if breakdown(e)}<span class="rw-bd">{breakdown(e)}</span>{/if}</span>
+            <span class="rw-item-rate">{pct(e.value)}</span>
           </div>
         {/each}
       </div>
@@ -81,7 +89,7 @@
           <div class="rw-ex-item">
             <div class="rw-ex-top">
               <span class="rw-item-name">{e.card.name || 'Card'}</span>
-              <span class="rw-ex-rate">{pct(e.rate)} · skipped</span>
+              <span class="rw-ex-rate">{pct(e.value)} · skipped</span>
             </div>
             <div class="rw-ex-reason">⚠ {e.reason.replace(/^Skipped:\s*/, '')}</div>
           </div>

@@ -39,14 +39,14 @@ object Schedule {
         val items = mutableListOf<UpcomingItem>()
 
         for (b in bills) {
-            val dd = b.dueDay ?: continue
-            if (dd == 0) continue
+            if (b.dueDay == null && b.startDate.isNullOrEmpty()) continue
+            if (!DateLogic.billActive(b, zone, now)) continue
             items.add(
                 UpcomingItem(
                     name = b.name,
                     amount = b.amount,
-                    days = DateLogic.daysUntilDue(dd, zone, now),
-                    nextDue = DateLogic.nextDueDate(dd, zone, now),
+                    days = BillSchedule.daysUntilDue(b, zone, now),
+                    nextDue = BillSchedule.nextDueDate(b, zone, DateLogic.today(zone, now)),
                     type = "bill",
                     refId = b.id.toString(),
                     autopay = b.autopay,

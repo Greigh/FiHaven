@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Stars
@@ -65,6 +66,7 @@ enum class ProFeature(val title: String, val blurb: String, val icon: ImageVecto
     CALENDAR("Calendar", "View every due date on a monthly calendar.", Icons.Filled.CalendarMonth),
     HISTORY("Payment History", "Browse and search your full payment history.", Icons.Filled.History),
     REWARDS("Rewards Optimizer", "See which card to use for every purchase to earn the most.", Icons.Filled.Stars),
+    SUBSCRIPTIONS("Subscription Finder", "Find recurring charges, price hikes, and unused subscriptions.", Icons.Filled.Autorenew),
 }
 
 private fun Context.findActivity(): Activity? {

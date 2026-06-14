@@ -7,7 +7,12 @@ import {
   adjustmentAppliesTo,
   adjustmentsTotalForMonth,
   monthlyIncomeForMonth,
+  periodIncome,
+  periodDays,
+  adjustmentsTotalForPeriod,
+  incomeLabelFor,
 } from './income.js';
+import { boundsForKey } from './period.js';
 
 describe('income — perMonthFor', () => {
   it('maps every known frequency to its per-month factor', () => {
@@ -94,5 +99,38 @@ describe('income — adjustments', () => {
     };
     expect(adjustmentsTotalForMonth(settings, '2026-06')).toBe(400);   // 500 − 100
     expect(monthlyIncomeForMonth(settings, '2026-06')).toBe(2400);     // 2000 + 400
+  });
+});
+
+describe('income — periodIncome', () => {
+  const settings = { income: 3000 };
+
+  it('calendar mode returns the full monthly total', () => {
+    const b = boundsForKey('2026-06', { mode: 'calendar', startDay: 1, length: 35 });
+    expect(periodIncome(settings, b)).toBe(3000);
+  });
+
+  it('rolling mode prorates base income by period length', () => {
+    const b = boundsForKey('2026-05-15', { mode: 'rolling', startDay: 1, length: 35 });
+    expect(periodDays(b)).toBe(35);
+    expect(periodIncome(settings, b)).toBeCloseTo(3000 * (35 / (365 / 12)), 1);
+  });
+
+  it('weights adjustments by calendar-month overlap in rolling mode', () => {
+    const s = {
+      income: 3000,
+      incomeAdjustments: [{ kind: 'once', monthKey: '2026-06', amount: 300 }],
+    };
+    const b = boundsForKey('2026-05-15', { mode: 'rolling', startDay: 1, length: 35 });
+    const base = 3000 * (35 / (365 / 12));
+    const adj = adjustmentsTotalForPeriod(s, b);
+    expect(adj).toBeGreaterThan(0);
+    expect(adj).toBeLessThan(300);
+    expect(periodIncome(s, b)).toBeCloseTo(base + adj, 1);
+  });
+
+  it('incomeLabelFor reflects the period mode', () => {
+    expect(incomeLabelFor({ mode: 'calendar' })).toBe('Monthly income');
+    expect(incomeLabelFor({ mode: 'rolling' })).toBe('Period income');
   });
 });

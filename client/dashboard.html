@@ -43,7 +43,7 @@
   <!-- ── BILLS ──────────────────────────────────────────── -->
   <div id="tab-bills" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
     <div class="section-header">
-      <span class="section-title">Bills &amp; Subscriptions</span>
+      <span class="section-title">Bills</span>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost btn-sm" onclick="exportCSV('bills')">⬇ CSV</button>
         <button class="btn btn-primary" onclick="openBillModal()">+ Add Bill</button>
@@ -90,6 +90,23 @@
     </div>
     <!-- Budget tab is rendered by client/svelte/BudgetView.svelte. -->
     <div id="budget-mount"></div>
+  </div>
+
+  <!-- ── SPENDING ─────────────────────────────────────────── -->
+  <div id="tab-spending" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Spending</span>
+    </div>
+    <div id="spending-mount"></div>
+  </div>
+
+  <!-- ── SUBSCRIPTIONS ───────────────────────────────────── -->
+  <div id="tab-subscriptions" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
+    <div class="section-header">
+      <span class="section-title">Subscriptions</span>
+    </div>
+    <!-- Subscriptions tab is rendered by client/svelte/SubscriptionsPanel.svelte. -->
+    <div id="subscriptions-mount"></div>
   </div>
 
   <!-- ── HISTORY ────────────────────────────────────────── -->
@@ -185,6 +202,14 @@
           <option>Monthly</option><option>Weekly</option><option>Bi-weekly</option>
           <option>Quarterly</option><option>Annually</option>
         </select>
+      </div>
+      <div class="field">
+        <label for="b-start">First bill due on <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="date" id="b-start"/>
+      </div>
+      <div class="field">
+        <label for="b-end">Stops on <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="date" id="b-end"/>
       </div>
       <div class="field" style="grid-column:span 2;">
         <label for="b-card">Charged to <span style="color:var(--muted);font-weight:400;">— optional</span></label>
@@ -316,8 +341,13 @@
           <input type="number" id="c-reward-base" placeholder="e.g. 1.5" step="0.01" min="0" style="max-width:120px;"/>
           <span style="color:var(--muted);font-size:13px;">% base rate on everything</span>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <input type="number" id="c-reward-pointvalue" placeholder="1.0" step="0.1" min="0" style="max-width:120px;"/>
+          <span style="color:var(--muted);font-size:13px;">¢ per point (1 = cash back; points cards are worth more)</span>
+        </div>
         <div style="color:var(--muted);font-size:12px;margin:6px 0 4px;">Category bonuses (leave blank to use the base rate)</div>
         <div id="c-reward-cats" class="reward-cats-grid"></div>
+        <div id="c-reward-rotating" class="reward-rotating" hidden></div>
       </div>
     </div>
     <div class="modal-footer">

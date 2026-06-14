@@ -9,7 +9,7 @@
   import { bills, cards } from '../js/storage.svelte.js';
   import {
     ICONS, fmt, monthKey, monthLabel, offsetDate,
-    paidState,
+    paidState, billActive, billDueOn,
   } from '../js/utils.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
@@ -32,16 +32,19 @@
   let byDay = $derived.by(() => {
     const map = {};
     bills.forEach((b) => {
-      if (!b.dueDay) return;
-      const d = Math.min(parseInt(b.dueDay), daysIn);
-      (map[d] = map[d] || []).push({
-        type: 'bill',
-        refId: String(b.id),
-        name: b.name,
-        amount: parseFloat(b.amount || 0),
-        icon: ICONS[b.category] || '📌',
-        autopay: !!b.autopay,
-      });
+      if (!b.dueDay && !b.startDate) return;
+      for (let d = 1; d <= daysIn; d++) {
+        const occ = new Date(year, month, d);
+        if (!billActive(b, occ) || !billDueOn(b, occ)) continue;
+        (map[d] = map[d] || []).push({
+          type: 'bill',
+          refId: String(b.id),
+          name: b.name,
+          amount: parseFloat(b.amount || 0),
+          icon: ICONS[b.category] || '📌',
+          autopay: !!b.autopay,
+        });
+      }
     });
     cards.forEach((c) => {
       if (!c.dueDay) return;

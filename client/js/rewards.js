@@ -24,6 +24,19 @@ export function effectiveRate(card, category) {
   return parseFloat(card.rewardBase) || 0;
 }
 
+// Cents per point/mile (default 1 = cash back). Points currencies (Amex MR,
+// Chase UR, Bilt, Capital One miles…) are worth more than a cent when redeemed
+// well, so this turns a raw multiplier into a real cash-equivalent return.
+export function pointValue(card) {
+  var v = parseFloat(card.pointValue);
+  return (!isNaN(v) && v > 0) ? v : 1;
+}
+
+// Cash-equivalent return % for a category: multiplier × point value.
+export function effectiveValue(card, category) {
+  return effectiveRate(card, category) * pointValue(card);
+}
+
 // True while a card is inside an active 0% promo window (today < end).
 export function inActivePromo(card) {
   if (!card.hasPromo || !card.promoEndDate) return false;
@@ -42,7 +55,11 @@ export function rankCardsForCategory(category, list) {
   var excluded = [];
   (list || []).forEach(function (c) {
     if ((c.type || 'card') === 'loan') return;
-    var entry = { card: c, rate: effectiveRate(c, category) };
+    var rate = effectiveRate(c, category);
+    var pv = pointValue(c);
+    // `rate` is the raw multiplier; `value` is the cash-equivalent return we
+    // rank by, so a points card can out-earn a higher-multiplier cash card.
+    var entry = { card: c, rate: rate, pointValue: pv, value: rate * pv };
     if (inActivePromo(c)) {
       entry.reason = promoReason(c);
       excluded.push(entry);
@@ -50,8 +67,8 @@ export function rankCardsForCategory(category, list) {
       eligible.push(entry);
     }
   });
-  eligible.sort(function (a, b) { return b.rate - a.rate; });
-  excluded.sort(function (a, b) { return b.rate - a.rate; });
+  eligible.sort(function (a, b) { return b.value - a.value; });
+  excluded.sort(function (a, b) { return b.value - a.value; });
   return { eligible: eligible, excluded: excluded };
 }
 

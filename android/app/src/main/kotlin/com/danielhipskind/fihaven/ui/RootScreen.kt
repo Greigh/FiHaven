@@ -47,7 +47,11 @@ fun RootScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) vm.lockIfEnabled()
+            when (event) {
+                Lifecycle.Event.ON_STOP -> vm.onBackground()
+                Lifecycle.Event.ON_START -> vm.onForeground()
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }

@@ -8,12 +8,15 @@
   import {
     ICONS, fmt, currentPeriodKey, daysUntilDue, nextDueDate, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
-    paymentStats, daysSinceLastPayment,
+    paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
+    nextBillDueDate, daysUntilBillDue,
   } from '../js/utils.js';
+
+  // "YYYY-MM-DD" → local Date for friendly display (e.g. "Jul 15").
+  const parseYmd = (s) => (s ? new Date(s + 'T00:00:00') : null);
   import { askDelete, openPayModal, editBillById, skipMonth, unskipMonth } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
-  import SubscriptionsPanel from './SubscriptionsPanel.svelte';
 
   const mk = currentPeriodKey();
 
@@ -57,13 +60,13 @@
       options: [{ key: 'all', label: 'All' }, ...Object.keys(ICONS).map((c) => ({ key: c, label: c }))] },
   ];
 
-  const dueDays = (b) => (b.dueDay ? daysUntilDue(parseInt(b.dueDay)) : 9999);
+  const dueDays = (b) => (b.dueDay || b.startDate ? daysUntilBillDue(b) : 9999);
 
   let visibleBills = $derived.by(() => {
     const f = activeFilters;
     const list = bills.filter((b) => {
       if (f.unpaid && paidState('bill', String(b.id), mk) === 'full') return false;
-      if (f.overdue && !(b.dueDay && daysUntilDue(parseInt(b.dueDay)) < 0)) return false;
+      if (f.overdue && !((b.dueDay || b.startDate) && daysUntilBillDue(b) < 0)) return false;
       if (f.autopay && !b.autopay) return false;
       if (f.oncard && b.cardId == null) return false;
       if (f.category && f.category !== 'all' && b.category !== f.category) return false;
@@ -80,8 +83,6 @@
     return arr;
   });
 </script>
-
-<SubscriptionsPanel />
 
 {#if bills.length > 0}
   <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
@@ -111,8 +112,10 @@
       <tbody>
         {#each visibleBills as b (b.id)}
           {@const state = paidState('bill', String(b.id), mk)}
-          {@const days  = b.dueDay ? daysUntilDue(parseInt(b.dueDay)) : null}
-          {@const next  = b.dueDay ? nextDueDate(b.dueDay) : null}
+          {@const notStarted = billNotStarted(b)}
+          {@const ended = billEnded(b)}
+          {@const days  = b.dueDay || b.startDate ? daysUntilBillDue(b) : null}
+          {@const next  = nextBillDueDate(b)}
           {@const stats = paymentStats('bill', String(b.id), 6)}
           {@const sinceLast = daysSinceLastPayment('bill', String(b.id))}
           {@const stale = sinceLast !== null && sinceLast > STALE_DAYS}
@@ -165,7 +168,12 @@
               {/if}
             </td>
             <td data-label="Due">
-              {#if days === null}
+              {#if ended}
+                <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended</span>
+                <div style="font-size:11px;color:var(--muted);margin-top:3px;">on {shortDate(parseYmd(b.endDate))}</div>
+              {:else if notStarted}
+                <span class="badge badge-gray" title="Hasn't started yet — not due or counted until then">Starts {shortDate(parseYmd(b.startDate))}</span>
+              {:else if days === null}
                 {''}
               {:else}
                 {#if days < 0}
@@ -189,7 +197,9 @@
               {/if}
             </td>
             <td data-label="This month">
-              {#if state === 'skipped'}
+              {#if ended || notStarted}
+                <span style="color:var(--muted);">—</span>
+              {:else if state === 'skipped'}
                 <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
                   <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
                   <button class="btn btn-ghost btn-xs" onclick={() => unskipMonth('bill', String(b.id))}>

@@ -49,6 +49,14 @@ class IncomeTest {
         ).jsonObject
         assertEquals(1000.0, Income.monthlyIncome(s), 1e-6)
     }
+
+    @Test fun periodIncomeProratesRolling() {
+        val s = FiHavenJson.parseToJsonElement("""{"income":3000}""").jsonObject
+        val cfg = PeriodConfig.normalized("rolling", null, 35)
+        val b = Period.bounds(LocalDate.of(2026, 5, 15), cfg)
+        assertEquals(35, Income.periodDays(b))
+        assertEquals(3000.0 * (35.0 / Income.AVG_MONTH_DAYS), Income.periodIncome(s, b), 1.0)
+    }
 }
 
 class DateLogicTest {

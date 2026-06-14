@@ -31,6 +31,9 @@ struct CardEditorView: View {
 
     @State private var rewardBase: Double = 0
     @State private var rewardCats: [String: Double] = [:]
+    @State private var rotatingPool: [String] = []
+    @State private var rotatingRate: Double = 5
+    @State private var pointValue: Double = 1
 
     var body: some View {
         NavigationStack {
@@ -131,13 +134,29 @@ struct CardEditorView: View {
                                 .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                             Text("%").foregroundStyle(Theme.muted)
                         }
+                        HStack {
+                            Text("Point value")
+                            Spacer()
+                            TextField("1.0", value: $pointValue, format: .number)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                            Text("¢/pt").foregroundStyle(Theme.muted)
+                        }
                         ForEach(Rewards.categories, id: \.self) { cat in
-                            HStack {
-                                Text(cat)
-                                Spacer()
-                                TextField("—", value: catBinding(cat), format: .number)
-                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 64)
-                                Text("%").foregroundStyle(Theme.muted)
+                            if !rotatingPool.contains(cat) {
+                                HStack {
+                                    Text(cat)
+                                    Spacer()
+                                    TextField("—", value: catBinding(cat), format: .number)
+                                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 64)
+                                    Text("%").foregroundStyle(Theme.muted)
+                                }
+                            }
+                        }
+                        if !rotatingPool.isEmpty {
+                            Text("Rotating \(Int(rotatingRate))% — tick this quarter’s active categories")
+                                .font(.caption).foregroundStyle(Theme.muted)
+                            ForEach(rotatingPool, id: \.self) { cat in
+                                Toggle(cat, isOn: rotBinding(cat))
                             }
                         }
                     } header: {
@@ -180,11 +199,20 @@ struct CardEditorView: View {
         network = p.network
         rewardBase = p.rewardBase
         rewardCats = p.rewardCategories
+        rotatingPool = p.rotatingPool ?? []
+        rotatingRate = p.rotatingRate ?? 5
+        pointValue = p.pointValue ?? 1
     }
 
     // Binding for an optional per-category reward rate (0 == unset).
     private func catBinding(_ cat: String) -> Binding<Double> {
         Binding(get: { rewardCats[cat] ?? 0 }, set: { rewardCats[cat] = $0 })
+    }
+
+    // Toggle for a rotating-pool category: on writes the elevated rate, off clears it.
+    private func rotBinding(_ cat: String) -> Binding<Bool> {
+        Binding(get: { (rewardCats[cat] ?? 0) > 0 },
+                set: { rewardCats[cat] = $0 ? rotatingRate : 0 })
     }
 
     private func money(_ label: String, _ value: Binding<Double>) -> some View {
@@ -221,6 +249,9 @@ struct CardEditorView: View {
         }
         rewardBase = card.rewardBase
         rewardCats = card.rewardCategories
+        rotatingPool = card.rotatingPool ?? []
+        rotatingRate = card.rotatingRate ?? 5
+        pointValue = card.pointValue ?? 1
     }
 
     private func save() {
@@ -251,7 +282,10 @@ struct CardEditorView: View {
             lastDigits: lastDigits.isEmpty ? nil : lastDigits.trimmingCharacters(in: .whitespaces),
             network: network.isEmpty ? nil : network,
             rewardBase: isLoan ? 0 : rewardBase,
-            rewardCategories: isLoan ? [:] : rewardCats.filter { $0.value > 0 }
+            rewardCategories: isLoan ? [:] : rewardCats.filter { $0.value > 0 },
+            rotatingPool: (isLoan || rotatingPool.isEmpty) ? nil : rotatingPool,
+            rotatingRate: (isLoan || rotatingPool.isEmpty) ? nil : rotatingRate,
+            pointValue: (isLoan || pointValue == 1) ? nil : pointValue
         )
         store.upsertCard(saved)
         dismiss()

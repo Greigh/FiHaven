@@ -28,6 +28,8 @@ data class Bill(
     val autopay: Boolean = false,
     val notes: String = "",
     val cardId: String? = null,         // "Charged to" — id of the card this bill is paid on
+    val startDate: String? = null,      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
+    val endDate: String? = null,        // "Stops on" — "YYYY-MM-DD"; bill is retired after this
 )
 
 @Serializable
@@ -53,6 +55,9 @@ data class Card(
     val notes: String = "",
     val rewardBase: Double = 0.0,                       // flat reward % on everything
     val rewardCategories: Map<String, Double> = emptyMap(),  // per-category reward % overrides
+    val rotatingPool: List<String>? = null,   // categories that can earn the elevated rotating rate
+    val rotatingRate: Double? = null,         // elevated rate those categories earn when active
+    val pointValue: Double? = null,           // cents per point/mile (null → 1 = cash back)
 )
 
 @Serializable

@@ -89,10 +89,16 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                             FieldLabel("Best for ${category.lowercase()}")
                             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("💳 ${best.card.name.ifEmpty { "Card" }}",
-                                    fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Ct.colors.text,
-                                    modifier = Modifier.weight(1f))
-                                Text(ratePct(best.rate), fontWeight = FontWeight.Bold, fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Ct.colors.text)
+                                if (best.card.rotatingPool?.contains(category) == true) {
+                                    Spacer(Modifier.width(6.dp)); RotBadge()
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text(ratePct(best.value), fontWeight = FontWeight.Bold, fontSize = 24.sp,
                                     fontFamily = PlexMono, color = Ct.colors.accent)
+                            }
+                            breakdown(best)?.let {
+                                Text(it, color = Ct.colors.muted, fontSize = 12.sp)
                             }
                         }
                     }
@@ -104,8 +110,18 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                         Column {
                             runnersUp.forEachIndexed { i, e ->
                                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(e.card.name.ifEmpty { "Card" }, color = Ct.colors.text, modifier = Modifier.weight(1f))
-                                    Text(ratePct(e.rate), fontWeight = FontWeight.SemiBold, color = Ct.colors.muted, fontFamily = PlexMono)
+                                    Column(Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(e.card.name.ifEmpty { "Card" }, color = Ct.colors.text)
+                                            if (e.card.rotatingPool?.contains(category) == true) {
+                                                Spacer(Modifier.width(6.dp)); RotBadge()
+                                            }
+                                        }
+                                        breakdown(e)?.let {
+                                            Text(it, color = Ct.colors.muted, fontSize = 11.sp)
+                                        }
+                                    }
+                                    Text(ratePct(e.value), fontWeight = FontWeight.SemiBold, color = Ct.colors.muted, fontFamily = PlexMono)
                                 }
                                 if (i < runnersUp.lastIndex) HorizontalDivider(color = Ct.colors.border)
                             }
@@ -121,7 +137,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                                 Column {
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                         Text(e.card.name.ifEmpty { "Card" }, color = Ct.colors.muted, modifier = Modifier.weight(1f))
-                                        Text("${ratePct(e.rate)} · skipped", fontSize = 12.sp,
+                                        Text("${ratePct(e.value)} · skipped", fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold, color = Ct.colors.muted)
                                     }
                                     e.reason?.let {
@@ -141,4 +157,26 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
 private fun ratePct(r: Double): String {
     val rounded = Math.round(r * 100) / 100.0
     return (if (rounded == Math.floor(rounded)) rounded.toInt().toString() else rounded.toString()) + "%"
+}
+
+private fun trimNum(d: Double): String =
+    if (d == Math.floor(d)) d.toInt().toString() else d.toString()
+
+// For a points card (point value ≠ 1), how the cash-equivalent breaks down.
+private fun breakdown(e: Rewards.Ranked): String? =
+    if (e.pointValue != 1.0) "${trimNum(e.rate)}× points · ${trimNum(e.pointValue)}¢/pt" else null
+
+// Flags a category that rotates on this card — its rate only applies while the
+// user has it activated for the quarter.
+@Composable
+private fun RotBadge() {
+    Text(
+        "ROTATING",
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        color = Ct.colors.accent,
+        modifier = Modifier
+            .background(Ct.colors.accent.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
 }

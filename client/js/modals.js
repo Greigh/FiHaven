@@ -28,6 +28,8 @@ let pendingPayName   = null;
 let editPaymentId    = null; // non-null while editing an existing payment
 let pendingConfirmFn = null;
 let payPresets       = [];   // [{ key, label, sub, amount }] for the pay-modal chips
+let editRotatingPool = [];    // rotating-5% category pool for the card being edited
+let editRotatingRate = 5;     // the elevated rate those pool categories earn when active
 
 /* ── Card-balance side effect ─────────────────────────────────
    Recording a card payment decrements the card's balance (and
@@ -102,6 +104,8 @@ export function openBillModal(idx) {
   document.getElementById('b-amount').value    = b.amount    || '';
   document.getElementById('b-dueday').value    = b.dueDay    || '';
   document.getElementById('b-frequency').value = b.frequency || 'Monthly';
+  document.getElementById('b-start').value     = b.startDate || '';
+  document.getElementById('b-end').value        = b.endDate   || '';
   document.getElementById('b-notes').value     = b.notes     || '';
   document.getElementById('b-autopay').checked = !!b.autopay;
   populateBillCardOptions(b.cardId);
@@ -124,14 +128,26 @@ export function saveBill() {
   // that case so the field stays clean in exports/sync.
   var cardId = document.getElementById('b-card').value || null;
 
+  // Optional active window. "First bill due on" derives the recurring
+  // day-of-month, so a start date overrides the due-day field.
+  var startDate = document.getElementById('b-start').value || null;
+  var endDate   = document.getElementById('b-end').value   || null;
+  var dueDay    = parseInt(document.getElementById('b-dueday').value) || null;
+  if (startDate) {
+    var sd = parseInt(startDate.slice(8, 10), 10);
+    if (sd) dueDay = sd;
+  }
+
   var obj = {
     id:        (editBillId !== null) ? bills[editBillId].id : genId(),
     name:      name,
     business:  business || null,
     category:  document.getElementById('b-category').value,
     amount:    parseFloat(document.getElementById('b-amount').value) || 0,
-    dueDay:    parseInt(document.getElementById('b-dueday').value) || null,
+    dueDay:    dueDay,
     frequency: document.getElementById('b-frequency').value,
+    startDate: startDate,
+    endDate:   endDate,
     cardId:    cardId,
     notes:     document.getElementById('b-notes').value.trim(),
     autopay:   document.getElementById('b-autopay').checked,
@@ -185,12 +201,15 @@ export function toggleCardTypeFields() {
 }
 
 // Build one number input per reward category into #c-reward-cats,
-// pre-filled from the card's saved rewardCategories map.
+// pre-filled from the card's saved rewardCategories map. Categories that
+// belong to a rotating-5% pool are handled by the toggle row instead, so
+// they're skipped here to avoid a duplicate (and confusing) input.
 function renderRewardCatInputs(cats) {
   var box = document.getElementById('c-reward-cats');
   if (!box) return;
   box.innerHTML = '';
   REWARD_CATEGORIES.forEach(function (cat) {
+    if (editRotatingPool.indexOf(cat) !== -1) return;
     var row = document.createElement('div');
     row.className = 'reward-cat-row';
     var saved = parseFloat(cats[cat]);
@@ -202,6 +221,29 @@ function renderRewardCatInputs(cats) {
         '<span class="reward-cat-pct">%</span>' +
       '</span>';
     box.appendChild(row);
+  });
+}
+
+// Rotating / choose-your-category cards: render the pool as checkboxes the
+// user ticks for THIS quarter's active categories. A ticked box means the
+// category earns the elevated rate (written into rewardCategories on save).
+function renderRotatingToggles(cats) {
+  var box = document.getElementById('c-reward-rotating');
+  if (!box) return;
+  if (!editRotatingPool.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  var rate = editRotatingRate || 5;
+  var chips = editRotatingPool.map(function (cat) {
+    var on = parseFloat(cats[cat]) > 0;
+    return '<label class="reward-rot-chip' + (on ? ' on' : '') + '">' +
+      '<input type="checkbox" data-rotating-cat="' + cat + '"' + (on ? ' checked' : '') + '/>' +
+      '<span>' + cat + '</span></label>';
+  }).join('');
+  box.innerHTML =
+    '<div class="reward-rot-head">Rotating ' + rate + '% — tick this quarter’s active categories</div>' +
+    '<div class="reward-rot-chips">' + chips + '</div>';
+  box.querySelectorAll('input[data-rotating-cat]').forEach(function (inp) {
+    inp.onchange = function () { inp.closest('.reward-rot-chip').classList.toggle('on', inp.checked); };
   });
 }
 
@@ -231,7 +273,11 @@ function applyCardPreset(id) {
   if (!document.getElementById('c-issuer').value.trim()) document.getElementById('c-issuer').value = p.issuer;
   if (p.network) document.getElementById('c-network').value = p.network;
   document.getElementById('c-reward-base').value = p.rewardBase || '';
+  document.getElementById('c-reward-pointvalue').value = p.pointValue || '';
+  editRotatingPool = Array.isArray(p.rotatingPool) ? p.rotatingPool.slice() : [];
+  editRotatingRate = p.rotatingRate || 5;
   renderRewardCatInputs(p.rewardCategories || {});
+  renderRotatingToggles(p.rewardCategories || {});
 }
 
 // Collect the per-category inputs back into a map (only positive values).
@@ -240,6 +286,11 @@ function collectRewardCategories() {
   document.querySelectorAll('#c-reward-cats input[data-reward-cat]').forEach(function (inp) {
     var v = parseFloat(inp.value);
     if (!isNaN(v) && v > 0) out[inp.getAttribute('data-reward-cat')] = v;
+  });
+  // Ticked rotating categories earn the elevated rate for this quarter.
+  var rate = editRotatingRate || 5;
+  document.querySelectorAll('#c-reward-rotating input[data-rotating-cat]:checked').forEach(function (inp) {
+    out[inp.getAttribute('data-rotating-cat')] = rate;
   });
   return out;
 }
@@ -267,7 +318,11 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-autopay').checked = !!c.autopay;
   document.getElementById('c-notes').value     = c.notes       || '';
   document.getElementById('c-reward-base').value = c.rewardBase || '';
+  document.getElementById('c-reward-pointvalue').value = c.pointValue || '';
+  editRotatingPool = Array.isArray(c.rotatingPool) ? c.rotatingPool.slice() : [];
+  editRotatingRate = c.rotatingRate || 5;
   renderRewardCatInputs(c.rewardCategories || {});
+  renderRotatingToggles(c.rewardCategories || {});
   setupRewardPreset();
 
   toggleCardTypeFields();
@@ -313,6 +368,12 @@ export function saveCard() {
     // Rewards power the "which card should I use?" tool. Loans never earn.
     rewardBase:        isLoan ? 0 : (parseFloat(document.getElementById('c-reward-base').value) || 0),
     rewardCategories:  isLoan ? {} : collectRewardCategories(),
+    // Cents per point (null → treated as 1 = cash back by the optimizer).
+    pointValue:        isLoan ? null : (parseFloat(document.getElementById('c-reward-pointvalue').value) || null),
+    // Rotating-5% pool (Freedom Flex, Discover it, Custom Cash, Cash+…) so the
+    // editor can re-show the quarterly toggles; null for ordinary cards.
+    rotatingPool:      (isLoan || !editRotatingPool.length) ? null : editRotatingPool.slice(),
+    rotatingRate:      (isLoan || !editRotatingPool.length) ? null : (editRotatingRate || 5),
   };
 
   if (editCardId !== null) cards[editCardId] = obj; else cards.push(obj);

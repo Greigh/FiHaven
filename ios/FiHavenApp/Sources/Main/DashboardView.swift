@@ -19,7 +19,7 @@ struct DashboardView: View {
         .navigationTitle(store.monthLabel)
         .navigationBarTitleDisplayMode(.large)
         .overlay {
-            if !store.loaded && store.upcoming.isEmpty {
+            if !store.loaded && store.dashboardUpcoming.isEmpty {
                 ProgressView()
             }
         }
@@ -29,8 +29,8 @@ struct DashboardView: View {
     // ── Summary cards ────────────────────────────────────────────────
     private var summary: some View {
         HStack(spacing: 12) {
-            stat("Monthly income", Money.fmt(store.monthlyIncome), Theme.green)
-            stat("Left to pay", Money.fmt(store.remainingThisMonth), Theme.accent)
+            stat(store.incomeLabel, Money.fmt(store.periodIncome), Theme.green)
+            stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
         }
     }
 
@@ -54,14 +54,14 @@ struct DashboardView: View {
                 .tracking(0.4)
                 .foregroundStyle(Theme.muted)
 
-            if store.upcoming.isEmpty {
+            if store.dashboardUpcoming.isEmpty {
                 Text(store.loaded ? "Nothing scheduled — add a bill or card." : "Loading…")
                     .font(Theme.ui(15))
                     .foregroundStyle(Theme.muted)
                     .ctCard()
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(store.upcoming.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(store.dashboardUpcoming.enumerated()), id: \.element.id) { index, item in
                         if index > 0 { Divider().overlay(Theme.border) }
                         UpcomingRow(
                             item: item,

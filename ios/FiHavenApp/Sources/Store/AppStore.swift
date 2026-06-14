@@ -63,7 +63,21 @@ final class AppStore: ObservableObject {
         }
 
         var newPayments: [Payment] = []
-        func consider(type: String, refId: String, name: String, dueDay: Int?, autopay: Bool, amount: Double) {
+
+        func considerBill(_ b: Bill) {
+            guard b.autopay else { return }
+            guard b.dueDay != nil || !(b.startDate ?? "").isEmpty else { return }
+            guard BillSchedule.dueOnOrBeforeInPeriod(b, bounds: bounds, tz: tz, asOf: todayDate) != nil else { return }
+            let refId = String(b.id)
+            if Schedule.paidAmount(data.payments, type: "bill", refId: refId, in: bounds) > Schedule.paidEpsilon { return }
+            if Schedule.isSkipped(data.payments, type: "bill", refId: refId, in: bounds) { return }
+            newPayments.append(Payment(
+                id: Self.newPaymentID(), type: "bill", refId: refId, name: b.name,
+                amount: b.amount, date: todayISO(), monthKey: mkCal, note: "Auto-marked (autopay)"
+            ))
+        }
+
+        func considerCard(type: String, refId: String, name: String, dueDay: Int?, autopay: Bool, amount: Double) {
             guard autopay, let dd = dueDay, dd > 0, let due = dueInPeriod(dd), due <= todayDate else { return }
             if Schedule.paidAmount(data.payments, type: type, refId: refId, in: bounds) > Schedule.paidEpsilon { return }
             if Schedule.isSkipped(data.payments, type: type, refId: refId, in: bounds) { return }
@@ -73,12 +87,10 @@ final class AppStore: ObservableObject {
             ))
         }
 
-        for b in data.bills {
-            consider(type: "bill", refId: String(b.id), name: b.name, dueDay: b.dueDay, autopay: b.autopay, amount: b.amount)
-        }
+        for b in data.bills { considerBill(b) }
         for c in data.cards {
-            consider(type: "card", refId: String(c.id), name: c.name + " (payment)",
-                     dueDay: c.dueDay, autopay: c.autopay, amount: goalAmount(type: "card", refId: String(c.id)))
+            considerCard(type: "card", refId: String(c.id), name: c.name + " (payment)",
+                         dueDay: c.dueDay, autopay: c.autopay, amount: goalAmount(type: "card", refId: String(c.id)))
         }
         if !newPayments.isEmpty {
             mutate { $0.payments.append(contentsOf: newPayments) }
@@ -126,7 +138,27 @@ final class AppStore: ObservableObject {
     var currentBounds: PeriodBounds { Period.currentBounds(config: periodConfig, tz: tz) }
     var currentPeriodKey: String { currentBounds.key }
     var monthLabel: String { Period.label(currentBounds, config: periodConfig, tz: tz) }
-    var monthlyIncome: Double { Income.monthlyIncome(from: data.settings, monthKey: currentPeriodKey) }
+    var periodIncome: Double { Income.periodIncome(from: data.settings, bounds: currentBounds, tz: tz) }
+    var incomeLabel: String { Income.incomeLabel(for: periodConfig) }
+    var owedLabel: String { Income.owedLabel(for: periodConfig) }
+    var hidePaidOnDashboard: Bool { data.settings.hidePaidOnDashboard }
+
+    /// Bills/cards that count as obligations in the current period.
+    var periodObligationItems: [UpcomingItem] {
+        upcoming.filter { item in
+            if item.type == "card" { return true }
+            guard let bill = data.bills.first(where: { String($0.id) == item.refId }) else { return false }
+            return BillSchedule.dueInPeriod(bill, bounds: currentBounds, tz: tz)
+        }
+    }
+
+    /// Upcoming items visible on the dashboard (respects hide-paid setting).
+    var dashboardUpcoming: [UpcomingItem] {
+        if hidePaidOnDashboard {
+            return upcoming.filter { !isFullyPaid($0) }
+        }
+        return upcoming
+    }
 
     // ── Net worth (assets − liabilities) ────────────────────────────
     var assets: Double { data.accounts.reduce(0) { $0 + $1.balance } }
@@ -146,10 +178,10 @@ final class AppStore: ObservableObject {
         Schedule.buildUpcomingItems(bills: data.bills, cards: data.cards, tz: tz)
     }
 
-    /// Total still owed this period: the sum of each item's
+    /// Total still owed this period: the sum of each obligation's
     /// remaining-to-goal, so partial payments shrink it.
     var remainingThisMonth: Double {
-        upcoming.reduce(0) { $0 + remaining($1) }
+        periodObligationItems.reduce(0) { $0 + remaining($1) }
     }
 
     func isPaid(_ item: UpcomingItem) -> Bool {

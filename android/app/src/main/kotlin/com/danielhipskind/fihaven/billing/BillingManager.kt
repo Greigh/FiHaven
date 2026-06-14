@@ -73,7 +73,9 @@ class BillingManager(
             ).build()
         client.queryProductDetailsAsync(params) { result, details ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                _products.value = details.sortedBy { priceMicros(it) }
+                // Billing 9.0.0: the callback yields a QueryProductDetailsResult,
+                // not a bare List<ProductDetails>.
+                _products.value = details.productDetailsList.sortedBy { priceMicros(it) }
             }
         }
     }

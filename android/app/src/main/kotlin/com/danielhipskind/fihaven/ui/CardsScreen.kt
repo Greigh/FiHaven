@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -333,6 +334,11 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
             card?.rewardCategories?.forEach { (k, v) -> if (v > 0) put(k, v.toString()) }
         }
     }
+    var rotatingRate by remember { mutableStateOf(card?.rotatingRate ?: 5.0) }
+    val rotatingPool = remember {
+        mutableStateListOf<String>().apply { card?.rotatingPool?.let { addAll(it) } }
+    }
+    var pointValue by remember { mutableStateOf(card?.pointValue?.takeIf { it != 1.0 }?.toString() ?: "") }
 
     val isLoan = type == "loan"
 
@@ -368,6 +374,9 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     rewardCategories = if (isLoan) emptyMap() else rewardCats.mapNotNull { (k, v) ->
                         v.toDoubleOrNull()?.takeIf { it > 0.0 }?.let { k to it }
                     }.toMap(),
+                    rotatingPool = if (isLoan || rotatingPool.isEmpty()) null else rotatingPool.toList(),
+                    rotatingRate = if (isLoan || rotatingPool.isEmpty()) null else rotatingRate,
+                    pointValue = if (isLoan) null else pointValue.toDoubleOrNull()?.takeIf { it > 0 && it != 1.0 },
                 )
             )
             onDismiss()
@@ -432,13 +441,36 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     rewardBase = if (p.rewardBase > 0) p.rewardBase.toString() else ""
                     rewardCats.clear()
                     p.rewardCategories.forEach { (k, v) -> rewardCats[k] = v.toString() }
+                    rotatingPool.clear()
+                    p.rotatingPool?.let { rotatingPool.addAll(it) }
+                    rotatingRate = p.rotatingRate ?: 5.0
+                    pointValue = p.pointValue?.takeIf { it != 1.0 }?.toString() ?: ""
                 }
             }
             OutlinedTextField(rewardBase, { rewardBase = it }, label = { Text("Base reward % (everything)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(pointValue, { pointValue = it }, label = { Text("Point value (¢ per point, 1 = cash back)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
             Rewards.CATEGORIES.forEach { cat ->
-                OutlinedTextField(rewardCats[cat] ?: "", { rewardCats[cat] = it }, label = { Text("$cat %") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (cat !in rotatingPool) {
+                    OutlinedTextField(rewardCats[cat] ?: "", { rewardCats[cat] = it }, label = { Text("$cat %") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            if (rotatingPool.isNotEmpty()) {
+                Text("Rotating ${rotatingRate.toInt()}% — tick this quarter’s active categories",
+                    color = Ct.colors.muted, fontSize = 12.sp)
+                rotatingPool.forEach { cat ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(cat, color = Ct.colors.text, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = (rewardCats[cat]?.toDoubleOrNull() ?: 0.0) > 0.0,
+                            onCheckedChange = { on ->
+                                if (on) rewardCats[cat] = rotatingRate.toString() else rewardCats.remove(cat)
+                            },
+                        )
+                    }
+                }
             }
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())

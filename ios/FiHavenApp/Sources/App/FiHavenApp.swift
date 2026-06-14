@@ -16,8 +16,14 @@ struct FiHavenApp: App {
                 // covers the auth/loading screens, not just signed-in.
                 .preferredColorScheme(theme.preference.colorScheme)
                 .onChange(of: scenePhase) { phase in
-                    // Re-lock when the app leaves the foreground.
-                    if phase == .background { env.biometric.lockIfEnabled() }
+                    switch phase {
+                    case .background:
+                        env.biometric.noteBackgrounded()
+                    case .active:
+                        env.biometric.maybeLockOnForeground()
+                    default:
+                        break
+                    }
                 }
         }
     }
