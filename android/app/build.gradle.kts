@@ -60,7 +60,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     // Google Play Billing for subscriptions (docs/native-contract.md §billing).
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    implementation("com.android.billingclient:billing-ktx:9.0.0")
 
     // Keystore-backed encrypted token storage (parity with iOS Keychain).
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
