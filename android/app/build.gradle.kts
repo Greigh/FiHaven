@@ -63,7 +63,7 @@ dependencies {
     implementation("com.android.billingclient:billing-ktx:9.0.0")
 
     // Keystore-backed encrypted token storage (parity with iOS Keychain).
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
 
     // Biometric app lock (fingerprint / face). BiometricPrompt needs the
     // host to be a FragmentActivity.
