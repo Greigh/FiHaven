@@ -108,12 +108,34 @@ function replaceObject(target, src) {
   for (const k of Object.keys(target)) delete target[k];
   if (src && typeof src === 'object' && !Array.isArray(src)) Object.assign(target, src);
 }
-export function setBills(arr)    { replaceArray(bills, arr); }
-export function setCards(arr)    { replaceArray(cards, arr); }
-export function setPayments(arr) { replaceArray(payments, arr); }
-export function setAccounts(arr) { replaceArray(accounts, arr); }
-export function setGoals(arr)    { replaceArray(goals, arr); }
-export function setTransactions(arr) { replaceArray(transactions, arr); }
+/* Collision-proof id for new records. Legacy data used bare Date.now(),
+   which duplicates when two items are created in the same millisecond —
+   and Svelte's keyed {#each (item.id)} throws on duplicate keys. */
+export function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/* Repair any missing or duplicated ids in place so keyed lists never
+   collide (and edit/delete-by-id always hits the right row). Mutated
+   ids persist on the next save/sync. */
+function repairIds(arr) {
+  if (!Array.isArray(arr)) return arr;
+  const seen = new Set();
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const id = item.id;
+    if (id == null || id === '' || seen.has(String(id))) item.id = genId();
+    seen.add(String(item.id));
+  }
+  return arr;
+}
+
+export function setBills(arr)    { replaceArray(bills, repairIds(arr)); }
+export function setCards(arr)    { replaceArray(cards, repairIds(arr)); }
+export function setPayments(arr) { replaceArray(payments, repairIds(arr)); }
+export function setAccounts(arr) { replaceArray(accounts, repairIds(arr)); }
+export function setGoals(arr)    { replaceArray(goals, repairIds(arr)); }
+export function setTransactions(arr) { replaceArray(transactions, repairIds(arr)); }
 export function setSettings(obj) {
   replaceObject(settings, obj);
   // Restore the default income shape so reactive readers don't

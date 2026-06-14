@@ -7,7 +7,7 @@
    inside functions, not at module top-level.
 ═══════════════════════════════════════════════════════════ */
 
-import { bills, cards, payments, save, setPayments } from './storage.svelte.js';
+import { bills, cards, payments, save, setPayments, genId } from './storage.svelte.js';
 import {
   fmt, monthKey, toast, refreshAll,
   recommendedAmount, goalAmountFor, paidAmount, paidGoalPolicy,
@@ -125,7 +125,7 @@ export function saveBill() {
   var cardId = document.getElementById('b-card').value || null;
 
   var obj = {
-    id:        (editBillId !== null) ? bills[editBillId].id : Date.now(),
+    id:        (editBillId !== null) ? bills[editBillId].id : genId(),
     name:      name,
     business:  business || null,
     category:  document.getElementById('b-category').value,
@@ -291,7 +291,7 @@ export function saveCard() {
   var currentBalance = isLoan ? null : (parseFloat(document.getElementById('c-current-balance').value) || null);
 
   var obj = {
-    id:           (editCardId !== null) ? cards[editCardId].id : Date.now(),
+    id:           (editCardId !== null) ? cards[editCardId].id : genId(),
     name:         name,
     type:         type,
     issuer:       issuer,

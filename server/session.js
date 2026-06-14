@@ -47,8 +47,13 @@ function readSessionId(req) {
   const cookieId = req.cookies && req.cookies[SESSION_COOKIE];
   if (cookieId) return { id: cookieId, via: 'cookie' };
   const auth = (req.get && req.get('authorization')) || '';
-  const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
-  if (m && m[1].trim()) return { id: m[1].trim(), via: 'bearer' };
+  const trimmed = auth.trim();
+  // Linear parse (single \s, no quantifier) so a crafted "bearer " header
+  // with many spaces can't trigger catastrophic backtracking (ReDoS).
+  if (/^bearer\s/i.test(trimmed)) {
+    const id = trimmed.slice(6).trim();   // 'Bearer'.length === 6
+    if (id) return { id, via: 'bearer' };
+  }
   return null;
 }
 

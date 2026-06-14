@@ -117,9 +117,10 @@ const BACKUP_CODE_COUNT = 10;
 // from an alphabet that omits look-alikes (0/O, 1/I).
 function newBackupCodePlain() {
   const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const buf = crypto.randomBytes(8);
+  // crypto.randomInt is rejection-sampled (unbiased) — unlike `byte % len`,
+  // which skews toward low indices when len doesn't divide 256.
   let out = '';
-  for (let i = 0; i < 8; i++) out += alpha[buf[i] % alpha.length];
+  for (let i = 0; i < 8; i++) out += alpha[crypto.randomInt(alpha.length)];
   return out.slice(0, 4) + '-' + out.slice(4);
 }
 

@@ -1,17 +1,107 @@
+<div align="center">
+
+<img src="client/public/icon.svg" alt="FiHaven logo" width="96" height="96" />
+
 # FiHaven
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![Android CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![iOS CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![Dependency Review](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/dependency-review.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![Version](https://img.shields.io/badge/version-1.1.0-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Issues](https://img.shields.io/github/issues/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/issues) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits) [![Swift](https://img.shields.io/badge/Swift-5.0-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.1.20-blue)](https://kotlinlang.org) [![Codecov](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main)](https://codecov.io/gh/Greigh/FiHaven) [![Release](https://img.shields.io/github/v/release/Greigh/FiHaven)](https://github.com/Greigh/FiHaven/releases) [![Dependabot alerts](https://img.shields.io/github/dependabot/alerts/Greigh/FiHaven?label=dependabot%20alerts)](https://github.com/Greigh/FiHaven/security/dependabot)
+**Quiet money. Calm month.**
 
-> Quiet money. Calm month.
+A calm, manual-first money dashboard — bills, cards, loans, budget, and
+debt payoff — with full native iOS/macOS and Android apps on a shared
+backend.
+
+[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![Android CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![iOS CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main)](https://github.com/Greigh/FiHaven/actions) [![Dependency Review](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/dependency-review.yml?branch=main)](https://github.com/Greigh/FiHaven/actions)
+
+[![Version](https://img.shields.io/badge/version-1.2.0-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-5.0-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.1.20-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+
+</div>
+
+---
 
 A focused bill and debt dashboard for people who'd rather spend five
 calm minutes a week than a frantic afternoon every payday. Track
-recurring bills, credit cards (including 0% promo periods), monthly
-budget, payment history, debt-payoff strategies, and a month-grid
-calendar of upcoming due dates — all behind a real account with
-server-side sync, optional multi-factor sign-in (TOTP, passkeys, or
-email codes), and an iCal feed you can subscribe to from any
-calendar app.
+recurring bills, credit cards (including 0% promo periods), **loans**,
+monthly budget, **individual transactions**, payment history,
+debt-payoff strategies, and a month-grid calendar of upcoming due
+dates — all behind a real account with server-side sync, optional
+multi-factor sign-in (TOTP, passkeys, or email codes), and an iCal feed
+you can subscribe to from any calendar app.
+
+It stays **manual-first**: you own every number. Optional **Plaid**
+bank linking is just a safety net that surfaces transactions you may
+have missed — it never overwrites what you entered. A **rewards
+optimizer** tells you which card to reach for per spending category
+(and pointedly *won't* recommend a card mid-0%-promo, since carrying a
+reward purchase at the back of your payoff queue costs more in interest
+than the rewards are worth). Premium features live behind a unified
+**FiHaven Pro** entitlement across web (Stripe), iOS (StoreKit), and
+Android (Play).
+
+---
+
+## Contents
+
+- [Highlights](#highlights)
+- [Free vs Pro](#free-vs-pro)
+- [Stack](#stack)
+- [Quick start](#quick-start)
+- [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android)
+- [Project structure](#project-structure)
+- [npm scripts](#npm-scripts)
+- [Environment](#environment)
+- [URLs](#urls)
+- [API](#api)
+- [Admin & promo codes](#admin--promo-codes)
+- [How a few things work](#how-a-few-things-work)
+- [Production deploy](#production-deploy)
+- [SEO + standards](#seo--standards)
+- [License](#license)
+
+Changelog: [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Highlights
+
+- **Bills, Cards & Loans** — recurring bills with variance sparklines,
+  credit cards with 0% promo tracking, and loans/mortgages in their own
+  tab (recommended payment is the minimum, not the whole balance —
+  payoff-in-full stays an option).
+- **Budget suite** — income sources, period-aware budgeting (calendar,
+  start-day, or rolling K-day periods), and a "cushion after bills"
+  runway.
+- **Transactions** — log individual spend, grouped and categorized;
+  optionally augmented (never replaced) by Plaid bank sync.
+- **Rewards optimizer** — per-category multipliers, a built-in preset
+  database of popular cards, and 0%-promo-aware recommendations.
+- **Debt payoff** — avalanche / snowball planners with a split view.
+- **Calendar + iCal** — month grid of due dates and a subscribe-anywhere
+  feed.
+- **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate
+  limiting (express-rate-limit), MFA (TOTP / passkeys / email codes),
+  AES-256-GCM at rest, and a hardware-KeyStore-backed biometric app lock
+  on Android.
+
+---
+
+## Free vs Pro
+
+The free tier is genuinely useful on its own — all manual tracking. Pro
+adds the automation and insight tools. The `pro` entitlement is
+server-authoritative and identical across web, iOS, and Android.
+
+| Free | Pro |
+|---|---|
+| Bills, Cards & Loans (track, mark paid, due dates) | Debt-payoff planner |
+| Budget with manual transactions | Due-date calendar + iCal feed |
+| Savings goals | Full payment history |
+| Net worth | Rewards optimizer + card preset database |
+| Light/dark, time zones, MFA, export/import | Subscription finder · Autopay auto-mark |
+| | Bank sync (Plaid) · spending-category budgets |
+
+Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
+`requirePro` on the server, iOS via `ProGate(feature:)`, Android via
+`ProGate(vm, ProFeature.X)`.
 
 ---
 
@@ -23,8 +113,10 @@ calendar app.
 | **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
 | **Server** | Node 22 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
-| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, in-memory login rate limiter |
-| **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM |
+| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email |
+| **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
+| **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes |
+| **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth redirect, `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
 | **Deploy** | A local, gitignored `upload.sh` (not shipped in this repo) builds, rsyncs `dist/` + `server/` + a sanitized `.env` to the VPS, then `npm ci --omit=dev` + `pm2 restart` on the remote |
 
@@ -92,7 +184,7 @@ entitlement is server-authoritative and unified across web (Stripe), iOS
 fihaven/
 ├── client/
 │   ├── *.html                       page entries: home, login, dashboard,
-│   │                                settings, welcome (onboarding),
+│   │                                settings, plaid-oauth, welcome (onboarding),
 │   │                                verify-email, reset (password),
 │   │                                recover (lost-2FA), terms, privacy, 404, 500
 │   ├── css/
@@ -123,16 +215,25 @@ fihaven/
 │   │   ├── navbar.js                appbar + mobile drawer + FiHaven Pro entry
 │   │   ├── theme.js                 light/dark theme handling
 │   │   ├── export.js                CSV builders for the dashboard tabs
+│   │   ├── rewards.js               per-category rewards ranking engine
+│   │   ├── cardPresets.js           preset DB of popular cards + reward defaults
+│   │   ├── period.js                period model (calendar / start-day / rolling)
+│   │   ├── plaid-oauth.js           /plaid-oauth redirect resume handler
 │   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
 │   │   ├── snoozes.svelte.js        per-bill snooze state
-│   │   └── dashboard.js / bills.js / cards.js / budget.js /
-│   │       history.js / payoff.js /
+│   │   └── dashboard.js / bills.js / cards.js / loans.js /
+│   │       budget.js / history.js / payoff.js / rewards.js /
 │   │       calendar.js               thin mount shims for each Svelte view
 │   ├── svelte/                      Svelte 5 components
 │   │   ├── DashboardView.svelte
 │   │   ├── BillsList.svelte         + variance sparklines, stale-bill audit
-│   │   ├── CardsList.svelte
+│   │   ├── CardsList.svelte         shared by Cards & Loans via a `kind` prop
+│   │   ├── RewardsView.svelte       "which card should I use?" optimizer
 │   │   ├── BudgetView.svelte        + "Cushion after bills" runway
+│   │   ├── SpendingPanel.svelte     transactions entry + recent spend
+│   │   ├── SubscriptionsPanel.svelte recurring-charge detection
+│   │   ├── NetWorthPanel.svelte     accounts → net-worth rollup
+│   │   ├── GoalsPanel.svelte        savings goals
 │   │   ├── CalendarView.svelte      month-grid of upcoming due dates
 │   │   ├── HistoryList.svelte
 │   │   ├── PayoffView.svelte
@@ -158,7 +259,8 @@ fihaven/
 │   ├── billing.js                   Stripe + entitlement (FiHaven Pro)
 │   ├── plaid.js                     optional Plaid bank-linking helpers
 │   ├── mail.js                      thin nodemailer wrapper
-│   ├── rateLimit.js                 in-memory IP+email throttle (5 / 15 min)
+│   ├── rateLimit.js                 in-memory login throttle, IP+email (5 / 15 min)
+│   │                                (per-IP flood guard is express-rate-limit in index.js)
 │   ├── util.js                      email + password policy, BCRYPT_COST
 │   └── routes/
 │       ├── auth.js                  signup, login, logout, me, verify, reset, recover
@@ -167,7 +269,8 @@ fihaven/
 │       │                            export/<type>.csv, iCal token CRUD, onboarded
 │       ├── mfa.js                   /api/account/mfa (enroll/manage second factors)
 │       ├── billing.js               Stripe checkout / portal / webhook + entitlement
-│       ├── plaid.js                 Pro-gated bank linking (link / exchange / refresh)
+│       ├── plaid.js                 Pro-gated bank linking (link / exchange /
+│       │                            refresh / item-remove / repaired / webhook)
 │       ├── admin.js                 admin-only stats + user management
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
 ├── data/                            SQLite file + mfa.key live here (gitignored)
@@ -265,8 +368,9 @@ the Vite dev middleware.
 | `/fihaven/login` | Log-in / sign-up | public | ✅ |
 | `/fihaven/terms` | Terms of Use | public | ✅ |
 | `/fihaven/privacy` | Privacy Policy | public | ✅ |
-| `/fihaven/dashboard` | App dashboard (Dashboard / Bills / Cards / Budget / Calendar / History / Payoff) | required | ❌ noindex |
-| `/fihaven/settings` | Time zone / name / 2FA / iCal / email / password / export / import / delete | required | ❌ noindex |
+| `/fihaven/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
+| `/fihaven/settings` | Profile / Preferences / Payments — time zone, name, 2FA, iCal, bank linking, email, password, export, import, delete | required | ❌ noindex |
+| `/fihaven/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
 | `/fihaven/404` | Not-found page | public | ❌ |
 | `/fihaven/500` | Server-error page | public | ❌ |
 
@@ -294,7 +398,7 @@ CSV / JSON export endpoints and the public `.ics` feed).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/data` | Whole snapshot — `{email, name, bills, cards, payments, settings}` |
+| `GET` | `/api/data` | Whole snapshot — `{email, bills, cards, payments, accounts, goals, transactions, settings, entitlement}` (cards include loans; `entitlement` carries the effective Pro status) |
 | `PUT` | `/api/data` | Replace the snapshot (auth + CSRF) |
 
 ### Account management
@@ -352,6 +456,22 @@ also embedded in `GET /api/data`. Full spec:
 | `POST` | `/api/billing/{apple,google}/verify` | Verify a native store transaction |
 | `POST` | `/api/billing/promo/redeem` | Redeem a server promo code |
 | `POST` | `/api/billing/promo` | Create a promo code (admin; `ADMIN_EMAILS`) |
+
+### Bank linking (Plaid — Pro-gated)
+
+Manual-first overlay: Plaid only *adds* transactions you may have
+missed. All routes require Pro (`402` otherwise); access tokens are
+AES-256-GCM-encrypted at rest.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/plaid/status` | Linked items + last-sync state |
+| `POST` | `/api/plaid/link/token` | Create a Link token (pass `{itemId}` for update-mode reconnect) |
+| `POST` | `/api/plaid/link/exchange` | Exchange the public token; dedupes against already-linked banks (`409 already-linked`) |
+| `POST` | `/api/plaid/refresh` | `transactionsSync` → additively merge new outflows |
+| `POST` | `/api/plaid/item/:id/repaired` | Mark a reconnected (update-mode) item healthy |
+| `POST` | `/api/plaid/item/:id/remove` | Unlink a bank (manual data untouched) |
+| `POST` | `/api/plaid/webhook` | Plaid webhooks (ES256 JWT-verified in production) |
 
 All mutating routes (every `POST` / `PUT` / `DELETE` above) require
 the session cookie **and** the `X-CSRF-Token` header — its value is
@@ -507,6 +627,31 @@ Marking a card payment as paid (`confirmPay`) decrements
 `card.balance` (and `card.promoBalance` if present). Edit-payment
 applies the delta. Delete-payment from the History tab adds the
 amount back. Balances never go negative.
+
+### Rewards optimizer
+
+The Rewards tab ranks your cards for a chosen spending category. Each
+card's effective rate is `rewardCategories[category] ?? rewardBase`, and
+the engine (`client/js/rewards.js`, mirrored by the native cores) returns
+the best card plus the rest, **with one deliberate exclusion**: any card
+inside an active 0% APR promo is dropped (and shown with a reason).
+Because payoff strategies pay 0% balances *last*, a reward purchase made
+on a promo card sits at the back of the queue and starts accruing
+interest before it's cleared — which almost always costs more than the
+rewards are worth. A preset database of popular cards
+(`client/js/cardPresets.js`) auto-fills sensible reward defaults.
+
+### Bank sync (manual-first)
+
+FiHaven is **manual-first** — Plaid is an optional safety net, never the
+source of truth. Synced transactions are persisted *additively* (tagged
+`source:'plaid'`, deduped by Plaid id, outflows only) and shown alongside
+your manual entries with a 🏦 marker; they're non-deletable from the row
+(manage the link in Settings) and a dropped connection never breaks the
+dashboard. OAuth banks redirect the whole browser out and back to
+`/plaid-oauth`, which resumes Link from a stashed token. Webhooks are
+ES256-JWT-verified in production, and re-auth ("update mode") is a
+first-class Reconnect flow on web, iOS, and Android.
 
 ### Responsive / mobile layout
 

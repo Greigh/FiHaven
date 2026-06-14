@@ -87,14 +87,33 @@ const sub = express.Router({ mergeParams: true });
 
 // ── Anti-DDoS: per-IP rate limits ───────────────────────────────
 // A broad global cap blunts floods across everything; tighter caps
-// guard the API and the unauthenticated auth surface. In-memory, single
-// process — front with a CDN/WAF for volumetric attacks. Disabled under
-// test so the suite isn't throttled.
-const { ipRateLimiter } = require('./rateLimit');
+// guard the API and the unauthenticated auth surface. Backed by
+// express-rate-limit (in-memory, single process — front with a CDN/WAF
+// for volumetric attacks). Disabled under test so the suite isn't throttled.
+const { rateLimit } = require('express-rate-limit');
+function ipLimiter({ windowMs, limit, name }) {
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: true,
+    handler: (req, res) => {
+      const reset = req.rateLimit && req.rateLimit.resetTime;
+      const retryAfter = reset
+        ? Math.max(1, Math.ceil((reset.getTime() - Date.now()) / 1000))
+        : Math.ceil(windowMs / 1000);
+      res.set('Retry-After', String(retryAfter));
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`rate-limit[${name}]: ${req.ip} blocked`);
+      }
+      res.status(429).json({ error: 'rate-limited', retryAfter });
+    },
+  });
+}
 if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
-  sub.use(ipRateLimiter({ windowMs: 60 * 1000, max: 600, name: 'global' }));
-  sub.use('/api', ipRateLimiter({ windowMs: 60 * 1000, max: 240, name: 'api' }));
-  sub.use('/api/auth', ipRateLimiter({ windowMs: 60 * 1000, max: 40, name: 'auth' }));
+  sub.use(ipLimiter({ windowMs: 60 * 1000, limit: 600, name: 'global' }));
+  sub.use('/api', ipLimiter({ windowMs: 60 * 1000, limit: 240, name: 'api' }));
+  sub.use('/api/auth', ipLimiter({ windowMs: 60 * 1000, limit: 40, name: 'auth' }));
 }
 
 // API routes. The data + MFA mounts are gated behind requireVerified:

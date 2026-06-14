@@ -11,12 +11,18 @@
   import { openEditPayment } from '../js/modals.js';
   import { deletePayment } from '../js/history.js';
 
+  // Skips are stored as payment records (flagged `skipped`, amount 0) but
+  // aren't real payments, so they never appear here. The empty state keys
+  // off this visible list — not raw `payments.length` — so a period with
+  // only skips shows "No payment history yet" instead of a blank box.
+  let visible = $derived(payments.filter((p) => !p.skipped));
+
   // Group sorted-descending payments by the active period. Tolerate
   // records with a missing/empty date — a single bad row must not throw
   // and blank out the whole tab.
   let byMonth = $derived.by(() => {
-    const sorted = payments
-      .filter((p) => !p.skipped)
+    const sorted = visible
+      .slice()
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const map = {};
     sorted.forEach((p) => {
@@ -43,7 +49,7 @@
   }
 </script>
 
-{#if payments.length === 0}
+{#if visible.length === 0}
   <div class="empty">
     <div class="empty-icon">🕐</div>
     <h3>No payment history yet</h3>
