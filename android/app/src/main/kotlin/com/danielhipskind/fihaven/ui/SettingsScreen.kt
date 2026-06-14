@@ -7,6 +7,7 @@ import androidx.fragment.app.FragmentActivity
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -37,6 +39,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -90,7 +94,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     val close: () -> Unit = { dialog = null; reload++ }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Settings", onBack = onBack)
+        ScreenHeader("Settings", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 Section("ACCOUNT") {
@@ -141,7 +145,12 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Customize tabs", null) { dialog = "tabs" }
                     HorizontalDivider(color = Ct.colors.border)
-                    NavRow("Mark fully paid at", paidGoalLabel(PaidGoalPolicy.from(data.settings.paidGoal))) { dialog = "paidgoal" }
+                    PaidGoalPicker(PaidGoalPolicy.from(data.settings.paidGoal)) { vm.setPaidGoal(it) }
+                    Text(
+                        "How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+                    )
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -227,7 +236,6 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "emailDisable" -> EmailDisableDialog(vm, close)
         "backup" -> BackupCodesDialog(vm, close)
         "timezone" -> TimezoneDialog(vm, close)
-        "paidgoal" -> PaidGoalDialog(vm, close)
         "period" -> PeriodDialog(vm, data.settings, close)
         "autopayhour" -> AutopayHourDialog(vm, data.settings.autopayMarkHour, close)
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
@@ -330,10 +338,37 @@ private fun LicensesDialog(onDone: () -> Unit) {
     }
 }
 
-private fun paidGoalLabel(policy: PaidGoalPolicy): String = when (policy) {
-    PaidGoalPolicy.MINIMUM -> "Minimum"
-    PaidGoalPolicy.RECOMMENDED -> "Recommended"
-    PaidGoalPolicy.FULL -> "Full amount"
+@Composable
+private fun PaidGoalPicker(current: PaidGoalPolicy, onSelect: (PaidGoalPolicy) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text("Mark fully paid at", color = Ct.colors.text, fontSize = 16.sp)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf(
+                PaidGoalPolicy.MINIMUM to "Minimum",
+                PaidGoalPolicy.RECOMMENDED to "Recommended",
+                PaidGoalPolicy.FULL to "Full amount",
+            ).forEach { (policy, label) ->
+                val selected = policy == current
+                Text(
+                    label,
+                    color = if (selected) Color.White else Ct.colors.text,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) Ct.colors.accent else Ct.colors.bg)
+                        .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(policy) }
+                        .padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+    }
 }
 
 private fun defaultViewLabel(v: String?): String = when (v) {
@@ -435,25 +470,6 @@ private fun BioLockDialog(
             Text("$customMinutes min", color = Ct.colors.text, fontSize = 15.sp, fontFamily = PlexMono)
             TextButton(onClick = { if (customMinutes < 60) customMinutes++ }) { Text("+", color = Ct.colors.accent) }
             TextButton(onClick = { apply(customMinutes) }) { Text("Set", color = Ct.colors.accent) }
-        }
-    }
-}
-
-@Composable
-private fun PaidGoalDialog(vm: AppViewModel, onDone: () -> Unit) {
-    val options = listOf(
-        PaidGoalPolicy.MINIMUM to "The minimum payment",
-        PaidGoalPolicy.RECOMMENDED to "The recommended amount (clears 0% promos in time)",
-        PaidGoalPolicy.FULL to "The full balance / amount",
-    )
-    FormDialog("Mark fully paid at", saveEnabled = false, onSave = {}, onDismiss = onDone) {
-        Text("How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment. Bills always use their full amount.",
-            color = Ct.colors.muted, fontSize = 13.sp)
-        options.forEach { (policy, label) ->
-            Text(label, color = Ct.colors.text, fontSize = 16.sp,
-                modifier = Modifier.fillMaxWidth().clickable {
-                    vm.setPaidGoal(policy); onDone()
-                }.padding(vertical = 12.dp))
         }
     }
 }

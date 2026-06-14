@@ -29,7 +29,7 @@ if includeChecks {
 
 let package = Package(
     name: "FiHavenCore",
-    platforms: [.iOS(.v16), .macOS(.v13)],
+    platforms: [.iOS(.v18), .macOS(.v13)],
     products: products,
     targets: targets,
     // Swift 5 language mode keeps the core free of strict-concurrency

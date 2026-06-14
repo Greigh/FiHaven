@@ -69,6 +69,12 @@ struct BillsView: View {
                         paidSoFar: store.paidAmount(type: "bill", refId: String(bill.id)),
                         skipped: store.isSkipped(type: "bill", refId: String(bill.id)),
                         onPay: { paying = PayTarget(type: "bill", refId: String(bill.id), name: bill.name) },
+                        onUnmark: {
+                            store.setPaid(type: "bill", refId: String(bill.id), name: bill.name,
+                                          amount: store.goalAmount(type: "bill", refId: String(bill.id)), paid: false)
+                        },
+                        onSkip: { store.skipMonth(type: "bill", refId: String(bill.id), name: bill.name) },
+                        onUnskip: { store.unskip(type: "bill", refId: String(bill.id)) },
                         onEdit: { editing = bill }
                     )
                     .swipeActions(edge: .leading) {
@@ -119,7 +125,7 @@ struct BillsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Bills")
+        .brandedNavigationBar("Bills")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -190,11 +196,14 @@ private struct BillRow: View {
     let paidSoFar: Double
     var skipped: Bool = false
     let onPay: () -> Void
+    let onUnmark: () -> Void
+    let onSkip: () -> Void
+    let onUnskip: () -> Void
     let onEdit: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onPay) {
+            Button(action: statusTap) {
                 Image(systemName: skipped ? "forward.end.circle.fill" : statusIcon)
                     .font(.system(size: 24))
                     .foregroundStyle(skipped ? Theme.muted : statusColor)
@@ -204,11 +213,15 @@ private struct BillRow: View {
             Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 20))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(bill.name).font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
-                    if let bus = bill.business, !bus.isEmpty {
-                        Text("· \(bus)").font(Theme.ui(14)).foregroundStyle(Theme.muted)
-                    }
+                Text(bill.name)
+                    .font(Theme.ui(15, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                if let bus = bill.business, !bus.isEmpty {
+                    Text(bus)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
                 }
                 if DateLogic.billEnded(bill, tz: store.tz) {
                     Text("⏹ Ended \(friendlyDate(bill.endDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
@@ -243,6 +256,25 @@ private struct BillRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
+        .contextMenu {
+            if state == .full && !skipped {
+                Button { onUnmark() } label: { Label("Undo payment", systemImage: "arrow.uturn.backward") }
+            } else if !skipped {
+                Button { onPay() } label: { Label("Record payment", systemImage: "checkmark.circle") }
+            }
+            if skipped {
+                Button { onUnskip() } label: { Label("Un-skip month", systemImage: "arrow.uturn.backward") }
+            } else {
+                Button { onSkip() } label: { Label("Skip this month", systemImage: "forward.end") }
+            }
+            Button { onEdit() } label: { Label("Edit bill", systemImage: "pencil") }
+        }
+    }
+
+    private func statusTap() {
+        if skipped { onUnskip() }
+        else if state == .full { onUnmark() }
+        else { onPay() }
     }
 
     private var statusIcon: String {

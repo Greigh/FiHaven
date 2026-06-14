@@ -103,7 +103,12 @@ struct PaywallView: View {
     private let perks: [(String, String, String)] = [
         ("chart.line.downtrend.xyaxis", "Payoff planner", "Snowball & avalanche plans + your debt-free date"),
         ("calendar", "Due-date calendar", "Every bill and card on a monthly view"),
-        ("clock.arrow.circlepath", "Payment history", "Search and review everything you’ve paid"),
+        ("clock.arrow.circlepath", "Payment history", "Search and review everything you've paid"),
+        ("star.circle.fill", "Rewards optimizer", "See which card earns the most for each purchase"),
+        ("arrow.triangle.2.circlepath", "Subscription finder", "Spot recurring charges and price hikes"),
+        ("chart.pie.fill", "Category budgets", "Set spending limits and track progress by category"),
+        ("building.columns.fill", "Bank linking", "Auto-fetch balances via Plaid (optional)"),
+        ("checkmark.seal.fill", "Autopay mark", "Auto-mark autopay items paid on their due date"),
         ("square.and.arrow.up", "Data export", "Download your full account any time"),
     ]
 

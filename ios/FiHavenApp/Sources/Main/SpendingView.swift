@@ -8,8 +8,6 @@ struct SpendingView: View {
     @State private var addingTx = false
     @State private var editingBudgets = false
 
-    private let spendingCategories = ["Groceries", "Dining", "Shopping", "Transport", "Entertainment", "Health", "Bills", "Other"]
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -90,7 +88,7 @@ struct SpendingView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Spending")
+        .brandedNavigationBar("Spending")
         .sheet(isPresented: $addingTx) { TransactionEditorView() }
         .sheet(isPresented: $editingBudgets) { CategoryBudgetsView() }
     }

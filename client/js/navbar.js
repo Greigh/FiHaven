@@ -36,6 +36,17 @@ import { openProDialog } from './pro.js';
     admin:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v5.5c0 4.6-3.2 7.4-8 8.5-4.8-1.1-8-3.9-8-8.5V6l8-3z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.6c.6-1.6 2-2.5 3.6-2.5s3 .9 3.6 2.5"/></svg>',
     pro:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 16l-1.2-8 4.7 3.4L12 6l3.5 5.4L20 8l-1.2 8H5z"/><path d="M5 19h14"/></svg>',
     arrow:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>',
+    more:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>',
+    chevron:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>',
+  };
+
+  // Primary bar tabs vs overflow "More" menu (order matches app.js TABS).
+  var PRIMARY_TABS = ['dashboard', 'bills', 'cards', 'loans', 'budget', 'spending'];
+  var MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards'];
+  var TAB_LABELS = {
+    dashboard: 'Dashboard', bills: 'Bills', cards: 'Cards', loans: 'Loans',
+    budget: 'Budget', spending: 'Spending', subscriptions: 'Subscriptions',
+    calendar: 'Calendar', history: 'History', payoff: 'Payoff', rewards: 'Rewards',
   };
 
   // Brand mark — "Fi" monogram on a rounded accent tile. The tile
@@ -65,11 +76,12 @@ import { openProDialog } from './pro.js';
   function tab(icon, label, opts) {
     opts = opts || {};
     var cls = 'appbar-tab' + (opts.extraClass ? ' ' + opts.extraClass : '') + (opts.active ? ' active' : '');
+    var dataTab = opts.tab ? ' data-tab="' + opts.tab + '"' : '';
     if (opts.href) {
-      return '<a class="' + cls + '" href="' + opts.href + '">' + ICONS[icon] + '<span>' + label + '</span></a>';
+      return '<a class="' + cls + '"' + dataTab + ' href="' + opts.href + '">' + ICONS[icon] + '<span>' + label + '</span></a>';
     }
     return (
-      '<button type="button" class="' + cls + '" onclick="' + (opts.onclick || '') + '">' +
+      '<button type="button" class="' + cls + '"' + dataTab + ' onclick="' + (opts.onclick || '') + '">' +
         ICONS[icon] + '<span>' + label + '</span>' +
       '</button>'
     );
@@ -229,32 +241,81 @@ import { openProDialog } from './pro.js';
     });
   }
 
+  function wireMoreMenu(host) {
+    var wrap = host.querySelector('[data-more-menu]');
+    var btn = host.querySelector('[data-more-trigger]');
+    var panel = host.querySelector('[data-more-panel]');
+    if (!wrap || !btn || !panel) return;
+
+    function close() {
+      panel.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    }
+    function open() {
+      panel.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      document.addEventListener('mousedown', onOutside);
+      document.addEventListener('keydown', onKey);
+    }
+    function onOutside(e) {
+      if (!wrap.contains(e.target)) close();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { close(); btn.focus(); }
+    }
+
+    btn.addEventListener('click', function () {
+      panel.hidden ? open() : close();
+    });
+    Array.prototype.forEach.call(panel.querySelectorAll('.tab-btn'), function (item) {
+      item.addEventListener('click', function () { setTimeout(close, 0); });
+    });
+    window.addEventListener('fihaven:tab-changed', close);
+  }
+
   /* ── Variant: dashboard ─────────────────────────────────── */
   function buildDashboard(host) {
-    var tabs = [
-      tab('dashboard', 'Dashboard', { onclick: "showTab('dashboard')", active: true, extraClass: 'tab-btn' }),
-      tab('bills',     'Bills',     { onclick: "showTab('bills')",     extraClass: 'tab-btn' }),
-      tab('cards',     'Cards',     { onclick: "showTab('cards')",     extraClass: 'tab-btn' }),
-      tab('loans',     'Loans',     { onclick: "showTab('loans')",     extraClass: 'tab-btn' }),
-      tab('budget',    'Budget',    { onclick: "showTab('budget')",    extraClass: 'tab-btn' }),
-      tab('spending',  'Spending',  { onclick: "showTab('spending')",  extraClass: 'tab-btn' }),
-      tab('subscriptions', 'Subscriptions', { onclick: "showTab('subscriptions')", extraClass: 'tab-btn' }),
-      tab('calendar',  'Calendar',  { onclick: "showTab('calendar')",  extraClass: 'tab-btn' }),
-      tab('history',   'History',   { onclick: "showTab('history')",   extraClass: 'tab-btn' }),
-      tab('payoff',    'Payoff',    { onclick: "showTab('payoff')",    extraClass: 'tab-btn' }),
-      tab('rewards',   'Rewards',   { onclick: "showTab('rewards')",   extraClass: 'tab-btn' }),
-    ].join('');
+    var primary = PRIMARY_TABS.map(function (name) {
+      return tab(name, TAB_LABELS[name], {
+        onclick: "showTab('" + name + "')",
+        active: name === 'dashboard',
+        extraClass: 'tab-btn',
+        tab: name,
+      });
+    }).join('');
+
+    var moreItems = MORE_TABS.map(function (name) {
+      return tab(name, TAB_LABELS[name], {
+        onclick: "showTab('" + name + "')",
+        extraClass: 'tab-btn appbar-more-item',
+        tab: name,
+      });
+    }).join('');
+
+    var moreMenu =
+      '<div class="appbar-more" data-more-menu>' +
+        '<button type="button" class="appbar-tab appbar-more-trigger" aria-haspopup="menu" aria-expanded="false" data-more-trigger>' +
+          ICONS.more + '<span>More</span>' +
+          '<span class="appbar-more-chevron" aria-hidden="true">' + ICONS.chevron + '</span>' +
+        '</button>' +
+        '<div class="appbar-more-panel" role="menu" hidden data-more-panel>' + moreItems + '</div>' +
+      '</div>';
+
+    var tabs = primary + moreMenu;
 
     host.className = 'appbar';
     host.innerHTML =
       brand('/dashboard') +
-      '<div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div>' +
+      '<div class="appbar-nav-wrap"><div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div></div>' +
       '<div class="appbar-right">' +
         '<span id="sync-status" class="sync-status" aria-live="polite"></span>' +
         accountMenuMarkup() +
       '</div>';
 
     wireAccountMenu(host);
+    wireMoreMenu(host);
   }
 
   /* ── Variant: settings page ─────────────────────────────── */
@@ -267,7 +328,7 @@ import { openProDialog } from './pro.js';
     host.className = 'appbar';
     host.innerHTML =
       brand('/dashboard') +
-      '<div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div>' +
+      '<div class="appbar-nav-wrap"><div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div></div>' +
       '<div class="appbar-right">' +
         accountMenuMarkup() +
       '</div>';
@@ -300,7 +361,7 @@ import { openProDialog } from './pro.js';
     host.className = 'appbar';
     host.innerHTML =
       brand('/') +
-      '<div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div>' +
+      '<div class="appbar-nav-wrap"><div class="appbar-nav" role="navigation" aria-label="Primary">' + tabs + '</div></div>' +
       '<div class="appbar-right">' +
         '<button class="appbar-icon-btn" type="button" data-theme-btn aria-label="Toggle theme" title="Toggle theme">' + ICONS.theme + '</button>' +
         cta +
@@ -372,11 +433,25 @@ import { openProDialog } from './pro.js';
 
   function syncActive(d) {
     if (!d.__source) return;
-    var orig = d.__source.querySelectorAll('.appbar-tab');
-    var items = d.querySelectorAll('.mnav-item');
-    Array.prototype.forEach.call(orig, function (t, i) {
-      if (items[i]) items[i].classList.toggle('active', t.classList.contains('active'));
+    var active = document.querySelector('.tab-btn[data-tab].active');
+    var activeTab = active && active.dataset.tab;
+    Array.prototype.forEach.call(d.querySelectorAll('.mnav-item'), function (item) {
+      item.classList.toggle('active', !!activeTab && item.dataset.tab === activeTab);
     });
+  }
+
+  /** Flatten primary nav + More overflow into one list for the mobile drawer. */
+  function navItemsForMobile(nav) {
+    var out = [];
+    Array.prototype.forEach.call(nav.children, function (child) {
+      if (child.matches('[data-more-menu]')) {
+        var panel = child.querySelector('[data-more-panel]');
+        if (panel) Array.prototype.forEach.call(panel.children, function (c) { out.push(c); });
+      } else {
+        out.push(child);
+      }
+    });
+    return out;
   }
 
   function enhance(appbar) {
@@ -416,7 +491,7 @@ import { openProDialog } from './pro.js';
     list.className = 'mnav-list';
     list.setAttribute('aria-label', 'Primary');
 
-    Array.prototype.forEach.call(nav.children, function (child) {
+    Array.prototype.forEach.call(navItemsForMobile(nav), function (child) {
       var clone = child.cloneNode(true);
       clone.classList.remove('tab-btn');
       clone.classList.add('mnav-item');

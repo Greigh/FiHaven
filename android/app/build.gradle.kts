@@ -15,6 +15,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.2.0"
+        buildConfigField("String", "TURNSTILE_SITEKEY", "\"0x4AAAAAADVKKZMye086WePX\"")
     }
 
     buildFeatures { compose = true }
@@ -27,8 +28,7 @@ android {
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
-            // Dev points at the host's localhost via the emulator alias.
-            buildConfigField("String", "API_BASE", "\"http://10.0.2.2:5222\"")
+            buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
         }
         getByName("release") {
             isMinifyEnabled = false

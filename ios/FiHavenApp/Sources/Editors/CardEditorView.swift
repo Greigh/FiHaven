@@ -46,10 +46,12 @@ struct CardEditorView: View {
                     .pickerStyle(.segmented)
                     
                     TextField("Name", text: $name)
+                        .onChange(of: name) { _, _ in trySuggestPreset() }
                     TextField("Issuer / Bank", text: $issuer)
+                        .onChange(of: issuer) { _, _ in trySuggestPreset() }
                     TextField("Ends in (Last 4/5 digits)", text: $lastDigits)
                         .keyboardType(.numberPad)
-                        .onChange(of: lastDigits) { newValue in
+                        .onChange(of: lastDigits) { _, newValue in
                             if newValue.count > 5 {
                                 lastDigits = String(newValue.prefix(5))
                             }
@@ -202,6 +204,12 @@ struct CardEditorView: View {
         rotatingPool = p.rotatingPool ?? []
         rotatingRate = p.rotatingRate ?? 5
         pointValue = p.pointValue ?? 1
+    }
+
+    private func trySuggestPreset() {
+        guard type == "card", rewardBase == 0, rewardCats.isEmpty else { return }
+        guard let p = Rewards.suggestCardPreset(name: name, issuer: issuer) else { return }
+        applyPreset(p)
     }
 
     // Binding for an optional per-category reward rate (0 == unset).

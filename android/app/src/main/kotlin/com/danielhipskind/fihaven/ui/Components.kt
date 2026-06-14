@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -25,16 +27,26 @@ import com.danielhipskind.fihaven.ui.theme.Ct
 fun CtCard(
     modifier: Modifier = Modifier,
     padding: Int = 16,
+    branded: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    Box(
+    Column(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Ct.colors.surface)
             .border(1.dp, Ct.colors.border, RoundedCornerShape(14.dp))
-            .padding(padding.dp)
-    ) { content() }
+    ) {
+        if (branded) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Ct.colors.accent)
+            )
+        }
+        Box(Modifier.padding(padding.dp)) { content() }
+    }
 }
 
 /// The web's footer credit: "Made with ♥ by Daniel Hipskind".

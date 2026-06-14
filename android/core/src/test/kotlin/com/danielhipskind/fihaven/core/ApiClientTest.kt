@@ -42,7 +42,7 @@ class ApiClientTest {
         val t = FakeTransport().apply { responder = { HttpResponse(200, SEED_JSON) } }
         val data = client(InMemoryTokenStore("abc123"), t).fetchData()
         assertEquals(2, data.bills.size)
-        assertEquals("http://localhost:5222/fihaven/api/data", t.last?.url)
+        assertEquals("http://localhost:5222/api/data", t.last?.url)
         assertEquals("Bearer abc123", t.last?.headers?.get("Authorization"))
         assertNull(t.last?.headers?.get("X-Auth-Mode"))
     }

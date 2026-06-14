@@ -33,7 +33,7 @@ struct RewardsView: View {
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Rewards")
+        .brandedNavigationBar("Rewards")
     }
 
     private var empty: some View {

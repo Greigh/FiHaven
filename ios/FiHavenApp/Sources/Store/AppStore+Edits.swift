@@ -275,6 +275,22 @@ extension AppStore {
     }
 
     // ── History ──────────────────────────────────────────────────────
+    func updatePayment(_ payment: Payment, amount: Double, date: Date, note: String) {
+        let iso = isoDay(date)
+        let mk = DateLogic.monthKey(date, tz: tz)
+        mutate { data in
+            guard let i = data.payments.firstIndex(where: { $0.id == payment.id }) else { return }
+            let oldAmt = data.payments[i].amount
+            data.payments[i].amount = amount
+            data.payments[i].date = iso
+            data.payments[i].monthKey = mk
+            data.payments[i].note = note
+            if payment.type == "card", oldAmt != amount {
+                Self.applyCardPaymentDelta(payment.refId, amount - oldAmt, in: &data)
+            }
+        }
+    }
+
     func deletePayment(_ payment: Payment) {
         mutate { data in
             data.payments.removeAll { $0.id == payment.id }

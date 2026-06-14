@@ -77,3 +77,25 @@ export const CARD_PRESETS = [
 export function cardPresetById(id) {
   return CARD_PRESETS.find((p) => p.id === id) || null;
 }
+
+/** Best-effort match from a typed card name (and optional issuer). */
+export function suggestCardPreset(name, issuer) {
+  const q = `${name || ''} ${issuer || ''}`.toLowerCase().trim();
+  if (!q) return null;
+  let best = null;
+  let bestScore = 0;
+  for (const p of CARD_PRESETS) {
+    let score = 0;
+    const pn = p.name.toLowerCase();
+    const pi = p.issuer.toLowerCase();
+    const full = `${pi} ${pn}`;
+    if (q === pn || q === full) score += 20;
+    if (q.includes(pn) || pn.includes(q)) score += 10;
+    if (issuer && pi.includes(String(issuer).toLowerCase())) score += 5;
+    q.split(/\s+/).forEach((t) => {
+      if (t.length >= 3 && (pn.includes(t) || pi.includes(t))) score += 2;
+    });
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  return bestScore >= 4 ? best : null;
+}

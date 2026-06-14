@@ -11,7 +11,7 @@ object BillSchedule {
 
     private const val MAX_LOOKAHEAD = 400
 
-    fun frequencySpec(frequency: String): Spec = when (frequency) {
+    private fun frequencySpec(frequency: String): Spec = when (frequency) {
         "Weekly" -> Spec("day", 7)
         "Bi-weekly" -> Spec("day", 14)
         "Quarterly" -> Spec("month", 3)

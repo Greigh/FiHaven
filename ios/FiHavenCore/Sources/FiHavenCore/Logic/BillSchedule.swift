@@ -10,7 +10,7 @@ public enum BillSchedule {
 
     private static let maxLookahead = 400
 
-    public static func frequencySpec(_ frequency: String) -> Spec {
+    private static func frequencySpec(_ frequency: String) -> Spec {
         switch frequency {
         case "Weekly": return Spec(unit: "day", step: 7)
         case "Bi-weekly": return Spec(unit: "day", step: 14)

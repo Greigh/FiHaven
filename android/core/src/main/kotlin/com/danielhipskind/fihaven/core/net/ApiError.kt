@@ -14,7 +14,11 @@ sealed class ApiError : Exception() {
     val userMessage: String
         get() = when (this) {
             is Unauthenticated -> "Your session expired. Please sign in again."
-            is Transport -> "Network error: $detail"
+            is Transport -> when {
+                detail.contains("Failed to connect") || detail.contains("ECONNREFUSED") ->
+                    "Can't reach the server. For the Android emulator, start the dev server on your computer (port 5222) and try again."
+                else -> "Network error: $detail"
+            }
             is Decoding -> "Unexpected response from the server."
             is Http -> when (code) {
                 "invalid-credentials" -> "Incorrect email or password."

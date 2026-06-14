@@ -43,7 +43,12 @@ import com.danielhipskind.fihaven.ui.theme.Ct
 
 /// Title row for a screen, with optional back (←) and add (+) actions.
 @Composable
-fun ScreenHeader(title: String, onAdd: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
+fun ScreenHeader(
+    title: String,
+    onAdd: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    branded: Boolean = false,
+) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -53,9 +58,12 @@ fun ScreenHeader(title: String, onAdd: (() -> Unit)? = null, onBack: (() -> Unit
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Ct.colors.text)
             }
         }
+        if (branded) {
+            BrandMark(size = 26, modifier = Modifier.padding(start = if (onBack != null) 0.dp else 8.dp, end = 10.dp))
+        }
         Text(title, color = Ct.colors.text, fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.weight(1f).padding(start = if (onBack != null) 0.dp else 8.dp))
+            modifier = Modifier.weight(1f).padding(start = if (onBack != null || branded) 0.dp else 8.dp))
         if (onAdd != null) {
             IconButton(onClick = onAdd) { Icon(Icons.Filled.Add, "Add", tint = Ct.colors.accent) }
         }

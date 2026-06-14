@@ -32,10 +32,9 @@ cross-platform parity.
 ./gradlew :app:assembleDebug
 ```
 
-- **Dev server:** debug builds point at `http://10.0.2.2:5222/fihaven`
-  (the emulator's alias for the host's localhost). Start it with
-  `node server/index.js` from the repo root. Release builds use production
-  over HTTPS.
+- **API:** debug and release builds both point at `https://fihaven.app`.
+  For local server work, change `API_BASE` in `app/build.gradle.kts` or
+  run JVM tests against `ApiConfig.localhost`.
 - **Run/screenshot helpers** (DEBUG intent extras):
   ```sh
   adb shell am start -n com.danielhipskind.fihaven/.MainActivity \

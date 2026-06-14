@@ -1,9 +1,10 @@
 import SwiftUI
 import FiHavenCore
 
-/// Payment log, grouped by month (newest first). Long-press a row to delete.
+/// Payment log, grouped by month (newest first). Long-press a row to edit or delete.
 struct HistoryView: View {
     @EnvironmentObject var store: AppStore
+    @State private var editing: Payment?
 
     private var grouped: [(month: String, items: [Payment])] {
         let cfg = store.periodConfig
@@ -37,7 +38,8 @@ struct HistoryView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("History")
+        .brandedNavigationBar("History")
+        .sheet(item: $editing) { p in EditPaymentView(payment: p) }
     }
 
     private func row(_ p: Payment) -> some View {
@@ -46,7 +48,11 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(p.name.isEmpty ? p.type.capitalized : p.name)
                     .font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
+                    .lineLimit(1)
                 Text(prettyDate(p.date)).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                if !p.note.isEmpty {
+                    Text(p.note).font(Theme.ui(11)).foregroundStyle(Theme.muted).lineLimit(1)
+                }
             }
             Spacer()
             Text(Money.fmt(p.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.green)
@@ -54,6 +60,9 @@ struct HistoryView: View {
         .padding(.horizontal, 14).padding(.vertical, 12)
         .contentShape(Rectangle())
         .contextMenu {
+            Button { editing = p } label: {
+                Label("Edit", systemImage: "pencil")
+            }
             Button(role: .destructive) { store.deletePayment(p) } label: {
                 Label("Delete", systemImage: "trash")
             }

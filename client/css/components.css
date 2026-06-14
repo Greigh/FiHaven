@@ -137,14 +137,40 @@ nav {
 }
 .appbar-mark { width: 100%; height: 100%; display: block; border-radius: 7px; }
 
+.appbar-nav-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.appbar-nav-wrap::before,
+.appbar-nav-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  z-index: 1;
+}
+.appbar-nav-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, color-mix(in srgb, var(--surface) 95%, transparent), transparent);
+}
+.appbar-nav-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, color-mix(in srgb, var(--surface) 95%, transparent), transparent);
+}
+
 .appbar-nav {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1;
+  width: 100%;
   min-width: 0;
   overflow-x: auto;
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
+  padding: 0 2px;
 }
 .appbar-nav::-webkit-scrollbar { display: none; }
 
@@ -179,6 +205,58 @@ nav {
 .appbar-tab:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
   outline-offset: 2px;
+}
+
+/* Overflow tabs — Subscriptions, Calendar, History, Payoff, Rewards */
+.appbar-more {
+  position: relative;
+  flex-shrink: 0;
+}
+.appbar-more-trigger {
+  gap: 6px;
+}
+.appbar-more-chevron {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  opacity: .65;
+  transition: transform .15s;
+}
+.appbar-more-chevron svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 2;
+}
+.appbar-more.is-active .appbar-more-trigger,
+.appbar-more-trigger[aria-expanded="true"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.appbar-more-trigger[aria-expanded="true"] .appbar-more-chevron {
+  transform: rotate(180deg);
+}
+.appbar-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 210px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: var(--surface);
+  box-shadow: 0 14px 40px rgba(15, 15, 20, .14);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: appbar-menu-in .16s cubic-bezier(.2,.7,.3,1);
+}
+.appbar-more-panel[hidden] { display: none; }
+.appbar-more-item {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 9px;
 }
 
 .appbar-right {
@@ -1597,6 +1675,35 @@ main {
 .cards-summary-bar-fill {
   height: 100%; border-radius: 999px;
   transition: width .5s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* Loans tab hero */
+.loans-panel { gap: 18px; }
+.loans-hero {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface2) 88%, transparent), var(--surface));
+}
+.loans-hero-title {
+  margin: 8px 0 0;
+  font-size: 22px;
+  letter-spacing: -.03em;
+}
+.loans-hero-sub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 52ch;
+}
+.loans-panel .cards-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ── Toolbar (filters + sort) ──────────────────────────── */

@@ -85,7 +85,7 @@ struct BudgetView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Budget")
+        .brandedNavigationBar("Budget")
         .sheet(isPresented: $creating) { IncomeEditorView(source: nil) }
         .sheet(item: $editing) { src in IncomeEditorView(source: src) }
         .sheet(isPresented: $creatingAdj) { IncomeAdjustmentEditorView(adjustment: nil, monthKey: store.currentPeriodKey) }
@@ -407,7 +407,7 @@ struct TransactionEditorView: View {
                         .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                 }
                 Picker("Category", selection: $category) {
-                    ForEach(spendingCategories, id: \.self) { Text("\(BudgetView.catIcon($0)) \($0)").tag($0) }
+                    ForEach(spendingCategories, id: \.self) { Text("\(SpendingView.catIcon($0)) \($0)").tag($0) }
                 }
                 TextField("Merchant (optional)", text: $merchant)
                 DatePicker("Date", selection: $date, displayedComponents: .date)
@@ -442,7 +442,7 @@ struct CategoryBudgetsView: View {
                 Section {
                     ForEach(spendingCategories, id: \.self) { cat in
                         HStack {
-                            Text("\(BudgetView.catIcon(cat)) \(cat)")
+                            Text("\(SpendingView.catIcon(cat)) \(cat)")
                             Spacer(); Text("$").foregroundStyle(Theme.muted)
                             TextField("0", value: Binding(
                                 get: { store.data.settings.categoryBudgets[cat] ?? 0 },

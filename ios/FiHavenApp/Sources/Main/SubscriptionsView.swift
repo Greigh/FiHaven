@@ -112,7 +112,7 @@ struct SubscriptionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Subscriptions")
+        .brandedNavigationBar("Subscriptions")
     }
 
     private func subFriendlyDate(_ date: Date) -> String {

@@ -1,6 +1,7 @@
 package com.danielhipskind.fihaven.core.net
 
 import com.danielhipskind.fihaven.core.model.AppData
+import com.danielhipskind.fihaven.core.model.decodeAppData
 import com.danielhipskind.fihaven.core.model.FiHavenJson
 import com.danielhipskind.fihaven.core.model.Entitlement
 import com.danielhipskind.fihaven.core.model.PromoResult
@@ -131,7 +132,7 @@ class ApiClient(
     }
 
     // ── Data sync ─────────────────────────────────────────────────────
-    suspend fun fetchData(): AppData = decode(send(makeRequest("api/data", HttpMethod.GET)))
+    suspend fun fetchData(): AppData = decodeAppData(send(makeRequest("api/data", HttpMethod.GET)))
 
     suspend fun saveData(data: AppData) {
         val body = encode(DataPutBody(data.bills, data.cards, data.payments, data.settings))

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,8 +41,16 @@ fun AuthScreen(vm: AppViewModel) {
     var signup by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var captchaToken by remember { mutableStateOf<String?>(null) }
+    var captchaReload by remember { mutableIntStateOf(0) }
+    var turnstileHeight by remember { mutableIntStateOf(72) }
 
     LaunchedEffect(Unit) { vm.markAuthStarted() }
+
+    fun reloadCaptcha() {
+        captchaToken = null
+        captchaReload++
+    }
 
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(22.dp),
@@ -78,12 +87,33 @@ fun AuthScreen(vm: AppViewModel) {
                         Text("Forgot Password?", color = Ct.colors.accent, fontSize = 13.sp)
                     }
                 }
+                if (captchaToken == null) {
+                    TurnstileView(
+                        siteKey = BuildConfig.TURNSTILE_SITEKEY,
+                        baseUrl = BuildConfig.API_BASE.trimEnd('/'),
+                        reloadKey = captchaReload,
+                        onToken = { captchaToken = it },
+                        onError = { captchaToken = null },
+                        onHeight = { turnstileHeight = it.coerceIn(0, 120) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = if (signup) 12.dp else 0.dp)
+                            .height(turnstileHeight.coerceAtLeast(1).dp),
+                    )
+                }
                 error?.let {
                     Text(it, color = Ct.colors.red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                 }
+                val canSubmit = !working && email.contains("@") && password.length >= 6 && captchaToken != null
                 Button(
-                    onClick = { if (signup) vm.signup(email, password) else vm.login(email, password) },
-                    enabled = !working && email.contains("@") && password.length >= 6,
+                    onClick = {
+                        val token = captchaToken ?: return@Button
+                        captchaToken = null
+                        captchaReload++
+                        if (signup) vm.signup(email, password, token)
+                        else vm.login(email, password, token)
+                    },
+                    enabled = canSubmit,
                     colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
                     modifier = Modifier.fillMaxWidth().padding(top = if (signup) 16.dp else 4.dp),
                 ) {
@@ -91,7 +121,7 @@ fun AuthScreen(vm: AppViewModel) {
                 }
             }
         }
-        TextButton(onClick = { signup = !signup }, modifier = Modifier.padding(top = 6.dp)) {
+        TextButton(onClick = { signup = !signup; reloadCaptcha() }, modifier = Modifier.padding(top = 6.dp)) {
             Text(
                 if (signup) "Already have an account? Sign in" else "No account? Create one",
                 color = Ct.colors.accent,
@@ -134,8 +164,6 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
                 ) { Text(if (working) "Verifying…" else "Verify") }
             }
         }
-        // Lost-2FA recovery lives on the web: it triggers a destructive
-        // wipe confirmed from an emailed link, so it stays out of the app.
         TextButton(
             onClick = { uriHandler.openUri(BuildConfig.API_BASE.trimEnd('/') + "/recover") },
             modifier = Modifier.padding(top = 6.dp),

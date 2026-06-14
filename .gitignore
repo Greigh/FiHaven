@@ -14,6 +14,10 @@ coverage/
 # nested source packages like android/.../fihaven/data/.
 /data/
 .claude/
+# JetBrains/Android Studio inspection HTML exports (not part of the app)
+android/index.html
+android/script.js
+android/styles.css
 *upload.sh
 
 .env

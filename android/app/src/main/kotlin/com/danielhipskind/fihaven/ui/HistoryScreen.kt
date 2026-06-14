@@ -2,7 +2,9 @@ package com.danielhipskind.fihaven.ui
 
 import com.danielhipskind.fihaven.ui.theme.PlexMono
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,14 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -41,7 +44,7 @@ private val prettyDate = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.
 @Composable
 fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
-    // Skips are markers, not real payments — exclude them from history.
+    var editing by remember { mutableStateOf<Payment?>(null) }
     val realPayments = data.payments.filterNot { it.skipped }
     val cfg = vm.periodConfig()
     val groups = realPayments
@@ -51,7 +54,7 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
         .sortedByDescending { it.first }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("History", onBack = onBack)
+        ScreenHeader("History", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (realPayments.isEmpty()) {
                 item { CtCard { Text("No payments recorded yet.", color = Ct.colors.muted) } }
@@ -66,7 +69,11 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                             Column {
                                 items.forEachIndexed { i, p ->
                                     if (i > 0) HorizontalDivider(color = Ct.colors.border)
-                                    HistoryRow(p) { vm.deletePayment(p) }
+                                    HistoryRow(
+                                        p,
+                                        onEdit = { editing = p },
+                                        onDelete = { vm.deletePayment(p) },
+                                    )
                                 }
                             }
                         }
@@ -75,23 +82,37 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
             }
         }
     }
+
+    editing?.let { EditPaymentDialog(it, vm) { editing = null } }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryRow(p: Payment, onDelete: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
+private fun HistoryRow(p: Payment, onEdit: () -> Unit, onDelete: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(if (p.type == "card") CTConstants.cardIcon else "🧾", fontSize = 18.sp,
             modifier = Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f)) {
             Text(p.name.ifBlank { p.type.replaceFirstChar { it.uppercase() } },
-                color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             Text(prettyDate(p), color = Ct.colors.muted, fontSize = 12.sp)
+            if (p.note.isNotBlank()) {
+                Text(p.note, color = Ct.colors.muted, fontSize = 11.sp, maxLines = 1)
+            }
         }
         Text(Money.fmt(p.amount), color = Ct.colors.green, fontSize = 15.sp,
             fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Outlined.Delete, "Delete", tint = Ct.colors.muted)
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onEdit() })
+            DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete() })
         }
     }
 }

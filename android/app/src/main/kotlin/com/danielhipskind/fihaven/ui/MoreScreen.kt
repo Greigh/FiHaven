@@ -58,7 +58,7 @@ fun MoreScreen(
 @Composable
 private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("More")
+        ScreenHeader("More", branded = true)
         Column(Modifier.padding(16.dp)) {
             CtCard(padding = 0) {
                 Column {

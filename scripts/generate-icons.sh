@@ -1,75 +1,80 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generates iOS AppIcon sizes and Android mipmap launcher icons from
-# ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
-# Requires macOS `sips` (bundled) and writes into the repo in-place.
+# Generates iOS AppIcon + LaunchIcon sizes and Android mipmap launcher icons
+# from client/public/icon.svg (the canonical FiHaven mark).
+# Requires ImageMagick (`magick`) and macOS `sips`.
 
-SRC_IOS="ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
-IOS_APPICONSET_DIR="ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset"
-ANDROID_RES_DIR="android/app/src/main/res"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SRC_SVG="$ROOT/client/public/icon.svg"
+IOS_APPICONSET_DIR="$ROOT/ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset"
+IOS_LAUNCH_DIR="$ROOT/ios/FiHavenApp/Sources/Assets.xcassets/LaunchIcon.imageset"
+ANDROID_RES_DIR="$ROOT/android/app/src/main/res"
 
-if [ ! -f "$SRC_IOS" ]; then
-  echo "Source iOS AppIcon not found at $SRC_IOS"
+if [ ! -f "$SRC_SVG" ]; then
+  echo "Source SVG not found at $SRC_SVG"
+  exit 1
+fi
+if ! command -v qlmanage >/dev/null 2>&1; then
+  echo "macOS qlmanage is required to rasterize SVG with correct colors."
   exit 1
 fi
 
-echo "Generating iOS App Icons from $SRC_IOS"
-mkdir -p "$IOS_APPICONSET_DIR"
+render_png() {
+  local px="$1"
+  local out="$2"
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  qlmanage -t -s "$px" -o "$tmpdir" "$SRC_SVG" >/dev/null 2>&1
+  mv "$tmpdir/icon.svg.png" "$out"
+  rm -rf "$tmpdir"
+}
 
-# iOS sizes: tuples of {base size, scale}
-IOS_SIZES=(
-  "20 1" "20 2" "20 3"
-  "29 1" "29 2" "29 3"
-  "40 1" "40 2" "40 3"
-  "60 2" "60 3"
-  "76 1" "76 2"
-  "83.5 2"
-  "1024 1"
+echo "Rendering master icon from $SRC_SVG"
+MASTER="$IOS_APPICONSET_DIR/AppIcon-1024.png"
+mkdir -p "$IOS_APPICONSET_DIR" "$IOS_LAUNCH_DIR"
+render_png 1024 "$MASTER"
+
+echo "Generating iOS AppIcon sizes"
+declare -a IOS_FILES=(
+  "40:icon-20@2x.png"
+  "60:icon-20@3x.png"
+  "58:icon-29@2x.png"
+  "87:icon-29@3x.png"
+  "80:icon-40@2x.png"
+  "120:icon-40@3x.png"
+  "120:icon-60@2x.png"
+  "180:icon-60@3x.png"
+  "20:icon-20.png"
+  "29:icon-29.png"
+  "40:icon-40.png"
+  "76:icon-76.png"
+  "152:icon-76@2x.png"
+  "167:icon-83.5@2x.png"
 )
-
-# Build Contents.json entries
-CONTENTS="{\n  \"images\" : [\n"
-FIRST=true
-for entry in "${IOS_SIZES[@]}"; do
-  size=$(echo "$entry" | awk '{print $1}')
-  scale=$(echo "$entry" | awk '{print $2}')
-  # Remove decimal for filename
-  name_size=$(echo "$size" | sed 's/\./_/g')
-  px=$(printf "%.0f" "$(echo "$size * $scale" | bc -l)")
-  filename=AppIcon-${name_size}@${scale}x.png
-  sips -Z "$px" "$SRC_IOS" --out "$IOS_APPICONSET_DIR/$filename" >/dev/null
-
-  if [ "$FIRST" = true ]; then
-    FIRST=false
-  else
-    CONTENTS+=",\n"
-  fi
-
-  CONTENTS+="    { \"idiom\" : \"universal\", \"filename\" : \"$filename\", \"size\" : \"${size}x${size}\", \"scale\" : \"${scale}x\" }"
+for spec in "${IOS_FILES[@]}"; do
+  px="${spec%%:*}"
+  file="${spec##*:}"
+  render_png "$px" "$IOS_APPICONSET_DIR/$file"
 done
 
-CONTENTS+="\n  ],\n  \"info\" : { \"version\" : 1, \"author\" : \"xcode\" }\n}"
+echo "Generating iOS LaunchIcon sizes"
+render_png 128 "$IOS_LAUNCH_DIR/LaunchIcon.png"
+render_png 256 "$IOS_LAUNCH_DIR/LaunchIcon@2x.png"
+render_png 384 "$IOS_LAUNCH_DIR/LaunchIcon@3x.png"
 
-printf "%s" "$CONTENTS" > "$IOS_APPICONSET_DIR/Contents.json"
-
-echo "iOS App icons generated in $IOS_APPICONSET_DIR"
-
-# Android mipmap sizes (px for launcher icon)
-# mdpi 48, hdpi 72, xhdpi 96, xxhdpi 144, xxxhdpi 192
-declare -A ANDROID_SIZES=( [mipmap-mdpi]=48 [mipmap-hdpi]=72 [mipmap-xhdpi]=96 [mipmap-xxhdpi]=144 [mipmap-xxxhdpi]=192 )
-
-echo "Generating Android mipmap icons from $SRC_IOS"
-for folder in "${!ANDROID_SIZES[@]}"; do
-  size=${ANDROID_SIZES[$folder]}
+echo "Generating Android mipmap icons"
+while IFS='=' read -r folder size; do
   outdir="$ANDROID_RES_DIR/$folder"
   mkdir -p "$outdir"
-  outpng="$outdir/ic_launcher.png"
-  sips -Z "$size" "$SRC_IOS" --out "$outpng" >/dev/null
-  # Round icon variant
-  sips -Z "$size" "$SRC_IOS" --out "$outdir/ic_launcher_round.png" >/dev/null
-done
+  render_png "$size" "$outdir/ic_launcher.png"
+  render_png "$size" "$outdir/ic_launcher_round.png"
+done <<'EOF'
+mipmap-mdpi=48
+mipmap-hdpi=72
+mipmap-xhdpi=96
+mipmap-xxhdpi=144
+mipmap-xxxhdpi=192
+EOF
 
-echo "Android mipmap icons generated under $ANDROID_RES_DIR"
-
-echo "Done. Update & commit the generated assets as needed."
+echo "Done. iOS icons: $IOS_APPICONSET_DIR"

@@ -102,6 +102,28 @@ public enum Rewards {
         .init(id: "target-redcard", issuer: "Target", name: "RedCard", network: "Mastercard", rewardBase: 1, rewardCategories: ["Other": 5]),
     ]
 
+    /// Best-effort preset match from a typed card name (and optional issuer).
+    public static func suggestCardPreset(name: String, issuer: String = "") -> CardPreset? {
+        let q = "\(name) \(issuer)".trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return nil }
+        var best: CardPreset?
+        var bestScore = 0
+        for p in cardPresets {
+            var score = 0
+            let pn = p.name.lowercased()
+            let pi = p.issuer.lowercased()
+            let full = "\(pi) \(pn)"
+            if q == pn || q == full { score += 20 }
+            if q.contains(pn) || pn.contains(q) { score += 10 }
+            if !issuer.isEmpty && pi.contains(issuer.lowercased()) { score += 5 }
+            for t in q.split(separator: " ") where t.count >= 3 {
+                if pn.contains(t) || pi.contains(t) { score += 2 }
+            }
+            if score > bestScore { bestScore = score; best = p }
+        }
+        return bestScore >= 4 ? best : nil
+    }
+
     /// A card's reward rate for a category: the per-category multiplier when
     /// set (> 0), otherwise the flat base rate.
     public static func effectiveRate(_ card: Card, category: String) -> Double {
