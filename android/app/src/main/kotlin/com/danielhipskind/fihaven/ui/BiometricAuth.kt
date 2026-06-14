@@ -32,8 +32,8 @@ object BiometricAuth {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val TRANSFORMATION =
         KeyProperties.KEY_ALGORITHM_AES + "/" +
-            KeyProperties.BLOCK_MODE_CBC + "/" +
-            KeyProperties.ENCRYPTION_PADDING_PKCS7
+            KeyProperties.BLOCK_MODE_GCM + "/" +
+            KeyProperties.ENCRYPTION_PADDING_NONE
 
     /** DEBUG screenshot aid: pretend biometrics are available even on an
      *  emulator without an enrolled fingerprint. */
@@ -113,8 +113,8 @@ object BiometricAuth {
                 KEY_NAME,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
-                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setUserAuthenticationRequired(true)
                 // Enrolling a new fingerprint/face invalidates the key, forcing
                 // a regenerate — so a freshly added biometric can't silently

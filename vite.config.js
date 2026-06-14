@@ -74,8 +74,14 @@ const stripHtmlComments = {
   transformIndexHtml: {
     order: 'post',
     handler(html) {
+      // Strip comments repeatedly until stable: a single pass can leave a
+      // fresh `<!--` behind when comment markers are nested/overlapping.
+      let prev;
+      do {
+        prev = html;
+        html = html.replace(/<!--[\s\S]*?-->/g, '');
+      } while (html !== prev);
       return html
-        .replace(/<!--[\s\S]*?-->/g, '')
         .replace(/^[ \t]+\n/gm, '')
         .replace(/\n{3,}/g, '\n\n');
     },
