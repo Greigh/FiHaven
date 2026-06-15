@@ -88,7 +88,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding).verticalScroll(rememberScrollState())) {
-        ScreenHeader(DateLogic.monthKeyLabel(monthKey), onBack = onBack)
+        ScreenHeader(DateLogic.monthKeyLabel(monthKey), onBack = onBack, branded = true)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 listOf("S", "M", "T", "W", "T", "F", "S").forEach {

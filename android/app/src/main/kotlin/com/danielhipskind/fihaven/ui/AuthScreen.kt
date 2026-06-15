@@ -9,8 +9,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danielhipskind.fihaven.BuildConfig
@@ -41,6 +47,7 @@ fun AuthScreen(vm: AppViewModel) {
     var signup by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
     var captchaToken by remember { mutableStateOf<String?>(null) }
     var captchaReload by remember { mutableIntStateOf(0) }
     var turnstileHeight by remember { mutableIntStateOf(72) }
@@ -74,7 +81,16 @@ fun AuthScreen(vm: AppViewModel) {
                 OutlinedTextField(
                     value = password, onValueChange = { password = it },
                     label = { Text("Password") }, singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = if (showPassword) "Hide password" else "Show password",
+                                tint = Ct.colors.muted,
+                            )
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 )

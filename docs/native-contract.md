@@ -375,17 +375,29 @@ light and dark; follow the OS appearance by default.
 
 ## 9. Feature surface (parity targets)
 
-Tabs mirror the web nav: **Dashboard, Bills, Cards, Budget, Calendar,
-History, Payoff**, plus **Settings** (profile, password/email, MFA, iCal,
-export, delete) and the **Login/Signup + MFA** auth flow.
+Tabs mirror the web nav: **Dashboard, Bills, Cards, Loans, Budget,
+Subscriptions, Calendar, History, Payoff, Rewards**, plus **Settings**
+(profile, password/email, MFA, iCal, export, delete) and the
+**Login/Signup + MFA** auth flow. The web tab order lives in `TABS`
+([`app.js`](../client/js/app.js)); native lists are user-customizable
+(iOS `TabItem`, Android `TabId`). Pro-gated tabs (§10) show an upgrade
+prompt for free users.
 
 - Dashboard: monthly overview, runway, upcoming items, new-month banner.
-- Bills / Cards: list + add/edit/delete, mark-paid, payment history
-  sparkline.
-- Budget: income sources editor, monthly totals, month switcher.
-- Calendar: due-date calendar ([`CalendarView.svelte`](../client/svelte/CalendarView.svelte)).
-- History: payment log with edit/delete.
-- Payoff: strategy + extra-payment simulator (§7.5).
+- Bills: list + add/edit/delete, mark-paid, payment history sparkline,
+  per-bill active window (`startDate`/`endDate`, §6) with Starts/Ended badges.
+- Cards / Loans: same card model, split by `type` (`card` | `loan`);
+  loans recommend the scheduled payment, not the whole principal.
+- Budget: income sources editor, monthly totals, period switcher, and
+  (Pro) spending-category budgets.
+- Subscriptions *(Pro)*: recurring-charge finder — bills flagged
+  `Subscriptions` plus merchants recurring across ≥2 months, with
+  price-increase and stale flags; ended bills drop off.
+- Calendar *(Pro)*: due-date calendar ([`CalendarView.svelte`](../client/svelte/CalendarView.svelte)) + iCal feed.
+- History *(Pro)*: payment log with edit/delete.
+- Payoff *(Pro)*: strategy + extra-payment simulator (§7.5).
+- Rewards *(Pro)*: per-category "which card to use" optimizer
+  ([`rewards.js`](../client/js/rewards.js)), excluding cards in an active 0% promo.
 
 ---
 
@@ -430,8 +442,15 @@ and trusts the client transaction so the flow is testable locally;
 (`APPLE_VERIFY_ENABLED` / `GOOGLE_VERIFY_ENABLED`). Admin promo creation is gated
 by `ADMIN_EMAILS`.
 
-**Pro gating** (free vs Pro): core bill tracking is free; the planning/insight
-layer — **Payoff, Calendar, History** — is gated behind Pro on both native apps.
+**Pro gating** (free vs Pro): core manual tracking is free — **Bills, Cards,
+Loans, Budget** (with manual transactions), **Savings goals**, and **Net
+worth**. The planning/insight/automation layer is Pro: **Payoff, Calendar**
+(+ iCal feed), **History, Rewards, Subscriptions**, plus **bank sync (Plaid)**,
+**spending-category budgets**, and **autopay auto-mark**. The `pro` entitlement
+is server-authoritative and identical across platforms. Gating is centralized,
+not enforced in views: web via `PRO_TABS` ([`app.js`](../client/js/app.js)) +
+`requirePro` on the server, iOS via `ProGate(feature:)` over the `ProFeature`
+enum, Android via `ProGate(vm, ProFeature.X)`. Keep these three lists in sync.
 
 **Theme**: appearance (System/Light/Dark) is a **local, per-device** preference
 (`fh_theme`, mirroring the web's localStorage), not synced data — overrides the
