@@ -69,6 +69,8 @@ jobs:
 
       - name: Build Android app (traced for CodeQL)
         working-directory: android
+        # Requires Kotlin < 2.3.30 in android/build.gradle.kts until CodeQL supports 2.4+
+        # (github.com/github/codeql/issues/21938).
         run: ./gradlew :app:assembleDebug
 
       - name: Perform CodeQL analysis
