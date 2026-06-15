@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,19 +107,20 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
                 item { CtCard { Text("No bills yet. Tap + to add one.", color = Ct.colors.muted) } }
             }
             items(bills, key = { it.id }) { bill ->
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        if (value == SwipeToDismissBoxValue.StartToEnd) {
+                val dismissState = rememberSwipeToDismissBoxState()
+                LaunchedEffect(dismissState.currentValue) {
+                    when (dismissState.currentValue) {
+                        SwipeToDismissBoxValue.StartToEnd -> {
                             paying = bill
-                            false
-                        } else if (value == SwipeToDismissBoxValue.EndToStart) {
-                            vm.deleteBill(bill)
-                            true
-                        } else {
-                            false
+                            dismissState.reset()
                         }
+                        SwipeToDismissBoxValue.EndToStart -> {
+                            vm.deleteBill(bill)
+                            dismissState.reset()
+                        }
+                        else -> Unit
                     }
-                )
+                }
                 SwipeToDismissBox(
                     state = dismissState,
                     backgroundContent = {
