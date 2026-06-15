@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   recommendedAmount,
   promoNeeded,
@@ -28,8 +28,18 @@ import {
   billNotStarted,
   billEnded,
   billActive,
+  billInPeriod,
+  isFullyPaid,
+  paidGoalPolicy,
+  hidePaidOnDashboard,
+  toast,
+  setRenderer,
+  renderTab,
+  refreshAll,
+  periodObligationItems,
 } from './utils.js';
 import { setCards, setBills, setPayments, setSettings } from './storage.svelte.js';
+import { boundsForKey } from './period.js';
 
 const isoOffsetMonths = (months) => {
   const d = new Date();
@@ -350,5 +360,111 @@ describe('utils — month helpers', () => {
     const base = offsetDate(0);
     const next = offsetDate(1);
     expect(next.getMonth()).toBe((base.getMonth() + 1) % 12);
+  });
+});
+
+describe('utils — billInPeriod and paid goal helpers', () => {
+  beforeEach(() => {
+    setSettings({ paidGoal: 'minimum', hidePaidDashboard: false });
+    setBills([{ id: 'B1', name: 'Rent', amount: 120, dueDay: 1 }]);
+    setCards([{ id: 'C1', balance: 1000, minPayment: 100 }]);
+    setPayments([]);
+  });
+
+  it('billInPeriod is true when the bill active window overlaps the bounds', () => {
+    const bounds = { start: new Date(2026, 5, 1), end: new Date(2026, 6, 1) };
+    expect(billInPeriod({ dueDay: 15 }, bounds)).toBe(true);
+    expect(billInPeriod({ dueDay: 1, endDate: '2026-05-31' }, bounds)).toBe(false);
+    expect(billInPeriod({ dueDay: 1, startDate: '2026-07-01' }, bounds)).toBe(false);
+  });
+
+  it('paidGoalPolicy normalizes invalid settings to recommended', () => {
+    setSettings({ paidGoal: 'nonsense' });
+    expect(paidGoalPolicy()).toBe('recommended');
+    setSettings({ paidGoal: 'full' });
+    expect(paidGoalPolicy()).toBe('full');
+  });
+
+  it('isFullyPaid compares paid amount to the goal', () => {
+    setSettings({ paidGoal: 'minimum' });
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 100, date: '2026-06-15' }]);
+    expect(isFullyPaid('card', 'C1')).toBe(true);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 50, date: '2026-06-15' }]);
+    expect(isFullyPaid('card', 'C1')).toBe(false);
+  });
+
+  it('hidePaidOnDashboard defaults to true unless explicitly disabled', () => {
+    expect(hidePaidOnDashboard({ hidePaidOnDashboard: false })).toBe(false);
+    expect(hidePaidOnDashboard({})).toBe(true);
+    expect(hidePaidOnDashboard(null)).toBeFalsy();
+  });
+});
+
+describe('utils — toast', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div id="toast"></div>';
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  it('shows a message and removes the show class after 2400ms', () => {
+    toast('Saved!');
+    const el = document.getElementById('toast');
+    expect(el.textContent).toBe('Saved!');
+    expect(el.classList.contains('show')).toBe(true);
+
+    vi.advanceTimersByTime(2400);
+    expect(el.classList.contains('show')).toBe(false);
+  });
+
+  it('no-ops when #toast is missing', () => {
+    document.body.innerHTML = '';
+    expect(() => toast('hello')).not.toThrow();
+  });
+});
+
+describe('utils — renderer registry', () => {
+  it('renderTab invokes a registered renderer; refreshAll skips hidden tabs', () => {
+    const billsFn = vi.fn();
+    const cardsFn = vi.fn();
+    setRenderer('bills', billsFn);
+    setRenderer('cards', cardsFn);
+
+    document.body.innerHTML =
+      '<div id="tab-bills" style="display:block"></div>' +
+      '<div id="tab-cards" style="display:none"></div>';
+
+    renderTab('bills');
+    expect(billsFn).toHaveBeenCalledOnce();
+
+    refreshAll();
+    expect(billsFn).toHaveBeenCalledTimes(2);
+    expect(cardsFn).not.toHaveBeenCalled();
+
+    expect(() => renderTab('missing')).not.toThrow();
+  });
+});
+
+describe('utils — periodObligationItems', () => {
+  beforeEach(() => {
+    setBills([
+      { id: 'B1', name: 'Rent', dueDay: 1, frequency: 'Monthly' },
+      { id: 'B2', name: 'Quarterly', dueDay: 5, frequency: 'Quarterly', startDate: '2026-01-05' },
+    ]);
+  });
+
+  it('keeps every card and only bills with a due date in the period', () => {
+    const bounds = boundsForKey('2026-02', { mode: 'calendar', startDay: 1, length: 35 });
+    const items = periodObligationItems([
+      { type: 'card', refId: 'C1' },
+      { type: 'bill', refId: 'B1' },
+      { type: 'bill', refId: 'B2' },
+    ], bounds);
+
+    expect(items.map((i) => i.refId)).toEqual(['C1', 'B1']);
   });
 });

@@ -49,6 +49,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -838,8 +844,18 @@ private fun TimezoneDialog(vm: AppViewModel, onDone: () -> Unit) {
 
 @Composable
 private fun PasswordField(label: String, value: String, onChange: (String) -> Unit) {
+    var show by remember { mutableStateOf(false) }
     OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { show = !show }) {
+                Icon(
+                    if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = if (show) "Hide password" else "Show password",
+                    tint = Ct.colors.muted,
+                )
+            }
+        },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
 }
 

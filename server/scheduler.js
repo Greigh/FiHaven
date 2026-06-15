@@ -204,12 +204,12 @@ async function runChecks(now = new Date(), deps = {}) {
 let timer = null;
 function start() {
   if (timer) return;
-  timer = setInterval(() => {
-    runChecks(new Date()).catch((e) => console.error('scheduler tick failed', e && e.message));
-  }, 60 * 60 * 1000);
+  const tick = () => module.exports.runChecks(new Date())
+    .catch((e) => console.error('scheduler tick failed', e && e.message));
+  timer = setInterval(tick, 60 * 60 * 1000);
   timer.unref();
   // Also catch the current hour shortly after boot.
-  setTimeout(() => runChecks(new Date()).catch(() => {}), 5000).unref();
+  setTimeout(tick, 5000).unref();
   console.log('scheduler started (reminders + monthly summary)');
 }
 

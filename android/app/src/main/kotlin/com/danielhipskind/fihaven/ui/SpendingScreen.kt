@@ -50,7 +50,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val recentTx = data.transactions.sortedByDescending { it.date }.take(8)
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Spending", onBack = onBack)
+        ScreenHeader("Spending", onBack = onBack, branded = true)
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
