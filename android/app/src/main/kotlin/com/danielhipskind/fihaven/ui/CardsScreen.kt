@@ -22,6 +22,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -117,19 +118,20 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
                     color = Ct.colors.muted) } }
             }
             items(cards, key = { it.id }) { card ->
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        if (value == SwipeToDismissBoxValue.StartToEnd) {
+                val dismissState = rememberSwipeToDismissBoxState()
+                LaunchedEffect(dismissState.currentValue) {
+                    when (dismissState.currentValue) {
+                        SwipeToDismissBoxValue.StartToEnd -> {
                             paying = card
-                            false
-                        } else if (value == SwipeToDismissBoxValue.EndToStart) {
-                            vm.deleteCard(card)
-                            true
-                        } else {
-                            false
+                            dismissState.reset()
                         }
+                        SwipeToDismissBoxValue.EndToStart -> {
+                            vm.deleteCard(card)
+                            dismissState.reset()
+                        }
+                        else -> Unit
                     }
-                )
+                }
                 SwipeToDismissBox(
                     state = dismissState,
                     backgroundContent = {
