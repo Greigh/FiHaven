@@ -12,9 +12,15 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'cleartab.db');
+const DB_PATH = process.env.FIHAVEN_TEST_DB_PATH
+  ? path.resolve(process.env.FIHAVEN_TEST_DB_PATH)
+  : path.join(DATA_DIR, 'cleartab.db');
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
+if (process.env.FIHAVEN_TEST_DB_PATH) {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+} else {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');

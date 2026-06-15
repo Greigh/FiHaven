@@ -82,10 +82,19 @@ describe('period — shiftPeriod', () => {
 });
 
 describe('period — boundsForKey', () => {
-  it('round-trips a key back to the same period', () => {
+  it('round-trips a startDay key back to the same period', () => {
     const cfg = { mode: 'startDay', startDay: 25 };
     const b = periodBounds('2026-06-10', cfg); // key 2026-05-25
     expect(boundsForKey(b.key, cfg).key).toBe(b.key);
+  });
+
+  it('round-trips a rolling key back to the same period', () => {
+    const cfg = { mode: 'rolling', length: 30 };
+    const b = periodBounds('2026-06-15', cfg);
+    const roundTrip = boundsForKey(b.key, cfg);
+    expect(roundTrip.key).toBe(b.key);
+    expect(roundTrip.start.getTime()).toBe(b.start.getTime());
+    expect(roundTrip.end.getTime()).toBe(b.end.getTime());
   });
 });
 

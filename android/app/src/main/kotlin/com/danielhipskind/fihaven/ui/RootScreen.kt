@@ -112,13 +112,31 @@ fun BrandMark(size: Int = 26, modifier: Modifier = Modifier) {
             .background(Ct.colors.accent),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.fillMaxSize().padding((size * 0.22f).dp)) {
-            val w = this.size.width
-            val h = this.size.height
-            val bar = w * 0.18f
-            drawRoundRect(Color.White, topLeft = Offset(0f, 0f), size = Size(bar, h), cornerRadius = CornerRadius(bar * 0.3f))
-            drawRoundRect(Color.White, topLeft = Offset(0f, 0f), size = Size(w * 0.75f, bar), cornerRadius = CornerRadius(bar * 0.3f))
-            drawRoundRect(Color.White, topLeft = Offset(0f, h * 0.38f), size = Size(w * 0.58f, bar * 0.85f), cornerRadius = CornerRadius(bar * 0.3f))
+        // Full "Fi" monogram on the same 64-unit grid as icon.svg / the iOS
+        // BrandMark. The tile is the Box background; the glyph sits in the
+        // 16–48 safe zone, so no extra padding (that would crop out the "i").
+        Canvas(Modifier.fillMaxSize()) {
+            val s = this.size.width / 64f
+            fun bar(x: Float, y: Float, w: Float, h: Float) {
+                drawRoundRect(
+                    Color.White,
+                    topLeft = Offset(x * s, y * s),
+                    size = Size(w * s, h * s),
+                    cornerRadius = CornerRadius(2f * s, 2f * s),
+                )
+            }
+            // "F"
+            bar(16f, 17f, 7f, 30f)
+            bar(16f, 17f, 22f, 7f)
+            bar(16f, 29f, 17f, 6f)
+            // "i"
+            bar(41f, 27f, 7f, 20f)
+            val dotR = 4f * s
+            drawOval(
+                Color.White,
+                topLeft = Offset((44.5f - 4f) * s, (20f - 4f) * s),
+                size = Size(dotR * 2, dotR * 2),
+            )
         }
     }
 }

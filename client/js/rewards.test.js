@@ -36,6 +36,10 @@ describe('rewards — inActivePromo', () => {
     expect(inActivePromo({ hasPromo: false, promoEndDate: future() })).toBe(false);
     expect(inActivePromo({ hasPromo: true })).toBe(false);
   });
+
+  it('treats an unparseable promo end date as an active promo window', () => {
+    expect(inActivePromo({ hasPromo: true, promoEndDate: 'not-a-date' })).toBe(true);
+  });
 });
 
 describe('rewards — rankCardsForCategory', () => {
@@ -57,6 +61,21 @@ describe('rewards — rankCardsForCategory', () => {
     // A loan never earns rewards and appears in neither bucket.
     const allIds = [...eligible, ...excluded].map((e) => e.card.id);
     expect(allIds).not.toContain('loan');
+  });
+
+  it('uses generic promo copy when the end date cannot be parsed', () => {
+    const { excluded } = rankCardsForCategory('Dining', [
+      { id: 'bad-date', name: 'Promo', rewardBase: 5, hasPromo: true, promoEndDate: 'not-a-date' },
+    ]);
+    expect(excluded[0].reason).toContain('its 0% promo');
+  });
+
+  it('includes a formatted end date in the skip reason for active promos', () => {
+    const end = future();
+    const { excluded } = rankCardsForCategory('Dining', [
+      { id: 'promo', name: 'Promo', rewardBase: 5, hasPromo: true, promoEndDate: end },
+    ]);
+    expect(excluded[0].reason).toContain('0% promo until');
   });
 
   it('handles empty and undefined input', () => {

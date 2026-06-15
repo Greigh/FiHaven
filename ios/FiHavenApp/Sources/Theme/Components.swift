@@ -101,6 +101,45 @@ extension View {
     }
 }
 
+/// A password field with a show/hide (eye) toggle. Swaps between a
+/// `SecureField` and a plain `TextField`, keeping focus across the toggle.
+struct RevealableSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+    var contentType: UITextContentType? = nil
+    @State private var reveal = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if reveal {
+                    TextField(placeholder, text: $text)
+                } else {
+                    SecureField(placeholder, text: $text)
+                }
+            }
+            .textContentType(contentType)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .focused($focused)
+
+            Button {
+                reveal.toggle()
+                DispatchQueue.main.async { focused = true }   // keep the keyboard up
+            } label: {
+                Image(systemName: reveal ? "eye.slash.fill" : "eye.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(reveal ? "Hide password" : "Show password")
+        }
+    }
+}
+
 /// Accent-filled primary button label.
 struct PrimaryButtonStyle: ButtonStyle {
     var enabled: Bool = true

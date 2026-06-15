@@ -7,6 +7,46 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.2.2] — 2026-06-15
+
+Polish and quality release: expanded test coverage, password visibility on
+all platforms, refreshed app icons, Android dependency updates, and CI fixes.
+
+### Added
+
+- **Password show/hide** — eye toggle on web (login, reset, settings),
+  iOS (`RevealableSecureField`), and Android auth/settings.
+- **Integration test suite** — nine flows covering auth, export, period
+  budget, scheduler email, subscriptions, autopay sync, card presets, and
+  security (serialized Vitest project with real Express boot).
+- **`subscriptionsFinder.js`** — extracted recurring-subscription detection
+  shared by the web panel and tests.
+- **Server unit tests** — emails, mail, scheduler, rate limits, tokens,
+  util, bill schedule, captcha, session.
+- **Expanded client unit tests** — payoff, autopay, rewards render, password
+  toggle, theme, subscriptions finder, and additional coverage for period,
+  export, card presets, and utils.
+- **275 Vitest tests** total across unit and integration projects.
+
+### Changed
+
+- **App icons** regenerated from `client/public/icon.svg` (iOS asset
+  catalog + Android mipmaps); slimmer launcher background.
+- **Android dashboard** — branded `ScreenHeader` and grouped upcoming rows
+  in a single card (iOS parity).
+- **`native-contract.md`** — full tab list and Pro-gating parity matrix.
+- **README badges** — Swift 6.3.1, Kotlin 2.3.21.
+- **Android dependencies** — Compose BOM 2026.05.01, Plaid 5.5.2,
+  activity-compose 1.13.0, kotlinx 1.11.0, JUnit 6.1.0; swipe-to-dismiss
+  migrated off deprecated Compose API.
+- **CodeQL Action v4** (Node 24 runtime).
+
+### Fixed
+
+- **Rolling-period `boundsForKey`** round-trip in web `period.js`.
+- **Kotlin pinned to 2.3.21** so CodeQL traced Gradle builds succeed
+  (extractor lacks 2.4.0 support until [github/codeql#21938](https://github.com/github/codeql/issues/21938)).
+
 ## [1.2.1] — 2026-06-14
 
 Polish release: bill frequency parity, Spending/Subscriptions tabs, native
@@ -205,6 +245,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.2.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.2
 [1.2.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.1
 [1.2.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.1.0
