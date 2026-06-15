@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CARD_PRESETS, cardPresetById } from './cardPresets.js';
+import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
 import { effectiveRate } from './rewards.js';
 
 describe('cardPresets', () => {
@@ -51,5 +51,30 @@ describe('cardPresets', () => {
       if (!p.rotatingPool) continue;
       for (const cat of p.rotatingPool) expect(valid.has(cat)).toBe(true);
     }
+  });
+});
+
+describe('cardPresets — suggestCardPreset', () => {
+  it('returns null for empty or too-vague input', () => {
+    expect(suggestCardPreset('')).toBeNull();
+    expect(suggestCardPreset('   ')).toBeNull();
+    expect(suggestCardPreset('xy')).toBeNull();
+    expect(suggestCardPreset('totally unknown card name')).toBeNull();
+  });
+
+  it('matches a preset from card name alone', () => {
+    expect(suggestCardPreset('Gold Card')?.id).toBe('amex-gold');
+    expect(suggestCardPreset('Sapphire Preferred')?.id).toBe('chase-csp');
+    expect(suggestCardPreset('Double Cash')?.id).toBe('citi-double');
+  });
+
+  it('boosts the score when issuer is provided', () => {
+    expect(suggestCardPreset('Gold Card', 'American Express')?.id).toBe('amex-gold');
+    expect(suggestCardPreset('Freedom Flex', 'Chase')?.id).toBe('chase-cff');
+  });
+
+  it('prefers an exact full-name match', () => {
+    const match = suggestCardPreset('American Express Gold Card');
+    expect(match?.id).toBe('amex-gold');
   });
 });
