@@ -60,4 +60,4 @@ setInterval(prune, 60 * 60 * 1000).unref();
 // The per-IP flood guard (formerly ipRateLimiter here) now lives in
 // index.js, backed by express-rate-limit. This module keeps the
 // email-keyed login throttle used by the auth routes.
-module.exports = { check, record, reset, MAX_ATTEMPTS, WINDOW_MS };
+module.exports = { check, record, reset, prune, MAX_ATTEMPTS, WINDOW_MS };
