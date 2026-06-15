@@ -32,8 +32,11 @@ struct AuthView: View {
                             .autocorrectionDisabled()
                     }
                     field("Password") {
-                        SecureField("••••••••••", text: $password)
-                            .textContentType(mode == .login ? .password : .newPassword)
+                        RevealableSecureField(
+                            placeholder: "••••••••••",
+                            text: $password,
+                            contentType: mode == .login ? .password : .newPassword
+                        )
                     }
 
                     if mode == .login {

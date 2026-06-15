@@ -94,6 +94,12 @@ export function currentPeriodKey(cfg) { return currentPeriod(cfg).key; }
 
 // Resolve the bounds for a period key (key === the period's start).
 export function boundsForKey(key, cfg) {
+  cfg = cfg || getPeriodConfig();
+  if (cfg.mode === 'rolling' && typeof key === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(key)) {
+    const start = asDate(key);
+    const end = new Date(start.getTime() + cfg.length * DAY);
+    return { start, end, key: ymd(start), mode: cfg.mode };
+  }
   return periodBounds(asDate(key), cfg);
 }
 

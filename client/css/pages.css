@@ -172,6 +172,40 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+/* Password show/hide (eye) toggle — injected by js/passwordToggle.js.
+   Works on any password input (login, reset, settings) regardless of its
+   surrounding field markup. */
+.pw-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.pw-wrap > input {
+  width: 100%;
+  padding-right: 44px;
+}
+.pw-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color .15s;
+}
+.pw-toggle:hover { color: var(--text); }
+.pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pw-toggle svg { width: 18px; height: 18px; display: block; }
+
 .auth-field select {
   -webkit-appearance: none;
   -moz-appearance: none;

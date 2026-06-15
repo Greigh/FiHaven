@@ -281,7 +281,7 @@ function setupRewardPreset() {
 
 // Fill name/issuer/network (without clobbering non-empty fields) and the
 // reward rates from a preset. Everything stays editable afterward.
-function applyCardPreset(id) {
+export function applyCardPreset(id) {
   var p = cardPresetById(id);
   if (!p) return;
   if (!document.getElementById('c-name').value.trim()) document.getElementById('c-name').value = p.name;

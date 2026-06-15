@@ -53,7 +53,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
             .verticalScroll(rememberScrollState()),
     ) {
-        ScreenHeader("Rewards")
+        ScreenHeader("Rewards", branded = true)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (creditCards.isEmpty()) {
                 CtCard {

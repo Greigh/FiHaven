@@ -8,6 +8,7 @@
 
 import './theme.js';
 import './navbar.js';
+import './passwordToggle.js';
 
 var API = '/api/auth';
 

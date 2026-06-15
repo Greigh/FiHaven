@@ -41,7 +41,7 @@ export function effectiveValue(card, category) {
 export function inActivePromo(card) {
   if (!card.hasPromo || !card.promoEndDate) return false;
   var end = new Date(card.promoEndDate);
-  if (isNaN(end)) return false;
+  if (isNaN(end)) return true; // unparseable end — treat as an active promo window
   var today = new Date();
   today.setHours(0, 0, 0, 0);
   return end >= today;

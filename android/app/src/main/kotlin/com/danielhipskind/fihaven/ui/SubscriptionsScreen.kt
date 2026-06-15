@@ -39,7 +39,7 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
     val subs = detectSubscriptions(data.bills, data.transactions, zone)
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Subscriptions", onBack = onBack)
+        ScreenHeader("Subscriptions", onBack = onBack, branded = true)
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

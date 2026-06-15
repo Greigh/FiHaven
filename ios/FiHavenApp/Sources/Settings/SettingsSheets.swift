@@ -41,7 +41,7 @@ struct ChangeEmailSheet: View {
         SheetForm(title: "Change email", busy: busy, error: errorText, onSave: save) {
             TextField("New email", text: $newEmail)
                 .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
-            SecureField("Current password", text: $password)
+            RevealableSecureField(placeholder: "Current password", text: $password, contentType: .password)
         }
     }
 
@@ -66,8 +66,8 @@ struct ChangePasswordSheet: View {
 
     var body: some View {
         SheetForm(title: "Change password", busy: busy, error: errorText, onSave: save) {
-            SecureField("Current password", text: $current)
-            SecureField("New password (10+ chars)", text: $newPassword)
+            RevealableSecureField(placeholder: "Current password", text: $current, contentType: .password)
+            RevealableSecureField(placeholder: "New password (10+ chars)", text: $newPassword, contentType: .newPassword)
         }
     }
 
@@ -95,7 +95,7 @@ struct DeleteAccountSheet: View {
                 Section {
                     Text("This permanently deletes your account and all data. This can't be undone.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    SecureField("Password", text: $password)
+                    RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
                     Toggle("I understand, delete everything", isOn: $confirm)
                 }
                 if let errorText {
@@ -145,7 +145,7 @@ struct TotpSetupSheet: View {
                 switch step {
                 case .password:
                     Section("Confirm your password") {
-                        SecureField("Password", text: $password)
+                        RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
                     }
                 case .scan:
                     Section("Scan in your authenticator app") {
@@ -211,7 +211,7 @@ struct TotpDisableSheet: View {
 
     var body: some View {
         SheetForm(title: "Turn off authenticator", busy: busy, error: errorText, saveTitle: "Turn off", destructive: true, onSave: disable) {
-            SecureField("Password", text: $password)
+            RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
             TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
         }
     }
@@ -238,7 +238,7 @@ struct BackupCodesSheet: View {
             Form {
                 if codes.isEmpty {
                     Section("Confirm to regenerate") {
-                        SecureField("Password", text: $password)
+                        RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
                         TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
                     }
                 } else {
@@ -288,7 +288,7 @@ struct EmailEnableSheet: View {
             Form {
                 switch step {
                 case .password:
-                    Section("Confirm your password") { SecureField("Password", text: $password) }
+                    Section("Confirm your password") { RevealableSecureField(placeholder: "Password", text: $password, contentType: .password) }
                 case .code:
                     Section("Enter the code we emailed to \(email)") {
                         TextField("6-digit code", text: $code).keyboardType(.numberPad)
@@ -333,7 +333,7 @@ struct EmailDisableSheet: View {
 
     var body: some View {
         SheetForm(title: "Turn off email codes", busy: busy, error: errorText, saveTitle: "Turn off", destructive: true, onSave: disable) {
-            SecureField("Password", text: $password)
+            RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
         }
     }
 

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { exportCSV } from './export.js';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { exportCSV, exportAll } from './export.js';
 import { setBills, setCards, setPayments, setSettings } from './storage.svelte.js';
 
 // exportCSV streams its result through a hidden <a download> rather than
@@ -73,5 +73,44 @@ describe('export — exportCSV', () => {
     expect(csv.split('\n')[0]).toBe('Name,Type,Category,Goal,Status,Amount Paid,Month');
     expect(csv).toContain('Rent');
     expect(csv).toContain('Visa');
+  });
+});
+
+describe('export — exportAll', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setSettings({});
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 1 }]);
+    setCards([{ id: 'C1', name: 'Visa', balance: 500, minPayment: 25 }]);
+    setPayments([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('queues three CSV exports on a staggered timer', () => {
+    let downloads = 0;
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      const el = realCreate(tag);
+      if (String(tag).toLowerCase() === 'a') {
+        Object.defineProperty(el, 'click', {
+          configurable: true,
+          value: () => { downloads += 1; },
+        });
+      }
+      return el;
+    });
+
+    exportAll();
+    expect(downloads).toBe(1);
+
+    vi.advanceTimersByTime(400);
+    expect(downloads).toBe(2);
+
+    vi.advanceTimersByTime(400);
+    expect(downloads).toBe(3);
   });
 });

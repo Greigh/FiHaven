@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -217,37 +218,46 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val remaining = obligations.sumOf { vm.remainingFor(it) }
     var paying by remember { mutableStateOf<UpcomingItem?>(null) }
 
-    LazyColumn(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Text(periodLabel, color = Ct.colors.text,
-                fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
-                StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+    Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
+        // Branded top bar (FiHaven mark + period label), matching iOS and the
+        // other Android screens.
+        ScreenHeader(periodLabel, branded = true)
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
+                    StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                }
             }
-        }
-        item {
-            Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
-        }
-        if (visible.isEmpty()) {
-            item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
-        } else {
-            items(visible, key = { "${it.type}-${it.refId}" }) { item ->
-                UpcomingRow(
-                    item = item,
-                    state = vm.paidState(item),
-                    paidSoFar = vm.paidAmountFor(item),
-                    goal = vm.goalAmount(item),
-                    remaining = vm.remainingFor(item),
-                    onPay = { paying = item },
-                )
+            item {
+                Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+            }
+            if (visible.isEmpty()) {
+                item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
+            } else {
+                // One card holding all rows, divided — mirrors iOS's
+                // .ctCard(padding: 0) { VStack with Divider() }.
+                item {
+                    CtCard(padding = 0) {
+                        Column {
+                            visible.forEachIndexed { i, item ->
+                                if (i > 0) HorizontalDivider(color = Ct.colors.border, thickness = 1.dp)
+                                UpcomingRow(
+                                    item = item,
+                                    state = vm.paidState(item),
+                                    paidSoFar = vm.paidAmountFor(item),
+                                    goal = vm.goalAmount(item),
+                                    remaining = vm.remainingFor(item),
+                                    onPay = { paying = item },
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -288,18 +298,21 @@ private fun UpcomingRow(
         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
         PaidState.UNPAID -> dueLabel(item, false)
     }
-    CtCard(padding = 14) {
-        Row(Modifier.clickable(onClick = onPay), verticalAlignment = Alignment.CenterVertically) {
-            Text(item.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Text(label, color = dueTint, fontSize = 12.sp)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(Money.fmt(if (state == PaidState.FULL) goal else remaining), color = Ct.colors.text,
-                    fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
-            }
+    // No own card — the dashboard wraps the whole list in one CtCard with
+    // dividers (iOS parity). Internal padding matches iOS's row insets.
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onPay).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(item.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = dueTint, fontSize = 12.sp)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(Money.fmt(if (state == PaidState.FULL) goal else remaining), color = Ct.colors.text,
+                fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+            if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
         }
     }
 }

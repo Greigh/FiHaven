@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FiHaven adaptive-icon background: solid brand blue. -->
+<!-- FiHaven adaptive-icon background: brand-blue gradient, matching the web
+     icon.svg (#4C7DF0 → #3D6FE1, top → bottom) and the iOS app icon. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#3D6FE1"
-        android:pathData="M0,0 H108 V108 H0 Z" />
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54" android:startY="0"
+                android:endX="54" android:endY="108"
+                android:type="linear">
+                <item android:offset="0" android:color="#4C7DF0" />
+                <item android:offset="1" android:color="#3D6FE1" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>
