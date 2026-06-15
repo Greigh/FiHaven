@@ -28,12 +28,12 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
 
   java-kotlin:
     name: Analyze Java / Kotlin
@@ -60,7 +60,7 @@ jobs:
           java-version: 17
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # Trace a real Gradle build: build-mode:none sees no Kotlin source for
@@ -74,7 +74,7 @@ jobs:
         run: ./gradlew :app:assembleDebug
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
 
   swift:
     name: Analyze Swift
@@ -98,7 +98,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
@@ -111,4 +111,4 @@ jobs:
         run: xcodebuild -project FiHaven.xcodeproj -scheme FiHaven -destination 'generic/platform=iOS Simulator' build
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
