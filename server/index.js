@@ -167,6 +167,14 @@ sub.use(
   })
 );
 
+// IndexNow key file (dev fallback when dist/ key file is absent).
+if (process.env.INDEXNOW_KEY && /^[a-f0-9]{8,128}$/i.test(process.env.INDEXNOW_KEY)) {
+  const indexNowKey = process.env.INDEXNOW_KEY;
+  sub.get(`/${indexNowKey}.txt`, (req, res) => {
+    res.type('text/plain; charset=utf-8').send(indexNowKey);
+  });
+}
+
 // Server-side gate for the private pages — works even with JS
 // disabled. Anonymous visitors get the marketing landing; signed-in
 // but unverified users get the verify-email page until they confirm.
