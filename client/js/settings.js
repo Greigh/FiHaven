@@ -9,6 +9,7 @@ import './theme.js';
 import './auth.js';
 import './navbar.js';
 import './passwordToggle.js';
+import './public-footer.js';
 import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
 import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
