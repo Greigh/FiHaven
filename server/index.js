@@ -143,6 +143,10 @@ const LEGACY = {
   '/login.html':     '/login',
   '/terms.html':     '/terms',
   '/privacy.html':   '/privacy',
+  '/faq.html':       '/faq',
+  '/pricing.html':   '/pricing',
+  '/security.html':  '/security',
+  '/contact.html':   '/contact',
 };
 sub.get(Object.keys(LEGACY), (req, res) =>
   res.redirect(301, BASE + LEGACY[req.path])
