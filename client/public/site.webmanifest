@@ -1,29 +1,18 @@
 {
-  "id": "https://fihaven.app/site.webmanifest",
   "name": "FiHaven",
   "short_name": "FiHaven",
-  "description": "A focused bill and debt dashboard on the web. Track bills, cards, loans, spending, and payoff plans in one calm view.",
-  "lang": "en",
-  "dir": "ltr",
-  "start_url": "/",
+  "description": "A focused bill and debt dashboard. Track recurring payments, credit cards, and payoff plans in one calm view.",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
-  "orientation": "any",
   "theme_color": "#3D6FE1",
   "background_color": "#FAFAFB",
-  "categories": ["finance", "productivity"],
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
