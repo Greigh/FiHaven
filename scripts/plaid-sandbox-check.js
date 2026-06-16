@@ -1,22 +1,9 @@
-#!/usr/bin/env node
-/* ═══════════════════════════════════════════════════════════
-   scripts/dev/plaid-sandbox-check.js — one-off Plaid SANDBOX
-   connectivity check (not wired into the app).
-
+/* One-off Plaid SANDBOX connectivity check (not wired into the app).
    Proves the server pipeline end-to-end without the browser/Link UI:
-     link token → sandbox public_token → exchange → accounts+balances → tx sync
-
-   Run from repo root:
-     npm run plaid:sandbox
-
-   Loads .env from the repo root (PLAID_CLIENT_ID + PLAID_SANDBOX_SECRET).
-═════════════════════════════════════════════════════════════════ */
-
+     link token → sandbox public_token → exchange → accounts+balances → tx sync.
+   Run: node scripts/plaid-sandbox-check.js   (loads .env from repo root) */
 'use strict';
-
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
-
+require('dotenv').config();
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require('plaid');
 
 const CLIENT_ID = process.env.PLAID_CLIENT_ID || process.env.PLAID_SANDBOX_CLIENT_ID;
@@ -29,28 +16,20 @@ if (!CLIENT_ID || !SECRET) {
 
 const client = new PlaidApi(new Configuration({
   basePath: PlaidEnvironments.sandbox,
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': CLIENT_ID,
-      'PLAID-SECRET': SECRET,
-      'Plaid-Version': '2020-09-14',
-    },
-  },
+  baseOptions: { headers: { 'PLAID-CLIENT-ID': CLIENT_ID, 'PLAID-SECRET': SECRET, 'Plaid-Version': '2020-09-14' } },
 }));
 
 (async () => {
   try {
     const lt = await client.linkTokenCreate({
       user: { client_user_id: 'sandbox-check-user' },
-      client_name: 'FiHaven',
-      language: 'en',
-      products: [Products.Transactions],
-      country_codes: [CountryCode.Us],
+      client_name: 'FiHaven', language: 'en',
+      products: [Products.Transactions], country_codes: [CountryCode.Us],
     });
     console.log('✓ linkTokenCreate    →', lt.data.link_token.slice(0, 24) + '…');
 
     const pt = await client.sandboxPublicTokenCreate({
-      institution_id: 'ins_109508',
+      institution_id: 'ins_109508', // First Platypus Bank (sandbox)
       initial_products: [Products.Transactions],
     });
     console.log('✓ sandboxPublicToken →', pt.data.public_token.slice(0, 24) + '…');
@@ -63,18 +42,10 @@ const client = new PlaidApi(new Configuration({
     acct.data.accounts.forEach((a) =>
       console.log('    -', a.name, '(' + a.subtype + ')', 'bal', a.balances.current, a.balances.iso_currency_code));
 
-    let cursor = null;
-    let added = 0;
-    let more = true;
-    let guard = 0;
+    let cursor = null, added = 0, more = true, guard = 0;
     while (more && guard++ < 5) {
-      const s = await client.transactionsSync({
-        access_token: ex.data.access_token,
-        cursor: cursor || undefined,
-      });
-      added += (s.data.added || []).length;
-      cursor = s.data.next_cursor;
-      more = s.data.has_more;
+      const s = await client.transactionsSync({ access_token: ex.data.access_token, cursor: cursor || undefined });
+      added += (s.data.added || []).length; cursor = s.data.next_cursor; more = s.data.has_more;
     }
     console.log('✓ transactionsSync   →', added, 'added (cursor advanced)');
 
