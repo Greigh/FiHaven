@@ -7,5 +7,4 @@
 import './theme.js';
 import './auth.js';
 import './navbar.js';
-import './public-footer.js';
 import './passwordToggle.js';

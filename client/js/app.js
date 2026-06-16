@@ -37,7 +37,6 @@ import './export.js';
 import './theme.js';
 import './auth.js';
 import './navbar.js';
-import './public-footer.js';
 
 // Order must match the navbar's tab order so showTab can use the
 // shared index to flip the active class on the right button.
