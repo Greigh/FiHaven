@@ -32,14 +32,15 @@ import { openProDialog } from './pro.js';
     logout:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/></svg>',
     home:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2v-9z"/></svg>',
     doc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
-    faq:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4 0c0 2-2.5 2-2.5 4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>',
-    pricing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7h10M7 12h10M7 17h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>',
     shield:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3z"/></svg>',
     admin:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v5.5c0 4.6-3.2 7.4-8 8.5-4.8-1.1-8-3.9-8-8.5V6l8-3z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.6c.6-1.6 2-2.5 3.6-2.5s3 .9 3.6 2.5"/></svg>',
     pro:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 16l-1.2-8 4.7 3.4L12 6l3.5 5.4L20 8l-1.2 8H5z"/><path d="M5 19h14"/></svg>',
     arrow:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>',
     more:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>',
     chevron:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>',
+    faq:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4 0c0 2-2.5 2-2.5 4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>',
+    pricing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7h10M7 12h10M7 17h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>',
+    contact:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
   };
 
   // Primary bar tabs vs overflow "More" menu (order matches app.js TABS).
@@ -120,6 +121,12 @@ import { openProDialog } from './pro.js';
           '</div>' +
           '<a class="appbar-menu-item" role="menuitem" href="/settings">' +
             ICONS.user + '<span>Settings</span>' +
+          '</a>' +
+          '<a class="appbar-menu-item" role="menuitem" href="/faq">' +
+            ICONS.faq + '<span>Help & FAQ</span>' +
+          '</a>' +
+          '<a class="appbar-menu-item" role="menuitem" href="/contact">' +
+            ICONS.contact + '<span>Contact</span>' +
           '</a>' +
           '<button class="appbar-menu-item appbar-menu-pro" type="button" role="menuitem" data-pro-menu-item>' +
             ICONS.pro + '<span>FiHaven Pro</span>' +
