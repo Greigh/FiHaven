@@ -9,6 +9,7 @@
 import './theme.js';
 import './navbar.js';
 import './passwordToggle.js';
+import './public-footer.js';
 
 var API = '/api/auth';
 
