@@ -43,6 +43,10 @@ const cleanUrls = {
       [BASE + '/login.html']:     BASE + '/login',
       [BASE + '/terms.html']:     BASE + '/terms',
       [BASE + '/privacy.html']:   BASE + '/privacy',
+      [BASE + '/faq.html']:       BASE + '/faq',
+      [BASE + '/pricing.html']:   BASE + '/pricing',
+      [BASE + '/security.html']:  BASE + '/security',
+      [BASE + '/contact.html']:   BASE + '/contact',
     };
     server.middlewares.use((req, res, next) => {
       const path = (req.url || '/').split('?')[0];
@@ -125,6 +129,10 @@ export default defineConfig({
         plaidOauth: clientFile('plaid-oauth.html'),
         terms:     clientFile('terms.html'),
         privacy:   clientFile('privacy.html'),
+        faq:       clientFile('faq.html'),
+        pricing:   clientFile('pricing.html'),
+        security:  clientFile('security.html'),
+        contact:   clientFile('contact.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
         devPortal: clientFile('dev-portal.html'),
