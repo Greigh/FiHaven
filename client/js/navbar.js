@@ -38,9 +38,6 @@ import { openProDialog } from './pro.js';
     arrow:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>',
     more:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>',
     chevron:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>',
-    faq:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4 0c0 2-2.5 2-2.5 4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>',
-    pricing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7h10M7 12h10M7 17h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>',
-    contact:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
   };
 
   // Primary bar tabs vs overflow "More" menu (order matches app.js TABS).
@@ -121,12 +118,6 @@ import { openProDialog } from './pro.js';
           '</div>' +
           '<a class="appbar-menu-item" role="menuitem" href="/settings">' +
             ICONS.user + '<span>Settings</span>' +
-          '</a>' +
-          '<a class="appbar-menu-item" role="menuitem" href="/faq">' +
-            ICONS.faq + '<span>Help & FAQ</span>' +
-          '</a>' +
-          '<a class="appbar-menu-item" role="menuitem" href="/contact">' +
-            ICONS.contact + '<span>Contact</span>' +
           '</a>' +
           '<button class="appbar-menu-item appbar-menu-pro" type="button" role="menuitem" data-pro-menu-item>' +
             ICONS.pro + '<span>FiHaven Pro</span>' +
@@ -356,10 +347,10 @@ import { openProDialog } from './pro.js';
     }
 
     var tabs = [
-      tab('home',    'Home',    { href: '/',        active: match('home') }),
-      tab('pricing', 'Pricing', { href: '/pricing', active: match('pricing') }),
-      tab('faq',     'FAQ',     { href: '/faq',     active: match('faq') }),
-      tab('user',    'Log In',  { href: '/login',   active: match('login') }),
+      tab('home',   'Home',    { href: '/',        active: match('home') }),
+      tab('user',   'Log In',  { href: '/login',   active: match('login') }),
+      tab('doc',    'Terms',   { href: '/terms',   active: match('terms') }),
+      tab('shield', 'Privacy', { href: '/privacy', active: match('privacy') }),
     ].join('');
 
     // Same CTA on every public page so the navbar stays consistent.

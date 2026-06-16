@@ -7,7 +7,6 @@
 ═══════════════════════════════════════════════════════════ */
 
 import './theme.js';
-import './public-footer.js';
 
 var API = '/api/auth';
 var csrfToken = null;
