@@ -32,9 +32,13 @@
     "build": "npm run build:css && npm run build:vite",
     "ci": "npm run build",
     "generate:icons": "bash ./scripts/generate-icons.sh",
+    "generate:pdfs": "node scripts/dev/generate-pdfs.js",
+    "plaid:sandbox": "node scripts/dev/plaid-sandbox-check.js",
     "preview": "vite preview",
     "deploy": "bash upload.sh",
-    "promo": "node scripts/promo.js"
+    "rollback": "bash scripts/examples/rollback.example.sh",
+    "promo": "node scripts/promo.js",
+    "indexnow": "node scripts/submit-indexnow.js"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
