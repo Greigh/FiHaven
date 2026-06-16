@@ -1,32 +1,63 @@
+#!/usr/bin/env node
+/* ═══════════════════════════════════════════════════════════
+   scripts/dev/generate-pdfs.js — export docs/*.md compliance
+   policies to styled PDFs in docs/ (headless Chrome print).
+
+   Run from repo root:
+     npm run generate:pdfs
+
+   Requires a Chromium-based browser. Override path if needed:
+     CHROME_PATH=/usr/bin/chromium node scripts/dev/generate-pdfs.js
+
+   Default (macOS): /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+═════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const docsDir = path.join(__dirname, '../docs');
+const REPO_ROOT = path.join(__dirname, '../..');
+const docsDir = path.join(REPO_ROOT, 'docs');
+
+const DEFAULT_CHROME_MAC =
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 const files = [
-  {
-    name: 'access-control-policy',
-    title: 'FiHaven — Access Control Policy'
-  },
-  {
-    name: 'data-retention-policy',
-    title: 'FiHaven — Data Retention & Disposal Policy'
-  },
-  {
-    name: 'information-security-policy',
-    title: 'FiHaven — Information Security Policy'
-  }
+  { name: 'access-control-policy', title: 'FiHaven — Access Control Policy' },
+  { name: 'data-retention-policy', title: 'FiHaven — Data Retention & Disposal Policy' },
+  { name: 'information-security-policy', title: 'FiHaven — Information Security Policy' },
 ];
 
-// Verify Google Chrome path
-const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+function resolveChromePath() {
+  if (process.env.CHROME_PATH) {
+    return process.env.CHROME_PATH;
+  }
+  if (fs.existsSync(DEFAULT_CHROME_MAC)) {
+    return DEFAULT_CHROME_MAC;
+  }
+  for (const candidate of [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ]) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return DEFAULT_CHROME_MAC;
+}
+
+const chromePath = resolveChromePath();
 if (!fs.existsSync(chromePath)) {
-  console.error(`Error: Google Chrome not found at expected path: ${chromePath}`);
+  console.error(`Chrome/Chromium not found at: ${chromePath}`);
+  console.error('Set CHROME_PATH to your browser binary and retry.');
   process.exit(1);
 }
 
-files.forEach(file => {
+console.log(`Using browser: ${chromePath}`);
+
+files.forEach((file) => {
   const mdPath = path.join(docsDir, `${file.name}.md`);
   const htmlPath = path.join(docsDir, `${file.name}.temp.html`);
   const pdfPath = path.join(docsDir, `${file.name}.pdf`);
@@ -38,19 +69,16 @@ files.forEach(file => {
 
   console.log(`Processing ${file.name}.md...`);
 
-  // Read Markdown
   const mdContent = fs.readFileSync(mdPath, 'utf8');
 
-  // Convert Markdown to HTML using marked
   let bodyHtml;
   try {
-    bodyHtml = execSync('npx -y marked', { input: mdContent, encoding: 'utf8' });
+    bodyHtml = execSync('npx -y marked', { input: mdContent, encoding: 'utf8', cwd: REPO_ROOT });
   } catch (error) {
     console.error(`Error parsing Markdown for ${file.name}:`, error);
     return;
   }
 
-  // Wrap with styled HTML template
   const fullHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,7 +169,6 @@ files.forEach(file => {
       color: #334155;
     }
     
-    /* Special styling for metadata table at top */
     table:first-of-type {
       margin-bottom: 30px;
       border: 1px solid #e2e8f0;
@@ -212,10 +239,8 @@ files.forEach(file => {
 </body>
 </html>`;
 
-  // Write temporary HTML
   fs.writeFileSync(htmlPath, fullHtml, 'utf8');
 
-  // Convert HTML to PDF using Chrome
   try {
     const cmd = `"${chromePath}" --headless --disable-gpu --print-to-pdf="${pdfPath}" --no-sandbox "${htmlPath}"`;
     execSync(cmd);
@@ -223,7 +248,6 @@ files.forEach(file => {
   } catch (error) {
     console.error(`Error rendering PDF for ${file.name}:`, error);
   } finally {
-    // Clean up temporary HTML file
     if (fs.existsSync(htmlPath)) {
       fs.unlinkSync(htmlPath);
     }
