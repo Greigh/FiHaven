@@ -1,13 +1,20 @@
-# FiHaven — what crawlers can and can't index.
-# Update the Sitemap URL once you've set the production domain.
+# FiHaven — crawler rules for https://fihaven.app/
+# Public marketing and legal pages are indexable; the signed-in app is not.
 
 User-agent: *
 Allow: /
 
-# The dashboard, settings, and the API need an account — there's
-# nothing useful for a search engine there.
+# Authenticated app, onboarding, and account flows (also noindex in HTML).
 Disallow: /dashboard
 Disallow: /settings
+Disallow: /welcome
+Disallow: /verify-email
+Disallow: /reset
+Disallow: /recover
+Disallow: /plaid-oauth
+Disallow: /dev-portal
+
+# API and machine endpoints — not web pages.
 Disallow: /api/
 
 Sitemap: https://fihaven.app/sitemap.xml
