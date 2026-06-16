@@ -66,6 +66,12 @@ const CLIENT_DIR =
 // vite.config.js and the BASE constant in client/js/base.js.
 const BASE = '';  // FiHaven serves at its own domain root (fihaven.app)
 
+// Static assets from client/public/ (dev: client/public; prod: dist root).
+const PUBLIC_ASSET_DIR =
+  process.env.NODE_ENV === 'production'
+    ? CLIENT_DIR
+    : path.join(CLIENT_DIR, 'public');
+
 /* ── app ────────────────────────────────────────────────────── */
 
 const app = express();
@@ -150,6 +156,15 @@ const LEGACY = {
 };
 sub.get(Object.keys(LEGACY), (req, res) =>
   res.redirect(301, BASE + LEGACY[req.path])
+);
+
+// RFC 9116 security.txt — express.static ignores dot-directories by default.
+sub.use(
+  '/.well-known',
+  express.static(path.join(PUBLIC_ASSET_DIR, '.well-known'), {
+    index: false,
+    dotfiles: 'allow',
+  })
 );
 
 // Server-side gate for the private pages — works even with JS
