@@ -9,7 +9,6 @@
 
 import './theme.js';
 import './navbar.js';
-import './public-footer.js';
 
 var API = '/api/auth';
 var csrfToken = null;

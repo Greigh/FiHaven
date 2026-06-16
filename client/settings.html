@@ -169,10 +169,6 @@
               <label for="period-length">Window length in days (7–90)</label>
               <input id="period-length" type="number" min="7" max="90" step="1" data-period-length>
             </div>
-            <div class="auth-field" data-period-anchor-field hidden>
-              <label for="period-anchor">Start window on (optional)</label>
-              <input id="period-anchor" type="date" data-period-anchor>
-            </div>
             <div class="auth-note" data-period-effective></div>
             <div class="auth-error" data-message="period" aria-live="polite"></div>
             <div class="auth-actions">
@@ -479,7 +475,11 @@
       <div>
         <strong style="color:var(--text);">FiHaven</strong> settings.
       </div>
-      <div class="site-footer-links" data-site-footer="settings"></div>
+      <div class="site-footer-links">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/terms">Terms of Use</a>
+        <a href="/privacy">Privacy</a>
+      </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>
     </footer>
