@@ -16,6 +16,7 @@
   <meta property="og:title" content="FiHaven — Privacy Policy"/>
   <meta property="og:description" content="How FiHaven collects, uses, and protects your data."/>
   <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta property="og:locale" content="en_US"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FiHaven — Privacy Policy"/>
   <meta name="twitter:description" content="How FiHaven collects, uses, and protects your data."/>
@@ -40,15 +41,15 @@
         <div class="hero-badge">Privacy</div>
         <h1>Privacy Policy</h1>
         <p>FiHaven (&ldquo;FiHaven&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) provides a personal bill and debt tracking application. This Privacy Policy explains what information we collect, how we use it, how we protect it, and the choices you have. By creating an account or using the app, you agree to the practices described here.</p>
-        <p class="mono" style="font-size:12px;color:var(--muted);">Last updated: June 8, 2026</p>
+        <p class="mono" style="font-size:12px;color:var(--muted);">Last updated: June 16, 2026</p>
 
         <div class="legal-section">
           <h3>1. Information we collect</h3>
           <p>We collect only what is needed to operate the app:</p>
           <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
             <li><strong>Account information</strong> — your email address, an optional display name, and a securely hashed version of your password. We never store your password in readable form.</li>
-            <li><strong>Financial information you enter</strong> — bills, credit card balances and terms, payment history, income, and related settings. You choose what to add, and you can edit or remove it at any time.</li>
-            <li><strong>Connected bank accounts (optional, Pro)</strong> — if you choose to link a bank through <strong>Plaid</strong>, we receive account names, masks, types, and balances to display alongside the data you enter, and we store a Plaid access token (encrypted at rest) so we can refresh those balances. You start every connection yourself, and you can disconnect at any time — which deletes the token and the connected-account data. We never receive your bank login credentials.</li>
+            <li><strong>Financial information you enter</strong> — bills (including schedules and optional start/end dates), credit cards, loans and mortgages, payment history, manual spending transactions, income sources, savings goals, asset accounts used for net worth, and related settings. You choose what to add, and you can edit or remove it at any time.</li>
+            <li><strong>Connected bank accounts (optional, Pro)</strong> — if you choose to link a bank through <strong>Plaid</strong>, we receive account names, masks, types, balances, and transaction metadata to display alongside the data you enter. We store a Plaid access token (encrypted at rest) so we can refresh balances and import transactions that do not overwrite your manual entries. You start every connection yourself and can disconnect at any time — which deletes the token and connected-account data. We never receive your bank login credentials.</li>
             <li><strong>Subscription information</strong> — if you upgrade to FiHaven Pro, we store your subscription status and a billing reference (such as a Stripe customer or subscription ID, or an Apple/Google purchase identifier). We never see or store your full card number — see &ldquo;Payments and subscriptions&rdquo; below.</li>
             <li><strong>Technical information</strong> — when you sign in, we record the IP address and browser (or app) user-agent tied to that session so we can protect your account.</li>
           </ul>
@@ -60,7 +61,8 @@
           <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
             <li>Provide the service — store your data and sync it so it is available when you sign in.</li>
             <li>Authenticate you and keep you securely signed in, including sending two-factor login codes when you enable them.</li>
-            <li>Process your FiHaven Pro subscription and confirm your entitlement across your devices.</li>
+            <li>Process your FiHaven Pro subscription and confirm your entitlement on the web and, when the native apps are available, on iOS and Android.</li>
+            <li>Run optional Pro features you enable, such as autopay auto-mark on due dates and bank-transaction import via Plaid.</li>
             <li>Protect the service and our users against abuse, including rate limiting and bot detection.</li>
             <li>Contact you about your account if a security or service issue requires it.</li>
           </ul>
@@ -79,7 +81,7 @@
             <li><strong>Cloudflare Turnstile</strong> — a privacy-respecting CAPTCHA alternative (Cloudflare, Inc.) that keeps bots out of the sign-in and sign-up forms. It runs in <em>invisible</em> mode, so most people never see a challenge. To tell humans from bots, Turnstile may process your IP address and browser signals; this is governed by the <a href="https://www.cloudflare.com/application-services/terms/turnstile-privacy-addendum/" target="_blank" rel="noopener">Cloudflare Turnstile Privacy Addendum</a> and the <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>. We receive only a pass/fail token confirming the challenge was solved.</li>
             <li><strong>Stripe</strong> — processes FiHaven Pro payments made on the web. Your card details are entered on Stripe&rsquo;s secure checkout and handled by Stripe under its <a href="https://stripe.com/privacy" target="_blank" rel="noopener">privacy policy</a>; we receive only a customer/subscription reference and your subscription status.</li>
             <li><strong>Plaid</strong> — if you choose to link a bank account (an optional FiHaven Pro feature), Plaid Inc. securely connects to your bank and returns account balances and metadata to us. You authenticate directly with your bank inside Plaid&rsquo;s own interface; we never see your bank login credentials. Plaid&rsquo;s handling of your information is governed by the <a href="https://plaid.com/legal/#consumers" target="_blank" rel="noopener">Plaid End User Privacy Policy</a>. You can revoke access at any time from Settings, and we delete the stored connection when you do.</li>
-            <li><strong>Apple App Store &amp; Google Play</strong> — process FiHaven Pro purchases made inside the iOS and Android apps. Payment is handled entirely by Apple or Google; we receive only a receipt or purchase token used to confirm your subscription.</li>
+            <li><strong>Apple App Store &amp; Google Play</strong> — when the native apps are available, process FiHaven Pro purchases made inside them. Payment is handled entirely by Apple or Google; we receive only a receipt or purchase token used to confirm your subscription.</li>
             <li><strong>Email delivery</strong> — we use an email provider to send account and security messages, including email-based login (two-factor) codes.</li>
           </ul>
         </div>
@@ -89,18 +91,18 @@
           <p>FiHaven is free to use; FiHaven Pro is an optional paid subscription. We do <strong>not</strong> collect or store your full card number or bank details — payments are handled entirely by the processor you choose:</p>
           <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
             <li><strong>On the web</strong>, checkout is handled by Stripe. We store only a Stripe customer/subscription reference and your current status (active, canceled, renewal date).</li>
-            <li><strong>In the iOS and Android apps</strong>, purchases go through Apple In-App Purchase or Google Play Billing. We store only the resulting purchase/receipt identifier needed to verify your entitlement.</li>
+            <li><strong>In the iOS and Android apps</strong> (when available), purchases go through Apple In-App Purchase or Google Play Billing. We store only the resulting purchase/receipt identifier needed to verify your entitlement.</li>
             <li><strong>Promo codes</strong>, where offered, are validated against our own records and may grant Pro access without a payment processor.</li>
           </ul>
-          <p style="margin-top:8px;">Your Pro entitlement is computed on our server and applies across the web, iOS, and Android.</p>
+          <p style="margin-top:8px;">Your Pro entitlement is computed on our server and applies across the web and, when released, the iOS and Android apps.</p>
         </div>
 
         <div class="legal-section">
           <h3>6. Mobile applications</h3>
-          <p>The FiHaven iOS and Android apps store and sync the same data through the same secure API as the website, under this same policy. A few app-specific notes:</p>
+          <p>Native FiHaven apps for iOS and Android are in development and are not yet listed on the App Store or Google Play. When they are available, they will store and sync the same data through the same secure API as the website, under this same policy. A few app-specific notes:</p>
           <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
             <li>Your sign-in token is stored in the device&rsquo;s secure storage (the iOS Keychain or Android encrypted storage), not in a cookie.</li>
-            <li>An optional biometric lock (Face ID, Touch ID, or fingerprint) can be enabled. It is enforced on your device by the operating system; we never receive your biometric data.</li>
+            <li>An optional biometric lock (Face ID, Touch ID, or fingerprint) can be enabled, with a configurable grace period before re-prompting. It is enforced on your device by the operating system; we never receive your biometric data.</li>
             <li>In-app purchases are processed by Apple or Google as described above.</li>
             <li>The apps do not include third-party advertising or analytics SDKs.</li>
           </ul>
@@ -152,7 +154,7 @@
 
         <div class="legal-section">
           <h3>13. Contact us</h3>
-          <p>If you have questions about this policy or your data, contact us at <a href="mailto:security@fihaven.app">security@fihaven.app</a>.</p>
+          <p>If you have questions about this policy or your data, contact us at <a href="mailto:security@fihaven.app">security@fihaven.app</a> or see <a href="/contact">Contact</a>.</p>
         </div>
       </section>
     </main>
@@ -161,11 +163,7 @@
       <div>
         <strong style="color:var(--text);">FiHaven</strong> — your privacy matters.
       </div>
-      <div class="site-footer-links">
-        <a href="/">Home</a>
-        <a href="/login">Log In</a>
-        <a href="/terms">Terms of Use</a>
-      </div>
+      <div class="site-footer-links" data-public-footer></div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>
     </footer>

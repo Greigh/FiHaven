@@ -62,8 +62,12 @@ describe('utils — recommendedAmount', () => {
     expect(recommendedAmount({ balance: 1000, minPayment: 25, recommendedPayment: 200 })).toBe(200);
   });
 
-  it('recommends paying the full balance on a non-promo card', () => {
-    expect(recommendedAmount({ balance: 1000, minPayment: 25 })).toBe(1000);
+  it('recommends paying the full balance on an interest-bearing non-promo card', () => {
+    expect(recommendedAmount({ balance: 1000, minPayment: 25, regularAPR: 19.99 })).toBe(1000);
+  });
+
+  it('recommends only the minimum on a 0% non-promo card', () => {
+    expect(recommendedAmount({ balance: 1000, minPayment: 25, regularAPR: 0 })).toBe(25);
   });
 
   it('spreads a promo balance but never drops below the minimum', () => {
@@ -114,7 +118,7 @@ describe('utils — goalAmountFor (bills and card policies)', () => {
   beforeEach(() => {
     setBills([{ id: 'B1', amount: 120 }]);
     setPayments([]);
-    setCards([{ id: 'C1', balance: 1000, minPayment: 25 }]);
+    setCards([{ id: 'C1', balance: 1000, minPayment: 25, regularAPR: 19.99 }]);
     setSettings({ paidGoal: 'recommended' });
   });
 
@@ -127,8 +131,16 @@ describe('utils — goalAmountFor (bills and card policies)', () => {
     expect(goalAmountFor('card', 'C1')).toBe(25);
     setSettings({ paidGoal: 'full' });
     expect(goalAmountFor('card', 'C1')).toBe(1000);
-    setSettings({ paidGoal: 'recommended' }); // non-promo → pay the balance
+    setSettings({ paidGoal: 'recommended' }); // interest-bearing non-promo → pay the balance
     expect(goalAmountFor('card', 'C1')).toBe(1000);
+  });
+
+  it('a 0% card owes only the minimum under the recommended policy', () => {
+    setCards([{ id: 'C0', balance: 1000, minPayment: 25, regularAPR: 0 }]);
+    setSettings({ paidGoal: 'recommended' });
+    expect(goalAmountFor('card', 'C0')).toBe(25);
+    setSettings({ paidGoal: 'full' }); // explicit "full" still targets the balance
+    expect(goalAmountFor('card', 'C0')).toBe(1000);
   });
 });
 

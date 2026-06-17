@@ -61,12 +61,12 @@ project settings is needed to flip them:
 | `FH_TAB` / `FH_ROUTE` / `FH_SCREEN` | Jump to a tab / More route / present the paywall — screenshot helpers (DEBUG). |
 
 To run a dev build against **production** with a real account, set both
-`FH_BASE=https://danielhipskind.com/fihaven` and `FH_TURNSTILE_SITEKEY`
+`FH_BASE=https://fihaven.app` and `FH_TURNSTILE_SITEKEY`
 to your real public sitekey.
 
 ## FiHaven Pro (StoreKit 2)
 
-- Auto-renewing subscription; products `com.danielhipskind.fihaven.pro.monthly`
+- Auto-renewing subscription; products `app.fihaven.pro.monthly`
   / `.yearly` (match App Store Connect + the server product map).
 - `FiHaven.storekit` is wired into the generated scheme, so plans resolve
   in the **Simulator when run from Xcode** (a raw `simctl launch` can't

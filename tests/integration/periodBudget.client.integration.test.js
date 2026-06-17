@@ -143,3 +143,52 @@ describe('integration — startDay period across month boundary', () => {
     expect(isPaid('bill', 'B1', nextPeriod.key)).toBe(false);
   });
 });
+
+describe('integration — rolling period with a custom start anchor', () => {
+  beforeEach(() => {
+    vi.spyOn(tz, 'today').mockReturnValue(new Date(2026, 5, 15)); // Jun 15
+    setSettings({
+      periodMode: 'rolling',
+      periodLength: 30,
+      periodAnchor: '2026-06-10',
+      paidGoal: 'minimum',
+    });
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 12, frequency: 'Monthly' }]);
+    setCards([]);
+    setPayments([]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('anchors the active window to the chosen date, not the fixed epoch', () => {
+    const cfg = getPeriodConfig();
+    expect(cfg.anchor).toBe('2026-06-10');
+
+    const bounds = periodBounds('2026-06-15', cfg);
+    expect(bounds.key).toBe('2026-06-10');
+    expect(bounds.start.getDate()).toBe(10);
+    expect(Math.round((bounds.end - bounds.start) / 864e5)).toBe(30); // [Jun 10, Jul 10)
+  });
+
+  it('matches paid/owed against the anchored window, not the calendar month', () => {
+    const cfg = getPeriodConfig();
+    const bounds = periodBounds('2026-06-15', cfg);
+
+    // A payment after the anchor (Jun 12) lands in the active window — even
+    // though its stored monthKey is nonsense, the date wins.
+    setPayments([
+      { id: 'p1', type: 'bill', refId: 'B1', amount: 1500, date: '2026-06-12', monthKey: '2099-01' },
+    ]);
+    expect(paymentInBounds({ date: '2026-06-12' }, bounds)).toBe(true);
+    expect(isPaid('bill', 'B1')).toBe(true);
+
+    // A payment before the anchor (Jun 9) belongs to the previous window.
+    setPayments([
+      { id: 'p2', type: 'bill', refId: 'B1', amount: 1500, date: '2026-06-09', monthKey: '2099-01' },
+    ]);
+    expect(paymentInBounds({ date: '2026-06-09' }, bounds)).toBe(false);
+    expect(isPaid('bill', 'B1')).toBe(false);
+  });
+});

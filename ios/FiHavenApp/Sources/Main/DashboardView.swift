@@ -6,6 +6,14 @@ import FiHavenCore
 struct DashboardView: View {
     @EnvironmentObject var store: AppStore
     @State private var paying: PayTarget?
+    @State private var skipPrompt: SkipPrompt?
+
+    /// A pending "skip a card you still owe on" confirmation.
+    private struct SkipPrompt: Identifiable {
+        let id = UUID()
+        let item: UpcomingItem
+        let message: String
+    }
 
     var body: some View {
         ScrollView {
@@ -23,6 +31,27 @@ struct DashboardView: View {
             }
         }
         .sheet(item: $paying) { target in PayView(target: target) }
+        .alert(
+            "Skip this month?",
+            isPresented: Binding(get: { skipPrompt != nil }, set: { if !$0 { skipPrompt = nil } }),
+            presenting: skipPrompt
+        ) { prompt in
+            Button("Skip anyway", role: .destructive) {
+                store.skipMonth(type: prompt.item.type, refId: prompt.item.refId, name: prompt.item.name)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { prompt in
+            Text(prompt.message)
+        }
+    }
+
+    /// Skip an upcoming item — but for a card you still owe on, confirm first.
+    private func requestSkip(_ item: UpcomingItem) {
+        if item.type == "card", let warning = store.cardSkipWarning(refId: item.refId, name: item.name) {
+            skipPrompt = SkipPrompt(item: item, message: warning)
+        } else {
+            store.skipMonth(type: item.type, refId: item.refId, name: item.name)
+        }
     }
 
     // ── Summary cards ────────────────────────────────────────────────
@@ -72,6 +101,20 @@ struct DashboardView: View {
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { paying = PayTarget(item) }
+                        .contextMenu {
+                            Button { paying = PayTarget(item) } label: {
+                                Label("Pay", systemImage: "dollarsign.circle")
+                            }
+                            if store.isSkipped(item) {
+                                Button { store.unskip(type: item.type, refId: item.refId) } label: {
+                                    Label("Un-skip month", systemImage: "arrow.uturn.backward")
+                                }
+                            } else {
+                                Button { requestSkip(item) } label: {
+                                    Label("Skip this month", systemImage: "forward.end")
+                                }
+                            }
+                        }
                     }
                 }
                 .ctCard(padding: 0)

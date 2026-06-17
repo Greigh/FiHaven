@@ -33,6 +33,7 @@
         <div class="card" style="padding:14px 16px;margin-top:16px;">
           <div class="section-title" style="font-size:12px;">Signed in as</div>
           <div data-current-identity style="font-size:18px;font-weight:600;margin-top:4px;line-height:1.3;">…</div>
+          <div data-membership style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.4;"></div>
         </div>
       </section>
 
@@ -168,6 +169,10 @@
             <div class="auth-field" data-period-length-field hidden>
               <label for="period-length">Window length in days (7–90)</label>
               <input id="period-length" type="number" min="7" max="90" step="1" data-period-length>
+            </div>
+            <div class="auth-field" data-period-anchor-field hidden>
+              <label for="period-anchor">Start window on (optional)</label>
+              <input id="period-anchor" type="date" data-period-anchor>
             </div>
             <div class="auth-note" data-period-effective></div>
             <div class="auth-error" data-message="period" aria-live="polite"></div>
@@ -449,7 +454,35 @@
 
       <!-- ═══════════════ Danger zone ═══════════════ -->
       <div class="settings-panel" data-tab-panel="danger" hidden>
-        <section class="auth-card" style="border-color:var(--red);">
+
+        <!-- Clear selected data (keeps the account + settings) -->
+        <section class="auth-card" style="border-color:var(--orange,#C2410C);">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Clear data</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Erase chosen types of data while keeping your account and settings. This cannot be undone.</p>
+          <form class="auth-form" data-form="clear" style="margin-top:14px;">
+            <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">
+              <label style="display:flex;gap:8px;align-items:center;font-size:14px;"><input type="checkbox" data-clear-group value="bills"/> <span>Bills (and their payment history)</span></label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:14px;"><input type="checkbox" data-clear-group value="cards"/> <span>Cards &amp; loans (and their payment history)</span></label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:14px;"><input type="checkbox" data-clear-group value="payments"/> <span>All payment history</span></label>
+              <label style="display:flex;gap:8px;align-items:center;font-size:14px;"><input type="checkbox" data-clear-group value="bank"/> <span>Connected bank data (accounts &amp; transactions)</span></label>
+            </fieldset>
+            <div class="auth-field" style="margin-top:12px;">
+              <label for="clear-password">Current password</label>
+              <input type="password" id="clear-password" autocomplete="current-password" placeholder="Enter your password"/>
+            </div>
+            <div class="auth-field">
+              <label for="clear-code">Authenticator code <span style="color:var(--muted);font-weight:400;">(if 2FA is enabled)</span></label>
+              <input type="text" id="clear-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"/>
+            </div>
+            <div class="auth-error" data-message="clear" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-danger" type="submit">Clear selected data</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Permanently delete the whole account -->
+        <section class="auth-card" style="border-color:var(--red);margin-top:18px;">
           <h2 style="font-size:20px;letter-spacing:-.03em;color:var(--red);">Delete account</h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">This permanently deletes your account and all of your data — bills, cards, history, and settings. This cannot be undone.</p>
           <form class="auth-form" data-form="delete" style="margin-top:14px;">
@@ -457,13 +490,17 @@
               <label for="delete-password">Current password</label>
               <input type="password" id="delete-password" autocomplete="current-password" placeholder="Enter your password" required/>
             </div>
-            <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);">
-              <input type="checkbox" id="delete-confirm" style="margin-top:2px;"/>
-              <span>I understand this permanently deletes my account and all of my data.</span>
-            </label>
+            <div class="auth-field">
+              <label for="delete-code">Authenticator code <span style="color:var(--muted);font-weight:400;">(if 2FA is enabled)</span></label>
+              <input type="text" id="delete-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"/>
+            </div>
+            <div class="auth-field">
+              <label for="delete-confirm-text">Type <strong>DELETE ACCOUNT DATA</strong> to confirm</label>
+              <input type="text" id="delete-confirm-text" autocomplete="off" autocapitalize="characters" placeholder="DELETE ACCOUNT DATA"/>
+            </div>
             <div class="auth-error" data-message="delete" aria-live="polite"></div>
             <div class="auth-actions">
-              <button class="btn btn-danger" type="submit">Delete my account</button>
+              <button class="btn btn-danger" type="submit" data-delete-submit disabled>Delete my account</button>
             </div>
           </form>
         </section>
@@ -479,6 +516,8 @@
         <a href="/dashboard">Dashboard</a>
         <a href="/terms">Terms of Use</a>
         <a href="/privacy">Privacy</a>
+        <a href="https://github.com/Greigh/FiHaven/issues/new?template=bug_report.md" target="_blank" rel="noopener">Report a bug</a>
+        <a href="https://github.com/Greigh/FiHaven/issues/new?template=feature_request.md" target="_blank" rel="noopener">Suggest a feature</a>
       </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>

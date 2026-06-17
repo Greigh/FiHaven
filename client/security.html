@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="How FiHaven protects your account — encryption, sessions, MFA, Plaid token handling, and vulnerability reporting."/>
+  <meta name="robots" content="index,follow"/>
+  <link rel="canonical" href="https://fihaven.app/security"/>
+
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="FiHaven"/>
+  <meta property="og:url" content="https://fihaven.app/security"/>
+  <meta property="og:title" content="FiHaven — Security"/>
+  <meta property="og:description" content="How FiHaven protects sign-in, sessions, and optional bank connections."/>
+  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta property="og:locale" content="en_US"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FiHaven — Security"/>
+  <meta name="twitter:description" content="How FiHaven protects sign-in, sessions, and optional bank connections."/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%233D6FE1'/%3E%3Cg fill='white'%3E%3Crect x='16' y='17' width='7' height='30' rx='2'/%3E%3Crect x='16' y='17' width='22' height='7' rx='2'/%3E%3Crect x='16' y='29' width='17' height='6' rx='2'/%3E%3Crect x='41' y='27' width='7' height='20' rx='2'/%3E%3Ccircle cx='44.5' cy='20' r='4'/%3E%3C/g%3E%3C/svg%3E"/>
+
+  <title>Security — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="public">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main legal-page">
+      <section class="legal-card hero-shell">
+        <div class="hero-badge">Trust</div>
+        <h1>Security at FiHaven</h1>
+        <p>FiHaven holds real financial details — due dates, balances, payment history — so security is designed in, not bolted on. This page is the plain-language summary; the full information security policy lives in the repo for auditors and the curious.</p>
+        <p class="mono" style="font-size:12px;color:var(--muted);">Security contact: <a href="mailto:security@fihaven.app">security@fihaven.app</a></p>
+
+        <div class="legal-section">
+          <h3>At a glance</h3>
+          <div class="security-summary-grid">
+            <article class="security-summary-card">
+              <h4>Passwords &amp; sessions</h4>
+              <p>Passwords are hashed with bcrypt and never stored in plain text. Web sessions use HttpOnly, Secure, SameSite cookies with per-session CSRF tokens. Changing your password signs out every other device.</p>
+            </article>
+            <article class="security-summary-card">
+              <h4>Multi-factor sign-in</h4>
+              <p>Optional TOTP authenticator apps, email one-time codes, or WebAuthn passkeys. MFA secrets are encrypted at rest on the server.</p>
+            </article>
+            <article class="security-summary-card">
+              <h4>Transport &amp; storage</h4>
+              <p>All traffic is served over HTTPS. Plaid access tokens and MFA material are encrypted at rest with AES-256-GCM. Secrets live in environment configuration — never in source control.</p>
+            </article>
+            <article class="security-summary-card">
+              <h4>Abuse resistance</h4>
+              <p>Cloudflare Turnstile on sign-up and sign-in, plus server-side rate limits per IP and email. Database queries use parameterized statements.</p>
+            </article>
+            <article class="security-summary-card">
+              <h4>Your data stays yours</h4>
+              <p>Every API request is authorized server-side to your account only. Export or delete your data from Settings. We don&rsquo;t sell your information or run ads.</p>
+            </article>
+            <article class="security-summary-card">
+              <h4>Payments</h4>
+              <p>FiHaven Pro on the web is billed by Stripe. Card numbers never touch FiHaven&rsquo;s servers — Stripe handles PCI scope.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="legal-section">
+          <h3>Optional bank linking (Plaid)</h3>
+          <p>Bank connections are user-initiated and optional. FiHaven never receives your bank login credentials — Plaid handles authentication. We store an encrypted access token so balances and transactions can refresh. Disconnecting deletes the token and linked account data from our side.</p>
+          <p style="margin-top:8px;">Imported transactions are additive: they do not overwrite bills, cards, or spending you entered manually.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>Native apps (when released)</h3>
+          <p>The in-development iOS and Android apps will authenticate against the same API. Session tokens will live in the platform secure store (Keychain / encrypted storage), not in a browser cookie. Biometric app lock will be enforced on-device — we never receive biometric data.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>How we build &amp; operate</h3>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li>Source in Git with pull-request review; GitHub CodeQL on every push.</li>
+            <li>Dependabot and dependency review for vulnerable packages.</li>
+            <li>Production runs behind nginx with TLS termination on a patched Linux host.</li>
+            <li>Logs are kept for operations and must not contain passwords, tokens, or secrets.</li>
+            <li>Incident response includes notifying Plaid without undue delay if Plaid data or tokens are affected.</li>
+          </ul>
+        </div>
+
+        <div class="legal-section">
+          <h3>Report a vulnerability</h3>
+          <p>Please <strong>do not</strong> open a public GitHub issue for security problems. Use GitHub&rsquo;s <a href="https://github.com/Greigh/FiHaven/security/advisories/new" target="_blank" rel="noopener">private vulnerability reporting</a> or email <a href="mailto:security@fihaven.app">security@fihaven.app</a>. Include steps to reproduce and whether the issue is already public.</p>
+          <p style="margin-top:8px;">We confirm impact, coordinate a fix, and disclose responsibly when appropriate. See also <a href="https://github.com/Greigh/FiHaven/blob/main/.github/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a> on GitHub.</p>
+        </div>
+
+        <div class="legal-section">
+          <h3>Full policy documents</h3>
+          <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.7;">
+            <li><a href="https://github.com/Greigh/FiHaven/blob/main/docs/information-security-policy.md" target="_blank" rel="noopener">Information Security Policy</a> — risk management, encryption, access control, incident response, vendors.</li>
+            <li><a href="https://github.com/Greigh/FiHaven/blob/main/docs/data-retention-policy.md" target="_blank" rel="noopener">Data Retention Policy</a> — what we keep and for how long.</li>
+            <li><a href="https://github.com/Greigh/FiHaven/blob/main/docs/access-control-policy.md" target="_blank" rel="noopener">Access Control Policy</a> — who can touch production systems.</li>
+            <li><a href="/privacy">Privacy Policy</a> — what we collect and why.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong style="color:var(--text);">FiHaven</strong> — boring security, on purpose.
+      </div>
+      <div class="site-footer-links" data-public-footer></div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+      <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/public-entry.js"></script>
+</body>
+</html>

@@ -9,6 +9,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 
 const dbApi = require('../db');
+const oauth = require('../oauth');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
 const { createSession, destroySession, requireAuth } = require('../session');
@@ -555,6 +556,8 @@ router.post('/logout', (req, res) => {
 // not) so an anonymous visitor does not generate a console error.
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(200).json({ user: null });
+  // created_at isn't carried on the session row; fetch it for "Member since".
+  const row = dbApi.findUserById(req.user.id);
   return res.status(200).json({
     user: {
       email: req.user.email,
@@ -562,9 +565,99 @@ router.get('/me', (req, res) => {
       role: req.user.role || 'user',
       emailVerified: !!req.user.emailVerified,
       onboarded: !!req.user.onboarded,
+      createdAt: row ? row.created_at : null,
     },
     csrfToken: req.session.csrf_token,
   });
+});
+
+/* ── Federated sign-in (Sign in with Apple / Google) ─────────── */
+// GET /api/auth/oauth/config — which providers are enabled + their public
+// client ids, so the login page can render the right buttons.
+router.get('/oauth/config', (req, res) => {
+  res.json(oauth.config());
+});
+
+// Sign in with Apple on Android is a web flow: the app opens Apple's
+// authorize page in a Custom Tab with this URL as the redirect. Apple
+// form-posts the result here; we bounce it back into the app via the
+// `fihaven://` deep link, and the app posts the id_token to /oauth/apple.
+// (Native iOS uses ASAuthorization directly and never hits this.)
+const appleFormBody = express.urlencoded({ extended: false });
+function appleAndroidCallback(req, res) {
+  const b = req.body || {};
+  let name = '';
+  try {
+    if (b.user) {
+      const u = JSON.parse(b.user);
+      name = [u.name && u.name.firstName, u.name && u.name.lastName].filter(Boolean).join(' ');
+    }
+  } catch (_) { /* name is best-effort */ }
+  // URLSearchParams percent-encodes everything, so no header/scheme injection.
+  const params = new URLSearchParams({
+    idToken: String(b.id_token || ''),
+    state: String(b.state || ''),
+    name,
+  });
+  return res.redirect(302, `fihaven://oauth/apple?${params.toString()}`);
+}
+router.post('/oauth/apple/callback', appleFormBody, appleAndroidCallback);
+// GET fallback (e.g. user-error redirects from Apple).
+router.get('/oauth/apple/callback', appleAndroidCallback);
+
+// POST /api/auth/oauth/:provider — exchange a provider ID token for a
+// FiHaven session. Find the linked account; else auto-link by verified
+// email; else create a new (already-verified, no-password) account.
+// A federated provider is itself the authentication factor, so this
+// completes sign-in directly (it does not run app-level MFA).
+router.post('/oauth/:provider', async (req, res) => {
+  const provider = req.params.provider;
+  if (provider !== 'google' && provider !== 'apple') {
+    return sendError(res, 404, 'unknown-provider');
+  }
+  const configured = provider === 'google'
+    ? oauth.googleAudiences().length
+    : oauth.appleAudiences().length;
+  if (!configured) return sendError(res, 400, 'provider-not-configured');
+
+  const body = req.body || {};
+  let identity;
+  try {
+    identity = await oauth.verifyProvider(provider, body.idToken, body.name);
+  } catch (err) {
+    console.error(`oauth ${provider} verify failed:`, err && err.message);
+    return sendError(res, 401, 'oauth-verify-failed');
+  }
+  // Auto-linking relies on the provider having verified the address.
+  if (!identity.email || !identity.emailVerified) {
+    return sendError(res, 401, 'oauth-email-unverified');
+  }
+
+  let account = dbApi.findUserByOAuth(provider, identity.subject);
+  if (!account) {
+    const existing = dbApi.findUserByEmail(identity.email);
+    if (existing) {
+      dbApi.linkOAuth(existing.id, provider, identity.subject);
+      account = existing;
+    } else {
+      try {
+        const created = dbApi.createOAuthUser(identity.email, identity.name);
+        dbApi.linkOAuth(created.id, provider, identity.subject);
+        account = dbApi.findUserById(created.id);
+      } catch (err) {
+        if (err && /UNIQUE/.test(String(err.message))) {
+          const again = dbApi.findUserByEmail(identity.email); // raced same-email signup
+          if (again) { dbApi.linkOAuth(again.id, provider, identity.subject); account = again; }
+        }
+        if (!account) {
+          console.error('oauth account create failed:', err && err.message);
+          return sendError(res, 500, 'server-error');
+        }
+      }
+    }
+  }
+
+  return finishLogin(res, req, account);
 });
 
 module.exports = router;

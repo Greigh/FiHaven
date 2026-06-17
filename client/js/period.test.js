@@ -7,6 +7,7 @@ import {
   boundsForKey,
   periodKeyForPayment,
   periodLabel,
+  periodKeyLabel,
 } from './period.js';
 
 describe('period — periodBounds', () => {
@@ -29,6 +30,18 @@ describe('period — periodBounds', () => {
     const b = periodBounds('2026-06-15', { mode: 'rolling', length: 30 });
     const days = Math.round((b.end - b.start) / 864e5);
     expect(days).toBe(30);
+  });
+
+  it('rolling mode honors a custom start anchor', () => {
+    // Buckets begin on the anchor date; Jun 15 is in [Jun 10, Jul 10).
+    const cfg = { mode: 'rolling', length: 30, anchor: '2026-06-10' };
+    const b = periodBounds('2026-06-15', cfg);
+    expect(b.key).toBe('2026-06-10');
+    expect(b.start.getDate()).toBe(10);
+    expect(b.start.getMonth()).toBe(5); // June
+    // The day before the anchor falls in the previous bucket.
+    const prev = periodBounds('2026-06-09', cfg);
+    expect(prev.key).toBe('2026-05-11');
   });
 });
 
@@ -61,6 +74,14 @@ describe('period — paymentInBounds', () => {
   it('is false without a payment or bounds', () => {
     expect(paymentInBounds(null, june)).toBe(false);
     expect(paymentInBounds({ date: '2026-06-10' }, null)).toBe(false);
+  });
+
+  it('places a date-less record by monthKey only in calendar mode', () => {
+    expect(paymentInBounds({ monthKey: '2026-06' }, june)).toBe(true);
+    expect(paymentInBounds({ monthKey: '2026-05' }, june)).toBe(false);
+    // Non-calendar bounds can't place a date-less record.
+    const roll = periodBounds('2026-06-15', { mode: 'rolling', length: 30 });
+    expect(paymentInBounds({ monthKey: roll.key }, roll)).toBe(false);
   });
 });
 
@@ -116,5 +137,24 @@ describe('period — periodLabel', () => {
   });
   it('returns empty for null bounds', () => {
     expect(periodLabel(null)).toBe('');
+  });
+
+  it('renders a non-calendar period as a start–end range', () => {
+    const cfg = { mode: 'rolling', length: 30 };
+    const b = periodBounds('2026-06-15', cfg);
+    const label = periodLabel(b, cfg);
+    expect(label).toContain('–');                 // a date range, not a single month
+    expect(label).toMatch(/\d{4}/);               // includes the year
+  });
+});
+
+describe('period — periodKeyLabel', () => {
+  it('labels a calendar key', () => {
+    expect(periodKeyLabel('2026-06', { mode: 'calendar' })).toBe('June 2026');
+  });
+  it('labels a rolling key as a range', () => {
+    const cfg = { mode: 'rolling', length: 30 };
+    const key = periodBounds('2026-06-15', cfg).key;
+    expect(periodKeyLabel(key, cfg)).toContain('–');
   });
 });

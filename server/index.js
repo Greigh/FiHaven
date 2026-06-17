@@ -66,6 +66,12 @@ const CLIENT_DIR =
 // vite.config.js and the BASE constant in client/js/base.js.
 const BASE = '';  // FiHaven serves at its own domain root (fihaven.app)
 
+// Static assets from client/public/ (dev: client/public; prod: dist root).
+const PUBLIC_ASSET_DIR =
+  process.env.NODE_ENV === 'production'
+    ? CLIENT_DIR
+    : path.join(CLIENT_DIR, 'public');
+
 /* ── app ────────────────────────────────────────────────────── */
 
 const app = express();
@@ -143,10 +149,31 @@ const LEGACY = {
   '/login.html':     '/login',
   '/terms.html':     '/terms',
   '/privacy.html':   '/privacy',
+  '/faq.html':       '/faq',
+  '/pricing.html':   '/pricing',
+  '/security.html':  '/security',
+  '/contact.html':   '/contact',
 };
 sub.get(Object.keys(LEGACY), (req, res) =>
   res.redirect(301, BASE + LEGACY[req.path])
 );
+
+// RFC 9116 security.txt — express.static ignores dot-directories by default.
+sub.use(
+  '/.well-known',
+  express.static(path.join(PUBLIC_ASSET_DIR, '.well-known'), {
+    index: false,
+    dotfiles: 'allow',
+  })
+);
+
+// IndexNow key file (dev fallback when dist/ key file is absent).
+if (process.env.INDEXNOW_KEY && /^[a-f0-9]{8,128}$/i.test(process.env.INDEXNOW_KEY)) {
+  const indexNowKey = process.env.INDEXNOW_KEY;
+  sub.get(`/${indexNowKey}.txt`, (req, res) => {
+    res.type('text/plain; charset=utf-8').send(indexNowKey);
+  });
+}
 
 // Server-side gate for the private pages — works even with JS
 // disabled. Anonymous visitors get the marketing landing; signed-in

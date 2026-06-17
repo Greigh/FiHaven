@@ -11,7 +11,7 @@
    - Build: `vite build` outputs to dist/, which Express serves
      from the /fihaven/ mount in production.
 ═══════════════════════════════════════════════════════════ */
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -43,6 +43,10 @@ const cleanUrls = {
       [BASE + '/login.html']:     BASE + '/login',
       [BASE + '/terms.html']:     BASE + '/terms',
       [BASE + '/privacy.html']:   BASE + '/privacy',
+      [BASE + '/faq.html']:       BASE + '/faq',
+      [BASE + '/pricing.html']:   BASE + '/pricing',
+      [BASE + '/security.html']:  BASE + '/security',
+      [BASE + '/contact.html']:   BASE + '/contact',
     };
     server.middlewares.use((req, res, next) => {
       const path = (req.url || '/').split('?')[0];
@@ -88,6 +92,31 @@ const stripHtmlComments = {
   },
 };
 
+/* IndexNow ownership file: https://www.indexnow.org/documentation */
+function indexNowKeyFile() {
+  let indexNowKey = '';
+  return {
+    name: 'fihaven-indexnow-key',
+    apply: 'build',
+    config(_, { mode }) {
+      const env = loadEnv(mode, resolve(__dirname), '');
+      indexNowKey = (process.env.INDEXNOW_KEY || env.INDEXNOW_KEY || '').trim();
+    },
+    generateBundle() {
+      if (!indexNowKey) return;
+      if (!/^[a-f0-9]{8,128}$/i.test(indexNowKey)) {
+        this.warn('INDEXNOW_KEY must be 8–128 hex chars — skipping IndexNow key file');
+        return;
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: `${indexNowKey}.txt`,
+        source: indexNowKey,
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: 'client',
   // .env files live in the project root (one directory up) so the
@@ -100,7 +129,7 @@ export default defineConfig({
   publicDir: 'public',
   appType: 'mpa',
   base: BASE + '/',
-  plugins: [svelte(), cleanUrls, stripHtmlComments],
+  plugins: [svelte(), cleanUrls, stripHtmlComments, indexNowKeyFile()],
   server: {
     port: 5173,
     proxy: {
@@ -125,6 +154,10 @@ export default defineConfig({
         plaidOauth: clientFile('plaid-oauth.html'),
         terms:     clientFile('terms.html'),
         privacy:   clientFile('privacy.html'),
+        faq:       clientFile('faq.html'),
+        pricing:   clientFile('pricing.html'),
+        security:  clientFile('security.html'),
+        contact:   clientFile('contact.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
         devPortal: clientFile('dev-portal.html'),

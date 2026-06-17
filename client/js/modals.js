@@ -560,6 +560,29 @@ export function skipMonth(type, refId, name) {
     (p) => p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds)
   );
   if (exists) return;
+
+  // Cards/loans: warn before skipping when the minimum (or the suggested
+  // payment under the active goal setting) hasn't been met this period —
+  // skipping a card you still owe on can trigger a late fee or interest.
+  if (type === 'card') {
+    const card = cards.find((c) => String(c.id) === String(refId));
+    if (card) {
+      const mk   = currentPeriodKey();
+      const paid = paidAmount('card', refId, mk);
+      const min  = parseFloat(card.minPayment || 0);
+      const goal = goalAmountFor('card', refId, mk); // suggested, per settings
+      let warning = '';
+      if (min > 0 && paid + 0.005 < min) {
+        warning = 'You haven’t paid the minimum of ' + fmt(min) + ' on ' +
+          (name || 'this card') + ' yet. Skipping could mean a late fee or extra interest.';
+      } else if (goal > 0 && paid + 0.005 < goal) {
+        warning = 'You haven’t reached your suggested payment of ' + fmt(goal) +
+          ' on ' + (name || 'this card') + ' yet.';
+      }
+      if (warning && !confirm(warning + '\n\nSkip anyway?')) return;
+    }
+  }
+
   payments.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
     // Store the calendar monthKey for back-compat; matching is date-based.

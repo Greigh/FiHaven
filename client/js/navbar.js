@@ -32,6 +32,8 @@ import { openProDialog } from './pro.js';
     logout:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/></svg>',
     home:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2v-9z"/></svg>',
     doc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>',
+    faq:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4 0c0 2-2.5 2-2.5 4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>',
+    pricing:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7h10M7 12h10M7 17h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>',
     shield:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3z"/></svg>',
     admin:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 3v5.5c0 4.6-3.2 7.4-8 8.5-4.8-1.1-8-3.9-8-8.5V6l8-3z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.6c.6-1.6 2-2.5 3.6-2.5s3 .9 3.6 2.5"/></svg>',
     pro:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 16l-1.2-8 4.7 3.4L12 6l3.5 5.4L20 8l-1.2 8H5z"/><path d="M5 19h14"/></svg>',
@@ -347,10 +349,10 @@ import { openProDialog } from './pro.js';
     }
 
     var tabs = [
-      tab('home',   'Home',    { href: '/',        active: match('home') }),
-      tab('user',   'Log In',  { href: '/login',   active: match('login') }),
-      tab('doc',    'Terms',   { href: '/terms',   active: match('terms') }),
-      tab('shield', 'Privacy', { href: '/privacy', active: match('privacy') }),
+      tab('home',    'Home',    { href: '/',        active: match('home') }),
+      tab('pricing', 'Pricing', { href: '/pricing', active: match('pricing') }),
+      tab('faq',     'FAQ',     { href: '/faq',     active: match('faq') }),
+      tab('user',    'Log In',  { href: '/login',   active: match('login') }),
     ].join('');
 
     // Same CTA on every public page so the navbar stays consistent.

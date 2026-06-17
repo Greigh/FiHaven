@@ -2,7 +2,7 @@ import SwiftUI
 import FiHavenCore
 
 enum SettingsSheet: String, Identifiable {
-    case changeName, changeEmail, changePassword, deleteAccount
+    case changeName, changeEmail, changePassword, clearData, deleteAccount
     case totpSetup, totpDisable, emailEnable, emailDisable, backupCodes, timezone
     var id: String { rawValue }
 }
@@ -13,6 +13,7 @@ struct SettingsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var biometric: BiometricStore
+    @EnvironmentObject var billing: StoreManager
     let user: User
 
     @State private var sheet: SettingsSheet?
@@ -31,7 +32,6 @@ struct SettingsView: View {
             autopaySection
             dataSection
             bankSection
-            aboutSection
             signOutSection
         }
         .listStyle(.insetGrouped)
@@ -47,14 +47,49 @@ struct SettingsView: View {
 
     // ── Account ──────────────────────────────────────────────────────
     private var accountSection: some View {
-        Section("Account") {
+        Section {
             LabeledContent("Email", value: current.email)
             Button { sheet = .changeName } label: {
                 LabeledContent("Name", value: current.name?.isEmpty == false ? current.name! : "Add")
             }
             Button("Change email") { sheet = .changeEmail }
             Button("Change password") { sheet = .changePassword }
+        } header: {
+            Text("Account")
+        } footer: {
+            if let line = membershipLine { Text(line) }
         }
+    }
+
+    /// "Member since June 2026 · Pro for 3 months" — a small coolness factor.
+    private var membershipLine: String? {
+        var parts: [String] = []
+        if let since = current.createdAt {
+            parts.append("Member since \(Self.monthYear(ms: since))")
+        }
+        if billing.isPro {
+            if let proSince = billing.entitlement.proSince {
+                parts.append("Pro for \(Self.duration(ms: Double(proSince)))")
+            } else {
+                parts.append("FiHaven Pro")
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private static func monthYear(ms: Double) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: Date(timeIntervalSince1970: ms / 1000))
+    }
+
+    /// The longest non-zero unit since `ms`: "3 years" / "5 months" / "12 days".
+    private static func duration(ms: Double) -> String {
+        let days = Int((Date().timeIntervalSince1970 - ms / 1000) / 86400)
+        if days < 1 { return "today" }
+        if days >= 365 { let y = days / 365; return "\(y) year\(y == 1 ? "" : "s")" }
+        if days >= 30 { let m = days / 30; return "\(m) month\(m == 1 ? "" : "s")" }
+        return "\(days) day\(days == 1 ? "" : "s")"
     }
 
     // ── Security ─────────────────────────────────────────────────────
@@ -173,8 +208,19 @@ struct SettingsView: View {
                         value: Binding(get: { store.data.settings.periodLength ?? 35 },
                                        set: { store.setPeriodLength($0) }),
                         in: 7...90)
+                Toggle("Set a start date", isOn: Binding(
+                    get: { store.data.settings.periodAnchor != nil },
+                    set: { on in store.setPeriodAnchor(on
+                        ? (store.data.settings.periodAnchor ?? Self.anchorISO(Date())) : nil) }
+                ))
+                if store.data.settings.periodAnchor != nil {
+                    DatePicker("Starts on", selection: Binding(
+                        get: { Self.anchorDate(store.data.settings.periodAnchor) ?? Date() },
+                        set: { store.setPeriodAnchor(Self.anchorISO($0)) }
+                    ), displayedComponents: .date)
+                }
             }
-            Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for.")
+            Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for. A rolling window repeats every N days from an optional start date.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
             Toggle("Hide fully paid on dashboard", isOn: Binding(
@@ -263,11 +309,23 @@ struct SettingsView: View {
         return "\(h12):00 \(ampm)"
     }
 
+    /// "YYYY-MM-DD" ↔ Date for the rolling-window start anchor.
+    private static let anchorFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = .current
+        return f
+    }()
+    private static func anchorISO(_ d: Date) -> String { anchorFmt.string(from: d) }
+    private static func anchorDate(_ s: String?) -> Date? { s.flatMap { anchorFmt.date(from: $0) } }
+
     private var dataSection: some View {
         Section("Data") {
             Button { Task { await exportData() } } label: {
                 HStack { Text("Export data"); Spacer(); if busy { ProgressView() } }
             }
+            Button("Clear data", role: .destructive) { sheet = .clearData }
             Button("Delete account", role: .destructive) { sheet = .deleteAccount }
         }
     }
@@ -275,12 +333,6 @@ struct SettingsView: View {
     private var bankSection: some View {
         Section {
             NavigationLink { BankView() } label: { Text("Bank connections") }
-        }
-    }
-
-    private var aboutSection: some View {
-        Section {
-            NavigationLink { AboutView() } label: { Text("About & licenses") }
         }
     }
 
@@ -297,6 +349,7 @@ struct SettingsView: View {
         case .changeName: ChangeNameSheet(current: current)
         case .changeEmail: ChangeEmailSheet(current: current)
         case .changePassword: ChangePasswordSheet()
+        case .clearData: ClearDataSheet()
         case .deleteAccount: DeleteAccountSheet()
         case .totpSetup: TotpSetupSheet()
         case .totpDisable: TotpDisableSheet()

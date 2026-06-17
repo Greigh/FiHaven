@@ -241,6 +241,8 @@ extension AppStore {
     func setPeriodMode(_ mode: String) { mutate { $0.settings.periodMode = mode } }
     func setPeriodStartDay(_ day: Int) { mutate { $0.settings.periodStartDay = min(max(day, 1), 28) } }
     func setPeriodLength(_ len: Int) { mutate { $0.settings.periodLength = min(max(len, 7), 90) } }
+    /// Set/clear the rolling-window start anchor ("YYYY-MM-DD"; nil/empty = epoch).
+    func setPeriodAnchor(_ anchor: String?) { mutate { $0.settings.periodAnchor = anchor } }
 
     func setHidePaidOnDashboard(_ on: Bool) { mutate { $0.settings.hidePaidOnDashboard = on } }
 
