@@ -24,9 +24,19 @@ public extension APIClient {
         try await send(req)
     }
 
-    func deleteAccount(password: String) async throws {
+    /// Permanently delete the account. `code` is the current TOTP code, sent
+    /// when 2FA is enrolled (ignored server-side otherwise).
+    func deleteAccount(password: String, code: String = "") async throws {
         let req = try makeRequest(path: "api/account/delete", method: .POST,
-                                  body: AnyEncodable(PasswordBody(password: password)))
+                                  body: AnyEncodable(PasswordCodeBody(password: password, code: code)))
+        try await send(req)
+    }
+
+    /// Erase selected data groups while keeping the account + settings.
+    /// `groups` is a subset of ["bills","cards","payments","bank"].
+    func clearData(password: String, code: String = "", groups: [String]) async throws {
+        let req = try makeRequest(path: "api/account/clear-data", method: .POST,
+                                  body: AnyEncodable(ClearDataBody(password: password, code: code, groups: groups)))
         try await send(req)
     }
 

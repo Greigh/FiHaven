@@ -1,6 +1,6 @@
 {
   "name": "fihaven",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "A focused bill and debt dashboard for people who'd rather spend five calm minutes a week than a frantic afternoon every payday. Track recurring bills, credit cards (including 0% promo periods), monthly budget, payment history, and debt-payoff strategies — all behind a real account with server-side sync.",
   "license": "GNU AGPLv3",
   "author": "Greigh",
@@ -32,15 +32,19 @@
     "build": "npm run build:css && npm run build:vite",
     "ci": "npm run build",
     "generate:icons": "bash ./scripts/generate-icons.sh",
+    "generate:pdfs": "node scripts/dev/generate-pdfs.js",
+    "plaid:sandbox": "node scripts/dev/plaid-sandbox-check.js",
     "preview": "vite preview",
     "deploy": "bash upload.sh",
-    "promo": "node scripts/promo.js"
+    "rollback": "bash scripts/examples/rollback.example.sh",
+    "promo": "node scripts/promo.js",
+    "indexnow": "node scripts/submit-indexnow.js"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.1",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.10.1",
+    "better-sqlite3": "^12.11.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -54,18 +58,18 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/cli": "^4.3.1",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.9",
     "concurrently": "^10.0.3",
     "jsdom": "^29.1.1",
     "svelte": "^5.56.3",
     "tailwindcss": "^4.3.1",
     "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true,
     "fsevents@2.3.3": true,
     "@parcel/watcher@2.5.1": true,
-    "better-sqlite3@12.10.1": true
+    "better-sqlite3@12.11.1": true
   }
 }

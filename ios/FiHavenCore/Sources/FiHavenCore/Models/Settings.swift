@@ -83,6 +83,17 @@ public struct Settings: Codable, Equatable, Sendable {
         get { raw["periodLength"]?.asDouble.map { Int($0) } }
         set { raw["periodLength"] = newValue.map { .number(Double($0)) } ?? .null }
     }
+    /// Optional "YYYY-MM-DD" date a "rolling" period's buckets begin on.
+    /// Empty/absent falls back to the stable epoch.
+    public var periodAnchor: String? {
+        get {
+            guard let s = raw["periodAnchor"]?.asString,
+                  s.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+            else { return nil }
+            return s
+        }
+        set { raw["periodAnchor"] = (newValue?.isEmpty == false) ? .string(newValue!) : .null }
+    }
 
     /// ISO 4217 display currency (e.g. "USD", "GBP"). Drives Money formatting.
     public var currency: String? {
@@ -142,5 +153,22 @@ public struct Settings: Codable, Equatable, Sendable {
     public var autopayMarkHour: Int {
         get { raw["autopayMarkHour"]?.asDouble.map { Int($0) } ?? 9 }
         set { raw["autopayMarkHour"] = .number(Double(newValue)) }
+    }
+    /// Per-calendar-month memory of which items autopay has already
+    /// marked ("YYYY-MM" → ["bill:1", "card:2"]). Membership (not a
+    /// payment amount) gates a second mark, so an undo sticks and $0
+    /// items behave. Shared with autopay.js and the server scheduler.
+    public var autopayDone: [String: [String]] {
+        get {
+            guard let o = raw["autopayDone"]?.asObject else { return [:] }
+            return o.reduce(into: [:]) { acc, kv in
+                if let arr = kv.value.asArray {
+                    acc[kv.key] = arr.compactMap { $0.asString }
+                }
+            }
+        }
+        set {
+            raw["autopayDone"] = .object(newValue.mapValues { .array($0.map { .string($0) }) })
+        }
     }
 }

@@ -19,6 +19,10 @@
   <style>
     .onboard-dot{width:28px;height:5px;border-radius:3px;background:var(--border);transition:background .2s;}
     .onboard-dot.active{background:var(--accent,#3D6FE1);}
+    .onboard-goal{display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);transition:border-color .15s,background .15s;}
+    .onboard-goal:hover{border-color:var(--accent,#3D6FE1);}
+    .onboard-goal input{accent-color:var(--accent,#3D6FE1);width:18px;height:18px;cursor:pointer;}
+    .onboard-goal:has(input:checked){border-color:var(--accent,#3D6FE1);background:var(--accent-bg,rgba(61,111,225,.08));}
   </style>
 </head>
 <body class="min-h-screen text-(--text) antialiased">
@@ -32,6 +36,7 @@
           <span class="onboard-dot" data-dot="2"></span>
           <span class="onboard-dot" data-dot="3"></span>
           <span class="onboard-dot" data-dot="4"></span>
+          <span class="onboard-dot" data-dot="5"></span>
         </div>
 
         <!-- Step 1 — Welcome -->
@@ -45,9 +50,26 @@
           </div>
         </div>
 
-        <!-- Step 2 — Secure (2FA + settings) -->
+        <!-- Step 2 — Goals (tailors the tab bar) -->
         <div data-step="2" hidden>
-          <div class="hero-badge">Step 2 · Security</div>
+          <div class="hero-badge">Step 2 · You</div>
+          <h1 style="margin-top:14px;">What brings you to FiHaven?</h1>
+          <p style="margin-top:12px;">Pick what matters — we'll put those features front and center. You can change this anytime in Settings.</p>
+          <div class="onboard-goals" style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+            <label class="onboard-goal"><input type="checkbox" data-goal value="bills"><span>📄 Stay on top of bills</span></label>
+            <label class="onboard-goal"><input type="checkbox" data-goal value="debt"><span>💳 Pay off credit cards &amp; debt</span></label>
+            <label class="onboard-goal"><input type="checkbox" data-goal value="budget"><span>📊 Budget each month</span></label>
+            <label class="onboard-goal"><input type="checkbox" data-goal value="rewards"><span>⭐ Maximize card rewards</span></label>
+            <label class="onboard-goal"><input type="checkbox" data-goal value="subscriptions"><span>🔁 Track subscriptions</span></label>
+          </div>
+          <div class="auth-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" data-next>Continue</button>
+          </div>
+        </div>
+
+        <!-- Step 3 — Secure (2FA + settings) -->
+        <div data-step="3" hidden>
+          <div class="hero-badge">Step 3 · Security</div>
           <h1 style="margin-top:14px;">Add an extra layer.</h1>
           <p style="margin-top:12px;">Protect your account with two-factor authentication — an authenticator app, a passkey, or email codes. You can also fine-tune your preferences (time zone, theme, and more) in Settings.</p>
           <div class="auth-actions" style="margin-top:18px;">
@@ -56,9 +78,9 @@
           </div>
         </div>
 
-        <!-- Step 3 — Bills & cards -->
-        <div data-step="3" hidden>
-          <div class="hero-badge">Step 3 · Your money</div>
+        <!-- Step 4 — Bills & cards -->
+        <div data-step="4" hidden>
+          <div class="hero-badge">Step 4 · Your money</div>
           <h1 style="margin-top:14px;">Add your bills & cards.</h1>
           <p style="margin-top:12px;">FiHaven comes alive once it knows your recurring bills and credit cards — including any 0% promo periods. Add a few now and your dashboard, calendar, and payoff plans fill in automatically.</p>
           <div class="auth-actions" style="margin-top:18px;">
@@ -67,9 +89,9 @@
           </div>
         </div>
 
-        <!-- Step 4 — Pro -->
-        <div data-step="4" hidden>
-          <div class="hero-badge">Step 4 · FiHaven Pro</div>
+        <!-- Step 5 — Pro -->
+        <div data-step="5" hidden>
+          <div class="hero-badge">Step 5 · FiHaven Pro</div>
           <h1 style="margin-top:14px;">Go further with Pro.</h1>
           <p style="margin-top:12px;">Pro unlocks the full payoff planner, advanced insights, and more. Start a free trial any time — or keep using FiHaven free.</p>
           <div class="auth-actions" style="margin-top:18px;">

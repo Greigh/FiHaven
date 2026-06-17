@@ -71,18 +71,34 @@ function newPaymentId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
+// Shift a "YYYY-MM" key by `delta` months.
+function shiftMonthKey(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 // Auto-mark autopay bills/cards paid on their due day (opt-in). Mutates
-// `data.payments`; returns true if anything was added. Idempotent: only
-// adds when the item has no (non-skip) payment for the current month.
-// Bills mark their full amount; cards mark the minimum payment (what an
-// autopay typically covers) — the client reconciles to the policy goal.
+// `data.payments`; returns true if anything was added. Marks each item at
+// most once per calendar month, tracked in `settings.autopayDone` so a
+// user's undo isn't reverted and $0 items behave (the same per-month
+// memory the clients keep — see autopay.js). Bills mark their full amount;
+// cards mark the minimum payment (what an autopay typically covers) — the
+// client reconciles to the policy goal.
 function markAutopay(data, lp) {
   const payments = data.payments || (data.payments = []);
+  const settings = data.settings || (data.settings = {});
   const monthKey = lp.ym;
+  const done = (settings.autopayDone && typeof settings.autopayDone === 'object')
+    ? settings.autopayDone : {};
+  const handled = new Set(Array.isArray(done[monthKey]) ? done[monthKey] : []);
   let changed = false;
 
   const markIfDue = (item, type, amount, name) => {
     if (!item || !item.autopay) return;
+    const refId = String(item.id);
+    const refKey = `${type}:${refId}`;
+    if (handled.has(refKey)) return;                 // already auto-marked this month
     if (type === 'bill') {
       if (!item.dueDay && !item.startDate) return;
       const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
@@ -91,21 +107,32 @@ function markAutopay(data, lp) {
     } else {
       if (!item.dueDay || parseInt(item.dueDay, 10) !== lp.d) return;
     }
-    const refId = String(item.id);
     const already = payments.some(
       (p) => !p.skipped && p.type === type && String(p.refId) === refId && p.monthKey === monthKey
     );
-    if (already) return;
+    if (already) { handled.add(refKey); return; }
     payments.push({
       id: newPaymentId(), type, refId, name,
       amount: Number(amount) || 0, date: lp.ymd, monthKey,
       note: 'Auto-marked (autopay)',
     });
+    handled.add(refKey);
     changed = true;
   };
 
   (data.bills || []).forEach((b) => markIfDue(b, 'bill', b.amount, b.name || 'Bill'));
   (data.cards || []).forEach((c) => markIfDue(c, 'card', c.minPayment, (c.name || 'Card') + ' (payment)'));
+
+  if (changed) {
+    // Persist the memory, keeping per-month buckets for the last 4 months
+    // (covers the longest rolling window a client may read across) and
+    // dropping anything older.
+    const minKey = shiftMonthKey(monthKey, -3);
+    const keep = {};
+    Object.keys(done).forEach((k) => { if (k >= minKey && k !== monthKey) keep[k] = done[k]; });
+    keep[monthKey] = Array.from(handled);
+    settings.autopayDone = keep;
+  }
   return changed;
 }
 

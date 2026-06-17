@@ -30,8 +30,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // JSON map). `days` is the fallback period used by dev-trust when the
 // store doesn't hand us an explicit expiry.
 const DEFAULT_PRODUCTS = {
-  'com.danielhipskind.fihaven.pro.monthly': { plan: 'monthly', days: 31 },
-  'com.danielhipskind.fihaven.pro.yearly': { plan: 'yearly', days: 366 },
+  'app.fihaven.pro.monthly': { plan: 'monthly', days: 31 },
+  'app.fihaven.pro.yearly': { plan: 'yearly', days: 366 },
 };
 
 function products() {
@@ -103,6 +103,14 @@ function computeEntitlement(userId) {
     if (cand.expiresAt > best.expiresAt) best = cand;
   };
 
+  // The earliest moment any still-active entitlement began — a rough
+  // "Pro since" for the profile. null when the user isn't Pro.
+  let proSince = null;
+  const trackSince = (ms) => {
+    if (ms == null) return;
+    if (proSince == null || ms < proSince) proSince = ms;
+  };
+
   for (const s of subs) {
     consider({
       expiresAt: s.expires_at == null ? null : s.expires_at,
@@ -111,6 +119,7 @@ function computeEntitlement(userId) {
       plan: planFor(s.product_id),
       autoRenew: !!s.auto_renew,
     });
+    trackSince(s.created_at);
   }
   for (const g of grants) {
     consider({
@@ -120,6 +129,7 @@ function computeEntitlement(userId) {
       plan: planFor(g.product_id),
       autoRenew: false,
     });
+    trackSince(g.redeemed_at);
   }
 
   return {
@@ -129,6 +139,7 @@ function computeEntitlement(userId) {
     plan: best ? best.plan : null,
     expiresAt: best ? best.expiresAt : null,
     autoRenew: best ? !!best.autoRenew : false,
+    proSince: best ? proSince : null,
   };
 }
 

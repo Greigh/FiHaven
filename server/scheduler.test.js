@@ -505,6 +505,40 @@ describe('scheduler — autopay via runChecks', () => {
     expect(setAutopayDay).toHaveBeenCalledWith(1, '2026-06-20');
   });
 
+  it('records the mark in settings.autopayDone so it happens once', async () => {
+    const user = makeUser({
+      settings: { billReminders: false, autopayMark: true },
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+      payments: [],
+    });
+    db.allUsersWithData.mockReturnValue([user]);
+
+    await runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+
+    const saved = upsertUserData.mock.calls[0][1];
+    expect(saved.settings.autopayDone['2026-06']).toContain('bill:b1');
+  });
+
+  it('does not revert a user undo: an item in autopayDone is left alone', async () => {
+    // The mark already happened earlier this month and the user removed the
+    // payment (undo). The per-month memory must stop us re-adding it.
+    const user = makeUser({
+      last_autopay_day: null,
+      settings: {
+        billReminders: false, autopayMark: true,
+        autopayDone: { '2026-06': ['bill:b1'] },
+      },
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+      payments: [],
+    });
+    db.allUsersWithData.mockReturnValue([user]);
+
+    await runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+
+    expect(upsertUserData).not.toHaveBeenCalled();
+    expect(setAutopayDay).toHaveBeenCalledWith(1, '2026-06-20');
+  });
+
   it('respects a custom autopayMarkHour', async () => {
     const user = makeUser({
       settings: { billReminders: false, autopayMark: true, autopayMarkHour: 10 },

@@ -138,6 +138,17 @@ public final class APIClient: Sendable {
         return try storeSession(from: data)
     }
 
+    /// Exchange a provider OIDC ID token (Apple / Google) for a session.
+    /// A federated provider is the auth factor, so this never returns an MFA
+    /// challenge. `name` is only meaningful on Apple's first authorization.
+    public func oauthSignIn(provider: String, idToken: String, name: String? = nil) async throws -> AuthSession {
+        let body = OAuthSignInRequest(idToken: idToken, name: name)
+        let req = try makeRequest(path: "api/auth/oauth/\(provider)", method: .POST,
+                                  body: AnyEncodable(body), tokenMode: true)
+        let data = try await send(req)
+        return try storeSession(from: data)
+    }
+
     /// Request an emailed 6-digit code for the email-MFA path.
     public func sendEmailCode(mfaToken: String) async throws {
         let body = MfaTokenRequest(mfaToken: mfaToken)

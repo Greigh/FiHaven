@@ -9,7 +9,7 @@
      node scripts/promo.js create LAUNCH30 --free --days 30 --max 200
      node scripts/promo.js create LIFETIME --free            # never expires
      node scripts/promo.js create WELCOME --store-offer \
-          --platform apple --product com.danielhipskind.fihaven.pro.yearly \
+          --platform apple --product app.fihaven.pro.yearly \
           --offer WELCOME50
      node scripts/promo.js list
      node scripts/promo.js show LAUNCH30

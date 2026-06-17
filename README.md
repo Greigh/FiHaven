@@ -12,7 +12,7 @@ backend.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![Dependencies](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/dependency-review.yml?branch=main&label=Dependencies)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
-[![Version](https://img.shields.io/badge/version-1.2.2-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+[![Version](https://img.shields.io/badge/version-1.2.3-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
 </div>
 
@@ -118,11 +118,11 @@ Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth redirect, `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
-| **Deploy** | A local, gitignored `upload.sh` (not shipped in this repo) builds, rsyncs `dist/` + `server/` + a sanitized `.env` to the VPS, then `npm ci --omit=dev` + `pm2 restart` on the remote |
+| **Deploy** | Copy [`scripts/examples/upload.example.sh`](scripts/examples/upload.example.sh) → gitignored `upload.sh`; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart |
 
 Single deployable unit — Express serves the API *and* the static
 client (raw `client/` in dev, the Vite-built `dist/` in production),
-all mounted under the `/fihaven` URL prefix so it can sit next to
+all mounted under the `/` URL prefix so it can sit next to
 other apps on the same host.
 
 ---
@@ -139,8 +139,8 @@ npm install
 npm run dev
 ```
 
-Then open <http://localhost:5173/fihaven/>. Vite serves the client
-with HMR on `:5173` and proxies `/fihaven/api/*` to the Express
+Then open <http://localhost:5173/>. Vite serves the client
+with HMR on `:5173` and proxies `/api/*` to the Express
 server on `:5222`.
 
 **Sign in with the seeded dev account:**
@@ -155,7 +155,7 @@ created automatically on first server start (only when
 `NODE_ENV !== 'production'`).
 
 > You can also hit Express directly at
-> <http://localhost:5222/fihaven/> if you don't need HMR — same
+> <http://localhost:5222/> if you don't need HMR — same
 > content, same auth flow, no Vite layer.
 
 ---
@@ -248,7 +248,7 @@ fihaven/
 │   └── svelte.config.js
 ├── server/
 │   ├── index.js                     Express entry — env, routes, static,
-│   │                                page gates, scheduler boot, /fihaven base
+│   │                                page gates, scheduler boot, / base
 │   ├── db.js                        better-sqlite3 + schema + statements
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
 │   ├── tokens.js                    single-use email tokens (verify / reset / recover)
@@ -275,11 +275,20 @@ fihaven/
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
 ├── data/                            SQLite file + mfa.key live here (gitignored)
 ├── dist/                            Vite build output (gitignored)
-├── upload.sh                        local deploy script — gitignored, not in repo
+├── scripts/
+│   ├── promo.js                     promo-code admin CLI (deployed to production)
+│   ├── generate-icons.sh            iOS/Android icon generation
+│   ├── README.md                    script index
+│   ├── examples/upload.example.sh   deploy template — copy to upload.sh at repo root
+│   ├── examples/rollback.example.sh restore a pre-deploy backup on the VPS
+│   └── dev/                         local maintainer tools (not deployed)
+│       ├── generate-pdfs.js         docs/*.md → PDF (CHROME_PATH optional)
+│       └── plaid-sandbox-check.js   Plaid sandbox smoke test
+├── upload.sh                        local deploy script — gitignored copy of the template
 ├── .env                             local secrets (gitignored)
 ├── .env.development                 dev defaults (committed — TEST keys)
 ├── .env.example                     template
-├── vite.config.js                   multi-page + Svelte, base=/fihaven/, envDir=..
+├── vite.config.js                   multi-page + Svelte, base=/, envDir=..
 └── tailwind.config.js
 ```
 
@@ -289,7 +298,7 @@ fihaven/
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | Express (`:5222`) + Vite (`:5173`) concurrently. Vite proxies `/fihaven/api` → Express. **Use this for normal development.** |
+| `npm run dev` | Express (`:5222`) + Vite (`:5173`) concurrently. Vite proxies `/api` → Express. **Use this for normal development.** |
 | `npm run dev:server` | Express only, with `node --watch`. |
 | `npm run dev:client` | Vite only. |
 | `npm run dev:css` | Watch-rebuild the Tailwind utility classes into `client/css/tailwind-built.css`. |
@@ -297,8 +306,12 @@ fihaven/
 | `npm run build` | `build:css` + `vite build` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
 | `npm start` | `NODE_ENV=production node server/index.js` — serves `dist/` + the API. |
-| `npm run deploy` | Runs `bash upload.sh` (a local, gitignored deploy script — **not included in this repo**; bring your own) — builds, rsyncs `dist/` + `server/` + sanitized `.env`, `npm ci --omit=dev` + `pm2 restart` on the remote. |
-
+| `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies HTTP. |
+| `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
+| `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
+| `npm run generate:pdfs` | Export `docs/*.md` compliance policies to PDF via headless Chrome (`CHROME_PATH` optional). |
+| `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
+| `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
 ---
 
 ## Environment
@@ -332,7 +345,7 @@ get a shot — but `.env.development` is skipped.
 | `SMTP_HOST` | for email-MFA | `localhost` | Outbound SMTP host (production VPS runs Postfix on loopback) |
 | `SMTP_PORT` | for email-MFA | `25` | `465`/`587` enable TLS automatically |
 | `SMTP_USER` / `SMTP_PASS` | optional | — | Only if your relay requires auth |
-| `MAIL_FROM` | for email-MFA | `FiHaven <no-reply@danielhipskind.com>` | RFC 5322 `From:` header for outbound mail |
+| `MAIL_FROM` | for email-MFA | `FiHaven <no-reply@fihaven.app>` | RFC 5322 `From:` header for outbound mail |
 | `MFA_ENCRYPTION_KEY` | no | auto | 32-byte hex; if unset a key is generated and persisted to `data/mfa.key` |
 | `DEV_USER_EMAIL` | no | `demo@fihaven.app` | Seeded on first dev start (skipped in prod) |
 | `DEV_USER_PASSWORD` | no | `demopassword11` | Same as above |
@@ -347,8 +360,10 @@ Real Turnstile keys come from
 | `SSH_HOST` | — | VPS IP / hostname |
 | `SSH_USER` | `root` | SSH login |
 | `SSH_PASSWORD` | — | Used via `sshpass` — `brew install hudochenkov/sshpass/sshpass` on macOS |
-| `DEPLOY_PATH` | `/var/www/danielhipskind.com/fihaven` | Remote app root |
+| `DEPLOY_PATH` | `/var/www/fihaven.app` | Remote app root |
 | `REMOTE_RESTART_CMD` | `pm2 restart fihaven --update-env …` | Override if you don't use PM2 |
+| `BACKUP_RETENTION_DAYS` | `7` | Remote pre-deploy backups older than this are deleted |
+| `PUBLIC_ORIGIN` | — | Production URL (HTTP verify + deploy summary) |
 
 `upload.sh` reads these from your local `.env`, strips them (along
 with `DEV_USER_*` and any legacy `HCAPTCHA_*`) from the file it
@@ -358,27 +373,27 @@ uploads, and pins `NODE_ENV=production` on the remote `.env`.
 
 ## URLs
 
-Everything is mounted under `/fihaven`. Clean URLs throughout; old
+Everything is mounted under `/`. Clean URLs throughout; old
 `*.html` URLs 301-redirect to their clean form on both Express and
 the Vite dev middleware.
 
 | URL | Page | Auth | Indexed |
 |---|---|---|---|
-| `/fihaven/` | Marketing landing | public | ✅ |
-| `/fihaven/login` | Log-in / sign-up | public | ✅ |
-| `/fihaven/terms` | Terms of Use | public | ✅ |
-| `/fihaven/privacy` | Privacy Policy | public | ✅ |
-| `/fihaven/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
-| `/fihaven/settings` | Profile / Preferences / Payments — time zone, name, 2FA, iCal, bank linking, email, password, export, import, delete | required | ❌ noindex |
-| `/fihaven/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
-| `/fihaven/404` | Not-found page | public | ❌ |
-| `/fihaven/500` | Server-error page | public | ❌ |
+| `/` | Marketing landing | public | ✅ |
+| `/login` | Log-in / sign-up | public | ✅ |
+| `/terms` | Terms of Use | public | ✅ |
+| `/privacy` | Privacy Policy | public | ✅ |
+| `/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
+| `/settings` | Profile / Preferences / Payments — time zone, name, 2FA, iCal, bank linking, email, password, export, import, delete | required | ❌ noindex |
+| `/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/404` | Not-found page | public | ❌ |
+| `/500` | Server-error page | public | ❌ |
 
 ---
 
 ## API
 
-All under `/fihaven/api`. JSON bodies, JSON responses (except the
+All under `/api`. JSON bodies, JSON responses (except the
 CSV / JSON export endpoints and the public `.ics` feed).
 
 ### Auth
@@ -519,7 +534,7 @@ preferred):
 npm run promo -- create LAUNCH30 --free --days 30 --max 200
 npm run promo -- create FRIENDS --free            # lifetime
 npm run promo -- create WELCOME --store-offer --platform apple \
-  --product com.danielhipskind.fihaven.pro.yearly --offer WELCOME50
+  --product app.fihaven.pro.yearly --offer WELCOME50
 npm run promo -- list
 npm run promo -- show LAUNCH30
 npm run promo -- disable LAUNCH30
@@ -529,7 +544,7 @@ npm run promo -- disable LAUNCH30
 it on the server (deployed by `upload.sh` alongside `server/`):
 
 ```sh
-ssh root@<host> "cd /var/www/danielhipskind.com/fihaven && \
+ssh root@<host> "cd /var/www/fihaven.app && \
   node scripts/promo.js create LAUNCH30 --free --days 30"
 ```
 
@@ -547,7 +562,7 @@ ssh root@<host> "cd /var/www/danielhipskind.com/fihaven && \
 - Login creates a session row in SQLite with an opaque random ID and
   a separate random CSRF token.
 - The session ID rides in an `HttpOnly`, `SameSite=Lax`, `Secure` (in
-  prod) cookie scoped to `/fihaven` — unreadable from JS.
+  prod) cookie scoped to `/` — unreadable from JS.
 - The CSRF token is returned in JSON bodies; client keeps it in
   memory and echoes it in `X-CSRF-Token` on mutating requests.
 - Changing your password also deletes every *other* session for the
@@ -701,29 +716,65 @@ scrollable.
 
 ## Production deploy
 
-Deploys run through a local `upload.sh` script (invoked by `npm run
-deploy`). The script is **gitignored and intentionally not included in
-this repo** — it carries host-specific paths and credentials. Bring
-your own; the reference implementation handles the full local-build →
-remote-restart flow for a Node + PM2 + nginx VPS by:
+Deploys run through a local `upload.sh` at the repo root (invoked by
+`npm run deploy`). The script is **gitignored** — copy the tracked
+template once:
 
-1. Builds the Tailwind utility CSS and the Vite client into `dist/`.
-2. Pre-gzips static assets for `gzip_static`.
-3. rsyncs `dist/`, `server/`, `package.json`, `package-lock.json`,
-   and a **sanitized** `.env` (drops `SSH_*` / `DEV_USER_*`, pins
-   `NODE_ENV=production`) — never touches the remote `data/` or
-   `node_modules/`.
-4. SSHes in and runs `npm ci --omit=dev` (installing
+```bash
+cp scripts/examples/upload.example.sh upload.sh
+```
+
+The template handles local build → remote backup → rsync →
+`npm ci --omit=dev` + PM2 restart on a Node + nginx VPS:
+
+1. **Backs up** the remote deploy directory to a timestamped sibling
+   (e.g. `/var/www/fihaven.app.backup_20260615_153045`). Includes
+   `data/` (SQLite + MFA key); excludes `node_modules/`. Deletes
+   backups older than `BACKUP_RETENTION_DAYS` (default **7**). Skipped
+   on first deploy when the remote path does not exist yet.
+2. Builds Tailwind utility CSS and the Vite client into `dist/`.
+3. Pre-gzips static assets for `gzip_static`.
+4. rsyncs `dist/`, `server/`, `scripts/`, `package.json`,
+   `package-lock.json`, and a **sanitized** `.env` (drops `SSH_*` /
+   `DEV_USER_*`, pins `NODE_ENV=production`) — **never overwrites**
+   remote `data/` during upload.
+5. SSHes in and runs `npm ci --omit=dev` (installing
    `build-essential` once if missing, so `better-sqlite3` + `bcrypt`
-   can compile against the system's Node) and `pm2 restart
-   fihaven --update-env`.
+   can compile) and `pm2 restart fihaven --update-env`.
+6. Verifies PM2 is online and `PUBLIC_ORIGIN` responds (HTTP, up to
+   five retries), then prints a summary (build date, backup path, URL).
+
+### Rollback
+
+If a deploy goes wrong, restore a timestamped backup created in step 1
+with [`scripts/examples/rollback.example.sh`](scripts/examples/rollback.example.sh):
+
+```bash
+# List backups on the VPS
+npm run rollback -- --list
+
+# Restore the newest backup (prompts for confirmation)
+npm run rollback -- --latest
+
+# Skip confirmation
+npm run rollback -- --latest --yes
+
+# Restore a specific backup
+npm run rollback -- /var/www/fihaven.app.backup_20260615_153045
+
+# Restore only data/ (SQLite + MFA key), not application code
+npm run rollback -- --latest --data-only
+```
+
+Full rollback stops PM2, `rsync`s the backup over the live deploy
+(excluding `node_modules/`), runs `npm ci --omit=dev`, and restarts PM2.
 
 ### One-time remote setup
 
 ```bash
 ssh root@<your-host>
-mkdir -p /var/www/<your-domain>/fihaven/data
-cd /var/www/<your-domain>/fihaven
+mkdir -p /var/www/<your-domain>/data
+cd /var/www/<your-domain>
 # Create .env on the remote with NODE_ENV=production, real
 # TURNSTILE_SECRET + TURNSTILE_SITEKEY, SESSION_COOKIE,
 # SESSION_TTL_HOURS, PORT, and (for email-MFA) SMTP_* + MAIL_FROM.
@@ -731,12 +782,12 @@ pm2 start server/index.js --name fihaven --update-env
 pm2 save
 ```
 
-nginx should reverse-proxy `/fihaven/` to the Node port (default
+nginx should reverse-proxy `/` to the Node port (default
 `5222`):
 
 ```nginx
-location /fihaven/ {
-  proxy_pass http://127.0.0.1:5222/fihaven/;
+location / {
+  proxy_pass http://127.0.0.1:5222/;
   proxy_http_version 1.1;
   proxy_set_header Host              $host;
   proxy_set_header X-Real-IP         $remote_addr;
@@ -765,8 +816,8 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 
 ## SEO + standards
 
-- `robots.txt` allows everything except `/fihaven/dashboard`,
-  `/fihaven/settings`, `/fihaven/api/*` and points to the sitemap.
+- `robots.txt` allows everything except `/dashboard`,
+  `/settings`, `/api/*` and points to the sitemap.
 - `sitemap.xml` lists the four public pages.
 - Every public page carries Open Graph + Twitter cards, a canonical
   URL, and a description. The home page also ships a JSON-LD

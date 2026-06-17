@@ -1,8 +1,7 @@
 // FiHaven Android — Gradle settings.
 //
-// Only :core (a pure-JVM Kotlin library) is included for now so it can be
-// built and unit-tested without the Android SDK. The :app module (Compose)
-// is added once Android Studio + the SDK are installed.
+// :core (a pure-JVM Kotlin library) is included so it can be built and unit-tested without the Android SDK.
+// :app (the Android application module) is included once Android Studio + the SDK are installed.
 pluginManagement {
     repositories {
         google()

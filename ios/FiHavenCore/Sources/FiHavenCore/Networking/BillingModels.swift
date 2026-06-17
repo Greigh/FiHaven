@@ -11,6 +11,9 @@ public struct Entitlement: Codable, Equatable, Sendable {
     public var plan: String?
     public var expiresAt: Int64?
     public var autoRenew: Bool?
+    /// Epoch-ms when the current Pro run began — a rough "Pro since" for the
+    /// profile. nil when not Pro (or unknown from an older payload).
+    public var proSince: Int64?
 
     public init(
         pro: Bool = false,
@@ -18,7 +21,8 @@ public struct Entitlement: Codable, Equatable, Sendable {
         productId: String? = nil,
         plan: String? = nil,
         expiresAt: Int64? = nil,
-        autoRenew: Bool? = nil
+        autoRenew: Bool? = nil,
+        proSince: Int64? = nil
     ) {
         self.pro = pro
         self.source = source
@@ -26,6 +30,7 @@ public struct Entitlement: Codable, Equatable, Sendable {
         self.plan = plan
         self.expiresAt = expiresAt
         self.autoRenew = autoRenew
+        self.proSince = proSince
     }
 }
 

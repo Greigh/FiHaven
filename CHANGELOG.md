@@ -7,6 +7,68 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.2.3] — 2026-06-17
+
+Public site, sign-in, and reliability release: marketing pages with SEO
+discovery, optional Apple/Google OAuth on every client, Android
+`app.fihaven` identity, rolling-period anchors, autopay memory fixes,
+clear-data controls, and production deploy templates.
+
+### Added
+
+- **Marketing site** — FAQ, pricing, security, and contact pages with
+  shared footer links and a public navbar (Home, Pricing, FAQ, Log In).
+  Homepage, privacy, and terms copy refreshed for web-first positioning and
+  accurate Free vs Pro scope.
+- **SEO & discovery** — expanded `sitemap.xml` and `robots.txt`,
+  `site.webmanifest` updates, RFC 9116 `security.txt`, richer homepage
+  JSON-LD, and IndexNow (`npm run indexnow`) with a Vite-built key file
+  and deploy hook.
+- **Social sign-in** — optional Apple and Google OAuth on web, iOS, and
+  Android (`server/oauth.js`, `client/js/social-login.js`); buttons stay
+  hidden until provider client IDs are configured.
+- **Rolling-period anchor** — optional `periodAnchor` date for rolling
+  budget windows on web, iOS, and Android.
+- **Autopay memory** — per-calendar-month `autopayDone` tracking on
+  client and server so undone auto-marks are not re-applied; $0 items no
+  longer loop forever.
+- **Clear data** — `POST /api/account/clear-data` with password and TOTP
+  gates; settings UI on web, iOS, and Android.
+- **Onboarding goals** — welcome flow can tailor the default tab order to
+  bills, debt, budget, rewards, or subscriptions.
+- **Deploy templates** — `scripts/examples/upload.example.sh` (backup,
+  build, rsync, PM2 restart, HTTP verify, IndexNow) and
+  `rollback.example.sh`; maintainer utilities moved under `scripts/dev/`.
+- **Billing profile** — “Member since” / “Pro for” line when entitlement
+  history is available.
+- **293 Vitest tests** (up from 275) — autopay, period anchor, scheduler,
+  and integration coverage for the above.
+
+### Changed
+
+- **Android package** — `com.danielhipskind.fihaven` → `app.fihaven`
+  (`applicationId`, namespace, and Play Billing product IDs
+  `app.fihaven.pro.monthly` / `.yearly`).
+- **iOS bundle** — `app.fihaven` prefix, StoreKit product IDs aligned,
+  redesigned intro carousel, card-skip warning when minimum/goal unpaid,
+  Google Sign-In SDK, and Sign in with Apple entitlements.
+- **Card recommendations** — 0% APR (non-promo) cards recommend minimum
+  payment only, not full balance.
+- **Account deletion** — requires typing `DELETE ACCOUNT DATA`; TOTP when
+  2FA is enrolled (delete and clear-data).
+- **WebAuthn RP origin** — production uses `PUBLIC_ORIGIN` or
+  `https://fihaven.app`.
+- **`native-contract.md`** — production base URL and product ID updates.
+- **Dependencies** — `better-sqlite3` 12.11.1; Vitest 4.1.9.
+
+### Fixed
+
+- Autopay re-marking after a user removes an auto-generated payment.
+- Rolling periods spanning multiple calendar months reading autopay memory
+  from every overlapped `YYYY-MM` bucket.
+- Date-less payments in calendar mode placed by `monthKey` only.
+- iOS card skip without warning when minimum or policy goal is still due.
+
 ## [1.2.2] — 2026-06-15
 
 Polish and quality release: expanded test coverage, password visibility on
@@ -245,6 +307,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.2.3]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.3
 [1.2.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.2
 [1.2.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.1
 [1.2.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.0

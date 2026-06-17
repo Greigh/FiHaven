@@ -117,10 +117,18 @@ func runScheduleChecks() {
 
     section("Schedule — recommendedAmount / goalAmount") {
         let tz = TimeZone(identifier: "UTC")!
-        let card = Card(id: 1, name: "Reg", balance: 2000, minPayment: 50)
-        checkClose(Schedule.recommendedAmount(card, tz: tz), 2000, "non-promo recommended = full balance", tol: 0.001)
+        let card = Card(id: 1, name: "Reg", balance: 2000, minPayment: 50, regularAPR: 24)
+        checkClose(Schedule.recommendedAmount(card, tz: tz), 2000, "interest-bearing non-promo recommended = full balance", tol: 0.001)
         var override = card; override.recommendedPayment = 300
         checkClose(Schedule.recommendedAmount(override, tz: tz), 300, "override wins", tol: 0.001)
+
+        // A 0% card has no interest cost to carry, so recommended/owed = minimum.
+        let zeroApr = Card(id: 2, name: "0%", balance: 2000, minPayment: 50, regularAPR: 0)
+        checkClose(Schedule.recommendedAmount(zeroApr, tz: tz), 50, "0% card recommended = minimum", tol: 0.001)
+        checkClose(Schedule.goalAmount(card: zeroApr, policy: .recommended, payments: [], monthKey: "2026-06", tz: tz),
+                   50, "0% card recommended goal = minimum", tol: 0.001)
+        checkClose(Schedule.goalAmount(card: zeroApr, policy: .full, payments: [], monthKey: "2026-06", tz: tz),
+                   2000, "0% card full goal still = balance", tol: 0.001)
 
         let paid = [Payment(id: "1", type: "card", refId: "1", amount: 500, monthKey: "2026-06")]
         checkClose(Schedule.goalAmount(card: card, policy: .recommended, payments: paid, monthKey: "2026-06", tz: tz),

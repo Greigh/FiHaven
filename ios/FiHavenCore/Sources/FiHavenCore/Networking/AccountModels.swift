@@ -44,6 +44,7 @@ struct ChangeEmailBody: Encodable { let password: String; let newEmail: String }
 struct ChangePasswordBody: Encodable { let currentPassword: String; let newPassword: String }
 struct CodeBody: Encodable { let code: String }
 struct PasswordCodeBody: Encodable { let password: String; let code: String }
+struct ClearDataBody: Encodable { let password: String; let code: String; let groups: [String] }
 struct EmailConfirmBody: Encodable { let challengeId: String; let code: String }
 struct PasskeyDeleteBody: Encodable { let passkeyId: Int; let password: String }
 

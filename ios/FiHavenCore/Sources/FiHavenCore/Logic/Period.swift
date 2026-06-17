@@ -9,14 +9,20 @@ import Foundation
 /// period's [start, end) — using lexical comparison of the "YYYY-MM-DD"
 /// strings — so switching modes needs no data migration.
 public struct PeriodConfig: Equatable, Sendable {
-    public var mode: String   // "calendar" | "startDay" | "rolling"
-    public var startDay: Int  // 1...28
-    public var length: Int    // 7...90
+    public var mode: String     // "calendar" | "startDay" | "rolling"
+    public var startDay: Int    // 1...28
+    public var length: Int      // 7...90
+    public var anchor: String?  // "YYYY-MM-DD" rolling start; nil = epoch
 
-    public init(mode: String = "calendar", startDay: Int = 1, length: Int = 35) {
+    public init(mode: String = "calendar", startDay: Int = 1, length: Int = 35, anchor: String? = nil) {
         self.mode = (mode == "startDay" || mode == "rolling") ? mode : "calendar"
         self.startDay = min(max(startDay, 1), 28)
         self.length = min(max(length, 7), 90)
+        if let a = anchor, a.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+            self.anchor = a
+        } else {
+            self.anchor = nil
+        }
     }
 }
 
@@ -48,7 +54,8 @@ public enum Period {
         PeriodConfig(
             mode: settings.periodMode ?? "calendar",
             startDay: settings.periodStartDay ?? 1,
-            length: settings.periodLength ?? 35
+            length: settings.periodLength ?? 35,
+            anchor: settings.periodAnchor
         )
     }
 
@@ -69,7 +76,11 @@ public enum Period {
         }
 
         if config.mode == "rolling" {
-            let epoch = DateLogic.dateForDay(1, year: 2020, month: 1, cal: cal)
+            var epoch = DateLogic.dateForDay(1, year: 2020, month: 1, cal: cal)
+            if let a = config.anchor {
+                let p = a.split(separator: "-").compactMap { Int($0) }
+                if p.count == 3 { epoch = DateLogic.dateForDay(p[2], year: p[0], month: p[1], cal: cal) }
+            }
             let daysSince = cal.dateComponents([.day], from: epoch, to: day).day ?? 0
             let idx = Int(floor(Double(daysSince) / Double(config.length)))
             let start = cal.date(byAdding: .day, value: idx * config.length, to: epoch) ?? epoch

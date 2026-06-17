@@ -31,7 +31,7 @@ final class AppEnvironment: ObservableObject {
     private var authStartedAt = APIClient.now()
 
     init() {
-        let tokenStore = KeychainTokenStore(service: "com.danielhipskind.fihaven")
+        let tokenStore = KeychainTokenStore(service: "app.fihaven")
         let config = Self.resolveConfig()
         print("[AppEnvironment] API base URL = \(config.baseURL.absoluteString)")
         let api = APIClient(config: config, tokens: tokenStore)
@@ -131,6 +131,14 @@ final class AppEnvironment: ObservableObject {
                 email: email, password: password,
                 captchaToken: captchaToken, loginStartedAt: self.authStartedAt
             )
+            await self.enterSignedIn(s.user, fresh: true)
+        }
+    }
+
+    /// Sign in with a provider OIDC ID token (Apple / Google).
+    func oauthSignIn(provider: String, idToken: String, name: String? = nil) async {
+        await runAuth {
+            let s = try await self.api.oauthSignIn(provider: provider, idToken: idToken, name: name)
             await self.enterSignedIn(s.user, fresh: true)
         }
     }

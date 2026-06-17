@@ -322,6 +322,10 @@ export function recommendedAmount(card) {
   // (paying it off is still offered as an explicit option in the Pay flow).
   if ((card.type || 'card') === 'loan') return min;
   if (card.hasPromo) return Math.max(min, promoNeeded(card));
+  // 0% interest (no active promo): carrying a balance costs nothing, so the
+  // recommended payment is just the minimum — not the whole balance. Only a
+  // positive regular APR makes paying the balance off the smart move.
+  if ((parseFloat(card.regularAPR) || 0) <= 0) return min;
   return parseFloat(card.balance || 0);
 }
 
@@ -365,6 +369,9 @@ export function goalAmountFor(type, refId, mk) {
   var override = parseFloat(c.recommendedPayment || 0);
   if (override > 0) return override;
   if (c.hasPromo) return Math.max(parseFloat(c.minPayment || 0), promoNeeded(c));
+  // 0% interest (no active promo): no interest cost to carry, so the goal is
+  // just the minimum rather than the full start-of-month balance.
+  if ((parseFloat(c.regularAPR) || 0) <= 0) return parseFloat(c.minPayment || 0);
   return startBalance;
 }
 

@@ -147,7 +147,7 @@ function rpConfig(req) {
   if (process.env.NODE_ENV === 'production') {
     return {
       rpID: 'fihaven.app',
-      origin: 'https://danielhipskind.com',
+      origin: process.env.PUBLIC_ORIGIN || 'https://fihaven.app',
     };
   }
   // dev: derive from the host header so it works with either port

@@ -44,7 +44,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.danielhipskind.fihaven.pro.monthly",
+          "productID" : "app.fihaven.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "A8C99221-B614-4C76-8955-D5A145A18624",
@@ -69,7 +69,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.danielhipskind.fihaven.pro.yearly",
+          "productID" : "app.fihaven.pro.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly",
           "subscriptionGroupID" : "A8C99221-B614-4C76-8955-D5A145A18624",

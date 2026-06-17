@@ -33,15 +33,19 @@ public struct User: Codable, Equatable, Sendable {
     /// onboarding flow once while this is false (server-tracked, so it's
     /// shown once across web/iOS/Android — not per device).
     public var onboarded: Bool
+    /// Epoch-ms when the account was created — powers "Member since" on the
+    /// profile. nil from older payloads that didn't include it.
+    public var createdAt: Double?
 
-    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true) {
+    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true, createdAt: Double? = nil) {
         self.email = email
         self.name = name
         self.emailVerified = emailVerified
         self.onboarded = onboarded
+        self.createdAt = createdAt
     }
 
-    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded }
+    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded, createdAt }
 
     // Tolerant decode: a missing flag (older payloads) is treated as
     // verified / onboarded so we never falsely lock out or re-onboard a
@@ -52,6 +56,7 @@ public struct User: Codable, Equatable, Sendable {
         name = try c.decodeIfPresent(String.self, forKey: .name)
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? true
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
+        createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt)
     }
 }
 
@@ -90,6 +95,11 @@ struct MfaVerifyRequest: Encodable {
 
 struct MfaTokenRequest: Encodable {
     let mfaToken: String
+}
+
+struct OAuthSignInRequest: Encodable {
+    let idToken: String
+    let name: String?
 }
 
 struct DataPutBody: Encodable {

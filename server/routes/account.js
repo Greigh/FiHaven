@@ -16,6 +16,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 const dbApi = require('../db');
+const mfa = require('../mfa');
 const { requireAuth, requireVerified, requireCsrf, destroySession } = require('../session');
 const {
   normalizeEmail,
@@ -34,6 +35,22 @@ async function verifyPassword(userId, password) {
   if (!user) return null;
   const ok = await bcrypt.compare(String(password || ''), user.password_hash);
   return ok ? user : null;
+}
+
+// Second-factor gate for destructive actions. When TOTP is enrolled, a valid
+// current code is required (mirrors the /mfa/totp/disable precedent). When no
+// TOTP is enrolled, the re-entered password alone authorizes the action.
+// Returns null on success, or an { status, error } to send back.
+function checkSecondFactor(user, code) {
+  const totp = dbApi.getTotp(user.id);
+  if (!totp || !totp.enabled_at) return null; // no TOTP enrolled → password-only
+  let secret;
+  try { secret = mfa.decrypt(totp.secret_enc); }
+  catch (_) { return { status: 500, error: 'decrypt-failed' }; }
+  if (!mfa.verifyTotpCode(secret, code, user.email)) {
+    return { status: 401, error: 'invalid-totp-code' };
+  }
+  return null;
 }
 
 /* ── POST /api/account/change-password ───────────────────────── */
@@ -120,11 +137,60 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   const user = await verifyPassword(req.user.id, body.password);
   if (!user) return sendError(res, 401, 'wrong-password');
 
+  // Re-confirm the second factor (TOTP) when one is enrolled.
+  const sf = checkSecondFactor(user, body.code);
+  if (sf) return sendError(res, sf.status, sf.error);
+
   // Removes the user row; sessions and user_data cascade-delete.
   dbApi.deleteUser(user.id);
   destroySession(req, res);
 
   return res.json({ ok: true });
+});
+
+/* ── POST /api/account/clear-data ────────────────────────────── */
+// Erase selected groups of financial data without deleting the account.
+// Settings are always preserved. Same gate as deletion: re-entered password
+// plus a current TOTP code when 2FA is enrolled.
+//   body.groups: subset of ['bills','cards','payments','bank']
+const CLEARABLE_GROUPS = ['bills', 'cards', 'payments', 'bank'];
+
+router.post('/clear-data', requireAuth, requireCsrf, async (req, res) => {
+  const body = req.body || {};
+
+  const user = await verifyPassword(req.user.id, body.password);
+  if (!user) return sendError(res, 401, 'wrong-password');
+
+  const sf = checkSecondFactor(user, body.code);
+  if (sf) return sendError(res, sf.status, sf.error);
+
+  const groups = Array.isArray(body.groups)
+    ? body.groups.filter((g) => CLEARABLE_GROUPS.includes(g))
+    : [];
+  if (!groups.length) return sendError(res, 400, 'no-groups');
+
+  const data = dbApi.getUserData(user.id);
+  // Clearing a category also drops the payment records tied to it; the
+  // standalone "payments" group wipes the full history.
+  if (groups.includes('bills')) {
+    data.bills = [];
+    data.payments = data.payments.filter((p) => p && p.type !== 'bill');
+  }
+  if (groups.includes('cards')) {
+    data.cards = [];
+    data.payments = data.payments.filter((p) => p && p.type !== 'card');
+  }
+  if (groups.includes('payments')) {
+    data.payments = [];
+  }
+  if (groups.includes('bank')) {
+    data.accounts = [];
+    data.transactions = [];
+  }
+  // settings are intentionally left untouched.
+  dbApi.upsertUserData(user.id, data);
+
+  return res.json({ ok: true, cleared: groups });
 });
 
 /* ── GET /api/account/export ─────────────────────────────────── */

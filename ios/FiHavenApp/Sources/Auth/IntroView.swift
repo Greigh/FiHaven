@@ -7,78 +7,155 @@ struct IntroView: View {
     @AppStorage("fh_intro_seen") private var introSeen = false
     @State private var step = 0
 
-    private struct Page { let icon: String; let title: String; let body: String; let badge: String? }
+    private struct Feature { let icon: String; let text: String }
+    private struct Page {
+        let icon: String
+        let title: String
+        let body: String
+        let badge: String?
+        let brand: Bool          // show the FiHaven mark instead of an SF Symbol
+        var features: [Feature] = []
+    }
+
     private let pages: [Page] = [
         Page(icon: "wallet.pass.fill", title: "Welcome to FiHaven",
-             body: "Track recurring bills, credit cards, and debt payoff — five calm minutes a week instead of a frantic afternoon every payday.",
-             badge: nil),
+             body: "Five calm minutes a week instead of a frantic afternoon every payday.",
+             badge: nil, brand: true,
+             features: [
+                Feature(icon: "list.bullet.rectangle.fill", text: "Track recurring bills in one place"),
+                Feature(icon: "creditcard.fill", text: "Credit cards & 0% promo periods"),
+                Feature(icon: "chart.line.uptrend.xyaxis", text: "A clear plan to pay down debt"),
+             ]),
         Page(icon: "checkmark.seal.fill", title: "Free to use",
              body: "Your dashboard, bills, cards, and monthly budget are always free. Create an account and start in minutes.",
-             badge: "FREE"),
+             badge: "FREE", brand: false),
         Page(icon: "crown.fill", title: "FiHaven Pro",
-             body: "Unlock the payoff planner, calendar, and full payment history with Pro. Start free and upgrade anytime — one subscription across web, iOS, and Android.",
-             badge: "PRO"),
+             body: "Unlock the payoff planner, calendar, and full payment history. Start free and upgrade anytime — one subscription across web, iOS, and Android.",
+             badge: "PRO", brand: false),
     ]
+
+    private var page: Page { pages[step] }
+    private var isLast: Bool { step == pages.count - 1 }
+    private var accentForBadge: Color { page.badge == "PRO" ? Theme.accent : Theme.green }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
+            header
+            Spacer(minLength: 0)
+            hero
+            Spacer(minLength: 0)
+            footer
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.bg.ignoresSafeArea())
+    }
+
+    // ── Top bar: wordmark + skip ─────────────────────────────────────
+    private var header: some View {
+        HStack {
+            Wordmark(size: 22)
+            Spacer()
+            if !isLast {
                 Button("Skip") { introSeen = true }
                     .font(Theme.ui(15, weight: .medium))
                     .foregroundStyle(Theme.muted)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+    }
 
-            Spacer(minLength: 0)
+    // ── Hero: tinted badge + title/body (+ features on page 1) ───────
+    private var hero: some View {
+        VStack(spacing: 20) {
+            heroBadge
 
-            VStack(spacing: 18) {
-                Image(systemName: pages[step].icon)
-                    .font(.system(size: 54))
-                    .foregroundStyle(Theme.accent)
-                if let badge = pages[step].badge {
+            VStack(spacing: 12) {
+                if let badge = page.badge {
                     Text(badge)
-                        .font(Theme.ui(11, weight: .bold))
-                        .tracking(1)
-                        .foregroundStyle(badge == "PRO" ? Theme.accent : Theme.green)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background((badge == "PRO" ? Theme.accent : Theme.green).opacity(0.14))
+                        .font(Theme.ui(11, weight: .bold)).tracking(1.2)
+                        .foregroundStyle(accentForBadge)
+                        .padding(.horizontal, 11).padding(.vertical, 4)
+                        .background(accentForBadge.opacity(0.14))
                         .clipShape(Capsule())
                 }
-                Text(pages[step].title)
-                    .font(Theme.ui(26, weight: .bold))
+                Text(page.title)
+                    .font(Theme.ui(28, weight: .bold))
                     .foregroundStyle(Theme.text)
                     .multilineTextAlignment(.center)
-                Text(pages[step].body)
+                Text(page.body)
                     .font(Theme.ui(16))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 32)
 
-            Spacer(minLength: 0)
+            if !page.features.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(page.features.indices, id: \.self) { i in
+                        let f = page.features[i]
+                        HStack(spacing: 12) {
+                            Image(systemName: f.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 26)
+                            Text(f.text)
+                                .font(Theme.ui(15))
+                                .foregroundStyle(Theme.text)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 32)
+        .id(step) // re-run the transition when the page changes
+        .transition(.opacity.combined(with: .move(edge: .trailing)))
+    }
 
+    /// A soft gradient disc with the FiHaven mark (page 1) or page glyph.
+    private var heroBadge: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [Theme.accent.opacity(0.18), accentForBadge.opacity(0.06)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 132, height: 132)
+            if page.brand {
+                BrandMark(size: 72)
+            } else {
+                Image(systemName: page.icon)
+                    .font(.system(size: 52))
+                    .foregroundStyle(accentForBadge)
+            }
+        }
+    }
+
+    // ── Footer: progress dots + primary button ───────────────────────
+    private var footer: some View {
+        VStack(spacing: 20) {
             HStack(spacing: 8) {
                 ForEach(pages.indices, id: \.self) { i in
-                    Circle()
+                    Capsule()
                         .fill(i == step ? Theme.accent : Theme.border)
-                        .frame(width: 8, height: 8)
+                        .frame(width: i == step ? 22 : 8, height: 8)
+                        .animation(.spring(response: 0.3), value: step)
                 }
             }
-            .padding(.bottom, 20)
 
             Button {
-                if step < pages.count - 1 { withAnimation { step += 1 } } else { introSeen = true }
+                if isLast { introSeen = true } else { withAnimation(.easeInOut(duration: 0.25)) { step += 1 } }
             } label: {
-                Text(step < pages.count - 1 ? "Next" : "Get started")
+                Text(isLast ? "Get started" : "Next")
             }
             .buttonStyle(PrimaryButtonStyle(enabled: true))
             .padding(.horizontal, 24)
-            .padding(.bottom, 30)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
+        .padding(.bottom, 30)
     }
 }

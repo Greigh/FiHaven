@@ -81,13 +81,21 @@ struct ChangePasswordSheet: View {
     }
 }
 
+/// The GitHub-style phrase a user must type to confirm account deletion.
+private let deleteConfirmPhrase = "DELETE ACCOUNT DATA"
+
 struct DeleteAccountSheet: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
-    @State private var confirm = false
+    @State private var code = ""
+    @State private var confirmText = ""
     @State private var errorText: String?
     @State private var busy = false
+
+    private var canDelete: Bool {
+        !busy && !password.isEmpty && confirmText.trimmingCharacters(in: .whitespaces) == deleteConfirmPhrase
+    }
 
     var body: some View {
         NavigationStack {
@@ -96,7 +104,20 @@ struct DeleteAccountSheet: View {
                     Text("This permanently deletes your account and all data. This can't be undone.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
                     RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
-                    Toggle("I understand, delete everything", isOn: $confirm)
+                }
+                Section {
+                    TextField("Authenticator code (if 2FA is on)", text: $code)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                } footer: {
+                    Text("Required only if you have two-factor authentication enabled.")
+                }
+                Section {
+                    TextField(deleteConfirmPhrase, text: $confirmText)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Type \(deleteConfirmPhrase) to confirm")
                 }
                 if let errorText {
                     Section { Text(errorText).foregroundStyle(Theme.red) }
@@ -107,7 +128,7 @@ struct DeleteAccountSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .destructiveAction) {
                     Button("Delete") { Task { await delete() } }
-                        .disabled(!confirm || password.isEmpty || busy)
+                        .disabled(!canDelete)
                 }
             }
         }
@@ -116,9 +137,80 @@ struct DeleteAccountSheet: View {
     private func delete() async {
         busy = true; defer { busy = false }
         do {
-            try await env.api.deleteAccount(password: password)
+            try await env.api.deleteAccount(password: password, code: code.trimmingCharacters(in: .whitespaces))
             dismiss()
             env.didDeleteAccount()
+        } catch let e as APIError { errorText = e.userMessage }
+        catch { errorText = error.localizedDescription }
+    }
+}
+
+/// Erase chosen groups of data while keeping the account + settings. Same
+/// gate as deletion: password plus a TOTP code when 2FA is enrolled.
+struct ClearDataSheet: View {
+    @EnvironmentObject var env: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var code = ""
+    @State private var groups: Set<String> = []
+    @State private var errorText: String?
+    @State private var busy = false
+
+    private let options: [(id: String, label: String)] = [
+        ("bills", "Bills (and their payment history)"),
+        ("cards", "Cards & loans (and their payment history)"),
+        ("payments", "All payment history"),
+        ("bank", "Connected bank data"),
+    ]
+
+    private var canClear: Bool { !busy && !password.isEmpty && !groups.isEmpty }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Erase chosen data while keeping your account and settings. This can't be undone.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                } header: { Text("What to clear") }
+                Section {
+                    ForEach(options, id: \.id) { opt in
+                        Toggle(opt.label, isOn: Binding(
+                            get: { groups.contains(opt.id) },
+                            set: { on in if on { groups.insert(opt.id) } else { groups.remove(opt.id) } }
+                        ))
+                    }
+                }
+                Section {
+                    RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                    TextField("Authenticator code (if 2FA is on)", text: $code)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                }
+                if let errorText {
+                    Section { Text(errorText).foregroundStyle(Theme.red) }
+                }
+            }
+            .navigationTitle("Clear data").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .destructiveAction) {
+                    Button("Clear") { Task { await clear() } }
+                        .disabled(!canClear)
+                }
+            }
+        }
+    }
+
+    private func clear() async {
+        busy = true; defer { busy = false }
+        do {
+            try await env.api.clearData(
+                password: password,
+                code: code.trimmingCharacters(in: .whitespaces),
+                groups: Array(groups)
+            )
+            await env.store?.load()
+            dismiss()
         } catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
