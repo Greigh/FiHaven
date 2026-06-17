@@ -36,11 +36,11 @@ the web client's behaviour (see the referenced JS files) is the spec.
 
 | Environment | Base | Notes |
 |---|---|---|
-| Production | `https://danielhipskind.com/fihaven` | App store builds point here. |
+| Production | `https://fihaven.app` | App store builds point here. |
 | Local dev | `http://localhost:5222/fihaven` | `node server/index.js`. iOS simulator can reach `localhost`; Android emulator uses `http://10.0.2.2:5222/fihaven`. |
 
 All paths below are **relative to the base** (so `/api/data` →
-`https://danielhipskind.com/fihaven/api/data`).
+`https://fihaven.app/api/data`).
 
 > Dev uses plaintext HTTP. iOS ATS and Android cleartext-traffic policy
 > must allow `localhost` / `10.0.2.2` in **debug builds only**; release
@@ -409,7 +409,7 @@ derived from store subscriptions + promo grants ([`server/billing.js`](../server
 transaction or redeem a promo, then read the entitlement back.
 
 **Products** (must match App Store Connect / Play Console and the server map):
-`com.danielhipskind.fihaven.pro.monthly`, `…pro.yearly` (auto-renewing subs).
+`app.fihaven.pro.monthly`, `…pro.yearly` (auto-renewing subs).
 
 **Entitlement shape** (in `GET /api/data` and `GET /api/billing/status`):
 ```json

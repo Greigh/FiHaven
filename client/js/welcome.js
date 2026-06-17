@@ -11,9 +11,64 @@ import './theme.js';
 var API = '/api/auth';
 var csrfToken = null;
 var step = 1;
-var TOTAL = 4;
+var TOTAL = 5;
 
 function go(url) { window.location.replace(url); }
+
+// ── Goals → tab bar ────────────────────────────────────────
+// Each chosen goal surfaces its tabs in the bottom bar so people land on
+// the features they came for. Mirrors the iOS/Android onboarding mapping.
+var GOAL_TABS = {
+  bills: ['bills', 'calendar'],
+  debt: ['cards', 'payoff'],
+  budget: ['budget', 'spending'],
+  rewards: ['rewards'],
+  subscriptions: ['subscriptions'],
+};
+var ALL_TABS = ['dashboard', 'bills', 'cards', 'loans', 'payoff', 'rewards',
+                'budget', 'spending', 'subscriptions', 'calendar', 'history'];
+
+// The ordered tab ids for the chosen goals (dashboard first, then chosen
+// features, then the rest), or null when nothing was selected.
+function selectedTabIds() {
+  var chosen = Array.prototype.slice
+    .call(document.querySelectorAll('[data-goal]:checked'))
+    .map(function (c) { return c.value; });
+  if (!chosen.length) return null;
+  var ordered = ['dashboard'];
+  // Fixed goal order so the bar is deterministic regardless of click order.
+  ['bills', 'debt', 'budget', 'rewards', 'subscriptions'].forEach(function (g) {
+    if (chosen.indexOf(g) === -1) return;
+    GOAL_TABS[g].forEach(function (t) { if (ordered.indexOf(t) === -1) ordered.push(t); });
+  });
+  ALL_TABS.forEach(function (t) { if (ordered.indexOf(t) === -1) ordered.push(t); });
+  return ordered;
+}
+
+function fetchData() {
+  return fetch('/api/data', { credentials: 'same-origin' }).then(function (r) {
+    if (!r.ok) throw new Error('load failed');
+    return r.json();
+  });
+}
+
+// Persist settings.tabs from the chosen goals. Best-effort: resolves even on
+// failure so onboarding never gets stuck.
+function saveGoalTabs() {
+  var ids = selectedTabIds();
+  if (!ids) return Promise.resolve();
+  return fetchData().then(function (server) {
+    return fetch('/api/data', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+        settings: Object.assign({}, server.settings || {}, { tabs: ids }),
+      }),
+    });
+  }).catch(function () {});
+}
 
 function getMe() {
   return fetch(API + '/me', { credentials: 'same-origin' })
@@ -36,7 +91,7 @@ function markOnboarded() {
 function finishTo(url) {
   var msg = document.querySelector('[data-onboard-message]');
   if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'One moment…'; }
-  markOnboarded().then(function () { go(url); });
+  saveGoalTabs().then(markOnboarded).then(function () { go(url); });
 }
 
 function render() {

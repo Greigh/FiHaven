@@ -22,8 +22,8 @@ final class StoreManager: ObservableObject {
 
     /// Product ids — must match App Store Connect and the server's product
     /// map (server/billing.js DEFAULT_PRODUCTS).
-    static let monthlyID = "com.danielhipskind.fihaven.pro.monthly"
-    static let yearlyID = "com.danielhipskind.fihaven.pro.yearly"
+    static let monthlyID = "app.fihaven.pro.monthly"
+    static let yearlyID = "app.fihaven.pro.yearly"
     static let productIDs = [monthlyID, yearlyID]
 
     private let api: APIClient

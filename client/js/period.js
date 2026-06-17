@@ -7,7 +7,9 @@
    - startDay : a month-length period that begins on day N (e.g. the
                 25th), so early-next-month bills fall into the period
                 you'd plan for. key = the period's start date.
-   - rolling  : fixed consecutive K-day buckets anchored at an epoch.
+   - rolling  : fixed consecutive K-day buckets. By default anchored at
+                a stable epoch; an optional periodAnchor ("YYYY-MM-DD")
+                lets you choose which day the buckets begin on.
                 key = the bucket's start date.
 
    Paid/owed is matched by whether a payment's `date` falls in the
@@ -26,6 +28,10 @@ const ROLL_EPOCH = new Date(2020, 0, 1);
 
 function clampDay(v) { v = parseInt(v, 10); return v >= 1 && v <= 28 ? v : 1; }
 function clampLen(v) { v = parseInt(v, 10); return v >= 7 && v <= 90 ? v : 35; }
+// A valid "YYYY-MM-DD" rolling anchor, or null to fall back to ROLL_EPOCH.
+function validAnchor(v) {
+  return (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+}
 
 export function getPeriodConfig(s) {
   s = s || settings;
@@ -34,7 +40,14 @@ export function getPeriodConfig(s) {
     mode: mode === 'startDay' || mode === 'rolling' ? mode : 'calendar',
     startDay: clampDay(s && s.periodStartDay),
     length: clampLen(s && s.periodLength),
+    anchor: validAnchor(s && s.periodAnchor),
   };
+}
+
+// Local-midnight anchor a rolling grid counts buckets from.
+function rollAnchor(cfg) {
+  const a = cfg && cfg.anchor && asDate(cfg.anchor);
+  return (a && !isNaN(a)) ? a : ROLL_EPOCH;
 }
 
 function ymd(d) {
@@ -71,8 +84,9 @@ export function periodBounds(date, cfg) {
 
   if (cfg.mode === 'rolling') {
     const len = cfg.length;
-    const idx = Math.floor((d - ROLL_EPOCH) / (len * DAY));
-    const startMs = ROLL_EPOCH.getTime() + idx * len * DAY;
+    const epoch = rollAnchor(cfg);
+    const idx = Math.floor((d - epoch) / (len * DAY));
+    const startMs = epoch.getTime() + idx * len * DAY;
     const s = new Date(startMs);
     const start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
     const end = new Date(start.getTime() + len * DAY);
@@ -120,6 +134,24 @@ export function shiftPeriod(bounds, offset, cfg) {
     return periodBounds(new Date(mid + offset * cfg.length * DAY), cfg);
   }
   return periodBounds(new Date(bounds.start.getFullYear(), bounds.start.getMonth() + offset, 1), cfg);
+}
+
+// The "YYYY-MM" calendar months a period's [start, end) overlaps. A
+// non-calendar period can span several months, so per-month bookkeeping
+// (e.g. autopay's done-memory) must look across all of them.
+export function monthsInBounds(bounds) {
+  const out = [];
+  if (!bounds) return out;
+  const last = new Date(bounds.end.getTime() - DAY); // inclusive last day
+  let y = bounds.start.getFullYear();
+  let m = bounds.start.getMonth();
+  const ey = last.getFullYear();
+  const em = last.getMonth();
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(y + '-' + String(m + 1).padStart(2, '0'));
+    if (++m > 11) { m = 0; y++; }
+  }
+  return out;
 }
 
 // True if payment `p` falls within [bounds.start, bounds.end).

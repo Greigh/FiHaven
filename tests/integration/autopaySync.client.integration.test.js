@@ -77,4 +77,41 @@ describe('integration — autopay + storage sync', () => {
     vi.advanceTimersByTime(800);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it('persists + syncs the per-month memory so a user undo is not resurrected', () => {
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+
+    // The "already handled" memory is cached locally...
+    const cachedSettings = JSON.parse(localStorage.getItem('fh_settings'));
+    expect(cachedSettings.autopayDone['2026-06']).toContain('bill:B1');
+
+    // ...and rides along in the debounced server sync.
+    vi.advanceTimersByTime(800);
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.settings.autopayDone['2026-06']).toContain('bill:B1');
+
+    // The user undoes the auto-mark by removing the payment. A re-run must
+    // NOT bring it back — membership memory, not the payment, gates it.
+    setPayments([]);
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('marks a $0 autopay item once and keeps the undo undone', () => {
+    setBills([]);
+    setCards([{ id: 'C0', name: 'PaidOff', balance: 0, minPayment: 0, dueDay: 20, autopay: true }]);
+    setSettings({ autopayMark: true, periodMode: 'calendar', paidGoal: 'minimum' });
+    setEntitlement({ pro: true });
+    setPayments([]);
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({ type: 'card', refId: 'C0', amount: 0 });
+
+    // paidAmount stays 0 for a $0 item, so only the memory can stop a re-add.
+    setPayments([]);
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
 });

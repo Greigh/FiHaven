@@ -44,8 +44,12 @@ final class AppStore: ObservableObject {
     }
 
     /// Opt-in: auto-mark autopay bills/cards paid once their due date in the
-    /// current period has arrived and they have no payment yet. Mirrors
-    /// autopay.js + the server scheduler safety net.
+    /// current period has arrived. Each item is marked at most once per
+    /// period, tracked in `settings.autopayDone` so a user's undo isn't
+    /// reverted and $0 items behave (membership, not a payment amount, gates
+    /// a second mark). The memory is keyed by calendar month — read across
+    /// every month the period overlaps — to line up with the server.
+    /// Mirrors autopay.js + the server scheduler.
     func runAutopayMark() {
         guard data.settings.autopayMark else { return }
         let bounds = currentBounds
@@ -63,9 +67,19 @@ final class AppStore: ObservableObject {
         }
 
         var newPayments: [Payment] = []
+        // Items already auto-marked, read across every calendar month the
+        // period overlaps (a long rolling window can span several).
+        var handled = Set<String>()
+        let done = data.settings.autopayDone
+        for m in Self.monthsInBounds(bounds, cal: cal) {
+            done[m].map { handled.formUnion($0) }
+        }
+        var newlyMarked: [String] = []
 
         func considerBill(_ b: Bill) {
             guard b.autopay else { return }
+            let refKey = "bill:\(b.id)"
+            guard !handled.contains(refKey) else { return }
             guard b.dueDay != nil || !(b.startDate ?? "").isEmpty else { return }
             guard BillSchedule.dueOnOrBeforeInPeriod(b, bounds: bounds, tz: tz, asOf: todayDate) != nil else { return }
             let refId = String(b.id)
@@ -75,16 +89,22 @@ final class AppStore: ObservableObject {
                 id: Self.newPaymentID(), type: "bill", refId: refId, name: b.name,
                 amount: b.amount, date: todayISO(), monthKey: mkCal, note: "Auto-marked (autopay)"
             ))
+            handled.insert(refKey)
+            newlyMarked.append(refKey)
         }
 
         func considerCard(type: String, refId: String, name: String, dueDay: Int?, autopay: Bool, amount: Double) {
             guard autopay, let dd = dueDay, dd > 0, let due = dueInPeriod(dd), due <= todayDate else { return }
+            let refKey = "\(type):\(refId)"
+            guard !handled.contains(refKey) else { return }
             if Schedule.paidAmount(data.payments, type: type, refId: refId, in: bounds) > Schedule.paidEpsilon { return }
             if Schedule.isSkipped(data.payments, type: type, refId: refId, in: bounds) { return }
             newPayments.append(Payment(
                 id: Self.newPaymentID(), type: type, refId: refId, name: name,
                 amount: amount, date: todayISO(), monthKey: mkCal, note: "Auto-marked (autopay)"
             ))
+            handled.insert(refKey)
+            newlyMarked.append(refKey)
         }
 
         for b in data.bills { considerBill(b) }
@@ -93,8 +113,42 @@ final class AppStore: ObservableObject {
                          dueDay: c.dueDay, autopay: c.autopay, amount: goalAmount(type: "card", refId: String(c.id)))
         }
         if !newPayments.isEmpty {
-            mutate { $0.payments.append(contentsOf: newPayments) }
+            // New marks go in this month's bucket; keep buckets for the last
+            // 4 months (covers the longest rolling window) and drop the rest.
+            var calBucket = Set(done[mkCal] ?? [])
+            calBucket.formUnion(newlyMarked)
+            let minKey = Self.shiftMonthKey(mkCal, by: -3)
+            var next: [String: [String]] = [:]
+            for (k, v) in done where k >= minKey && k != mkCal { next[k] = v }
+            next[mkCal] = Array(calBucket)
+            mutate {
+                $0.payments.append(contentsOf: newPayments)
+                $0.settings.autopayDone = next
+            }
         }
+    }
+
+    /// Shift a "YYYY-MM" key by `delta` months.
+    static func shiftMonthKey(_ mk: String, by delta: Int) -> String {
+        let parts = mk.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 2 else { return mk }
+        let total = parts[0] * 12 + (parts[1] - 1) + delta
+        return String(format: "%04d-%02d", total / 12, total % 12 + 1)
+    }
+
+    /// The "YYYY-MM" calendar months a period's [start, end) overlaps.
+    static func monthsInBounds(_ bounds: PeriodBounds, cal: Calendar) -> [String] {
+        let last = cal.date(byAdding: .day, value: -1, to: bounds.endDate) ?? bounds.startDate
+        let s = cal.dateComponents([.year, .month], from: bounds.startDate)
+        let e = cal.dateComponents([.year, .month], from: last)
+        var idx = (s.year ?? 0) * 12 + ((s.month ?? 1) - 1)
+        let endIdx = (e.year ?? 0) * 12 + ((e.month ?? 1) - 1)
+        var out: [String] = []
+        while idx <= endIdx {
+            out.append(String(format: "%04d-%02d", idx / 12, idx % 12 + 1))
+            idx += 1
+        }
+        return out
     }
 
     /// Mutate the in-memory data and schedule a debounced save.
@@ -226,6 +280,25 @@ final class AppStore: ObservableObject {
     func paidState(type: String, refId: String) -> PaidState {
         if isFullyPaid(type: type, refId: refId) { return .full }
         return paidAmount(type: type, refId: refId) > Schedule.paidEpsilon ? .partial : .unpaid
+    }
+
+    /// A warning to show before skipping a card this period, or nil when it's
+    /// safe to skip. Warns if the minimum (late-fee risk) or the suggested
+    /// payment under the active goal policy hasn't been met. Mirrors the web's
+    /// skipMonth warning in modals.js.
+    func cardSkipWarning(refId: String, name: String) -> String? {
+        guard let c = data.cards.first(where: { String($0.id) == refId }) else { return nil }
+        let paid = paidAmount(type: "card", refId: refId)
+        let min  = c.minPayment
+        let goal = goalAmount(type: "card", refId: refId)
+        if min > 0, paid + Schedule.paidEpsilon < min {
+            return "You haven’t paid the minimum of \(Money.fmt(min)) on \(name) yet. "
+                + "Skipping could mean a late fee or extra interest."
+        }
+        if goal > 0, paid + Schedule.paidEpsilon < goal {
+            return "You haven’t reached your suggested payment of \(Money.fmt(goal)) on \(name) yet."
+        }
+        return nil
     }
 
     // UpcomingItem conveniences.

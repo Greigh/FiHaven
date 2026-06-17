@@ -155,6 +155,9 @@ public enum Schedule {
         case .recommended:
             if let override = card.recommendedPayment, override > 0 { return override }
             if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
+            // 0% interest (no active promo): no interest cost to carry, so the
+            // goal is just the minimum rather than the full balance.
+            if card.regularAPR <= 0 { return card.minPayment }
             return startBalance
         }
     }
@@ -171,7 +174,11 @@ public enum Schedule {
         // Loans: the recommended payment is the scheduled monthly payment, never
         // the whole principal (paying it off is still an explicit option).
         if (card.type ?? "card") == "loan" { return card.minPayment }
-        return card.hasPromo ? max(card.minPayment, promoNeeded(card, tz: tz, now: now)) : card.balance
+        if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
+        // 0% interest (no active promo): carrying a balance costs nothing, so the
+        // recommended payment is just the minimum — not the whole balance.
+        if card.regularAPR <= 0 { return card.minPayment }
+        return card.balance
     }
 
     /// A bill's fully-paid goal is always its full amount.
@@ -206,6 +213,9 @@ public enum Schedule {
         case .recommended:
             if let override = card.recommendedPayment, override > 0 { return override }
             if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
+            // 0% interest (no active promo): no interest cost to carry, so the
+            // goal is just the minimum rather than the full balance.
+            if card.regularAPR <= 0 { return card.minPayment }
             return startBalance
         }
     }

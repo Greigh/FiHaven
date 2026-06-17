@@ -36,6 +36,10 @@ import MfaSection from '../svelte/MfaSection.svelte';
         return 'That email is already in use by another account.';
       case 'invalid-name':
         return 'Names cannot contain line breaks or control characters.';
+      case 'invalid-totp-code':
+        return 'That authenticator code is incorrect or expired.';
+      case 'no-groups':
+        return 'Choose at least one type of data to clear.';
       case 'bad-csrf-token':
         return 'Your session expired. Please reload the page and try again.';
       case 'network':
@@ -133,11 +137,42 @@ import MfaSection from '../svelte/MfaSection.svelte';
       }
     }
 
+    // "3 years", "5 months", "12 days" — the longest non-zero unit since `ms`.
+    function humanDuration(ms) {
+      var days = Math.floor((Date.now() - ms) / 86400000);
+      if (days < 1) return 'today';
+      var years = Math.floor(days / 365);
+      if (years >= 1) return years + (years === 1 ? ' year' : ' years');
+      var months = Math.floor(days / 30);
+      if (months >= 1) return months + (months === 1 ? ' month' : ' months');
+      return days + (days === 1 ? ' day' : ' days');
+    }
+    function monthYear(ms) {
+      return new Date(ms).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    // "Member since June 2026 · Pro for 3 months" — a small coolness factor.
+    function renderMembership(user, entitlement) {
+      var el = document.querySelector('[data-membership]');
+      if (!el) return;
+      var parts = [];
+      if (user && user.createdAt) parts.push('Member since ' + monthYear(user.createdAt));
+      if (entitlement && entitlement.pro) {
+        parts.push(entitlement.proSince
+          ? 'Pro for ' + humanDuration(entitlement.proSince)
+          : 'FiHaven Pro');
+      }
+      el.textContent = parts.join(' · ');
+    }
+
     auth.me().then(function (user) {
       if (!user) return; // auth.js already redirects unauthenticated users
       renderIdentity(user);
       var nameInput = document.getElementById('display-name');
       if (nameInput) nameInput.value = user.name || '';
+      // Membership line needs the Pro entitlement (from /api/data).
+      fetchData()
+        .then(function (server) { renderMembership(user, server && server.entitlement); })
+        .catch(function () { renderMembership(user, null); });
     });
 
     /* ── Display name ──────────────────────────────────────── */
@@ -249,15 +284,66 @@ import MfaSection from '../svelte/MfaSection.svelte';
       });
     }
 
+    /* ── Clear selected data (keeps the account) ───────────── */
+    var clearForm = document.querySelector('[data-form="clear"]');
+    if (clearForm) {
+      clearForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var password = document.getElementById('clear-password').value;
+        var code = document.getElementById('clear-code').value.trim();
+        var groups = Array.prototype.slice
+          .call(clearForm.querySelectorAll('[data-clear-group]:checked'))
+          .map(function (c) { return c.value; });
+        if (!groups.length) {
+          showMessage('clear', 'Choose at least one type of data to clear.', true);
+          return;
+        }
+        if (!password) {
+          showMessage('clear', 'Enter your password to confirm.', true);
+          return;
+        }
+        if (!window.confirm('Permanently erase the selected data? This cannot be undone.')) return;
+
+        setBusy(clearForm, true);
+        showMessage('clear', 'Clearing…', false);
+        postJson('clear-data', { password: password, code: code, groups: groups })
+          .then(function (res) {
+            setBusy(clearForm, false);
+            if (res.ok) {
+              clearLocalData();
+              showMessage('clear', 'Selected data cleared. Reloading…', false);
+              setTimeout(function () { window.location.replace('/dashboard'); }, 800);
+              return;
+            }
+            if (handledSessionLoss(res)) return;
+            showMessage('clear', errorText(res.data && res.data.error), true);
+          })
+          .catch(function () {
+            setBusy(clearForm, false);
+            showMessage('clear', errorText('network'), true);
+          });
+      });
+    }
+
     /* ── Delete account ────────────────────────────────────── */
+    var DELETE_PHRASE = 'DELETE ACCOUNT DATA';
     var deleteForm = document.querySelector('[data-form="delete"]');
     if (deleteForm) {
+      var deleteText = document.getElementById('delete-confirm-text');
+      var deleteBtn = deleteForm.querySelector('[data-delete-submit]');
+      // GitHub-style: the button only unlocks once the exact phrase is typed.
+      function syncDeleteBtn() {
+        if (deleteBtn) deleteBtn.disabled = (deleteText.value.trim() !== DELETE_PHRASE);
+      }
+      if (deleteText) deleteText.addEventListener('input', syncDeleteBtn);
+      syncDeleteBtn();
+
       deleteForm.addEventListener('submit', function (event) {
         event.preventDefault();
         var password = document.getElementById('delete-password').value;
-        var confirmed = document.getElementById('delete-confirm').checked;
-        if (!confirmed) {
-          showMessage('delete', 'Please tick the confirmation box first.', true);
+        var code = document.getElementById('delete-code').value.trim();
+        if (deleteText.value.trim() !== DELETE_PHRASE) {
+          showMessage('delete', 'Type ' + DELETE_PHRASE + ' exactly to confirm.', true);
           return;
         }
         if (!password) {
@@ -273,7 +359,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
         }
         setBusy(deleteForm, true);
         showMessage('delete', 'Deleting…', false);
-        postJson('delete', { password: password })
+        postJson('delete', { password: password, code: code })
           .then(function (res) {
             if (res.ok) {
               clearLocalData();
@@ -674,6 +760,8 @@ import MfaSection from '../svelte/MfaSection.svelte';
     var dayInput  = document.querySelector('[data-period-startday]');
     var lenField  = document.querySelector('[data-period-length-field]');
     var lenInput  = document.querySelector('[data-period-length]');
+    var anchorField = document.querySelector('[data-period-anchor-field]');
+    var anchorInput = document.querySelector('[data-period-anchor]');
     var noteEl    = document.querySelector('[data-period-effective]');
     if (!form || !modeSel) return;
 
@@ -682,11 +770,13 @@ import MfaSection from '../svelte/MfaSection.svelte';
     }
     function clampDay(v) { v = parseInt(v, 10); return (v >= 1 && v <= 28) ? v : 1; }
     function clampLen(v) { v = parseInt(v, 10); return (v >= 7 && v <= 90) ? v : 35; }
+    function normAnchor(v) { return (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : ''; }
 
     function syncVisibility() {
       var mode = normMode(modeSel.value);
       if (dayField) dayField.hidden = mode !== 'startDay';
       if (lenField) lenField.hidden = mode !== 'rolling';
+      if (anchorField) anchorField.hidden = mode !== 'rolling';
     }
     function describe() {
       if (!noteEl) return;
@@ -695,8 +785,10 @@ import MfaSection from '../svelte/MfaSection.svelte';
         noteEl.textContent = 'Each period runs from day ' + clampDay(dayInput && dayInput.value) +
           ' to the day before it next month. A payment counts toward the period its date falls in.';
       } else if (mode === 'rolling') {
+        var anchor = normAnchor(anchorInput && anchorInput.value);
         noteEl.textContent = 'Periods are fixed ' + clampLen(lenInput && lenInput.value) +
-          '-day windows. A payment counts toward whichever window its date falls in.';
+          '-day windows' + (anchor ? ' starting ' + anchor : '') +
+          '. A payment counts toward whichever window its date falls in.';
       } else {
         noteEl.textContent = 'Periods follow the calendar month (the default).';
       }
@@ -708,6 +800,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
         modeSel.value = normMode(s.periodMode);
         if (dayInput) dayInput.value = clampDay(s.periodStartDay);
         if (lenInput) lenInput.value = clampLen(s.periodLength);
+        if (anchorInput) anchorInput.value = normAnchor(s.periodAnchor);
         syncVisibility();
         describe();
       })
@@ -716,12 +809,14 @@ import MfaSection from '../svelte/MfaSection.svelte';
     modeSel.addEventListener('change', function () { syncVisibility(); describe(); });
     if (dayInput) dayInput.addEventListener('input', describe);
     if (lenInput) lenInput.addEventListener('input', describe);
+    if (anchorInput) anchorInput.addEventListener('input', describe);
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var mode = normMode(modeSel.value);
       var day  = clampDay(dayInput && dayInput.value);
       var len  = clampLen(lenInput && lenInput.value);
+      var anchor = normAnchor(anchorInput && anchorInput.value);
       setBusy(form, true);
       showMessage('period', 'Saving…', false);
 
@@ -733,6 +828,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
             payments: server.payments || [],
             settings: Object.assign({}, server.settings || {}, {
               periodMode: mode, periodStartDay: day, periodLength: len,
+              periodAnchor: anchor,
             }),
           };
           return pushData(snapshot);

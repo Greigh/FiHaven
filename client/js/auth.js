@@ -504,6 +504,9 @@
     window.AppAuth = {
       me: me,
       logout: logout,
+      // Post-auth navigation (verify-email / welcome / dashboard), reused by
+      // the federated sign-in module after a Google/Apple session is minted.
+      routeAfterAuth: routeAfterAuth,
       // The current session's CSRF token (null until me() resolves).
       getCsrfToken: function () {
         return csrfToken;

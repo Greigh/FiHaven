@@ -212,6 +212,19 @@ db.exec(`
     updated_at        INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_plaid_accounts_item ON plaid_accounts(item_pk);
+
+  -- Federated sign-in identities (Sign in with Apple / Google). One row
+  -- per (provider, subject); a user may link several. OAuth-only accounts
+  -- carry a sentinel password_hash so password login simply never matches.
+  CREATE TABLE IF NOT EXISTS oauth_identities (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider    TEXT NOT NULL,                -- 'google' | 'apple'
+    subject     TEXT NOT NULL,                -- provider's stable user id ("sub")
+    created_at  INTEGER NOT NULL,
+    UNIQUE(provider, subject)
+  );
+  CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
 `);
 
 // Idempotent column additions for older databases created before
@@ -257,6 +270,21 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ical_token ON users(ical_to
 const stmt = {
   insertUser: db.prepare(
     `INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)`
+  ),
+  // Create an account with the email already verified (used by OAuth, where
+  // the provider has confirmed the address).
+  insertVerifiedUser: db.prepare(
+    `INSERT INTO users (email, password_hash, created_at, email_verified, email_verified_at)
+     VALUES (?, ?, ?, 1, ?)`
+  ),
+  findOAuthIdentity: db.prepare(
+    `SELECT * FROM oauth_identities WHERE provider = ? AND subject = ?`
+  ),
+  insertOAuthIdentity: db.prepare(
+    `INSERT OR IGNORE INTO oauth_identities (user_id, provider, subject, created_at) VALUES (?, ?, ?, ?)`
+  ),
+  listOAuthIdentities: db.prepare(
+    `SELECT provider, subject, created_at FROM oauth_identities WHERE user_id = ?`
   ),
   findUserByEmail: db.prepare(
     `SELECT id, email, password_hash, name, email_mfa_enabled, email_verified, onboarded FROM users WHERE email = ?`
@@ -448,7 +476,7 @@ const stmt = {
     `SELECT * FROM promo_redemptions WHERE code = ? AND user_id = ?`
   ),
   activePromoGrants: db.prepare(
-    `SELECT r.code, r.grant_expires_at, p.product_id
+    `SELECT r.code, r.grant_expires_at, r.redeemed_at, p.product_id
        FROM promo_redemptions r JOIN promo_codes p ON p.code = r.code
       WHERE r.user_id = ?
         AND p.kind = 'free_sub'
@@ -501,6 +529,36 @@ const stmt = {
 function createUser(email, passwordHash) {
   const info = stmt.insertUser.run(email, passwordHash, Date.now());
   return { id: info.lastInsertRowid, email };
+}
+
+// A sentinel hash for federated (OAuth) accounts: it isn't a valid bcrypt
+// digest, so password login can never match it. The user can later set a
+// real password via the reset flow.
+const OAUTH_SENTINEL_HASH = '!oauth-no-password';
+
+// Create an OAuth-first account: email already verified (the provider
+// confirmed it), no usable password. Returns { id, email }.
+function createOAuthUser(email, name) {
+  const now = Date.now();
+  const info = stmt.insertVerifiedUser.run(email, OAUTH_SENTINEL_HASH, now, now);
+  const id = info.lastInsertRowid;
+  if (name) { try { stmt.updateUserName.run(String(name).slice(0, 80), id); } catch (_) { /* best effort */ } }
+  return { id, email };
+}
+
+// Resolve the local user for a verified provider identity, or null.
+function findUserByOAuth(provider, subject) {
+  const row = stmt.findOAuthIdentity.get(provider, String(subject));
+  return row ? findUserById(row.user_id) : null;
+}
+
+// Attach a provider identity to a user (idempotent on provider+subject).
+function linkOAuth(userId, provider, subject) {
+  stmt.insertOAuthIdentity.run(userId, provider, String(subject), Date.now());
+}
+
+function listOAuthIdentities(userId) {
+  return stmt.listOAuthIdentities.all(userId);
 }
 
 function findUserByEmail(email) {
@@ -760,6 +818,10 @@ module.exports = {
   db,
   DB_PATH,
   createUser,
+  createOAuthUser,
+  findUserByOAuth,
+  linkOAuth,
+  listOAuthIdentities,
   findUserByEmail,
   findUserById,
   findUserByIcalToken,

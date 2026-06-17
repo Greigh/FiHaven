@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.danielhipskind.fihaven"
+    namespace = "app.fihaven"
     compileSdk = 36
     buildToolsVersion = "36.1.0"
 
@@ -14,8 +14,19 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 2
-        versionName = "1.2.2"
+        versionName = "1.2.3"
         buildConfigField("String", "TURNSTILE_SITEKEY", "\"0x4AAAAAADVKKZMye086WePX\"")
+        // Google Sign-In: the WEB OAuth client id is used as the Credential
+        // Manager serverClientId, so the ID token's audience is the web client
+        // the server already trusts. Public value (shipped in the APK anyway).
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"742737810532-pfjcg9bri0vn2qu1rk94nhcv0lsluug1.apps.googleusercontent.com\"",
+        )
+        // Sign in with Apple (web flow): the Services ID is the OAuth client
+        // for the Custom Tab authorize request. Public value.
+        buildConfigField("String", "APPLE_SERVICES_ID", "\"app.fihaven.web\"")
     }
 
     buildFeatures { compose = true }
@@ -72,4 +83,13 @@ dependencies {
     // Plaid Link for in-app bank connections (Pro). Drives the existing
     // /api/plaid link-token + exchange endpoints.
     implementation("com.plaid.link:sdk-core:5.5.2")
+
+    // Google Sign-In via Credential Manager (returns an OIDC ID token we post
+    // to /api/auth/oauth/google).
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    // Custom Tabs for the Sign in with Apple web flow.
+    implementation("androidx.browser:browser:1.8.0")
 }

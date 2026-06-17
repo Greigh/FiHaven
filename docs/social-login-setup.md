@@ -1,0 +1,114 @@
+# Social sign-in (Sign in with Apple / Google) — setup guide
+
+This is the step-by-step for turning on "Continue with Google" and "Sign in
+with Apple". The code is already wired and **inert until you set the env
+vars below** — exactly like the Plaid/Stripe integrations.
+
+## What's already built
+
+| Layer | Status |
+|---|---|
+| **Server** | `POST /api/auth/oauth/:provider` (verifies the OIDC ID token, auto-links by verified email, else creates a verified no-password account, issues a session) and `GET /api/auth/oauth/config`. OIDC verification in `server/oauth.js`; `oauth_identities` table in `server/db.js`. ✅ built + tested |
+| **Web** | "Continue with Google/Apple" buttons on `/login`, hidden until a provider is configured (`client/js/social-login.js`). ✅ built |
+| **iOS** | Native **Sign in with Apple** (no SDK) **and Continue with Google** (GoogleSignIn SDK) on the auth screen. ✅ built. |
+| **Android** | **Continue with Google** (Credential Manager) **and Continue with Apple** (Custom Tab web flow → server callback → `fihaven://` deep link). ✅ built. |
+
+**Design notes**
+- Auto-linking: if the provider's *verified* email matches an existing
+  account, the social identity is attached to it and the user is signed in.
+- A federated provider is itself the auth factor, so OAuth sign-in completes
+  directly and does **not** run app-level TOTP/email MFA.
+- OAuth-only accounts get a sentinel password hash (password login can't match);
+  the user can set a real password later via the normal reset flow.
+
+---
+
+## 1. Server env (`.env`)
+
+```ini
+OAUTH_VERIFY_MODE=production            # verify signatures (default in prod)
+GOOGLE_OAUTH_CLIENT_ID=<web-id>,<ios-id>,<android-id>
+APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
+```
+- These are **allowed audiences** (the `aud` claim). List every client ID
+  that may mint a token for FiHaven, comma-separated.
+- Leave a line blank to keep that provider's buttons hidden.
+- For local testing without real keys: set `OAUTH_VERIFY_MODE=dev-trust` and
+  put any value in the audience var; the server will trust hand-made tokens.
+
+## 2. Google (Google Cloud Console)
+
+1. Console → **APIs & Services → Credentials → Create OAuth client ID**.
+   Configure the OAuth consent screen first if prompted.
+2. Create the OAuth clients:
+   - **Web application** — Authorized JavaScript origins: `https://fihaven.app`
+     (and `http://localhost:5222` for dev). Used by the web button.
+   - **iOS** — bundle id `app.fihaven`. Used by the iOS app.
+   - **Android** — package name `app.fihaven` + SHA-1 of your signing cert.
+     This authorizes the app, but see the note below — its id is **not** used
+     as a token audience.
+3. Put **only the Web + iOS** ids in `GOOGLE_OAUTH_CLIENT_ID` (comma-separated).
+   Android Credential Manager uses the **Web** client id as its `serverClientId`,
+   so Android ID tokens carry the Web `aud` — already covered. The Android OAuth
+   client just needs to exist (package + SHA-1); you never reference its id.
+4. Web button needs the **Web** client id surfaced to the page — it already is,
+   via `GET /api/auth/oauth/config`.
+
+## 3. Apple (Apple Developer)  — configured: Services ID `app.fihaven.web`
+
+1. **Certificates, Identifiers & Profiles → Identifiers**:
+   - Your **App ID** (`app.fihaven`): enable the **Sign in with Apple**
+     capability. (Done — it's the primary App ID below.)
+   - Create a **Services ID** (`app.fihaven.web`) for web/Android. Enable
+     **Sign in with Apple → Configure**: primary App ID `app.fihaven`, domain
+     `fihaven.app`, **Return URL** `https://fihaven.app/login`, then **Save**.
+2. `APPLE_CLIENT_ID=app.fihaven.web,app.fihaven` — the Services ID first (the
+   web button uses the first entry as its client id) then the iOS bundle id
+   (the native token's `aud`). Both are trusted audiences server-side.
+3. **No client secret and no domain-association file** are needed. The current
+   portal flow registers the domain + Return URL inline (no
+   `apple-developer-domain-association.txt` download), and we verify the
+   identity token against Apple's public JWKS rather than the token endpoint.
+   *If* web sign-in ever errors with an unverified-domain message, that's when
+   you'd host the file — the server already serves `client/public/.well-known/`.
+
+## 4. iOS app
+
+**Both buttons are built** in `AuthView`. To make them work:
+- **Google (built — GoogleSignIn SDK):** wired in `project.yml` — the SDK
+  package, the `GIDClientID` (iOS client id), and the reversed-client-id URL
+  scheme are all set. After pulling, run `cd ios/FiHavenApp && xcodegen generate`
+  so the `.xcodeproj` picks them up. The button calls
+  `GIDSignIn.sharedInstance.signIn(...)` → `env.oauthSignIn(provider:"google", …)`;
+  `FiHavenApp` completes the redirect via `.onOpenURL`.
+- **Sign in with Apple (built):** add the **"Sign in with Apple" capability** to
+  the FiHaven target (Xcode → Signing & Capabilities → + Capability) so the
+  entitlement is present, and put the bundle id `app.fihaven` in
+  `APPLE_CLIENT_ID` server-side.
+
+## 5. Android app
+
+- **Google (built — Credential Manager):** wired in `app/build.gradle.kts`
+  (`androidx.credentials*` + `googleid` deps, and `BuildConfig.GOOGLE_WEB_CLIENT_ID`).
+  The button in `AuthScreen` runs `GetGoogleIdOption(serverClientId = WEB_CLIENT_ID)`
+  → `vm.oauthSignIn("google", idToken)`. To make it work you must create the
+  **Android OAuth client** in Google Cloud (package `app.fihaven` + your signing
+  SHA-1) so Google authorizes the app — its id isn't referenced in code. For a
+  Play release, also add the Play App Signing SHA-1 to that client.
+- **Apple on Android (built — Custom Tab web flow):** the "Continue with Apple"
+  button (`AppleWebSignIn`) opens Apple's authorize page in a Custom Tab using
+  `BuildConfig.APPLE_SERVICES_ID` (`app.fihaven.web`) and redirect
+  `…/api/auth/oauth/apple/callback`. Apple form-posts there; the server
+  302-redirects to `fihaven://oauth/apple?idToken=…`, which `MainActivity`
+  catches (deep-link intent filter) and passes to `vm.oauthSignIn("apple", …)`.
+  **One portal step required:** add this exact **Return URL** to the Services ID
+  (alongside `/login`): `https://fihaven.app/api/auth/oauth/apple/callback`.
+
+## 6. Verify
+
+- Local (no real keys): `OAUTH_VERIFY_MODE=dev-trust`,
+  `GOOGLE_OAUTH_CLIENT_ID=test`, then
+  `curl -XPOST localhost:5222/api/auth/oauth/google -H 'content-type: application/json' -d '{"idToken":"<hand-made JWT>"}'`.
+- Production: set real audiences, `OAUTH_VERIFY_MODE=production`, click the
+  buttons on `/login`. The button block stays hidden if config is empty, so a
+  missing var fails safe.

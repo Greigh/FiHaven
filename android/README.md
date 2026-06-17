@@ -37,7 +37,7 @@ cross-platform parity.
   run JVM tests against `ApiConfig.localhost`.
 - **Run/screenshot helpers** (DEBUG intent extras):
   ```sh
-  adb shell am start -n com.danielhipskind.fihaven/.MainActivity \
+  adb shell am start -n app.fihaven/.MainActivity \
     --ez autologin true --es tab payoff --es theme dark
   ```
   `tab` (home/bills/cards/payoff/more), `route` (budget/calendar/history/settings),
@@ -45,7 +45,7 @@ cross-platform parity.
 
 ## FiHaven Pro (Play Billing)
 
-- Auto-renewing subscription; products `com.danielhipskind.fihaven.pro.monthly`
+- Auto-renewing subscription; products `app.fihaven.pro.monthly`
   / `.yearly` (match the Play Console + the server product map).
 - The **server is the source of truth**: a verified purchase token is sent
   to `/api/billing/google/verify`; the app reads entitlement back. Promo

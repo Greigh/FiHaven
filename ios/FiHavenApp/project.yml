@@ -9,7 +9,7 @@
 # verified FiHavenCore package.
 name: FiHaven
 options:
-  bundleIdPrefix: com.danielhipskind
+  bundleIdPrefix: app.fihaven
   deploymentTarget:
     iOS: "18.6"
   createIntermediateGroups: true
@@ -37,6 +37,12 @@ packages:
   LinkKit:
     url: https://github.com/plaid/plaid-link-ios-spm
     exactVersion: 6.4.7
+  # Google Sign-In: returns an OIDC ID token we post to
+  # /api/auth/oauth/google. Needs GIDClientID + the reversed-client-id URL
+  # scheme in Info.plist (both set below).
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 7.1.0
 
 targets:
   FiHaven:
@@ -58,15 +64,26 @@ targets:
         - variable: FH_BASE
           value: https://fihaven.app
           isEnabled: true
+    # Sign in with Apple needs this entitlement. xcodegen writes the
+    # entitlements file and sets CODE_SIGN_ENTITLEMENTS. You must ALSO enable
+    # the "Sign in with Apple" capability on the App ID (app.fihaven) in the
+    # Apple Developer portal, or signed builds will fail provisioning.
+    entitlements:
+      path: Sources/FiHaven.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
     dependencies:
       - package: FiHavenCore
       - package: LinkKit
+      - package: GoogleSignIn
+        product: GoogleSignIn
     info:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: FiHaven
         LSApplicationCategoryType: public.app-category.finance
-        CFBundleShortVersionString: "1.2.2"
+        CFBundleShortVersionString: "1.2.3"
         CFBundleVersion: "1"
         UILaunchScreen:
           UIColorName: LaunchBg
@@ -93,6 +110,12 @@ targets:
         # Cloudflare Turnstile public sitekey, driven by the build setting
         # below so release can override it. Read via AppConfig.
         TurnstileSiteKey: $(TURNSTILE_SITEKEY)
+        # Google Sign-In: the iOS OAuth client id, and its reversed form as a
+        # URL scheme so the sign-in callback returns to the app. Public values.
+        GIDClientID: 742737810532-g6uuhmquasqvqo0c0ugq7nlp3niomevb.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.742737810532-g6uuhmquasqvqo0c0ugq7nlp3niomevb
         # Production is HTTPS-only. NSAllowsLocalNetworking permits the
         # http://localhost:5222 dev server without weakening global ATS.
         NSAppTransportSecurity:
@@ -102,7 +125,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.fihaven
         # App icon — "Fi" monogram in Sources/Assets.xcassets.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.2.2"
+        MARKETING_VERSION: "1.2.3"
         CURRENT_PROJECT_VERSION: "2"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance

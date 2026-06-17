@@ -7,6 +7,7 @@ import {
   setSettings,
   setEntitlement,
   payments,
+  settings,
 } from './storage.svelte.js';
 
 describe('autopay — runAutopayMark', () => {
@@ -78,6 +79,65 @@ describe('autopay — runAutopayMark', () => {
     vi.setSystemTime(new Date(2026, 5, 10)); // Jun 10
     setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }]);
 
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('only marks once: a user undo (removing the payment) is not reverted', () => {
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+
+    // User undoes the auto-mark — remove the payment.
+    setPayments([]);
+    // It must not come back: the per-month memory remembers we handled it.
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('handles $0 items: marks once and the undo sticks', () => {
+    // A card whose payment goal is $0 (nothing owed). paidAmount can never
+    // exceed the epsilon, so membership memory is what gates re-marking.
+    setCards([{ id: 'C0', name: 'PaidOff', balance: 0, minPayment: 0, dueDay: 20, autopay: true }]);
+    setSettings({ autopayMark: true, periodMode: 'calendar', paidGoal: 'minimum' });
+    setEntitlement({ pro: true });
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({ type: 'card', refId: 'C0', amount: 0 });
+
+    // Without the memory this would re-add forever; with it, no-op.
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(1);
+
+    // And an undo stays undone.
+    setPayments([]);
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('keeps a $0 undo undone across a calendar-month boundary in a rolling period', () => {
+    // Rolling window May 20 – Jun 29 (spans two calendar months). A $0 card
+    // is auto-marked in May; the user undoes it; later, still inside the same
+    // window but now in June, it must not silently come back.
+    setCards([{ id: 'C0', name: 'PaidOff', balance: 0, minPayment: 0, dueDay: 28, autopay: true }]);
+    setSettings({
+      autopayMark: true, paidGoal: 'minimum',
+      periodMode: 'rolling', periodLength: 40, periodAnchor: '2026-05-20',
+    });
+    setEntitlement({ pro: true });
+
+    vi.setSystemTime(new Date(2026, 4, 28)); // May 28 — inside the window
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+    expect(settings.autopayDone['2026-05']).toContain('card:C0');
+
+    // User undoes it.
+    setPayments([]);
+
+    // Same window, now June — must stay undone (read crosses both months).
+    vi.setSystemTime(new Date(2026, 5, 10)); // Jun 10
     expect(runAutopayMark()).toBe(false);
     expect(payments).toHaveLength(0);
   });
