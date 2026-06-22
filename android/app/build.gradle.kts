@@ -86,8 +86,8 @@ dependencies {
 
     // Google Sign-In via Credential Manager (returns an OIDC ID token we post
     // to /api/auth/oauth/google).
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Custom Tabs for the Sign in with Apple web flow.
