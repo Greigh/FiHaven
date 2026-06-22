@@ -53,7 +53,7 @@
     "otpauth": "^9.5.1",
     "plaid": "^42.2.0",
     "qrcode": "^1.5.4",
-    "stripe": "^22.2.1"
+    "stripe": "^22.2.2"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
