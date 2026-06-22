@@ -91,5 +91,5 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Custom Tabs for the Sign in with Apple web flow.
-    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.browser:browser:1.10.0")
 }
