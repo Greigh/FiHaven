@@ -10,6 +10,7 @@ public enum Income {
     }
 
     public static let frequencies: [Frequency] = [
+        Frequency(key: "hourly",      label: "Hourly",       perMonth: 52.0 / 12.0), // ×hoursPerWeek
         Frequency(key: "weekly",      label: "Weekly",       perMonth: 52.0 / 12.0),
         Frequency(key: "biweekly",    label: "Bi-weekly",    perMonth: 26.0 / 12.0),
         Frequency(key: "semimonthly", label: "Semi-monthly", perMonth: 2),
@@ -17,14 +18,21 @@ public enum Income {
         Frequency(key: "annual",      label: "Annual",       perMonth: 1.0 / 12.0),
     ]
 
+    /// Weeks per month — converts an hourly rate (× hours/week) to monthly.
+    public static let weeksPerMonth: Double = 52.0 / 12.0
+
     /// Per-month multiplier for a frequency key; unknown keys → monthly (1).
     public static func factor(for frequency: String) -> Double {
         frequencies.first { $0.key == frequency }?.perMonth ?? 1
     }
 
-    /// Monthly equivalent of a single income source.
+    /// Monthly equivalent of a single income source. Hourly multiplies the
+    /// rate by hours/week by weeks-per-month; others by the frequency factor.
     public static func monthly(of source: IncomeSource) -> Double {
-        source.amount * factor(for: source.frequency)
+        if source.frequency == "hourly" {
+            return source.amount * source.hoursPerWeek * weeksPerMonth
+        }
+        return source.amount * factor(for: source.frequency)
     }
 
     /// The user's monthly income: sum of `settings.incomes`, falling back

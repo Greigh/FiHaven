@@ -34,6 +34,10 @@
           <div class="section-title" style="font-size:12px;">Signed in as</div>
           <div data-current-identity style="font-size:18px;font-weight:600;margin-top:4px;line-height:1.3;">…</div>
           <div data-membership style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.4;"></div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.4;display:flex;align-items:center;gap:6px;">
+            <span aria-hidden="true">☁️</span>
+            <span>Your data syncs automatically to your account — changes save as you make them, on every device.</span>
+          </div>
         </div>
       </section>
 
@@ -47,6 +51,7 @@
         <button class="tab-btn" type="button" role="tab" data-tab="bank">Bank</button>
         <button class="tab-btn" type="button" role="tab" data-tab="data">Data</button>
         <button class="tab-btn" type="button" role="tab" data-tab="danger">Danger</button>
+        <button class="tab-btn" type="button" role="tab" data-tab="developer" data-dev-tab hidden>Developer</button>
       </div>
 
       <!-- ═══════════════ Profile ═══════════════ -->
@@ -222,6 +227,17 @@
                 Hide fully paid items from Upcoming Payments
               </label>
             </div>
+            <div class="auth-field" style="margin-top:12px;max-width:340px;">
+              <label for="dash-layout">Layout</label>
+              <select id="dash-layout" data-dash-layout>
+                <option value="classic">Classic — fixed layout</option>
+                <option value="widgets">Widgets — choose &amp; reorder</option>
+              </select>
+            </div>
+            <div data-dash-widgets-wrap hidden style="margin-top:6px;">
+              <div class="section-title" style="font-size:12px;">Widgets — toggle and reorder</div>
+              <ul data-dash-widgets style="list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:6px;"></ul>
+            </div>
             <div class="auth-error" data-message="dashboard" aria-live="polite"></div>
             <div class="auth-actions">
               <button class="btn btn-primary" type="submit">Save dashboard settings</button>
@@ -316,13 +332,44 @@
             <div class="settings-toggle-row">
               <div class="settings-toggle-copy">
                 <div class="settings-toggle-title">Bill reminders</div>
-                <div class="settings-toggle-desc">Email me 3 days before a bill is due.</div>
+                <div class="settings-toggle-desc" data-reminders-desc>Email me before a bill is due.</div>
               </div>
               <label class="fh-switch">
                 <input type="checkbox" data-reminders-toggle aria-label="Bill reminders"/>
                 <span class="fh-switch-track" aria-hidden="true"></span>
               </label>
             </div>
+
+            <!-- Reminder sub-options (shown only when reminders are on) -->
+            <div data-reminder-options style="margin:4px 0 8px 0;padding-left:2px;">
+              <div class="auth-field" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <label for="reminder-lead" style="color:var(--muted);font-size:14px;">Remind me</label>
+                <select id="reminder-lead" data-reminder-lead style="width:auto;"></select>
+                <span style="color:var(--muted);font-size:14px;">before the due date.</span>
+              </div>
+              <div class="settings-toggle-row">
+                <div class="settings-toggle-copy">
+                  <div class="settings-toggle-title">Also remind on the due day</div>
+                  <div class="settings-toggle-desc">A second nudge the morning a bill is actually due.</div>
+                </div>
+                <label class="fh-switch">
+                  <input type="checkbox" data-dueday-toggle aria-label="Remind on the due day"/>
+                  <span class="fh-switch-track" aria-hidden="true"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-copy">
+                <div class="settings-toggle-title">Weekly digest</div>
+                <div class="settings-toggle-desc">Every Monday: the bills coming due in the next 7 days, plus your balances.</div>
+              </div>
+              <label class="fh-switch">
+                <input type="checkbox" data-digest-toggle aria-label="Weekly digest"/>
+                <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+
             <div class="settings-toggle-row">
               <div class="settings-toggle-copy">
                 <div class="settings-toggle-title">Monthly summary</div>
@@ -332,6 +379,12 @@
                 <input type="checkbox" data-summary-toggle aria-label="Monthly summary"/>
                 <span class="fh-switch-track" aria-hidden="true"></span>
               </label>
+            </div>
+
+            <div class="auth-field" style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <label for="notify-hour" style="color:var(--muted);font-size:14px;">Send these at</label>
+              <select id="notify-hour" data-notify-hour style="width:auto;"></select>
+              <span style="color:var(--muted);font-size:14px;">your local time.</span>
             </div>
           </div>
           <div class="auth-error" data-message="notifications" aria-live="polite" style="margin-top:12px;"></div>
@@ -503,6 +556,26 @@
               <button class="btn btn-danger" type="submit" data-delete-submit disabled>Delete my account</button>
             </div>
           </form>
+        </section>
+      </div>
+
+      <!-- ═══════════════ Developer (admin only) ═══════════════ -->
+      <div class="settings-panel" data-tab-panel="developer" hidden>
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Developer</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">Simulate a subscription state to test the Pro UI. This is local to this browser and does <strong>not</strong> change your real subscription or anything on the server.</p>
+          <div class="auth-field" style="margin-top:16px;max-width:340px;">
+            <label for="dev-entitlement">Subscription override</label>
+            <select id="dev-entitlement" data-dev-entitlement>
+              <option value="off">Off — use my real subscription</option>
+              <option value="free">Free</option>
+              <option value="active">Pro — active</option>
+              <option value="expired">Pro — expired</option>
+              <option value="grace">Pro — grace period</option>
+              <option value="canceled">Canceled — active until expiry</option>
+            </select>
+          </div>
+          <div class="auth-error" data-message="developer" aria-live="polite" style="margin-top:10px;"></div>
         </section>
       </div>
 

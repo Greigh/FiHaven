@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ runtime permission to post bill-reminder notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Re-arm scheduled bill reminders after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -30,5 +34,22 @@
                 <data android:scheme="fihaven" android:host="oauth" />
             </intent-filter>
         </activity>
+
+        <!-- Fires on-device bill reminders scheduled via AlarmManager. -->
+        <receiver
+            android:name=".BillReminderReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms persisted reminders after a reboot or app update. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

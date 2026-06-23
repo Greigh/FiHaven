@@ -4,6 +4,10 @@ import app.fihaven.ui.theme.PlexMono
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.fihaven.core.model.dashboardLayout
+import app.fihaven.core.model.dashboardWidgets
 import app.fihaven.core.model.landingView
 import app.fihaven.core.model.tabBar
 import app.fihaven.AppViewModel
@@ -232,6 +238,44 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         else vm.skipMonth(item.type, item.refId, item.name)
     }
 
+    // Net worth / debt / spending for the optional widgets.
+    val debt = data.cards.sumOf { it.balance }
+    val netWorth = data.accounts.sumOf { it.balance } - debt
+    val spent = data.transactions
+        .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
+        .sumOf { it.amount }
+    val paidThisPeriod = data.payments
+        .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
+        .sumOf { it.amount }
+    // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
+    val promoAlerts = data.cards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
+        val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
+        val bal = c.promoBalance ?: c.balance
+        val need = maxOf(c.minPayment, Schedule.promoNeeded(c, zone))
+        when {
+            mo <= 0 && bal > 0 -> "🚨 ${c.name} — 0% promo expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
+            mo <= 2 -> "🔥 ${c.name} — 0% promo ends in ~$mo mo. Pay ${Money.fmt(need)}/mo to avoid interest."
+            mo <= 4 -> "⚠️ ${c.name} — 0% promo ends in ~$mo mo. Need ${Money.fmt(need)}/mo to clear ${Money.fmt(bal)}."
+            else -> null
+        }
+    }
+    // Subscriptions: bills flagged Subscriptions + merchants recurring across 2+ months.
+    fun monthlyOfBill(b: app.fihaven.core.model.Bill) = when (b.frequency) {
+        "Weekly" -> b.amount * 52 / 12; "Bi-weekly" -> b.amount * 26 / 12
+        "Quarterly" -> b.amount / 3; "Annually" -> b.amount / 12; else -> b.amount
+    }
+    val subs = buildList {
+        data.bills.filter { it.category == "Subscriptions" && !DateLogic.billEnded(it, zone) }
+            .forEach { add((it.name.ifBlank { "Subscription" }) to monthlyOfBill(it)) }
+        data.transactions.filter { it.merchant.isNotBlank() }
+            .groupBy { it.merchant.trim().lowercase() }
+            .forEach { (_, list) ->
+                if (list.map { it.date.take(7) }.toSet().size >= 2) {
+                    list.maxByOrNull { it.date }?.let { add(it.merchant to it.amount) }
+                }
+            }
+    }.sortedByDescending { it.second }
+
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         // Branded top bar (FiHaven mark + period label), matching iOS and the
         // other Android screens.
@@ -240,37 +284,67 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
-                    StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
-                }
-            }
-            item {
-                Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
-            }
-            if (visible.isEmpty()) {
-                item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
-            } else {
-                // One card holding all rows, divided — mirrors iOS's
-                // .ctCard(padding: 0) { VStack with Divider() }.
-                item {
-                    CtCard(padding = 0) {
-                        Column {
-                            visible.forEachIndexed { i, item ->
-                                if (i > 0) HorizontalDivider(color = Ct.colors.border, thickness = 1.dp)
-                                UpcomingRow(
-                                    item = item,
-                                    state = vm.paidState(item),
-                                    paidSoFar = vm.paidAmountFor(item),
-                                    goal = vm.goalAmount(item),
-                                    remaining = vm.remainingFor(item),
-                                    skipped = vm.isSkipped(item),
-                                    onPay = { paying = item },
-                                    onSkip = { requestSkip(item) },
-                                    onUnskip = { vm.unskip(item.type, item.refId) },
-                                )
+            val widgetIds = if (data.settings.dashboardLayout == "widgets")
+                DashboardWidgets.enabled(data.settings) else listOf("stats", "upcoming")
+            widgetIds.forEach { id ->
+                when (id) {
+                    "stats" -> item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
+                            StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                        }
+                    }
+                    "cashflow" -> if (paidThisPeriod + remaining > 0) item {
+                        CashflowWidget(paidThisPeriod, remaining)
+                    }
+                    "alerts" -> if (promoAlerts.isNotEmpty()) item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            promoAlerts.forEach { msg ->
+                                CtCard { Text(msg, color = Ct.colors.text, fontSize = 13.sp) }
+                            }
+                        }
+                    }
+                    "goals" -> if (data.goals.isNotEmpty()) item { GoalsWidget(data.goals) }
+                    "subscriptions" -> if (subs.isNotEmpty()) item { SubscriptionsWidget(subs) }
+                    "incomeHistory" -> item { IncomeHistoryWidget(data.settings, zone) }
+                    "networth" -> item {
+                        StatCard("Net worth", Money.fmt(netWorth),
+                            if (netWorth >= 0) Ct.colors.green else Ct.colors.red, Modifier.fillMaxWidth())
+                    }
+                    "debt" -> item {
+                        StatCard("Card debt", Money.fmt(debt),
+                            if (debt > 0) Ct.colors.accent else Ct.colors.green, Modifier.fillMaxWidth())
+                    }
+                    "spending" -> item {
+                        StatCard("Spent this period", Money.fmt(spent), Ct.colors.accent, Modifier.fillMaxWidth())
+                    }
+                    "upcoming" -> {
+                        item {
+                            Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+                        }
+                        if (visible.isEmpty()) {
+                            item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
+                        } else {
+                            item {
+                                CtCard(padding = 0) {
+                                    Column {
+                                        visible.forEachIndexed { i, item ->
+                                            if (i > 0) HorizontalDivider(color = Ct.colors.border, thickness = 1.dp)
+                                            UpcomingRow(
+                                                item = item,
+                                                state = vm.paidState(item),
+                                                paidSoFar = vm.paidAmountFor(item),
+                                                goal = vm.goalAmount(item),
+                                                remaining = vm.remainingFor(item),
+                                                skipped = vm.isSkipped(item),
+                                                onPay = { paying = item },
+                                                onSkip = { requestSkip(item) },
+                                                onUnskip = { vm.unskip(item.type, item.refId) },
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -308,6 +382,113 @@ private fun StatCard(label: String, value: String, color: androidx.compose.ui.gr
             Text(value, color = color, fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
         }
+    }
+}
+
+// ── Parity dashboard widgets (Widgets layout) ────────────────────────
+@Composable
+private fun ProgressBar(pct: Double) {
+    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Ct.colors.surface2)) {
+        Box(Modifier.fillMaxWidth(pct.coerceIn(0.0, 1.0).toFloat()).height(8.dp)
+            .clip(RoundedCornerShape(4.dp)).background(Ct.colors.accent))
+    }
+}
+
+@Composable
+private fun CashflowWidget(paid: Double, remaining: Double) {
+    val budgeted = paid + remaining
+    val pct = if (budgeted > 0) paid / budgeted else 0.0
+    CtCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FieldLabel("This period's payments")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("${Money.fmt(paid)} paid", color = Ct.colors.green, fontSize = 13.sp)
+                Text("${(pct * 100).toInt()}%", color = Ct.colors.muted, fontSize = 13.sp)
+            }
+            ProgressBar(pct)
+            Text("${Money.fmt(remaining)} remaining of ${Money.fmt(budgeted)}",
+                color = Ct.colors.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun GoalsWidget(goals: List<app.fihaven.core.model.SavingsGoal>) {
+    CtCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FieldLabel("Savings goals")
+            goals.forEach { g ->
+                val pct = if (g.target > 0) g.saved / g.target else 0.0
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(g.name.ifBlank { "Goal" }, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("${Money.fmt(g.saved)} / ${Money.fmt(g.target)}", color = Ct.colors.muted, fontSize = 12.sp, fontFamily = PlexMono)
+                    }
+                    ProgressBar(pct)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionsWidget(subs: List<Pair<String, Double>>) {
+    CtCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                FieldLabel("Subscriptions")
+                Text("${Money.fmt(subs.sumOf { it.second })}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
+            }
+            subs.take(5).forEach { (name, m) ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(name, color = Ct.colors.text, fontSize = 13.sp, maxLines = 1)
+                    Text("${Money.fmt(m)}/mo", color = Ct.colors.muted, fontSize = 12.sp, fontFamily = PlexMono)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IncomeHistoryWidget(settings: kotlinx.serialization.json.JsonObject, zone: java.time.ZoneId) {
+    val months = (0 until 6).map { i ->
+        Income.monthlyIncome(settings, DateLogic.monthKey(java.time.LocalDate.now(zone).minusMonths(i.toLong())))
+    }
+    val base = Income.monthlyIncome(settings)
+    if (base <= 0.0 && months.none { it > 0.0 }) return
+    val avg = months.sum() / months.size
+    CtCard {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FieldLabel("Income history")
+            Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+            Text("Avg / mo incl. bonuses · last 6 months", color = Ct.colors.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+/** Dashboard widget catalog for the "Widgets" layout. Order + enabled set
+ *  live in settings.dashboardWidgets (shared with web/iOS); each platform
+ *  renders the ids it supports and ignores the rest. */
+object DashboardWidgets {
+    val catalog = listOf(
+        "stats" to "Overview tiles",
+        "cashflow" to "This period's payments",
+        "alerts" to "Alerts",
+        "upcoming" to "Upcoming payments",
+        "networth" to "Net worth",
+        "spending" to "Spending",
+        "goals" to "Savings goals",
+        "subscriptions" to "Subscriptions",
+        "incomeHistory" to "Income history",
+    )
+    val allIds = catalog.map { it.first }
+    val defaults = listOf("stats", "cashflow", "alerts", "upcoming")
+    fun label(id: String) = catalog.firstOrNull { it.first == id }?.second ?: id
+    fun enabled(settings: kotlinx.serialization.json.JsonObject): List<String> {
+        val src = settings.dashboardWidgets.ifEmpty { defaults }
+        val valid = allIds.toSet(); val seen = mutableSetOf<String>()
+        return src.filter { it in valid && seen.add(it) }
     }
 }
 

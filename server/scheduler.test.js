@@ -429,6 +429,147 @@ describe('scheduler — runChecks', () => {
   });
 });
 
+describe('scheduler — configurable reminders + due-day + weekly digest', () => {
+  let runChecks;
+  let sendBillReminder;
+  let sendWeeklyDigest;
+  let sendMonthlySummary;
+  let setReminderDay;
+  let setDigestWeek;
+  let db;
+
+  beforeEach(() => {
+    ({ runChecks } = loadScheduler());
+    sendBillReminder = vi.fn().mockResolvedValue({});
+    sendWeeklyDigest = vi.fn().mockResolvedValue({});
+    sendMonthlySummary = vi.fn().mockResolvedValue({});
+    setReminderDay = vi.fn();
+    setDigestWeek = vi.fn();
+    db = {
+      allUsersWithData: vi.fn(),
+      setReminderDay,
+      setSummaryMonth: vi.fn(),
+      setDigestWeek,
+    };
+  });
+
+  const mailer = () => ({ sendBillReminder, sendWeeklyDigest, sendMonthlySummary });
+
+  it('honors a custom reminder lead time', async () => {
+    // 2026-06-17 (8am ET); bill due on the 22nd is 5 days out.
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: true, reminderLeadDays: 5 },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 22 }],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(sendBillReminder.mock.calls[0][2]).toBe(5);
+  });
+
+  it('clamps an out-of-range lead time back into 0..14', async () => {
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: true, reminderLeadDays: 999 },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 1 }], // 14 days out
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    // Clamped to 14 → the bill due on the 1st (14 days out) matches.
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(sendBillReminder.mock.calls[0][2]).toBe(14);
+  });
+
+  it('also reminds on the due day when remindOnDueDay is on', async () => {
+    // 2026-06-17; a bill due today (the 17th) and one due in 3 days (the 20th).
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: true, remindOnDueDay: true },
+        bills: [
+          { id: 'today', name: 'Power', amount: 90, dueDay: 17 },
+          { id: 'soon', name: 'Rent', amount: 1450, dueDay: 20 },
+        ],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    // One email for the 3-day lead, one for the due-day (0 lead).
+    expect(sendBillReminder).toHaveBeenCalledTimes(2);
+    const leads = sendBillReminder.mock.calls.map((c) => c[2]).sort();
+    expect(leads).toEqual([0, 3]);
+  });
+
+  it('respects a custom notify hour', async () => {
+    const user = () => makeUser({
+      settings: { billReminders: true, notifyHour: 12 },
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+    });
+
+    // 8am ET — not the chosen hour, so nothing sends.
+    db.allUsersWithData.mockReturnValue([user()]);
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+    expect(sendBillReminder).not.toHaveBeenCalled();
+
+    // 12pm ET — the chosen hour.
+    db.allUsersWithData.mockReturnValue([user()]);
+    await runChecks(new Date('2026-06-17T16:00:00.000Z'), { db, emails: mailer() });
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+  });
+
+  it('sends the weekly digest on Monday and stamps the ISO week', async () => {
+    // 2026-06-15 is a Monday; 8am ET.
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: false, weeklyDigest: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 18 }], // due in 3 days
+        cards: [{ balance: 200 }],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-15T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendWeeklyDigest).toHaveBeenCalledOnce();
+    const digest = sendWeeklyDigest.mock.calls[0][1];
+    expect(digest.upcoming).toHaveLength(1);
+    expect(digest.debtTotal).toBe(200);
+    expect(setDigestWeek).toHaveBeenCalledWith(1, expect.stringMatching(/^2026-W\d\d$/));
+  });
+
+  it('does not send the weekly digest off Monday', async () => {
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: false, weeklyDigest: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 18 }],
+      }),
+    ]);
+
+    // 2026-06-17 is a Wednesday.
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendWeeklyDigest).not.toHaveBeenCalled();
+    expect(setDigestWeek).not.toHaveBeenCalled();
+  });
+
+  it('does not resend the digest within the same ISO week', async () => {
+    const monday = makeUser({
+      settings: { billReminders: false, weeklyDigest: true },
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 18 }],
+    });
+    monday.last_digest_week = '2026-W25'; // the week containing 2026-06-15
+    db.allUsersWithData.mockReturnValue([monday]);
+
+    await runChecks(new Date('2026-06-15T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendWeeklyDigest).not.toHaveBeenCalled();
+  });
+});
+
 describe('scheduler — autopay via runChecks', () => {
   let runChecks;
   let upsertUserData;

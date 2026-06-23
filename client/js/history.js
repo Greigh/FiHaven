@@ -6,13 +6,19 @@
 
 import { mount } from 'svelte';
 import HistoryList from '../svelte/HistoryList.svelte';
+import IncomeHistory from '../svelte/IncomeHistory.svelte';
 import { payments, cards, save, setPayments } from './storage.svelte.js';
 import { toast, refreshAll, setRenderer } from './utils.js';
 import { openConfirm, applyCardPaymentDelta } from './modals.js';
 
 let instance = null;
+let incomeInstance = null;
 
 export function renderHistory() {
+  const incomeTarget = document.getElementById('income-history-mount');
+  if (incomeTarget && !incomeInstance) {
+    incomeInstance = mount(IncomeHistory, { target: incomeTarget });
+  }
   const target = document.getElementById('history-mount');
   if (!target || instance) return;
   instance = mount(HistoryList, { target });

@@ -89,8 +89,43 @@ export function setEntitlement(e) {
   entitlement.expiresAt = next.expiresAt ?? null;
 }
 
+/* ── Dev entitlement override (testing only) ────────────────
+   Lets an admin/dev simulate every Pro state without a real
+   purchase. Persisted in localStorage; when set, it replaces the
+   server entitlement everywhere via refreshEntitlement(). */
+const DEV_ENT_KEY = 'fh_dev_entitlement';
+
+export function getDevEntitlement() {
+  try { return localStorage.getItem(DEV_ENT_KEY) || 'off'; } catch (e) { return 'off'; }
+}
+
+export function setDevEntitlement(state) {
+  try {
+    if (!state || state === 'off') localStorage.removeItem(DEV_ENT_KEY);
+    else localStorage.setItem(DEV_ENT_KEY, state);
+  } catch (e) { /* ignore */ }
+  return refreshEntitlement();
+}
+
+// Synthetic entitlement for a simulated state, or null to use the server's.
+function devEntitlement(state) {
+  const now = Date.now();
+  const DAY = 86400000;
+  switch (state) {
+    case 'free':     return { pro: false, source: 'dev', plan: null, expiresAt: null };
+    case 'active':   return { pro: true, source: 'dev', plan: 'monthly', expiresAt: now + 30 * DAY };
+    case 'expired':  return { pro: false, source: 'dev', plan: 'monthly', expiresAt: now - 2 * DAY };
+    case 'grace':    return { pro: true, source: 'dev', plan: 'monthly', expiresAt: now - 1 * DAY };
+    case 'canceled': return { pro: true, source: 'dev', plan: 'monthly', expiresAt: now + 10 * DAY };
+    default:         return null;
+  }
+}
+
 // Re-fetch the authoritative entitlement (after a checkout return / redeem).
+// A dev override, if set, short-circuits the server call.
 export function refreshEntitlement() {
+  const override = devEntitlement(getDevEntitlement());
+  if (override) { setEntitlement(override); return Promise.resolve(entitlement); }
   return fetch('/api/billing/status', { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => { if (d) setEntitlement(d.entitlement); return entitlement; })

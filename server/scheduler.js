@@ -21,9 +21,29 @@ const {
   monthBoundsFromParts, atMidnight,
 } = require('./billSchedule');
 
-const SEND_HOUR = 8;            // local hour (24h) to send
-const REMINDER_LEAD_DAYS = 3;  // remind this many days before a due day
+const SEND_HOUR = 8;            // default local hour (24h) to send
+const REMINDER_LEAD_DAYS = 3;  // default days before a due day to remind
 const DEFAULT_TZ = 'America/New_York';
+
+// Clamp a user-supplied integer setting, falling back to `def` if unset/invalid.
+function clampInt(v, lo, hi, def) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
+}
+
+// ISO-8601 weekday (Mon=0 … Sun=6) and week key ("YYYY-Www") from local parts.
+function isoWeekday(lp) {
+  return (new Date(Date.UTC(lp.y, lp.m - 1, lp.d)).getUTCDay() + 6) % 7;
+}
+function isoWeekKey(lp) {
+  const d = new Date(Date.UTC(lp.y, lp.m - 1, lp.d));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + 3); // nearest Thursday
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(
+    ((d - firstThursday) / 864e5 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7
+  );
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
 
 // Local calendar parts for `tz` at `date`. Throws on an invalid tz.
 function localParts(date, tz) {
@@ -156,6 +176,22 @@ function summarize(data, lp) {
   };
 }
 
+// Bills coming due within the next 7 local days, plus balances — the
+// content of the opt-in weekly digest.
+function weeklyDigest(data, lp) {
+  const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
+  const upcoming = (data.bills || [])
+    .filter((b) => billActiveOn(b, lp.ymd) && (b.dueDay || b.startDate))
+    .map((b) => ({ ...b, daysUntil: daysUntilBillDue(b, today) }))
+    .filter((b) => b.daysUntil >= 0 && b.daysUntil <= 7)
+    .sort((a, b) => a.daysUntil - b.daysUntil);
+  return {
+    upcoming,
+    upcomingTotal: upcoming.reduce((s, b) => s + (Number(b.amount) || 0), 0),
+    debtTotal: (data.cards || []).reduce((s, c) => s + (Number(c.balance) || 0), 0),
+  };
+}
+
 // One pass over all verified users. `deps` lets tests inject a fake
 // db / mailer; defaults to the real ones.
 async function runChecks(now = new Date(), deps = {}) {
@@ -169,7 +205,7 @@ async function runChecks(now = new Date(), deps = {}) {
   for (const u of users) {
     if (!u.email_verified) continue;
     const s = (u.data && u.data.settings) || {};
-    if (!s.billReminders && !s.monthlySummary && !s.autopayMark) continue;
+    if (!s.billReminders && !s.monthlySummary && !s.autopayMark && !s.weeklyDigest) continue;
 
     let lp;
     try { lp = localParts(now, s.timezone || DEFAULT_TZ); }
@@ -201,21 +237,37 @@ async function runChecks(now = new Date(), deps = {}) {
       }
     }
 
-    // Reminders + summary send at the fixed SEND_HOUR.
-    if (lp.hour === SEND_HOUR) {
-      // Bill reminders — bills whose next due day is exactly LEAD days out.
+    // Reminders + digest + summary send at the user's chosen local hour
+    // (default SEND_HOUR).
+    const notifyHour = clampInt(s.notifyHour, 0, 23, SEND_HOUR);
+    if (lp.hour === notifyHour) {
+      // Bill reminders — bills due `leadDays` out, and (if enabled) on the due
+      // day itself. One email per distinct lead so the "due in N days" copy
+      // stays accurate when both fire the same day.
       if (s.billReminders && u.last_reminder_day !== lp.ymd) {
         const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
-        const due = (u.data.bills || []).filter(
-          (b) => billActiveOn(b, lp.ymd) &&
-            (b.dueDay || b.startDate) &&
-            daysUntilBillDue(b, today) === REMINDER_LEAD_DAYS
-        );
-        if (due.length) {
-          try { await mailer.sendBillReminder(u.email, due, REMINDER_LEAD_DAYS, currency); }
-          catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
+        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        for (const days of leads) {
+          const due = (u.data.bills || []).filter(
+            (b) => billActiveOn(b, lp.ymd) &&
+              (b.dueDay || b.startDate) &&
+              daysUntilBillDue(b, today) === days
+          );
+          if (due.length) {
+            try { await mailer.sendBillReminder(u.email, due, days, currency); }
+            catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+          }
         }
         db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
+      }
+
+      // Weekly digest — once a week (Monday), upcoming bills + balances.
+      const weekKey = isoWeekKey(lp);
+      if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
+        try { await mailer.sendWeeklyDigest(u.email, weeklyDigest(u.data, lp), currency); }
+        catch (e) { console.error('digest send failed', u.email, e && e.message); }
+        if (db.setDigestWeek) db.setDigestWeek(u.id, weekKey);
       }
 
       // Monthly summary — the 1st of the local month.
@@ -241,6 +293,7 @@ function start() {
 }
 
 module.exports = {
-  start, runChecks, localParts, daysUntilDue, summarize,
+  start, runChecks, localParts, daysUntilDue, summarize, weeklyDigest,
+  isoWeekKey, isoWeekday,
   SEND_HOUR, REMINDER_LEAD_DAYS, DEFAULT_TZ,
 };
