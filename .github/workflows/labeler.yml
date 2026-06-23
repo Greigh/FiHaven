@@ -3,17 +3,33 @@ name: Labeler
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: PR number to label (required for manual runs)
+        required: true
+        type: string
 
 jobs:
   label:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Check out default branch
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Apply labels
+        if: github.event_name == 'pull_request_target'
         uses: actions/labeler@v6
+
+      - name: Apply labels (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/labeler@v6
+        with:
+          pr-number: ${{ inputs.pr-number }}
