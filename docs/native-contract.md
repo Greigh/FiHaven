@@ -275,8 +275,24 @@ The server stores `settings` verbatim as an object. Known keys:
 | `lastVisitKey` | `"YYYY-MM"` | last month opened; drives the new-month reset |
 | `timezone` | string IANA tz | day/date computations |
 | `theme` | `"light"|"dark"` | (web persists theme here; native may keep its own) |
+| `reminderLeadDays` | number `0..14` | bill-reminder lead time (default `3`); clamped on read + write |
+| `notifyHour` | number `0..23` | local hour reminders/digests fire (default `8`) |
+| `remindOnDueDay` | boolean | also remind on the due day itself (default `false`) |
+| `weeklyDigest` | boolean | send/show a Monday week-ahead digest (default `false`) |
+| `localNotifications` | boolean | native opt-in to schedule local bill reminders (default `false`) |
+| `dashboardLayout` | `"classic"|"widgets"` | dashboard mode (default `classic`) |
+| `dashboardWidgets` | `string[]` | enabled widget ids, in display order (`widgets` mode) |
 
 `incomes[].frequency` ∈ `weekly | biweekly | semimonthly | monthly | annual`.
+
+The reminder/digest keys drive **server-sent email** (the tz-aware scheduler,
+[`server/scheduler.js`](../server/scheduler.js)) and, when `localNotifications`
+is on, **local device notifications** scheduled by each native app — both read
+the same settings so behavior matches. `dashboardWidgets` ids come from a shared
+catalog of nine: `stats, cashflow, alerts, upcoming, networth, spending, goals,
+subscriptions, incomeHistory` (web [`dashboardWidgets.js`](../client/js/dashboardWidgets.js),
+iOS `DashboardWidget`, Android `DashboardWidgets`); ids not in the catalog are
+ignored, and an empty/unset list falls back to `stats, cashflow, alerts, upcoming`.
 
 ---
 
@@ -384,6 +400,9 @@ Subscriptions, Calendar, History, Payoff, Rewards**, plus **Settings**
 prompt for free users.
 
 - Dashboard: monthly overview, runway, upcoming items, new-month banner.
+  Two layouts (`settings.dashboardLayout`): **Classic** (fixed) or **Widgets**
+  — a reorderable, toggleable set of cards from the shared nine-widget catalog
+  (§6), edited in a layout screen and kept in parity across all three clients.
 - Bills: list + add/edit/delete, mark-paid, payment history sparkline,
   per-bill active window (`startDate`/`endDate`, §6) with Starts/Ended badges.
 - Cards / Loans: same card model, split by `type` (`card` | `loan`);
@@ -452,6 +471,13 @@ not enforced in views: web via `PRO_TABS` ([`app.js`](../client/js/app.js)) +
 `requirePro` on the server, iOS via `ProGate(feature:)` over the `ProFeature`
 enum, Android via `ProGate(vm, ProFeature.X)`. Keep these three lists in sync.
 
+**Dev entitlement override** (debug builds only): a local toggle simulates the
+entitlement without a real purchase — Off (use the server), Free, or a synthetic
+active / expired / grace / canceled state — so Pro gating and expiry UI can be
+exercised offline. Gated behind `#if DEBUG` (iOS) / `BuildConfig.DEBUG` (Android)
+and `localStorage.fh_dev` / admin (web); it short-circuits the `/api/billing/status`
+read and never ships in release builds.
+
 **Theme**: appearance (System/Light/Dark) is a **local, per-device** preference
 (`fh_theme`, mirroring the web's localStorage), not synced data — overrides the
 OS color scheme; the dark palette is §8.
@@ -460,6 +486,14 @@ OS color scheme; the dark palette is §8.
 
 ## 11. Deferred / phase 4
 Native passkeys (associated domains / Digital Asset Links +
-`ASAuthorization` / Credential Manager), local due-date notifications,
-home-screen widgets, share-to-system-calendar. Until then, password +
-TOTP/email/backup MFA fully covers auth.
+`ASAuthorization` / Credential Manager), **home-screen** widgets, and
+share-to-system-calendar. Until passkeys land, password + TOTP/email/backup
+MFA fully covers auth.
+
+**Now built (no longer deferred):** OAuth sign-in (Sign in with Apple / Google
+— see [`social-login-setup.md`](social-login-setup.md)) and **local due-date
+notifications** — each native app schedules on-device bill reminders (and the
+optional weekly digest) from the §6 reminder settings when `localNotifications`
+is on (iOS `UNUserNotificationCenter`; Android `AlarmManager` + a
+`BOOT_COMPLETED` receiver that re-arms them after a reboot). These are the
+in-app *dashboard* widgets, distinct from the still-deferred home-screen widgets.

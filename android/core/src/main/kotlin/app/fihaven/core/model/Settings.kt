@@ -53,8 +53,29 @@ val JsonObject.tabBar: List<String>?
 val JsonObject.billReminders: Boolean get() = prim("billReminders")?.booleanOrNull ?: false
 val JsonObject.monthlySummary: Boolean get() = prim("monthlySummary")?.booleanOrNull ?: false
 
+/// Days before a bill's due date to remind (0–14, default 3). Drives both the
+/// server email scheduler and on-device local notifications.
+val JsonObject.reminderLeadDays: Int
+    get() = (prim("reminderLeadDays")?.doubleOrNull?.toInt() ?: 3).coerceIn(0, 14)
+/// Local hour (0–23, default 8) reminders/digest/summary are sent.
+val JsonObject.notifyHour: Int
+    get() = (prim("notifyHour")?.doubleOrNull?.toInt() ?: 8).coerceIn(0, 23)
+/// Opt-in: also remind on the day a bill is actually due.
+val JsonObject.remindOnDueDay: Boolean get() = prim("remindOnDueDay")?.booleanOrNull ?: false
+/// Opt-in: weekly digest email (Monday) of upcoming bills + balances.
+val JsonObject.weeklyDigest: Boolean get() = prim("weeklyDigest")?.booleanOrNull ?: false
+/// Opt-in: schedule bill reminders as on-device local notifications. Synced so
+/// the preference follows the user, but scheduling is per-device.
+val JsonObject.localNotifications: Boolean get() = prim("localNotifications")?.booleanOrNull ?: false
+
 /** When true (default), fully paid items are hidden from the dashboard upcoming list. */
 val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true
+
+/** Dashboard layout: "classic" (fixed) or "widgets" (customizable order). */
+val JsonObject.dashboardLayout: String get() = prim("dashboardLayout")?.contentOrNull ?: "classic"
+/** Ordered enabled dashboard widget ids (Widgets mode). Empty = default set. */
+val JsonObject.dashboardWidgets: List<String>
+    get() = (this["dashboardWidgets"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
 
 /// Opt-in: auto-mark autopay bills/cards paid on their due date, and the
 /// local hour (0–23) the server runs it.
@@ -109,6 +130,7 @@ val JsonObject.incomes: List<IncomeSource>
                     label = o.prim("label")?.contentOrNull ?: "",
                     amount = o.prim("amount")?.doubleOrNull ?: 0.0,
                     frequency = o.prim("frequency")?.contentOrNull ?: "monthly",
+                    hoursPerWeek = o.prim("hoursPerWeek")?.doubleOrNull ?: 0.0,
                 )
             }
         }
@@ -143,6 +165,7 @@ fun JsonObject.withIncomes(incomes: List<IncomeSource>): JsonObject = buildJsonO
                 put("label", src.label)
                 put("amount", src.amount)
                 put("frequency", src.frequency)
+                if (src.frequency == "hourly") put("hoursPerWeek", src.hoursPerWeek)
             })
         }
     })

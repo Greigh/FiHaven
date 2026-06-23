@@ -24,14 +24,37 @@ struct SettingsView: View {
     private var current: User { env.currentUser ?? user }
 
     var body: some View {
+        // Grouped landing: each row drills into a focused detail screen so the
+        // settings aren't one long scroll.
         List {
-            accountSection
-            securitySection
-            preferencesSection
-            notificationsSection
-            autopaySection
-            dataSection
-            bankSection
+            Section {
+                groupRow("Account", "person.crop.circle.fill", "Profile, email, password") {
+                    detail("Account") { accountSection }
+                }
+                groupRow("Security", "lock.shield.fill", "Two-factor, recovery") {
+                    detail("Security") { securitySection }
+                }
+                groupRow("Preferences", "slider.horizontal.3", "Currency, period, display") {
+                    detail("Preferences") { preferencesSection }
+                }
+                groupRow("Notifications", "bell.badge.fill", "Reminders, digest, summary") {
+                    detail("Notifications") { notificationsSection }
+                }
+                groupRow("Automation", "wand.and.stars", "Autopay auto-mark") {
+                    detail("Automation") { autopaySection }
+                }
+                groupRow("Bank", "building.columns.fill", "Linked accounts") {
+                    detail("Bank") { bankSection }
+                }
+                groupRow("Data", "externaldrive.fill", "Export, clear, delete") {
+                    detail("Data") { dataSection }
+                }
+                #if DEBUG
+                groupRow("Developer", "hammer.fill", "Simulate subscription states") {
+                    detail("Developer") { developerSection }
+                }
+                #endif
+            }
             signOutSection
         }
         .listStyle(.insetGrouped)
@@ -45,6 +68,35 @@ struct SettingsView: View {
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
     }
 
+    /// A landing row that drills into a settings detail screen.
+    private func groupRow<Destination: View>(
+        _ title: String, _ icon: String, _ subtitle: String,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
+                    Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
+            } icon: {
+                Image(systemName: icon).foregroundStyle(Theme.accent)
+            }
+        }
+    }
+
+    /// Wraps a settings section in its own styled detail List.
+    @ViewBuilder
+    private func detail<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        List { content() }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg.ignoresSafeArea())
+            .brandedNavigationBar(title)
+    }
+
     // ── Account ──────────────────────────────────────────────────────
     private var accountSection: some View {
         Section {
@@ -54,10 +106,24 @@ struct SettingsView: View {
             }
             Button("Change email") { sheet = .changeEmail }
             Button("Change password") { sheet = .changePassword }
+            HStack(spacing: 6) {
+                Image(systemName: store.syncState == .offline ? "icloud.slash" : "checkmark.icloud")
+                    .foregroundStyle(store.syncState == .offline ? Theme.muted : Theme.green)
+                Text(syncLine).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            }
         } header: {
             Text("Account")
         } footer: {
             if let line = membershipLine { Text(line) }
+        }
+    }
+
+    /// Live sync reassurance for the account section.
+    private var syncLine: String {
+        switch store.syncState {
+        case .saving: return "Saving to your account…"
+        case .offline: return "Offline — saved on this device, will sync when back online."
+        default: return "Synced to your account — changes save automatically across devices."
         }
     }
 
@@ -231,6 +297,13 @@ struct SettingsView: View {
             Text("When on, bills and cards you've fully paid this period won't appear in Upcoming on the dashboard.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
+            NavigationLink {
+                DashboardLayoutView()
+            } label: {
+                LabeledContent("Dashboard layout",
+                               value: store.data.settings.dashboardLayout == "widgets" ? "Widgets" : "Classic")
+            }
+
             Picker("Currency", selection: Binding(
                 get: { store.data.settings.currency ?? "USD" },
                 set: { store.setCurrency($0) }
@@ -255,17 +328,63 @@ struct SettingsView: View {
     }
 
     // ── Notifications ────────────────────────────────────────────────
+    private static let leadDayChoices = [0, 1, 2, 3, 5, 7, 10, 14]
+
     private var notificationsSection: some View {
         Section("Notifications") {
-            Toggle("Bill reminders", isOn: Binding(
+            // On-device reminders (local notifications).
+            Toggle("Remind me on this device", isOn: Binding(
+                get: { store.data.settings.localNotifications },
+                set: { store.setLocalNotifications($0) }
+            )).tint(Theme.accent)
+
+            // Email reminders (server scheduler).
+            Toggle("Email me bill reminders", isOn: Binding(
                 get: { store.data.settings.billReminders },
                 set: { store.setBillReminders($0) }
             )).tint(Theme.accent)
-            Toggle("Monthly summary", isOn: Binding(
+
+            // Shared reminder options (apply to both device + email reminders).
+            if store.data.settings.localNotifications || store.data.settings.billReminders {
+                Picker("Remind me", selection: Binding(
+                    get: { store.data.settings.reminderLeadDays },
+                    set: { store.setReminderLeadDays($0) }
+                )) {
+                    ForEach(Self.leadDayChoices, id: \.self) { d in
+                        Text(d == 0 ? "On the due day" : (d == 1 ? "1 day before" : "\(d) days before")).tag(d)
+                    }
+                }
+                .pickerStyle(.menu)
+                Toggle("Also remind on the due day", isOn: Binding(
+                    get: { store.data.settings.remindOnDueDay },
+                    set: { store.setRemindOnDueDay($0) }
+                )).tint(Theme.accent)
+            }
+
+            Toggle("Weekly digest email", isOn: Binding(
+                get: { store.data.settings.weeklyDigest },
+                set: { store.setWeeklyDigest($0) }
+            )).tint(Theme.accent)
+            Toggle("Monthly summary email", isOn: Binding(
                 get: { store.data.settings.monthlySummary },
                 set: { store.setMonthlySummary($0) }
             )).tint(Theme.accent)
-            Text("Optional emails to your verified address, sent in your time zone. Reminders go out 3 days before a bill is due; the summary on the 1st.")
+
+            // Send hour (applies to email + on-device reminders).
+            if store.data.settings.localNotifications || store.data.settings.billReminders
+                || store.data.settings.weeklyDigest || store.data.settings.monthlySummary {
+                Picker("Send at", selection: Binding(
+                    get: { store.data.settings.notifyHour },
+                    set: { store.setNotifyHour($0) }
+                )) {
+                    ForEach(0..<24, id: \.self) { h in
+                        Text(Self.hourLabel(h)).tag(h)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            Text("On-device reminders work offline. Emails go to your verified address. The weekly digest sends Mondays; the monthly summary on the 1st — all in your time zone.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
         }
     }
@@ -335,6 +454,30 @@ struct SettingsView: View {
             NavigationLink { BankView() } label: { Text("Bank connections") }
         }
     }
+
+    #if DEBUG
+    /// Dev-only: simulate each Pro entitlement state without a purchase.
+    private var developerSection: some View {
+        Section {
+            Picker("Subscription", selection: Binding(
+                get: { billing.devEntitlementOverride },
+                set: { billing.devEntitlementOverride = $0 }
+            )) {
+                Text("Off — use real").tag("off")
+                Text("Free").tag("free")
+                Text("Pro — active").tag("active")
+                Text("Pro — expired").tag("expired")
+                Text("Pro — grace period").tag("grace")
+                Text("Canceled — active until expiry").tag("canceled")
+            }
+            .pickerStyle(.inline)
+        } header: {
+            Text("Subscription override")
+        } footer: {
+            Text("Simulates a Pro state for testing the UI. Local to this device — it never changes your real subscription or anything on the server. Debug builds only.")
+        }
+    }
+    #endif
 
     private var signOutSection: some View {
         Section {

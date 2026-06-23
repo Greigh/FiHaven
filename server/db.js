@@ -250,6 +250,8 @@ db.exec(`
   if (!cols.includes('last_summary_month')) db.exec(`ALTER TABLE users ADD COLUMN last_summary_month TEXT`);
   // The local day autopay items were last auto-marked, so it runs once/day.
   if (!cols.includes('last_autopay_day'))   db.exec(`ALTER TABLE users ADD COLUMN last_autopay_day TEXT`);
+  // The local ISO week (YYYY-Www) the weekly digest last went out.
+  if (!cols.includes('last_digest_week'))   db.exec(`ALTER TABLE users ADD COLUMN last_digest_week TEXT`);
 })();
 
 // Encrypt-at-rest for Plaid account data: add the `enc` blob column to
@@ -356,13 +358,14 @@ const stmt = {
 
   /* ── Scheduler (reminders / summaries) ─────────────────────── */
   allUsersWithData: db.prepare(
-    `SELECT u.id, u.email, u.email_verified, u.last_reminder_day, u.last_summary_month, u.last_autopay_day, ud.data
+    `SELECT u.id, u.email, u.email_verified, u.last_reminder_day, u.last_summary_month, u.last_autopay_day, u.last_digest_week, ud.data
        FROM users u JOIN user_data ud ON ud.user_id = u.id
       WHERE u.email_verified = 1`
   ),
   setReminderDay: db.prepare(`UPDATE users SET last_reminder_day = ? WHERE id = ?`),
   setSummaryMonth: db.prepare(`UPDATE users SET last_summary_month = ? WHERE id = ?`),
   setAutopayDay: db.prepare(`UPDATE users SET last_autopay_day = ? WHERE id = ?`),
+  setDigestWeek: db.prepare(`UPDATE users SET last_digest_week = ? WHERE id = ?`),
   getUserData: db.prepare(`SELECT data FROM user_data WHERE user_id = ?`),
   upsertUserData: db.prepare(
     `INSERT INTO user_data (user_id, data, updated_at) VALUES (?, ?, ?)
@@ -662,6 +665,7 @@ function allUsersWithData() {
       last_reminder_day: r.last_reminder_day,
       last_summary_month: r.last_summary_month,
       last_autopay_day: r.last_autopay_day,
+      last_digest_week: r.last_digest_week,
       data: {
         bills: Array.isArray(data.bills) ? data.bills : [],
         cards: Array.isArray(data.cards) ? data.cards : [],
@@ -674,6 +678,7 @@ function allUsersWithData() {
 function setAutopayDay(userId, ymd) { stmt.setAutopayDay.run(ymd, userId); }
 function setReminderDay(userId, ymd) { stmt.setReminderDay.run(ymd, userId); }
 function setSummaryMonth(userId, ym) { stmt.setSummaryMonth.run(ym, userId); }
+function setDigestWeek(userId, week) { stmt.setDigestWeek.run(week, userId); }
 
 function touchLastLogin(userId) {
   stmt.touchLastLogin.run(Date.now(), userId);
@@ -854,6 +859,7 @@ module.exports = {
   setReminderDay,
   setSummaryMonth,
   setAutopayDay,
+  setDigestWeek,
   getUserData,
   upsertUserData,
   userHasMfa,

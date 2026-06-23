@@ -60,8 +60,39 @@ final class StoreManager: ObservableObject {
     }
 
     func refresh() async {
+        #if DEBUG
+        if let synth = Self.devEntitlement(devEntitlementOverride) { entitlement = synth; return }
+        #endif
         if let ent = try? await api.billingStatus() { entitlement = ent }
     }
+
+    #if DEBUG
+    // ── Dev-only entitlement override (testing) ──────────────────
+    // Simulates each Pro state without a real purchase. Local to the
+    // device; never touches the server. Gated to DEBUG builds.
+    private static let devKey = "fh_dev_entitlement"
+    var devEntitlementOverride: String {
+        get { UserDefaults.standard.string(forKey: Self.devKey) ?? "off" }
+        set {
+            if newValue == "off" { UserDefaults.standard.removeObject(forKey: Self.devKey) }
+            else { UserDefaults.standard.set(newValue, forKey: Self.devKey) }
+            if let synth = Self.devEntitlement(newValue) { entitlement = synth }
+            else { Task { await refresh() } }
+        }
+    }
+    static func devEntitlement(_ state: String) -> Entitlement? {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let day: Int64 = 86_400_000
+        switch state {
+        case "free":     return Entitlement(pro: false, source: "dev")
+        case "active":   return Entitlement(pro: true, source: "dev", plan: "monthly", expiresAt: now + 30 * day, autoRenew: true, proSince: now - 90 * day)
+        case "expired":  return Entitlement(pro: false, source: "dev", plan: "monthly", expiresAt: now - 2 * day, autoRenew: false)
+        case "grace":    return Entitlement(pro: true, source: "dev", plan: "monthly", expiresAt: now - 1 * day, autoRenew: false, proSince: now - 120 * day)
+        case "canceled": return Entitlement(pro: true, source: "dev", plan: "monthly", expiresAt: now + 10 * day, autoRenew: false, proSince: now - 200 * day)
+        default:         return nil
+        }
+    }
+    #endif
 
     func loadProducts() async {
         loadingProducts = true

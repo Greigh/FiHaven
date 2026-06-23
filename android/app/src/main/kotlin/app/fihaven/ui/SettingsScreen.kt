@@ -2,10 +2,14 @@ package app.fihaven.ui
 
 import app.fihaven.ui.theme.PlexMono
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import androidx.fragment.app.FragmentActivity
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,7 +55,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
@@ -61,15 +67,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.BioLockDelay
+import app.fihaven.SyncState
 import app.fihaven.core.model.Entitlement
 import app.fihaven.core.model.autopayMark
 import app.fihaven.core.model.autopayMarkHour
 import app.fihaven.core.model.billReminders
 import app.fihaven.core.model.currency
 import app.fihaven.core.model.hidePaidOnDashboard
+import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.landingView
+import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.monthlySummary
+import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.paidGoal
+import app.fihaven.core.model.reminderLeadDays
+import app.fihaven.core.model.remindOnDueDay
+import app.fihaven.core.model.weeklyDigest
 import app.fihaven.core.model.periodAnchor
 import app.fihaven.core.model.periodLength
 import app.fihaven.core.model.periodMode
@@ -103,9 +116,55 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     LaunchedEffect(reload) { mfa = runCatching { vm.api.mfaStatus() }.getOrNull() }
     val close: () -> Unit = { dialog = null; reload++ }
 
+    // POST_NOTIFICATIONS (Android 13+); reschedule once the user responds.
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { vm.refreshNotifications() }
+
+    // Grouped landing: pick a group, drill into its settings. `group == null`
+    // shows the category list; back returns there, then out to More.
+    var group by remember { mutableStateOf<String?>(null) }
+    if (group != null) BackHandler { group = null }
+
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Settings", onBack = onBack, branded = true)
+        ScreenHeader(
+            group?.let { groupTitle(it) } ?: "Settings",
+            onBack = if (group != null) ({ group = null }) else onBack,
+            branded = true,
+        )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+          if (group == null) {
+            item {
+                Section("SETTINGS") {
+                    GroupRow("Account", "Profile, email, password") { group = "account" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Security", "Two-factor, recovery") { group = "security" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Preferences", "Currency, period, display") { group = "preferences" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Notifications", "Reminders, digest, summary") { group = "notifications" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Automation", "Autopay auto-mark") { group = "automation" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Bank", "Linked accounts") { group = "bank" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Data", "Export, clear, delete") { group = "data" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Help & about", "Links, licenses, version") { group = "about" }
+                    if (BuildConfig.DEBUG) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        GroupRow("Developer", "Simulate subscription states") { group = "developer" }
+                    }
+                }
+            }
+            item {
+                Button(onClick = { vm.logout() }, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.surface2, contentColor = Ct.colors.red)) {
+                    Text("Sign out")
+                }
+            }
+          }
+          if (group == "account") {
             item {
                 Section("ACCOUNT") {
                     KeyValueRow("Email", current.email)
@@ -120,8 +179,21 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         Text(it, color = Ct.colors.muted, fontSize = 12.5.sp,
                             modifier = Modifier.padding(16.dp))
                     }
+                    HorizontalDivider(color = Ct.colors.border)
+                    val sync by vm.syncState.collectAsStateWithLifecycle()
+                    Text(
+                        when (sync) {
+                            SyncState.Saving -> "☁ Saving to your account…"
+                            SyncState.Offline -> "☁ Offline — saved on this device, will sync when back online."
+                            else -> "☁ Synced to your account — changes save automatically across devices."
+                        },
+                        color = Ct.colors.muted, fontSize = 12.5.sp,
+                        modifier = Modifier.padding(16.dp),
+                    )
                 }
             }
+          }
+          if (group == "security") {
             item {
                 Section("SECURITY") {
                     val m = mfa
@@ -144,6 +216,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     }
                 }
             }
+          }
+          if (group == "preferences") {
             item {
                 Section("PREFERENCES") {
                     NavRow("Appearance", themeController.pref.label) { dialog = "appearance" }
@@ -160,6 +234,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Customize tabs", null) { dialog = "tabs" }
                     HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Dashboard layout",
+                        if (data.settings.dashboardLayout == "widgets") "Widgets" else "Classic") { dialog = "dashboardlayout" }
+                    HorizontalDivider(color = Ct.colors.border)
                     PaidGoalPicker(PaidGoalPolicy.from(data.settings.paidGoal)) { vm.setPaidGoal(it) }
                     Text(
                         "How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.",
@@ -174,18 +251,42 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     }
                 }
             }
+          }
+          if (group == "notifications") {
             item {
                 Section("NOTIFICATIONS") {
-                    SwitchRow("Bill reminders", data.settings.billReminders) { vm.setBillReminders(it) }
+                    val s = data.settings
+                    SwitchRow("Remind me on this device", s.localNotifications) { on ->
+                        vm.setLocalNotifications(on)
+                        if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
                     HorizontalDivider(color = Ct.colors.border)
-                    SwitchRow("Monthly summary", data.settings.monthlySummary) { vm.setMonthlySummary(it) }
+                    SwitchRow("Email me bill reminders", s.billReminders) { vm.setBillReminders(it) }
+                    if (s.localNotifications || s.billReminders) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Remind me", leadLabel(s.reminderLeadDays)) { dialog = "leaddays" }
+                        HorizontalDivider(color = Ct.colors.border)
+                        SwitchRow("Also remind on the due day", s.remindOnDueDay) { vm.setRemindOnDueDay(it) }
+                    }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Weekly digest email", s.weeklyDigest) { vm.setWeeklyDigest(it) }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Monthly summary email", s.monthlySummary) { vm.setMonthlySummary(it) }
+                    if (s.localNotifications || s.billReminders || s.weeklyDigest || s.monthlySummary) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }
+                    }
                     Text(
-                        "Optional emails to your verified address, sent in your time zone. Reminders 3 days before a bill is due; the summary on the 1st.",
+                        "On-device reminders work offline. Emails go to your verified address. The weekly digest sends Mondays; the monthly summary on the 1st — all in your time zone.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
                     )
                 }
             }
+          }
+          if (group == "automation") {
             item {
                 Section("AUTOMATION") {
                     SwitchRow("Auto-mark autopay paid", data.settings.autopayMark) { vm.setAutopayMark(it) }
@@ -200,11 +301,15 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     )
                 }
             }
+          }
+          if (group == "bank") {
             item {
                 Section("BANK") {
                     NavRow("Bank connections", null) { dialog = "bank" }
                 }
             }
+          }
+          if (group == "about") {
             item {
                 Section("HELP & FEEDBACK") {
                     NavRow("Website", null) { uriHandler.openUri("https://fihaven.app/") }
@@ -233,6 +338,15 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     KeyValueRow("Version", BuildConfig.VERSION_NAME)
                 }
             }
+          }
+          if (group == "developer") {
+            item {
+                Section("SUBSCRIPTION OVERRIDE") {
+                    DevEntitlementRow(vm)
+                }
+            }
+          }
+          if (group == "data") {
             item {
                 ExportRow(vm)
             }
@@ -248,12 +362,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text("Delete account")
                 }
             }
-            item {
-                Button(onClick = { vm.logout() }, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.surface2, contentColor = Ct.colors.red)) {
-                    Text("Sign out")
-                }
-            }
+          }
         }
     }
 
@@ -271,6 +380,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "timezone" -> TimezoneDialog(vm, close)
         "period" -> PeriodDialog(vm, data.settings, close)
         "autopayhour" -> AutopayHourDialog(vm, data.settings.autopayMarkHour, close)
+        "leaddays" -> LeadDaysDialog(vm, data.settings.reminderLeadDays, close)
+        "notifyhour" -> NotifyHourDialog(vm, data.settings.notifyHour, close)
+        "dashboardlayout" -> DashboardLayoutDialog(vm, data.settings, close)
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
         "defaultview" -> DefaultViewDialog(vm, data.settings.landingView ?: "dashboard", close)
         "appearance" -> AppearanceDialog(themeController) { dialog = null }
@@ -554,6 +666,88 @@ private fun AutopayHourDialog(vm: AppViewModel, current: Int, onDone: () -> Unit
     }
 }
 
+private val LEAD_DAY_CHOICES = listOf(0, 1, 2, 3, 5, 7, 10, 14)
+
+private fun leadLabel(d: Int): String = when (d) {
+    0 -> "On the due day"
+    1 -> "1 day before"
+    else -> "$d days before"
+}
+
+@Composable
+private fun LeadDaysDialog(vm: AppViewModel, current: Int, onDone: () -> Unit) {
+    FormDialog("Remind me", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("How far ahead of a bill's due date to remind you.",
+            color = Ct.colors.muted, fontSize = 13.sp)
+        LEAD_DAY_CHOICES.forEach { d ->
+            Text(leadLabel(d),
+                color = if (d == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { vm.setReminderLeadDays(d); onDone() }
+                    .padding(vertical = 10.dp))
+        }
+    }
+}
+
+@Composable
+private fun NotifyHourDialog(vm: AppViewModel, current: Int, onDone: () -> Unit) {
+    FormDialog("Send at", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("The local hour reminders, the weekly digest, and the monthly summary are sent.",
+            color = Ct.colors.muted, fontSize = 13.sp)
+        (0..23).forEach { h ->
+            Text(hourLabel(h),
+                color = if (h == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
+                modifier = Modifier.fillMaxWidth().clickable { vm.setNotifyHour(h); onDone() }
+                    .padding(vertical = 10.dp))
+        }
+    }
+}
+
+@Composable
+private fun DashboardLayoutDialog(vm: AppViewModel, settings: JsonObject, onDone: () -> Unit) {
+    var layout by remember { mutableStateOf(settings.dashboardLayout) }
+    val initialEnabled = DashboardWidgets.enabled(settings)
+    var order by remember { mutableStateOf(initialEnabled + DashboardWidgets.allIds.filter { it !in initialEnabled }) }
+    var enabled by remember { mutableStateOf(initialEnabled.toSet()) }
+
+    fun persist() {
+        vm.setDashboardLayout(layout)
+        vm.setDashboardWidgets(order.filter { it in enabled })
+    }
+
+    FormDialog("Dashboard layout", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+        Text("Classic is a fixed layout. Widgets lets you choose which cards appear and reorder them.",
+            color = Ct.colors.muted, fontSize = 13.sp)
+        listOf("classic" to "Classic — fixed", "widgets" to "Widgets — customize").forEach { (value, label) ->
+            Row(Modifier.fillMaxWidth().clickable { layout = value; persist() }.padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(if (layout == value) "●" else "○",
+                    color = if (layout == value) Ct.colors.accent else Ct.colors.muted,
+                    fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+                Text(label, color = Ct.colors.text, fontSize = 16.sp)
+            }
+        }
+        if (layout == "widgets") {
+            HorizontalDivider(color = Ct.colors.border)
+            Text("WIDGETS — TOGGLE AND REORDER", color = Ct.colors.muted, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+            order.forEachIndexed { i, id ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = id in enabled, onCheckedChange = { on ->
+                        enabled = if (on) enabled + id else enabled - id; persist()
+                    })
+                    Text(DashboardWidgets.label(id), color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        order = order.toMutableList().also { it.add(i - 1, it.removeAt(i)) }; persist()
+                    }, enabled = i > 0) { Text("↑") }
+                    TextButton(onClick = {
+                        order = order.toMutableList().also { it.add(i + 1, it.removeAt(i)) }; persist()
+                    }, enabled = i < order.size - 1) { Text("↓") }
+                }
+            }
+        }
+    }
+}
+
 private fun periodModeLabel(mode: String?): String = when (mode) {
     "startDay" -> "Custom start day"
     "rolling" -> "Rolling window"
@@ -639,6 +833,64 @@ private fun KeyValueRow(label: String, value: String, valueColor: androidx.compo
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Text(value, color = valueColor, fontSize = 14.sp)
+    }
+}
+
+private fun groupTitle(group: String): String = when (group) {
+    "account" -> "Account"
+    "security" -> "Security"
+    "preferences" -> "Preferences"
+    "notifications" -> "Notifications"
+    "automation" -> "Automation"
+    "bank" -> "Bank"
+    "data" -> "Data"
+    "about" -> "Help & about"
+    "developer" -> "Developer"
+    else -> "Settings"
+}
+
+/** Dev-only: simulate each Pro entitlement state without a purchase. */
+@Composable
+private fun DevEntitlementRow(vm: AppViewModel) {
+    var sel by remember { mutableStateOf(vm.devEntitlementOverride) }
+    val options = listOf(
+        "off" to "Off — use real",
+        "free" to "Free",
+        "active" to "Pro — active",
+        "expired" to "Pro — expired",
+        "grace" to "Pro — grace period",
+        "canceled" to "Canceled — active until expiry",
+    )
+    Column {
+        options.forEachIndexed { i, (value, label) ->
+            if (i > 0) HorizontalDivider(color = Ct.colors.border)
+            Row(
+                Modifier.fillMaxWidth().clickable { sel = value; vm.devEntitlementOverride = value }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (sel == value) "●" else "○",
+                    color = if (sel == value) Ct.colors.accent else Ct.colors.muted,
+                    fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+                Text(label, color = Ct.colors.text, fontSize = 16.sp)
+            }
+        }
+        Text(
+            "Simulates a Pro state for testing. Local to this device; never changes your real subscription. Debug builds only.",
+            color = Ct.colors.muted, fontSize = 12.sp,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+/** A landing row that drills into a settings group. */
+@Composable
+private fun GroupRow(label: String, subtitle: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, color = Ct.colors.text, fontSize = 16.sp)
+            Text(subtitle, color = Ct.colors.muted, fontSize = 12.5.sp)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Ct.colors.muted)
     }
 }
 

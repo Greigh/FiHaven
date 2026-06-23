@@ -1,6 +1,6 @@
 {
   "name": "fihaven",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "description": "A focused bill and debt dashboard for people who'd rather spend five calm minutes a week than a frantic afternoon every payday. Track recurring bills, credit cards (including 0% promo periods), monthly budget, payment history, and debt-payoff strategies — all behind a real account with server-side sync.",
   "license": "GNU AGPLv3",
   "author": "Greigh",
@@ -51,19 +51,19 @@
     "express-rate-limit": "^8.5.2",
     "nodemailer": "^9.0.1",
     "otpauth": "^9.5.1",
-    "plaid": "^42.2.0",
-    "qrcode": "^1.5.4",
-    "stripe": "^22.2.2"
+    "plaid": "42.2.0",
+    "qrcode": "1.5.4",
+    "stripe": "^22.2.3"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/cli": "^4.3.1",
     "@vitest/coverage-v8": "^4.1.9",
-    "concurrently": "^10.0.3",
+    "concurrently": "10.0.3",
     "jsdom": "^29.1.1",
-    "svelte": "^5.56.3",
+    "svelte": "5.56.4",
     "tailwindcss": "^4.3.1",
-    "vite": "^8.0.16",
+    "vite": "^8.1.0",
     "vitest": "^4.1.9"
   },
   "allowScripts": {

@@ -41,6 +41,7 @@
       label: s.label || '',
       amount: parseFloat(s.amount) || 0,
       frequency: FREQ_MAP[s.frequency] ? s.frequency : 'monthly',
+      hoursPerWeek: parseFloat(s.hoursPerWeek) || 0,
     };
   }
   function freshSource() {
@@ -90,6 +91,7 @@
   function persist() {
     settings.incomes = incomes.map((s) => ({
       id: s.id, label: s.label, amount: parseFloat(s.amount) || 0, frequency: s.frequency,
+      hoursPerWeek: s.frequency === 'hourly' ? (parseFloat(s.hoursPerWeek) || 0) : undefined,
     }));
     // Keep settings.income synced to the new monthly total for any
     // legacy consumer (and so the dashboard / exports stay correct
@@ -209,19 +211,34 @@
             />
           </label>
           <label class="budget-income-field budget-income-amount" for={`income-amount-${src.id}`}>
-            <span>Amount</span>
+            <span>{src.frequency === 'hourly' ? 'Hourly rate' : 'Amount'}</span>
             <div class="budget-income-amount-input">
               <span>$</span>
               <input
                 id={`income-amount-${src.id}`}
                 name="income-amount"
-                type="number" min="0" step="100" placeholder="0"
+                type="number" min="0" step={src.frequency === 'hourly' ? '0.5' : '100'} placeholder="0"
                 autocomplete="off"
                 value={src.amount || ''}
                 oninput={(e) => updateIncome(i, { amount: parseFloat(e.currentTarget.value) || 0 })}
               />
             </div>
           </label>
+          {#if src.frequency === 'hourly'}
+            <label class="budget-income-field budget-income-amount" for={`income-hours-${src.id}`}>
+              <span>Hours / week</span>
+              <div class="budget-income-amount-input">
+                <input
+                  id={`income-hours-${src.id}`}
+                  name="income-hours"
+                  type="number" min="0" max="168" step="1" placeholder="40"
+                  autocomplete="off"
+                  value={src.hoursPerWeek || ''}
+                  oninput={(e) => updateIncome(i, { hoursPerWeek: parseFloat(e.currentTarget.value) || 0 })}
+                />
+              </div>
+            </label>
+          {/if}
           <label class="budget-income-field budget-income-freq" for={`income-freq-${src.id}`}>
             <span>Frequency</span>
             <select

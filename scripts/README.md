@@ -6,6 +6,7 @@
 | [`submit-indexnow.js`](submit-indexnow.js) | Notify Bing/Yandex after marketing deploys (`npm run indexnow`). |
 | [`indexnow-urls.js`](indexnow-urls.js) | Public URL list shared with sitemap (used by submit-indexnow). |
 | [`generate-icons.sh`](generate-icons.sh) | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (`npm run generate:icons`). |
+| [`mail-check.js`](mail-check.js) | Outbound-email smoke test — verifies SMTP reachability and (with a recipient arg) sends a test message. Reads `SMTP_*` / `MAIL_FROM` / `MAIL_CHECK_TO` from `.env`; `upload.sh` runs it post-deploy. |
 | [`examples/upload.example.sh`](examples/upload.example.sh) | Deploy template — copy to gitignored `upload.sh` at repo root. |
 | [`examples/rollback.example.sh`](examples/rollback.example.sh) | Restore a pre-deploy backup on the VPS (`npm run rollback`). |
 | [`dev/generate-pdfs.js`](dev/generate-pdfs.js) | Export `docs/*.md` policies to PDF (`npm run generate:pdfs`). Local maintainer tool. |

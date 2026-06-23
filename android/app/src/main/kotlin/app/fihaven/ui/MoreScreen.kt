@@ -3,6 +3,8 @@ package app.fihaven.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -59,7 +61,9 @@ fun MoreScreen(
 private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("More", branded = true)
-        Column(Modifier.padding(16.dp)) {
+        // Scrollable so a long overflow list never gets cut off, with bottom
+        // padding so the footer clears the tab bar.
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
             CtCard(padding = 0) {
                 Column {
                     overflow.forEach { t ->
@@ -72,7 +76,7 @@ private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String)
                 }
             }
             MadeWithLove(
-                Modifier.fillMaxWidth().padding(top = 24.dp),
+                Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
             )
         }
     }

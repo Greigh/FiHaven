@@ -181,6 +181,7 @@ struct IncomeEditorView: View {
     @State private var label = ""
     @State private var amount: Double = 0
     @State private var frequency = "biweekly"
+    @State private var hoursPerWeek: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -188,7 +189,7 @@ struct IncomeEditorView: View {
                 Section {
                     TextField("Label (e.g. Paycheck)", text: $label)
                     HStack {
-                        Text("Amount")
+                        Text(frequency == "hourly" ? "Hourly rate" : "Amount")
                         Spacer()
                         Text("$").foregroundStyle(Theme.muted)
                         TextField("0", value: $amount, format: .number)
@@ -197,6 +198,14 @@ struct IncomeEditorView: View {
                     Picker("Frequency", selection: $frequency) {
                         ForEach(Income.frequencies, id: \.key) { f in
                             Text(f.label).tag(f.key)
+                        }
+                    }
+                    if frequency == "hourly" {
+                        HStack {
+                            Text("Hours / week")
+                            Spacer()
+                            TextField("40", value: $hoursPerWeek, format: .number)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                         }
                     }
                 }
@@ -218,6 +227,7 @@ struct IncomeEditorView: View {
             .onAppear {
                 if let source {
                     label = source.label; amount = source.amount; frequency = source.frequency
+                    hoursPerWeek = source.hoursPerWeek
                 }
             }
         }
@@ -228,7 +238,8 @@ struct IncomeEditorView: View {
             id: source?.id ?? "src-\(AppStore.newID())",
             label: label.trimmingCharacters(in: .whitespaces),
             amount: amount,
-            frequency: frequency
+            frequency: frequency,
+            hoursPerWeek: frequency == "hourly" ? hoursPerWeek : 0
         )
         store.upsertIncome(saved)
         dismiss()

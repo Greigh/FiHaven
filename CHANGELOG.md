@@ -7,6 +7,66 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.3.0] — 2026-06-23
+
+Dashboard customization, reminders across email and native apps, hourly
+income and income history, branded social sign-in, and dev entitlement
+testing — with expanded scheduler settings and 326 Vitest tests.
+
+### Added
+
+- **Customizable dashboard** — **Classic** (fixed) or **Widgets** layout on
+  web, iOS, and Android. Reorder and toggle nine shared widgets: overview
+  tiles, period cash-flow, alerts, upcoming payments, net worth, spending,
+  savings goals, subscriptions, and income history (`dashboardLayout`,
+  `dashboardWidgets`, `client/js/dashboardWidgets.js`).
+- **Income history** — 12-month income trend with bonuses and average
+  monthly pay on web (`IncomeHistory.svelte`), History tab (iOS/Android),
+  and as a dashboard widget. Includes hourly-rate support with
+  `hoursPerWeek` on every client.
+- **Local bill reminders** — opt-in on-device notifications on iOS
+  (`NotificationScheduler`) and Android (`NotificationScheduler`,
+  `BillReminderReceiver`, `BootReceiver`); rescheduled when data changes
+  and after reboot on Android.
+- **Configurable reminders** — `reminderLeadDays` (0–14), `notifyHour`
+  (0–23), and optional `remindOnDueDay` on web, iOS, Android, and the
+  server scheduler (email reminders respect the same settings).
+- **Weekly digest email** — opt-in Monday summary of bills due in the
+  next seven days plus card-debt total (`weeklyDigest`, `sendWeeklyDigest`).
+- **Branded social sign-in** — Apple and Google buttons with official
+  logos on web, iOS (`GoogleG` asset), and Android (`ic_google_g`,
+  `ic_apple_logo`); auth screens refreshed on all clients.
+- **Dev entitlement override** — DEBUG-only Pro simulation (free, active,
+  expired, grace, canceled) on web, iOS, and Android for paywall testing
+  without a real purchase.
+- **`scripts/mail-check.js`** — on-server SMTP diagnostic (connection
+  probe + optional test send) with hints for common relay/firewall issues.
+- **326 Vitest tests** (up from 293) — dashboard widgets, dev entitlement,
+  configurable scheduler/reminders, settings parity (Kotlin + Swift), and
+  income-hourly coverage.
+
+### Changed
+
+- **Bill-reminder emails** — lead-time copy follows user settings; due-day
+  reminders can fire separately from the lead-day email.
+- **Settings → Notifications** — unified reminders section on web, iOS, and
+  Android (device notifications, email reminders, weekly digest, monthly
+  summary, send hour).
+- **Android main scaffold** — widget-mode dashboard rendering and income
+  history widget; settings sheets for layout and notification prefs.
+- **`native-contract.md`** — documents dashboard widgets, reminder
+  settings, local notifications, and hourly income fields.
+- **README / platform READMEs** — dashboard, reminders, and social-login
+  sections updated.
+- **`.gitignore`** — ignores local ops credential docs (`*.secret.md`,
+  `mail-server-logins.md`).
+- **Dependencies** — `stripe` 22.2.3; Android `versionCode` 3.
+
+### Fixed
+
+- Hourly income sources without `hoursPerWeek` now contribute $0 to budget
+  totals instead of treating the rate as a flat monthly amount.
+
 ## [1.2.3] — 2026-06-17
 
 Public site, sign-in, and reliability release: marketing pages with SEO
@@ -307,6 +367,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.3.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.3.0
 [1.2.3]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.3
 [1.2.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.2
 [1.2.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.1

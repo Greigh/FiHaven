@@ -158,10 +158,19 @@ async function sendRecovery(to, rawToken) {
   });
 }
 
+// "due today" / "due tomorrow" / "due in N days" for a lead-day count.
+function leadPhrase(days) {
+  const d = parseInt(days, 10) || 0;
+  if (d <= 0) return 'due today';
+  if (d === 1) return 'due tomorrow';
+  return `due in ${d} days`;
+}
+
 /* ── Bill reminders ──────────────────────────────────────────── */
 async function sendBillReminder(to, bills, leadDays, currency) {
   const n = bills.length;
   const plural = n === 1 ? '' : 's';
+  const phrase = leadPhrase(leadDays);
   const href = link('/dashboard');
   const items = bills
     .map((b) => `<li style="margin:0 0 6px;">${esc(b.name) || 'Bill'} — <strong>${money(b.amount, currency)}</strong> (due on the ${ordinal(b.dueDay)})</li>`)
@@ -172,20 +181,69 @@ async function sendBillReminder(to, bills, leadDays, currency) {
   return mail.sendMail({
     to,
     subject: n === 1
-      ? `Reminder: ${bills[0].name || 'a bill'} is due in ${leadDays} days`
-      : `Reminder: ${n} bills due in ${leadDays} days`,
+      ? `Reminder: ${bills[0].name || 'a bill'} is ${phrase}`
+      : `Reminder: ${n} bills ${phrase}`,
     text:
-      `You have ${n} bill${plural} due in ${leadDays} days:\n\n${textItems}\n\n` +
+      `You have ${n} bill${plural} ${phrase}:\n\n${textItems}\n\n` +
       `Open FiHaven: ${href}\n\n` +
       `You're getting this because bill reminders are on — turn them off any time in Settings.`,
     html: layout({
-      heading: `${n} bill${plural} due in ${leadDays} days`,
+      heading: `${n} bill${plural} ${phrase}`,
       lines: [
         'A quick heads-up on what’s coming due:',
         `<ul style="margin:0 0 4px;padding-left:18px;color:#1f2430;font-size:15px;line-height:1.7;">${items}</ul>`,
       ],
       cta: { href, label: 'Open FiHaven' },
       footnote: 'You’re getting this because bill reminders are on — turn them off any time in Settings.',
+    }),
+  });
+}
+
+/* ── Weekly digest ───────────────────────────────────────────── */
+// `digest` is { upcoming: [{name, amount, dueDay, daysUntil}], upcomingTotal,
+// debtTotal } — the bills coming due in the next 7 days plus balances.
+async function sendWeeklyDigest(to, digest, currency) {
+  const href = link('/dashboard');
+  const upcoming = Array.isArray(digest.upcoming) ? digest.upcoming : [];
+  const n = upcoming.length;
+  const phrase = (d) => (d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
+  const items = upcoming
+    .map((b) => `<li style="margin:0 0 6px;">${esc(b.name) || 'Bill'} — <strong>${money(b.amount, currency)}</strong> (due ${phrase(b.daysUntil)})</li>`)
+    .join('');
+  const textItems = upcoming
+    .map((b) => `• ${b.name || 'Bill'} — ${money(b.amount, currency)} (due ${phrase(b.daysUntil)})`)
+    .join('\n');
+  const totals =
+    `Upcoming this week: <strong>${money(digest.upcomingTotal, currency)}</strong>` +
+    ` · Card debt: <strong>${money(digest.debtTotal, currency)}</strong>`;
+  const textTotals =
+    `Upcoming this week: ${money(digest.upcomingTotal, currency)}\n` +
+    `Card debt: ${money(digest.debtTotal, currency)}`;
+  return mail.sendMail({
+    to,
+    subject: n === 0
+      ? 'FiHaven weekly: nothing due in the next 7 days'
+      : `FiHaven weekly: ${n} bill${n === 1 ? '' : 's'} due soon`,
+    text:
+      (n === 0
+        ? 'No bills are due in the next 7 days. 🎉\n\n'
+        : `Bills due in the next 7 days:\n\n${textItems}\n\n`) +
+      `${textTotals}\n\n` +
+      `Open FiHaven: ${href}\n\n` +
+      `You're getting this because the weekly digest is on — turn it off any time in Settings.`,
+    html: layout({
+      heading: 'Your week ahead',
+      lines: [
+        n === 0
+          ? 'No bills are due in the next 7 days. 🎉'
+          : 'Here are the bills coming due in the next 7 days:',
+        ...(n === 0
+          ? []
+          : [`<ul style="margin:0 0 4px;padding-left:18px;color:#1f2430;font-size:15px;line-height:1.7;">${items}</ul>`]),
+        totals,
+      ],
+      cta: { href, label: 'Open FiHaven' },
+      footnote: 'You’re getting this because the weekly digest is on — turn it off any time in Settings.',
     }),
   });
 }
@@ -227,4 +285,5 @@ module.exports = {
   sendRecovery,
   sendBillReminder,
   sendMonthlySummary,
+  sendWeeklyDigest,
 };

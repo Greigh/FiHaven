@@ -12,6 +12,8 @@ import './passwordToggle.js';
 import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
 import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
+import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
+import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 
     function showMessage(form, text, isError) {
     var el = document.querySelector('[data-message="' + form + '"]');
@@ -173,6 +175,10 @@ import MfaSection from '../svelte/MfaSection.svelte';
       fetchData()
         .then(function (server) { renderMembership(user, server && server.entitlement); })
         .catch(function () { renderMembership(user, null); });
+      // Developer tools (subscription override) — admins or a local fh_dev flag.
+      var isDev = (user.role === 'admin');
+      try { isDev = isDev || localStorage.getItem('fh_dev') === '1'; } catch (e) { /* ignore */ }
+      if (isDev) initDeveloperSection();
     });
 
     /* ── Display name ──────────────────────────────────────── */
@@ -525,39 +531,114 @@ import MfaSection from '../svelte/MfaSection.svelte';
     });
   }
 
-  /* ── Email notifications (save on toggle) ──────────────── */
+  /* ── Email notifications (save on change) ──────────────── */
   function initNotificationsSection() {
     var reminders = document.querySelector('[data-reminders-toggle]');
-    var summary = document.querySelector('[data-summary-toggle]');
+    var summary   = document.querySelector('[data-summary-toggle]');
+    var digest    = document.querySelector('[data-digest-toggle]');
+    var dueDay    = document.querySelector('[data-dueday-toggle]');
+    var leadSel   = document.querySelector('[data-reminder-lead]');
+    var hourSel   = document.querySelector('[data-notify-hour]');
+    var optsBox   = document.querySelector('[data-reminder-options]');
+    var desc      = document.querySelector('[data-reminders-desc]');
     if (!reminders && !summary) return;
+
+    // Lead-day choices.
+    if (leadSel && !leadSel.options.length) {
+      [0, 1, 2, 3, 5, 7, 10, 14].forEach(function (d) {
+        var opt = document.createElement('option');
+        opt.value = String(d);
+        opt.textContent = d === 0 ? 'on the due day' : (d === 1 ? '1 day' : d + ' days');
+        leadSel.appendChild(opt);
+      });
+    }
+    // Hour-of-day choices (12-hour labels).
+    if (hourSel && !hourSel.options.length) {
+      for (var h = 0; h < 24; h++) {
+        var ampm = h < 12 ? 'AM' : 'PM';
+        var h12 = h % 12 === 0 ? 12 : h % 12;
+        var o = document.createElement('option');
+        o.value = String(h);
+        o.textContent = h12 + ':00 ' + ampm;
+        hourSel.appendChild(o);
+      }
+    }
+    function clampHour(v) { v = parseInt(v, 10); return (v >= 0 && v <= 23) ? v : 8; }
+    function clampLead(v) { v = parseInt(v, 10); return (v >= 0 && v <= 14) ? v : 3; }
+
+    function syncDesc() {
+      if (!desc) return;
+      var lead = leadSel ? clampLead(leadSel.value) : 3;
+      desc.textContent = lead === 0
+        ? 'Email me on the day a bill is due.'
+        : 'Email me ' + (lead === 1 ? '1 day' : lead + ' days') + ' before a bill is due.';
+    }
+    function syncOptions() {
+      if (optsBox) optsBox.style.display = (reminders && reminders.checked) ? '' : 'none';
+    }
 
     fetchData().then(function (server) {
       var s = (server && server.settings) || {};
       if (reminders) reminders.checked = !!s.billReminders;
-      if (summary) summary.checked = !!s.monthlySummary;
-    }).catch(function () {});
+      if (summary)   summary.checked   = !!s.monthlySummary;
+      if (digest)    digest.checked    = !!s.weeklyDigest;
+      if (dueDay)    dueDay.checked     = !!s.remindOnDueDay;
+      if (leadSel)   leadSel.value      = String(s.reminderLeadDays != null ? clampLead(s.reminderLeadDays) : 3);
+      if (hourSel)   hourSel.value      = String(s.notifyHour != null ? clampHour(s.notifyHour) : 8);
+      syncDesc();
+      syncOptions();
+    }).catch(function () { syncDesc(); syncOptions(); });
 
-    function saveToggle(key, value, el) {
+    // Save the given settings patch; reverts the control on failure.
+    function save(patch, onFail) {
       showMessage('notifications', 'Saving…', false);
       fetchData().then(function (server) {
-        var patch = {}; patch[key] = value;
         return pushData({
           bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
           settings: Object.assign({}, server.settings || {}, patch),
         });
       }).then(function () {
-        showMessage('notifications', value ? 'On — we’ll email you.' : 'Turned off.', false);
+        showMessage('notifications', 'Saved.', false);
       }).catch(function (err) {
-        if (el) el.checked = !value; // revert on failure
+        if (onFail) onFail();
         showMessage('notifications', (err && err.message) || errorText('network'), true);
       });
     }
 
     if (reminders) reminders.addEventListener('change', function () {
-      saveToggle('billReminders', reminders.checked, reminders);
+      syncOptions();
+      save({ billReminders: reminders.checked }, function () { reminders.checked = !reminders.checked; syncOptions(); });
     });
     if (summary) summary.addEventListener('change', function () {
-      saveToggle('monthlySummary', summary.checked, summary);
+      save({ monthlySummary: summary.checked }, function () { summary.checked = !summary.checked; });
+    });
+    if (digest) digest.addEventListener('change', function () {
+      save({ weeklyDigest: digest.checked }, function () { digest.checked = !digest.checked; });
+    });
+    if (dueDay) dueDay.addEventListener('change', function () {
+      save({ remindOnDueDay: dueDay.checked }, function () { dueDay.checked = !dueDay.checked; });
+    });
+    if (leadSel) leadSel.addEventListener('change', function () {
+      syncDesc();
+      save({ reminderLeadDays: clampLead(leadSel.value) });
+    });
+    if (hourSel) hourSel.addEventListener('change', function () {
+      save({ notifyHour: clampHour(hourSel.value) });
+    });
+  }
+
+  /* ── Developer: subscription override (admin/dev only) ──── */
+  function initDeveloperSection() {
+    var tab = document.querySelector('[data-dev-tab]');
+    if (tab) tab.hidden = false;
+    var sel = document.querySelector('[data-dev-entitlement]');
+    if (!sel) return;
+    sel.value = getDevEntitlement();
+    sel.addEventListener('change', function () {
+      setDevEntitlement(sel.value);
+      showMessage('developer', sel.value === 'off'
+        ? 'Using your real subscription.'
+        : 'Simulating "' + sel.options[sel.selectedIndex].text + '". Reload the dashboard to see it.', false);
     });
   }
 
@@ -716,18 +797,80 @@ import MfaSection from '../svelte/MfaSection.svelte';
   function initDashboardSection() {
     var form = document.querySelector('[data-form="dashboard"]');
     if (!form) return;
-    var checkbox = form.querySelector('[data-hide-paid-dashboard]');
+    var checkbox   = form.querySelector('[data-hide-paid-dashboard]');
+    var layoutSel  = form.querySelector('[data-dash-layout]');
+    var widgetsWrap = form.querySelector('[data-dash-widgets-wrap]');
+    var widgetsList = form.querySelector('[data-dash-widgets]');
+
+    // Working order: enabled widgets (saved order) first, then the rest,
+    // with an `on` flag. Saved as the enabled ids in this order.
+    var order = [];   // [{ id, on }]
+
+    function seedOrder(s) {
+      var enabled = enabledWidgets(s);
+      var enabledSet = {};
+      order = enabled.map(function (id) { enabledSet[id] = true; return { id: id, on: true }; });
+      DASHBOARD_WIDGETS.forEach(function (w) {
+        if (!enabledSet[w.id]) order.push({ id: w.id, on: false });
+      });
+    }
+
+    function labelFor(id) {
+      var w = DASHBOARD_WIDGETS.find(function (x) { return x.id === id; });
+      return w ? w.label : id;
+    }
+
+    function renderWidgets() {
+      if (!widgetsWrap || !widgetsList) return;
+      var isWidgets = layoutSel && layoutSel.value === 'widgets';
+      widgetsWrap.hidden = !isWidgets;
+      if (!isWidgets) return;
+      widgetsList.innerHTML = '';
+      order.forEach(function (entry, i) {
+        var li = document.createElement('li');
+        li.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = entry.on;
+        cb.addEventListener('change', function () { entry.on = cb.checked; });
+        var name = document.createElement('span');
+        name.textContent = labelFor(entry.id);
+        name.style.cssText = 'flex:1;font-size:14px;';
+        var up = document.createElement('button');
+        up.type = 'button'; up.textContent = '↑'; up.className = 'btn btn-ghost btn-xs';
+        up.disabled = i === 0;
+        up.addEventListener('click', function () { swap(i, i - 1); });
+        var down = document.createElement('button');
+        down.type = 'button'; down.textContent = '↓'; down.className = 'btn btn-ghost btn-xs';
+        down.disabled = i === order.length - 1;
+        down.addEventListener('click', function () { swap(i, i + 1); });
+        li.appendChild(cb); li.appendChild(name); li.appendChild(up); li.appendChild(down);
+        widgetsList.appendChild(li);
+      });
+    }
+
+    function swap(a, b) {
+      if (b < 0 || b >= order.length) return;
+      var tmp = order[a]; order[a] = order[b]; order[b] = tmp;
+      renderWidgets();
+    }
 
     fetchData()
       .then(function (server) {
         var s = (server && server.settings) || {};
         if (checkbox) checkbox.checked = s.hidePaidOnDashboard !== false;
+        if (layoutSel) layoutSel.value = dashboardLayout(s);
+        seedOrder(s);
+        renderWidgets();
       })
-      .catch(function () { /* keep default checked */ });
+      .catch(function () { seedOrder({}); renderWidgets(); });
+
+    if (layoutSel) layoutSel.addEventListener('change', renderWidgets);
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var hidePaid = !!(checkbox && checkbox.checked);
+      var layout = layoutSel ? layoutSel.value : 'classic';
+      var dashboardWidgets = order.filter(function (e) { return e.on; }).map(function (e) { return e.id; });
       setBusy(form, true);
       showMessage('dashboard', 'Saving…', false);
 
@@ -737,7 +880,11 @@ import MfaSection from '../svelte/MfaSection.svelte';
             bills: server.bills || [],
             cards: server.cards || [],
             payments: server.payments || [],
-            settings: Object.assign({}, server.settings || {}, { hidePaidOnDashboard: hidePaid }),
+            settings: Object.assign({}, server.settings || {}, {
+              hidePaidOnDashboard: hidePaid,
+              dashboardLayout: layout,
+              dashboardWidgets: dashboardWidgets,
+            }),
           };
           return pushData(snapshot);
         })

@@ -42,6 +42,7 @@ const billingRouter = require('./routes/billing');
 const plaidRouter = require('./routes/plaid');
 const adminRouter = require('./routes/admin');
 const scheduler = require('./scheduler');
+const mail = require('./mail');
 
 /* ── config validation ──────────────────────────────────────── */
 
@@ -300,4 +301,12 @@ if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === '1
 app.listen(PORT, () => {
   console.log(`FiHaven server listening on http://localhost:${PORT}`);
   console.log(`database: ${dbApi.DB_PATH}`);
+  // Non-fatal SMTP health probe so "emails aren't working" is visible in the
+  // boot logs instead of only surfacing as swallowed per-send errors.
+  mail.verify()
+    .then(() => console.log(`mail: SMTP OK (${process.env.SMTP_HOST || 'localhost'}:${process.env.SMTP_PORT || '25'})`))
+    .catch((e) => console.error(
+      `mail: SMTP NOT reachable (${process.env.SMTP_HOST || 'localhost'}:${process.env.SMTP_PORT || '25'}) — ${e && e.message}. ` +
+      'Run `node scripts/mail-check.js you@example.com` to diagnose.'
+    ));
 });

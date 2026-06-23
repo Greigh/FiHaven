@@ -34,6 +34,7 @@ export default defineConfig({
         'client/js/income.js',
         'client/js/tz.js',
         'client/js/cardPresets.js',
+        'client/js/dashboardWidgets.js',
         'client/js/export.js',
         'client/js/snoozes.svelte.js',
         'client/js/autopay.js',
