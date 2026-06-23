@@ -268,6 +268,38 @@ extension AppStore {
         mutate { $0.settings.monthlySummary = on }
     }
 
+    func setWeeklyDigest(_ on: Bool) {
+        mutate { $0.settings.weeklyDigest = on }
+    }
+
+    func setDashboardLayout(_ layout: String) {
+        mutate { $0.settings.dashboardLayout = layout }
+    }
+    func setDashboardWidgets(_ ids: [String]) {
+        mutate { $0.settings.dashboardWidgets = ids }
+    }
+    func setReminderLeadDays(_ days: Int) {
+        mutate { $0.settings.reminderLeadDays = min(14, max(0, days)) }
+    }
+    func setRemindOnDueDay(_ on: Bool) {
+        mutate { $0.settings.remindOnDueDay = on }
+    }
+    func setNotifyHour(_ hour: Int) {
+        mutate { $0.settings.notifyHour = min(23, max(0, hour)) }
+    }
+    /// On-device reminders. Turning on requests permission, then reschedules.
+    func setLocalNotifications(_ on: Bool) {
+        mutate { $0.settings.localNotifications = on }
+        if on {
+            Task {
+                await NotificationScheduler.requestAuthorization()
+                refreshNotifications()
+            }
+        } else {
+            refreshNotifications()
+        }
+    }
+
     func setAutopayMark(_ on: Bool) {
         mutate { $0.settings.autopayMark = on }
         if on { runAutopayMark() }

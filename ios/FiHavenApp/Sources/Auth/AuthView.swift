@@ -107,15 +107,23 @@ struct AuthView: View {
                     .disabled(env.working)
 
                     // Google Sign-In (GoogleSignIn SDK) → /api/auth/oauth/google.
+                    // White button + official "G" mark, sized to match the
+                    // Apple button (48pt) per Google's branding guidelines.
                     Button { handleGoogle() } label: {
-                        Text("Continue with Google")
-                            .font(Theme.ui(16, weight: .medium))
-                            .foregroundStyle(Theme.text)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                                    .stroke(Theme.border, lineWidth: 1)
-                            )
+                        HStack(spacing: 10) {
+                            Image("GoogleG").resizable().scaledToFit().frame(width: 18, height: 18)
+                            Text("Continue with Google")
+                                .font(Theme.ui(16, weight: .semibold))
+                                .foregroundStyle(Color(red: 0.23, green: 0.23, blue: 0.23))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color(white: 0.85), lineWidth: 1)
+                        )
                     }
                     .disabled(env.working)
                 }

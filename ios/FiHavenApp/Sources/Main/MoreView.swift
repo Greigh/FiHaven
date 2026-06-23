@@ -39,16 +39,26 @@ struct MoreView: View {
                     linkRow(MoreLink.github, "GitHub", "chevron.left.forwardslash.chevron.right")
                     linkRow(MoreLink.bugReport, "Report a bug", "ladybug.fill")
                     linkRow(MoreLink.suggestion, "Suggest a feature", "lightbulb.fill")
-                    row(.about, "About & licenses", "info.circle.fill")
                 } header: {
                     Text("Help & feedback")
-                } footer: {
+                }
+
+                Section {
+                    row(.about, "About & licenses", "info.circle.fill")
+                }
+
+                // The footer lives in its own row so it isn't crammed under the
+                // last section — gives the bottom of the list room to breathe.
+                Section {
                     MadeWithLove()
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
+                        .padding(.vertical, 12)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.insetGrouped)
+            .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())
             .brandedNavigationBar("More")

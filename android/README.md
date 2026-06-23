@@ -21,7 +21,7 @@ cd android
 ./gradlew :core:test
 ```
 
-Runs the logic/model tests — the Kotlin equivalents of the Swift
+Runs the logic/model/settings tests — the Kotlin equivalents of the Swift
 `FiHavenCoreChecks`, asserting the same expected values for
 cross-platform parity.
 
@@ -54,6 +54,27 @@ cross-platform parity.
   emulator with a Console listing; otherwise the paywall shows its graceful
   empty state and the promo path still works.
 - **Pro-gated** features: Payoff, Calendar, History. Everything else is free.
+- **Dev override (DEBUG only):** Settings → Developer can simulate the
+  entitlement — Off (use the server), Free, or a synthetic active / expired /
+  grace / canceled state — to exercise Pro gating and expiry UI without a real
+  purchase. Gated by `BuildConfig.DEBUG`, so it's absent from release builds.
+
+## Notifications
+
+Opt-in **local** bill reminders (no server push). When `localNotifications` is
+on, `NotificationScheduler` arms `AlarmManager` reminders from the shared
+settings — lead time (`reminderLeadDays`), send hour (`notifyHour`), optional
+due-day reminder (`remindOnDueDay`), and the weekly digest (`weeklyDigest`).
+A `BootReceiver` (`RECEIVE_BOOT_COMPLETED`) **re-arms them after a reboot** from
+a persisted schedule, since alarms don't survive a restart. Needs the
+`POST_NOTIFICATIONS` runtime permission (API 33+). The same settings drive the
+server's reminder/digest **emails** — see the contract's §6 + §11.
+
+## Dashboard layouts
+
+The Dashboard supports **Classic** (fixed) and **Widgets** (reorderable,
+toggleable cards). The nine-widget catalog (`DashboardWidgets`) and its defaults
+match web and iOS — see [`docs/native-contract.md`](../docs/native-contract.md) §6/§9.
 
 ## Hardening, dark mode & fonts
 

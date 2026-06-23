@@ -83,6 +83,8 @@ data class IncomeSource(
     val label: String = "",
     val amount: Double = 0.0,
     val frequency: String = "monthly",
+    // For `hourly`: amount is the hourly rate, hoursPerWeek the weekly hours.
+    val hoursPerWeek: Double = 0.0,
 )
 
 /// A one-off or recurring change to a single period's income (bonus,

@@ -14,9 +14,72 @@ struct HistoryView: View {
             .sorted { $0.0 > $1.0 }
     }
 
+    // ── Income history (last 12 months: base + that month's adjustments) ──
+    private struct IncomeMonth: Identifiable { let id: String; let label: String; let total: Double; let bonus: Double }
+
+    private var incomeMonths: [IncomeMonth] {
+        let cal = DateLogic.calendar(tz: store.tz)
+        var d = Date()
+        var out: [IncomeMonth] = []
+        for _ in 0..<12 {
+            let mk = DateLogic.monthKey(d, tz: store.tz)
+            let total = Income.monthlyIncome(from: store.data.settings, monthKey: mk)
+            let bonus = Income.adjustments(from: store.data.settings, monthKey: mk)
+                .reduce(0.0) { $0 + max(0, $1.amount) }
+            out.append(IncomeMonth(id: mk, label: DateLogic.monthKeyLabel(mk, tz: store.tz), total: total, bonus: bonus))
+            d = cal.date(byAdding: .month, value: -1, to: d) ?? d
+        }
+        return out
+    }
+    private var baseIncome: Double { Income.monthlyIncome(from: store.data.settings) }
+    private var avgIncome: Double {
+        let m = incomeMonths
+        return m.isEmpty ? 0 : m.reduce(0) { $0 + $1.total } / Double(m.count)
+    }
+
+    @ViewBuilder private var incomeHistorySection: some View {
+        let months = incomeMonths
+        if baseIncome > 0 || months.contains(where: { $0.total > 0 }) {
+            let maxTotal = max(1, months.map(\.total).max() ?? 1)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Income history").font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Avg / mo (incl. bonuses)").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                            Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Recurring / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                            Text(Money.fmt(baseIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                        }
+                    }
+                    ForEach(months) { m in
+                        HStack(spacing: 8) {
+                            Text(m.label).font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                .frame(width: 64, alignment: .leading)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2)
+                                    RoundedRectangle(cornerRadius: 4).fill(Theme.accent)
+                                        .frame(width: geo.size.width * CGFloat(m.total / maxTotal))
+                                }
+                            }
+                            .frame(height: 14)
+                            Text(Money.fmt(m.total)).font(Theme.mono(12, weight: .medium)).foregroundStyle(Theme.text)
+                                .frame(width: 78, alignment: .trailing)
+                        }
+                    }
+                }
+                .ctCard()
+            }
+        }
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
+                incomeHistorySection
                 if grouped.isEmpty {
                     Text(store.loaded ? "No payments recorded yet." : "Loading…")
                         .font(Theme.ui(15)).foregroundStyle(Theme.muted).ctCard()

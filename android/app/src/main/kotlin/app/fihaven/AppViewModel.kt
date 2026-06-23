@@ -93,6 +93,9 @@ sealed interface Session {
     data class SignedIn(val user: User) : Session
 }
 
+/// Live data-save state, shown in Settings to reassure that data auto-syncs.
+enum class SyncState { Idle, Saving, Saved, Offline }
+
 /// Mirrors the iOS AppEnvironment: owns the API client + token store and
 /// the auth state machine, and holds the loaded AppData.
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -113,6 +116,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _entitlement = MutableStateFlow(Entitlement())
     val entitlement: StateFlow<Entitlement> = _entitlement.asStateFlow()
+
+    // Live save/sync state, surfaced in Settings so users know data
+    // auto-syncs to their account. Mirrors the web sync pill + iOS syncState.
+    private val _syncState = MutableStateFlow(SyncState.Idle)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     // ── Biometric app lock (local, per-device) ───────────────────────
     private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
@@ -313,6 +321,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             runAutopayMark()
             refreshEntitlement()
             _dataLoaded.value = true
+            _syncState.value = SyncState.Saved
+            refreshNotifications()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
@@ -413,7 +423,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Billing / entitlement ────────────────────────────────────────
     suspend fun refreshEntitlement() {
+        devEntitlement(devEntitlementOverride)?.let { _entitlement.value = it; return }
         runCatching { _entitlement.value = api.billingStatus() }
+    }
+
+    // ── Dev-only entitlement override (testing; debug builds) ─────────
+    // Simulates each Pro state without a real purchase. Local to the device;
+    // never touches the server. devEntitlement() returns null in release.
+    private val devEntKey = "fh_dev_entitlement"
+    var devEntitlementOverride: String
+        get() = prefs.getString(devEntKey, "off") ?: "off"
+        set(value) {
+            prefs.edit().apply { if (value == "off") remove(devEntKey) else putString(devEntKey, value) }.apply()
+            val synth = devEntitlement(value)
+            if (synth != null) _entitlement.value = synth
+            else viewModelScope.launch { refreshEntitlement() }
+        }
+
+    private fun devEntitlement(state: String): Entitlement? {
+        if (!BuildConfig.DEBUG) return null
+        val now = System.currentTimeMillis(); val day = 86_400_000L
+        return when (state) {
+            "free" -> Entitlement(pro = false, source = "dev")
+            "active" -> Entitlement(pro = true, source = "dev", plan = "monthly", expiresAt = now + 30 * day, autoRenew = true, proSince = now - 90 * day)
+            "expired" -> Entitlement(pro = false, source = "dev", plan = "monthly", expiresAt = now - 2 * day, autoRenew = false)
+            "grace" -> Entitlement(pro = true, source = "dev", plan = "monthly", expiresAt = now - day, autoRenew = false, proSince = now - 120 * day)
+            "canceled" -> Entitlement(pro = true, source = "dev", plan = "monthly", expiresAt = now + 10 * day, autoRenew = false, proSince = now - 200 * day)
+            else -> null
+        }
     }
 
     /** "Restore purchases" — re-sync entitlement from the server. */
@@ -509,10 +546,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun mutate(transform: (AppData) -> AppData) {
         _data.value = transform(_data.value)
+        _syncState.value = SyncState.Saving
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(800.milliseconds)
-            runCatching { api.saveData(_data.value) }
+            _syncState.value = if (runCatching { api.saveData(_data.value) }.isSuccess)
+                SyncState.Saved else SyncState.Offline
+            // Reschedule on-device reminders from the latest data (local —
+            // independent of whether the network save succeeded).
+            refreshNotifications()
+        }
+    }
+
+    /** Re-sync on-device bill reminders to the current bills + settings. */
+    fun refreshNotifications() {
+        val d = _data.value
+        runCatching {
+            NotificationScheduler.reschedule(getApplication(), d.bills, d.settings, zone())
         }
     }
 
@@ -639,8 +689,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setHidePaidOnDashboard(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("hidePaidOnDashboard", JsonPrimitive(on))) }
 
+    fun setDashboardLayout(layout: String) =
+        mutate { it.copy(settings = it.settings.withSetting("dashboardLayout", JsonPrimitive(layout))) }
+    fun setDashboardWidgets(ids: List<String>) =
+        mutate { it.copy(settings = it.settings.withSetting("dashboardWidgets", buildJsonArray { ids.forEach { id -> add(id) } })) }
+
     fun setMonthlySummary(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("monthlySummary", JsonPrimitive(on))) }
+
+    fun setWeeklyDigest(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("weeklyDigest", JsonPrimitive(on))) }
+    fun setReminderLeadDays(days: Int) =
+        mutate { it.copy(settings = it.settings.withSetting("reminderLeadDays", JsonPrimitive(days.coerceIn(0, 14)))) }
+    fun setRemindOnDueDay(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("remindOnDueDay", JsonPrimitive(on))) }
+    fun setNotifyHour(hour: Int) =
+        mutate { it.copy(settings = it.settings.withSetting("notifyHour", JsonPrimitive(hour.coerceIn(0, 23)))) }
+    /** On-device reminders. Reschedules immediately; the SettingsScreen
+     *  requests the POST_NOTIFICATIONS runtime permission when turning on. */
+    fun setLocalNotifications(on: Boolean) {
+        mutate { it.copy(settings = it.settings.withSetting("localNotifications", JsonPrimitive(on))) }
+        refreshNotifications()
+    }
 
     fun setAutopayMark(on: Boolean) {
         mutate { it.copy(settings = it.settings.withSetting("autopayMark", JsonPrimitive(on))) }
