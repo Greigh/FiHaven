@@ -1,0 +1,24 @@
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - package.json
+          - package-lock.json
+          - 'android/**/gradle-wrapper.properties'
+          - 'android/**/libs.versions.toml'
+          - 'ios/**/Package.resolved'
+          - 'ios/FiHavenApp/xcshareddata/swiftpm/Package.resolved'
+
+javascript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'client/**/*.{js,svelte,html,css}'
+          - 'server/**/*.js'
+          - 'scripts/**/*.js'
+          - 'tests/**/*.js'
+          - 'vitest.config.js'
+          - 'vite.config.js'
+
+java:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'android/**/*.{kt,kts,java,xml}'
