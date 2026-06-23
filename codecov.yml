@@ -1,0 +1,8 @@
+# Upload coverage for the README badge and Codecov dashboard.
+# Don't fail CI/PRs on patch % — the suite already runs in GitHub Actions.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch: off
