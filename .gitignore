@@ -25,3 +25,7 @@ android/styles.css
 .env.*.local
 .env.production
 .env.development
+
+# Local secrets / ops credential docs — never commit
+*.secret.md
+mail-server-logins.md

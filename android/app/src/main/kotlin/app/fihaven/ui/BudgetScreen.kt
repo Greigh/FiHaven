@@ -186,6 +186,7 @@ fun IncomeEditorDialog(source: IncomeSource?, vm: AppViewModel, onDismiss: () ->
     var label by remember { mutableStateOf(source?.label ?: "") }
     var amount by remember { mutableStateOf(source?.amount?.takeIf { it != 0.0 }?.toString() ?: "") }
     var frequency by remember { mutableStateOf(source?.frequency ?: "biweekly") }
+    var hoursPerWeek by remember { mutableStateOf(source?.hoursPerWeek?.takeIf { it != 0.0 }?.toString() ?: "") }
 
     FormDialog(
         title = if (source == null) "New Income" else "Edit Income",
@@ -196,6 +197,7 @@ fun IncomeEditorDialog(source: IncomeSource?, vm: AppViewModel, onDismiss: () ->
                     label = label.trim(),
                     amount = amount.toDoubleOrNull() ?: 0.0,
                     frequency = frequency,
+                    hoursPerWeek = if (frequency == "hourly") (hoursPerWeek.toDoubleOrNull() ?: 0.0) else 0.0,
                 )
             )
             onDismiss()
@@ -204,9 +206,13 @@ fun IncomeEditorDialog(source: IncomeSource?, vm: AppViewModel, onDismiss: () ->
         onDelete = source?.let { { vm.deleteIncome(it); onDismiss() } },
     ) {
         OutlinedTextField(label, { label = it }, label = { Text("Label") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, prefix = { Text("$") },
+        OutlinedTextField(amount, { amount = it }, label = { Text(if (frequency == "hourly") "Hourly rate" else "Amount") }, prefix = { Text("$") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
         DropdownField("Frequency", Income.frequencies.map { it.key }, frequency) { frequency = it }
+        if (frequency == "hourly") {
+            OutlinedTextField(hoursPerWeek, { hoursPerWeek = it }, label = { Text("Hours / week") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
     }
 }
 

@@ -18,8 +18,14 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                summary
-                upcomingSection
+                if store.data.settings.dashboardLayout == "widgets" {
+                    ForEach(DashboardWidget.enabled(store.data.settings), id: \.self) { id in
+                        widget(id)
+                    }
+                } else {
+                    summary
+                    upcomingSection
+                }
             }
             .padding()
         }
@@ -52,6 +58,33 @@ struct DashboardView: View {
         } else {
             store.skipMonth(type: item.type, refId: item.refId, name: item.name)
         }
+    }
+
+    // ── Widget rendering (Widgets layout) ────────────────────────────
+    @ViewBuilder
+    private func widget(_ id: String) -> some View {
+        switch id {
+        case "stats":         summary
+        case "cashflow":      CashflowWidget()
+        case "alerts":        AlertsWidget()
+        case "upcoming":      upcomingSection
+        case "networth":      statCard("Net worth", Money.fmt(store.netWorth), store.netWorth >= 0 ? Theme.green : Theme.red)
+        case "spending":      statCard("Spent this period", Money.fmt(store.totalSpent), Theme.accent)
+        case "goals":         GoalsWidget()
+        case "subscriptions": SubscriptionsWidget()
+        case "incomeHistory": IncomeHistoryWidget()
+        default:              EmptyView()
+        }
+    }
+
+    private func statCard(_ label: String, _ value: String, _ accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FieldLabel(text: label)
+            Text(value).font(Theme.mono(22, weight: .semibold)).foregroundStyle(accent)
+                .minimumScaleFactor(0.6).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ctCard()
     }
 
     // ── Summary cards ────────────────────────────────────────────────

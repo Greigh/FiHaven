@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import FiHavenCore
 
-enum SyncState {
+enum SyncState: Equatable {
     case idle, saving, saved, offline
 
     var label: String {
@@ -37,6 +37,7 @@ final class AppStore: ObservableObject {
             loaded = true
             syncState = .saved
             runAutopayMark()
+            refreshNotifications()
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline
@@ -182,6 +183,14 @@ final class AppStore: ObservableObject {
         } catch {
             syncState = .offline
         }
+        // Reschedule on-device reminders from the latest data regardless of
+        // whether the network save succeeded (notifications are local).
+        refreshNotifications()
+    }
+
+    /// Re-sync on-device bill reminders to the current bills + settings.
+    func refreshNotifications() {
+        NotificationScheduler.reschedule(bills: data.bills, settings: data.settings, tz: tz)
     }
 
     // ── Derived values (use the ported core logic) ──────────────────

@@ -13,6 +13,7 @@ object Income {
     data class Frequency(val key: String, val label: String, val perMonth: Double)
 
     val frequencies: List<Frequency> = listOf(
+        Frequency("hourly", "Hourly", 52.0 / 12.0), // ×hoursPerWeek
         Frequency("weekly", "Weekly", 52.0 / 12.0),
         Frequency("biweekly", "Bi-weekly", 26.0 / 12.0),
         Frequency("semimonthly", "Semi-monthly", 2.0),
@@ -20,10 +21,16 @@ object Income {
         Frequency("annual", "Annual", 1.0 / 12.0),
     )
 
+    /** Weeks per month — converts an hourly rate (× hours/week) to monthly. */
+    const val WEEKS_PER_MONTH: Double = 52.0 / 12.0
+
     fun factor(frequency: String): Double =
         frequencies.firstOrNull { it.key == frequency }?.perMonth ?: 1.0
 
-    fun monthly(source: IncomeSource): Double = source.amount * factor(source.frequency)
+    /** Monthly equivalent of a source. Hourly = rate × hours/week × weeks/month. */
+    fun monthly(source: IncomeSource): Double =
+        if (source.frequency == "hourly") source.amount * source.hoursPerWeek * WEEKS_PER_MONTH
+        else source.amount * factor(source.frequency)
 
     /// Base monthly income (recurring sources only).
     fun monthlyIncome(settings: JsonObject): Double {

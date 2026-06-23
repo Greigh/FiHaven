@@ -21,7 +21,7 @@ app follow.
 
 ```sh
 cd ios/FiHavenCore
-swift run FiHavenCoreChecks            # hermetic: models, logic, API (mocked)
+swift run FiHavenCoreChecks            # hermetic: models, settings, logic, API (mocked)
 ```
 
 Optional live round-trip against a running dev server
@@ -76,6 +76,26 @@ to your real public sitekey.
   redeem via `/api/billing/promo/redeem` (free grants) or hand off to
   Apple's offer-code sheet (`store_offer`).
 - **Pro-gated** features: Payoff, Calendar, History. Everything else is free.
+- **Dev override (DEBUG only):** Settings → Developer can simulate the
+  entitlement — Off (use the server), Free, or a synthetic active / expired /
+  grace / canceled state — to exercise Pro gating and expiry UI without a real
+  purchase. Compiled out of release builds (`#if DEBUG`).
+
+## Notifications
+
+Opt-in **local** bill reminders (no server push). When `localNotifications` is
+on, `NotificationScheduler` schedules `UNUserNotificationCenter` reminders from
+the shared settings — lead time (`reminderLeadDays`), send hour (`notifyHour`),
+optional due-day reminder (`remindOnDueDay`), and the weekly digest
+(`weeklyDigest`) — re-syncing whenever data loads or is pushed. The same
+settings also drive the server's reminder/digest **emails**; see the contract's
+§6 + §11.
+
+## Dashboard layouts
+
+The Dashboard supports **Classic** (fixed) and **Widgets** (reorderable,
+toggleable cards). The nine-widget catalog (`DashboardWidget`) and its defaults
+match web and Android — see [`docs/native-contract.md`](../docs/native-contract.md) §6/§9.
 
 ## Dark mode & fonts
 

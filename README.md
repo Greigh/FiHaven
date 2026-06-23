@@ -12,7 +12,7 @@ backend.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![Dependencies](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/dependency-review.yml?branch=main&label=Dependencies)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
-[![Version](https://img.shields.io/badge/version-1.2.3-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-GNU%20AGPLv3-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
 </div>
 
@@ -77,6 +77,17 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
 - **Debt payoff** — avalanche / snowball planners with a split view.
 - **Calendar + iCal** — month grid of due dates and a subscribe-anywhere
   feed.
+- **Customizable dashboard** — pick **Classic** (fixed) or **Widgets**, a
+  reorderable, toggleable set of cards (overview, cash-flow, alerts, upcoming,
+  net worth, spending, goals, subscriptions, income history). Identical
+  nine-widget catalog on web, iOS, and Android.
+- **Reminders & notifications** — configurable bill-reminder lead time and
+  send hour, an optional due-day reminder, and a weekly "week ahead" digest —
+  delivered as tz-aware **email** (server scheduler) and, on the native apps,
+  opt-in **local device notifications** (rescheduled across reboots on Android).
+- **Sign in with Apple / Google** — OAuth on web, iOS, and Android (see
+  [`docs/social-login-setup.md`](docs/social-login-setup.md)), alongside the
+  password + MFA flows.
 - **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate
   limiting (express-rate-limit), MFA (TOTP / passkeys / email codes),
   AES-256-GCM at rest, and a hardware-KeyStore-backed biometric app lock
@@ -113,7 +124,7 @@ Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 | **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
 | **Server** | Node 22 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
-| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email |
+| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) — see [`docs/social-login-setup.md`](docs/social-login-setup.md) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth redirect, `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
@@ -218,6 +229,7 @@ fihaven/
 │   │   ├── rewards.js               per-category rewards ranking engine
 │   │   ├── cardPresets.js           preset DB of popular cards + reward defaults
 │   │   ├── period.js                period model (calendar / start-day / rolling)
+│   │   ├── dashboardWidgets.js      dashboard widget catalog + layout/order helpers
 │   │   ├── plaid-oauth.js           /plaid-oauth redirect resume handler
 │   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
 │   │   ├── snoozes.svelte.js        per-bill snooze state
@@ -234,6 +246,7 @@ fihaven/
 │   │   ├── SubscriptionsPanel.svelte recurring-charge detection
 │   │   ├── NetWorthPanel.svelte     accounts → net-worth rollup
 │   │   ├── GoalsPanel.svelte        savings goals
+│   │   ├── IncomeHistory.svelte     12-month income trend (incl. bonuses)
 │   │   ├── CalendarView.svelte      month-grid of upcoming due dates
 │   │   ├── HistoryList.svelte
 │   │   ├── PayoffView.svelte
@@ -252,8 +265,11 @@ fihaven/
 │   ├── db.js                        better-sqlite3 + schema + statements
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
 │   ├── tokens.js                    single-use email tokens (verify / reset / recover)
-│   ├── emails.js                    branded HTML emails (verify, reset, recovery, reminders)
-│   ├── scheduler.js                 tz-aware bill-reminder + monthly-summary mailer
+│   ├── emails.js                    branded HTML emails (verify, reset, recovery,
+│   │                                bill reminders, weekly digest)
+│   ├── oauth.js                     OIDC ID-token verification for Sign in with Apple/Google
+│   ├── scheduler.js                 tz-aware mailer: bill reminders (configurable lead time,
+│   │                                send hour, due-day), weekly digest, monthly summary
 │   ├── captcha.js                   Cloudflare Turnstile siteverify
 │   ├── mfa.js                       AES-256-GCM, TOTP, backup codes, passkeys, email codes
 │   ├── billing.js                   Stripe + entitlement (FiHaven Pro)
@@ -263,7 +279,8 @@ fihaven/
 │   │                                (per-IP flood guard is express-rate-limit in index.js)
 │   ├── util.js                      email + password policy, BCRYPT_COST
 │   └── routes/
-│       ├── auth.js                  signup, login, logout, me, verify, reset, recover
+│       ├── auth.js                  signup, login, logout, me, verify, reset, recover,
+│       │                            OAuth (Sign in with Apple/Google)
 │       ├── data.js                  GET/PUT /api/data (verified-gated)
 │       ├── account.js               change-email/password/name, delete, export,
 │       │                            export/<type>.csv, iCal token CRUD, onboarded
@@ -384,7 +401,7 @@ the Vite dev middleware.
 | `/terms` | Terms of Use | public | ✅ |
 | `/privacy` | Privacy Policy | public | ✅ |
 | `/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
-| `/settings` | Profile / Preferences / Payments — time zone, name, 2FA, iCal, bank linking, email, password, export, import, delete | required | ❌ noindex |
+| `/settings` | Grouped settings (open a group to drill in) — Profile, Preferences (time zone, theme, dashboard layout, **reminders/notifications**), Security (2FA), Payments/Pro, Calendar/iCal, Bank linking, Data (export/import/delete). Auto-synced to the server. | required | ❌ noindex |
 | `/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
 | `/404` | Not-found page | public | ❌ |
 | `/500` | Server-error page | public | ❌ |
@@ -407,6 +424,8 @@ CSV / JSON export endpoints and the public `.ics` feed).
 | `POST` | `/api/auth/mfa/passkey/start` / `.../finish` | WebAuthn second-factor handshake |
 | `POST` | `/api/auth/logout` | Destroy session (requires `X-CSRF-Token`) |
 | `GET` | `/api/auth/me` | Session check — returns `{user, csrfToken}` or `{user: null}` |
+| `GET` | `/api/auth/oauth/config` | Which social providers are configured (drives button visibility) |
+| `POST` | `/api/auth/oauth/:provider` | Verify a Google/Apple OIDC ID token → link-or-create + session |
 | `GET` | `/api/config` | Public config (currently just `turnstileSitekey`) |
 
 ### Per-user data

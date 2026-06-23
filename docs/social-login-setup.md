@@ -36,6 +36,12 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
 - For local testing without real keys: set `OAUTH_VERIFY_MODE=dev-trust` and
   put any value in the audience var; the server will trust hand-made tokens.
 
+> **Deploy note:** `upload.sh` uploads a *sanitized* `.env` (it strips
+> `SSH_*` / `DEV_USER_*`). The OAuth vars above are in its passthrough
+> allowlist, so they reach production — if buttons say "not set up yet" in prod,
+> confirm the deployed `.env` actually contains them (a stale deploy script that
+> didn't allowlist them was the original cause).
+
 ## 2. Google (Google Cloud Console)
 
 1. Console → **APIs & Services → Credentials → Create OAuth client ID**.

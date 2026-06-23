@@ -118,6 +118,60 @@ describe('emails.js', () => {
     expect(msg.text).toContain('<script>alert(1)</script>');
   });
 
+  it('sendBillReminder says "due today" for a 0-day lead', async () => {
+    await emails.sendBillReminder(
+      'user@test.com',
+      [{ name: 'Power', amount: 90, dueDay: 17 }],
+      0,
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('Reminder: Power is due today');
+    expect(msg.html).toContain('1 bill due today');
+  });
+
+  it('sendBillReminder says "due tomorrow" for a 1-day lead', async () => {
+    await emails.sendBillReminder(
+      'user@test.com',
+      [{ name: 'Rent', amount: 1450, dueDay: 18 }],
+      1,
+      'USD',
+    );
+    expect(sendMailMock.mock.calls[0][0].subject).toBe('Reminder: Rent is due tomorrow');
+  });
+
+  it('sendWeeklyDigest lists upcoming bills with relative due timing', async () => {
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      {
+        upcoming: [
+          { name: 'Power', amount: 90, daysUntil: 0 },
+          { name: 'Rent', amount: 1450, daysUntil: 3 },
+        ],
+        upcomingTotal: 1540,
+        debtTotal: 300,
+      },
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('FiHaven weekly: 2 bills due soon');
+    expect(msg.text).toContain('• Power — $90.00 (due today)');
+    expect(msg.text).toContain('• Rent — $1,450.00 (due in 3 days)');
+    expect(msg.html).toContain('$1,540.00'); // upcoming total
+    expect(msg.html).toContain('$300.00');   // card debt
+  });
+
+  it('sendWeeklyDigest handles an empty week', async () => {
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      { upcoming: [], upcomingTotal: 0, debtTotal: 0 },
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('FiHaven weekly: nothing due in the next 7 days');
+    expect(msg.text).toContain('No bills are due in the next 7 days');
+  });
+
   it('sendMonthlySummary includes paid, bills, and debt totals', async () => {
     await emails.sendMonthlySummary(
       'user@test.com',

@@ -73,7 +73,8 @@
       var host = document.querySelector('[data-oauth-google]');
       if (host) {
         google.accounts.id.renderButton(host, {
-          theme: 'outline', size: 'large', width: 280, text: 'continue_with',
+          theme: 'outline', size: 'large', width: 300, shape: 'rectangular',
+          text: 'continue_with', logo_alignment: 'left',
         });
       }
     });
@@ -92,10 +93,16 @@
       });
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = ' Continue with Apple';
-      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;' +
-        'width:280px;height:40px;border-radius:6px;border:1px solid #000;background:#000;' +
-        'color:#fff;font-size:15px;font-weight:500;cursor:pointer;';
+      // Apple logo + label, sized to match the Google button (300×44).
+      btn.innerHTML =
+        '<svg width="16" height="19" viewBox="0 0 14 17" fill="#fff" aria-hidden="true" focusable="false">' +
+        '<path d="M11.6 9c0-1.6 1.3-2.4 1.4-2.5-.8-1.1-2-1.3-2.4-1.3-1-.1-2 .6-2.5.6s-1.3-.6-2.2-.6c-1.1 0-2.2.7-2.7 1.7C1 8.9 1.9 12 3 13.7c.5.8 1.2 1.7 2 1.7.8 0 1.1-.5 2.1-.5s1.3.5 2.1.5 1.4-.8 1.9-1.6c.6-.9.9-1.8.9-1.8s-1.6-.6-1.6-2.4M9.9 3.6c.4-.5.7-1.3.6-2-.6 0-1.4.4-1.8.9-.4.4-.8 1.2-.7 1.9.7.1 1.4-.3 1.9-.8"/>' +
+        '</svg>' +
+        '<span>Continue with Apple</span>';
+      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;' +
+        'width:100%;height:44px;border-radius:8px;border:1px solid #000;background:#000;' +
+        'color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;' +
+        '-webkit-font-smoothing:antialiased;';
       btn.addEventListener('click', function () {
         AppleID.auth.signIn().then(function (resp) {
           var idToken = resp && resp.authorization && resp.authorization.id_token;

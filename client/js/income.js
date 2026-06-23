@@ -5,6 +5,7 @@
 ═══════════════════════════════════════════════════════════ */
 
 export const FREQUENCIES = [
+  { key: 'hourly',      label: 'Hourly',       perMonth: 52 / 12 }, // ×hoursPerWeek
   { key: 'weekly',      label: 'Weekly',       perMonth: 52 / 12 },
   { key: 'biweekly',    label: 'Bi-weekly',    perMonth: 26 / 12 },
   { key: 'semimonthly', label: 'Semi-monthly', perMonth: 2 },
@@ -14,12 +15,22 @@ export const FREQUENCIES = [
 
 export const FREQ_MAP = Object.fromEntries(FREQUENCIES.map((f) => [f.key, f]));
 
+// Weeks per month — converts an hourly rate (× hours/week) to a monthly figure.
+export const WEEKS_PER_MONTH = 52 / 12;
+
 export function perMonthFor(frequency) {
   return (FREQ_MAP[frequency] || FREQ_MAP.monthly).perMonth;
 }
 
+// Monthly equivalent of a recurring source. Hourly multiplies rate (amount) ×
+// hoursPerWeek × weeks-per-month; every other frequency multiplies the amount
+// by its per-month count.
 export function monthlyOfSource(src) {
-  return (parseFloat(src.amount) || 0) * perMonthFor(src.frequency);
+  const amount = parseFloat(src.amount) || 0;
+  if (src.frequency === 'hourly') {
+    return amount * (parseFloat(src.hoursPerWeek) || 0) * WEEKS_PER_MONTH;
+  }
+  return amount * perMonthFor(src.frequency);
 }
 
 // Resolve the user's *base* monthly income from the settings object

@@ -39,6 +39,14 @@ describe('income — monthlyOfSource', () => {
   it('treats a non-numeric amount as 0', () => {
     expect(monthlyOfSource({ amount: 'x', frequency: 'weekly' })).toBe(0);
   });
+
+  it('computes hourly as rate × hours/week × weeks per month', () => {
+    // $20/hr × 40h/wk × (52/12) ≈ $3466.67/mo
+    expect(monthlyOfSource({ amount: 20, frequency: 'hourly', hoursPerWeek: 40 }))
+      .toBeCloseTo((20 * 40 * 52) / 12);
+    // No hours → 0 (not the bare rate).
+    expect(monthlyOfSource({ amount: 20, frequency: 'hourly' })).toBe(0);
+  });
 });
 
 describe('income — monthlyIncomeFromSettings', () => {

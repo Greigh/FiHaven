@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
@@ -28,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -44,6 +50,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.fihaven.BuildConfig
+import app.fihaven.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.net.MfaChallenge
@@ -181,23 +188,46 @@ fun AuthScreen(vm: AppViewModel) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
+                // White button + official "G" mark (Google branding), sized to
+                // match the Apple button.
                 androidx.compose.material3.OutlinedButton(
                     onClick = { signInWithGoogle() },
                     enabled = !working,
-                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF3C3C3C),
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDADCE0)),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                 ) {
-                    Text("Continue with Google", color = Ct.colors.text)
+                    Icon(
+                        painterResource(R.drawable.ic_google_g),
+                        contentDescription = null,
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("Continue with Google", color = Color(0xFF3C3C3C), fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
                 Button(
                     onClick = { AppleWebSignIn.launch(context) },
                     enabled = !working,
+                    shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = androidx.compose.ui.graphics.Color.Black,
-                        contentColor = androidx.compose.ui.graphics.Color.White,
+                        containerColor = Color.Black,
+                        contentColor = Color.White,
                     ),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(48.dp),
                 ) {
-                    Text("Continue with Apple")
+                    Icon(
+                        painterResource(R.drawable.ic_apple_logo),
+                        contentDescription = null,
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("Continue with Apple", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
             }
         }

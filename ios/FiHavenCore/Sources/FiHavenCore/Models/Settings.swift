@@ -127,10 +127,49 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["hidePaidOnDashboard"] = .bool(newValue) }
     }
 
+    /// Dashboard layout: "classic" (fixed) or "widgets" (customizable order).
+    public var dashboardLayout: String {
+        get { raw["dashboardLayout"]?.asString ?? "classic" }
+        set { raw["dashboardLayout"] = .string(newValue) }
+    }
+    /// Ordered enabled dashboard widget ids (Widgets mode). Empty = default set.
+    public var dashboardWidgets: [String] {
+        get { raw["dashboardWidgets"]?.asArray?.compactMap { $0.asString } ?? [] }
+        set { raw["dashboardWidgets"] = .array(newValue.map { .string($0) }) }
+    }
+
     /// Opt-in: email me a monthly summary on the 1st (server scheduler).
     public var monthlySummary: Bool {
         get { raw["monthlySummary"]?.asBool ?? false }
         set { raw["monthlySummary"] = .bool(newValue) }
+    }
+
+    /// Days before a bill's due date to remind (0–14, default 3). Drives both
+    /// the server email scheduler and on-device local notifications.
+    public var reminderLeadDays: Int {
+        get { min(14, max(0, raw["reminderLeadDays"]?.asDouble.map { Int($0) } ?? 3)) }
+        set { raw["reminderLeadDays"] = .number(Double(min(14, max(0, newValue)))) }
+    }
+    /// Local hour (0–23, default 8) reminders/digest/summary are sent.
+    public var notifyHour: Int {
+        get { min(23, max(0, raw["notifyHour"]?.asDouble.map { Int($0) } ?? 8)) }
+        set { raw["notifyHour"] = .number(Double(min(23, max(0, newValue)))) }
+    }
+    /// Opt-in: also remind on the day a bill is actually due.
+    public var remindOnDueDay: Bool {
+        get { raw["remindOnDueDay"]?.asBool ?? false }
+        set { raw["remindOnDueDay"] = .bool(newValue) }
+    }
+    /// Opt-in: a weekly digest email (Monday) of upcoming bills + balances.
+    public var weeklyDigest: Bool {
+        get { raw["weeklyDigest"]?.asBool ?? false }
+        set { raw["weeklyDigest"] = .bool(newValue) }
+    }
+    /// Opt-in: schedule bill reminders as on-device local notifications.
+    /// Synced so the preference follows the user, but scheduling is per-device.
+    public var localNotifications: Bool {
+        get { raw["localNotifications"]?.asBool ?? false }
+        set { raw["localNotifications"] = .bool(newValue) }
     }
 
     /// Per-category monthly spending budgets (category → amount).

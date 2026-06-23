@@ -45,6 +45,12 @@ function from() {
   return process.env.MAIL_FROM || 'FiHaven <no-reply@fihaven.app>';
 }
 
+// Probe the SMTP connection (and auth, if configured) without sending a
+// message. Resolves on success; rejects with the underlying transport error.
+async function verify() {
+  return transporter().verify();
+}
+
 async function sendMail({ to, subject, text, html, replyTo }) {
   const msg = {
     from: from(),
@@ -57,4 +63,4 @@ async function sendMail({ to, subject, text, html, replyTo }) {
   return transporter().sendMail(msg);
 }
 
-module.exports = { sendMail, transporter, from };
+module.exports = { sendMail, transporter, from, verify };

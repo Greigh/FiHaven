@@ -21,8 +21,18 @@
   import {
     snoozes, isSnoozed, snoozeUntilTomorrow, unsnooze, pruneExpiredSnoozes,
   } from '../js/snoozes.svelte.js';
+  import { dashboardLayout, enabledWidgets } from '../js/dashboardWidgets.js';
+  import NetWorthPanel from './NetWorthPanel.svelte';
+  import SpendingPanel from './SpendingPanel.svelte';
+  import GoalsPanel from './GoalsPanel.svelte';
+  import SubscriptionsPanel from './SubscriptionsPanel.svelte';
+  import IncomeHistory from './IncomeHistory.svelte';
 
   pruneExpiredSnoozes();
+
+  // Dashboard layout: "classic" (fixed) or "widgets" (configurable order).
+  let layout  = $derived(dashboardLayout(settings));
+  let widgets = $derived(enabledWidgets(settings));
 
   const mk        = currentPeriodKey();
   const monthName = periodKeyLabel(mk);
@@ -138,7 +148,29 @@
   </div>
 </div>
 
+<!-- ─── Layout dispatch: classic (fixed) or widgets (configurable) ─── -->
+{#if layout === 'classic'}
+  {@render statsTiles()}
+  {@render cashflowBar()}
+  {@render alertsBlock()}
+  {@render upcomingBlock()}
+{:else}
+  {#each widgets as id (id)}
+    {#if id === 'stats'}{@render statsTiles()}
+    {:else if id === 'cashflow'}{@render cashflowBar()}
+    {:else if id === 'alerts'}{@render alertsBlock()}
+    {:else if id === 'upcoming'}{@render upcomingBlock()}
+    {:else if id === 'networth'}<NetWorthPanel />
+    {:else if id === 'spending'}<SpendingPanel />
+    {:else if id === 'goals'}<GoalsPanel />
+    {:else if id === 'subscriptions'}<SubscriptionsPanel />
+    {:else if id === 'incomeHistory'}<IncomeHistory />
+    {/if}
+  {/each}
+{/if}
+
 <!-- ─── Stat tiles ──────────────────────────────────────── -->
+{#snippet statsTiles()}
 <div class="stat-strip">
   <div class="stat-tile {unpaidAmt > 0 ? 'is-warn' : 'is-good'}">
     <div class="stat-label">{owedLabel}</div>
@@ -166,8 +198,10 @@
     <div class="stat-sub">{urgentPromo === 0 ? 'No urgent deadlines' : (urgentPromo + ' need' + (urgentPromo === 1 ? 's' : '') + ' attention')}</div>
   </div>
 </div>
+{/snippet}
 
 <!-- ─── Cash-flow progress bar ──────────────────────────── -->
+{#snippet cashflowBar()}
 {#if monthBudgeted > 0}
   <div class="cashflow-card">
     <div class="cashflow-head">
@@ -192,8 +226,10 @@
     </div>
   </div>
 {/if}
+{/snippet}
 
 <!-- ─── Alerts ──────────────────────────────────────────── -->
+{#snippet alertsBlock()}
 {#if alerts.length > 0}
   <div class="alert-stack">
     {#each alerts as a, i (i)}
@@ -201,6 +237,7 @@
     {/each}
   </div>
 {/if}
+{/snippet}
 
 <!-- ─── Upcoming Payments ───────────────────────────────── -->
 {#snippet group(title, list, kind)}
@@ -256,6 +293,7 @@
   {/if}
 {/snippet}
 
+{#snippet upcomingBlock()}
 <div class="upcoming-wrap">
   <div class="section-header" style="margin-bottom:0;">
     <span class="section-title">Upcoming Payments</span>
@@ -297,3 +335,4 @@
     </div>
   {/if}
 </div>
+{/snippet}
