@@ -20,13 +20,13 @@ class BillReminderReceiver : BroadcastReceiver() {
 
         NotificationScheduler.ensureChannel(context)
 
-        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val contentPi = launch?.let {
-            PendingIntent.getActivity(
-                context, code, it,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
+        val launch = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
+        val contentPi = PendingIntent.getActivity(
+            context, code, launch,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
 
         val notification = NotificationCompat.Builder(context, NotificationScheduler.CHANNEL_ID)
             .setSmallIcon(context.applicationInfo.icon)
@@ -35,7 +35,7 @@ class BillReminderReceiver : BroadcastReceiver() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .apply { contentPi?.let { setContentIntent(it) } }
+            .setContentIntent(contentPi)
             .build()
 
         try {
