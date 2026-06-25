@@ -158,8 +158,9 @@ object NotificationScheduler {
         title: String? = null,
         body: String? = null,
     ): PendingIntent {
+        // Explicit component only — no action string, so CodeQL and the
+        // framework treat this as a non-mutable destination (FLAG_IMMUTABLE).
         val intent = Intent(context, BillReminderReceiver::class.java).apply {
-            action = "app.fihaven.BILL_REMINDER"
             putExtra("code", code)
             title?.let { putExtra("title", it) }
             body?.let { putExtra("body", it) }
