@@ -186,6 +186,60 @@
             </div>
           </form>
         </section>
+
+        <!-- ── Budget rule lens ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Budget rule</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Optional budget <strong>lens</strong> on the Budget tab — split presets, safe-to-spend, debt focus, or envelope lite (Pro). Housing and debt ratio warnings appear when relevant. Off by default.
+          </p>
+          <form class="auth-form" data-form="budgetrule" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="budget-rule-mode">Lens</label>
+              <select id="budget-rule-mode" data-budget-rule-mode>
+                <option value="off">Off</option>
+                <optgroup label="Income splits">
+                  <option value="50-30-20">50 / 30 / 20</option>
+                  <option value="80-20">80 / 20 (living / save)</option>
+                  <option value="60-20-20">60 / 20 / 20</option>
+                  <option value="70-20-10">70 / 20 / 10</option>
+                  <option value="custom">Custom percentages</option>
+                </optgroup>
+                <optgroup label="FiHaven lenses">
+                  <option value="obligations-first">Obligations first (safe to spend)</option>
+                  <option value="debt-focus">Debt focus</option>
+                  <option value="envelope">Envelope lite (Pro)</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="auth-field" data-budget-rule-splits hidden>
+              <label>Custom split (%)</label>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                <div>
+                  <label for="budget-rule-needs" style="font-size:12px;color:var(--muted);">Needs</label>
+                  <input id="budget-rule-needs" type="number" min="0" max="100" step="1" data-budget-rule-needs>
+                </div>
+                <div>
+                  <label for="budget-rule-wants" style="font-size:12px;color:var(--muted);">Wants</label>
+                  <input id="budget-rule-wants" type="number" min="0" max="100" step="1" data-budget-rule-wants>
+                </div>
+                <div>
+                  <label for="budget-rule-save" style="font-size:12px;color:var(--muted);">Save</label>
+                  <input id="budget-rule-save" type="number" min="0" max="100" step="1" data-budget-rule-save>
+                </div>
+              </div>
+            </div>
+            <div class="auth-field" data-debt-focus-extra-field hidden>
+              <label for="budget-debt-extra">Extra monthly debt payment</label>
+              <input id="budget-debt-extra" type="number" min="0" step="1" data-debt-focus-extra placeholder="0">
+              <p style="margin-top:6px;color:var(--muted);font-size:13px;">Planned dollars above minimums — same idea as the Payoff planner extra payment.</p>
+            </div>
+            <div class="auth-error" data-message="budgetrule" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save budget rule</button>
+            </div>
+          </form>
+        </section>
       </div>
 
       <!-- ═══════════════ Payments ═══════════════ -->

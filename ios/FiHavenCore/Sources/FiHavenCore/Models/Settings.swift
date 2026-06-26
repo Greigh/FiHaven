@@ -172,6 +172,45 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["localNotifications"] = .bool(newValue) }
     }
 
+    /// Budget rule lens: off | 50-30-20 | presets | custom | obligations-first | debt-focus | envelope.
+    public var budgetRule: String {
+        get { raw["budgetRule"]?.asString ?? "off" }
+        set { raw["budgetRule"] = .string(newValue) }
+    }
+
+    public struct BudgetRuleSplits: Equatable, Sendable {
+        public var needs: Int
+        public var wants: Int
+        public var save: Int
+    }
+
+    /// Planned extra monthly debt payment (debt-focus lens).
+    public var debtFocusExtra: Double {
+        get { max(0, raw["debtFocusExtra"]?.asDouble ?? 0) }
+        set { raw["debtFocusExtra"] = .number(max(0, newValue)) }
+    }
+
+    /// Custom needs/wants/save percentages (normalized in BudgetRules.splits).
+    public var budgetRuleSplits: BudgetRuleSplits {
+        get {
+            guard let o = raw["budgetRuleSplits"]?.asObject else {
+                return BudgetRuleSplits(needs: 50, wants: 30, save: 20)
+            }
+            func pct(_ k: String, _ d: Int) -> Int {
+                let v = Int(o[k]?.asDouble ?? Double(d))
+                return min(100, max(0, v))
+            }
+            return BudgetRuleSplits(needs: pct("needs", 50), wants: pct("wants", 30), save: pct("save", 20))
+        }
+        set {
+            raw["budgetRuleSplits"] = .object([
+                "needs": .number(Double(newValue.needs)),
+                "wants": .number(Double(newValue.wants)),
+                "save": .number(Double(newValue.save)),
+            ])
+        }
+    }
+
     /// Per-category monthly spending budgets (category → amount).
     public var categoryBudgets: [String: Double] {
         get {

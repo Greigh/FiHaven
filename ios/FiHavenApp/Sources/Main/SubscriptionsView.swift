@@ -2,50 +2,17 @@ import SwiftUI
 import FiHavenCore
 
 /// Subscription finder (Rocket-Money style): bills flagged as Subscriptions,
-/// plus merchants that recur across ≥2 months in transactions. Flags price
-/// increases and stale (long-unused) subscriptions. Its own Pro tab.
+/// plus merchants that recur across ≥2 months. Flags price increases, stale
+/// subs, duplicates, trials, and cancel/manage links.
 struct SubscriptionsView: View {
     @EnvironmentObject var store: AppStore
 
-    private struct Sub: Identifiable {
-        let id: String; let name: String; let monthly: Double
-        let source: String; let priceUp: Double?; let stale: Bool
-        let nextDue: Date?
-    }
-
-    private func monthlyOfBill(_ b: Bill) -> Double {
-        switch b.frequency {
-        case "Weekly": return b.amount * 52 / 12
-        case "Bi-weekly": return b.amount * 26 / 12
-        case "Quarterly": return b.amount / 3
-        case "Annually": return b.amount / 12
-        default: return b.amount
-        }
-    }
-    private func daysSince(_ iso: String) -> Int? {
-        guard let d = DateLogic.parseDate(iso, tz: store.tz) else { return nil }
-        return Calendar.current.dateComponents([.day], from: d, to: Date()).day
-    }
-
-    private var subscriptions: [Sub] {
-        var out: [Sub] = []
-        for b in store.data.bills where b.category == "Subscriptions" && !DateLogic.billEnded(b, tz: store.tz) {
-            out.append(Sub(id: "bill-\(b.id)", name: b.name.isEmpty ? "Subscription" : b.name,
-                           monthly: monthlyOfBill(b), source: "bill", priceUp: nil, stale: false,
-                           nextDue: BillSchedule.nextDueDate(b, tz: store.tz)))
-        }
-        let withMerchant = store.data.transactions.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
-        let byMerchant = Dictionary(grouping: withMerchant) { $0.merchant.trimmingCharacters(in: .whitespaces).lowercased() }
-        for (_, list) in byMerchant {
-            if Set(list.map { String($0.date.prefix(7)) }).count < 2 { continue }
-            let sorted = list.sorted { $0.date < $1.date }
-            guard let latest = sorted.last else { continue }
-            let minAmt = list.map { $0.amount }.min() ?? 0
-            out.append(Sub(id: "tx-\(latest.merchant)", name: latest.merchant, monthly: latest.amount,
-                           source: "tx", priceUp: latest.amount > minAmt + 0.005 ? minAmt : nil,
-                           stale: (daysSince(latest.date) ?? 0) > 60, nextDue: nil))
-        }
-        return out.sorted { $0.monthly > $1.monthly }
+    private var subscriptions: [SubscriptionsFinder.Item] {
+        SubscriptionsFinder.build(
+            bills: store.data.bills,
+            transactions: store.data.transactions,
+            tz: store.tz
+        )
     }
 
     private var totalMonthly: Double { subscriptions.reduce(0) { $0 + $1.monthly } }
@@ -57,7 +24,7 @@ struct SubscriptionsView: View {
                     Text("🔁").font(.system(size: 40))
                     Text("No subscriptions detected yet")
                         .font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text("Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here, with price-increase and stale-subscription flags.")
+                    Text("Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
                 }
@@ -77,24 +44,16 @@ struct SubscriptionsView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(subscriptions.enumerated()), id: \.element.id) { i, s in
                             if i > 0 { Divider().overlay(Theme.border) }
-                            HStack(spacing: 10) {
+                            HStack(alignment: .top, spacing: 10) {
                                 Text(s.source == "bill" ? "📄" : "🔁").font(.system(size: 15))
-                                VStack(alignment: .leading, spacing: 1) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
-                                    HStack(spacing: 6) {
-                                        if let up = s.priceUp {
-                                            Text("▲ was \(Money.fmt(up))").font(Theme.ui(11)).foregroundStyle(Theme.orange)
-                                        }
-                                        if s.stale { Text("⚠ unused 60d+").font(Theme.ui(11)).foregroundStyle(Theme.red) }
-                                        if s.priceUp == nil && !s.stale {
-                                            if let next = s.nextDue {
-                                                Text("Next: \(subFriendlyDate(next))")
-                                                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                            } else {
-                                                Text(s.source == "bill" ? "Tracked bill" : "Recurring charge")
-                                                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                            }
-                                        }
+                                    Text(subDetail(s))
+                                        .font(Theme.ui(11))
+                                        .foregroundStyle(subDetailColor(s))
+                                    if let url = s.manageUrl, let link = URL(string: url) {
+                                        Link("Manage / cancel ↗", destination: link)
+                                            .font(Theme.ui(11))
                                     }
                                 }
                                 Spacer()
@@ -113,6 +72,23 @@ struct SubscriptionsView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Subscriptions")
+    }
+
+    private func subDetail(_ s: SubscriptionsFinder.Item) -> String {
+        if s.duplicate { return "⚡ possible duplicate" }
+        if s.trialSoon, let d = s.trialDaysLeft { return "⏳ trial ends in \(d)d" }
+        if let d = s.trialDaysLeft, d < 0 { return "Trial ended" }
+        if let up = s.priceUp { return "▲ was \(Money.fmt(up))" }
+        if s.stale { return "⚠ unused 60d+" }
+        if let next = s.nextDue { return "Next: \(subFriendlyDate(next))" }
+        return s.source == "bill" ? "Tracked bill" : "Recurring charge"
+    }
+
+    private func subDetailColor(_ s: SubscriptionsFinder.Item) -> Color {
+        if s.duplicate || s.priceUp != nil { return Theme.orange }
+        if s.trialSoon { return Theme.accent }
+        if s.stale { return Theme.red }
+        return Theme.muted
     }
 
     private func subFriendlyDate(_ date: Date) -> String {

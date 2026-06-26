@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.Money
 import app.fihaven.core.logic.BillSchedule
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
 import app.fihaven.core.model.IncomeAdjustment
@@ -64,6 +65,13 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     val obligations = data.bills.filter { BillSchedule.dueInPeriod(it, bounds, vm.zone()) }.sumOf { it.amount } +
         data.cards.sumOf { it.minPayment }
     val leftover = income - obligations
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val zone = vm.zone()
+    val billDue: (app.fihaven.core.model.Bill) -> Boolean = { BillSchedule.dueInPeriod(it, bounds, zone) }
+    val budgetLens = BudgetRules.lens(
+        data.settings, income, data.bills, data.cards, data.transactions, data.goals,
+        bounds, billDue, ent.pro, zone,
+    )
     val sources = data.settings.incomes
     val adjustments = data.settings.incomeAdjustments.filter { it.appliesTo(periodKey) }
 
@@ -80,6 +88,9 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         summaryRow("Leftover", Money.fmt(leftover), if (leftover >= 0) Ct.colors.green else Ct.colors.red)
                     }
                 }
+            }
+            budgetLens?.let { lens ->
+                item { BudgetLensCard(lens) }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -383,6 +394,58 @@ fun CategoryBudgetsDialog(vm: AppViewModel, budgets: Map<String, Double>, onDism
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+@Composable
+private fun BudgetLensCard(lens: BudgetRules.Lens) {
+    CtCard {
+        Text("BUDGET LENS", color = Ct.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(lens.title, color = Ct.colors.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp))
+        Text(lens.subtitle, color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+        if (lens.proLocked) {
+            Text("Envelope lite is a Pro feature. Upgrade to assign income to goals and category budgets.",
+                color = Ct.colors.muted, fontSize = 13.sp)
+        } else {
+            lens.headline?.let { h ->
+                val bg = if (h.status == "ok") Ct.colors.green.copy(alpha = 0.08f) else Ct.colors.red.copy(alpha = 0.08f)
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        .background(bg, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(h.label, color = Ct.colors.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(Money.fmt(h.amount), color = Ct.colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlexMono)
+                }
+            }
+            lens.rows.forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text(row.label, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        row.pct?.let { Text("$it%", color = Ct.colors.muted, fontSize = 11.sp) }
+                        row.hint?.let { Text(it, color = Ct.colors.muted, fontSize = 11.sp) }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        row.target?.let { if (it != row.actual) Text("target ${Money.fmt(it)}", color = Ct.colors.muted, fontSize = 12.sp) }
+                        val color = when (row.status) {
+                            "ok" -> Ct.colors.green
+                            "under" -> Ct.colors.red
+                            else -> Ct.colors.orange
+                        }
+                        Text(Money.fmt(row.actual), color = color, fontSize = 13.sp, fontFamily = PlexMono)
+                    }
+                }
+            }
+            lens.warnings.forEach { w ->
+                Text(
+                    "${w.label}: ${w.pct}% of income (≤ ${w.limit}%)" + if (w.over) " ⚠" else "",
+                    color = if (w.over) Ct.colors.orange else Ct.colors.muted,
+                    fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }
