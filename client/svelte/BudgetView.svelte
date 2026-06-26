@@ -16,6 +16,7 @@
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
   import GoalsPanel from './GoalsPanel.svelte';
+  import BudgetRulePanel from './BudgetRulePanel.svelte';
   import {
     FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf,
     normalizeAdjustment, adjustmentAppliesTo,
@@ -176,6 +177,8 @@
   </div>
   <button class="btn btn-ghost btn-sm" onclick={() => monthOffset++}>Next ›</button>
 </div>
+
+<BudgetRulePanel income={totalMonthlyIncome} periodBounds={periodBnds} mk={mk} />
 
 <!-- Income sources card -->
 <section class="budget-card budget-income">

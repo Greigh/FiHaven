@@ -4,6 +4,7 @@ import {
   daysSince,
   buildSubscriptionItems,
   totalMonthlySubs,
+  findDuplicateGroups,
   STALE_DAYS,
 } from './subscriptionsFinder.js';
 import * as tz from './tz.js';
@@ -91,5 +92,23 @@ describe('subscriptionsFinder — buildSubscriptionItems', () => {
 
     expect(items.map((i) => i.name)).toEqual(['Premium', 'Cheap']);
     expect(totalMonthlySubs(items)).toBeCloseTo(25);
+  });
+
+  it('flags duplicate subscriptions and trial ending soon', () => {
+    const now = new Date(2026, 5, 15).getTime();
+    const items = buildSubscriptionItems(
+      [
+        { id: 'n1', name: 'Netflix', category: 'Subscriptions', amount: 15, frequency: 'Monthly' },
+        { id: 'n2', name: 'NETFLIX', category: 'Subscriptions', amount: 16, frequency: 'Monthly' },
+        { id: 't1', name: 'Hulu trial', category: 'Subscriptions', amount: 0, frequency: 'Monthly', trialEnds: '2026-06-17' },
+      ],
+      [],
+      now,
+    );
+    expect(items.filter((i) => i.duplicate)).toHaveLength(2);
+    const trial = items.find((i) => i.name === 'Hulu trial');
+    expect(trial.trialSoon).toBe(true);
+    expect(trial.manageUrl).toBeTruthy();
+    expect(findDuplicateGroups(items)).toHaveLength(1);
   });
 });
