@@ -13,7 +13,7 @@ android {
         applicationId = "app.fihaven"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
+        versionCode = 6
         versionName = "1.4.1"
         buildConfigField("String", "TURNSTILE_SITEKEY", "\"0x4AAAAAADVKKZMye086WePX\"")
         // Google Sign-In: the WEB OAuth client id is used as the Credential
