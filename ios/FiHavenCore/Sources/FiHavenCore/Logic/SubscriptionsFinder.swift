@@ -92,8 +92,8 @@ public enum SubscriptionsFinder {
 
     private static func trialDaysLeft(_ trialEnds: String?, tz: TimeZone) -> Int? {
         guard let trialEnds, trialEnds.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil,
-              let end = DateLogic.parseDate(trialEnds, tz: tz),
-              let today = DateLogic.today(tz: tz) else { return nil }
+              let end = DateLogic.parseDate(trialEnds, tz: tz) else { return nil }
+        let today = DateLogic.today(tz: tz)
         return Calendar.current.dateComponents([.day], from: today, to: end).day
     }
 
