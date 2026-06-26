@@ -2,12 +2,28 @@
   BudgetRulePanel.svelte — optional budget lenses on the Budget tab.
 -->
 <script>
-  import { bills, cards, transactions, goals, settings, entitlement } from '../js/storage.svelte.js';
+  import { bills, cards, transactions, goals, settings, entitlement, save } from '../js/storage.svelte.js';
   import { fmt, billDueInPeriod, goalAmountFor } from '../js/utils.js';
-  import { budgetRuleEnabled, computeBudgetLens } from '../js/budgetRules.js';
+  import { boundsForKey, shiftPeriod } from '../js/period.js';
+  import {
+    budgetRuleEnabled, computeBudgetLens, applyEnvelopeRollover,
+  } from '../js/budgetRules.js';
   import { openProDialog } from '../js/pro.js';
 
+  const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
+
   let { income, periodBounds, mk } = $props();
+
+  // Apply rollover from the previous period once per period key.
+  $effect(() => {
+    if (!settings.envelopeRollover) return;
+    const prev = shiftPeriod(periodBounds, -1);
+    const next = applyEnvelopeRollover(settings, transactions, prev);
+    if (next !== settings) {
+      Object.assign(settings, next);
+      save('fh_settings', settings);
+    }
+  });
 
   let lens = $derived.by(() => {
     if (!budgetRuleEnabled(settings)) return null;
@@ -25,6 +41,20 @@
       isPro: entitlement.pro,
     });
   });
+
+  function setEnvelopeGoal(id, val) {
+    const raw = settings.envelopeAssign || {};
+    const goalsMap = { ...(raw.goals || {}), [String(id)]: parseFloat(val) || 0 };
+    settings.envelopeAssign = { ...raw, goals: goalsMap };
+    save('fh_settings', settings);
+  }
+
+  function setEnvelopeCat(cat, val) {
+    const raw = settings.envelopeAssign || {};
+    const cats = { ...(raw.categories || {}), [cat]: parseFloat(val) || 0 };
+    settings.envelopeAssign = { ...raw, categories: cats };
+    save('fh_settings', settings);
+  }
 
   function statusLabel(row) {
     if (row.status === 'ok') return '✓';
@@ -90,6 +120,43 @@
         </div>
       {/if}
 
+      {#if lens.mode === 'envelope' && lens.envelope}
+        <div class="envelope-editor">
+          <div class="envelope-editor-title">Assign envelopes</div>
+          {#if goals.length > 0}
+            <div class="envelope-editor-group">
+              <div class="envelope-editor-label">Goals</div>
+              {#each goals as g (g.id)}
+                <label class="envelope-editor-row">
+                  <span>{g.name || 'Goal'}</span>
+                  <div class="goal-amount"><span>$</span>
+                    <input type="number" step="10" min="0"
+                      value={lens.envelope.goalMap[String(g.id)] ?? ''}
+                      oninput={(e) => setEnvelopeGoal(g.id, e.currentTarget.value)} />
+                  </div>
+                </label>
+              {/each}
+            </div>
+          {/if}
+          <div class="envelope-editor-group">
+            <div class="envelope-editor-label">Categories</div>
+            {#each CATS as cat (cat)}
+              <label class="envelope-editor-row">
+                <span>{cat}</span>
+                <div class="goal-amount"><span>$</span>
+                  <input type="number" step="25" min="0"
+                    value={lens.envelope.catMap[cat] ?? ''}
+                    oninput={(e) => setEnvelopeCat(cat, e.currentTarget.value)} />
+                </div>
+              </label>
+            {/each}
+          </div>
+          {#if settings.envelopeRollover}
+            <p class="envelope-editor-note">Unused category amounts roll into the next period.</p>
+          {/if}
+        </div>
+      {/if}
+
       {#if lens.warnings && lens.warnings.length > 0}
         <div class="budget-rule-warnings">
           {#each lens.warnings as w (w.key)}
@@ -140,4 +207,14 @@
     margin-top: 8px; padding: 14px; border: 1px dashed var(--border); border-radius: 8px;
     display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
   }
+  .envelope-editor { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .envelope-editor-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .envelope-editor-group { margin-bottom: 12px; }
+  .envelope-editor-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .envelope-editor-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    font-size: 13px; padding: 4px 0;
+  }
+  .envelope-editor-row input { width: 88px; text-align: right; }
+  .envelope-editor-note { font-size: 12px; color: var(--muted); margin: 0; }
 </style>
