@@ -54,17 +54,39 @@ function fetchData() {
 
 // Persist settings.tabs from the chosen goals. Best-effort: resolves even on
 // failure so onboarding never gets stuck.
+function selectedBudgetRule() {
+  var wrap = document.querySelector('[data-budget-style-wrap]');
+  if (!wrap || wrap.hidden) return null;
+  var picked = document.querySelector('[data-budget-style]:checked');
+  if (!picked) return null;
+  return picked.value === '50-30-20' ? '50-30-20' : 'off';
+}
+
+function toggleBudgetStyle() {
+  var wrap = document.querySelector('[data-budget-style-wrap]');
+  if (!wrap) return;
+  var budgetOn = Array.prototype.some.call(
+    document.querySelectorAll('[data-goal]:checked'),
+    function (c) { return c.value === 'budget'; }
+  );
+  wrap.hidden = !budgetOn;
+}
+
 function saveGoalTabs() {
   var ids = selectedTabIds();
-  if (!ids) return Promise.resolve();
+  var rule = selectedBudgetRule();
+  if (!ids && !rule) return Promise.resolve();
   return fetchData().then(function (server) {
+    var nextSettings = Object.assign({}, server.settings || {});
+    if (ids) nextSettings.tabs = ids;
+    if (rule) nextSettings.budgetRule = rule;
     return fetch('/api/data', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
       credentials: 'same-origin',
       body: JSON.stringify({
         bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
-        settings: Object.assign({}, server.settings || {}, { tabs: ids }),
+        settings: nextSettings,
       }),
     });
   }).catch(function () {});
@@ -112,6 +134,9 @@ function wire() {
   // "Next" / "Maybe later" / "I'll do it later" — advance without exiting.
   Array.prototype.forEach.call(document.querySelectorAll('[data-next]'), function (b) {
     b.addEventListener('click', next);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-goal]'), function (c) {
+    c.addEventListener('change', toggleBudgetStyle);
   });
   // Exits — each marks onboarding complete first.
   var skipAll = document.querySelector('[data-skip-all]');
