@@ -15,6 +15,7 @@ struct ProView: View {
                 statusCard
                 Button(billing.isPro ? "Manage Pro" : "Upgrade to Pro") { showPaywall = true }
                     .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityHint(billing.isPro ? "Opens subscription management" : "Opens upgrade options")
                 Button("Redeem a code") { showRedeem = true }
                     .font(Theme.ui(15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
@@ -45,10 +46,17 @@ struct ProView: View {
             HStack {
                 Text("Status").font(Theme.ui(15)).foregroundStyle(Theme.muted)
                 Spacer()
-                Text(billing.isPro ? planLabel : "Free")
-                    .font(Theme.ui(15, weight: .semibold))
-                    .foregroundStyle(billing.isPro ? Theme.green : Theme.text)
+                HStack(spacing: 6) {
+                    Image(systemName: billing.isPro ? "checkmark.circle.fill" : "circle")
+                        .font(.caption)
+                        .foregroundStyle(billing.isPro ? Theme.green : Theme.muted)
+                    Text(billing.isPro ? planLabel : "Free")
+                        .font(Theme.ui(15, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Status, \(billing.isPro ? planLabel : "Free")")
             if billing.isPro {
                 if let sourceLabel = sourceLabel {
                     HStack {

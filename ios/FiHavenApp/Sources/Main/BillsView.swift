@@ -137,15 +137,20 @@ struct BillsView: View {
                         Text("Name (A–Z)").tag("name")
                     }
                 } label: { Image(systemName: "arrow.up.arrow.down") }
+                    .accessibilityIconButton("Sort bills")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showFilters = true } label: {
                     Image(systemName: filterCount > 0 ? "line.3.horizontal.decrease.circle.fill"
                                                        : "line.3.horizontal.decrease.circle")
                 }
+                .accessibilityIconButton(
+                    filterCount > 0 ? "Filter bills, \(filterCount) active" : "Filter bills"
+                )
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { creating = true } label: { Image(systemName: "plus") }
+                    .accessibilityIconButton("Add bill")
             }
         }
         .sheet(isPresented: $creating) {
@@ -204,13 +209,21 @@ private struct BillRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: statusTap) {
-                Image(systemName: skipped ? "forward.end.circle.fill" : statusIcon)
-                    .font(.system(size: 24))
-                    .foregroundStyle(skipped ? Theme.muted : statusColor)
+                VStack(spacing: 2) {
+                    Image(systemName: skipped ? "forward.end.circle.fill" : A11y.paidStateIcon(state))
+                        .font(.system(size: 24))
+                        .foregroundStyle(skipped ? Theme.muted : statusColor)
+                    Text(skipped ? "Skipped" : A11y.paidStateLabel(state))
+                        .font(Theme.ui(9, weight: .medium))
+                        .foregroundStyle(skipped ? Theme.muted : statusColor)
+                }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(bill.name), \(skipped ? "Skipped this month" : A11y.paidStateLabel(state))")
+            .accessibilityHint(A11y.paidStateHint(state, skipped: skipped))
 
             Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 20))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(bill.name)
@@ -256,6 +269,9 @@ private struct BillRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(bill.name), \(Money.fmt(bill.amount)), \(skipped ? "Skipped this month" : dueText)")
+        .accessibilityHint("Double tap to edit")
         .contextMenu {
             if state == .full && !skipped {
                 Button { onUnmark() } label: { Label("Undo payment", systemImage: "arrow.uturn.backward") }
@@ -275,14 +291,6 @@ private struct BillRow: View {
         if skipped { onUnskip() }
         else if state == .full { onUnmark() }
         else { onPay() }
-    }
-
-    private var statusIcon: String {
-        switch state {
-        case .full: return "checkmark.circle.fill"
-        case .partial: return "circle.lefthalf.filled"
-        case .unpaid: return "circle"
-        }
     }
 
     private var statusColor: Color {

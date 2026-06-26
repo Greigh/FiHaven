@@ -40,6 +40,7 @@ struct EditPaymentView: View {
                         dismiss()
                     }
                     .disabled(amount <= 0)
+                    .accessibilityHint(amount <= 0 ? "Enter an amount greater than zero" : "Saves changes to this payment")
                 }
             }
             .onAppear {

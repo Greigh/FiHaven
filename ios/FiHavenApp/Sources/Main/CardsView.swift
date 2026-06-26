@@ -135,15 +135,20 @@ struct CardsView: View {
                         Text("Name (A–Z)").tag("name")
                     }
                 } label: { Image(systemName: "arrow.up.arrow.down") }
+                    .accessibilityIconButton(isLoanView ? "Sort loans" : "Sort cards")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showFilters = true } label: {
                     Image(systemName: filterCount > 0 ? "line.3.horizontal.decrease.circle.fill"
                                                        : "line.3.horizontal.decrease.circle")
                 }
+                .accessibilityIconButton(
+                    filterCount > 0 ? "Filter cards, \(filterCount) active" : "Filter cards"
+                )
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { creating = true } label: { Image(systemName: "plus") }
+                    .accessibilityIconButton(isLoanView ? "Add loan" : "Add card")
             }
         }
         .sheet(isPresented: $creating) { CardEditorView(card: nil, defaultType: kind) }
@@ -196,15 +201,29 @@ struct CardsView: View {
                     }
                     HStack(spacing: 6) {
                         Text("Utilization").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        Text(String(format: "%.0f%%", util * 100))
-                            .font(Theme.mono(13, weight: .medium))
-                            .foregroundStyle(util > 0.3 ? Theme.red : Theme.green)
+                        let utilPct = Int(util * 100)
+                        let high = util > 0.3
+                        HStack(spacing: 4) {
+                            if high {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.red)
+                            }
+                            Text("\(utilPct)%")
+                                .font(Theme.mono(13, weight: .medium))
+                                .foregroundStyle(Theme.text)
+                            Text(high ? "High" : "OK")
+                                .font(Theme.ui(10, weight: .medium))
+                                .foregroundStyle(high ? Theme.red : Theme.muted)
+                        }
                     }
                 }
             }
             if totalLimit > 0 {
                 ProgressView(value: min(1, util))
                     .tint(util > 0.3 ? Theme.red : Theme.accent)
+                    .accessibilityLabel("Total credit utilization")
+                    .accessibilityValue("\(Int(util * 100)) percent")
             }
         }
         .ctCard(branded: true)
@@ -257,7 +276,11 @@ struct AccountEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(name.isEmpty)
+                        .accessibilityHint(name.isEmpty ? "Enter an account name to save" : "Saves this asset account")
+                }
             }
             .onAppear {
                 if let account {
@@ -298,7 +321,10 @@ private struct CardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
-                Text(card.type == "loan" ? "🏦" : "💳").font(.system(size: 20))
+                Image(systemName: card.type == "loan" ? "building.columns" : "creditcard")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .center, spacing: 4) {
                         Text(card.name).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
@@ -316,7 +342,6 @@ private struct CardRow: View {
             }
 
             if card.type != "loan" {
-                // utilization bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.surface2)
@@ -325,20 +350,37 @@ private struct CardRow: View {
                     }
                 }
                 .frame(height: 6)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Credit utilization")
+                .accessibilityValue("\(Int(utilization * 100)) percent of \(Money.fmtShort(card.limit))")
 
                 HStack(spacing: 8) {
+                    if utilization > 0.5 {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.orange)
+                    }
                     Text("\(Int(utilization * 100))% of \(Money.fmtShort(card.limit))")
-                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                        .font(Theme.ui(12)).foregroundStyle(Theme.text)
+                    if utilization > 0.5 {
+                        Text("High")
+                            .font(Theme.ui(10, weight: .medium))
+                            .foregroundStyle(Theme.orange)
+                    }
                     if let cur = card.currentBalance, cur > 0 {
                         Text("Current: \(Money.fmtShort(cur))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
                     Spacer()
                     if promoActive {
-                        Text("0% promo")
-                            .font(Theme.mono(10, weight: .medium))
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Theme.greenBg).foregroundStyle(Theme.green)
-                            .clipShape(Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: "percent")
+                                .font(.caption2)
+                            Text("0% promo")
+                                .font(Theme.mono(10, weight: .medium))
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Theme.greenBg).foregroundStyle(Theme.text)
+                        .clipShape(Capsule())
                     } else {
                         Text("\(card.regularAPR, specifier: "%.2f")% APR")
                             .font(Theme.mono(11)).foregroundStyle(Theme.muted)
@@ -354,32 +396,68 @@ private struct CardRow: View {
             Divider().overlay(Theme.border)
 
             HStack {
-                switch state {
-                case .full:
-                    Label("Paid \(Money.fmt(paidSoFar)) this month", systemImage: "checkmark.circle.fill")
-                        .font(Theme.ui(12, weight: .medium)).foregroundStyle(Theme.green)
-                case .partial:
-                    Text("Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))")
-                        .font(Theme.ui(12, weight: .medium)).foregroundStyle(Theme.orange)
-                case .unpaid:
-                    Text(card.type == "loan" ? "Monthly payment: \(Money.fmt(card.minPayment))" : "Not paid this month")
-                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                }
+                paymentStatusView
                 Spacer()
                 if state != .full {
                     Button(action: onPay) {
                         Text(state == .partial ? "Pay more" : "Pay")
                             .font(Theme.ui(13, weight: .semibold))
                             .padding(.horizontal, 14).padding(.vertical, 6)
-                            .background(Theme.greenBg).foregroundStyle(Theme.green)
+                            .background(Theme.greenBg).foregroundStyle(Theme.text)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(state == .partial ? "Pay more on \(card.name)" : "Pay \(card.name)")
                 }
             }
         }
         .ctCard()
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(cardSummary)
+        .accessibilityHint("Double tap to edit")
+    }
+
+    @ViewBuilder
+    private var paymentStatusView: some View {
+        switch state {
+        case .full:
+            Label("Paid \(Money.fmt(paidSoFar)) this month", systemImage: "checkmark.circle.fill")
+                .font(Theme.ui(12, weight: .medium))
+                .foregroundStyle(Theme.text)
+        case .partial:
+            Label("Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))", systemImage: "circle.lefthalf.filled")
+                .font(Theme.ui(12, weight: .medium))
+                .foregroundStyle(Theme.text)
+        case .unpaid:
+            Text(card.type == "loan" ? "Monthly payment: \(Money.fmt(card.minPayment))" : "Not paid this month")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+        }
+    }
+
+    private var cardSummary: String {
+        var parts = [
+            card.name,
+            "balance \(Money.fmt(card.balance))",
+            paymentStatusText,
+        ]
+        if card.type != "loan", card.limit > 0 {
+            parts.append("\(Int(utilization * 100)) percent utilized")
+        }
+        if promoActive { parts.append("0 percent promo active") }
+        return parts.joined(separator: ", ")
+    }
+
+    private var paymentStatusText: String {
+        switch state {
+        case .full: return "paid \(Money.fmt(paidSoFar)) this month"
+        case .partial: return "partially paid, \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))"
+        case .unpaid:
+            return card.type == "loan"
+                ? "monthly payment \(Money.fmt(card.minPayment))"
+                : "not paid this month"
+        }
     }
 }

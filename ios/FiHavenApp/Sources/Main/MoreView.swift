@@ -97,8 +97,10 @@ struct MoreView: View {
                 Image(systemName: "arrow.up.right")
                     .font(Theme.ui(12, weight: .semibold))
                     .foregroundStyle(Theme.muted)
+                    .accessibilityHidden(true)
             }
         }
+        .accessibilityHint("Opens in browser")
     }
 
     /// DEBUG: `FH_ROUTE=budget` auto-pushes a sub-screen for screenshots.

@@ -91,16 +91,21 @@ struct CalendarView: View {
     }
 
     private func dayCell(_ day: Int) -> some View {
-        let has = !(itemsByDay[day] ?? []).isEmpty
+        let items = itemsByDay[day] ?? []
+        let has = !items.isEmpty
         let isToday = day == todayDay
         let isSelected = day == selectedDay
         return VStack(spacing: 3) {
             Text("\(day)")
                 .font(Theme.ui(14, weight: isToday ? .bold : .regular))
                 .foregroundStyle(isSelected ? .white : (isToday ? Theme.accent : Theme.text))
-            Circle()
-                .fill(has ? (isSelected ? Color.white : Theme.accent) : .clear)
-                .frame(width: 5, height: 5)
+            if has {
+                Text("•")
+                    .font(Theme.mono(10, weight: .bold))
+                    .foregroundStyle(isSelected ? .white : Theme.accent)
+            } else {
+                Color.clear.frame(width: 5, height: 5)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 44)
@@ -112,6 +117,19 @@ struct CalendarView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { selectedDay = day }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            A11y.calendarDayLabel(
+                day: day,
+                monthLabel: store.monthLabel,
+                hasItems: has,
+                itemCount: items.count,
+                isToday: isToday,
+                isSelected: isSelected
+            )
+        )
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint(has ? "Shows what's due on this day." : "Shows this day's due items.")
     }
 
     @ViewBuilder
@@ -136,13 +154,7 @@ struct CalendarView: View {
 
     private func dueRow(_ item: DayItem) -> some View {
         let state = store.paidState(type: item.type, refId: item.refId)
-        let icon: String = {
-            switch state {
-            case .full: return "checkmark.circle.fill"
-            case .partial: return "circle.lefthalf.filled"
-            case .unpaid: return "circle"
-            }
-        }()
+        let icon = A11y.paidStateIcon(state)
         let color: Color = {
             switch state {
             case .full: return Theme.green
@@ -154,10 +166,18 @@ struct CalendarView: View {
             Button {
                 paying = PayTarget(type: item.type, refId: item.refId, name: item.name)
             } label: {
-                Image(systemName: icon).foregroundStyle(color)
+                VStack(spacing: 2) {
+                    Image(systemName: icon).foregroundStyle(color)
+                    Text(A11y.paidStateLabel(state))
+                        .font(Theme.ui(9, weight: .medium))
+                        .foregroundStyle(color)
+                }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(item.name), \(A11y.paidStateLabel(state))")
+            .accessibilityHint("Opens payment screen")
             Text(item.icon)
+                .accessibilityHidden(true)
             Text(item.name).font(Theme.ui(15)).foregroundStyle(Theme.text)
             Spacer()
             Text(Money.fmt(item.amount)).font(Theme.mono(14, weight: .medium)).foregroundStyle(Theme.text)
