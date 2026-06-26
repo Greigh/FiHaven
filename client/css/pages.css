@@ -728,7 +728,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 16px 18px;
   border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--surface2) 42%, white);
+  background: color-mix(in srgb, var(--surface) 96%, white);
 }
 
 .contact-route h4 {
@@ -752,9 +752,23 @@ input[type="file"]::file-selector-button:hover {
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
-  background: color-mix(in srgb, var(--surface) 90%, white);
+  background: color-mix(in srgb, var(--surface) 96%, white);
   font-size: 13px;
   line-height: 1.65;
+}
+
+/* Legal/FAQ/contact sub-panels reuse marketing color-mix(..., white) bases.
+   In dark mode those reads as washed-out gray cards — match hero-shell panels. */
+[data-theme="dark"] .faq-item,
+[data-theme="dark"] .contact-route,
+[data-theme="dark"] .contact-note,
+[data-theme="dark"] .security-summary-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="dark"] .faq-item[open] summary {
+  border-bottom-color: rgba(255, 255, 255, 0.07);
 }
 
 /* ── Security summary grid ───────────────────────────────────── */
