@@ -16,6 +16,12 @@ invite email validation.
 
 - **Information security policy** — documents that CodeQL runs on `main`
   pushes, weekly schedule, and manual dispatch (not on every pull request).
+- **Android intro icons** — `ReceiptLong` and `TrendingUp` use auto-mirrored
+  Material icons on the pre-login intro for RTL locales.
+- **Android token storage** — document intentional use of deprecated
+  `EncryptedSharedPreferences` until a stable `security-crypto` successor
+  ships (`@file:Suppress("DEPRECATION")` on `PrefsTokenStore`).
+- Android `versionCode` 6 (same `1.4.1` build for Play re-upload).
 
 ### Fixed
 
