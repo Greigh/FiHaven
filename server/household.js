@@ -18,10 +18,10 @@ const crypto = require('crypto');
 const dbApi = require('./db');
 const billing = require('./billing');
 const events = require('./householdEvents');
+const { isValidEmail, normalizeEmail } = require('./util');
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_NAME_LEN = 60;
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function hashToken(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
@@ -105,8 +105,8 @@ function rename(user, name) {
 function invite(user, email) {
   const mem = membership(user.id);
   if (!mem || mem.role !== 'owner') throw new Error('not-owner');
-  const target = String(email || '').trim().toLowerCase();
-  if (!EMAIL_RE.test(target)) throw new Error('invalid-email');
+  const target = normalizeEmail(email);
+  if (!isValidEmail(target)) throw new Error('invalid-email');
 
   const hhId = mem.household_id;
   const members = dbApi.listHouseholdMembers(hhId);

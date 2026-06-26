@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -201,9 +202,8 @@ object NotificationScheduler {
         title: String? = null,
         body: String? = null,
     ): PendingIntent {
-        // Explicit component only — no action string, so CodeQL and the
-        // framework treat this as a non-mutable destination (FLAG_IMMUTABLE).
-        val intent = Intent(context, BillReminderReceiver::class.java).apply {
+        val intent = Intent().apply {
+            component = ComponentName(context, BillReminderReceiver::class.java)
             putExtra("code", code)
             title?.let { putExtra("title", it) }
             body?.let { putExtra("body", it) }

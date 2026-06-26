@@ -38,11 +38,11 @@ Security is a standing consideration in design and code review, not a separate g
 
 FiHaven runs a continuous, lightweight risk-management cycle:
 
-**Identify.** Risks are identified through (a) threat modeling of new features that touch authentication, payments, or connected-account data; (b) automated static analysis (GitHub CodeQL) on every push and pull request; (c) automated dependency scanning (Dependabot + dependency review) for known-vulnerable libraries; (d) GitHub secret scanning; and (e) review of provider security bulletins (Plaid, Stripe, Cloudflare, hosting, runtime/OS).
+**Identify.** Risks are identified through (a) threat modeling of new features that touch authentication, payments, or connected-account data; (b) automated static analysis (GitHub CodeQL) on pushes to the main branch; (c) automated dependency scanning (Dependabot + dependency review) for known-vulnerable libraries; (d) GitHub secret scanning; and (e) review of provider security bulletins (Plaid, Stripe, Cloudflare, hosting, runtime/OS).
 
 **Mitigate.** Identified risks are tracked and remediated based on severity. Controls are layered: encryption in transit and at rest, least-privilege access, MFA, input validation, rate limiting, bot mitigation, CSRF protection, and dependency patching. High-severity issues are prioritized for immediate remediation; lower-severity issues are scheduled and tracked to closure.
 
-**Monitor.** The Service is monitored through application logs, process-manager logs (PM2), and reverse-proxy access/error logs (nginx). Automated CI re-runs security analysis on every change. Authentication anomalies (e.g., repeated failed logins) are constrained by rate limiting. The risk posture and this policy are reviewed at least annually.
+**Monitor.** The Service is monitored through application logs, process-manager logs (PM2), and reverse-proxy access/error logs (nginx). Automated CI runs on every push and pull request; CodeQL re-runs on the main branch. Authentication anomalies (e.g., repeated failed logins) are constrained by rate limiting. The risk posture and this policy are reviewed at least annually.
 
 A risk that cannot be immediately remediated is documented with a compensating control and a remediation target date, approved by the Security Officer.
 
@@ -84,7 +84,7 @@ Restricted and Confidential data are only ever transmitted over encrypted channe
 
 - Source is managed in Git with change history and code review via pull requests on the mainline branch.
 - **Continuous integration** builds and tests the web, iOS, and Android targets on every push and pull request.
-- **Static analysis** (GitHub CodeQL) runs on JavaScript/TypeScript, Java/Kotlin, and Swift.
+- **Static analysis** (GitHub CodeQL) runs on JavaScript/TypeScript, Java/Kotlin, and Swift on pushes to the main branch (plus a weekly scheduled scan).
 - **Dependency hygiene** is automated with Dependabot (updates) and dependency review (blocks introduction of known-vulnerable packages); `npm audit` is used for the backend.
 - Input is validated and output encoded to defend against injection and XSS; database access uses parameterized/prepared statements exclusively.
 - Authentication, payments, and connected-account changes receive Security Officer review before merge.
@@ -104,7 +104,7 @@ Restricted and Confidential data are only ever transmitted over encrypted channe
 
 FiHaven runs a defined vulnerability-management program spanning source code, dependencies, production hosts, and operator endpoints:
 
-- **Source code** is analyzed on every push and pull request (GitHub CodeQL); findings are triaged by severity.
+- **Source code** is analyzed on pushes to the main branch (GitHub CodeQL); findings are triaged by severity.
 - **Dependencies** are monitored continuously (Dependabot) and gated against known-vulnerable packages (dependency review); `npm audit` supplements the backend.
 - **Production hosts** receive operating-system and runtime security patches on a regular cadence; available security updates are surfaced by the host package manager and applied promptly.
 - **Operator endpoints** (workstations used to administer the Service) run the platform's built-in malware/vulnerability protection and automatic security updates, with full-disk encryption and screen-lock enforced.

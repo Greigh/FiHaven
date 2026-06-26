@@ -2,6 +2,7 @@ package app.fihaven
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -20,7 +21,8 @@ class BillReminderReceiver : BroadcastReceiver() {
 
         NotificationScheduler.ensureChannel(context)
 
-        val launch = Intent(context, MainActivity::class.java).apply {
+        val launch = Intent().apply {
+            component = ComponentName(context, MainActivity::class.java)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentPi = PendingIntent.getActivity(
