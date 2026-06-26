@@ -72,6 +72,7 @@ struct BrandMark: View {
             )
         }
         .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -85,6 +86,8 @@ struct BrandedNavTitle: View {
             BrandMark(size: markSize)
             Text(title).font(Theme.title(17)).foregroundStyle(Theme.text)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -160,7 +163,10 @@ struct MadeWithLove: View {
     var body: some View {
         HStack(spacing: 4) {
             Text("Made with")
-            Text("♥").foregroundStyle(Theme.red)
+            Image(systemName: "heart.fill")
+                .font(.caption2)
+                .foregroundStyle(Theme.red)
+                .accessibilityHidden(true)
             Text("by")
             Link("Daniel Hipskind", destination: URL(string: "https://danielhipskind.com")!)
                 .foregroundStyle(Theme.accent)

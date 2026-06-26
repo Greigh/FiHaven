@@ -5,6 +5,7 @@ import SwiftUI
 /// FiHaven is and which features are free vs Pro.
 struct IntroView: View {
     @AppStorage("fh_intro_seen") private var introSeen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = 0
 
     private struct Feature { let icon: String; let text: String }
@@ -83,6 +84,7 @@ struct IntroView: View {
                     .font(Theme.ui(28, weight: .bold))
                     .foregroundStyle(Theme.text)
                     .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
                 Text(page.body)
                     .font(Theme.ui(16))
                     .foregroundStyle(Theme.muted)
@@ -99,11 +101,13 @@ struct IntroView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 26)
+                                .accessibilityHidden(true)
                             Text(f.text)
                                 .font(Theme.ui(15))
                                 .foregroundStyle(Theme.text)
                             Spacer(minLength: 0)
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 }
                 .padding(18)
@@ -115,7 +119,7 @@ struct IntroView: View {
         }
         .padding(.horizontal, 32)
         .id(step) // re-run the transition when the page changes
-        .transition(.opacity.combined(with: .move(edge: .trailing)))
+        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .trailing)))
     }
 
     /// A soft gradient disc with the FiHaven mark (page 1) or page glyph.
@@ -134,6 +138,7 @@ struct IntroView: View {
                     .foregroundStyle(accentForBadge)
             }
         }
+        .accessibilityLabel(page.title)
     }
 
     // ── Footer: progress dots + primary button ───────────────────────
@@ -144,12 +149,18 @@ struct IntroView: View {
                     Capsule()
                         .fill(i == step ? Theme.accent : Theme.border)
                         .frame(width: i == step ? 22 : 8, height: 8)
-                        .animation(.spring(response: 0.3), value: step)
+                        .animationIfAllowed(.spring(response: 0.3), value: step)
                 }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Page \(step + 1) of \(pages.count)")
 
             Button {
-                if isLast { introSeen = true } else { withAnimation(.easeInOut(duration: 0.25)) { step += 1 } }
+                if isLast {
+                    introSeen = true
+                } else {
+                    performWithAnimation(!reduceMotion) { step += 1 }
+                }
             } label: {
                 Text(isLast ? "Get started" : "Next")
             }

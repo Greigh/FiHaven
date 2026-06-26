@@ -126,9 +126,14 @@ struct CardEditorView: View {
                             HStack {
                                 Text("Start from a known card…").foregroundStyle(Theme.accent)
                                 Spacer()
-                                Image(systemName: "chevron.down").font(.caption).foregroundStyle(Theme.muted)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.muted)
+                                    .accessibilityHidden(true)
                             }
                         }
+                        .accessibilityLabel("Start from a known card preset")
+                        .accessibilityHint("Opens reward rate presets for popular cards")
                         HStack {
                             Text("Base reward rate")
                             Spacer()
@@ -186,7 +191,9 @@ struct CardEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.disabled(name.isEmpty)
+                    Button("Save") { save() }
+                        .disabled(name.isEmpty)
+                        .accessibilityHint(name.isEmpty ? "Enter a name to save" : "Saves this \(type == "loan" ? "loan" : "card")")
                 }
             }
             .onAppear(perform: load)

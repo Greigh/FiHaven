@@ -39,12 +39,21 @@ struct TabsEditorView: View {
             Button {
                 move(item, inBottom: inBottom)
             } label: {
-                Image(systemName: inBottom ? "minus.circle.fill" : "plus.circle.fill")
-                    .foregroundStyle(inBottom ? Theme.red : Theme.green)
-                    .imageScale(.large)
+                HStack(spacing: 4) {
+                    Image(systemName: inBottom ? "minus.circle.fill" : "plus.circle.fill")
+                        .imageScale(.large)
+                    Text(inBottom ? "Remove" : "Add")
+                        .font(Theme.ui(11, weight: .medium))
+                }
+                .foregroundStyle(inBottom ? Theme.red : Theme.green)
             }
             .buttonStyle(.plain)
             .disabled(!inBottom && bottom.count >= maxBottomTabs)
+            .accessibilityLabel(
+                inBottom
+                    ? "Move \(item.title) to More"
+                    : "Add \(item.title) to bottom bar"
+            )
 
             Label(item.title, systemImage: item.symbol)
                 .foregroundStyle(Theme.text)

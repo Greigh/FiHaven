@@ -35,9 +35,11 @@ struct AboutView: View {
                 Button { openURL(Self.privacyURL) } label: {
                     LabeledContent("Privacy Policy") { Image(systemName: "arrow.up.right.square") }
                 }
+                .accessibilityHint("Opens in browser")
                 Button { openURL(Self.termsURL) } label: {
-                    LabeledContent("Terms of Service") { Image(systemName: "arrow.up.right.square") }
+                    LabeledContent("Terms of Use") { Image(systemName: "arrow.up.right.square") }
                 }
+                .accessibilityHint("Opens in browser")
             }
 
             Section("Open-source licenses") {
