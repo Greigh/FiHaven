@@ -105,6 +105,7 @@ struct PaywallView: View {
 
     private let perks: [(String, String, String)] = [
         ("chart.line.downtrend.xyaxis", "Payoff planner", "Snowball & avalanche plans + your debt-free date"),
+        ("person.2.fill", "Family sharing", "Share bills, cards & goals with your household"),
         ("calendar", "Due-date calendar", "Every bill and card on a monthly view"),
         ("clock.arrow.circlepath", "Payment history", "Search and review everything you've paid"),
         ("star.circle.fill", "Rewards optimizer", "See which card earns the most for each purchase"),

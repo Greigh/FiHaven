@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var finishing = false
     @State private var selectedGoals: Set<Goal> = []
+    @State private var showPaywall = false
 
     /// What a new user wants from FiHaven. Each goal surfaces its tabs in the
     /// bottom bar so people land on the features they actually came for.
@@ -47,14 +48,26 @@ struct OnboardingView: View {
         }
     }
 
-    private struct Page { let icon: String; let title: String; let body: String }
+    private struct Page {
+        let icon: String
+        let title: String
+        let body: String
+        var features: [(icon: String, text: String)] = []
+    }
     private let pages: [Page] = [
         Page(icon: "lock.shield.fill", title: "Secure your account",
              body: "Add two-factor authentication anytime from Settings → Security for an extra layer of protection."),
         Page(icon: "doc.text.fill", title: "Track bills & cards",
              body: "Add recurring bills and credit cards — including 0% promo periods — from the Bills and Cards tabs."),
         Page(icon: "crown.fill", title: "FiHaven Pro",
-             body: "Unlock the payoff planner, calendar, and full history. One subscription works across web, iOS, and Android."),
+             body: "Start free and upgrade anytime — one subscription across web, iOS, and Android.",
+             features: [
+                ("chart.line.downtrend.xyaxis", "Payoff planner & debt-free date"),
+                ("person.2.fill", "Family sharing for your household"),
+                ("calendar", "Due-date calendar & full history"),
+                ("star.circle.fill", "Rewards & subscription finder"),
+                ("chart.pie.fill", "Category budgets & bank linking"),
+             ]),
     ]
 
     // Step 0 is the goals question; steps 1...pages.count are the tour.
@@ -92,18 +105,38 @@ struct OnboardingView: View {
             .accessibilityLabel("Step \(step + 1) of \(totalSteps)")
             .padding(.bottom, 20)
 
-            Button {
-                if isLast { finish() } else { performWithAnimation(!reduceMotion) { step += 1 } }
-            } label: {
-                Text(buttonLabel)
+            if isLast {
+                // Premium decision point. StoreKit owns the trial-vs-price
+                // choice on its own sheet, so a single entry point avoids a
+                // redundant pair of buttons that open the same paywall.
+                VStack(spacing: 10) {
+                    Button("See Premium plans") { showPaywall = true }
+                        .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
+                        .disabled(finishing)
+                    Button(finishing ? "Getting started…" : "Continue with Free") { finish() }
+                        .font(Theme.ui(15))
+                        .foregroundStyle(Theme.muted)
+                        .disabled(finishing)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 30)
+            } else {
+                Button {
+                    performWithAnimation(!reduceMotion) { step += 1 }
+                } label: {
+                    Text(buttonLabel)
+                }
+                .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
+                .disabled(finishing)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 30)
             }
-            .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
-            .disabled(finishing)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
+        .sheet(isPresented: $showPaywall) {
+            PaywallView().environmentObject(env.billing)
+        }
     }
 
     // ── Goals question ───────────────────────────────────────────────
@@ -184,6 +217,31 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if !page.features.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(page.features.indices, id: \.self) { i in
+                        let f = page.features[i]
+                        HStack(spacing: 12) {
+                            Image(systemName: f.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 26)
+                                .accessibilityHidden(true)
+                            Text(f.text)
+                                .font(Theme.ui(15))
+                                .foregroundStyle(Theme.text)
+                            Spacer(minLength: 0)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
+                .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 32)
     }

@@ -17,37 +17,56 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.fihaven.AppViewModel
+import app.fihaven.billing.BillingManager
 import app.fihaven.ui.theme.Ct
 
 private data class OnbPage(val icon: ImageVector, val title: String, val body: String)
+
+/** Premium value-prop shown on the final onboarding step, Family featured
+ *  near the top. */
+private val proHighlights = listOf(
+    Icons.AutoMirrored.Filled.TrendingUp to "Payoff planner & debt-free date",
+    Icons.Filled.People to "Family sharing for your household",
+    Icons.Filled.CalendarMonth to "Due-date calendar & full history",
+    Icons.Filled.Stars to "Rewards & subscription finder",
+    Icons.Filled.PieChart to "Category budgets & bank linking",
+)
 
 /** What a new user wants from FiHaven. Each goal surfaces its tabs in the
  *  bottom bar so people land on the features they actually came for. */
@@ -74,8 +93,21 @@ fun OnboardingScreen(vm: AppViewModel) {
             OnbPage(Icons.AutoMirrored.Filled.ReceiptLong, "Track bills & cards",
                 "Add recurring bills and credit cards — including 0% promo periods — from the Bills and Cards tabs."),
             OnbPage(Icons.Filled.WorkspacePremium, "FiHaven Pro",
-                "Unlock the payoff planner, calendar, and full history. One subscription works across web, iOS, and Android."),
+                "Start free and upgrade anytime — one subscription works across web, iOS, and Android."),
         )
+    }
+
+    // Play Billing client, scoped to this screen so the paywall can list
+    // products / launch purchases. MainScaffold isn't mounted yet during
+    // onboarding, so it doesn't provide one.
+    var showPaywall by remember { mutableStateOf(false) }
+    val appContext = LocalContext.current.applicationContext
+    val billing = remember {
+        BillingManager(appContext) { productId, token -> vm.verifyGooglePurchase(productId, token) }
+    }
+    DisposableEffect(Unit) {
+        billing.connect()
+        onDispose { billing.endConnection() }
     }
     // Step 0 is the goals question; steps 1..pages.size are the tour.
     val totalSteps = pages.size + 1
@@ -159,6 +191,27 @@ fun OnboardingScreen(vm: AppViewModel) {
                     fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(12.dp))
                 Text(page.body, color = Ct.colors.muted, fontSize = 16.sp, textAlign = TextAlign.Center)
+
+                if (last) {
+                    Spacer(Modifier.height(20.dp))
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Ct.colors.surface)
+                            .border(1.dp, Ct.colors.border, RoundedCornerShape(14.dp))
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        proHighlights.forEach { (icon, text) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(icon, contentDescription = null, tint = Ct.colors.accent,
+                                    modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(text, color = Ct.colors.text, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -173,20 +226,46 @@ fun OnboardingScreen(vm: AppViewModel) {
                 )
             }
         }
-        Button(
-            onClick = { if (!last) step++ else finish() },
-            enabled = !finishing,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
-        ) {
-            Text(
-                when {
-                    goalsStep -> if (selectedGoals.isEmpty()) "Skip for now" else "Continue"
-                    !last -> "Next"
-                    finishing -> "Getting started…"
-                    else -> "Get started"
-                },
-            )
+        if (last) {
+            // Premium decision point. Play owns the trial-vs-price choice on its
+            // own sheet, so a single entry point avoids a redundant pair of
+            // buttons that open the same paywall.
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 30.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { showPaywall = true },
+                    enabled = !finishing,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+                ) { Text("See Premium plans") }
+                TextButton(
+                    onClick = { finish() },
+                    enabled = !finishing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (finishing) "Getting started…" else "Continue with Free", color = Ct.colors.muted) }
+            }
+        } else {
+            Button(
+                onClick = { step++ },
+                enabled = !finishing,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+            ) {
+                Text(
+                    when {
+                        goalsStep -> if (selectedGoals.isEmpty()) "Skip for now" else "Continue"
+                        else -> "Next"
+                    },
+                )
+            }
+        }
+    }
+
+    if (showPaywall) {
+        CompositionLocalProvider(LocalBilling provides billing) {
+            PaywallDialog(vm) { showPaywall = false }
         }
     }
 }
