@@ -14,7 +14,6 @@ import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
-import { initHousehold } from './household.js';
 
     function showMessage(form, text, isError) {
     var el = document.querySelector('[data-message="' + form + '"]');
@@ -170,8 +169,6 @@ import { initHousehold } from './household.js';
     auth.me().then(function (user) {
       if (!user) return; // auth.js already redirects unauthenticated users
       renderIdentity(user);
-      // Family / household panel.
-      initHousehold(user);
       var nameInput = document.getElementById('display-name');
       if (nameInput) nameInput.value = user.name || '';
       // Membership line needs the Pro entitlement (from /api/data).
