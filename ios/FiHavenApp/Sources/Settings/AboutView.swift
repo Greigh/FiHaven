@@ -36,7 +36,7 @@ struct AboutView: View {
                     LabeledContent("Privacy Policy") { Image(systemName: "arrow.up.right.square") }
                 }
                 Button { openURL(Self.termsURL) } label: {
-                    LabeledContent("Terms of Service") { Image(systemName: "arrow.up.right.square") }
+                    LabeledContent("Terms of Use") { Image(systemName: "arrow.up.right.square") }
                 }
             }
 
