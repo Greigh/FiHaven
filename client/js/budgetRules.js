@@ -202,6 +202,8 @@ export function envelopeAssignments(settings, goals = []) {
   const raw = (settings && settings.envelopeAssign) || {};
   const goalMap = { ...(raw.goals || {}) };
   const catMap = { ...(raw.categories || {}) };
+  const rollover = (settings && settings.envelopeRolloverBal) || {};
+  const rolloverCats = rollover.categories || {};
 
   (goals || []).forEach((g) => {
     const id = String(g.id);
@@ -216,9 +218,51 @@ export function envelopeAssignments(settings, goals = []) {
     if (catMap[cat] == null) catMap[cat] = parseFloat(budgets[cat]) || 0;
   });
 
+  if (settings && settings.envelopeRollover) {
+    Object.keys(rolloverCats).forEach((cat) => {
+      const extra = parseFloat(rolloverCats[cat]) || 0;
+      if (extra > 0) catMap[cat] = (parseFloat(catMap[cat]) || 0) + extra;
+    });
+  }
+
   const goalsTotal = Object.values(goalMap).reduce((s, v) => s + (parseFloat(v) || 0), 0);
   const catsTotal = Object.values(catMap).reduce((s, v) => s + (parseFloat(v) || 0), 0);
   return { goalMap, catMap, goalsTotal, catsTotal, total: goalsTotal + catsTotal };
+}
+
+/** Apply unused category budget from prev period into envelopeRolloverBal. */
+export function applyEnvelopeRollover(settings, transactions, prevBounds) {
+  if (!settings || !settings.envelopeRollover || !prevBounds) return settings;
+  const mk = prevBounds.key || prevBounds.start;
+  const appliedFor = settings.envelopeRolloverAppliedFor;
+  if (appliedFor === mk) return settings;
+
+  const spent = spentByCategory(transactions, prevBounds);
+  const budgets = settings.categoryBudgets || {};
+  const assign = (settings.envelopeAssign && settings.envelopeAssign.categories) || {};
+  const nextBal = { categories: { ...((settings.envelopeRolloverBal || {}).categories || {}) } };
+
+  Object.keys(budgets).forEach((cat) => {
+    const budget = parseFloat(assign[cat] != null ? assign[cat] : budgets[cat]) || 0;
+    const unused = Math.max(0, budget - (spent[cat] || 0));
+    if (unused > 0.005) nextBal.categories[cat] = (parseFloat(nextBal.categories[cat]) || 0) + unused;
+  });
+
+  return {
+    ...settings,
+    envelopeRolloverBal: nextBal,
+    envelopeRolloverAppliedFor: mk,
+  };
+}
+
+function spentByCategory(transactions, periodBounds) {
+  const m = {};
+  (transactions || []).forEach((t) => {
+    if (!transactionInPeriod(t, periodBounds)) return;
+    const cat = t.category || 'Other';
+    m[cat] = (m[cat] || 0) + (parseFloat(t.amount) || 0);
+  });
+  return m;
 }
 
 /** Housing / debt ratio warnings — shown on any active lens. */
