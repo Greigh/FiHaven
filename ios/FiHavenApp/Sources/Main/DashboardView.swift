@@ -68,13 +68,32 @@ struct DashboardView: View {
         case "cashflow":      CashflowWidget()
         case "alerts":        AlertsWidget()
         case "upcoming":      upcomingSection
-        case "networth":      statCard("Net worth", Money.fmt(store.netWorth), store.netWorth >= 0 ? Theme.green : Theme.red)
+        case "networth":
+            netWorthCard
         case "spending":      statCard("Spent this period", Money.fmt(store.totalSpent), Theme.accent)
         case "goals":         GoalsWidget()
         case "subscriptions": SubscriptionsWidget()
         case "incomeHistory": IncomeHistoryWidget()
+        case "budgetStatus": BudgetStatusWidget()
         default:              EmptyView()
         }
+    }
+
+    private var netWorthCard: some View {
+        let positive = store.netWorth >= 0
+        return VStack(alignment: .leading, spacing: 8) {
+            FieldLabel(text: "Net worth")
+            SemanticAmount(
+                value: Money.fmt(store.netWorth),
+                tone: positive ? .positive : .negative,
+                font: Theme.mono(22, weight: .semibold),
+                statusWords: positive ? "Positive" : "Negative"
+            )
+            .minimumScaleFactor(0.6)
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ctCard()
     }
 
     private func statCard(_ label: String, _ value: String, _ accent: Color) -> some View {
@@ -90,9 +109,23 @@ struct DashboardView: View {
     // ── Summary cards ────────────────────────────────────────────────
     private var summary: some View {
         HStack(spacing: 12) {
-            stat(store.incomeLabel, Money.fmt(store.periodIncome), Theme.green)
+            incomeStat
             stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
         }
+    }
+
+    private var incomeStat: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FieldLabel(text: store.incomeLabel)
+            SemanticAmount(
+                value: Money.fmt(store.periodIncome),
+                tone: .positive,
+                font: Theme.mono(22, weight: .semibold)
+            )
+            .minimumScaleFactor(0.6)
+            .lineLimit(1)
+        }
+        .ctCard()
     }
 
     private func stat(_ label: String, _ value: String, _ accent: Color) -> some View {
@@ -166,7 +199,19 @@ private struct UpcomingRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            VStack(spacing: 2) {
+                Image(systemName: A11y.paidStateIcon(state))
+                    .font(.system(size: 18))
+                    .foregroundStyle(labelColor)
+                Text(A11y.paidStateLabel(state))
+                    .font(Theme.ui(9, weight: .medium))
+                    .foregroundStyle(labelColor)
+            }
+            .frame(width: 44)
+            .accessibilityHidden(true)
+
             Text(item.icon).font(.system(size: 22))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
@@ -192,6 +237,8 @@ private struct UpcomingRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.name), \(dueLabel), \(Money.fmt(state == .full ? goal : remaining))")
     }
 
     private var labelColor: Color {

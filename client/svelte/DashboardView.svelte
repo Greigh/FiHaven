@@ -27,6 +27,8 @@
   import GoalsPanel from './GoalsPanel.svelte';
   import SubscriptionsPanel from './SubscriptionsPanel.svelte';
   import IncomeHistory from './IncomeHistory.svelte';
+  import BudgetStatusPanel from './BudgetStatusPanel.svelte';
+  import { buildSubscriptionItems } from '../js/subscriptionsFinder.js';
 
   pruneExpiredSnoozes();
 
@@ -68,9 +70,37 @@
   let incomeLabel   = $derived(incomeLabelFor(periodCfg));
   let owedLabel     = $derived(owedLabelFor(periodCfg));
 
-  /* ── Alerts (overdue + promo deadline) ───────────────── */
+  function cardUtil(c) {
+    const bal = parseFloat(c.balance) || 0;
+    const lim = parseFloat(c.limit) || 0;
+    return lim > 0 ? Math.round((bal / lim) * 100) : null;
+  }
+
+  let trialAlerts = $derived(
+    buildSubscriptionItems(bills, []).filter((i) => i.trialSoon)
+  );
+
+  /* ── Alerts (promo cliff, credit util, trials) ───────── */
   let alerts = $derived.by(() => {
     const out = [];
+    cards.forEach((c) => {
+      if (c.type === 'loan') return;
+      const util = cardUtil(c);
+      if (util != null && util >= 80) {
+        out.push({
+          type: util >= 90 ? 'danger' : 'warn',
+          html: `💳 <strong>${c.name}</strong> — ${util}% credit utilization (${fmt(parseFloat(c.balance) || 0)} of ${fmt(parseFloat(c.limit) || 0)}).`,
+        });
+      }
+    });
+    trialAlerts.forEach((t) => {
+      const days = t.trialDaysLeft;
+      const dayWord = days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
+      out.push({
+        type: days <= 1 ? 'danger' : 'warn',
+        html: `⏳ <strong>${t.name}</strong> — free trial ends ${dayWord}. Review before you're charged.`,
+      });
+    });
     promoCards.forEach((c) => {
       const mo   = monthsUntil(c.promoEndDate);
       const days = daysUntilDate(c.promoEndDate);
@@ -165,6 +195,7 @@
     {:else if id === 'goals'}<GoalsPanel />
     {:else if id === 'subscriptions'}<SubscriptionsPanel />
     {:else if id === 'incomeHistory'}<IncomeHistory />
+    {:else if id === 'budgetStatus'}<BudgetStatusPanel />
     {/if}
   {/each}
 {/if}
