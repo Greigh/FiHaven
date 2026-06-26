@@ -535,6 +535,51 @@ main {
 .badge-orange { background: var(--orange-bg); color: var(--orange); }
 .badge-blue   { background: var(--accent-bg); color: var(--accent); }
 .badge-gray   { background: var(--surface2);  color: var(--muted);  }
+.badge-gold   { background: var(--yellow-bg); color: var(--yellow);
+                border: 1px solid color-mix(in srgb, var(--yellow) 35%, transparent); }
+
+/* ── Membership card ────────────────────────────────────── */
+.membership-card { padding: 16px; }
+.membership-head { display: flex; align-items: center; gap: 12px; }
+.membership-avatar {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 999px;
+  display: grid; place-items: center;
+  font-size: 17px; font-weight: 800; letter-spacing: .01em;
+  background: var(--accent-bg); color: var(--accent);
+}
+.membership-card.is-pro .membership-avatar { background: var(--yellow-bg); color: var(--yellow); }
+.membership-id { min-width: 0; flex: 1 1 auto; }
+.membership-plan {
+  flex: 0 0 auto; align-self: flex-start;
+  font-size: 11px; font-weight: 800; letter-spacing: .06em;
+}
+.membership-tenure {
+  margin-top: 14px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.membership-tenure:empty { display: none; margin-top: 0; border-top: 0; }
+.membership-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 2px; font-size: 14px; text-align: left;
+}
+.membership-row + .membership-row { border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.membership-icon { display: inline-flex; flex: 0 0 auto; }
+.membership-icon svg { width: 16px; height: 16px; }
+.membership-row .membership-label { color: var(--muted); margin-right: auto; }
+.membership-row .membership-value { font-weight: 600; color: var(--text); }
+/* Tappable rows (manage / upgrade) reset the <button> and add a chevron. */
+.membership-row-action {
+  width: 100%; background: none; border: 0; font: inherit; cursor: pointer;
+  border-radius: 8px; transition: background .12s ease;
+}
+.membership-row-action:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.membership-row-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.membership-chevron { display: inline-flex; flex: 0 0 auto; color: var(--muted); }
+.membership-chevron svg { width: 16px; height: 16px; }
+.membership-sync {
+  font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.4;
+  display: flex; align-items: center; gap: 6px;
+}
 
 /* ── Data Table ─────────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: collapse; }
