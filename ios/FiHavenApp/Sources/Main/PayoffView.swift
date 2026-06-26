@@ -69,6 +69,8 @@ struct PayoffView: View {
             Slider(value: $extra, in: 0...1000, step: 25)
                 .tint(Theme.accent)
                 .disabled(strategy == .none)
+                .accessibilityLabel("Extra monthly payment")
+                .accessibilityValue(Money.fmt(extra))
             if strategy == .none {
                 Text("Extra applies only to Snowball or Avalanche.")
                     .font(Theme.ui(11)).foregroundStyle(Theme.muted)
@@ -79,16 +81,32 @@ struct PayoffView: View {
 
     private func summaryCards(_ r: PayoffResult) -> some View {
         HStack(spacing: 12) {
-            stat("Debt-free in", "\(r.months) mo", Theme.accent, subtitle: payoffDateLabel(r.payoffDate))
-            stat("Total interest", Money.fmtShort(r.totalInterest), Theme.red)
+            stat("Debt-free in", "\(r.months) mo", .accent, subtitle: payoffDateLabel(r.payoffDate))
+            interestStat(r.totalInterest)
         }
     }
 
-    private func stat(_ label: String, _ value: String, _ color: Color, subtitle: String? = nil) -> some View {
+    private func interestStat(_ interest: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FieldLabel(text: "Total interest")
+            SemanticAmount(
+                value: Money.fmtShort(interest),
+                tone: .negative,
+                font: Theme.mono(22, weight: .semibold),
+                statusWords: "Cost"
+            )
+            .minimumScaleFactor(0.6)
+            .lineLimit(1)
+        }
+        .ctCard()
+    }
+
+    private func stat(_ label: String, _ value: String, _ tone: A11y.MoneyTone, subtitle: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             FieldLabel(text: label)
-            Text(value).font(Theme.mono(22, weight: .semibold)).foregroundStyle(color)
-                .minimumScaleFactor(0.6).lineLimit(1)
+            SemanticAmount(value: value, tone: tone, font: Theme.mono(22, weight: .semibold))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
             if let subtitle {
                 Text(subtitle).font(Theme.ui(11)).foregroundStyle(Theme.muted)
             }
@@ -110,13 +128,17 @@ struct PayoffView: View {
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text(c.paidOffMonth.map { "Month \($0)" } ?? "—")
+                            Text(c.paidOffMonth.map { "Month \($0)" } ?? "Not paid off")
                                 .font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.text)
                             Text("\(Money.fmtShort(c.interestPaid)) interest")
                                 .font(Theme.mono(10)).foregroundStyle(Theme.muted)
                         }
                     }
                     .padding(.vertical, 10)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "\(c.name), paid off \(c.paidOffMonth.map { "month \($0)" } ?? "not in plan"), \(Money.fmtShort(c.interestPaid)) interest"
+                    )
                 }
             }
             .ctCard()
@@ -183,7 +205,14 @@ struct PayoffView: View {
                 statRow("Paid off in", "\(r.months) mo")
                 statRow("Total interest", Money.fmt(r.interest))
             } else if iBal > 0, iPay > 0 {
-                Text("Payment doesn't cover the interest.").font(Theme.ui(12)).foregroundStyle(Theme.red)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.orange)
+                    Text("Payment doesn't cover the interest.")
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.text)
+                }
             }
         }
         .ctCard()
@@ -242,6 +271,8 @@ struct PayoffView: View {
                 .font(Theme.mono(26, weight: .semibold)).foregroundStyle(Theme.text)
                 .frame(maxWidth: .infinity, alignment: .trailing).lineLimit(1).minimumScaleFactor(0.5)
                 .padding(12).background(Theme.surface2).clipShape(RoundedRectangle(cornerRadius: 10))
+                .accessibilityLabel("Calculator display")
+                .accessibilityValue(calcDisplay)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
                 ForEach(["C", "⌫", "%", "÷", "7", "8", "9", "×", "4", "5", "6", "−", "1", "2", "3", "+", "±", "0", ".", "="], id: \.self) { k in
                     Button { calcKey(k) } label: {
@@ -252,6 +283,7 @@ struct PayoffView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(A11y.payoffCalculatorKeyLabel(k))
                 }
             }
         }
