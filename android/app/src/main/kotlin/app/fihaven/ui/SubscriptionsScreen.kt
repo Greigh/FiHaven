@@ -104,17 +104,23 @@ private fun SubscriptionsCard(subs: List<SubscriptionsFinder.Item>) {
     }
 }
 
-private fun subDetailLine(s: SubscriptionsFinder.Item): String = when {
-    s.duplicate -> "⚡ possible duplicate"
-    s.trialSoon && s.trialDaysLeft != null -> "⏳ trial ends in ${s.trialDaysLeft}d"
-    s.trialDaysLeft != null && s.trialDaysLeft < 0 -> "Trial ended"
-    s.priceUp != null -> "▲ was ${Money.fmt(s.priceUp)}"
-    s.stale -> "⚠ unused 60d+"
-    s.nextDue != null -> "Next: ${subFriendlyDate(s.nextDue)}"
-    s.source == "bill" -> "Tracked bill"
-    else -> "Recurring charge"
+private fun subDetailLine(s: SubscriptionsFinder.Item): String {
+    val trialDays = s.trialDaysLeft
+    val priceUp = s.priceUp
+    val nextDue = s.nextDue
+    return when {
+        s.duplicate -> "⚡ possible duplicate"
+        s.trialSoon && trialDays != null -> "⏳ trial ends in ${trialDays}d"
+        trialDays != null && trialDays < 0 -> "Trial ended"
+        priceUp != null -> "▲ was ${Money.fmt(priceUp)}"
+        s.stale -> "⚠ unused 60d+"
+        nextDue != null -> "Next: ${subFriendlyDate(nextDue)}"
+        s.source == "bill" -> "Tracked bill"
+        else -> "Recurring charge"
+    }
 }
 
+@Composable
 private fun subDetailColor(s: SubscriptionsFinder.Item) = when {
     s.duplicate -> Ct.colors.orange
     s.trialSoon -> Ct.colors.accent
