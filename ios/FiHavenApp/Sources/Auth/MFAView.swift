@@ -35,6 +35,7 @@ struct MFAView: View {
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .autocorrectionDisabled()
+                        .accessibilityLabel("Verification code")
                         .onChange(of: code) { _, newValue in
                             // Keep digits only, but never reassign during the
                             // same update (avoids an autofill feedback hang).
@@ -53,10 +54,7 @@ struct MFAView: View {
                         )
 
                     if let error = env.authError {
-                        Text(error)
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        FormErrorBanner(message: error)
                     }
 
                     Button {
@@ -66,6 +64,7 @@ struct MFAView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle(enabled: canSubmit))
                     .disabled(!canSubmit)
+                    .accessibilityHint(canSubmit ? "Verifies your two-factor code" : "Enter a 6-digit code")
 
                     if hasEmail {
                         Button {

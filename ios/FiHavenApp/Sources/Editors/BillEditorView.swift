@@ -32,7 +32,9 @@ struct BillEditorView: View {
                     TextField("Business / Provider", text: $business)
                     Picker("Category", selection: $category) {
                         ForEach(CTConstants.categories, id: \.self) { c in
-                            Text("\(CTConstants.icon(forCategory: c))  \(c)").tag(c)
+                            Text("\(CTConstants.icon(forCategory: c))  \(c)")
+                                .tag(c)
+                                .accessibilityLabel(c)
                         }
                     }
                     TextField("Amount", value: $amount, format: .number)
@@ -52,11 +54,11 @@ struct BillEditorView: View {
                     }
                 }
                 Section {
-                    Toggle("First bill due on…", isOn: $hasStart.animation())
+                    Toggle("First bill due on…", isOn: $hasStart)
                     if hasStart {
                         DatePicker("First due", selection: $startDate, displayedComponents: .date)
                     }
-                    Toggle("Stops on…", isOn: $hasEnd.animation())
+                    Toggle("Stops on…", isOn: $hasEnd)
                     if hasEnd {
                         DatePicker("Stops", selection: $endDate, displayedComponents: .date)
                     }
@@ -84,7 +86,9 @@ struct BillEditorView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.disabled(name.isEmpty)
+                    Button("Save") { save() }
+                        .disabled(name.isEmpty)
+                        .accessibilityHint(name.isEmpty ? "Enter a bill name to save" : "Saves this bill")
                 }
             }
             .onAppear(perform: load)

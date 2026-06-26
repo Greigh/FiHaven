@@ -68,8 +68,14 @@ struct BankView: View {
             HStack {
                 Text(item.institutionName).font(Theme.ui(15, weight: .medium))
                 if item.status != "active" {
-                    Text(item.status == "login_required" ? "Reconnect needed" : item.status)
-                        .font(Theme.ui(11, weight: .medium)).foregroundStyle(Theme.orange)
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.orange)
+                        Text(item.status == "login_required" ? "Reconnect needed" : item.status)
+                            .font(Theme.ui(11, weight: .medium))
+                            .foregroundStyle(Theme.text)
+                    }
                 }
                 Spacer()
                 Button("Disconnect", role: .destructive) { disconnect(item.id) }
@@ -86,8 +92,14 @@ struct BankView: View {
                     Spacer()
                     Text(a.currentBalance.map { Money.fmt($0) } ?? "—").font(Theme.ui(13, weight: .medium))
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "\(a.name ?? a.subtype ?? "Account"), balance \(a.currentBalance.map { Money.fmt($0) } ?? "unknown")"
+                )
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(item.institutionName) bank connection")
     }
 
     private func load() async {

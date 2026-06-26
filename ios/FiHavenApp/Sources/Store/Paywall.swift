@@ -60,6 +60,7 @@ struct ProBadge: View {
             .background(Theme.accentBg)
             .foregroundStyle(Theme.accent)
             .clipShape(Capsule())
+            .accessibilityLabel("Pro feature")
     }
 }
 
@@ -74,6 +75,7 @@ struct ProLockedView: View {
             Image(systemName: feature.icon)
                 .font(.system(size: 44))
                 .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
             ProBadge()
             Text(feature.title).font(Theme.title(24)).foregroundStyle(Theme.text)
             Text(feature.blurb)
@@ -89,6 +91,7 @@ struct ProLockedView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(feature.title)
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityElement(children: .contain)
         .sheet(isPresented: $showPaywall) { PaywallView() }
     }
 }
@@ -160,11 +163,14 @@ struct PaywallView: View {
                     Image(systemName: icon)
                         .foregroundStyle(Theme.accent)
                         .frame(width: 24)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
                         Text(sub).font(Theme.ui(13)).foregroundStyle(Theme.muted)
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(title). \(sub)")
             }
         }
         .ctCard()
@@ -196,16 +202,27 @@ struct PaywallView: View {
                     }
                     .buttonStyle(PlanButtonStyle())
                     .disabled(billing.purchasing)
+                    .accessibilityLabel(planAccessibilityLabel(product))
+                    .accessibilityHint("Starts purchase")
                 }
-                if billing.purchasing { ProgressView() }
+                if billing.purchasing {
+                    ProgressView()
+                        .accessibilityLabel("Processing purchase")
+                }
             }
         }
     }
 
     private var activeCard: some View {
         VStack(spacing: 8) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 34)).foregroundStyle(Theme.green)
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.green)
+                Text("Active")
+                    .font(Theme.ui(13, weight: .semibold))
+                    .foregroundStyle(Theme.green)
+            }
             Text("You’re on FiHaven Pro").font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
             if let line = renewalLine {
                 Text(line).font(Theme.ui(13)).foregroundStyle(Theme.muted)
@@ -213,6 +230,8 @@ struct PaywallView: View {
         }
         .frame(maxWidth: .infinity)
         .ctCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("FiHaven Pro is active. \(renewalLine ?? "")")
     }
 
     private var footer: some View {
@@ -250,6 +269,11 @@ struct PaywallView: View {
         case (.week, 1): return "Weekly"
         default: return nil
         }
+    }
+
+    private func planAccessibilityLabel(_ product: Product) -> String {
+        let period = periodLabel(product) ?? "subscription"
+        return "\(product.displayName), \(product.displayPrice), \(period)"
     }
 }
 
@@ -300,11 +324,26 @@ struct RedeemCodeView: View {
                 .disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
 
                 if let success {
-                    Label(success, systemImage: "checkmark.circle.fill")
-                        .font(Theme.ui(14)).foregroundStyle(Theme.green)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.green)
+                        Text(success)
+                            .font(Theme.ui(14))
+                            .foregroundStyle(Theme.text)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(success)
                 }
                 if let msg = billing.message {
-                    Text(msg).font(Theme.ui(14)).foregroundStyle(Theme.red)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(Theme.red)
+                        Text(msg)
+                            .font(Theme.ui(14))
+                            .foregroundStyle(Theme.text)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Error. \(msg)")
                 }
                 Spacer()
             }

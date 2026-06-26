@@ -14,21 +14,27 @@ struct LockView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(Theme.accent)
                 .padding(.top, 8)
+                .accessibilityLabel("\(biometric.label) lock")
             Text("FiHaven is locked")
-                .font(Theme.ui(16)).foregroundStyle(Theme.muted)
+                .font(Theme.ui(16))
+                .foregroundStyle(Theme.muted)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Button("Unlock with \(biometric.label)") {
                 Task { await biometric.unlock() }
             }
             .buttonStyle(PrimaryButtonStyle())
             .padding(.horizontal, 40)
+            .accessibilityHint("Uses \(biometric.label) or your device passcode")
             Button("Sign out") { Task { await env.logout() } }
                 .font(Theme.ui(14))
                 .foregroundStyle(Theme.muted)
                 .padding(.bottom, 24)
+                .accessibilityHint("Signs out and returns to the login screen")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
+        .accessibilityElement(children: .contain)
         .task { await biometric.unlock() }
     }
 }
