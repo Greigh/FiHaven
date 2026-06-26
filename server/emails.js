@@ -279,11 +279,79 @@ async function sendMonthlySummary(to, summary, currency) {
   });
 }
 
+/* ── Trial-ending reminders ──────────────────────────────────── */
+async function sendTrialReminder(to, trials, leadDays, currency) {
+  const n = trials.length;
+  const plural = n === 1 ? '' : 's';
+  const phrase = leadPhrase(leadDays);
+  const href = link('/dashboard');
+  const items = trials
+    .map((b) => {
+      const end = b.trialEnds
+        ? new Date(b.trialEnds + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+      return `<li style="margin:0 0 6px;">${esc(b.name) || 'Subscription'} — trial ends ${esc(end)}${b.amount ? ` (<strong>${money(b.amount, currency)}</strong>/cycle after)` : ''}</li>`;
+    })
+    .join('');
+  const textItems = trials
+    .map((b) => {
+      const end = b.trialEnds || '';
+      return `• ${b.name || 'Subscription'} — trial ends ${end}`;
+    })
+    .join('\n');
+  return mail.sendMail({
+    to,
+    subject: n === 1
+      ? `Trial ending soon: ${trials[0].name || 'a subscription'}`
+      : `${n} subscription trial${plural} ${phrase}`,
+    text:
+      `You have ${n} free trial${plural} ${phrase}:\n\n${textItems}\n\n` +
+      `Open FiHaven to review or cancel before you're charged:\n${href}\n\n` +
+      `You're getting this because bill reminders are on — turn them off any time in Settings.`,
+    html: layout({
+      heading: `${n} trial${plural} ${phrase}`,
+      lines: [
+        'A subscription free trial is about to end — review it before the first charge:',
+        `<ul style="margin:0 0 4px;padding-left:18px;color:#1f2430;font-size:15px;line-height:1.7;">${items}</ul>`,
+      ],
+      cta: { href, label: 'Review subscriptions' },
+      footnote: 'You’re getting this because bill reminders are on — turn them off any time in Settings.',
+    }),
+  });
+}
+
+/* ── Household invite ────────────────────────────────────────── */
+async function sendHouseholdInvite(to, { rawToken, householdName, inviterName }) {
+  const href = link('/login?household=' + encodeURIComponent(rawToken));
+  const who = inviterName ? esc(inviterName) : 'Someone';
+  const hh = householdName ? esc(householdName) : 'their household';
+  return mail.sendMail({
+    to,
+    subject: `You're invited to join ${householdName ? householdName : 'a household'} on FiHaven`,
+    text:
+      `${inviterName || 'Someone'} invited you to join ${householdName || 'their household'} on FiHaven.\n\n` +
+      `Sign in (or create a free account) with this email, then open this link to join (valid for 7 days):\n${href}\n\n` +
+      `If you weren't expecting this, you can ignore this email.`,
+    html: layout({
+      heading: 'Join a shared household',
+      lines: [
+        `<strong>${who}</strong> invited you to join <strong>${hh}</strong> on FiHaven, where you can share bills, budgets, and goals.`,
+        'Sign in (or create a free account) with this email address, then open the link below to join. It is valid for 7 days.',
+      ],
+      cta: { href, label: 'Join the household' },
+      footnote:
+        "If you weren't expecting this invite, you can safely ignore this email — nothing is shared until you accept.",
+    }),
+  });
+}
+
 module.exports = {
   sendPasswordReset,
   sendVerifyEmail,
   sendRecovery,
   sendBillReminder,
+  sendTrialReminder,
   sendMonthlySummary,
   sendWeeklyDigest,
+  sendHouseholdInvite,
 };
