@@ -1,3 +1,9 @@
+// `androidx.security:security-crypto` (EncryptedSharedPreferences / MasterKey)
+// was deprecated by Google with no stable replacement — the successor APIs are
+// still alpha. We deliberately keep it until a stable path exists; suppression
+// is file-level because the deprecation also flags the import statements.
+@file:Suppress("DEPRECATION")
+
 package app.fihaven.data
 
 import android.content.Context

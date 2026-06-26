@@ -15,9 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
@@ -61,13 +61,13 @@ fun IntroScreen(vm: AppViewModel) {
     val pages = remember {
         listOf(
             IntroPage(
-                Icons.Filled.ReceiptLong, "Welcome to FiHaven",
+                Icons.AutoMirrored.Filled.ReceiptLong, "Welcome to FiHaven",
                 "Five calm minutes a week instead of a frantic afternoon every payday.",
                 badge = null, brand = true,
                 features = listOf(
-                    IntroFeature(Icons.Filled.ReceiptLong, "Track recurring bills in one place"),
+                    IntroFeature(Icons.AutoMirrored.Filled.ReceiptLong, "Track recurring bills in one place"),
                     IntroFeature(Icons.Filled.CreditCard, "Credit cards & 0% promo periods"),
-                    IntroFeature(Icons.Filled.TrendingUp, "A clear plan to pay down debt"),
+                    IntroFeature(Icons.AutoMirrored.Filled.TrendingUp, "A clear plan to pay down debt"),
                 ),
             ),
             IntroPage(
