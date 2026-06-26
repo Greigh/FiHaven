@@ -17,6 +17,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'goals',         label: 'Savings goals' },
   { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'incomeHistory', label: 'Income history' },
+  { id: 'budgetStatus', label: 'Budget / safe-to-spend' },
 ];
 
 // What "Widgets" mode shows by default — the same blocks as Classic.

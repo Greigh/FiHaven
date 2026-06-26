@@ -1001,6 +1001,8 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
     var modeSel = document.querySelector('[data-budget-rule-mode]');
     var splitsField = document.querySelector('[data-budget-rule-splits]');
     var debtField = document.querySelector('[data-debt-focus-extra-field]');
+    var rolloverField = document.querySelector('[data-envelope-rollover-field]');
+    var rolloverChk = document.querySelector('[data-envelope-rollover]');
     var debtIn = document.querySelector('[data-debt-focus-extra]');
     var needsIn = document.querySelector('[data-budget-rule-needs]');
     var wantsIn = document.querySelector('[data-budget-rule-wants]');
@@ -1023,6 +1025,7 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
       var mode = normMode(modeSel.value);
       if (splitsField) splitsField.hidden = mode !== 'custom';
       if (debtField) debtField.hidden = mode !== 'debt-focus';
+      if (rolloverField) rolloverField.hidden = mode !== 'envelope';
     }
 
     fetchData()
@@ -1034,6 +1037,7 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
         if (wantsIn) wantsIn.value = clampPct(splits.wants != null ? splits.wants : 30);
         if (saveIn) saveIn.value = clampPct(splits.save != null ? splits.save : 20);
         if (debtIn) debtIn.value = clampMoney(s.debtFocusExtra != null ? s.debtFocusExtra : 0);
+        if (rolloverChk) rolloverChk.checked = !!s.envelopeRollover;
         syncVisibility();
       })
       .catch(function () { syncVisibility(); });
@@ -1055,6 +1059,7 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
           var patch = { budgetRule: mode };
           if (mode === 'custom') patch.budgetRuleSplits = splits;
           if (mode === 'debt-focus') patch.debtFocusExtra = clampMoney(debtIn && debtIn.value);
+          if (mode === 'envelope' && rolloverChk) patch.envelopeRollover = !!rolloverChk.checked;
           var snapshot = {
             bills: server.bills || [],
             cards: server.cards || [],
