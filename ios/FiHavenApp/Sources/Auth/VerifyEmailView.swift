@@ -30,10 +30,7 @@ struct VerifyEmailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     if notYet {
-                        Text("Still not confirmed — check your inbox (and spam), then try again.")
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        FormErrorBanner(message: "Still not confirmed — check your inbox (and spam), then try again.")
                     }
 
                     Button {
@@ -48,6 +45,7 @@ struct VerifyEmailView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle(enabled: !checking))
                     .disabled(checking)
+                    .accessibilityHint("Checks whether your email address is confirmed")
 
                     Button {
                         Task {
