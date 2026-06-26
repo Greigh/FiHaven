@@ -106,8 +106,10 @@ export function openBillModal(idx) {
   document.getElementById('b-frequency').value = b.frequency || 'Monthly';
   document.getElementById('b-start').value     = b.startDate || '';
   document.getElementById('b-end').value        = b.endDate   || '';
+  document.getElementById('b-trial').value      = b.trialEnds || '';
   document.getElementById('b-notes').value     = b.notes     || '';
   document.getElementById('b-autopay').checked = !!b.autopay;
+  syncBillTrialField();
   populateBillCardOptions(b.cardId);
 
   document.getElementById('bill-modal').classList.add('open');
@@ -115,6 +117,20 @@ export function openBillModal(idx) {
 
 export function closeBillModal() {
   document.getElementById('bill-modal').classList.remove('open');
+}
+
+function syncBillTrialField() {
+  var cat = document.getElementById('b-category');
+  var field = document.getElementById('b-trial-field');
+  if (!cat || !field) return;
+  field.hidden = cat.value !== 'Subscriptions';
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var cat = document.getElementById('b-category');
+    if (cat) cat.addEventListener('change', syncBillTrialField);
+  });
 }
 
 export function saveBill() {
@@ -132,6 +148,7 @@ export function saveBill() {
   // day-of-month, so a start date overrides the due-day field.
   var startDate = document.getElementById('b-start').value || null;
   var endDate   = document.getElementById('b-end').value   || null;
+  var trialEnds = document.getElementById('b-trial').value || null;
   var dueDay    = parseInt(document.getElementById('b-dueday').value) || null;
   if (startDate) {
     var sd = parseInt(startDate.slice(8, 10), 10);
@@ -148,6 +165,7 @@ export function saveBill() {
     frequency: document.getElementById('b-frequency').value,
     startDate: startDate,
     endDate:   endDate,
+    trialEnds: trialEnds,
     cardId:    cardId,
     notes:     document.getElementById('b-notes').value.trim(),
     autopay:   document.getElementById('b-autopay').checked,

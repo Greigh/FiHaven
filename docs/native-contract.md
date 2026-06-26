@@ -210,7 +210,8 @@ strict on write.
   "autopay": true,         // bool
   "notes": "Oakwood Apts", // string, may be ""
   "startDate": null,       // optional "YYYY-MM-DD" — "First bill due on"; gates when it begins
-  "endDate": null          // optional "YYYY-MM-DD" — "Stops on"; bill is Ended after this
+  "endDate": null,         // optional "YYYY-MM-DD" — "Stops on"; bill is Ended after this
+  "trialEnds": null        // optional "YYYY-MM-DD" — free trial end (Subscriptions); panel + reminders
 }
 ```
 Frequency labels: `Monthly`, `Weekly`, `Bi-weekly`, `Quarterly`, `Annually`.
@@ -282,6 +283,9 @@ The server stores `settings` verbatim as an object. Known keys:
 | `localNotifications` | boolean | native opt-in to schedule local bill reminders (default `false`) |
 | `dashboardLayout` | `"classic"|"widgets"` | dashboard mode (default `classic`) |
 | `dashboardWidgets` | `string[]` | enabled widget ids, in display order (`widgets` mode) |
+| `budgetRule` | `"off"` \| `"50-30-20"` \| `"80-20"` \| `"60-20-20"` \| `"70-20-10"` \| `"custom"` \| `"obligations-first"` \| `"debt-focus"` \| `"envelope"` | optional Budget lens (default `off`) |
+| `budgetRuleSplits` | `{ needs, wants, save }` percentages | custom split when `budgetRule` is `custom` (default 50/30/20) |
+| `debtFocusExtra` | number | planned extra monthly debt payment (`debt-focus` lens) |
 
 `incomes[].frequency` ∈ `weekly | biweekly | semimonthly | monthly | annual`.
 
