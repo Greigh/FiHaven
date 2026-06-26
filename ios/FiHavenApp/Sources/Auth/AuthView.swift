@@ -5,6 +5,7 @@ import GoogleSignIn
 /// Combined login / signup screen with an inline Turnstile widget.
 struct AuthView: View {
     @EnvironmentObject var env: AppEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum Mode { case login, signup }
     @State private var mode: Mode = .login
@@ -56,26 +57,25 @@ struct AuthView: View {
                         TurnstileView(
                             siteKey: AppConfig.turnstileSiteKey,
                             onToken: { token in
-                                withAnimation { captchaToken = token }
+                                performWithAnimation(!reduceMotion) { captchaToken = token }
                             },
                             onError: {
-                                withAnimation { captchaToken = nil }
+                                performWithAnimation(!reduceMotion) { captchaToken = nil }
                             },
                             onHeight: { h in
-                                withAnimation { turnstileHeight = min(max(h, 0), 120) }
+                                performWithAnimation(!reduceMotion) { turnstileHeight = min(max(h, 0), 120) }
                             }
                         )
                         .id(captchaReloadID)
                         .frame(height: turnstileHeight)
                         .frame(maxWidth: .infinity)
                         .transition(.opacity)
+                        .accessibilityLabel("Security check")
+                        .accessibilityHint("Completes automatically in the background")
                     }
 
                     if let error = env.authError {
-                        Text(error)
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        FormErrorBanner(message: error)
                     }
 
                     Button {
@@ -87,6 +87,16 @@ struct AuthView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle(enabled: canSubmit))
                     .disabled(!canSubmit)
+                    .accessibilityHint(
+                        canSubmit
+                            ? (mode == .login ? "Sign in to your account" : "Create your FiHaven account")
+                            : "Complete the security check and enter your email and password"
+                    )
+                    .accessibilityHint(canSubmit ? "Sign in to your account" : "Complete the security check and enter your email and password")
+
+                    if mode == .signup {
+                        signupLegalNotice
+                    }
 
                     // Federated sign-in. Sign in with Apple is native (no SDK);
                     // it posts the identity token to /api/auth/oauth/apple.
@@ -130,7 +140,9 @@ struct AuthView: View {
                 .ctCard(padding: 20)
 
                 Button {
-                    withAnimation { mode = (mode == .login ? .signup : .login) }
+                    performWithAnimation(!reduceMotion) {
+                        mode = (mode == .login ? .signup : .login)
+                    }
                     env.authError = nil
                 } label: {
                     Text(mode == .login
@@ -154,15 +166,37 @@ struct AuthView: View {
         !env.working && email.contains("@") && password.count >= 6 && captchaToken != nil
     }
 
+    /// Sign-up consent — mirrors the web login terms notice; App Review expects
+    /// terms + privacy to be reachable before account creation.
+    private var signupLegalNotice: some View {
+        VStack(spacing: 4) {
+            Text("By creating an account you agree to our")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 4) {
+                Link("Terms of Use", destination: URL(string: "https://fihaven.app/terms")!)
+                    .font(Theme.ui(12, weight: .medium))
+                Text("and")
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+                Link("Privacy Policy", destination: URL(string: "https://fihaven.app/privacy")!)
+                    .font(Theme.ui(12, weight: .medium))
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
     private func submit() async {
         guard let token = captchaToken else { return }
-        withAnimation { captchaToken = nil } // tokens are single-use
+        performWithAnimation(!reduceMotion) { captchaToken = nil } // tokens are single-use
         switch mode {
         case .login: await env.login(email: email, password: password, captchaToken: token)
         case .signup: await env.signup(email: email, password: password, captchaToken: token)
         }
         // If we're still on this screen (auth failed), get a fresh token.
-        withAnimation { captchaReloadID = UUID() }
+        performWithAnimation(!reduceMotion) { captchaReloadID = UUID() }
     }
 
     /// Hand Apple's identity token to the server. Apple includes the user's

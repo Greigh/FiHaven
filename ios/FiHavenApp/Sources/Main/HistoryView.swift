@@ -55,20 +55,11 @@ struct HistoryView: View {
                         }
                     }
                     ForEach(months) { m in
-                        HStack(spacing: 8) {
-                            Text(m.label).font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                .frame(width: 64, alignment: .leading)
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2)
-                                    RoundedRectangle(cornerRadius: 4).fill(Theme.accent)
-                                        .frame(width: geo.size.width * CGFloat(m.total / maxTotal))
-                                }
-                            }
-                            .frame(height: 14)
-                            Text(Money.fmt(m.total)).font(Theme.mono(12, weight: .medium)).foregroundStyle(Theme.text)
-                                .frame(width: 78, alignment: .trailing)
-                        }
+                        ChartBarRow(
+                            label: m.label,
+                            value: Money.fmt(m.total),
+                            fraction: m.total / maxTotal
+                        )
                     }
                 }
                 .ctCard()
@@ -118,10 +109,17 @@ struct HistoryView: View {
                 }
             }
             Spacer()
-            Text(Money.fmt(p.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.green)
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.green)
+                Text(Money.fmt(p.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.text)
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(p.name.isEmpty ? p.type.capitalized : p.name), paid \(Money.fmt(p.amount)), \(prettyDate(p.date))")
         .contextMenu {
             Button { editing = p } label: {
                 Label("Edit", systemImage: "pencil")
