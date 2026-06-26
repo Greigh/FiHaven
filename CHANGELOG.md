@@ -7,6 +7,62 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.4.0] — 2026-06-26
+
+Budget lenses, household sharing, dashboard budget insights, trial
+reminders, envelope rollover, iOS accessibility, and subscription
+action links — with 354 Vitest tests.
+
+### Added
+
+- **Budget lenses** — optional split presets (50/30/20, 80/20, 60/20/20,
+  70/20/10, custom), obligations-first / safe-to-spend, debt-focus with
+  `debtFocusExtra`, and envelope lite (Pro) on web, iOS, and Android
+  (`budgetRule`, `client/js/budgetRules.js`).
+- **Envelope editor & rollover (Pro)** — assign per-goal and per-category
+  envelope amounts on the Budget tab; optionally roll unused category
+  envelopes into the next period (`envelopeAssign`, `envelopeRollover`).
+- **Dashboard budget status widget** — safe-to-spend / lens headline as a
+  reorderable dashboard widget (`budgetStatus`, `BudgetStatusPanel.svelte`).
+- **Richer dashboard alerts** — high credit utilization, subscription trials
+  ending soon, and 0% promo cliffs on web, iOS, and Android.
+- **Subscription action panel** — cancel/manage links, duplicate detection,
+  and `trialEnds` countdown on subscription bills (`subscriptionLinks.js`,
+  `SubscriptionsFinder` on all clients).
+- **Trial-ending reminders** — email via the scheduler lead window and
+  local notifications on iOS/Android when a subscription trial ends within
+  three days (`last_trial_reminder_day`, `sendTrialReminder`).
+- **Spending insights (Pro)** — top category deltas vs the previous period
+  on web and iOS (`spendingInsights.js`).
+- **Budget onboarding** — welcome flow toggle for detailed tracking vs
+  one-tap 50/30/20 lens when Budget is a goal.
+- **Household sharing** — create/join households, email invites, shared
+  entity sync, and live SSE collaboration on web, iOS, and Android
+  (`/api/household`, `household.js`, `HouseholdView`).
+- **iOS accessibility** — Dynamic Type, VoiceOver labels, reduced-motion
+  animations, and semantic amount/status presentation (`Accessibility.swift`).
+- **354 Vitest tests** (up from 326) — budget rules, spending insights,
+  household API/stream integration, trial scheduler, and subscription finder.
+
+### Changed
+
+- **Settings → Budget lens** — configure mode, custom splits, debt-focus
+  extra payment, and envelope rollover on web; matching controls on iOS
+  and Android.
+- **Settings → Family** — household membership, invites, and shared-data
+  controls on web; Family screen on iOS and Android.
+- **Entitlements** — `householdMax` on billing responses (Pro vs Family
+  tier caps for shared households).
+- **`docs/competitive-roadmap.md`** — Dollarwise/Truebill gap tracking.
+- **`docs/native-contract.md`** — budget-lens and household fields.
+- **Dependencies** — `stripe` 22.3.0, `@simplewebauthn/server` 13.3.2;
+  Android `versionCode` 4.
+
+### Fixed
+
+- **Contact page dark mode** — contact/FAQ/legal sub-panels no longer
+  render as washed-out gray cards against the dark hero shell.
+
 ## [1.3.0] — 2026-06-23
 
 Dashboard customization, reminders across email and native apps, hourly
@@ -367,6 +423,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.4.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.3.0
 [1.2.3]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.3
 [1.2.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.2
