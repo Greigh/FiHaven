@@ -30,6 +30,7 @@ data class Bill(
     val cardId: String? = null,         // "Charged to" — id of the card this bill is paid on
     val startDate: String? = null,      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
     val endDate: String? = null,        // "Stops on" — "YYYY-MM-DD"; bill is retired after this
+    val trialEnds: String? = null,      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
 )
 
 @Serializable

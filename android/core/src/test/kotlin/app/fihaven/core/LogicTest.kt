@@ -1,5 +1,6 @@
 package app.fihaven.core
 
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
 import app.fihaven.core.logic.PaidGoalPolicy
@@ -298,5 +299,43 @@ class PayoffTest {
         val big = r.cards.first { it.id == 1 }
         assertTrue(small.paidOffMonth != null && big.paidOffMonth != null)
         assertTrue(small.paidOffMonth!! <= big.paidOffMonth!!)
+    }
+}
+
+class BudgetRulesTest {
+    @Test fun modeAndSplits() {
+        val off = FiHavenJson.parseToJsonElement("{}").jsonObject
+        assertEquals("off", BudgetRules.mode(off))
+        val rule = FiHavenJson.parseToJsonElement("""{"budgetRule":"50-30-20"}""").jsonObject
+        assertEquals("50-30-20", BudgetRules.mode(rule))
+        assertEquals(50, BudgetRules.splits(rule)!!.needs)
+        val preset = FiHavenJson.parseToJsonElement("""{"budgetRule":"80-20"}""").jsonObject
+        assertEquals(80, BudgetRules.splits(preset)!!.needs)
+    }
+
+    @Test fun obligationsFirstLens() {
+        val settings = FiHavenJson.parseToJsonElement("""{"budgetRule":"obligations-first"}""").jsonObject
+        val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
+        val lens = BudgetRules.lens(
+            settings, 5000.0,
+            listOf(Bill(id = 1, category = "Housing", amount = 1500.0)),
+            listOf(Card(id = 1, minPayment = 100.0)),
+            emptyList(), emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
+        )
+        assertTrue(lens != null)
+        assertEquals("Safe to spend", lens!!.headline!!.label)
+    }
+
+    @Test fun splitLensWhenEnabled() {
+        val settings = FiHavenJson.parseToJsonElement("""{"budgetRule":"50-30-20"}""").jsonObject
+        val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
+        val lens = BudgetRules.lens(
+            settings, 4000.0,
+            listOf(Bill(id = 1, category = "Utilities", amount = 200.0)),
+            listOf(Card(id = 1, minPayment = 50.0)),
+            emptyList(), emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
+        )
+        assertTrue(lens != null)
+        assertEquals(250.0, lens!!.rows.first { it.key == "needs" }.actual, 1e-6)
     }
 }

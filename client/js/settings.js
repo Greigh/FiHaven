@@ -14,6 +14,7 @@ import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
+import { initHousehold } from './household.js';
 
     function showMessage(form, text, isError) {
     var el = document.querySelector('[data-message="' + form + '"]');
@@ -169,6 +170,8 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
     auth.me().then(function (user) {
       if (!user) return; // auth.js already redirects unauthenticated users
       renderIdentity(user);
+      // Family / household panel.
+      initHousehold(user);
       var nameInput = document.getElementById('display-name');
       if (nameInput) nameInput.value = user.name || '';
       // Membership line needs the Pro entitlement (from /api/data).
@@ -410,6 +413,9 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
 
     /* ── Budget period ─────────────────────────────────────── */
     initPeriodSection();
+
+    /* ── Budget rule lens ──────────────────────────────────── */
+    initBudgetRuleSection();
 
     /* ── Autopay auto-mark ─────────────────────────────────── */
     initAutopaySection();
@@ -988,6 +994,85 @@ import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardW
         .catch(function (err) {
           setBusy(form, false);
           showMessage('period', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Budget rule lens ───────────────────────────────────── */
+  function initBudgetRuleSection() {
+    var form = document.querySelector('[data-form="budgetrule"]');
+    var modeSel = document.querySelector('[data-budget-rule-mode]');
+    var splitsField = document.querySelector('[data-budget-rule-splits]');
+    var debtField = document.querySelector('[data-debt-focus-extra-field]');
+    var debtIn = document.querySelector('[data-debt-focus-extra]');
+    var needsIn = document.querySelector('[data-budget-rule-needs]');
+    var wantsIn = document.querySelector('[data-budget-rule-wants]');
+    var saveIn = document.querySelector('[data-budget-rule-save]');
+    if (!form || !modeSel) return;
+
+    var presetModes = { '50-30-20': 1, '80-20': 1, '60-20-20': 1, '70-20-10': 1 };
+    function normMode(v) {
+      if (v === '50-30-20' || v === '503020') return '50-30-20';
+      if (presetModes[v]) return v;
+      if (v === 'custom') return 'custom';
+      if (v === 'obligations-first' || v === 'obligations') return 'obligations-first';
+      if (v === 'debt-focus' || v === 'debt') return 'debt-focus';
+      if (v === 'envelope') return 'envelope';
+      return 'off';
+    }
+    function clampPct(v) { v = parseInt(v, 10); return (v >= 0 && v <= 100) ? v : 0; }
+    function clampMoney(v) { v = parseFloat(v); return (v >= 0 && isFinite(v)) ? v : 0; }
+    function syncVisibility() {
+      var mode = normMode(modeSel.value);
+      if (splitsField) splitsField.hidden = mode !== 'custom';
+      if (debtField) debtField.hidden = mode !== 'debt-focus';
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        modeSel.value = normMode(s.budgetRule);
+        var splits = s.budgetRuleSplits || { needs: 50, wants: 30, save: 20 };
+        if (needsIn) needsIn.value = clampPct(splits.needs != null ? splits.needs : 50);
+        if (wantsIn) wantsIn.value = clampPct(splits.wants != null ? splits.wants : 30);
+        if (saveIn) saveIn.value = clampPct(splits.save != null ? splits.save : 20);
+        if (debtIn) debtIn.value = clampMoney(s.debtFocusExtra != null ? s.debtFocusExtra : 0);
+        syncVisibility();
+      })
+      .catch(function () { syncVisibility(); });
+
+    modeSel.addEventListener('change', syncVisibility);
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var mode = normMode(modeSel.value);
+      var splits = {
+        needs: clampPct(needsIn && needsIn.value),
+        wants: clampPct(wantsIn && wantsIn.value),
+        save: clampPct(saveIn && saveIn.value),
+      };
+      setBusy(form, true);
+      showMessage('budgetrule', 'Saving…', false);
+      fetchData()
+        .then(function (server) {
+          var patch = { budgetRule: mode };
+          if (mode === 'custom') patch.budgetRuleSplits = splits;
+          if (mode === 'debt-focus') patch.debtFocusExtra = clampMoney(debtIn && debtIn.value);
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, patch),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('budgetrule', 'Budget lens saved.', false);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('budgetrule', (err && err.message) || errorText('network'), true);
         });
     });
   }
