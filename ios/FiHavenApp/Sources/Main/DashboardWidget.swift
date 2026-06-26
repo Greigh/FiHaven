@@ -16,6 +16,7 @@ enum DashboardWidget {
         ("goals", "Savings goals"),
         ("subscriptions", "Subscriptions"),
         ("incomeHistory", "Income history"),
+        ("budgetStatus", "Budget / safe-to-spend"),
     ]
 
     static let allIDs = catalog.map { $0.id }

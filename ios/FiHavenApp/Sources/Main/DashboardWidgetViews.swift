@@ -22,13 +22,15 @@ struct CashflowWidget: View {
             VStack(alignment: .leading, spacing: 8) {
                 FieldLabel(text: "This period's payments")
                 HStack(spacing: 6) {
-                    Text(Money.fmt(paid)).foregroundStyle(Theme.green)
+                    SemanticAmount(value: Money.fmt(paid), tone: .positive, font: Theme.ui(13))
                     Text("paid").foregroundStyle(Theme.muted)
                     Spacer()
                     Text("\(Int(pct * 100))%").foregroundStyle(Theme.muted)
                 }
                 .font(Theme.ui(13))
                 ProgressView(value: pct).tint(Theme.accent)
+                    .accessibilityLabel("Payment progress")
+                    .accessibilityValue("\(Int(pct * 100)) percent paid")
                 Text("\(Money.fmt(remaining)) remaining of \(Money.fmt(budgeted))")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
@@ -38,11 +40,23 @@ struct CashflowWidget: View {
     }
 }
 
-/// 0% promo / overdue alerts — mirrors the web dashboard alert logic.
+/// 0% promo, credit utilization, and trial-ending alerts.
 struct AlertsWidget: View {
     @EnvironmentObject var store: AppStore
     private var alerts: [String] {
         var out: [String] = []
+        for c in store.data.cards where c.type != "loan" && c.limit > 0 {
+            let util = Int((c.balance / c.limit) * 100)
+            if util >= 80 {
+                out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(c.balance)) of \(Money.fmt(c.limit))).")
+            }
+        }
+        for b in store.data.bills where !(b.trialEnds ?? "").isEmpty {
+            if let left = trialDaysLeft(b.trialEnds, tz: store.tz), left >= 0, left <= 3 {
+                let dayWord = left == 0 ? "today" : (left == 1 ? "tomorrow" : "in \(left) days")
+                out.append("⏳ \(b.name) — free trial ends \(dayWord).")
+            }
+        }
         for c in store.data.cards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
             let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
             let bal = c.promoBalance ?? c.balance
@@ -56,6 +70,16 @@ struct AlertsWidget: View {
             }
         }
         return out
+    }
+
+    private func trialDaysLeft(_ trialEnds: String?, tz: TimeZone) -> Int? {
+        guard let raw = trialEnds,
+              raw.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil,
+              let end = DateLogic.parseDate(raw, tz: tz) else { return nil }
+        let cal = DateLogic.calendar(tz: tz)
+        let today = cal.startOfDay(for: Date())
+        let endDay = cal.startOfDay(for: end)
+        return cal.dateComponents([.day], from: today, to: endDay).day
     }
 
     @ViewBuilder var body: some View {
@@ -88,6 +112,8 @@ struct GoalsWidget: View {
                                 .font(Theme.mono(12)).foregroundStyle(Theme.muted)
                         }
                         ProgressView(value: g.progress).tint(Theme.accent)
+                            .accessibilityLabel("\(g.name.isEmpty ? "Goal" : g.name) progress")
+                            .accessibilityValue("\(Int(g.progress * 100)) percent saved")
                     }
                 }
             }
@@ -144,6 +170,64 @@ struct SubscriptionsWidget: View {
                         Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(12)).foregroundStyle(Theme.muted)
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ctCard()
+        }
+    }
+}
+
+/// Budget / safe-to-spend headline from the active budget lens.
+struct BudgetStatusWidget: View {
+    @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
+
+    private var lens: BudgetRules.Lens? {
+        BudgetRules.lens(
+            settings: store.data.settings,
+            income: store.periodIncome,
+            bills: store.data.bills,
+            cards: store.data.cards,
+            transactions: store.data.transactions,
+            goals: store.data.goals,
+            bounds: store.currentBounds,
+            billDueInPeriod: { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) },
+            isPro: billing.isPro,
+            tz: store.tz
+        )
+    }
+
+    @ViewBuilder var body: some View {
+        if let lens, let h = lens.headline {
+            VStack(alignment: .leading, spacing: 6) {
+                FieldLabel(text: lens.title)
+                HStack {
+                    Text(h.label).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                    Spacer()
+                    SemanticAmount(
+                        value: Money.fmt(h.amount),
+                        tone: A11y.MoneyTone.fromBudgetStatus(h.status),
+                        font: Theme.mono(20, weight: .semibold),
+                        statusWords: A11y.budgetStatusWords(h.status)
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .ctCard()
+        } else if store.periodIncome > 0 {
+            let obligations = store.data.bills
+                .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
+                .reduce(0) { $0 + $1.amount }
+                + store.data.cards.reduce(0) { $0 + $1.minPayment }
+            let cushion = store.periodIncome - obligations
+            VStack(alignment: .leading, spacing: 6) {
+                FieldLabel(text: "Cushion after bills")
+                SemanticAmount(
+                    value: Money.fmt(cushion),
+                    tone: cushion >= 0 ? .positive : .negative,
+                    font: Theme.mono(20, weight: .semibold),
+                    statusWords: cushion >= 0 ? "Surplus" : "Shortfall"
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .ctCard()
