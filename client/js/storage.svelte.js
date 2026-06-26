@@ -196,8 +196,20 @@ export function setSyncStatus(state) {
 /* ── Server sync ─────────────────────────────────────────── */
 let syncTimer = null;
 
+function withoutHouseholdShared(arr) {
+  return (arr || []).filter((x) => !x || !x._householdShared);
+}
+
 function snapshot() {
-  return { bills, cards, payments, accounts, goals, transactions, settings };
+  return {
+    bills: withoutHouseholdShared(bills),
+    cards: withoutHouseholdShared(cards),
+    payments,
+    accounts,
+    goals: withoutHouseholdShared(goals),
+    transactions,
+    settings,
+  };
 }
 
 // Mirror the in-memory state into the localStorage offline cache
@@ -318,6 +330,7 @@ export function bootstrapData() {
         applyData(server);
         localStorage.setItem('fh_data_owner', owner);
         cacheLocally();
+        import('./householdMerge.js').then((m) => m.initHouseholdMerge()).catch(() => {});
         return;
       }
 
@@ -345,6 +358,7 @@ export function bootstrapData() {
       applyData({});
       localStorage.setItem('fh_data_owner', owner);
       cacheLocally();
+      import('./householdMerge.js').then((m) => m.initHouseholdMerge()).catch(() => {});
     })
     .catch((err) => {
       if (err === 'unauth') return Promise.reject(err);

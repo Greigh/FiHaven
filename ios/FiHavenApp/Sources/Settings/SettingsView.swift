@@ -40,6 +40,9 @@ struct SettingsView: View {
                 groupRow("Notifications", "bell.badge.fill", "Reminders, digest, summary") {
                     detail("Notifications") { notificationsSection }
                 }
+                groupRow("Family", "person.2.fill", "Share with your household") {
+                    HouseholdSettingsView(api: env.api, myEmail: current.email)
+                }
                 groupRow("Automation", "wand.and.stars", "Autopay auto-mark") {
                     detail("Automation") { autopaySection }
                 }
@@ -106,11 +109,22 @@ struct SettingsView: View {
             }
             Button("Change email") { sheet = .changeEmail }
             Button("Change password") { sheet = .changePassword }
-            HStack(spacing: 6) {
-                Image(systemName: store.syncState == .offline ? "icloud.slash" : "checkmark.icloud")
-                    .foregroundStyle(store.syncState == .offline ? Theme.muted : Theme.green)
-                Text(syncLine).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            HStack(spacing: 8) {
+                let offline = store.syncState == .offline
+                let saving = store.syncState == .saving
+                Image(systemName: A11y.syncStatusIcon(offline: offline, saving: saving))
+                    .foregroundStyle(offline ? Theme.muted : Theme.green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(A11y.syncStatusWords(offline: offline, saving: saving))
+                        .font(Theme.ui(11, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                    Text(syncLine).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "\(A11y.syncStatusWords(offline: store.syncState == .offline, saving: store.syncState == .saving)). \(syncLine)"
+            )
         } header: {
             Text("Account")
         } footer: {
@@ -168,20 +182,30 @@ struct SettingsView: View {
                     HStack {
                         Text("Authenticator app")
                         Spacer()
-                        Text(mfa.totp.enabled ? "On" : "Set up")
-                            .foregroundStyle(mfa.totp.enabled ? Theme.green : Theme.accent)
+                        HStack(spacing: 4) {
+                            Image(systemName: A11y.enabledStatusIcon(mfa.totp.enabled))
+                                .font(.caption)
+                            Text(mfa.totp.enabled ? "On" : "Set up")
+                                .foregroundStyle(mfa.totp.enabled ? Theme.green : Theme.accent)
+                        }
                     }
                 }
+                .accessibilityLabel("Authenticator app, \(mfa.totp.enabled ? "on" : "not set up")")
                 Button {
                     sheet = mfa.emailMfa.enabled ? .emailDisable : .emailEnable
                 } label: {
                     HStack {
                         Text("Email codes")
                         Spacer()
-                        Text(mfa.emailMfa.enabled ? "On" : "Off")
-                            .foregroundStyle(mfa.emailMfa.enabled ? Theme.green : Theme.muted)
+                        HStack(spacing: 4) {
+                            Image(systemName: A11y.enabledStatusIcon(mfa.emailMfa.enabled))
+                                .font(.caption)
+                            Text(A11y.enabledStatusWords(mfa.emailMfa.enabled))
+                                .foregroundStyle(mfa.emailMfa.enabled ? Theme.green : Theme.muted)
+                        }
                     }
                 }
+                .accessibilityLabel("Email codes, \(A11y.enabledStatusWords(mfa.emailMfa.enabled).lowercased())")
                 if mfa.totp.enabled {
                     Button {
                         sheet = .backupCodes

@@ -14,6 +14,9 @@ public struct Entitlement: Codable, Equatable, Sendable {
     /// Epoch-ms when the current Pro run began — a rough "Pro since" for the
     /// profile. nil when not Pro (or unknown from an older payload).
     public var proSince: Int64?
+    /// How many people a shared household may hold (0 = can't create one).
+    /// Driven by the plan: Free 0, Pro 3, Family more. (Phase 4, pricing TBD.)
+    public var householdMax: Int?
 
     public init(
         pro: Bool = false,
@@ -22,7 +25,8 @@ public struct Entitlement: Codable, Equatable, Sendable {
         plan: String? = nil,
         expiresAt: Int64? = nil,
         autoRenew: Bool? = nil,
-        proSince: Int64? = nil
+        proSince: Int64? = nil,
+        householdMax: Int? = nil
     ) {
         self.pro = pro
         self.source = source
@@ -31,6 +35,7 @@ public struct Entitlement: Codable, Equatable, Sendable {
         self.expiresAt = expiresAt
         self.autoRenew = autoRenew
         self.proSince = proSince
+        self.householdMax = householdMax
     }
 }
 
