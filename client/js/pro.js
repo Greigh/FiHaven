@@ -85,10 +85,11 @@ function build() {
           'background:none;border:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>' +
       '</div>' +
       '<p style="margin:8px 0 0;color:var(--muted);font-size:14px;">' +
-        'Pro unlocks payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.' +
+        'Pro unlocks payoff planning, family sharing, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.' +
       '</p>' +
       '<ul class="pro-features" style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;">' +
         proFeature('Debt payoff planner — snowball & avalanche projections') +
+        proFeature('Family sharing — share bills, cards & goals with your household') +
         proFeature('Due-date calendar + iCal subscription') +
         proFeature('Full payment history & CSV exports') +
         proFeature('Rewards optimizer — best card for each purchase') +

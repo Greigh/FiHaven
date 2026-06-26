@@ -116,6 +116,24 @@ function finishTo(url) {
   saveGoalTabs().then(markOnboarded).then(function () { go(url); });
 }
 
+// Finish onboarding, then kick off Stripe Checkout for `plan` (e.g. the free
+// trial). Falls back to the in-app Pro dialog if checkout can't be started
+// (e.g. the plan isn't configured), so the user is never stranded.
+function startProCheckout(plan) {
+  var msg = document.querySelector('[data-onboard-message]');
+  if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'One moment…'; }
+  saveGoalTabs().then(markOnboarded).then(function () {
+    return fetch('/api/billing/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ plan: plan }),
+    }).then(function (r) { return r.ok ? r.json() : null; });
+  }).then(function (d) {
+    go(d && d.url ? d.url : '/dashboard?pro=open');
+  }).catch(function () { go('/dashboard?pro=open'); });
+}
+
 function render() {
   for (var i = 1; i <= TOTAL; i++) {
     var panel = document.querySelector('[data-step="' + i + '"]');
@@ -145,8 +163,10 @@ function wire() {
   if (settings) settings.addEventListener('click', function () { finishTo('/settings#security'); });
   var dash = document.querySelector('[data-go-dashboard]');
   if (dash) dash.addEventListener('click', function () { finishTo('/dashboard'); });
-  var pro = document.querySelector('[data-go-pro]');
-  if (pro) pro.addEventListener('click', function () { finishTo('/dashboard?pro=open'); });
+  var trial = document.querySelector('[data-start-trial]');
+  if (trial) trial.addEventListener('click', function () { startProCheckout('trial'); });
+  var premium = document.querySelector('[data-get-premium]');
+  if (premium) premium.addEventListener('click', function () { finishTo('/dashboard?pro=open'); });
   var finish = document.querySelector('[data-finish]');
   if (finish) finish.addEventListener('click', function () { finishTo('/dashboard'); });
 }
