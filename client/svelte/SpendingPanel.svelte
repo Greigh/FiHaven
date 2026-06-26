@@ -10,8 +10,9 @@
   // Manual transaction logging is free (manual-first); per-category
   // budgets are the Pro "insight" layer.
   let pro = $derived(entitlement.pro);
-  import { boundsForKey, paymentInBounds } from '../js/period.js';
+  import { boundsForKey, paymentInBounds, shiftPeriod } from '../js/period.js';
   import { todayISO } from '../js/tz.js';
+  import { computeSpendingInsights } from '../js/spendingInsights.js';
 
   const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
   const ICON = {
@@ -20,6 +21,7 @@
   };
 
   let bounds   = $derived(boundsForKey(currentPeriodKey()));
+  let prevBounds = $derived(shiftPeriod(bounds, -1));
   let periodTx = $derived(transactions.filter((t) => paymentInBounds(t, bounds)));
   let budgets  = $derived((settings && settings.categoryBudgets) || {});
 
@@ -33,6 +35,7 @@
 
   // Categories to show: any with a budget or any spending this period.
   let rows = $derived(CATS.filter((c) => (parseFloat(budgets[c]) || 0) > 0 || (spentByCat[c] || 0) > 0));
+  let insights = $derived(pro ? computeSpendingInsights(transactions, bounds, prevBounds).slice(0, 4) : []);
 
   function setBudget(cat, amt) {
     settings.categoryBudgets = { ...(settings.categoryBudgets || {}), [cat]: parseFloat(amt) || 0 };
@@ -109,6 +112,20 @@
       <a href="/settings">Go Pro</a>
     </div>
   {:else}
+  {#if insights.length > 0}
+    <div class="spend-insights">
+      <div class="spend-insights-title">vs last period</div>
+      {#each insights as row (row.cat)}
+        <div class="spend-insight-row">
+          <span>{ICON[row.cat] || '📦'} {row.cat}</span>
+          <span class="spend-insight-delta" style="color:{row.delta > 0 ? 'var(--red)' : row.delta < 0 ? 'var(--green)' : 'var(--muted)'};">
+            {#if row.delta > 0}+{/if}{fmt(row.delta)}
+            {#if row.was > 0}<span class="spend-insight-pct"> ({row.pct > 0 ? '+' : ''}{row.pct}%)</span>{/if}
+          </span>
+        </div>
+      {/each}
+    </div>
+  {/if}
   {#if rows.length === 0}
     <p class="networth-empty">No spending yet this period. Add a transaction, or set a category budget below.</p>
   {/if}
@@ -159,3 +176,10 @@
     </div>
   {/if}
 </section>
+
+<style>
+  .spend-insights { margin-bottom: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
+  .spend-insights-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .spend-insight-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+  .spend-insight-pct { font-size: 11px; color: var(--muted); }
+</style>
