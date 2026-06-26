@@ -84,11 +84,16 @@ struct PayView: View {
         }
     }
 
+    private var marksFullyPaid: Bool {
+        guard goal > 0 else { return false }
+        return alreadyPaid + amount >= goal - Schedule.paidEpsilon
+    }
+
     private var hint: String {
         guard goal > 0 else { return "" }
         let projected = alreadyPaid + amount
         if projected >= goal - Schedule.paidEpsilon {
-            return "✓ Marks \(target.name) fully paid (goal \(Money.fmt(goal)) · \(policyLabel))."
+            return "Marks \(target.name) fully paid (goal \(Money.fmt(goal)) · \(policyLabel))."
         }
         let soFar = alreadyPaid > Schedule.paidEpsilon
             ? " Already paid \(Money.fmt(alreadyPaid)) this month."
@@ -113,10 +118,18 @@ struct PayView: View {
                                 Spacer()
                                 Text(Money.fmt(p.amount)).font(Theme.mono(14)).foregroundStyle(Theme.text)
                                 if isSelected(p) {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.green)
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text("Selected")
+                                            .font(Theme.ui(10, weight: .medium))
+                                    }
+                                    .foregroundStyle(Theme.green)
                                 }
                             }
                         }
+                        .accessibilityLabel("\(p.label), \(Money.fmt(p.amount))")
+                        .accessibilityValue(isSelected(p) ? "Selected" : "")
+                        .accessibilityAddTraits(isSelected(p) ? .isSelected : [])
                     }
                     HStack {
                         Text("Amount").foregroundStyle(Theme.text)
@@ -128,7 +141,7 @@ struct PayView: View {
                 } header: {
                     Text("How much?")
                 } footer: {
-                    if !hint.isEmpty { Text(hint) }
+                    if !hint.isEmpty { payHintFooter }
                 }
 
                 Section {
@@ -146,7 +159,9 @@ struct PayView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.disabled(amount <= 0)
+                    Button("Save") { save() }
+                        .disabled(amount <= 0)
+                        .accessibilityHint(amount <= 0 ? "Enter an amount greater than zero" : "Records this payment")
                 }
             }
             .onAppear(perform: start)
@@ -155,6 +170,22 @@ struct PayView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("You have already recorded \(Money.fmt(alreadyPaid)) in payments for this card/loan this month. Is this an additional payment?")
+            }
+        }
+    }
+
+    private var payHintFooter: some View {
+        Group {
+            if marksFullyPaid {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.green)
+                    Text(hint).font(Theme.ui(12)).foregroundStyle(Theme.text)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                Text(hint).font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
     }

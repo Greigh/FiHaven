@@ -24,7 +24,7 @@ enum NotificationScheduler {
         await center.notificationSettings().authorizationStatus
     }
 
-    /// Cancel existing bill reminders and reschedule from the current data.
+    /// Cancel existing bill/trial reminders and reschedule from the current data.
     /// Off (or no permission) simply clears everything we'd scheduled.
     static func reschedule(bills: [Bill], settings: Settings, tz: TimeZone) {
         center.removeAllPendingNotificationRequests()
@@ -71,6 +71,46 @@ enum NotificationScheduler {
                 scheduled += 1
             }
         }
+
+        // Trial-ending reminders for subscription bills with trialEnds set.
+        let trials = bills.compactMap { bill -> (Bill, Date)? in
+            guard let end = trialEndDate(bill, tz: tz) else { return nil }
+            return (bill, end)
+        }.sorted { $0.1 < $1.1 }
+
+        for (bill, end) in trials {
+            if scheduled >= maxPending { break }
+            for off in offsets {
+                guard scheduled < maxPending else { break }
+                guard let fireDay = cal.date(byAdding: .day, value: -off, to: end) else { continue }
+                var comps = cal.dateComponents([.year, .month, .day], from: fireDay)
+                comps.hour = hour
+                comps.minute = 0
+                guard let fireDate = cal.date(from: comps), fireDate > now else { continue }
+
+                let content = UNMutableNotificationContent()
+                content.title = "Trial ending soon"
+                let name = bill.name.isEmpty ? "A subscription" : bill.name
+                content.body = "\(name) free trial \(phrase(off))."
+                content.sound = .default
+
+                let trigger = UNCalendarNotificationTrigger(
+                    dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate),
+                    repeats: false
+                )
+                center.add(UNNotificationRequest(
+                    identifier: "trial-\(bill.id)-\(off)", content: content, trigger: trigger
+                ))
+                scheduled += 1
+            }
+        }
+    }
+
+    private static func trialEndDate(_ bill: Bill, tz: TimeZone) -> Date? {
+        guard let raw = bill.trialEnds,
+              raw.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+        else { return nil }
+        return DateLogic.parseDate(raw, tz: tz)
     }
 
     private static func phrase(_ off: Int) -> String {

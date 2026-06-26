@@ -74,6 +74,23 @@ function daysUntilDue(dueDay, lp) {
   return diff;
 }
 
+// Days from local-today until a "YYYY-MM-DD" date (trial end, etc.).
+function daysUntilYmd(ymd, lp) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const today = Date.UTC(lp.y, lp.m - 1, lp.d);
+  const target = Date.UTC(y, m - 1, d);
+  return Math.round((target - today) / 864e5);
+}
+
+/** Subscription bills with a trial ending in exactly `days` local days. */
+function trialsEndingOn(data, lp, days) {
+  return (data.bills || []).filter((b) => {
+    if (!b.trialEnds || !billActiveOn(b, lp.ymd)) return false;
+    return daysUntilYmd(b.trialEnds, lp) === days;
+  });
+}
+
 // A bill's optional active window (bills-only feature; mirrors the
 // client's billActive). `ymd` is the user's local "YYYY-MM-DD". A
 // not-yet-started or stopped bill is excluded from autopay, reminders,
@@ -262,6 +279,20 @@ async function runChecks(now = new Date(), deps = {}) {
         db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
       }
 
+      // Trial-ending reminders — same lead window as bill reminders.
+      if (s.billReminders && u.last_trial_reminder_day !== lp.ymd) {
+        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
+        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        for (const days of leads) {
+          const ending = trialsEndingOn(u.data, lp, days);
+          if (ending.length) {
+            try { await mailer.sendTrialReminder(u.email, ending, days, currency); }
+            catch (e) { console.error('trial reminder send failed', u.email, e && e.message); }
+          }
+        }
+        if (db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
+      }
+
       // Weekly digest — once a week (Monday), upcoming bills + balances.
       const weekKey = isoWeekKey(lp);
       if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
@@ -293,7 +324,7 @@ function start() {
 }
 
 module.exports = {
-  start, runChecks, localParts, daysUntilDue, summarize, weeklyDigest,
-  isoWeekKey, isoWeekday,
+  start, runChecks, localParts, daysUntilDue, daysUntilYmd, trialsEndingOn,
+  summarize, weeklyDigest, isoWeekKey, isoWeekday,
   SEND_HOUR, REMINDER_LEAD_DAYS, DEFAULT_TZ,
 };

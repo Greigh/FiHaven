@@ -43,11 +43,11 @@ struct BudgetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(spacing: 0) {
-                    summaryRow(store.incomeLabel, Money.fmt(store.periodIncome), Theme.green)
+                    summaryRow(store.incomeLabel, Money.fmt(store.periodIncome), .positive)
                     Divider().overlay(Theme.border)
-                    summaryRow("Bills + minimums", Money.fmt(obligations), Theme.text)
+                    summaryRow("Bills + minimums", Money.fmt(obligations), .neutral)
                     Divider().overlay(Theme.border)
-                    summaryRow("Leftover", Money.fmt(leftover), leftover >= 0 ? Theme.green : Theme.red)
+                    summaryRow("Leftover", Money.fmt(leftover), leftover >= 0 ? .positive : .negative)
                 }
                 .ctCard(padding: 0)
 
@@ -60,6 +60,7 @@ struct BudgetView: View {
                         .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                     Spacer()
                     Button { creating = true } label: { Image(systemName: "plus") }
+                        .accessibilityIconButton("Add income source")
                 }
 
                 if store.data.settings.incomes.isEmpty {
@@ -75,6 +76,7 @@ struct BudgetView: View {
                         .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                     Spacer()
                     Button { creatingAdj = true } label: { Image(systemName: "plus") }
+                        .accessibilityIconButton("Add income adjustment")
                 }
                 .padding(.top, 4)
 
@@ -91,6 +93,7 @@ struct BudgetView: View {
                         .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                     Spacer()
                     Button { creatingGoal = true } label: { Image(systemName: "plus") }
+                        .accessibilityIconButton("Add savings goal")
                 }
                 .padding(.top, 4)
 
@@ -124,11 +127,22 @@ struct BudgetView: View {
                 Text("\(Int(g.progress * 100))%").font(Theme.mono(13)).foregroundStyle(Theme.muted)
             }
             ProgressView(value: g.progress).tint(Theme.green)
+                .accessibilityLabel("\(g.name.isEmpty ? "Goal" : g.name) progress")
+                .accessibilityValue("\(Int(g.progress * 100)) percent saved")
             HStack {
                 Text("\(Money.fmt(g.saved)) of \(Money.fmt(g.target))")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 Spacer()
-                if let sug { Text("Save \(Money.fmt(sug))/mo").font(Theme.ui(12)).foregroundStyle(Theme.green) }
+                if let sug {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.green)
+                        Text("Save \(Money.fmt(sug))/mo")
+                            .font(Theme.ui(12))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
             }
         }
         .ctCard().contentShape(Rectangle())
@@ -151,9 +165,11 @@ struct BudgetView: View {
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
             Spacer()
-            Text("\(adj.amount >= 0 ? "+" : "")\(Money.fmt(adj.amount))")
-                .font(Theme.mono(15, weight: .medium))
-                .foregroundStyle(adj.amount < 0 ? Theme.red : Theme.green)
+            SemanticAmount(
+                value: "\(adj.amount >= 0 ? "+" : "")\(Money.fmt(adj.amount))",
+                tone: adj.amount < 0 ? .negative : .positive,
+                font: Theme.mono(15, weight: .medium)
+            )
         }
         .ctCard()
         .contentShape(Rectangle())
@@ -173,8 +189,12 @@ struct BudgetView: View {
                     HStack {
                         Text(h.label).font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                         Spacer()
-                        Text(Money.fmt(h.amount)).font(Theme.mono(20, weight: .bold))
-                            .foregroundStyle(h.status == "ok" ? Theme.green : Theme.red)
+                        SemanticAmount(
+                            value: Money.fmt(h.amount),
+                            tone: A11y.MoneyTone.fromBudgetStatus(h.status),
+                            font: Theme.mono(20, weight: .bold),
+                            statusWords: A11y.budgetStatusWords(h.status)
+                        )
                     }
                     .padding(12)
                     .background((h.status == "ok" ? Theme.green : Theme.red).opacity(0.08))
@@ -192,8 +212,12 @@ struct BudgetView: View {
                             if let t = row.target, t != row.actual {
                                 Text("target \(Money.fmt(t))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                             }
-                            Text(Money.fmt(row.actual)).font(Theme.mono(13))
-                                .foregroundStyle(row.status == "ok" ? Theme.green : (row.status == "under" ? Theme.red : Theme.orange))
+                            SemanticAmount(
+                                value: Money.fmt(row.actual),
+                                tone: A11y.MoneyTone.fromBudgetRowStatus(row.status),
+                                font: Theme.mono(13),
+                                statusWords: A11y.budgetRowStatusWords(row.status)
+                            )
                         }
                     }
                     .padding(.vertical, 4)
@@ -208,11 +232,11 @@ struct BudgetView: View {
         .ctCard()
     }
 
-    private func summaryRow(_ label: String, _ value: String, _ color: Color) -> some View {
+    private func summaryRow(_ label: String, _ value: String, _ tone: A11y.MoneyTone) -> some View {
         HStack {
             Text(label).font(Theme.ui(15)).foregroundStyle(Theme.muted)
             Spacer()
-            Text(value).font(Theme.mono(16, weight: .semibold)).foregroundStyle(color)
+            SemanticAmount(value: value, tone: tone, font: Theme.mono(16, weight: .semibold))
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
@@ -291,7 +315,10 @@ struct IncomeEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .accessibilityHint("Saves this income source")
+                }
             }
             .onAppear {
                 if let source {
@@ -359,7 +386,10 @@ struct IncomeAdjustmentEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .accessibilityHint("Saves this income adjustment")
+                }
             }
             .onAppear {
                 if let adjustment {
@@ -410,6 +440,7 @@ struct GoalEditorView: View {
                     amountRow("Saved", $saved)
                     amountRow("Target", $target)
                     Toggle("Set a target date", isOn: $hasDate)
+                        .accessibilityHint("Adds an optional deadline for this savings goal")
                     if hasDate {
                         DatePicker("Target date", selection: $date, displayedComponents: .date)
                     }
@@ -428,7 +459,10 @@ struct GoalEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .accessibilityHint("Saves this savings goal")
+                }
             }
             .onAppear {
                 if let goal {
@@ -487,12 +521,17 @@ struct TransactionEditorView: View {
                         .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                 }
                 Picker("Category", selection: $category) {
-                    ForEach(spendingCategories, id: \.self) { Text("\(SpendingView.catIcon($0)) \($0)").tag($0) }
+                    ForEach(spendingCategories, id: \.self) { cat in
+                        Text("\(SpendingView.catIcon(cat)) \(cat)")
+                            .tag(cat)
+                            .accessibilityLabel(cat)
+                    }
                 }
                 TextField("Merchant (optional)", text: $merchant)
                 DatePicker("Date", selection: $date, displayedComponents: .date)
             }
-            .navigationTitle("Add SpendTransaction").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Add transaction")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -500,7 +539,9 @@ struct TransactionEditorView: View {
                         store.addTransaction(amount: amount, category: category,
                                              merchant: merchant.trimmingCharacters(in: .whitespaces), date: date)
                         dismiss()
-                    }.disabled(amount <= 0)
+                    }
+                    .disabled(amount <= 0)
+                    .accessibilityHint(amount <= 0 ? "Enter an amount greater than zero" : "Adds this transaction")
                 }
             }
         }
@@ -523,12 +564,14 @@ struct CategoryBudgetsView: View {
                     ForEach(spendingCategories, id: \.self) { cat in
                         HStack {
                             Text("\(SpendingView.catIcon(cat)) \(cat)")
+                                .accessibilityLabel(cat)
                             Spacer(); Text("$").foregroundStyle(Theme.muted)
                             TextField("0", value: Binding(
                                 get: { store.data.settings.categoryBudgets[cat] ?? 0 },
                                 set: { store.setCategoryBudget(cat, $0) }
                             ), format: .number)
                             .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                            .accessibilityLabel("\(cat) monthly budget")
                         }
                     }
                 }

@@ -16,6 +16,9 @@ data class Entitlement(
     // Epoch-ms when the current Pro run began — a rough "Pro since" for the
     // profile. null when not Pro (or unknown from an older payload).
     val proSince: Long? = null,
+    // How many people a shared household may hold (0 = can't create one).
+    // Free 0, Pro 3, Family more. (Phase 4, pricing TBD.)
+    val householdMax: Int? = null,
 )
 
 /** Native store offer returned when a `store_offer` promo is redeemed. */

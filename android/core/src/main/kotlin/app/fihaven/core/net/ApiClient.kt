@@ -5,6 +5,17 @@ import app.fihaven.core.model.decodeAppData
 import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.Entitlement
 import app.fihaven.core.model.PromoResult
+import app.fihaven.core.model.HouseholdInfo
+import app.fihaven.core.model.HouseholdView
+import app.fihaven.core.model.HouseholdSharedData
+import app.fihaven.core.model.SharedEntity
+import app.fihaven.core.model.HouseholdEnvelope
+import app.fihaven.core.model.SharedEntityEnvelope
+import app.fihaven.core.model.CreateHouseholdBody
+import app.fihaven.core.model.HouseholdInviteBody
+import app.fihaven.core.model.HouseholdAcceptBody
+import app.fihaven.core.model.ShareEntityBody
+import kotlinx.serialization.json.JsonElement
 
 /// Talks to the FiHaven REST API with token/Bearer auth
 /// (docs/native-contract.md §3–5). Mirrors the Swift APIClient.
@@ -160,6 +171,39 @@ class ApiClient(
      *  invalid / exhausted / already-redeemed. */
     suspend fun redeemPromo(code: String): PromoResult =
         decode(send(makeRequest("api/billing/promo/redeem", HttpMethod.POST, encode(PromoRedeemBody(code)))))
+
+    // ── Households (couples / families) ───────────────────────────────
+    suspend fun getHousehold(): HouseholdInfo =
+        decode(send(makeRequest("api/household", HttpMethod.GET)))
+
+    suspend fun createHousehold(name: String): HouseholdView =
+        decode<HouseholdEnvelope>(send(makeRequest("api/household", HttpMethod.POST, encode(CreateHouseholdBody(name))))).household
+
+    suspend fun inviteToHousehold(email: String): HouseholdView =
+        decode<HouseholdEnvelope>(send(makeRequest("api/household/invite", HttpMethod.POST, encode(HouseholdInviteBody(email))))).household
+
+    suspend fun acceptHouseholdInvite(token: String): HouseholdView =
+        decode<HouseholdEnvelope>(send(makeRequest("api/household/accept", HttpMethod.POST, encode(HouseholdAcceptBody(token))))).household
+
+    suspend fun removeHouseholdMember(userId: Int): HouseholdView =
+        decode<HouseholdEnvelope>(send(makeRequest("api/household/members/$userId", HttpMethod.DELETE))).household
+
+    suspend fun revokeHouseholdInvite(id: Int): HouseholdView =
+        decode<HouseholdEnvelope>(send(makeRequest("api/household/invites/$id", HttpMethod.DELETE))).household
+
+    suspend fun leaveHousehold() {
+        send(makeRequest("api/household/leave", HttpMethod.POST))
+    }
+
+    suspend fun getHouseholdSharedData(): HouseholdSharedData =
+        decode(send(makeRequest("api/household/data", HttpMethod.GET)))
+
+    suspend fun shareHouseholdEntity(kind: String, item: JsonElement): SharedEntity =
+        decode<SharedEntityEnvelope>(send(makeRequest("api/household/entities", HttpMethod.POST, encode(ShareEntityBody(kind, item))))).entity
+
+    suspend fun deleteHouseholdEntity(kind: String, id: String) {
+        send(makeRequest("api/household/entities/$kind/$id", HttpMethod.DELETE))
+    }
 
     // ── Profile ──────────────────────────────────────────────────────
     suspend fun changeName(name: String): String? =

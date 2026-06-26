@@ -13,7 +13,7 @@ enum Theme {
     static let surface2    = dyn(0xF2F3F6, 0x1F2126)
     static let border      = dyn(0xE5E7EB, 0x292B31)
     static let text        = dyn(0x15161A, 0xECEDF0)
-    static let muted       = dyn(0x6C6E77, 0x868892)
+    static let muted       = dyn(0x555661, 0x9496A3)
     static let accent      = dyn(0x3D6FE1, 0x6098F6)
     static let accentHover = dyn(0x2F5DCB, 0x82AEFA)
     static let accentBg    = dyn(0xEAF0FE, 0x122544)
@@ -34,17 +34,30 @@ enum Theme {
     // ── Type ─────────────────────────────────────────────────────────
     // Bundled OFL fonts: Manrope (variable wght axis) for UI, IBM Plex
     // Mono for numbers. Manrope's default instance is ExtraLight, so we
-    // always pin an explicit weight.
-    static func title(_ size: CGFloat) -> Font {
-        .custom("Manrope", size: size).weight(.heavy)
+    // always pin an explicit weight. `relativeTo` ties each size to a
+    // Dynamic Type text style so Larger Text scales across the app.
+    static func title(_ size: CGFloat, relativeTo style: Font.TextStyle = .title) -> Font {
+        .custom("Manrope", size: size, relativeTo: style).weight(.heavy)
     }
-    static func ui(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom("Manrope", size: size).weight(weight)
+    static func ui(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo style: Font.TextStyle = .body
+    ) -> Font {
+        .custom("Manrope", size: size, relativeTo: style).weight(weight)
     }
-    static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    static func mono(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo style: Font.TextStyle = .body
+    ) -> Font {
         // Two static faces bundled (Regular + Medium); map heavier UI
         // weights onto Medium.
-        .custom(weight == .regular ? "IBMPlexMono-Regular" : "IBMPlexMono-Medium", size: size)
+        .custom(
+            weight == .regular ? "IBMPlexMono-Regular" : "IBMPlexMono-Medium",
+            size: size,
+            relativeTo: style
+        )
     }
 
     // ── Color resolution ─────────────────────────────────────────────

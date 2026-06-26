@@ -109,3 +109,9 @@ match web and Android — see [`docs/native-contract.md`](../docs/native-contrac
 - `xcodebuild -version` must succeed (full Xcode, not just Command Line
   Tools). If `xcode-select -p` points at `CommandLineTools`, run
   `sudo xcode-select -s /Applications/Xcode.app` after installing Xcode.
+
+## App Store Connect & TestFlight
+
+Legal URLs and TestFlight checklist: [`docs/app-store-connect.md`](../docs/app-store-connect.md).
+
+**Quick copy-paste:** Privacy Policy `https://fihaven.app/privacy` · EULA: **Apple Standard** (not `/terms`) · Terms in-app: `https://fihaven.app/terms`.

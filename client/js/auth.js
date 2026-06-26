@@ -100,11 +100,22 @@
 
   // After a successful auth, unverified accounts go to the verify
   // screen; verified ones land in the app.
+  // A household invite link is /login?household=<token>. After auth we
+  // carry it through to settings so the invitee lands on the accept flow.
+  function pendingHouseholdToken() {
+    try { return new URLSearchParams(window.location.search).get('household') || ''; }
+    catch (_) { return ''; }
+  }
+  function postAuthHome() {
+    var hh = pendingHouseholdToken();
+    return hh ? '/settings?household=' + encodeURIComponent(hh) : '/dashboard';
+  }
+
   function routeAfterAuth(data) {
     var u = data && data.user;
     if (u && u.emailVerified === false) { go('/verify-email'); return; }
     if (u && u.onboarded === false) { go('/welcome'); return; }
-    go('/dashboard');
+    go(postAuthHome());
   }
 
   // Maps a backend error code to a friendly, user-facing message.
@@ -482,7 +493,7 @@
       if (user) {
         if (!user.emailVerified) go('/verify-email');
         else if (!user.onboarded) go('/welcome');
-        else go('/dashboard');
+        else go(postAuthHome());
       } else {
         initAuthPage();
       }

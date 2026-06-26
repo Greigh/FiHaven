@@ -53,11 +53,19 @@ import app.fihaven.core.net.MfaChallenge
 import app.fihaven.core.net.User
 import app.fihaven.data.PrefsTokenStore
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import app.fihaven.core.model.FiHavenJson
+import app.fihaven.core.model.HouseholdStreamFrame
+import app.fihaven.core.model.SharedEntity
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.time.Duration.Companion.milliseconds
@@ -497,6 +505,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Account helpers (used by Settings) ───────────────────────────
     val currentUser: User? get() = (_session.value as? Session.SignedIn)?.user
+
+    /** Opens the household live-delta SSE stream (Phase 3) and invokes
+     *  [onEntity] for each delta until the coroutine is cancelled. Uses
+     *  HttpURLConnection directly — the core transport is request/response. */
+    suspend fun streamHousehold(since: Long, onEntity: (SharedEntity) -> Unit) = withContext(Dispatchers.IO) {
+        val url = URL(BuildConfig.API_BASE.trimEnd('/') + "/api/household/stream/" + since)
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 15_000
+            readTimeout = 0 // keep the stream open
+            setRequestProperty("Accept", "text/event-stream")
+            tokens.get()?.let { setRequestProperty("Authorization", "Bearer $it") }
+        }
+        try {
+            if (conn.responseCode != 200) return@withContext
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                while (isActive) {
+                    val line = reader.readLine() ?: break
+                    if (line.startsWith("data:")) {
+                        val json = line.substring(5).trim()
+                        runCatching {
+                            onEntity(FiHavenJson.decodeFromString(HouseholdStreamFrame.serializer(), json).entity)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // dropped; caller re-subscribes on next reload
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     fun applyUser(user: User) {
         if (_session.value is Session.SignedIn) _session.value = Session.SignedIn(user)
