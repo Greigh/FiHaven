@@ -6,6 +6,7 @@ import SwiftUI
 /// that marks onboarding complete server-side.
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = 0
     @State private var finishing = false
     @State private var selectedGoals: Set<Goal> = []
@@ -84,13 +85,15 @@ struct OnboardingView: View {
                     Capsule()
                         .fill(i == step ? Theme.accent : Theme.border)
                         .frame(width: i == step ? 22 : 8, height: 8)
-                        .animation(.spring(response: 0.3), value: step)
+                        .animationIfAllowed(.spring(response: 0.3), value: step)
                 }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Step \(step + 1) of \(totalSteps)")
             .padding(.bottom, 20)
 
             Button {
-                if isLast { finish() } else { withAnimation(.easeInOut(duration: 0.25)) { step += 1 } }
+                if isLast { finish() } else { performWithAnimation(!reduceMotion) { step += 1 } }
             } label: {
                 Text(buttonLabel)
             }
@@ -143,6 +146,7 @@ struct OnboardingView: View {
                 Spacer(minLength: 0)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(selected ? Theme.accent : Theme.border)
+                    .accessibilityHidden(true)
             }
             .padding(14)
             .background(selected ? Theme.accentBg : Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
@@ -152,6 +156,9 @@ struct OnboardingView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(goal.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityHint(selected ? "Selected. Double tap to deselect." : "Double tap to select.")
     }
 
     // ── Tour page ────────────────────────────────────────────────────
@@ -164,11 +171,14 @@ struct OnboardingView: View {
                 Image(systemName: page.icon)
                     .font(.system(size: 50))
                     .foregroundStyle(Theme.accent)
+                    .accessibilityHidden(true)
             }
+            .accessibilityLabel(page.title)
             Text(page.title)
                 .font(Theme.ui(26, weight: .bold))
                 .foregroundStyle(Theme.text)
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
             Text(page.body)
                 .font(Theme.ui(16))
                 .foregroundStyle(Theme.muted)

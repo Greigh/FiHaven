@@ -63,21 +63,36 @@ struct RewardsView: View {
                             .clipShape(Capsule())
                             .overlay(Capsule().stroke(Theme.border, lineWidth: cat == category ? 0 : 1))
                     }
+                    .accessibilityLabel(cat)
+                    .accessibilityAddTraits(cat == category ? .isSelected : [])
+                    .accessibilityHint("Shows the best card for this spending category")
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Spending category")
     }
 
     private func winner(_ best: Rewards.Ranked) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Best for \(category.lowercased())")
-                .font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+            HStack(spacing: 6) {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.accent)
+                Text("Best for \(category.lowercased())")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+            }
             HStack {
                 Text("💳 \(best.card.name.isEmpty ? "Card" : best.card.name)")
                     .font(Theme.ui(18, weight: .bold))
                 if isRotating(best.card) { rotBadge }
                 Spacer()
-                Text(ratePct(best.value)).font(Theme.title(24)).foregroundStyle(Theme.accent)
+                HStack(spacing: 4) {
+                    Text("Top rate")
+                        .font(Theme.ui(11, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                    Text(ratePct(best.value)).font(Theme.title(24)).foregroundStyle(Theme.accent)
+                }
             }
             if let bd = breakdown(best) {
                 Text(bd).font(Theme.ui(12)).foregroundStyle(Theme.muted)
@@ -87,6 +102,10 @@ struct RewardsView: View {
         .background(Theme.accentBg)
         .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.accent, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Best card for \(category): \(best.card.name.isEmpty ? "Card" : best.card.name), \(ratePct(best.value)) reward rate"
+        )
     }
 
     private func runnersUp(_ list: [Rewards.Ranked]) -> some View {
@@ -103,9 +122,16 @@ struct RewardsView: View {
                         }
                     }
                     Spacer()
-                    Text(ratePct(e.value)).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.muted)
+                    HStack(spacing: 4) {
+                        Text("Rate")
+                            .font(Theme.ui(10, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                        Text(ratePct(e.value)).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
+                    }
                 }
                 .padding(.vertical, 10)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(e.card.name.isEmpty ? "Card" : e.card.name), \(ratePct(e.value)) reward rate")
                 Divider().background(Theme.border)
             }
         }
@@ -124,12 +150,28 @@ struct RewardsView: View {
                         Text(e.card.name.isEmpty ? "Card" : e.card.name)
                             .foregroundStyle(Theme.muted)
                         Spacer()
-                        Text("\(ratePct(e.value)) · skipped").font(Theme.ui(12, weight: .semibold)).foregroundStyle(Theme.muted)
+                        HStack(spacing: 4) {
+                            Image(systemName: "pause.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.orange)
+                            Text("\(ratePct(e.value)) · skipped")
+                                .font(Theme.ui(12, weight: .semibold))
+                                .foregroundStyle(Theme.text)
+                        }
                     }
                     if let reason = e.reason {
-                        Text("⚠ \(reason)").font(Theme.ui(11)).foregroundStyle(Theme.orange)
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.orange)
+                            Text(reason).font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        }
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "\(e.card.name.isEmpty ? "Card" : e.card.name), skipped because of active promo, \(ratePct(e.value)) rate. \(e.reason ?? "")"
+                )
             }
         }
         .padding(14)
