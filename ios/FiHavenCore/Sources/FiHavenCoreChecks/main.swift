@@ -10,6 +10,7 @@ runScheduleChecks()
 runPayoffChecks()
 await runAPIChecks()
 await runAccountChecks()
+await runHouseholdChecks()
 await runLiveChecks()
 
 let passed = totalChecks - failedChecks
