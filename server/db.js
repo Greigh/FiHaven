@@ -225,6 +225,72 @@ db.exec(`
     UNIQUE(provider, subject)
   );
   CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
+
+  -- Shared households (couples / families). Each household groups members
+  -- who keep their own login + Pro status. Phase 1 stores membership and
+  -- invites only; the shared per-entity data store arrives in Phase 2.
+  CREATE TABLE IF NOT EXISTS households (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at    INTEGER NOT NULL,
+    updated_at    INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS household_members (
+    household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role         TEXT NOT NULL DEFAULT 'member',  -- 'owner' | 'member'
+    share_prefs  TEXT,                            -- JSON selective-sharing prefs (Phase 2)
+    joined_at    INTEGER NOT NULL,
+    PRIMARY KEY (household_id, user_id)
+  );
+  -- A user belongs to at most one household (enforced at the DB level).
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_household_members_user ON household_members(user_id);
+
+  -- Pending email invites. Like email_tokens, only the SHA-256 hash of the
+  -- raw token is stored; the raw token lives only in the emailed link.
+  CREATE TABLE IF NOT EXISTS household_invites (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    email        TEXT NOT NULL COLLATE NOCASE,
+    token_hash   TEXT NOT NULL,
+    role         TEXT NOT NULL DEFAULT 'member',
+    created_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at   INTEGER NOT NULL,
+    expires_at   INTEGER NOT NULL,
+    accepted_at  INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_household_invites_hh ON household_invites(household_id);
+  CREATE INDEX IF NOT EXISTS idx_household_invites_email ON household_invites(email);
+
+  -- The shared per-entity store (Phase 2). Each row is one shared item
+  -- (a bill, card, goal, …) contributed by a member. Per-entity rows let
+  -- members merge changes and share selectively; tombstones (deleted = 1)
+  -- are kept so clients can sync deletes. id is the item's own stable id.
+  CREATE TABLE IF NOT EXISTS household_entities (
+    household_id  INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL,           -- 'bill' | 'card' | 'goal' | 'account' | 'transaction'
+    id            TEXT NOT NULL,           -- the item's own id
+    data          TEXT NOT NULL,           -- JSON of the item
+    owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    updated_at    INTEGER NOT NULL,
+    updated_by    INTEGER NOT NULL,
+    deleted       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (household_id, kind, id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_household_entities_sync ON household_entities(household_id, updated_at);
+
+  -- Append-only delta log for live collaboration (Phase 3). Every shared-
+  -- entity change appends a row; the SSE stream replays rows after a
+  -- client's last-seen seq, then streams new ones live.
+  CREATE TABLE IF NOT EXISTS household_events (
+    seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+    household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    payload      TEXT NOT NULL,           -- JSON { entity }
+    created_at   INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_household_events_hh ON household_events(household_id, seq);
 `);
 
 // Idempotent column additions for older databases created before
@@ -528,6 +594,83 @@ const stmt = {
     `SELECT account_id, enc, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at
        FROM plaid_accounts WHERE item_pk = ? ORDER BY updated_at`
   ),
+
+  /* ── Households (couples / families) ──────────────────────── */
+  insertHousehold: db.prepare(
+    `INSERT INTO households (name, owner_user_id, created_at, updated_at) VALUES (?, ?, ?, ?)`
+  ),
+  findHouseholdById: db.prepare(`SELECT * FROM households WHERE id = ?`),
+  updateHouseholdName: db.prepare(`UPDATE households SET name = ?, updated_at = ? WHERE id = ?`),
+  deleteHousehold: db.prepare(`DELETE FROM households WHERE id = ?`),
+  transferHouseholdOwner: db.prepare(`UPDATE households SET owner_user_id = ?, updated_at = ? WHERE id = ?`),
+
+  insertHouseholdMember: db.prepare(
+    `INSERT INTO household_members (household_id, user_id, role, share_prefs, joined_at)
+     VALUES (@household_id, @user_id, @role, @share_prefs, @joined_at)`
+  ),
+  findHouseholdMembership: db.prepare(`SELECT * FROM household_members WHERE user_id = ?`),
+  listHouseholdMembers: db.prepare(
+    `SELECT m.household_id, m.user_id, m.role, m.joined_at, u.email, u.name
+       FROM household_members m JOIN users u ON u.id = m.user_id
+      WHERE m.household_id = ? ORDER BY m.joined_at`
+  ),
+  countHouseholdMembers: db.prepare(`SELECT COUNT(*) AS n FROM household_members WHERE household_id = ?`),
+  deleteHouseholdMember: db.prepare(`DELETE FROM household_members WHERE household_id = ? AND user_id = ?`),
+  setHouseholdMemberRole: db.prepare(
+    `UPDATE household_members SET role = ? WHERE household_id = ? AND user_id = ?`
+  ),
+  updateMemberSharePrefs: db.prepare(
+    `UPDATE household_members SET share_prefs = ? WHERE household_id = ? AND user_id = ?`
+  ),
+
+  insertHouseholdInvite: db.prepare(
+    `INSERT INTO household_invites (household_id, email, token_hash, role, created_by, created_at, expires_at)
+     VALUES (@household_id, @email, @token_hash, @role, @created_by, @created_at, @expires_at)`
+  ),
+  findHouseholdInviteByHash: db.prepare(`SELECT * FROM household_invites WHERE token_hash = ?`),
+  listHouseholdInvites: db.prepare(
+    `SELECT id, email, role, created_at, expires_at, accepted_at FROM household_invites
+      WHERE household_id = ? AND accepted_at IS NULL AND expires_at > ? ORDER BY created_at DESC`
+  ),
+  markHouseholdInviteAccepted: db.prepare(`UPDATE household_invites SET accepted_at = ? WHERE id = ?`),
+  deleteHouseholdInvite: db.prepare(`DELETE FROM household_invites WHERE id = ? AND household_id = ?`),
+  deletePendingInvitesForEmail: db.prepare(
+    `DELETE FROM household_invites WHERE household_id = ? AND email = ? AND accepted_at IS NULL`
+  ),
+
+  /* ── Household shared entities (Phase 2) ──────────────────── */
+  upsertHouseholdEntity: db.prepare(
+    `INSERT INTO household_entities (household_id, kind, id, data, owner_user_id, updated_at, updated_by, deleted)
+     VALUES (@household_id, @kind, @id, @data, @owner_user_id, @updated_at, @updated_by, @deleted)
+     ON CONFLICT(household_id, kind, id) DO UPDATE SET
+       data = excluded.data, updated_at = excluded.updated_at,
+       updated_by = excluded.updated_by, deleted = excluded.deleted`
+  ),
+  getHouseholdEntity: db.prepare(
+    `SELECT * FROM household_entities WHERE household_id = ? AND kind = ? AND id = ?`
+  ),
+  listHouseholdEntities: db.prepare(
+    `SELECT id, kind, data, owner_user_id, updated_at, updated_by, deleted
+       FROM household_entities WHERE household_id = ? ORDER BY updated_at`
+  ),
+  listHouseholdEntitiesSince: db.prepare(
+    `SELECT id, kind, data, owner_user_id, updated_at, updated_by, deleted
+       FROM household_entities WHERE household_id = ? AND updated_at > ? ORDER BY updated_at`
+  ),
+  maxHouseholdEntityVersion: db.prepare(
+    `SELECT COALESCE(MAX(updated_at), 0) AS v FROM household_entities WHERE household_id = ?`
+  ),
+
+  /* ── Household events (live-collaboration delta log, Phase 3) ─ */
+  insertHouseholdEvent: db.prepare(
+    `INSERT INTO household_events (household_id, payload, created_at) VALUES (?, ?, ?)`
+  ),
+  listHouseholdEventsSince: db.prepare(
+    `SELECT seq, payload FROM household_events WHERE household_id = ? AND seq > ? ORDER BY seq`
+  ),
+  maxHouseholdEventSeq: db.prepare(
+    `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events WHERE household_id = ?`
+  ),
 };
 
 /* ── thin function wrappers ──────────────────────────────────── */
@@ -824,6 +967,44 @@ function deletePlaidItem(id, userId)         { return stmt.deletePlaidItem.run(i
 function upsertPlaidAccount(row)             { stmt.upsertPlaidAccount.run(row); }
 function listPlaidAccountsByItem(itemPk)     { return stmt.listPlaidAccountsByItem.all(itemPk); }
 
+/* ── Household wrappers ─────────────────────────────────────── */
+function createHousehold(name, ownerUserId) {
+  const now = Date.now();
+  const info = stmt.insertHousehold.run(name, ownerUserId, now, now);
+  return info.lastInsertRowid;
+}
+function findHouseholdById(id)               { return stmt.findHouseholdById.get(id); }
+function updateHouseholdName(id, name)       { stmt.updateHouseholdName.run(name, Date.now(), id); }
+function deleteHousehold(id)                 { stmt.deleteHousehold.run(id); }
+function transferHouseholdOwner(id, newOwnerId) { stmt.transferHouseholdOwner.run(newOwnerId, Date.now(), id); }
+function insertHouseholdMember(row)          { stmt.insertHouseholdMember.run(row); }
+function findHouseholdMembership(userId)     { return stmt.findHouseholdMembership.get(userId); }
+function listHouseholdMembers(householdId)   { return stmt.listHouseholdMembers.all(householdId); }
+function countHouseholdMembers(householdId)  { return stmt.countHouseholdMembers.get(householdId).n; }
+function deleteHouseholdMember(householdId, userId) { return stmt.deleteHouseholdMember.run(householdId, userId).changes; }
+function setHouseholdMemberRole(householdId, userId, role) { stmt.setHouseholdMemberRole.run(role, householdId, userId); }
+function updateMemberSharePrefs(householdId, userId, prefsJson) {
+  stmt.updateMemberSharePrefs.run(prefsJson, householdId, userId);
+}
+function insertHouseholdInvite(row)          { stmt.insertHouseholdInvite.run(row); }
+function findHouseholdInviteByHash(hash)     { return stmt.findHouseholdInviteByHash.get(hash); }
+function listHouseholdInvites(householdId)   { return stmt.listHouseholdInvites.all(householdId, Date.now()); }
+function markHouseholdInviteAccepted(id)     { stmt.markHouseholdInviteAccepted.run(Date.now(), id); }
+function deleteHouseholdInvite(id, householdId) { return stmt.deleteHouseholdInvite.run(id, householdId).changes; }
+function deletePendingInvitesForEmail(householdId, email) {
+  stmt.deletePendingInvitesForEmail.run(householdId, email);
+}
+function upsertHouseholdEntity(row)          { stmt.upsertHouseholdEntity.run(row); }
+function getHouseholdEntity(householdId, kind, id) { return stmt.getHouseholdEntity.get(householdId, kind, String(id)); }
+function listHouseholdEntities(householdId)  { return stmt.listHouseholdEntities.all(householdId); }
+function listHouseholdEntitiesSince(householdId, since) { return stmt.listHouseholdEntitiesSince.all(householdId, since); }
+function householdDataVersion(householdId)   { return stmt.maxHouseholdEntityVersion.get(householdId).v; }
+function insertHouseholdEvent(householdId, payload) {
+  return stmt.insertHouseholdEvent.run(householdId, payload, Date.now()).lastInsertRowid;
+}
+function listHouseholdEventsSince(householdId, sinceSeq) { return stmt.listHouseholdEventsSince.all(householdId, sinceSeq); }
+function householdEventSeq(householdId)      { return stmt.maxHouseholdEventSeq.get(householdId).s; }
+
 module.exports = {
   db,
   DB_PATH,
@@ -915,4 +1096,31 @@ module.exports = {
   deletePlaidItem,
   upsertPlaidAccount,
   listPlaidAccountsByItem,
+  // Households (couples / families)
+  createHousehold,
+  findHouseholdById,
+  updateHouseholdName,
+  deleteHousehold,
+  transferHouseholdOwner,
+  insertHouseholdMember,
+  findHouseholdMembership,
+  listHouseholdMembers,
+  countHouseholdMembers,
+  deleteHouseholdMember,
+  setHouseholdMemberRole,
+  updateMemberSharePrefs,
+  insertHouseholdInvite,
+  findHouseholdInviteByHash,
+  listHouseholdInvites,
+  markHouseholdInviteAccepted,
+  deleteHouseholdInvite,
+  deletePendingInvitesForEmail,
+  upsertHouseholdEntity,
+  getHouseholdEntity,
+  listHouseholdEntities,
+  listHouseholdEntitiesSince,
+  householdDataVersion,
+  insertHouseholdEvent,
+  listHouseholdEventsSince,
+  householdEventSeq,
 };
