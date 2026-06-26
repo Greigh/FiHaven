@@ -98,6 +98,10 @@ struct AuthView: View {
                         signupLegalNotice
                     }
 
+                    if mode == .signup {
+                        signupLegalNotice
+                    }
+
                     // Federated sign-in. Sign in with Apple is native (no SDK);
                     // it posts the identity token to /api/auth/oauth/apple.
                     HStack(spacing: 8) {
