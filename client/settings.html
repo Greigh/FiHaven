@@ -234,6 +234,12 @@
               <input id="budget-debt-extra" type="number" min="0" step="1" data-debt-focus-extra placeholder="0">
               <p style="margin-top:6px;color:var(--muted);font-size:13px;">Planned dollars above minimums — same idea as the Payoff planner extra payment.</p>
             </div>
+            <div class="auth-field" data-envelope-rollover-field hidden>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" data-envelope-rollover>
+                <span>Roll unused category envelopes to the next period</span>
+              </label>
+            </div>
             <div class="auth-error" data-message="budgetrule" aria-live="polite"></div>
             <div class="auth-actions">
               <button class="btn btn-primary" type="submit">Save budget rule</button>
