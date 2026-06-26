@@ -23,6 +23,8 @@
     .onboard-goal:hover{border-color:var(--accent,#3D6FE1);}
     .onboard-goal input{accent-color:var(--accent,#3D6FE1);width:18px;height:18px;cursor:pointer;}
     .onboard-goal:has(input:checked){border-color:var(--accent,#3D6FE1);background:var(--accent-bg,rgba(61,111,225,.08));}
+    .onboard-feature{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--text);}
+    .onboard-feature .emoji{font-size:17px;width:24px;text-align:center;flex:none;}
   </style>
 </head>
 <body class="min-h-screen text-(--text) antialiased">
@@ -104,10 +106,18 @@
         <div data-step="5" hidden>
           <div class="hero-badge">Step 5 · FiHaven Pro</div>
           <h1 style="margin-top:14px;">Go further with Pro.</h1>
-          <p style="margin-top:12px;">Pro unlocks the full payoff planner, advanced insights, and more. Start a free trial any time — or keep using FiHaven free.</p>
+          <p style="margin-top:12px;">Start a free trial any time — or keep using FiHaven free. One subscription works across web, iOS, and Android.</p>
+          <ul style="list-style:none;padding:0;margin:16px 0 0;display:flex;flex-direction:column;gap:10px;">
+            <li class="onboard-feature"><span class="emoji" aria-hidden="true">📉</span><span>Payoff planner &amp; debt-free date</span></li>
+            <li class="onboard-feature"><span class="emoji" aria-hidden="true">👪</span><span>Family sharing for your household</span></li>
+            <li class="onboard-feature"><span class="emoji" aria-hidden="true">📅</span><span>Due-date calendar &amp; full history</span></li>
+            <li class="onboard-feature"><span class="emoji" aria-hidden="true">⭐</span><span>Rewards &amp; subscription finder</span></li>
+            <li class="onboard-feature"><span class="emoji" aria-hidden="true">🥧</span><span>Category budgets &amp; bank linking</span></li>
+          </ul>
           <div class="auth-actions" style="margin-top:18px;">
-            <button class="btn btn-primary" type="button" data-go-pro>See Pro plans</button>
-            <button class="btn btn-ghost" type="button" data-finish>Continue to FiHaven</button>
+            <button class="btn btn-primary" type="button" data-start-trial>Start free trial</button>
+            <button class="btn btn-secondary" type="button" data-get-premium>Get Premium</button>
+            <button class="btn btn-ghost" type="button" data-finish>Continue with Free</button>
           </div>
         </div>
 

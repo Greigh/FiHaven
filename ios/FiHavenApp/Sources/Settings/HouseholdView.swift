@@ -114,6 +114,7 @@ struct HouseholdSettingsView: View {
     @State private var name = ""
     @State private var inviteEmail = ""
     @State private var joinCode = ""
+    @State private var showPaywall = false
 
     init(api: APIClient, myEmail: String) {
         _model = StateObject(wrappedValue: HouseholdModel(api: api, myEmail: myEmail))
@@ -143,6 +144,7 @@ struct HouseholdSettingsView: View {
         .brandedNavigationBar("Family")
         .task { await model.load() }
         .onDisappear { model.stopStream() }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
     }
 
     // ── No household yet ─────────────────────────────────────────────
@@ -157,8 +159,17 @@ struct HouseholdSettingsView: View {
             }
         } else {
             Section {
-                Text("Household sharing is part of FiHaven Pro. Upgrade to start a household and invite your family.")
-                    .font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        ProBadge()
+                        Text("Family sharing").font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
+                    }
+                    Text("Start a household and invite up to three people with FiHaven Pro. Already invited? You can join below for free.")
+                        .font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                    Button("Unlock FiHaven Pro") { showPaywall = true }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+                .padding(.vertical, 2)
             }
         }
         Section("Have an invite code?") {

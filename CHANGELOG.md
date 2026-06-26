@@ -7,6 +7,28 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.4.2] — 2026-06-26
+
+Pro and Family sharing messaging on intro, onboarding, paywall, and
+household settings — aligned across web, iOS, and Android.
+
+### Changed
+
+- **Intro Pro step** — feature highlights (payoff planner, family sharing,
+  calendar, rewards, category budgets) on web `/welcome`, iOS `IntroView`,
+  and Android `IntroScreen`.
+- **Post-signup onboarding** — Pro tour step lists the same highlights;
+  final step offers **See Premium plans** and **Continue with Free** on iOS
+  and Android (Play Billing / StoreKit paywall from onboarding on Android).
+- **Web welcome Pro step** — **Start free trial** launches Stripe Checkout;
+  **Get Premium** opens the Pro dialog; **Continue with Free** skips to the
+  dashboard (`welcome.js`).
+- **Paywall copy** — Family sharing listed as a Pro perk on web, iOS, and
+  Android paywalls.
+- **Settings → Family (non-Pro)** — upgrade entry points with clearer copy
+  that invitees can join for free; Pro badge on the Family row when locked
+  (iOS).
+
 ## [1.4.1] — 2026-06-26
 
 CodeQL security remediations for Android bill reminders and household
@@ -448,6 +470,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.4.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.2
 [1.4.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.3.0

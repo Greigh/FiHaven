@@ -40,7 +40,7 @@ struct SettingsView: View {
                 groupRow("Notifications", "bell.badge.fill", "Reminders, digest, summary") {
                     detail("Notifications") { notificationsSection }
                 }
-                groupRow("Family", "person.2.fill", "Share with your household") {
+                groupRow("Family", "person.2.fill", "Share with your household", proLocked: !billing.isPro) {
                     HouseholdSettingsView(api: env.api, myEmail: current.email)
                 }
                 groupRow("Automation", "wand.and.stars", "Autopay auto-mark") {
@@ -74,15 +74,19 @@ struct SettingsView: View {
     /// A landing row that drills into a settings detail screen.
     private func groupRow<Destination: View>(
         _ title: String, _ icon: String, _ subtitle: String,
+        proLocked: Bool = false,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
         NavigationLink {
             destination()
         } label: {
             Label {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
-                    Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
+                        Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                    }
+                    if proLocked { Spacer(); ProBadge() }
                 }
             } icon: {
                 Image(systemName: icon).foregroundStyle(Theme.accent)

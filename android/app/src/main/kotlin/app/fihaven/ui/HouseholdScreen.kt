@@ -60,6 +60,9 @@ fun HouseholdSection(vm: AppViewModel) {
         busy = false
     }
 
+    var showPaywall by remember { mutableStateOf(false) }
+    if (showPaywall) PaywallDialog(vm) { showPaywall = false }
+
     LaunchedEffect(Unit) { reload() }
 
     // Snapshot the shared store, then subscribe to live deltas. Re-runs when
@@ -79,7 +82,7 @@ fun HouseholdSection(vm: AppViewModel) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
         } else {
             val view = info?.household
-            if (view == null) joinOrCreate(info, name, { name = it }, joinCode, { joinCode = it }, busy, ::act, vm)
+            if (view == null) joinOrCreate(info, name, { name = it }, joinCode, { joinCode = it }, busy, ::act, vm, { showPaywall = true })
             else householdBody(view, entities, myEmail, inviteEmail, { inviteEmail = it }, busy, ::act, vm)
         }
     }
@@ -91,6 +94,7 @@ private fun joinOrCreate(
     name: String, onName: (String) -> Unit,
     joinCode: String, onJoin: (String) -> Unit,
     busy: Boolean, act: (suspend () -> Unit) -> Unit, vm: AppViewModel,
+    onUpgrade: () -> Unit,
 ) {
     if (info?.canCreate == true) {
         LabeledCard("START A HOUSEHOLD") {
@@ -100,9 +104,12 @@ private fun joinOrCreate(
             }
         }
     } else {
-        LabeledCard("FAMILY SHARING") {
-            Text("Household sharing is part of FiHaven Pro. Upgrade to start a household and invite your family.",
+        LabeledCard("FAMILY SHARING  ·  PRO") {
+            Text("Start a household and invite up to three people with FiHaven Pro. Already invited? You can join below for free.",
                 color = Ct.colors.muted, fontSize = 14.sp)
+            Button(onClick = onUpgrade, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Text("Upgrade to Pro")
+            }
         }
     }
     LabeledCard("HAVE AN INVITE CODE?") {

@@ -17,7 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
@@ -77,8 +81,15 @@ fun IntroScreen(vm: AppViewModel) {
             ),
             IntroPage(
                 Icons.Filled.WorkspacePremium, "FiHaven Pro",
-                "Unlock the payoff planner, calendar, and full payment history. Start free and upgrade anytime — one subscription across web, iOS, and Android.",
+                "Start free and upgrade anytime — one subscription across web, iOS, and Android.",
                 badge = "PRO",
+                features = listOf(
+                    IntroFeature(Icons.AutoMirrored.Filled.TrendingUp, "Payoff planner & debt-free date"),
+                    IntroFeature(Icons.Filled.People, "Family sharing for your household"),
+                    IntroFeature(Icons.Filled.CalendarMonth, "Due-date calendar & full history"),
+                    IntroFeature(Icons.Filled.Stars, "Rewards & subscription finder"),
+                    IntroFeature(Icons.Filled.PieChart, "Category budgets & bank linking"),
+                ),
             ),
         )
     }
