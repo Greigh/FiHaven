@@ -4,6 +4,7 @@ import FiHavenCore
 /// Income sources editor + monthly budget summary.
 struct BudgetView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
     @State private var editing: IncomeSource?
     @State private var creating = false
     @State private var editingAdj: IncomeAdjustment?
@@ -23,6 +24,21 @@ struct BudgetView: View {
     }
     private var leftover: Double { store.periodIncome - obligations }
 
+    private var budgetLens: BudgetRules.Lens? {
+        BudgetRules.lens(
+            settings: store.data.settings,
+            income: store.periodIncome,
+            bills: store.data.bills,
+            cards: store.data.cards,
+            transactions: store.data.transactions,
+            goals: store.data.goals,
+            bounds: store.currentBounds,
+            billDueInPeriod: { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) },
+            isPro: billing.isPro,
+            tz: store.tz
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -34,6 +50,10 @@ struct BudgetView: View {
                     summaryRow("Leftover", Money.fmt(leftover), leftover >= 0 ? Theme.green : Theme.red)
                 }
                 .ctCard(padding: 0)
+
+                if let lens = budgetLens {
+                    budgetLensCard(lens)
+                }
 
                 HStack {
                     Text("Income sources")
@@ -137,6 +157,55 @@ struct BudgetView: View {
         }
         .ctCard()
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func budgetLensCard(_ lens: BudgetRules.Lens) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Budget lens").font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+            Text(lens.title).font(Theme.ui(16, weight: .semibold)).foregroundStyle(Theme.text)
+            Text(lens.subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            if lens.proLocked {
+                Text("Envelope lite is a Pro feature. Upgrade to assign income to goals and category budgets.")
+                    .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            } else {
+                if let h = lens.headline {
+                    HStack {
+                        Text(h.label).font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text(Money.fmt(h.amount)).font(Theme.mono(20, weight: .bold))
+                            .foregroundStyle(h.status == "ok" ? Theme.green : Theme.red)
+                    }
+                    .padding(12)
+                    .background((h.status == "ok" ? Theme.green : Theme.red).opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                ForEach(lens.rows, id: \.key) { row in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.label).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
+                            if let pct = row.pct { Text("\(pct)%").font(Theme.ui(11)).foregroundStyle(Theme.muted) }
+                            if let hint = row.hint { Text(hint).font(Theme.ui(11)).foregroundStyle(Theme.muted) }
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            if let t = row.target, t != row.actual {
+                                Text("target \(Money.fmt(t))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                            }
+                            Text(Money.fmt(row.actual)).font(Theme.mono(13))
+                                .foregroundStyle(row.status == "ok" ? Theme.green : (row.status == "under" ? Theme.red : Theme.orange))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                ForEach(lens.warnings, id: \.key) { w in
+                    Text("\(w.label): \(w.pct, specifier: "%.1f")% of income (≤ \(w.limit)%)\(w.over ? " ⚠" : "")")
+                        .font(Theme.ui(11))
+                        .foregroundStyle(w.over ? Theme.orange : Theme.muted)
+                }
+            }
+        }
+        .ctCard()
     }
 
     private func summaryRow(_ label: String, _ value: String, _ color: Color) -> some View {

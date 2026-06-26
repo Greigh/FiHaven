@@ -16,6 +16,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var cardId: String?         // "Charged to" — id of the card this bill is paid on
     public var startDate: String?      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
     public var endDate: String?        // "Stops on" — "YYYY-MM-DD"; bill is retired after this
+    public var trialEnds: String?      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
 
     public init(
         id: Int,
@@ -29,7 +30,8 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         business: String? = nil,
         cardId: String? = nil,
         startDate: String? = nil,
-        endDate: String? = nil
+        endDate: String? = nil,
+        trialEnds: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -43,11 +45,12 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         self.cardId = cardId
         self.startDate = startDate
         self.endDate = endDate
+        self.trialEnds = trialEnds
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, amount, dueDay, frequency, autopay, notes, business, cardId
-        case startDate, endDate
+        case startDate, endDate, trialEnds
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,5 +67,6 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         cardId = c.flexibleString(.cardId)
         startDate = c.flexibleString(.startDate)
         endDate = c.flexibleString(.endDate)
+        trialEnds = c.flexibleString(.trialEnds)
     }
 }

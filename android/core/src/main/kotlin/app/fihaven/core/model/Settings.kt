@@ -73,6 +73,24 @@ val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?
 
 /** Dashboard layout: "classic" (fixed) or "widgets" (customizable order). */
 val JsonObject.dashboardLayout: String get() = prim("dashboardLayout")?.contentOrNull ?: "classic"
+
+/** Budget rule lens: "off" | "50-30-20" | "custom". */
+val JsonObject.budgetRule: String get() = prim("budgetRule")?.contentOrNull ?: "off"
+
+data class BudgetRuleSplits(val needs: Int, val wants: Int, val save: Int)
+
+/** Custom needs/wants/save percentages (normalized in BudgetRules.splits). */
+val JsonObject.budgetRuleSplits: BudgetRuleSplits
+    get() {
+        val o = this["budgetRuleSplits"] as? JsonObject ?: return BudgetRuleSplits(50, 30, 20)
+        fun pct(k: String, d: Int) = ((o[k] as? JsonPrimitive)?.doubleOrNull?.toInt() ?: d).coerceIn(0, 100)
+        return BudgetRuleSplits(pct("needs", 50), pct("wants", 30), pct("save", 20))
+    }
+
+/** Planned extra monthly debt payment (debt-focus lens). */
+val JsonObject.debtFocusExtra: Double
+    get() = (prim("debtFocusExtra")?.doubleOrNull ?: 0.0).coerceAtLeast(0.0)
+
 /** Ordered enabled dashboard widget ids (Widgets mode). Empty = default set. */
 val JsonObject.dashboardWidgets: List<String>
     get() = (this["dashboardWidgets"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
