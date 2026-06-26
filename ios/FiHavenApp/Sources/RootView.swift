@@ -34,7 +34,7 @@ struct RootView: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isSignedIn)
+        .animationIfAllowed(.easeInOut(duration: 0.2), value: isSignedIn)
         .task {
             // Defer heavy startup until after first frame to avoid launch aborts
             await Task.yield()

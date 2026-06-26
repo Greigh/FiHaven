@@ -120,7 +120,7 @@ struct DeleteAccountSheet: View {
                     Text("Type \(deleteConfirmPhrase) to confirm")
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(Theme.red) }
+                    Section { FormErrorBanner(message: errorText) }
                 }
             }
             .navigationTitle("Delete account").navigationBarTitleDisplayMode(.inline)
@@ -187,7 +187,7 @@ struct ClearDataSheet: View {
                         .textContentType(.oneTimeCode)
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(Theme.red) }
+                    Section { FormErrorBanner(message: errorText) }
                 }
             }
             .navigationTitle("Clear data").navigationBarTitleDisplayMode(.inline)
@@ -244,6 +244,8 @@ struct TotpSetupSheet: View {
                         if let setup, let img = imageFromDataURL(setup.qrDataUrl) {
                             Image(uiImage: img).resizable().interpolation(.none)
                                 .frame(width: 200, height: 200).frame(maxWidth: .infinity)
+                                .accessibilityLabel("Authenticator QR code")
+                                .accessibilityHint("Scan with your authenticator app")
                         }
                         if let setup {
                             LabeledContent("Secret", value: setup.secret)
@@ -257,10 +259,11 @@ struct TotpSetupSheet: View {
                             .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                         ForEach(backupCodes, id: \.self) { c in
                             Text(c).font(Theme.mono(15))
+                                .accessibilityLabel("Backup code \(c)")
                         }
                     }
                 }
-                if let errorText { Section { Text(errorText).foregroundStyle(Theme.red) } }
+                if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
             .navigationTitle("Authenticator app").navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -335,10 +338,13 @@ struct BackupCodesSheet: View {
                     }
                 } else {
                     Section("New backup codes") {
-                        ForEach(codes, id: \.self) { Text($0).font(Theme.mono(15)) }
+                        ForEach(codes, id: \.self) { c in
+                            Text(c).font(Theme.mono(15))
+                                .accessibilityLabel("Backup code \(c)")
+                        }
                     }
                 }
-                if let errorText { Section { Text(errorText).foregroundStyle(Theme.red) } }
+                if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
             .navigationTitle("Backup codes").navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -386,7 +392,7 @@ struct EmailEnableSheet: View {
                         TextField("6-digit code", text: $code).keyboardType(.numberPad)
                     }
                 }
-                if let errorText { Section { Text(errorText).foregroundStyle(Theme.red) } }
+                if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
             .navigationTitle("Email codes").navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -459,7 +465,13 @@ struct TimezoneSheet: View {
                                     Text(CommonTimeZones.label(id)).foregroundStyle(Theme.text)
                                     Spacer()
                                     if id == currentID {
-                                        Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark")
+                                            Text("Selected")
+                                                .font(Theme.ui(12, weight: .medium))
+                                        }
+                                        .foregroundStyle(Theme.accent)
+                                        .accessibilityHidden(true)
                                     }
                                 }
                             }
@@ -491,7 +503,7 @@ struct SheetForm<Content: View>: View {
         NavigationStack {
             Form {
                 Section { content() }
-                if let error { Section { Text(error).foregroundStyle(Theme.red) } }
+                if let error { Section { FormErrorBanner(message: error) } }
             }
             .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
             .toolbar {

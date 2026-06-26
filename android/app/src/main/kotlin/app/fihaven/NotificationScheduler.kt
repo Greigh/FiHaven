@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import app.fihaven.core.Money
 import app.fihaven.core.logic.BillSchedule
+import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
@@ -91,8 +92,50 @@ object NotificationScheduler {
                 )
             }
         }
+        scheduleTrials(bills, settings, zone, scheduled)
         scheduled.forEach { arm(am, context, it) }
         writeSchedule(prefs, scheduled)
+    }
+
+    private fun trialEndDate(bill: Bill, zone: ZoneId): ZonedDateTime? {
+        val raw = bill.trialEnds ?: return null
+        if (!raw.matches(Regex("""^\d{4}-\d{2}-\d{2}$"""))) return null
+        return DateLogic.parseDate(raw)?.atStartOfDay(zone)
+    }
+
+    private fun scheduleTrials(
+        bills: List<Bill>,
+        settings: JsonObject,
+        zone: ZoneId,
+        scheduled: MutableList<Scheduled>,
+    ) {
+        val lead = settings.reminderLeadDays
+        val hour = settings.notifyHour
+        val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
+        val now = ZonedDateTime.now(zone)
+        val upcoming = bills.mapNotNull { b -> trialEndDate(b, zone)?.let { b to it } }.sortedBy { it.second }
+        for ((bill, end) in upcoming) {
+            if (scheduled.size >= MAX) break
+            for (off in offsets) {
+                if (scheduled.size >= MAX) break
+                val fire = end.minusDays(off.toLong()).withHour(hour).withMinute(0)
+                if (!fire.isAfter(now)) continue
+                scheduled.add(
+                    Scheduled(bill.id * 37 + off + 10000, fire.toInstant().toEpochMilli(),
+                        "Trial ending soon", trialBodyFor(bill, off))
+                )
+            }
+        }
+    }
+
+    private fun trialBodyFor(bill: Bill, off: Int): String {
+        val phrase = when {
+            off <= 0 -> "ends today"
+            off == 1 -> "ends tomorrow"
+            else -> "ends in $off days"
+        }
+        val name = bill.name.ifBlank { "A subscription" }
+        return "$name free trial $phrase."
     }
 
     /** Re-arm the persisted schedule after a reboot (drops past-due entries). */

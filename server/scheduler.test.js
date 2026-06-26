@@ -818,3 +818,32 @@ describe('scheduler — start', () => {
     vi.mocked(setTimeout).mockRestore();
   });
 });
+
+describe('scheduler — trial reminders', () => {
+  it('sends trial-ending email when billReminders is on', async () => {
+    const sendTrialReminder = vi.fn().mockResolvedValue(undefined);
+    const setTrialReminderDay = vi.fn();
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([{
+        id: 1,
+        email: 'user@example.com',
+        email_verified: 1,
+        last_reminder_day: null,
+        last_trial_reminder_day: null,
+        data: {
+          settings: { timezone: 'America/New_York', billReminders: true, reminderLeadDays: 3 },
+          bills: [{ id: 'b1', name: 'Hulu', category: 'Subscriptions', trialEnds: '2026-06-20' }],
+        },
+      }]),
+      setReminderDay: vi.fn(),
+      setTrialReminderDay,
+    };
+    const sched = loadScheduler();
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), {
+      db,
+      emails: { sendTrialReminder, sendBillReminder: vi.fn() },
+    });
+    expect(sendTrialReminder).toHaveBeenCalledOnce();
+    expect(setTrialReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+});

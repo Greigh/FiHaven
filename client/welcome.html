@@ -62,6 +62,17 @@
             <label class="onboard-goal"><input type="checkbox" data-goal value="rewards"><span>⭐ Maximize card rewards</span></label>
             <label class="onboard-goal"><input type="checkbox" data-goal value="subscriptions"><span>🔁 Track subscriptions</span></label>
           </div>
+          <div data-budget-style-wrap hidden style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;">How do you like to budget?</div>
+            <label class="onboard-goal" style="margin-bottom:8px;">
+              <input type="radio" name="budget-style" data-budget-style value="detailed" checked>
+              <span>Detailed — I'll track categories myself</span>
+            </label>
+            <label class="onboard-goal">
+              <input type="radio" name="budget-style" data-budget-style value="50-30-20">
+              <span>Simple — use the 50/30/20 rule</span>
+            </label>
+          </div>
           <div class="auth-actions" style="margin-top:18px;">
             <button class="btn btn-primary" type="button" data-next>Continue</button>
           </div>

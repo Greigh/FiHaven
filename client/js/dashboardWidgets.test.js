@@ -8,10 +8,11 @@ import {
 } from './dashboardWidgets.js';
 
 describe('dashboardWidgets — catalog', () => {
-  it('has the nine cross-platform widgets in order', () => {
+  it('has the cross-platform widgets in order', () => {
     expect(DASHBOARD_WIDGETS.map((w) => w.id)).toEqual([
       'stats', 'cashflow', 'alerts', 'upcoming',
       'networth', 'spending', 'goals', 'subscriptions', 'incomeHistory',
+      'budgetStatus',
     ]);
   });
 
