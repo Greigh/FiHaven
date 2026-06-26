@@ -7,6 +7,12 @@ import FiHavenCore
 struct SubscriptionsView: View {
     @EnvironmentObject var store: AppStore
 
+    private struct SubStatus {
+        let icon: String
+        let text: String
+        let tone: A11y.MoneyTone
+    }
+
     private var subscriptions: [SubscriptionsFinder.Item] {
         SubscriptionsFinder.build(
             bills: store.data.bills,
@@ -21,7 +27,10 @@ struct SubscriptionsView: View {
         List {
             if subscriptions.isEmpty {
                 VStack(spacing: 8) {
-                    Text("🔁").font(.system(size: 40))
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 36))
+                        .foregroundStyle(Theme.accent)
+                        .accessibilityHidden(true)
                     Text("No subscriptions detected yet")
                         .font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
                     Text("Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here.")
@@ -41,25 +50,12 @@ struct SubscriptionsView: View {
                         Text("\(Money.fmt(totalMonthly))/mo · \(subscriptions.count)")
                             .font(Theme.mono(12)).foregroundStyle(Theme.muted)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Total \(Money.fmt(totalMonthly)) per month across \(subscriptions.count) subscriptions")
                     VStack(spacing: 0) {
                         ForEach(Array(subscriptions.enumerated()), id: \.element.id) { i, s in
                             if i > 0 { Divider().overlay(Theme.border) }
-                            HStack(alignment: .top, spacing: 10) {
-                                Text(s.source == "bill" ? "📄" : "🔁").font(.system(size: 15))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
-                                    Text(subDetail(s))
-                                        .font(Theme.ui(11))
-                                        .foregroundStyle(subDetailColor(s))
-                                    if let url = s.manageUrl, let link = URL(string: url) {
-                                        Link("Manage / cancel ↗", destination: link)
-                                            .font(Theme.ui(11))
-                                    }
-                                }
-                                Spacer()
-                                Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(13)).foregroundStyle(Theme.text)
-                            }
-                            .padding(.vertical, 6)
+                            subscriptionRow(s)
                         }
                     }
                     .ctCard()
@@ -74,21 +70,60 @@ struct SubscriptionsView: View {
         .brandedNavigationBar("Subscriptions")
     }
 
-    private func subDetail(_ s: SubscriptionsFinder.Item) -> String {
-        if s.duplicate { return "⚡ possible duplicate" }
-        if s.trialSoon, let d = s.trialDaysLeft { return "⏳ trial ends in \(d)d" }
-        if let d = s.trialDaysLeft, d < 0 { return "Trial ended" }
-        if let up = s.priceUp { return "▲ was \(Money.fmt(up))" }
-        if s.stale { return "⚠ unused 60d+" }
-        if let next = s.nextDue { return "Next: \(subFriendlyDate(next))" }
-        return s.source == "bill" ? "Tracked bill" : "Recurring charge"
+    private func subscriptionRow(_ s: SubscriptionsFinder.Item) -> some View {
+        let status = subStatus(s)
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: s.source == "bill" ? "doc.text" : "arrow.triangle.2.circlepath")
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 20)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
+                SubscriptionStatusBadge(icon: status.icon, text: status.text, tone: status.tone)
+                if let url = s.manageUrl, let link = URL(string: url) {
+                    Link("Manage or cancel", destination: link)
+                        .font(Theme.ui(11))
+                }
+            }
+            Spacer()
+            Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(13)).foregroundStyle(Theme.text)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(rowAccessibilityLabel(s, status: status))
+        .accessibilityHint(s.manageUrl != nil ? "Includes a manage or cancel link" : "")
     }
 
-    private func subDetailColor(_ s: SubscriptionsFinder.Item) -> Color {
-        if s.duplicate || s.priceUp != nil { return Theme.orange }
-        if s.trialSoon { return Theme.accent }
-        if s.stale { return Theme.red }
-        return Theme.muted
+    private func rowAccessibilityLabel(_ s: SubscriptionsFinder.Item, status: SubStatus) -> String {
+        var parts = ["\(s.name), \(Money.fmt(s.monthly)) per month", status.text]
+        if let next = s.nextDue, status.text.hasPrefix("Next:") == false && !s.duplicate && s.priceUp == nil && !s.stale && !s.trialSoon {
+            parts.append("Next due \(subFriendlyDate(next))")
+        }
+        return parts.joined(separator: ". ")
+    }
+
+    private func subStatus(_ s: SubscriptionsFinder.Item) -> SubStatus {
+        if s.duplicate {
+            return SubStatus(icon: A11y.subscriptionStatusIcon("duplicate"), text: "Possible duplicate", tone: .warning)
+        }
+        if s.trialSoon, let d = s.trialDaysLeft {
+            return SubStatus(icon: A11y.subscriptionStatusIcon("trial"), text: "Trial ends in \(d) days", tone: .accent)
+        }
+        if let d = s.trialDaysLeft, d < 0 {
+            return SubStatus(icon: A11y.subscriptionStatusIcon("trial"), text: "Trial ended", tone: .neutral)
+        }
+        if let up = s.priceUp {
+            return SubStatus(icon: A11y.subscriptionStatusIcon("priceUp"), text: "Price increased from \(Money.fmt(up))", tone: .warning)
+        }
+        if s.stale {
+            return SubStatus(icon: A11y.subscriptionStatusIcon("stale"), text: "Unused 60+ days", tone: .warning)
+        }
+        if let next = s.nextDue {
+            return SubStatus(icon: "calendar", text: "Next: \(subFriendlyDate(next))", tone: .neutral)
+        }
+        let fallback = s.source == "bill" ? "Tracked bill" : "Recurring charge"
+        return SubStatus(icon: "info.circle", text: fallback, tone: .neutral)
     }
 
     private func subFriendlyDate(_ date: Date) -> String {

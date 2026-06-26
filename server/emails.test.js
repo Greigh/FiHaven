@@ -217,4 +217,17 @@ describe('emails.js', () => {
     expect(msg.text).toContain('$12.50');
     expect(msg.html).toContain('$12.50');
   });
+
+  it('sendTrialReminder builds trial-ending copy', async () => {
+    await emails.sendTrialReminder(
+      'user@test.com',
+      [{ name: 'Hulu', amount: 7.99, trialEnds: '2026-06-25' }],
+      3,
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toContain('Hulu');
+    expect(msg.text).toContain('trial ends');
+    expect(msg.html).toContain('Review subscriptions');
+  });
 });
