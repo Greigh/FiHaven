@@ -19,9 +19,11 @@ public final class APIClient: Sendable {
         case GET, POST, PUT, DELETE
     }
 
-    private let config: APIConfig
-    private let tokens: TokenStore
-    private let session: URLSession
+    // Module-internal so endpoint extensions (e.g. APIClient+Household) can
+    // build their own requests (the SSE stream needs the raw session).
+    let config: APIConfig
+    let tokens: TokenStore
+    let session: URLSession
 
     public init(config: APIConfig, tokens: TokenStore, session: URLSession = .shared) {
         self.config = config

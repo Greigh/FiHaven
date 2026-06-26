@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardOptions
@@ -134,6 +136,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
           if (group == null) {
+            item { MembershipCard(vm, current, entitlement) }
             item {
                 Section("SETTINGS") {
                     GroupRow("Account", "Profile, email, password") { group = "account" }
@@ -143,6 +146,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     GroupRow("Preferences", "Currency, period, display") { group = "preferences" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Notifications", "Reminders, digest, summary") { group = "notifications" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Family", "Share with your household") { group = "family" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Automation", "Autopay auto-mark") { group = "automation" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -174,11 +179,6 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Change email", null) { dialog = "email" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Change password", null) { dialog = "password" }
-                    membershipLine(current.createdAt, entitlement)?.let {
-                        HorizontalDivider(color = Ct.colors.border)
-                        Text(it, color = Ct.colors.muted, fontSize = 12.5.sp,
-                            modifier = Modifier.padding(16.dp))
-                    }
                     HorizontalDivider(color = Ct.colors.border)
                     val sync by vm.syncState.collectAsStateWithLifecycle()
                     Text(
@@ -285,6 +285,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     )
                 }
             }
+          }
+          if (group == "family") {
+            item { HouseholdSection(vm) }
           }
           if (group == "automation") {
             item {
@@ -526,14 +529,110 @@ private fun defaultViewLabel(v: String?): String = when (v) {
     else -> "Dashboard"
 }
 
-/** "Member since June 2026 · Pro for 3 months" — a small coolness factor. */
-private fun membershipLine(createdAt: Double?, entitlement: Entitlement): String? {
-    val parts = mutableListOf<String>()
-    createdAt?.let { parts.add("Member since " + monthYear(it.toLong())) }
-    if (entitlement.pro) {
-        parts.add(entitlement.proSince?.let { "Pro for " + humanDuration(it) } ?: "FiHaven Pro")
+/**
+ * A proud membership header at the top of Settings: avatar, identity, a
+ * PRO/FREE chip, and both tenures (account "Member since" and, when
+ * subscribed, "Pro member for …"). Replaces the faint one-line caption that
+ * was buried inside the Account group.
+ */
+@Composable
+private fun MembershipCard(vm: AppViewModel, user: User, entitlement: Entitlement) {
+    val isPro = entitlement.pro
+    var showPaywall by remember { mutableStateOf(false) }
+    CtCard(padding = 0) {
+        Column {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(46.dp).clip(CircleShape)
+                        .background(if (isPro) Ct.colors.yellowBg else Ct.colors.accentBg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(initialsFor(user),
+                        color = if (isPro) Ct.colors.yellow else Ct.colors.accent,
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text("SIGNED IN AS", color = Ct.colors.muted, fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(user.name?.takeIf { it.isNotBlank() } ?: user.email,
+                        color = Ct.colors.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1)
+                    if (!user.name.isNullOrBlank()) {
+                        Text(user.email, color = Ct.colors.muted, fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+                PlanChip(isPro)
+            }
+            user.createdAt?.let {
+                HorizontalDivider(color = Ct.colors.border)
+                TenureRow("Member since", monthYear(it.toLong()), Ct.colors.accent)
+            }
+            HorizontalDivider(color = Ct.colors.border)
+            if (isPro) {
+                // Tap → manage subscription.
+                TenureRow("Pro member",
+                    entitlement.proSince?.let { "for " + humanDuration(it) } ?: "Active",
+                    Ct.colors.yellow, onClick = { showPaywall = true })
+            } else {
+                // Tap → paywall to upgrade.
+                TenureRow("Upgrade to FiHaven Pro", "", Ct.colors.accent,
+                    labelColor = Ct.colors.accent, onClick = { showPaywall = true })
+            }
+        }
     }
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    if (showPaywall) PaywallDialog(vm) { showPaywall = false }
+}
+
+/** Gold "PRO" pill when subscribed, otherwise a muted "FREE" pill. */
+@Composable
+private fun PlanChip(isPro: Boolean) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (isPro) Ct.colors.yellowBg else Ct.colors.surface2)
+            .border(1.dp, if (isPro) Ct.colors.yellow.copy(alpha = 0.35f) else Ct.colors.border,
+                RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(if (isPro) "PRO" else "FREE",
+            color = if (isPro) Ct.colors.yellow else Ct.colors.muted,
+            fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * One tenure line inside the card: tinted marker + label, value on the right.
+ * Pass `onClick` to make it tappable (adds a chevron) — deep-links into the
+ * Pro screen for manage/upgrade.
+ */
+@Composable
+private fun TenureRow(
+    label: String, value: String, tint: Color,
+    labelColor: Color = Ct.colors.muted, onClick: (() -> Unit)? = null,
+) {
+    val base = Modifier.fillMaxWidth()
+    val mod = (if (onClick != null) base.clickable(onClick = onClick) else base).padding(16.dp)
+    Row(mod, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(tint))
+        Text(label, color = labelColor, fontSize = 14.sp,
+            fontWeight = if (labelColor == Ct.colors.muted) FontWeight.Normal else FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 10.dp).weight(1f))
+        if (value.isNotEmpty()) {
+            Text(value, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (onClick != null) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+                tint = Ct.colors.muted, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+        }
+    }
+}
+
+/** Up to two initials, from the name when set, else the email handle. */
+private fun initialsFor(user: User): String {
+    val src = user.name?.takeIf { it.isNotBlank() } ?: user.email
+    val letters = src.split(Regex("[\\s.@]+")).filter { it.isNotEmpty() }
+        .take(2).mapNotNull { it.firstOrNull() }.joinToString("").uppercase()
+    return letters.ifEmpty { "?" }
 }
 
 private fun monthYear(ms: Long): String {
@@ -841,6 +940,7 @@ private fun groupTitle(group: String): String = when (group) {
     "security" -> "Security"
     "preferences" -> "Preferences"
     "notifications" -> "Notifications"
+    "family" -> "Family"
     "automation" -> "Automation"
     "bank" -> "Bank"
     "data" -> "Data"
