@@ -31,8 +31,15 @@ struct IntroView: View {
              body: "Your dashboard, bills, cards, and monthly budget are always free. Create an account and start in minutes.",
              badge: "FREE", brand: false),
         Page(icon: "crown.fill", title: "FiHaven Pro",
-             body: "Unlock the payoff planner, calendar, and full payment history. Start free and upgrade anytime — one subscription across web, iOS, and Android.",
-             badge: "PRO", brand: false),
+             body: "Start free and upgrade anytime — one subscription across web, iOS, and Android.",
+             badge: "PRO", brand: false,
+             features: [
+                Feature(icon: "chart.line.downtrend.xyaxis", text: "Payoff planner & debt-free date"),
+                Feature(icon: "person.2.fill", text: "Family sharing for your household"),
+                Feature(icon: "calendar", text: "Due-date calendar & full history"),
+                Feature(icon: "star.circle.fill", text: "Rewards & subscription finder"),
+                Feature(icon: "chart.pie.fill", text: "Category budgets & bank linking"),
+             ]),
     ]
 
     private var page: Page { pages[step] }
