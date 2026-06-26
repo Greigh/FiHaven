@@ -70,6 +70,8 @@ import app.fihaven.core.model.tabBar
 import app.fihaven.AppViewModel
 import app.fihaven.billing.BillingManager
 import app.fihaven.core.Money
+import app.fihaven.core.logic.BillSchedule
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.Income
@@ -216,6 +218,8 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
 @Composable
 private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val isPro = ent.pro
     val zone = DateLogic.zone(data.settings.timezoneSetting)
     val periodBounds = vm.currentBounds()
     val periodLabel = Period.label(periodBounds, vm.periodConfig())
@@ -248,6 +252,21 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
+    val utilAlerts = data.cards.filter { it.type != "loan" && it.limit > 0 }.mapNotNull { c ->
+        val util = ((c.balance / c.limit) * 100).toInt()
+        when {
+            util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
+            util >= 80 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
+            else -> null
+        }
+    }
+    val trialAlerts = data.bills.filter { !it.trialEnds.isNullOrBlank() }.mapNotNull { b ->
+        val end = DateLogic.parseDate(b.trialEnds!!) ?: return@mapNotNull null
+        val left = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(zone), end)
+        if (left < 0 || left > 3) return@mapNotNull null
+        val dayWord = when (left) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $left days" }
+        "⏳ ${b.name} — free trial ends $dayWord."
+    }
     val promoAlerts = data.cards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
@@ -259,6 +278,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
             else -> null
         }
     }
+    val dashboardAlerts = utilAlerts + trialAlerts + promoAlerts
     // Subscriptions: bills flagged Subscriptions + merchants recurring across 2+ months.
     fun monthlyOfBill(b: app.fihaven.core.model.Bill) = when (b.frequency) {
         "Weekly" -> b.amount * 52 / 12; "Bi-weekly" -> b.amount * 26 / 12
@@ -297,9 +317,9 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
                     "cashflow" -> if (paidThisPeriod + remaining > 0) item {
                         CashflowWidget(paidThisPeriod, remaining)
                     }
-                    "alerts" -> if (promoAlerts.isNotEmpty()) item {
+                    "alerts" -> if (dashboardAlerts.isNotEmpty()) item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            promoAlerts.forEach { msg ->
+                            dashboardAlerts.forEach { msg ->
                                 CtCard { Text(msg, color = Ct.colors.text, fontSize = 13.sp) }
                             }
                         }
@@ -307,6 +327,9 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
                     "goals" -> if (data.goals.isNotEmpty()) item { GoalsWidget(data.goals) }
                     "subscriptions" -> if (subs.isNotEmpty()) item { SubscriptionsWidget(subs) }
                     "incomeHistory" -> item { IncomeHistoryWidget(data.settings, zone) }
+                    "budgetStatus" -> item {
+                        BudgetStatusWidget(data, income, remaining, isPro, zone, periodBounds)
+                    }
                     "networth" -> item {
                         StatCard("Net worth", Money.fmt(netWorth),
                             if (netWorth >= 0) Ct.colors.green else Ct.colors.red, Modifier.fillMaxWidth())
@@ -413,6 +436,57 @@ private fun CashflowWidget(paid: Double, remaining: Double) {
 }
 
 @Composable
+private fun BudgetStatusWidget(
+    data: app.fihaven.core.model.AppData,
+    income: Double,
+    remaining: Double,
+    isPro: Boolean,
+    zone: java.time.ZoneId,
+    bounds: app.fihaven.core.logic.PeriodBounds,
+) {
+    val lens = BudgetRules.lens(
+        settings = data.settings,
+        income = income,
+        bills = data.bills,
+        cards = data.cards,
+        transactions = data.transactions,
+        goals = data.goals,
+        bounds = bounds,
+        billDueInPeriod = { BillSchedule.dueInPeriod(it, bounds, zone) },
+        isPro = isPro,
+        zone = zone,
+    )
+    val headline = lens?.headline
+    if (headline != null) {
+        CtCard {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FieldLabel(lens.title)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(headline.label, color = Ct.colors.muted, fontSize = 13.sp)
+                    Text(
+                        Money.fmt(headline.amount),
+                        color = if (headline.status == "ok") Ct.colors.green else Ct.colors.red,
+                        fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                    )
+                }
+            }
+        }
+    } else if (income > 0) {
+        val cushion = income - remaining
+        CtCard {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FieldLabel("Cushion after bills")
+                Text(
+                    Money.fmt(cushion),
+                    color = if (cushion >= 0) Ct.colors.green else Ct.colors.red,
+                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun GoalsWidget(goals: List<app.fihaven.core.model.SavingsGoal>) {
     CtCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -481,6 +555,7 @@ object DashboardWidgets {
         "goals" to "Savings goals",
         "subscriptions" to "Subscriptions",
         "incomeHistory" to "Income history",
+        "budgetStatus" to "Budget / safe-to-spend",
     )
     val allIds = catalog.map { it.first }
     val defaults = listOf("stats", "cashflow", "alerts", "upcoming")
