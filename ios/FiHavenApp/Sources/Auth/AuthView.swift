@@ -88,6 +88,10 @@ struct AuthView: View {
                     .buttonStyle(PrimaryButtonStyle(enabled: canSubmit))
                     .disabled(!canSubmit)
 
+                    if mode == .signup {
+                        signupLegalNotice
+                    }
+
                     // Federated sign-in. Sign in with Apple is native (no SDK);
                     // it posts the identity token to /api/auth/oauth/apple.
                     HStack(spacing: 8) {
@@ -152,6 +156,28 @@ struct AuthView: View {
 
     private var canSubmit: Bool {
         !env.working && email.contains("@") && password.count >= 6 && captchaToken != nil
+    }
+
+    /// Sign-up consent — mirrors the web login terms notice; App Review expects
+    /// terms + privacy to be reachable before account creation.
+    private var signupLegalNotice: some View {
+        VStack(spacing: 4) {
+            Text("By creating an account you agree to our")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 4) {
+                Link("Terms of Use", destination: URL(string: "https://fihaven.app/terms")!)
+                    .font(Theme.ui(12, weight: .medium))
+                Text("and")
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+                Link("Privacy Policy", destination: URL(string: "https://fihaven.app/privacy")!)
+                    .font(Theme.ui(12, weight: .medium))
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
     }
 
     private func submit() async {
