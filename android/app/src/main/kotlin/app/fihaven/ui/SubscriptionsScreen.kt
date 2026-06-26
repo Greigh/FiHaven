@@ -104,17 +104,25 @@ private fun SubscriptionsCard(subs: List<SubscriptionsFinder.Item>) {
     }
 }
 
-private fun subDetailLine(s: SubscriptionsFinder.Item): String = when {
-    s.duplicate -> "⚡ possible duplicate"
-    s.trialSoon && s.trialDaysLeft != null -> "⏳ trial ends in ${s.trialDaysLeft}d"
-    s.trialDaysLeft != null && s.trialDaysLeft < 0 -> "Trial ended"
-    s.priceUp != null -> "▲ was ${Money.fmt(s.priceUp)}"
-    s.stale -> "⚠ unused 60d+"
-    s.nextDue != null -> "Next: ${subFriendlyDate(s.nextDue)}"
-    s.source == "bill" -> "Tracked bill"
-    else -> "Recurring charge"
+private fun subDetailLine(s: SubscriptionsFinder.Item): String {
+    // Local copies: these are properties from the core module, so Kotlin
+    // can't smart-cast the nullable reads inline.
+    val td = s.trialDaysLeft
+    val pu = s.priceUp
+    val nd = s.nextDue
+    return when {
+        s.duplicate -> "⚡ possible duplicate"
+        s.trialSoon && td != null -> "⏳ trial ends in ${td}d"
+        td != null && td < 0 -> "Trial ended"
+        pu != null -> "▲ was ${Money.fmt(pu)}"
+        s.stale -> "⚠ unused 60d+"
+        nd != null -> "Next: ${subFriendlyDate(nd)}"
+        s.source == "bill" -> "Tracked bill"
+        else -> "Recurring charge"
+    }
 }
 
+@androidx.compose.runtime.Composable
 private fun subDetailColor(s: SubscriptionsFinder.Item) = when {
     s.duplicate -> Ct.colors.orange
     s.trialSoon -> Ct.colors.accent
