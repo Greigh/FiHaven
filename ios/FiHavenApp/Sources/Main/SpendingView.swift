@@ -17,8 +17,10 @@ struct SpendingView: View {
                     Spacer()
                     if billing.isPro {
                         Button { editingBudgets = true } label: { Image(systemName: "slider.horizontal.3") }
+                            .accessibilityIconButton("Edit category budgets")
                     }
                     Button { addingTx = true } label: { Image(systemName: "plus") }
+                        .accessibilityIconButton("Add transaction")
                 }
 
                 VStack(spacing: 8) {
@@ -35,13 +37,26 @@ struct SpendingView: View {
                                 HStack {
                                     Text("\(Self.catIcon(cat)) \(cat)").font(Theme.ui(13)).foregroundStyle(Theme.text)
                                     Spacer()
-                                    Text(billing.isPro && budget > 0 ? "\(Money.fmt(spent)) / \(Money.fmt(budget))" : Money.fmt(spent))
-                                        .font(Theme.mono(12))
-                                        .foregroundStyle(billing.isPro && budget > 0 && spent > budget ? Theme.red : Theme.muted)
+                                    HStack(spacing: 6) {
+                                        if billing.isPro && budget > 0 && spent > budget {
+                                            Text("Over budget")
+                                                .font(Theme.ui(10, weight: .medium))
+                                                .foregroundStyle(Theme.red)
+                                        }
+                                        Text(billing.isPro && budget > 0 ? "\(Money.fmt(spent)) / \(Money.fmt(budget))" : Money.fmt(spent))
+                                            .font(Theme.mono(12))
+                                            .foregroundStyle(Theme.text)
+                                    }
                                 }
                                 if billing.isPro && budget > 0 {
                                     ProgressView(value: min(1, spent / budget))
                                         .tint(spent > budget ? Theme.red : Theme.green)
+                                        .accessibilityLabel("\(cat) budget")
+                                        .accessibilityValue(
+                                            spent > budget
+                                                ? "Over budget, \(Money.fmt(spent)) of \(Money.fmt(budget))"
+                                                : "\(Money.fmt(spent)) of \(Money.fmt(budget))"
+                                        )
                                 }
                             }
                         }
@@ -71,9 +86,12 @@ struct SpendingView: View {
                                 if !tx.isBank {
                                     Button { store.deleteTransaction(tx) } label: {
                                         Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
-                                    }.buttonStyle(.plain)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIconButton("Delete transaction")
                                 } else {
                                     Image(systemName: "link").font(.caption2).foregroundStyle(Theme.muted.opacity(0.5))
+                                        .accessibilityLabel("Linked bank transaction")
                                 }
                             }
                             .padding(.vertical, 7)
