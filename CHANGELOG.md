@@ -7,6 +7,25 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.4.1] — 2026-06-26
+
+CodeQL security remediations for Android bill reminders and household
+invite email validation.
+
+### Changed
+
+- **Information security policy** — documents that CodeQL runs on `main`
+  pushes, weekly schedule, and manual dispatch (not on every pull request).
+
+### Fixed
+
+- **Android PendingIntents** — bill-reminder alarm and notification tap
+  intents use explicit `ComponentName` destinations with `FLAG_IMMUTABLE`
+  (CodeQL `java/android/implicit-pendingintents`, alerts #31 and #32).
+- **Household invite email validation** — reuse shared `isValidEmail()` with
+  a 254-character cap before regex matching (CodeQL `js/polynomial-redos`,
+  alert #33).
+
 ## [1.4.0] — 2026-06-26
 
 Budget lenses, household sharing, dashboard budget insights, trial
@@ -423,6 +442,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.4.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.3.0
 [1.2.3]: https://github.com/Greigh/FiHaven/releases/tag/v1.2.3
