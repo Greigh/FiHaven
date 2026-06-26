@@ -136,6 +136,7 @@ private fun ProLockedScreen(
 
 private val perks = listOf(
     "Payoff planner — snowball & avalanche plans + your debt-free date",
+    "Family sharing — share bills, cards & goals with your household",
     "Due-date calendar — every bill and card on a monthly view",
     "Payment history — search and review everything you've paid",
     "Rewards optimizer — pick the best card for each purchase",
