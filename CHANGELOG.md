@@ -14,6 +14,13 @@ household settings — aligned across web, iOS, and Android.
 
 ### Changed
 
+- **License** — replace AGPL-3.0 with the **FiHaven Source Available
+  License** ([`docs/source-available.md`](docs/source-available.md)):
+  public code for transparency and contributions; no production hosting,
+  commercial redistribution, or stripping entitlements without permission.
+- **Terms of Use** — clarify account sharing, API misuse, Pro circumvention
+  on the hosted service, family sharing in Pro, and how the source license
+  differs from using fihaven.app.
 - **Intro Pro step** — feature highlights (payoff planner, family sharing,
   calendar, rewards, category budgets) on web `/welcome`, iOS `IntroView`,
   and Android `IntroScreen`.
