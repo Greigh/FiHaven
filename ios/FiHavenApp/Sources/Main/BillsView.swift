@@ -256,7 +256,8 @@ private struct BillRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Money.fmt(bill.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.text)
                 if bill.autopay {
-                    Text("autopay").font(Theme.mono(9)).foregroundStyle(Theme.muted)
+                    Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
+                        .font(Theme.mono(9)).foregroundStyle(Theme.muted)
                 }
             }
         }

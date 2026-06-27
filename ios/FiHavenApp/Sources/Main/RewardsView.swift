@@ -7,8 +7,15 @@ import FiHavenCore
 struct RewardsView: View {
     @EnvironmentObject var store: AppStore
     @State private var category = "Dining"
+    @State private var merchantQuery = ""
 
     private var creditCards: [Card] { store.data.cards.filter { ($0.type ?? "card") != "loan" } }
+
+    // Annualized category spend from manual + bank-synced transactions; feeds
+    // the rewards estimate in the fee check and the offer-use detection.
+    private var spendByCategory: [String: Double] {
+        Rewards.categorySpendAnnual(store.data.transactions, tz: store.tz)
+    }
     private var anyRewards: Bool {
         creditCards.contains { $0.rewardBase > 0 || $0.rewardCategories.values.contains { $0 > 0 } }
     }
@@ -23,11 +30,17 @@ struct RewardsView: View {
                     empty
                 } else {
                     categoryPicker
+                    merchantField
                     if !anyRewards { hint }
                     let r = ranking
                     if let best = r.eligible.first { winner(best) }
                     if r.eligible.count > 1 { runnersUp(Array(r.eligible.dropFirst())) }
                     if !r.excluded.isEmpty { excludedSection(r.excluded) }
+                    if !walletPicks.isEmpty { walletPanel }
+                    if !cardsWithPerks.isEmpty { perksPanel }
+                    if !offerSuggestions.isEmpty { offerSuggestionsPanel }
+                    if !activeOffers.isEmpty { offersPanel }
+                    if !feeCards.isEmpty { feePanel }
                 }
             }
             .padding(16)
@@ -73,6 +86,35 @@ struct RewardsView: View {
         .accessibilityLabel("Spending category")
     }
 
+    // Type a store name and jump to its reward category, so you instantly see
+    // the best card for it. Unknown merchants leave a gentle note.
+    private var merchantHint: String? {
+        let q = merchantQuery.trimmingCharacters(in: .whitespaces)
+        return q.isEmpty ? nil : Merchants.category(q)
+    }
+
+    private var merchantField: some View {
+        HStack(spacing: 10) {
+            TextField("Where are you shopping? (e.g. Starbucks)", text: $merchantQuery)
+                .font(Theme.ui(13))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .onChange(of: merchantQuery) { _, _ in
+                    if let hint = merchantHint { category = hint }
+                }
+                .accessibilityLabel("Merchant lookup")
+            if !merchantQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                if let hint = merchantHint {
+                    Text("→ \(hint)").font(Theme.ui(13, weight: .bold)).foregroundStyle(Theme.accent)
+                } else {
+                    Text("no match").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
+            }
+        }
+    }
+
     private func winner(_ best: Rewards.Ranked) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -94,9 +136,9 @@ struct RewardsView: View {
                     Text(ratePct(best.value)).font(Theme.title(24)).foregroundStyle(Theme.accent)
                 }
             }
-            if let bd = breakdown(best) {
-                Text(bd).font(Theme.ui(12)).foregroundStyle(Theme.muted)
-            }
+            Text(Rewards.explanation(best.card, category: category)
+                 + (isRotating(best.card) ? " · activate this quarter" : ""))
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
         }
         .padding(14)
         .background(Theme.accentBg)
@@ -172,6 +214,265 @@ struct RewardsView: View {
                 .accessibilityLabel(
                     "\(e.card.name.isEmpty ? "Card" : e.card.name), skipped because of active promo, \(ratePct(e.value)) rate. \(e.reason ?? "")"
                 )
+            }
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+    }
+
+    // ── Wallet at a glance ───────────────────────────────────────────
+    private var walletPicks: [Rewards.WalletPick] {
+        Rewards.walletStrategy(store.data.cards, categories: Rewards.categories, tz: store.tz).filter { $0.best != nil }
+    }
+
+    private var walletPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your wallet at a glance").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                Text("Best card for every category").font(Theme.ui(17, weight: .semibold))
+            }
+            ForEach(walletPicks, id: \.category) { pick in
+                if let best = pick.best {
+                    Button { category = pick.category } label: {
+                        HStack(spacing: 10) {
+                            Text(pick.category).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                                .frame(width: 92, alignment: .leading)
+                            Text(best.card.name.isEmpty ? "Card" : best.card.name)
+                                .font(Theme.ui(14, weight: .semibold)).foregroundStyle(Theme.text)
+                                .lineLimit(1)
+                            if (best.card.rotatingPool?.contains(pick.category) ?? false) { rotBadge }
+                            Spacer()
+                            Text(ratePct(best.value)).font(Theme.ui(14, weight: .bold)).foregroundStyle(Theme.accent)
+                        }
+                        .padding(.vertical, 7)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(pick.category): best card \(best.card.name.isEmpty ? "Card" : best.card.name), \(ratePct(best.value))")
+                }
+            }
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+    }
+
+    // ── Credits & perks ──────────────────────────────────────────────
+    private var cardsWithPerks: [Card] { store.data.cards.filter { !$0.perks.isEmpty } }
+    private var cal: Calendar { DateLogic.calendar(tz: store.tz) }
+    private var now: Date { DateLogic.today(tz: store.tz) }
+    private var unrealized: Double {
+        Perks.unrealizedTotal(store.data.cards, usage: store.data.settings.perkUsage, date: now, cal: cal)
+    }
+    private static let freqLabels = ["monthly": "Monthly", "quarterly": "Quarterly",
+                                     "semiannual": "Twice a year", "annual": "Yearly"]
+
+    private func usedBinding(_ card: Card, _ perk: CardPerk) -> Binding<Double> {
+        Binding(
+            get: { Perks.used(store.data.settings.perkUsage, cardId: String(card.id), perk: perk, date: now, cal: cal) },
+            set: { store.setPerkUsage(cardId: String(card.id), perk: perk, amount: $0) }
+        )
+    }
+
+    private var perksPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Credits & perks").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                    Text("Don’t leave money on the table").font(Theme.ui(17, weight: .semibold))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(Money.fmt(unrealized))
+                        .font(Theme.title(22))
+                        .foregroundStyle(unrealized < 0.005 ? Theme.green : Theme.accent)
+                    Text("left this cycle").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                }
+            }
+            ForEach(cardsWithPerks) { c in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("💳 \(c.name.isEmpty ? "Card" : c.name)").font(Theme.ui(13, weight: .semibold))
+                    ForEach(c.perks) { p in
+                        let rem = Perks.remaining(store.data.settings.perkUsage, cardId: String(c.id), perk: p, date: now, cal: cal)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(p.label).foregroundStyle(Theme.text)
+                                Text("\(Self.freqLabels[p.frequency] ?? "Monthly") · \(Money.fmt(p.amount)) · \(expiresLabel(p))")
+                                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                            }
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Text("used $").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                TextField("0", value: usedBinding(c, p), format: .number)
+                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 56)
+                                    .accessibilityLabel("Amount used of \(p.label)")
+                            }
+                            Text(rem < 0.005 ? "✓" : Money.fmt(rem))
+                                .font(Theme.ui(12, weight: .medium))
+                                .foregroundStyle(rem < 0.005 ? Theme.green : Theme.accent)
+                                .frame(width: 56, alignment: .trailing)
+                        }
+                        .opacity(rem < 0.005 ? 0.6 : 1)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+    }
+
+    private func expiresLabel(_ p: CardPerk) -> String {
+        let d = Perks.expiresInDays(p.frequency, date: now, cal: cal)
+        return d == 0 ? "ends today" : "\(d)d left"
+    }
+
+    // ── Card-linked offers ───────────────────────────────────────────
+    private var activeOffers: [Offers.ActiveOffer] { Offers.active(store.data.cards, tz: store.tz) }
+    private var offersSoon: Int { Offers.expiringSoon(store.data.cards, tz: store.tz) }
+    private func offerExpiryLabel(_ d: Int?) -> String {
+        guard let d else { return "no expiry" }
+        if d <= 0 { return "ends today" }
+        return d == 1 ? "1 day left" : "\(d) days left"
+    }
+
+    private var offersPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Card-linked offers").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                    Text("Use them before they expire").font(Theme.ui(17, weight: .semibold))
+                }
+                Spacer()
+                if offersSoon > 0 {
+                    Text("\(offersSoon) expiring soon")
+                        .font(Theme.ui(10, weight: .bold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Theme.orange.opacity(0.15)).foregroundStyle(Theme.orange)
+                        .clipShape(Capsule())
+                }
+            }
+            ForEach(activeOffers, id: \.offer.id) { item in
+                let urgent = (item.daysLeft ?? 99) <= 3
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.offer.detail.isEmpty ? item.offer.merchant : "\(item.offer.merchant) · \(item.offer.detail)")
+                            .font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
+                        Text("💳 \(item.card.name.isEmpty ? "Card" : item.card.name) · \(offerExpiryLabel(item.daysLeft))")
+                            .font(Theme.ui(11)).foregroundStyle(urgent ? Theme.orange : Theme.muted)
+                    }
+                    Spacer()
+                    Button("Mark used") {
+                        store.setOfferUsed(cardId: String(item.card.id), offerId: item.offer.id, used: true)
+                    }
+                    .font(Theme.ui(12, weight: .semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Theme.greenBg).foregroundStyle(Theme.green)
+                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+    }
+
+    // ── "Looks like you used this" offer suggestions ─────────────────
+    private var offerSuggestions: [Offers.UseSuggestion] {
+        Offers.useSuggestions(store.data.cards, transactions: store.data.transactions, tz: store.tz)
+    }
+
+    private var offerSuggestionsPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Looks like you used these").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                Text("Mark them used?").font(Theme.ui(17, weight: .semibold))
+            }
+            Text("We spotted a charge at these offers’ merchants. Confirm if the offer terms were met — FiHaven never marks an offer used on its own.")
+                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+            ForEach(offerSuggestions, id: \.offer.id) { item in
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.offer.detail.isEmpty ? item.offer.merchant : "\(item.offer.merchant) · \(item.offer.detail)")
+                            .font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
+                        Text("💳 \(item.card.name.isEmpty ? "Card" : item.card.name) · \(Money.fmt(item.tx.amount)) at \(item.tx.merchant) on \(item.tx.date)")
+                            .font(Theme.ui(11)).foregroundStyle(Theme.green)
+                    }
+                    Spacer()
+                    Button("Mark used") {
+                        store.setOfferUsed(cardId: String(item.card.id), offerId: item.offer.id, used: true)
+                    }
+                    .font(Theme.ui(12, weight: .semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Theme.greenBg).foregroundStyle(Theme.green)
+                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.green.opacity(0.4), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+    }
+
+    // ── Annual-fee check ─────────────────────────────────────────────
+    private var feeCards: [(card: Card, a: Perks.FeeAssessment)] {
+        store.data.cards.compactMap { c in
+            let est = Rewards.cardRewardsEstimateAnnual(c, spendByCategory: spendByCategory)
+            return Perks.feeAssessment(c, usage: store.data.settings.perkUsage, date: now, cal: cal, rewardsEstimate: est).map { (c, $0) }
+        }
+    }
+    private var hasSpendData: Bool { !spendByCategory.isEmpty }
+    private static let monthShort = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    private func verdictLabel(_ v: Perks.FeeVerdict) -> String {
+        switch v { case .keep: return "Pays for itself"; case .optimize: return "Use it more"; case .review: return "Review" }
+    }
+    private func verdictColor(_ v: Perks.FeeVerdict) -> Color {
+        switch v { case .keep: return Theme.green; case .optimize: return Theme.accent; case .review: return Theme.orange }
+    }
+    private func feeMath(_ a: Perks.FeeAssessment) -> String {
+        let rewards = a.rewards > 0 ? " + ~\(Money.fmt(a.rewards)) rewards" : ""
+        return "Captures \(Money.fmt(a.captured)) perks\(rewards) of \(Money.fmt(a.potential + a.rewards)) · \(Money.fmt(a.fee)) fee · net \(a.net >= 0 ? "+" : "")\(Money.fmt(a.net))"
+    }
+
+    private var feePanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Annual fee check").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                Text("Is the fee worth it?").font(Theme.ui(17, weight: .semibold))
+            }
+            Text(hasSpendData
+                 ? "Fee vs. the value this card returns — perks you’re capturing plus an estimate of rewards earned from your category spend."
+                 : "Fee vs. the value of this card’s perks. Add or sync transactions to factor in rewards earned from spending.")
+                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+            ForEach(feeCards, id: \.card.id) { item in
+                let a = item.a
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("💳 \(item.card.name.isEmpty ? "Card" : item.card.name)").font(Theme.ui(14, weight: .semibold))
+                            if let m = item.card.feeMonth, m >= 1, m <= 12 {
+                                Text("renews \(Self.monthShort[m])").font(Theme.ui(10)).foregroundStyle(Theme.muted)
+                            }
+                        }
+                        Text(feeMath(a)).font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                    }
+                    Spacer()
+                    Text(verdictLabel(a.verdict))
+                        .font(Theme.ui(10, weight: .bold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(verdictColor(a.verdict).opacity(0.15))
+                        .foregroundStyle(verdictColor(a.verdict))
+                        .clipShape(Capsule())
+                }
+                .padding(.vertical, 4)
             }
         }
         .padding(14)

@@ -26,6 +26,7 @@ data class Bill(
     val dueDay: Int? = null,
     val frequency: String = "Monthly",
     val autopay: Boolean = false,
+    val autopayDay: Int? = null,        // "Autopay day" — day money is pulled; null falls back to dueDay
     val notes: String = "",
     val cardId: String? = null,         // "Charged to" — id of the card this bill is paid on
     val startDate: String? = null,      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
@@ -53,12 +54,44 @@ data class Card(
     val promoBalance: Double? = null,
     val dueDay: Int? = null,
     val autopay: Boolean = false,
+    val autopayDay: Int? = null,        // "Autopay day" — day money is pulled; null falls back to dueDay
     val notes: String = "",
     val rewardBase: Double = 0.0,                       // flat reward % on everything
     val rewardCategories: Map<String, Double> = emptyMap(),  // per-category reward % overrides
     val rotatingPool: List<String>? = null,   // categories that can earn the elevated rotating rate
     val rotatingRate: Double? = null,         // elevated rate those categories earn when active
     val pointValue: Double? = null,           // cents per point/mile (null → 1 = cash back)
+    val perks: List<CardPerk> = emptyList(),  // recurring statement credits tracked per cycle
+    val annualFee: Double? = null,            // annual fee — powers the "is it worth it?" check
+    val feeMonth: Int? = null,                // month (1–12) the fee renews; null if unknown
+    val offers: List<CardOffer> = emptyList(), // card-linked offers (manual tracker)
+)
+
+/**
+ * A card-linked offer (Amex/Chase/BofA deal) the user has activated. FiHaven
+ * can't auto-activate (issuer APIs are private); this just keeps the expiry in
+ * front of you. `used` is toggled from the Rewards tab. Mirrors web `Card.offers`.
+ */
+@Serializable
+data class CardOffer(
+    val id: String = "",
+    val merchant: String = "",
+    val detail: String = "",
+    val expires: String = "",   // "YYYY-MM-DD" or "" for no expiry
+    val used: Boolean = false,
+)
+
+/**
+ * A recurring statement credit on a card (e.g. "$10 Uber Cash" monthly).
+ * `frequency` ∈ monthly|quarterly|semiannual|annual. Usage is tracked per
+ * cycle in settings.perkUsage. Mirrors the web `Card.perks` shape.
+ */
+@Serializable
+data class CardPerk(
+    val id: String = "",
+    val label: String = "",
+    val amount: Double = 0.0,
+    val frequency: String = "monthly",
 )
 
 @Serializable

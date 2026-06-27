@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.Money
+import app.fihaven.core.logic.Reconcile
 import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.ui.theme.Ct
@@ -41,6 +42,13 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     var addingTx by remember { mutableStateOf(false) }
     var editingBudgets by remember { mutableStateOf(false) }
+    var dismissedDupes by remember { mutableStateOf(setOf<String>()) }
+
+    // Bank-sync reconciliation: duplicate audit + uncorroborated manual entries.
+    val today = app.fihaven.core.logic.DateLogic.today(vm.zone())
+    val dupPairs = Reconcile.duplicatePairs(data.transactions).filter { it.bank.id !in dismissedDupes }
+    val unconfirmed = if (data.transactions.any { it.isBank })
+        Reconcile.unconfirmedManual(data.transactions, today).size else 0
 
     val bounds = vm.currentBounds()
     val periodTx = data.transactions.filter { it.date.isNotEmpty() && it.date >= bounds.startKey && it.date < bounds.endKey }
@@ -98,6 +106,37 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            if (dupPairs.isNotEmpty() || unconfirmed > 0) {
+                item {
+                    CtCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("🏦 Bank sync review", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Ct.colors.text)
+                            if (dupPairs.isNotEmpty()) {
+                                Text("These look like the same purchase entered twice — your entry and a bank import. Keep one.",
+                                    color = Ct.colors.muted, fontSize = 11.sp)
+                                dupPairs.forEach { pair ->
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("${pair.bank.merchant.ifBlank { pair.manual.merchant }} · ${Money.fmt(pair.bank.amount)}",
+                                                color = Ct.colors.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                            Text("you logged ${pair.manual.date} · bank ${pair.bank.date}",
+                                                color = Ct.colors.muted, fontSize = 11.sp)
+                                        }
+                                        Text("Remove mine", color = Ct.colors.red, fontSize = 12.sp,
+                                            modifier = Modifier.padding(start = 8.dp).clickable { vm.deleteTransaction(pair.manual) })
+                                        Text("Keep", color = Ct.colors.muted, fontSize = 12.sp,
+                                            modifier = Modifier.padding(start = 10.dp).clickable { dismissedDupes = dismissedDupes + pair.bank.id })
+                                    }
+                                }
+                            }
+                            if (unconfirmed > 0) {
+                                Text("$unconfirmed recent manual ${if (unconfirmed == 1) "entry the bank hasn’t" else "entries the bank hasn’t"} corroborated yet — double-check if you expected a bank match.",
+                                    color = Ct.colors.muted, fontSize = 11.sp)
                             }
                         }
                     }

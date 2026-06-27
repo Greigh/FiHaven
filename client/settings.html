@@ -455,6 +455,17 @@
               </label>
             </div>
 
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-copy">
+                <div class="settings-toggle-title">Card offer reminders <span class="badge badge-gray" style="vertical-align:middle;">Pro</span></div>
+                <div class="settings-toggle-desc">Email me before an activated card-linked offer expires, using the same lead time as bill reminders.</div>
+              </div>
+              <label class="fh-switch">
+                <input type="checkbox" data-offer-reminders-toggle aria-label="Card offer reminders"/>
+                <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+
             <div class="auth-field" style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <label for="notify-hour" style="color:var(--muted);font-size:14px;">Send these at</label>
               <select id="notify-hour" data-notify-hour style="width:auto;"></select>
@@ -490,6 +501,16 @@
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
               <button class="btn btn-primary" type="button" data-plaid-connect>+ Connect a bank</button>
               <button class="btn btn-ghost" type="button" data-plaid-refresh hidden>Refresh balances</button>
+            </div>
+            <div class="settings-toggle-row" style="margin-top:14px;">
+              <div class="settings-toggle-copy">
+                <div class="settings-toggle-title">Let bank balances update my cards</div>
+                <div class="settings-toggle-desc">Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only when it clearly matches by its last 4 digits (include them in the card name).</div>
+              </div>
+              <label class="fh-switch">
+                <input type="checkbox" data-plaid-balances-toggle aria-label="Let bank balances update my cards"/>
+                <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
             </div>
             <p style="margin-top:10px;font-size:12px;color:var(--muted);">
               By connecting, you agree to <a href="https://plaid.com/legal/#consumers" target="_blank" rel="noopener">Plaid&rsquo;s End User Privacy Policy</a>. You authenticate with your bank inside Plaid; we never see your bank login.

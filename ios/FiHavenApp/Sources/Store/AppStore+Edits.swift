@@ -272,6 +272,18 @@ extension AppStore {
         mutate { $0.settings.weeklyDigest = on }
     }
 
+    /// Card-linked offer expiry reminders (email + on-device). Reschedules so a
+    /// device notification is (un)set immediately.
+    func setOfferReminders(_ on: Bool) {
+        mutate { $0.settings.offerReminders = on }
+        refreshNotifications()
+    }
+
+    /// Opt-in: let synced bank balances update matching cards (server-applied).
+    func setPlaidUpdateBalances(_ on: Bool) {
+        mutate { $0.settings.plaidUpdateBalances = on }
+    }
+
     func setDashboardLayout(_ layout: String) {
         mutate { $0.settings.dashboardLayout = layout }
     }
@@ -306,6 +318,26 @@ extension AppStore {
     }
     func setAutopayMarkHour(_ hour: Int) {
         mutate { $0.settings.autopayMarkHour = min(23, max(0, hour)) }
+    }
+
+    // ── Card-linked offers ───────────────────────────────────────────
+    /// Mark a card-linked offer used (so it drops off the active list).
+    func setOfferUsed(cardId: String, offerId: String, used: Bool) {
+        mutate { d in
+            guard let ci = d.cards.firstIndex(where: { String($0.id) == cardId }) else { return }
+            guard let oi = d.cards[ci].offers.firstIndex(where: { $0.id == offerId }) else { return }
+            d.cards[ci].offers[oi].used = used
+        }
+    }
+
+    // ── Card credits & perks ─────────────────────────────────────────
+    /// Log how much of a card perk's credit has been used this cycle.
+    func setPerkUsage(cardId: String, perk: CardPerk, amount: Double) {
+        let cal = DateLogic.calendar(tz: tz)
+        let now = DateLogic.today(tz: tz)
+        let next = Perks.applyUsage(data.settings.perkUsage, cardId: cardId, perk: perk,
+                                    amount: amount, date: now, cal: cal)
+        mutate { $0.settings.perkUsage = next }
     }
 
     // ── History ──────────────────────────────────────────────────────

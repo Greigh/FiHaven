@@ -11,8 +11,10 @@ import app.fihaven.core.Money
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.model.Bill
+import app.fihaven.core.model.Card
 import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
+import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.reminderLeadDays
 import app.fihaven.core.model.remindOnDueDay
 import kotlinx.serialization.json.Json
@@ -57,8 +59,8 @@ object NotificationScheduler {
         }
     }
 
-    /** Cancel existing reminders and reschedule from the current bills. */
-    fun reschedule(context: Context, bills: List<Bill>, settings: JsonObject, zone: ZoneId) {
+    /** Cancel existing reminders and reschedule from the current bills + cards. */
+    fun reschedule(context: Context, bills: List<Bill>, cards: List<Card>, settings: JsonObject, zone: ZoneId) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -93,8 +95,51 @@ object NotificationScheduler {
             }
         }
         scheduleTrials(bills, settings, zone, scheduled)
+        scheduleOffers(cards, settings, zone, scheduled)
         scheduled.forEach { arm(am, context, it) }
         writeSchedule(prefs, scheduled)
+    }
+
+    /** Local notifications before activated card-linked offers expire (Pro;
+     *  mirrors the server email reminder, gated on the `offerReminders` flag). */
+    private fun scheduleOffers(
+        cards: List<Card>,
+        settings: JsonObject,
+        zone: ZoneId,
+        scheduled: MutableList<Scheduled>,
+    ) {
+        if (!settings.offerReminders) return
+        val lead = settings.reminderLeadDays
+        val hour = settings.notifyHour
+        val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
+        val now = ZonedDateTime.now(zone)
+        // (card, offer, expiry-date) for unused offers with a parseable expiry.
+        val upcoming = cards.flatMap { c ->
+            c.offers.filter { !it.used && it.expires.isNotBlank() }
+                .mapNotNull { o -> DateLogic.parseDate(o.expires)?.let { Triple(c, o, it.atStartOfDay(zone)) } }
+        }.sortedBy { it.third }
+        for ((_, offer, end) in upcoming) {
+            if (scheduled.size >= MAX) break
+            for (off in offsets) {
+                if (scheduled.size >= MAX) break
+                val fire = end.minusDays(off.toLong()).withHour(hour).withMinute(0)
+                if (!fire.isAfter(now)) continue
+                scheduled.add(
+                    Scheduled(offer.id.hashCode() * 41 + off + 20000, fire.toInstant().toEpochMilli(),
+                        "Offer expiring soon", offerBodyFor(offer, off))
+                )
+            }
+        }
+    }
+
+    private fun offerBodyFor(offer: app.fihaven.core.model.CardOffer, off: Int): String {
+        val phrase = when {
+            off <= 0 -> "expires today"
+            off == 1 -> "expires tomorrow"
+            else -> "expires in $off days"
+        }
+        val merchant = offer.merchant.ifBlank { "A card offer" }
+        return if (offer.detail.isBlank()) "$merchant offer $phrase." else "$merchant (${offer.detail}) $phrase."
     }
 
     private fun trialEndDate(bill: Bill, zone: ZoneId): ZonedDateTime? {

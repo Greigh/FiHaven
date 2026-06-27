@@ -26,6 +26,96 @@ func runModelChecks() {
         check(data.cards[1].promoBalance == nil, "null promoBalance → nil")
     }
 
+    section("Models — autopayDay round-trips and tolerates a string") {
+        let bill = Bill(id: 1, name: "Rent", autopay: true, autopayDay: 18)
+        let card = Card(id: 2, name: "Visa", autopay: true, autopayDay: 5)
+        let rtBill = try JSONDecoder().decode(Bill.self, from: JSONEncoder().encode(bill))
+        let rtCard = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(card))
+        checkEqual(rtBill.autopayDay, 18, "bill autopayDay round-trip")
+        checkEqual(rtCard.autopayDay, 5, "card autopayDay round-trip")
+
+        // Missing key → nil (falls back to dueDay at the call sites).
+        let plain = try JSONDecoder().decode(Bill.self, from: Data(#"{"id":3,"name":"x"}"#.utf8))
+        check(plain.autopayDay == nil, "missing autopayDay → nil")
+        // Web may write a string; flexibleInt tolerates it.
+        let strDay = try JSONDecoder().decode(Card.self, from: Data(#"{"id":4,"name":"y","autopayDay":"12"}"#.utf8))
+        checkEqual(strDay.autopayDay, 12, "string autopayDay → 12")
+    }
+
+    section("Perks — cycle keys, usage, totals") {
+        let cal = DateLogic.calendar(tz: TimeZone(identifier: "America/New_York")!)
+        var dc = DateComponents(); dc.year = 2026; dc.month = 6; dc.day = 20
+        let jun20 = cal.date(from: dc)!
+
+        checkEqual(Perks.cycleKey("monthly", date: jun20, cal: cal), "2026-06", "monthly key")
+        checkEqual(Perks.cycleKey("quarterly", date: jun20, cal: cal), "2026-Q2", "quarterly key")
+        checkEqual(Perks.cycleKey("semiannual", date: jun20, cal: cal), "2026-H1", "semiannual key")
+        checkEqual(Perks.cycleKey("annual", date: jun20, cal: cal), "2026", "annual key")
+        checkEqual(Perks.expiresInDays("monthly", date: jun20, cal: cal), 10, "10 days left in June")
+
+        let perk = CardPerk(id: "P1", label: "Uber", amount: 10, frequency: "monthly")
+        let card = Card(id: 1, name: "Visa", perks: [perk])
+        var usage: [String: Double] = [:]
+        checkClose(Perks.remaining(usage, cardId: "1", perk: perk, date: jun20, cal: cal), 10, "full remaining")
+
+        usage = Perks.applyUsage(usage, cardId: "1", perk: perk, amount: 6, date: jun20, cal: cal)
+        checkClose(Perks.used(usage, cardId: "1", perk: perk, date: jun20, cal: cal), 6, "used 6")
+        checkClose(Perks.remaining(usage, cardId: "1", perk: perk, date: jun20, cal: cal), 4, "4 left")
+
+        usage = Perks.applyUsage(usage, cardId: "1", perk: perk, amount: 999, date: jun20, cal: cal)
+        checkClose(Perks.remaining(usage, cardId: "1", perk: perk, date: jun20, cal: cal), 0, "clamps to cap")
+        checkClose(Perks.unrealizedTotal([card], usage: usage, date: jun20, cal: cal), 0, "nothing on table")
+        checkClose(Perks.annualValue(card), 120, "annual value $120")
+
+        // Round-trips through Card decode.
+        let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(card))
+        checkEqual(rt.perks.count, 1, "perks round-trip count")
+        checkEqual(rt.perks.first?.label, "Uber", "perk label round-trip")
+    }
+
+    section("Perks — annual-fee assessment") {
+        let cal = DateLogic.calendar(tz: TimeZone(identifier: "America/New_York")!)
+        var dc = DateComponents(); dc.year = 2026; dc.month = 6; dc.day = 20
+        let jun20 = cal.date(from: dc)!
+        let perk = CardPerk(id: "P1", label: "Uber", amount: 10, frequency: "monthly")
+        let card = Card(id: 1, name: "Visa", perks: [perk], annualFee: 95)
+
+        check(Perks.feeAssessment(Card(id: 2, name: "Free"), usage: [:], date: jun20, cal: cal) == nil, "fee-free → nil")
+
+        // No usage: potential $120 covers $95 fee → optimize.
+        var usage: [String: Double] = [:]
+        var a = Perks.feeAssessment(card, usage: usage, date: jun20, cal: cal)!
+        checkClose(a.potential, 120, "potential 120")
+        checkClose(a.captured, 0, "captured 0")
+        checkEqual(a.verdict.rawValue, "optimize", "optimize when unused")
+
+        // Use the full $10 this month → annualized $120 ≥ fee → keep.
+        usage = Perks.applyUsage(usage, cardId: "1", perk: perk, amount: 10, date: jun20, cal: cal)
+        a = Perks.feeAssessment(card, usage: usage, date: jun20, cal: cal)!
+        checkClose(a.captured, 120, "captured 120")
+        checkClose(a.net, 25, "net +25")
+        checkEqual(a.verdict.rawValue, "keep", "keep when captured covers fee")
+
+        // Fee perks can never cover → review.
+        let pricey = Card(id: 3, name: "Travel", perks: [CardPerk(id: "P2", label: "Credit", amount: 100, frequency: "annual")], annualFee: 550)
+        checkEqual(Perks.feeAssessment(pricey, usage: [:], date: jun20, cal: cal)!.verdict.rawValue, "review", "review when fee > potential")
+
+        // A spend-based rewards estimate folds into the verdict: $100 rewards
+        // alone covers the $95 fee with no perk usage → keep.
+        let withRewards = Perks.feeAssessment(card, usage: [:], date: jun20, cal: cal, rewardsEstimate: 100)!
+        checkClose(withRewards.rewards, 100, "rewards estimate carried")
+        checkClose(withRewards.value, 100, "value = captured 0 + rewards 100")
+        checkClose(withRewards.net, 5, "net +5 with rewards")
+        checkEqual(withRewards.verdict.rawValue, "keep", "keep once rewards cover the fee")
+        // Negative estimates floor at 0 (verdict unchanged).
+        checkClose(Perks.feeAssessment(card, usage: [:], date: jun20, cal: cal, rewardsEstimate: -50)!.rewards, 0, "negative estimate floored")
+
+        // annualFee/feeMonth round-trip.
+        let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(Card(id: 9, name: "X", annualFee: 95, feeMonth: 3)))
+        checkClose(rt.annualFee ?? 0, 95, "annualFee round-trip")
+        checkEqual(rt.feeMonth, 3, "feeMonth round-trip")
+    }
+
     section("Models — settings typed accessors") {
         let data = try JSONDecoder().decode(AppData.self, from: seedDataJSON)
         checkEqual(data.settings.timezone, "America/New_York", "timezone")
