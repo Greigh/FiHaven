@@ -20,10 +20,7 @@ class BillReminderReceiver : BroadcastReceiver() {
 
         NotificationScheduler.ensureChannel(context)
 
-        // Explicit (Context, Class) constructor so the destination component is
-        // fixed at creation — CodeQL's implicit-PendingIntent check doesn't
-        // track an apply-block `component =` setter.
-        val launch = Intent(context, MainActivity::class.java).apply {
+        val launch = explicitIntent(context, MainActivity::class.java) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentPi = PendingIntent.getActivity(

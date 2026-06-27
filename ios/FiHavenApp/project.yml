@@ -78,6 +78,10 @@ targets:
       - package: LinkKit
       - package: GoogleSignIn
         product: GoogleSignIn
+    postbuildScripts:
+      - name: Generate LinkKit dSYM
+        path: Scripts/generate-linkkit-dsym.sh
+        basedOnDependencyAnalysis: false
     info:
       path: Sources/Info.plist
       properties:
@@ -145,3 +149,6 @@ targets:
         # real challenge, override FH_TURNSTILE_SITEKEY=1x00000000000000000000AA
         # (the always-pass test key) in the scheme.
         TURNSTILE_SITEKEY: 0x4AAAAAADVKKZMye086WePX
+      configs:
+        Release:
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
