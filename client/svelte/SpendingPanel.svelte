@@ -13,6 +13,7 @@
   import { boundsForKey, paymentInBounds, shiftPeriod } from '../js/period.js';
   import { todayISO } from '../js/tz.js';
   import { computeSpendingInsights } from '../js/spendingInsights.js';
+  import { duplicatePairs, unconfirmedManual } from '../js/reconcile.js';
 
   const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
   const ICON = {
@@ -72,6 +73,18 @@
     if (i >= 0) transactions.splice(i, 1);
     save('fh_transactions', transactions);
   }
+
+  // ── Bank-sync reconciliation (only when a bank is linked) ───
+  let hasBankTx = $derived(transactions.some((t) => t.source === 'plaid'));
+  // Bank↔manual duplicates the user can audit. "Keep both" dismisses for the
+  // session; "Remove manual copy" deletes the hand-typed row (the bank's is
+  // authoritative). Stateless dismissals live in memory.
+  let dismissed = $state(new Set());
+  let dupPairs = $derived(duplicatePairs(transactions).filter((p) => !dismissed.has(p.bank.id)));
+  let unconfirmed = $derived(hasBankTx ? unconfirmedManual(transactions) : []);
+  const shortDayOf = (d) => shortDay(d);
+  function removeManualDup(pair) { removeTx(pair.manual.id); }
+  function keepBoth(pair) { dismissed = new Set(dismissed).add(pair.bank.id); }
 
   let recent = $derived(transactions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8));
   function shortDay(d) {
@@ -153,6 +166,31 @@
   </div>
   {/if}
 
+  <!-- Bank-sync review: duplicate audit + uncorroborated manual entries -->
+  {#if dupPairs.length > 0 || unconfirmed.length > 0}
+    <div class="recon">
+      <div class="recon-head">🏦 Bank sync review</div>
+      {#if dupPairs.length > 0}
+        <p class="recon-sub">These look like the same purchase entered twice — your manual entry and a bank import. Keep one.</p>
+        {#each dupPairs as pair (pair.bank.id)}
+          <div class="recon-row">
+            <div class="recon-info">
+              <span class="recon-merchant">{pair.bank.merchant || pair.manual.merchant || 'Transaction'} · {fmt(pair.bank.amount)}</span>
+              <span class="recon-meta">you logged {shortDayOf(pair.manual.date)} · bank {shortDayOf(pair.bank.date)}</span>
+            </div>
+            <div class="recon-actions">
+              <button class="btn btn-ghost btn-xs" onclick={() => removeManualDup(pair)}>Remove my copy</button>
+              <button class="btn btn-ghost btn-xs" onclick={() => keepBoth(pair)}>Keep both</button>
+            </div>
+          </div>
+        {/each}
+      {/if}
+      {#if unconfirmed.length > 0}
+        <p class="recon-sub recon-sub-quiet">{unconfirmed.length} recent manual {unconfirmed.length === 1 ? 'entry the bank hasn’t' : 'entries the bank hasn’t'} corroborated yet — double-check {unconfirmed.length === 1 ? 'it' : 'them'} if you expected a bank match.</p>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Recent transactions -->
   {#if recent.length > 0}
     <div class="spend-recent-head">Recent</div>
@@ -182,4 +220,13 @@
   .spend-insights-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
   .spend-insight-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
   .spend-insight-pct { font-size: 11px; color: var(--muted); }
+  .recon { margin: 14px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--accent-bg); }
+  .recon-head { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .recon-sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .recon-sub-quiet { margin-top: 8px; }
+  .recon-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
+  .recon-info { min-width: 0; }
+  .recon-merchant { font-size: 13px; font-weight: 600; }
+  .recon-meta { display: block; font-size: 11px; color: var(--muted); }
+  .recon-actions { display: flex; gap: 4px; flex: none; }
 </style>

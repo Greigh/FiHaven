@@ -172,6 +172,19 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["localNotifications"] = .bool(newValue) }
     }
 
+    /// Opt-in (Pro): remind before an activated card-linked offer expires.
+    public var offerReminders: Bool {
+        get { raw["offerReminders"]?.asBool ?? false }
+        set { raw["offerReminders"] = .bool(newValue) }
+    }
+
+    /// Opt-in: let a synced bank balance update a matching card. Off by default —
+    /// FiHaven never overrides a typed balance unless this is on.
+    public var plaidUpdateBalances: Bool {
+        get { raw["plaidUpdateBalances"]?.asBool ?? false }
+        set { raw["plaidUpdateBalances"] = .bool(newValue) }
+    }
+
     /// Budget rule lens: off | 50-30-20 | presets | custom | obligations-first | debt-focus | envelope.
     public var budgetRule: String {
         get { raw["budgetRule"]?.asString ?? "off" }
@@ -247,6 +260,20 @@ public struct Settings: Codable, Equatable, Sendable {
         }
         set {
             raw["autopayDone"] = .object(newValue.mapValues { .array($0.map { .string($0) }) })
+        }
+    }
+
+    /// Per-cycle card-perk usage: "<cardId>:<perkId>:<cycleKey>" → dollars
+    /// used this cycle. Shared with perks.js and Perks.swift/Perks.kt.
+    public var perkUsage: [String: Double] {
+        get {
+            guard let o = raw["perkUsage"]?.asObject else { return [:] }
+            return o.reduce(into: [:]) { acc, kv in
+                if let n = kv.value.asDouble { acc[kv.key] = n }
+            }
+        }
+        set {
+            raw["perkUsage"] = .object(newValue.mapValues { .number($0) })
         }
     }
 }

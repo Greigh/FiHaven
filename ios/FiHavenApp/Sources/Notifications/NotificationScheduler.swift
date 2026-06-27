@@ -26,7 +26,7 @@ enum NotificationScheduler {
 
     /// Cancel existing bill/trial reminders and reschedule from the current data.
     /// Off (or no permission) simply clears everything we'd scheduled.
-    static func reschedule(bills: [Bill], settings: Settings, tz: TimeZone) {
+    static func reschedule(bills: [Bill], cards: [Card] = [], settings: Settings, tz: TimeZone) {
         center.removeAllPendingNotificationRequests()
         guard settings.localNotifications else { return }
 
@@ -103,6 +103,56 @@ enum NotificationScheduler {
                 ))
                 scheduled += 1
             }
+        }
+
+        // Card-linked offer expiry reminders (Pro; mirrors the server email,
+        // gated on offerReminders). Nudges the user before an activated offer
+        // lapses.
+        if settings.offerReminders {
+            let offers = cards.flatMap { card in
+                card.offers.filter { !$0.used && !$0.expires.isEmpty }
+                    .compactMap { offer -> (CardOffer, Date)? in
+                        guard let end = DateLogic.parseDate(offer.expires, tz: tz) else { return nil }
+                        return (offer, end)
+                    }
+            }.sorted { $0.1 < $1.1 }
+
+            for (offer, end) in offers {
+                if scheduled >= maxPending { break }
+                for off in offsets {
+                    guard scheduled < maxPending else { break }
+                    guard let fireDay = cal.date(byAdding: .day, value: -off, to: end) else { continue }
+                    var comps = cal.dateComponents([.year, .month, .day], from: fireDay)
+                    comps.hour = hour
+                    comps.minute = 0
+                    guard let fireDate = cal.date(from: comps), fireDate > now else { continue }
+
+                    let content = UNMutableNotificationContent()
+                    content.title = "Offer expiring soon"
+                    let merchant = offer.merchant.isEmpty ? "A card offer" : offer.merchant
+                    content.body = offer.detail.isEmpty
+                        ? "\(merchant) offer \(offerPhrase(off))."
+                        : "\(merchant) (\(offer.detail)) \(offerPhrase(off))."
+                    content.sound = .default
+
+                    let trigger = UNCalendarNotificationTrigger(
+                        dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate),
+                        repeats: false
+                    )
+                    center.add(UNNotificationRequest(
+                        identifier: "offer-\(offer.id)-\(off)", content: content, trigger: trigger
+                    ))
+                    scheduled += 1
+                }
+            }
+        }
+    }
+
+    private static func offerPhrase(_ off: Int) -> String {
+        switch off {
+        case ..<1: return "expires today"
+        case 1: return "expires tomorrow"
+        default: return "expires in \(off) days"
         }
     }
 

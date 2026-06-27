@@ -370,6 +370,7 @@ private struct CardRow: View {
                     if let cur = card.currentBalance, cur > 0 {
                         Text("Current: \(Money.fmtShort(cur))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
+                    autopayChip
                     Spacer()
                     if promoActive {
                         HStack(spacing: 4) {
@@ -389,6 +390,7 @@ private struct CardRow: View {
             } else {
                 HStack(spacing: 8) {
                     Text("\(card.regularAPR, specifier: "%.2f")% APR").font(Theme.mono(11)).foregroundStyle(Theme.muted)
+                    autopayChip
                     Spacer()
                 }
             }
@@ -417,6 +419,24 @@ private struct CardRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(cardSummary)
         .accessibilityHint("Double tap to edit")
+    }
+
+    // Autopay status pill, matching the web card row ("✓ Autopay · day N" / "Manual").
+    @ViewBuilder
+    private var autopayChip: some View {
+        if card.autopay {
+            Text(card.autopayDay.map { "✓ Autopay · day \($0)" } ?? "✓ Autopay")
+                .font(Theme.mono(10, weight: .medium))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Theme.greenBg).foregroundStyle(Theme.green)
+                .clipShape(Capsule())
+        } else {
+            Text("Manual")
+                .font(Theme.mono(10))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Theme.surface2).foregroundStyle(Theme.muted)
+                .clipShape(Capsule())
+        }
     }
 
     @ViewBuilder

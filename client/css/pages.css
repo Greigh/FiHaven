@@ -924,6 +924,11 @@ input[type="file"]::file-selector-button:hover {
 .rw-cat { border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; transition:all .15s; }
 .rw-cat:hover { border-color:var(--accent); }
 .rw-cat.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+.rw-merchant { display:flex; align-items:center; gap:10px; margin:-6px 0 16px; }
+.rw-merchant-input { flex:1; min-width:0; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:10px; padding:8px 12px; font:inherit; font-size:13px; }
+.rw-merchant-input:focus { outline:none; border-color:var(--accent); }
+.rw-merchant-hint { font-size:13px; font-weight:700; color:var(--accent); white-space:nowrap; }
+.rw-merchant-hint.rw-merchant-miss { color:var(--muted); font-weight:500; }
 .rw-winner { border:1px solid var(--rw-accent,var(--accent)); border-left:4px solid var(--rw-accent,var(--accent)); border-radius:14px; padding:14px 16px; background:color-mix(in srgb, var(--rw-accent,var(--accent)) 7%, var(--surface)); }
 .rw-winner-label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
 .rw-winner-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:4px; }
@@ -960,6 +965,78 @@ input[type="file"]::file-selector-button:hover {
 .reward-rot-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border:1px solid var(--border); border-radius:999px; font-size:13px; cursor:pointer; user-select:none; }
 .reward-rot-chip input { margin:0; }
 .reward-rot-chip.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); color:var(--accent); }
+
+/* Credits & perks — editor rows (card modal) */
+.perk-edit-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.perk-edit-row > input[type="text"] { flex:1 1 auto; min-width:0; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 8px; color:var(--text); font:inherit; }
+.perk-edit-amt { display:inline-flex; align-items:center; gap:2px; color:var(--muted); }
+.perk-edit-amt input { width:72px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px; color:var(--text); font:inherit; text-align:right; }
+.perk-edit-row select { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px; color:var(--text); font:inherit; }
+.perk-edit-del { border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; padding:4px 6px; border-radius:6px; }
+.perk-edit-del:hover { color:var(--red,#e5484d); background:color-mix(in srgb, var(--red,#e5484d) 12%, transparent); }
+
+/* Credits & perks — Rewards-tab panel */
+.perk-total { text-align:right; line-height:1.1; }
+.perk-total-amt { display:block; font-family:'Manrope',sans-serif; font-weight:800; letter-spacing:-.03em; font-size:22px; color:var(--accent); }
+.perk-total.zero .perk-total-amt { color:var(--green,#30a46c); }
+.perk-total-sub { font-size:11px; color:var(--muted); }
+.perk-card { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
+.perk-card:first-of-type { border-top:none; padding-top:0; margin-top:0; }
+.perk-card-name { font-weight:600; font-size:13px; margin-bottom:6px; }
+.perk-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; }
+.perk-row.done { opacity:.6; }
+.perk-info { display:flex; flex-direction:column; min-width:0; }
+.perk-label { font-size:14px; color:var(--text); }
+.perk-meta { font-size:11px; color:var(--muted); }
+.perk-use { display:flex; align-items:center; gap:10px; white-space:nowrap; }
+.perk-use-field { font-size:12px; color:var(--muted); display:inline-flex; align-items:center; gap:3px; }
+.perk-use-field input { width:68px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:4px 6px; color:var(--text); font:inherit; text-align:right; }
+.perk-remain { font-size:12px; color:var(--accent); min-width:64px; text-align:right; }
+.perk-row.done .perk-remain { color:var(--green,#30a46c); }
+
+/* Wallet at a glance — best card per category */
+.wallet-grid { display:grid; gap:2px; }
+.wallet-row { display:grid; grid-template-columns:minmax(90px,1fr) 2fr auto; align-items:center; gap:10px;
+  width:100%; text-align:left; background:transparent; border:none; cursor:pointer;
+  padding:9px 6px; border-radius:8px; color:var(--text); font:inherit; }
+.wallet-row:hover { background:var(--surface2,var(--border)); }
+.wallet-cat { font-size:13px; color:var(--muted); }
+.wallet-card { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; min-width:0; }
+.wallet-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+.wallet-rate { font-family:'Manrope',sans-serif; font-weight:700; letter-spacing:-.02em; color:var(--accent); }
+
+/* Card-linked offers — Rewards-tab panel */
+.offers-soon { font-size:11px; font-weight:700; color:var(--orange,#f5a524);
+  background:var(--orange-bg,color-mix(in srgb, #f5a524 14%, transparent)); border-radius:999px; padding:3px 10px; white-space:nowrap; }
+.offer-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
+.offer-row:first-of-type { border-top:none; }
+.offer-info { min-width:0; }
+.offer-merchant { font-size:14px; font-weight:600; }
+.offer-detail { font-weight:400; color:var(--muted); }
+.offer-meta { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+.offer-row.offer-urgent .offer-meta { color:var(--orange,#f5a524); font-weight:600; }
+.offer-used-btn { font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer;
+  color:var(--green,#30a46c); background:var(--green-bg,color-mix(in srgb, #30a46c 12%, transparent));
+  border:none; border-radius:999px; padding:5px 12px; }
+.offer-used-btn:hover { filter:brightness(0.97); }
+/* "Looks like you used this" suggestions (Plaid/manual transaction match) */
+.offer-suggest-panel { border-left:4px solid var(--green,#30a46c); }
+.offer-suggest-row .offer-meta { color:var(--green,#30a46c); }
+
+/* Annual-fee check — Rewards-tab panel */
+.fee-note { font-size:12px; color:var(--muted); margin:0 0 10px; }
+.fee-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
+.fee-row:first-of-type { border-top:none; }
+.fee-row-main { min-width:0; }
+.fee-name { font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; }
+.fee-renews { font-size:11px; font-weight:500; color:var(--muted); background:var(--surface2,var(--border)); border-radius:6px; padding:1px 6px; }
+.fee-math { font-size:11px; color:var(--muted); margin-top:2px; }
+.fee-net-pos { color:var(--green,#30a46c); font-weight:600; }
+.fee-net-neg { color:var(--orange,#f5a524); font-weight:600; }
+.fee-verdict { font-size:11px; font-weight:700; white-space:nowrap; padding:4px 10px; border-radius:999px; }
+.fee-verdict.fee-keep { color:var(--green,#30a46c); background:var(--green-bg,color-mix(in srgb, #30a46c 14%, transparent)); }
+.fee-verdict.fee-optimize { color:var(--accent); background:var(--accent-bg,color-mix(in srgb, var(--accent) 14%, transparent)); }
+.fee-verdict.fee-review { color:var(--orange,#f5a524); background:var(--orange-bg,color-mix(in srgb, #f5a524 14%, transparent)); }
 /* Inline "this is a Pro feature" hint inside an otherwise-free panel. */
 .spend-pro-upsell { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--muted); background:var(--surface2,var(--border)); border:1px dashed var(--border); border-radius:12px; padding:10px 12px; margin:6px 0; }
 .spend-pro-upsell a { color:var(--accent); font-weight:600; margin-left:auto; }

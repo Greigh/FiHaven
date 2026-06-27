@@ -16,7 +16,7 @@ import {
   currentPeriodKey, paidAmount, goalAmountFor, isSkipped, monthKey, billActive,
 } from './utils.js';
 import { boundsForKey, monthsInBounds } from './period.js';
-import { billDueOnOrBeforeInPeriod } from './billSchedule.js';
+import { billDueOnOrBeforeInPeriod, billDueInPeriod } from './billSchedule.js';
 import { today, todayISO } from './tz.js';
 
 function newId() {
@@ -55,20 +55,35 @@ export function runAutopayMark() {
   }
   const newlyMarked = [];
 
+  // The day-of-month an autopay item's `autopayDay` lands on within the
+  // current period — true once that day has arrived (on or before now).
+  const autopayDayReached = (day) => {
+    let d = new Date(bounds.start.getFullYear(), bounds.start.getMonth(), day);
+    if (d < bounds.start) d = new Date(bounds.start.getFullYear(), bounds.start.getMonth() + 1, day);
+    return d < bounds.end && d <= now;
+  };
+
   const mark = (item, type, name, amount) => {
     if (!item.autopay) return;
     const refKey = type + ':' + String(item.id);
     if (handled.has(refKey)) return;                     // already auto-marked this period
+    // Explicit autopay pull day; blank → falls back to the due day.
+    const apDay = parseInt(item.autopayDay, 10) || 0;
     if (type === 'bill') {
       if (!item.dueDay && !item.startDate) return;
-      const due = billDueOnOrBeforeInPeriod(item, bounds, now);
-      if (!due) return;
+      if (apDay) {
+        // Autopay pulls on its own day; the bill must still be scheduled
+        // in this period, but the trigger is the autopay day, not the due date.
+        if (!billDueInPeriod(item, bounds)) return;
+        if (!autopayDayReached(apDay)) return;
+      } else {
+        const due = billDueOnOrBeforeInPeriod(item, bounds, now);
+        if (!due) return;
+      }
     } else {
-      if (!item.dueDay) return;
-      const dd = parseInt(item.dueDay, 10);
-      let d = new Date(bounds.start.getFullYear(), bounds.start.getMonth(), dd);
-      if (d < bounds.start) d = new Date(bounds.start.getFullYear(), bounds.start.getMonth() + 1, dd);
-      if (d >= bounds.end || d > now) return;
+      const dd = apDay || parseInt(item.dueDay, 10);
+      if (!dd) return;
+      if (!autopayDayReached(dd)) return;
     }
 
     const refId = String(item.id);
