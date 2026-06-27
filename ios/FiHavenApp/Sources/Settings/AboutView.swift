@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// About + open-source licensing.
+/// About + licensing.
 ///
-/// FiHaven is AGPL-3.0, free software with an optional Pro subscription. The
-/// iOS build's only third-party runtime dependency is Plaid's LinkKit (Plaid
-/// SDK License); it otherwise runs on Apple's SDKs (SwiftUI, Foundation), the
-/// first-party FiHavenCore package, and bundled fonts (SIL OFL 1.1). We surface
-/// the app's own license + source, which the AGPL expects of a network service.
+/// FiHaven is source available (see LICENSE on GitHub), with an optional Pro
+/// subscription on the hosted service. The iOS build's third-party runtime
+/// dependency is Plaid's LinkKit (Plaid SDK License); it otherwise runs on
+/// Apple's SDKs, FiHavenCore, and bundled fonts (SIL OFL 1.1).
 struct AboutView: View {
     @Environment(\.openURL) private var openURL
 
@@ -26,7 +25,7 @@ struct AboutView: View {
             Section("FiHaven") {
                 LabeledContent("Version", value: version)
                 Button { openURL(Self.licenseURL) } label: {
-                    LabeledContent("License", value: "AGPL-3.0")
+                    LabeledContent("License", value: "Source available")
                 }
                 Button("View source") { openURL(Self.repoURL) }
             }
@@ -42,11 +41,11 @@ struct AboutView: View {
                 .accessibilityHint("Opens in browser")
             }
 
-            Section("Open-source licenses") {
+            Section("Third-party licenses") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("FiHaven is free software with an optional subscription purchase.")
+                    Text("FiHaven is free to use on the hosted service, with an optional Pro subscription.")
                         .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text("It bundles the following open-source resources:")
+                    Text("This app bundles the following third-party resources:")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
                     Text("• Plaid LinkKit: Plaid SDK License\n• Manrope Font: SIL Open Font License 1.1\n• IBM Plex Mono Font: SIL Open Font License 1.1")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
@@ -54,7 +53,7 @@ struct AboutView: View {
             }
 
             Section {
-                Text("FiHaven is free software. If you run a modified version as a network service, the AGPL requires you to offer its source to your users.")
+                Text("Source is published on GitHub for transparency. You may not operate a public hosted copy or redistribute modified builds without permission.")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }

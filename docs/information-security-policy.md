@@ -55,7 +55,7 @@ A risk that cannot be immediately remediated is documented with a compensating c
 | **Restricted** | Plaid access tokens, MFA secrets/TOTP seeds, password hashes, encryption keys | Encrypted at rest (AES-256-GCM) or one-way hashed; never logged; never returned to clients; never committed to version control |
 | **Confidential** | User financial data, connected-account balances, email addresses | Access-controlled per user; transmitted only over TLS; retained only while the account exists |
 | **Internal** | Application logs, operational metrics | Access limited to operators; no Restricted data permitted in logs |
-| **Public** | Marketing pages, open-source code | No protection beyond integrity |
+| **Public** | Marketing pages, published source code (source available) | No protection beyond integrity |
 
 Restricted and Confidential data are only ever transmitted over encrypted channels and are scoped to the owning user by server-side authorization on every request.
 
