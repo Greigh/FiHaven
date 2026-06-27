@@ -114,4 +114,6 @@ match web and Android — see [`docs/native-contract.md`](../docs/native-contrac
 
 Legal URLs and TestFlight checklist: [`docs/app-store-connect.md`](../docs/app-store-connect.md).
 
+**Upload:** `./scripts/ios-testflight.sh` from the repo root (see the doc for auth and ASC setup).
+
 **Quick copy-paste:** Privacy Policy `https://fihaven.app/privacy` · EULA: **Apple Standard** (not `/terms`) · Terms in-app: `https://fihaven.app/terms`.

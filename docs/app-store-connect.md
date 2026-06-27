@@ -34,6 +34,30 @@ Do **not** use the GitHub AGPL link as the App Store EULA — that is the **sour
 
 ## TestFlight
 
+### Upload a build
+
+From the repo root (requires full Xcode, team **365KR8NF53** signed in):
+
+```sh
+./scripts/ios-testflight.sh              # archive + upload to App Store Connect
+./scripts/ios-testflight.sh --archive-only   # archive only; upload via Xcode Organizer
+```
+
+The script runs XcodeGen, resolves SPM packages, archives **Release** for generic iOS,
+and exports with [`ios/FiHavenApp/ExportOptions.plist`](../ios/FiHavenApp/ExportOptions.plist).
+Version/build come from `project.yml` (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`).
+
+Optional API-key auth instead of an interactive Apple ID:
+
+```sh
+export APP_STORE_CONNECT_API_KEY_ID=...
+export APP_STORE_CONNECT_API_ISSUER_ID=...
+export APP_STORE_CONNECT_API_KEY_PATH=~/path/to/AuthKey_XXXX.p8
+./scripts/ios-testflight.sh
+```
+
+After upload, processing in App Store Connect usually takes 5–15 minutes.
+
 ### Internal testing
 
 - Upload a build from Xcode or CI → **TestFlight** → **Internal Testing** → add testers (no Beta App Review).
