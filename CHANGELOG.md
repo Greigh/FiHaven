@@ -29,6 +29,7 @@ household settings — aligned across web, iOS, and Android.
   that invitees can join for free; Pro badge on the Family row when locked
   (iOS).
 - Android `versionCode` 8 (same `1.4.2` build for Play re-upload).
+- **iOS build numbers** — `project.yml` / `Info.plist` aligned to **1.4.2 (8)**; [`scripts/ios-testflight.sh`](../scripts/ios-testflight.sh) archives and uploads to App Store Connect.
 
 ### Fixed
 
