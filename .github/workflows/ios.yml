@@ -14,10 +14,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
+      # Use the Swift toolchain bundled with Xcode rather than a standalone
+      # swift-actions toolchain: the latter pinned Swift 6.0.3, which can't
+      # compile against the newer SDK shipped in the runner's Xcode (e.g.
+      # Xcode 26.5 / Swift 6.3.x) — "this SDK is not supported by the compiler".
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
         with:
-          swift-version: "6.0"
+          xcode-version: latest-stable
 
       - name: Run FiHavenCore checks
         working-directory: ios/FiHavenCore
@@ -38,6 +42,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install XcodeGen
         run: brew install xcodegen
