@@ -847,3 +847,55 @@ describe('scheduler — trial reminders', () => {
     expect(setTrialReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
   });
 });
+
+describe('scheduler — offer reminders', () => {
+  function offerUser() {
+    return {
+      id: 1,
+      email: 'user@example.com',
+      email_verified: 1,
+      last_reminder_day: null,
+      last_offer_reminder_day: null,
+      data: {
+        settings: { timezone: 'America/New_York', offerReminders: true, reminderLeadDays: 3 },
+        cards: [{
+          id: 'c1', name: 'Amex Gold',
+          offers: [
+            { id: 'o1', merchant: 'Dell', detail: '$50 back', expires: '2026-06-20', used: false }, // 3 days out
+            { id: 'used', merchant: 'Nike', detail: '$20 back', expires: '2026-06-20', used: true }, // skip — used
+          ],
+        }],
+      },
+    };
+  }
+
+  it('emails Pro users before an activated offer expires, and stamps the day', async () => {
+    const sendOfferReminder = vi.fn().mockResolvedValue(undefined);
+    const setOfferReminderDay = vi.fn();
+    const db = { allUsersWithData: vi.fn().mockReturnValue([offerUser()]), setOfferReminderDay };
+    const sched = loadScheduler({ pro: true });
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), {
+      db, emails: { sendOfferReminder },
+    });
+    expect(sendOfferReminder).toHaveBeenCalledOnce();
+    const sent = sendOfferReminder.mock.calls[0][1];
+    expect(sent.map((o) => o.merchant)).toEqual(['Dell']); // used offer excluded
+    expect(setOfferReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
+  it('does not email when the user is not Pro', async () => {
+    const sendOfferReminder = vi.fn().mockResolvedValue(undefined);
+    const db = { allUsersWithData: vi.fn().mockReturnValue([offerUser()]), setOfferReminderDay: vi.fn() };
+    const sched = loadScheduler({ pro: false });
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: { sendOfferReminder } });
+    expect(sendOfferReminder).not.toHaveBeenCalled();
+  });
+
+  it('offersExpiringOn finds active offers at an exact lead', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = sched.localParts(new Date('2026-06-17T12:00:00.000Z'), 'America/New_York');
+    const data = offerUser().data;
+    expect(sched.offersExpiringOn(data, lp, 3).map((o) => o.merchant)).toEqual(['Dell']);
+    expect(sched.offersExpiringOn(data, lp, 5)).toEqual([]);
+  });
+});

@@ -208,6 +208,7 @@ strict on write.
   "dueDay": 1,             // number 1–31 (day of month)
   "frequency": "Monthly",  // Monthly | Weekly | Bi-weekly | Quarterly | Annually — drives due-date scheduling
   "autopay": true,         // bool
+  "autopayDay": null,      // optional number 1–31 — day autopay pulls; null falls back to dueDay (drives auto-mark timing)
   "notes": "Oakwood Apts", // string, may be ""
   "startDate": null,       // optional "YYYY-MM-DD" — "First bill due on"; gates when it begins
   "endDate": null,         // optional "YYYY-MM-DD" — "Stops on"; bill is Ended after this
@@ -246,9 +247,62 @@ today's `YYYY-MM-DD` in the user's tz.
   "promoBalance": 2340,     // number|null (balance under the promo)
   "dueDay": 18,             // number 1–31
   "autopay": false,         // bool
-  "notes": "1.5% cashback"  // string
+  "autopayDay": null,       // optional number 1–31 — day autopay pulls; null falls back to dueDay
+  "notes": "1.5% cashback", // string
+  "annualFee": null,        // optional number — annual fee ($); powers the fee-worth-it check
+  "feeMonth": null,         // optional number 1–12 — month the fee renews
+  "perks": [                // optional — recurring statement credits tracked per cycle
+    { "id": "p1", "label": "Uber Cash", "amount": 10, "frequency": "monthly" }
+  ],
+  "offers": [               // optional — card-linked offers (manual tracker)
+    { "id": "o1", "merchant": "Whole Foods", "detail": "10% back", "expires": "2026-07-31", "used": false }
+  ]
 }
 ```
+**Credits & perks (`perks`).** Each perk is a recurring statement credit
+that resets every cycle (`frequency` ∈ `monthly`|`quarterly`|`semiannual`|`annual`).
+Per-cycle usage is logged on the Rewards tab and stored in
+`settings.perkUsage` (`"<cardId>:<perkId>:<cycleKey>"` → dollars used),
+pruned to recent cycles like `settings.autopayDone`. Cycle keys:
+`YYYY-MM` / `YYYY-Qn` / `YYYY-Hn` / `YYYY`. Logic: `perks.js` ⇄
+`Perks.swift` ⇄ `Perks.kt`. The headline "left on the table" figure is
+`unrealizedCreditTotal` (sum of each perk's unused amount this cycle).
+
+**Annual-fee check (`annualFee` / `feeMonth`).** `cardFeeAssessment` (web)
+/ `Perks.feeAssessment` (native) compares the fee against the value of the
+card's perks — `perksAnnualValue` (full potential) and `perksCapturedAnnual`
+(this cycle's logged usage annualized, capped per perk) — and returns a
+verdict, plus an **optional spend-based rewards estimate** added to the value:
+`cardRewardsEstimateAnnual` (rewards.js ⇄ Rewards.swift ⇄ Rewards.kt) annualizes
+the user's category spend (`categorySpendAnnual`, which buckets transactions via
+`merchants.js`/`Merchants.swift`/`Merchants.kt` merchant→category hints) and
+counts each card's bonus-category spend. The verdict is `keep` (captured perks +
+rewards ≥ fee), `optimize` (potential perks + rewards ≥ fee), or `review`. With no
+transactions the estimate is 0 and the verdict is perks-only (back-compatible).
+Surfaced on the Rewards tab; `feeMonth` shows the renewal month. Loans never carry
+a fee.
+
+**Card-linked offers (`offers`).** A manual tracker for activated Amex/Chase/BofA
+deals (FiHaven can't auto-activate — issuer APIs are private). Each offer is
+`{id, merchant, detail, expires("YYYY-MM-DD"|""), used}`. The Rewards tab shows
+still-actionable offers (not `used`, not past `expires`) soonest-expiry-first
+with a "use these soon" count, and a **Mark used** action flips `used`. Logic:
+`offers.js` ⇄ `Offers.swift` ⇄ `Offers.kt` (`active`/`daysLeft`/`expiringSoon`).
+The engines also offer **Plaid-assisted use detection** (`offerUseSuggestions` /
+`Offers.useSuggestions`): an unused offer with a matching recent transaction
+(merchant + within 60 days) is surfaced as a "looks like you used this" prompt —
+a suggestion only; nothing is auto-marked. When `offerReminders` is on the server
+emails (and each native app schedules a local notif) before an offer expires.
+
+**Bank reconciliation (Plaid).** Synced bank transactions are tagged
+`source:"plaid"` and added ALONGSIDE manual ones (never replacing them). The
+shared `reconcile.js` ⇄ `Reconcile.swift` ⇄ `Reconcile.kt` engine flags overlaps
+for the user to audit on the Spending screen: `duplicatePairs` (a manual + a bank
+row that look like the same purchase — same amount to the cent, similar merchant,
+date within ±1 day), `unmatchedBank` (bank rows with no manual twin), and
+`unconfirmedManual` (recent manual rows the bank hasn't corroborated). Resolution
+is manual — "remove my copy" / "keep both". Balances are never overwritten unless
+`plaidUpdateBalances` is opted into (server-side, last-4 mask match only).
 
 ### Payment
 ```jsonc
@@ -280,7 +334,9 @@ The server stores `settings` verbatim as an object. Known keys:
 | `notifyHour` | number `0..23` | local hour reminders/digests fire (default `8`) |
 | `remindOnDueDay` | boolean | also remind on the due day itself (default `false`) |
 | `weeklyDigest` | boolean | send/show a Monday week-ahead digest (default `false`) |
+| `offerReminders` | boolean | Pro: remind before an activated card-linked offer expires — email + local notif, same lead window as bill reminders (default `false`) |
 | `localNotifications` | boolean | native opt-in to schedule local bill reminders (default `false`) |
+| `plaidUpdateBalances` | boolean | opt-in: let a synced bank balance update a matching card. Off by default — a linked bank NEVER overrides typed balances; when on, the server updates a card only on an unambiguous last-4 mask match (default `false`) |
 | `dashboardLayout` | `"classic"|"widgets"` | dashboard mode (default `classic`) |
 | `dashboardWidgets` | `string[]` | enabled widget ids, in display order (`widgets` mode) |
 | `budgetRule` | `"off"` \| `"50-30-20"` \| `"80-20"` \| `"60-20-20"` \| `"70-20-10"` \| `"custom"` \| `"obligations-first"` \| `"debt-focus"` \| `"envelope"` | optional Budget lens (default `off`) |
@@ -421,6 +477,11 @@ prompt for free users.
 - Payoff *(Pro)*: strategy + extra-payment simulator (§7.5).
 - Rewards *(Pro)*: per-category "which card to use" optimizer
   ([`rewards.js`](../client/js/rewards.js)), excluding cards in an active 0% promo.
+  Also surfaces: a **wallet-at-a-glance** view (`walletStrategy` — best card per
+  category, 0%-return picks dropped), a **"why this card"** line
+  (`rewardExplanation` — bonus vs. base, points × point-value cash return),
+  a **credits & perks** tracker, and the **annual-fee check**. All mirrored in
+  `Rewards.swift`/`Rewards.kt` + `Perks.{js,swift,kt}`.
 
 ---
 

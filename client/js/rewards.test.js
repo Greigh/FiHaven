@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { effectiveRate, pointValue, effectiveValue, inActivePromo, rankCardsForCategory } from './rewards.js';
+import {
+  effectiveRate, pointValue, effectiveValue, inActivePromo, rankCardsForCategory,
+  rewardExplanation, walletStrategy, txRewardCategory, categorySpendAnnual,
+  cardRewardsEstimateAnnual,
+} from './rewards.js';
 
 const isoOffsetMonths = (months) => {
   const d = new Date();
@@ -81,6 +85,88 @@ describe('rewards — rankCardsForCategory', () => {
   it('handles empty and undefined input', () => {
     expect(rankCardsForCategory('Gas', [])).toEqual({ eligible: [], excluded: [] });
     expect(rankCardsForCategory('Gas')).toEqual({ eligible: [], excluded: [] });
+  });
+});
+
+describe('rewards — rewardExplanation', () => {
+  it('explains a category bonus vs. the flat base for a cash card', () => {
+    const card = { rewardBase: 1, rewardCategories: { Dining: 4 } };
+    expect(rewardExplanation(card, 'Dining')).toBe('4% back on dining');
+    expect(rewardExplanation(card, 'Gas')).toBe('1% back on everything');
+  });
+
+  it('breaks down a points card into a cash-equivalent return', () => {
+    const bilt = { rewardBase: 1, rewardCategories: { Dining: 3 }, pointValue: 2 };
+    expect(rewardExplanation(bilt, 'Dining')).toBe('3× points · 2¢/pt = 6% back on dining');
+  });
+
+  it('reports when no rate is set', () => {
+    expect(rewardExplanation({}, 'Gas')).toBe('No reward rate set');
+  });
+});
+
+describe('rewards — walletStrategy', () => {
+  it('picks the best eligible card per category', () => {
+    const cards = [
+      { id: 'din', name: 'Diner', rewardBase: 1, rewardCategories: { Dining: 4 } },
+      { id: 'flat', name: 'Flat', rewardBase: 2 },
+    ];
+    const out = walletStrategy(cards, ['Dining', 'Gas']);
+    expect(out[0].category).toBe('Dining');
+    expect(out[0].best.card.id).toBe('din');   // 4% beats 2%
+    expect(out[1].category).toBe('Gas');
+    expect(out[1].best.card.id).toBe('flat');  // 2% base beats 1% base
+  });
+
+  it('returns a null best for a category no card earns in', () => {
+    const out = walletStrategy([{ id: 'x', name: 'X', rewardCategories: {} }], ['Gas']);
+    expect(out[0].best).toBeNull();
+  });
+});
+
+describe('rewards — spend categorization & estimate', () => {
+  const today = new Date();
+  const ymd = (offsetDays) => {
+    const d = new Date(today.getTime() - offsetDays * 864e5);
+    return d.toISOString().slice(0, 10);
+  };
+
+  it('txRewardCategory prefers a merchant hint, then the tx category, else Other', () => {
+    expect(txRewardCategory({ merchant: 'Starbucks', category: 'Whatever' })).toBe('Dining');
+    expect(txRewardCategory({ merchant: 'Unknown Shop', category: 'Groceries' })).toBe('Groceries');
+    expect(txRewardCategory({ merchant: 'Unknown Shop', category: 'NotACategory' })).toBe('Other');
+  });
+
+  it('annualizes category spend over the data window', () => {
+    // ~180 days of data → factor ~2. Dining via merchant hint, Gas via category.
+    const txns = [
+      { merchant: 'Starbucks', amount: 50, date: ymd(10) },
+      { merchant: 'Chipotle', amount: 50, date: ymd(170) },
+      { merchant: 'Some Station', category: 'Gas', amount: 100, date: ymd(170) },
+      { merchant: 'refund', amount: -20, date: ymd(5) }, // inflow ignored
+    ];
+    const out = categorySpendAnnual(txns, today);
+    // 100 dining + 100 gas over a 170-day window → ×(365/170)≈2.15
+    expect(out.Dining).toBeGreaterThan(180);
+    expect(out.Gas).toBeGreaterThan(180);
+    expect(out).not.toHaveProperty('Other'); // nothing fell through
+  });
+
+  it('returns {} when there are no usable transactions', () => {
+    expect(categorySpendAnnual([], today)).toEqual({});
+    expect(categorySpendAnnual([{ amount: -5, date: ymd(1) }], today)).toEqual({});
+  });
+
+  it('estimates rewards only on a card’s bonus categories', () => {
+    const spend = { Dining: 1000, Gas: 1000, Other: 5000 };
+    // 4× dining at 1¢ = 4% → $40 on $1000 dining. Gas/Other have no bonus → ignored.
+    const card = { rewardBase: 1, rewardCategories: { Dining: 4 } };
+    expect(cardRewardsEstimateAnnual(card, spend)).toBe(40);
+    // Points card: 3× dining × 2¢/pt = 6% → $60.
+    const pts = { rewardBase: 1, rewardCategories: { Dining: 3 }, pointValue: 2 };
+    expect(cardRewardsEstimateAnnual(pts, spend)).toBe(60);
+    // Loans earn nothing.
+    expect(cardRewardsEstimateAnnual({ type: 'loan', rewardCategories: { Dining: 4 } }, spend)).toBe(0);
   });
 });
 

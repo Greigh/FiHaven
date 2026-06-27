@@ -21,6 +21,7 @@ const express = require('express');
 const dbApi = require('../db');
 const plaid = require('../plaid');
 const billing = require('../billing');
+const { balanceUpdates, applyBalanceUpdates } = require('../plaidBalances');
 const { requireAuth, requireCsrf } = require('../session');
 
 const router = express.Router();
@@ -129,6 +130,28 @@ function saveAccounts(itemPk, accounts) {
       enc: plaid.encryptToken(blob),
       updated_at: now,
     });
+  }
+}
+
+// Opt-in, non-destructive balance sync. By default FiHaven NEVER changes the
+// balances the user typed — Plaid balances live only in the bank panel. When
+// the user enables `settings.plaidUpdateBalances`, update a card's owed balance
+// from a freshly-pulled Plaid account, but only on an unambiguous last-4 match
+// (see plaidBalances.js). No-op otherwise, so a linked bank assists, never
+// overrides.
+function applyPlaidBalances(userId, accounts) {
+  try {
+    const data = dbApi.getUserData(userId);
+    if (!data || !(data.settings && data.settings.plaidUpdateBalances)) return;
+    const updates = balanceUpdates(data.cards || [], accounts || []);
+    if (!updates.length) return;
+    const { cards, changed } = applyBalanceUpdates(data.cards || [], updates);
+    if (!changed) return;
+    data.cards = cards;
+    dbApi.upsertUserData(userId, data);
+    logPlaid('balances-applied', { userId, updated: updates.length });
+  } catch (e) {
+    logPlaid('balances-apply:error', { userId, message: e && e.message });
   }
 }
 
@@ -289,6 +312,7 @@ router.post('/item/:id/repaired', requireAuth, requireCsrf, requirePlaid, requir
     const accessToken = plaid.decryptToken(item.access_token_enc);
     const { accounts } = await plaid.getAccounts(accessToken);
     saveAccounts(item.id, accounts);
+    applyPlaidBalances(req.user.id, accounts);
     try {
       const sync = await plaid.syncTransactions(accessToken, item.cursor);
       mergePlaidTransactions(req.user.id, sync);
@@ -340,6 +364,7 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
       updated_at: now,
     });
     saveAccounts(itemPk, accounts);
+    applyPlaidBalances(req.user.id, accounts);
 
     const stored = dbApi.findPlaidItemById(itemPk, req.user.id);
     logPlaid('item-linked', { userId: req.user.id, itemPk, institutionId, accounts: accounts.length });
@@ -362,6 +387,7 @@ router.post('/refresh', requireAuth, requireCsrf, requirePlaid, requirePro, asyn
       const accessToken = plaid.decryptToken(item.access_token_enc);
       const { accounts } = await plaid.getAccounts(accessToken);
       saveAccounts(item.id, accounts);
+      applyPlaidBalances(req.user.id, accounts);
       // Sync transactions and merge them (additively) into the user's data.
       try {
         const sync = await plaid.syncTransactions(accessToken, item.cursor);
@@ -425,6 +451,7 @@ router.post('/webhook', async (req, res) => {
           const accessToken = plaid.decryptToken(item.access_token_enc);
           const { accounts } = await plaid.getAccounts(accessToken);
           saveAccounts(item.id, accounts);
+          applyPlaidBalances(item.user_id, accounts);
           try {
             const sync = await plaid.syncTransactions(accessToken, item.cursor);
             mergePlaidTransactions(item.user_id, sync);

@@ -33,9 +33,9 @@ export function exportCSV(type) {
   var rows;
 
   if (type === 'bills') {
-    rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'First Due', 'Stops On', 'Autopay', 'Notes']];
+    rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'First Due', 'Stops On', 'Autopay', 'Autopay Day', 'Notes']];
     bills.forEach(function (b) {
-      rows.push([b.name, b.category, b.amount, b.dueDay || '', b.frequency, b.startDate || '', b.endDate || '', b.autopay ? 'Yes' : 'No', b.notes || '']);
+      rows.push([b.name, b.category, b.amount, b.dueDay || '', b.frequency, b.startDate || '', b.endDate || '', b.autopay ? 'Yes' : 'No', b.autopayDay || '', b.notes || '']);
     });
     downloadCSV('fihaven-bills.csv', toCSV(rows));
     toast('Bills exported to CSV.');
@@ -43,7 +43,7 @@ export function exportCSV(type) {
   } else if (type === 'cards') {
     rows = [['Name', 'Balance', 'Credit Limit', 'Min Payment', 'Regular APR',
              'Has Promo', 'Promo APR', 'Promo End Date', 'Promo Balance',
-             'Monthly Needed', 'Due Day', 'Autopay', 'Notes']];
+             'Monthly Needed', 'Due Day', 'Autopay', 'Autopay Day', 'Notes']];
     cards.forEach(function (c) {
       var needed = c.hasPromo
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
@@ -53,7 +53,7 @@ export function exportCSV(type) {
         c.hasPromo ? 'Yes' : 'No',
         c.promoAPR || '', c.promoEndDate || '', c.promoBalance || '',
         needed.toFixed(2), c.dueDay || '',
-        c.autopay ? 'Yes' : 'No', c.notes || '',
+        c.autopay ? 'Yes' : 'No', c.autopayDay || '', c.notes || '',
       ]);
     });
     downloadCSV('fihaven-cards.csv', toCSV(rows));

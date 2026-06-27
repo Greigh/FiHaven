@@ -20,6 +20,7 @@ struct CardEditorView: View {
     @State private var regularAPR: Double = 0
     @State private var dueDay = 1
     @State private var autopay = false
+    @State private var autopayDay = 0   // 0 = "Same as due day"
     @State private var notes = ""
     @State private var lastDigits = ""
     @State private var network = ""
@@ -31,6 +32,10 @@ struct CardEditorView: View {
 
     @State private var rewardBase: Double = 0
     @State private var rewardCats: [String: Double] = [:]
+    @State private var perks: [CardPerk] = []
+    @State private var annualFee: Double = 0
+    @State private var feeMonth = 0   // 0 = none
+    @State private var offers: [CardOffer] = []
     @State private var rotatingPool: [String] = []
     @State private var rotatingRate: Double = 5
     @State private var pointValue: Double = 1
@@ -93,6 +98,12 @@ struct CardEditorView: View {
                         ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
                     }
                     Toggle("Autopay", isOn: $autopay)
+                    if autopay {
+                        Picker("Autopay day", selection: $autopayDay) {
+                            Text("Same as due day").tag(0)
+                            ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                    }
                 } footer: {
                     if type == "card" {
                         Text("Recommended payment is optional — leave it at 0 to default to the full balance (or the 0%-promo payoff).")
@@ -113,6 +124,26 @@ struct CardEditorView: View {
                             money("Promo balance", $promoBalance)
                             DatePicker("Promo ends", selection: $promoEnd, displayedComponents: .date)
                         }
+                    }
+                }
+
+                if type == "card" {
+                    Section {
+                        HStack {
+                            Text("Annual fee")
+                            Spacer()
+                            Text("$").foregroundStyle(Theme.muted)
+                            TextField("0", value: $annualFee, format: .number)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                        }
+                        Picker("Fee renews", selection: $feeMonth) {
+                            Text("—").tag(0)
+                            ForEach(1...12, id: \.self) { Text(Self.monthName($0)).tag($0) }
+                        }
+                    } header: {
+                        Text("Annual fee")
+                    } footer: {
+                        Text("Powers the “is the fee worth it?” check on the Rewards tab — fee vs. the value of this card’s perks.")
                     }
                 }
 
@@ -170,6 +201,62 @@ struct CardEditorView: View {
                         Text("Rewards")
                     } footer: {
                         Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate; leave a category at 0 to use the base.")
+                    }
+
+                    Section {
+                        ForEach($perks) { $perk in
+                            VStack(alignment: .leading, spacing: 6) {
+                                TextField("Credit name (e.g. Uber Cash)", text: $perk.label)
+                                HStack {
+                                    Text("Amount")
+                                    Spacer()
+                                    Text("$").foregroundStyle(Theme.muted)
+                                    TextField("0", value: $perk.amount, format: .number)
+                                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
+                                }
+                                Picker("Resets", selection: $perk.frequency) {
+                                    Text("Monthly").tag("monthly")
+                                    Text("Quarterly").tag("quarterly")
+                                    Text("Twice a year").tag("semiannual")
+                                    Text("Yearly").tag("annual")
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .onDelete { perks.remove(atOffsets: $0) }
+                        Button {
+                            perks.append(CardPerk(id: UUID().uuidString, frequency: "monthly"))
+                        } label: {
+                            Label("Add credit", systemImage: "plus")
+                        }
+                    } header: {
+                        Text("Credits & perks")
+                    } footer: {
+                        Text("Recurring statement credits (e.g. travel or dining credits). Log how much you use each cycle on the Rewards tab.")
+                    }
+
+                    Section {
+                        ForEach($offers) { $offer in
+                            VStack(alignment: .leading, spacing: 6) {
+                                TextField("Merchant (e.g. Whole Foods)", text: $offer.merchant)
+                                TextField("Detail (e.g. 10% back)", text: $offer.detail)
+                                DatePicker("Expires", selection: Binding(
+                                    get: { DateLogic.parseDate(offer.expires, tz: store.tz) ?? Date() },
+                                    set: { offer.expires = DateLogic.ymd($0, tz: store.tz) }
+                                ), displayedComponents: .date)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .onDelete { offers.remove(atOffsets: $0) }
+                        Button {
+                            offers.append(CardOffer(id: UUID().uuidString, expires: DateLogic.ymd(Date(), tz: store.tz)))
+                        } label: {
+                            Label("Add offer", systemImage: "plus")
+                        }
+                    } header: {
+                        Text("Card-linked offers")
+                    } footer: {
+                        Text("Amex/Chase/BofA deals you’ve activated. FiHaven keeps the expiry in front of you on the Rewards tab — it can’t activate them for you.")
                     }
                 }
 
@@ -240,6 +327,12 @@ struct CardEditorView: View {
         }
     }
 
+    private static func monthName(_ m: Int) -> String {
+        let names = ["", "January", "February", "March", "April", "May", "June",
+                     "July", "August", "September", "October", "November", "December"]
+        return (m >= 1 && m <= 12) ? names[m] : "—"
+    }
+
     private func load() {
         guard let card else { type = defaultType; return }
         type = card.type ?? "card"
@@ -253,6 +346,7 @@ struct CardEditorView: View {
         regularAPR = card.regularAPR
         dueDay = card.dueDay ?? 1
         autopay = card.autopay
+        autopayDay = card.autopayDay ?? 0
         notes = card.notes
         lastDigits = card.lastDigits ?? ""
         network = card.network ?? ""
@@ -264,6 +358,10 @@ struct CardEditorView: View {
         }
         rewardBase = card.rewardBase
         rewardCats = card.rewardCategories
+        perks = card.perks
+        annualFee = card.annualFee ?? 0
+        feeMonth = card.feeMonth ?? 0
+        offers = card.offers
         rotatingPool = card.rotatingPool ?? []
         rotatingRate = card.rotatingRate ?? 5
         pointValue = card.pointValue ?? 1
@@ -290,6 +388,7 @@ struct CardEditorView: View {
             promoBalance: (isLoan ? false : hasPromo) ? promoBalance : nil,
             dueDay: dueDay,
             autopay: autopay,
+            autopayDay: autopay && autopayDay > 0 ? autopayDay : nil,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             type: type,
             issuer: issuer.isEmpty ? nil : issuer.trimmingCharacters(in: .whitespaces),
@@ -300,7 +399,11 @@ struct CardEditorView: View {
             rewardCategories: isLoan ? [:] : rewardCats.filter { $0.value > 0 },
             rotatingPool: (isLoan || rotatingPool.isEmpty) ? nil : rotatingPool,
             rotatingRate: (isLoan || rotatingPool.isEmpty) ? nil : rotatingRate,
-            pointValue: (isLoan || pointValue == 1) ? nil : pointValue
+            pointValue: (isLoan || pointValue == 1) ? nil : pointValue,
+            perks: isLoan ? [] : perks.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty && $0.amount > 0 },
+            annualFee: (isLoan || annualFee <= 0) ? nil : annualFee,
+            feeMonth: (isLoan || feeMonth == 0) ? nil : feeMonth,
+            offers: isLoan ? [] : offers.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
         )
         store.upsertCard(saved)
         dismiss()

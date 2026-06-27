@@ -46,6 +46,11 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import java.util.UUID
+import app.fihaven.core.model.CardPerk
+import app.fihaven.core.model.CardOffer
 import androidx.compose.ui.graphics.Color
 import app.fihaven.AppViewModel
 import app.fihaven.core.CTConstants
@@ -260,11 +265,14 @@ private fun CardRow(
                         Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
                             fontSize = 11.sp, fontFamily = PlexMono)
                     }
+                    Spacer(Modifier.width(6.dp))
+                    AutopayPill(card.autopay, card.autopayDay)
                 }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
                         fontSize = 11.sp, fontFamily = PlexMono, modifier = Modifier.weight(1f))
+                    AutopayPill(card.autopay, card.autopayDay)
                 }
             }
             HorizontalDivider(color = Ct.colors.border, modifier = Modifier.padding(vertical = 8.dp))
@@ -305,8 +313,11 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
     var minPayment by remember { mutableStateOf(card?.minPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
     var recommendedPayment by remember { mutableStateOf(card?.recommendedPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
     var apr by remember { mutableStateOf(card?.regularAPR?.takeIf { it != 0.0 }?.toString() ?: "") }
+    var annualFee by remember { mutableStateOf(card?.annualFee?.takeIf { it != 0.0 }?.toString() ?: "") }
+    var feeMonth by remember { mutableStateOf(card?.feeMonth ?: 0) } // 0 = none
     var dueDay by remember { mutableStateOf(card?.dueDay?.toString() ?: "1") }
     var autopay by remember { mutableStateOf(card?.autopay ?: false) }
+    var autopayDay by remember { mutableStateOf(card?.autopayDay?.toString() ?: "") }
     var notes by remember { mutableStateOf(card?.notes ?: "") }
     var hasPromo by remember { mutableStateOf(card?.hasPromo ?: false) }
     var promoApr by remember { mutableStateOf(card?.promoAPR?.toString() ?: "0") }
@@ -323,6 +334,16 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
         mutableStateListOf<String>().apply { card?.rotatingPool?.let { addAll(it) } }
     }
     var pointValue by remember { mutableStateOf(card?.pointValue?.takeIf { it != 1.0 }?.toString() ?: "") }
+    val perks = remember {
+        mutableStateListOf<PerkEditState>().apply {
+            card?.perks?.forEach { add(PerkEditState(it.id, it.label, if (it.amount == 0.0) "" else it.amount.toString(), it.frequency)) }
+        }
+    }
+    val offers = remember {
+        mutableStateListOf<OfferEditState>().apply {
+            card?.offers?.forEach { add(OfferEditState(it.id, it.merchant, it.detail, it.expires, it.used)) }
+        }
+    }
 
     val isLoan = type == "loan"
 
@@ -353,7 +374,9 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     promoEndDate = if (!isLoan && hasPromo) promoEnd.ifBlank { null } else null,
                     promoBalance = if (!isLoan && hasPromo) promoBalance.toDoubleOrNull() else null,
                     dueDay = dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1,
-                    autopay = autopay, notes = notes,
+                    autopay = autopay,
+                    autopayDay = if (autopay) autopayDay.toIntOrNull()?.coerceIn(1, 31) else null,
+                    notes = notes,
                     rewardBase = if (isLoan) 0.0 else (rewardBase.toDoubleOrNull() ?: 0.0),
                     rewardCategories = if (isLoan) emptyMap() else rewardCats.mapNotNull { (k, v) ->
                         v.toDoubleOrNull()?.takeIf { it > 0.0 }?.let { k to it }
@@ -361,6 +384,15 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     rotatingPool = if (isLoan || rotatingPool.isEmpty()) null else rotatingPool.toList(),
                     rotatingRate = if (isLoan || rotatingPool.isEmpty()) null else rotatingRate,
                     pointValue = if (isLoan) null else pointValue.toDoubleOrNull()?.takeIf { it > 0 && it != 1.0 },
+                    perks = if (isLoan) emptyList() else perks.mapNotNull { p ->
+                        val amt = p.amount.toDoubleOrNull() ?: 0.0
+                        if (p.label.isNotBlank() && amt > 0) CardPerk(p.id, p.label.trim(), amt, p.frequency) else null
+                    },
+                    annualFee = if (isLoan) null else annualFee.toDoubleOrNull()?.takeIf { it > 0 },
+                    feeMonth = if (isLoan || feeMonth == 0) null else feeMonth,
+                    offers = if (isLoan) emptyList() else offers.mapNotNull { o ->
+                        if (o.merchant.isNotBlank()) CardOffer(o.id, o.merchant.trim(), o.detail.trim(), o.expires, o.used) else null
+                    },
                 )
             )
             onDismiss()
@@ -399,6 +431,12 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Autopay", color = Ct.colors.text, modifier = Modifier.weight(1f))
             Switch(checked = autopay, onCheckedChange = { autopay = it })
+        }
+        if (autopay) {
+            OutlinedTextField(autopayDay, { autopayDay = it.filter(Char::isDigit).take(2) },
+                label = { Text("Autopay day (1–31)") },
+                placeholder = { Text("defaults to due day") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         }
         if (!isLoan) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -456,8 +494,106 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     }
                 }
             }
+
+            FieldLabel("Annual fee")
+            OutlinedTextField(annualFee, { annualFee = it }, label = { Text("Annual fee") }, prefix = { Text("$") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+            DropdownField("Fee renews", MONTH_OPTS.map { it.second },
+                MONTH_OPTS.first { it.first == feeMonth }.second) { lbl ->
+                feeMonth = MONTH_OPTS.first { it.second == lbl }.first
+            }
+            Text("Powers the “is the fee worth it?” check on the Rewards tab.",
+                color = Ct.colors.muted, fontSize = 12.sp)
+
+            FieldLabel("Credits & perks")
+            Text("Recurring statement credits — log usage each cycle on the Rewards tab.",
+                color = Ct.colors.muted, fontSize = 12.sp)
+            perks.forEachIndexed { i, p ->
+                OutlinedTextField(p.label, { p.label = it }, label = { Text("Credit name (e.g. Uber Cash)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(p.amount, { p.amount = it }, label = { Text("Amount") }, prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+                        modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1.2f)) {
+                        DropdownField("Resets", PERK_FREQ_OPTS.map { it.second },
+                            PERK_FREQ_OPTS.first { it.first == p.frequency }.second) { lbl ->
+                            p.frequency = PERK_FREQ_OPTS.first { it.second == lbl }.first
+                        }
+                    }
+                    TextButton({ perks.removeAt(i) }) { Text("✕", color = Ct.colors.muted) }
+                }
+            }
+            TextButton({ perks.add(PerkEditState(UUID.randomUUID().toString(), "", "", "monthly")) }) {
+                Text("+ Add credit")
+            }
+
+            FieldLabel("Card-linked offers")
+            Text("Amex/Chase/BofA deals you’ve activated — tracked on the Rewards tab so you use them before they expire.",
+                color = Ct.colors.muted, fontSize = 12.sp)
+            offers.forEachIndexed { i, o ->
+                OutlinedTextField(o.merchant, { o.merchant = it }, label = { Text("Merchant (e.g. Whole Foods)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(o.detail, { o.detail = it }, label = { Text("Detail (e.g. 10% back)") },
+                        singleLine = true, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedTextField(o.expires, { o.expires = it }, label = { Text("Expires (YYYY-MM-DD)") },
+                        singleLine = true, modifier = Modifier.weight(1.2f))
+                    TextButton({ offers.removeAt(i) }) { Text("✕", color = Ct.colors.muted) }
+                }
+            }
+            TextButton({ offers.add(OfferEditState(UUID.randomUUID().toString(), "", "", "", false)) }) {
+                Text("+ Add offer")
+            }
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/** Mutable editor row for a card perk (amount kept as text while typing). */
+private class PerkEditState(val id: String, label: String, amount: String, frequency: String) {
+    var label by mutableStateOf(label)
+    var amount by mutableStateOf(amount)
+    var frequency by mutableStateOf(frequency)
+}
+
+/** Mutable editor row for a card-linked offer. */
+private class OfferEditState(val id: String, merchant: String, detail: String, expires: String, val used: Boolean) {
+    var merchant by mutableStateOf(merchant)
+    var detail by mutableStateOf(detail)
+    var expires by mutableStateOf(expires)
+}
+
+private val PERK_FREQ_OPTS = listOf(
+    "monthly" to "Monthly", "quarterly" to "Quarterly", "semiannual" to "Twice a year", "annual" to "Yearly",
+)
+
+private val MONTH_OPTS = listOf(
+    0 to "—", 1 to "January", 2 to "February", 3 to "March", 4 to "April", 5 to "May", 6 to "June",
+    7 to "July", 8 to "August", 9 to "September", 10 to "October", 11 to "November", 12 to "December",
+)
+
+/** Autopay status pill, matching the web card row ("✓ Autopay · day N" / "Manual"). */
+@Composable
+private fun AutopayPill(autopay: Boolean, autopayDay: Int?) {
+    if (autopay) {
+        Text(
+            if (autopayDay != null) "✓ Autopay · day $autopayDay" else "✓ Autopay",
+            color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono,
+            modifier = Modifier
+                .background(Ct.colors.greenBg, RoundedCornerShape(999.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+    } else {
+        Text(
+            "Manual",
+            color = Ct.colors.muted, fontSize = 10.sp, fontFamily = PlexMono,
+            modifier = Modifier
+                .background(Ct.colors.surface2, RoundedCornerShape(999.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+        )
     }
 }
 

@@ -166,6 +166,125 @@ func runScheduleChecks() {
         // Same cards for Groceries → dining card falls back to its 1% base.
         let g = Rewards.rank([flat, dining], category: "Groceries", tz: tz, now: now)
         check(g.eligible.first?.card.id == 1, "flat 2% wins groceries (dining card uses 1% base)")
+
+        // Explanation strings.
+        checkEqual(Rewards.explanation(dining, category: "Dining"), "4% back on dining", "bonus explanation")
+        checkEqual(Rewards.explanation(dining, category: "Gas"), "1% back on everything", "base explanation")
+        let bilt = Card(id: 5, name: "Bilt", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2)
+        checkEqual(Rewards.explanation(bilt, category: "Dining"), "3× points · 2¢/pt = 6% back on dining", "points explanation")
+        checkEqual(Rewards.explanation(Card(id: 6, name: "None"), category: "Gas"), "No reward rate set", "no-rate explanation")
+
+        // Wallet strategy picks the best per category, nil when none earn.
+        let wallet = Rewards.walletStrategy([flat, dining], categories: ["Dining", "Gas"], tz: tz, now: now)
+        checkEqual(wallet.first { $0.category == "Dining" }?.best?.card.id, 2, "dining best is the 4% card")
+        checkEqual(wallet.first { $0.category == "Gas" }?.best?.card.id, 1, "gas best is the flat 2%")
+        check(Rewards.walletStrategy([Card(id: 7, name: "Z")], categories: ["Gas"], tz: tz, now: now).first?.best == nil,
+              "no earning card → nil best")
+    }
+
+    section("Offers — active, expiry, soon") {
+        let tz = TimeZone(identifier: "UTC")!
+        let now = makeDate(2026, 6, 20, tz: tz)
+        let card = Card(id: 1, name: "Amex", offers: [
+            CardOffer(id: "a", merchant: "Whole Foods", detail: "10% back", expires: "2026-06-28"),
+            CardOffer(id: "b", merchant: "Uber", detail: "$5", expires: "2026-06-22"),
+            CardOffer(id: "used", merchant: "Used", expires: "2026-06-21", used: true),
+            CardOffer(id: "gone", merchant: "Expired", expires: "2026-06-01"),
+            CardOffer(id: "noexp", merchant: "Forever", expires: ""),
+        ])
+        checkEqual(Offers.daysLeft(card.offers[0], tz: tz, now: now), 8, "8 days left")
+        check(Offers.expired(card.offers[3], tz: tz, now: now), "past date is expired")
+        check(!Offers.expired(card.offers[4], tz: tz, now: now), "no-expiry is not expired")
+
+        let active = Offers.active([card], tz: tz, now: now)
+        checkEqual(active.map { $0.offer.id }, ["b", "a", "noexp"], "active sorted, used/expired dropped")
+        checkEqual(Offers.expiringSoon([card], tz: tz, now: now), 1, "one expiring within 7 days")
+    }
+
+    section("Merchants — category hints") {
+        checkEqual(Merchants.category("STARBUCKS #1234"), "Dining", "starbucks → Dining")
+        checkEqual(Merchants.category("Whole Foods Market"), "Groceries", "whole foods → Groceries")
+        checkEqual(Merchants.category("Shell Oil 5567"), "Gas", "shell → Gas")
+        checkEqual(Merchants.category("Netflix.com"), "Streaming", "netflix → Streaming")
+        checkEqual(Merchants.category("Amazon Marketplace"), "Online shopping", "amazon → Online shopping")
+        check(Merchants.category("Joe's Hardware Emporium") == nil, "unknown merchant → nil")
+        check(Merchants.category("") == nil, "empty → nil")
+        // Only ever returns a valid reward category.
+        let valid = Set(Rewards.categories)
+        check(Merchants.hints.allSatisfy { valid.contains($0.1) }, "all hints map to reward categories")
+    }
+
+    section("Rewards — spend categorization & estimate") {
+        let tz = TimeZone(identifier: "UTC")!
+        let now = makeDate(2026, 6, 20, tz: tz)
+        checkEqual(Rewards.txRewardCategory(SpendTransaction(id: "1", category: "Whatever", merchant: "Starbucks")), "Dining", "merchant hint wins")
+        checkEqual(Rewards.txRewardCategory(SpendTransaction(id: "2", category: "Groceries", merchant: "Unknown Shop")), "Groceries", "falls back to tx category")
+        checkEqual(Rewards.txRewardCategory(SpendTransaction(id: "3", category: "NotACategory", merchant: "Unknown Shop")), "Other", "else Other")
+
+        // ~170 days of data → factor ~2.15.
+        let txns = [
+            SpendTransaction(id: "a", date: "2026-06-10", amount: 50, merchant: "Starbucks"),
+            SpendTransaction(id: "b", date: "2026-01-01", amount: 50, merchant: "Chipotle"),
+            SpendTransaction(id: "c", date: "2026-01-01", amount: 100, category: "Gas", merchant: "Some Station"),
+            SpendTransaction(id: "d", date: "2026-06-15", amount: -20, merchant: "refund"), // inflow ignored
+        ]
+        let spend = Rewards.categorySpendAnnual(txns, tz: tz, now: now)
+        check((spend["Dining"] ?? 0) > 180, "dining annualized above raw")
+        check((spend["Gas"] ?? 0) > 180, "gas annualized above raw")
+        check(Rewards.categorySpendAnnual([], tz: tz, now: now).isEmpty, "no txns → empty")
+
+        // Rewards estimate counts only bonus categories.
+        let est = ["Dining": 1000.0, "Gas": 1000.0, "Other": 5000.0]
+        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: 1, name: "Gold", rewardBase: 1, rewardCategories: ["Dining": 4]), spendByCategory: est), 40, "4% on $1000 dining = $40")
+        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: 2, name: "Pts", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2), spendByCategory: est), 60, "3×2¢ = 6% → $60")
+        var loan = Card(id: 3, name: "Loan", rewardCategories: ["Dining": 4]); loan.type = "loan"
+        checkClose(Rewards.cardRewardsEstimateAnnual(loan, spendByCategory: est), 0, "loans earn nothing")
+    }
+
+    section("Offers — use suggestions from transactions") {
+        let tz = TimeZone(identifier: "UTC")!
+        let now = makeDate(2026, 6, 20, tz: tz)
+        let card = Card(id: 1, name: "Amex", offers: [
+            CardOffer(id: "match", merchant: "Best Buy", expires: "2026-06-30"),
+            CardOffer(id: "used", merchant: "Best Buy", expires: "2026-06-30", used: true),
+            CardOffer(id: "expired", merchant: "Best Buy", expires: "2026-06-01"),
+        ])
+        let txns = [
+            SpendTransaction(id: "t1", date: "2026-06-12", amount: 200, merchant: "BEST BUY #14"),
+            SpendTransaction(id: "t2", date: "2026-06-15", amount: 300, merchant: "BEST BUY ONLINE"), // newer
+        ]
+        let tx = Offers.likelyUsedTx(card.offers[0], transactions: txns, tz: tz, now: now)
+        checkEqual(tx?.id, "t2", "most recent matching charge wins")
+        let sugg = Offers.useSuggestions([card], transactions: txns, tz: tz, now: now)
+        checkEqual(sugg.map { $0.offer.id }, ["match"], "used/expired offers excluded from suggestions")
+    }
+
+    section("Reconcile — bank vs manual") {
+        let tz = TimeZone(identifier: "UTC")!
+        let now = makeDate(2026, 6, 20, tz: tz)
+        func tx(_ id: String, _ date: String, _ amount: Double, _ merchant: String, _ source: String = "manual") -> SpendTransaction {
+            SpendTransaction(id: id, date: date, amount: amount, merchant: merchant, source: source)
+        }
+        // looksSame: amount=, merchant~, date ±1.
+        check(Reconcile.looksSame(tx("a", "2026-06-15", 42.5, "Starbucks #12"),
+                                  tx("b", "2026-06-16", 42.5, "STARBUCKS", "plaid"), tz: tz), "same purchase ±1 day")
+        check(!Reconcile.looksSame(tx("a", "2026-06-15", 42.5, "Starbucks"),
+                                   tx("b", "2026-06-20", 42.5, "Starbucks", "plaid"), tz: tz), "far date is not the same")
+        check(!Reconcile.looksSame(tx("a", "2026-06-15", 42.5, "Starbucks"),
+                                   tx("b", "2026-06-15", 9.0, "Starbucks", "plaid"), tz: tz), "different amount is not the same")
+
+        let txns = [
+            tx("m1", "2026-06-15", 42.5, "Starbucks"),
+            tx("m2", "2026-06-18", 80, "Costco"),
+            tx("p1", "2026-06-16", 42.5, "STARBUCKS #9", "plaid"),
+            tx("p2", "2026-06-14", 23.1, "Shell Oil", "plaid"),
+        ]
+        let pairs = Reconcile.duplicatePairs(txns, tz: tz)
+        checkEqual(pairs.count, 1, "one duplicate pair")
+        checkEqual(pairs.first?.manual.id, "m1", "manual side m1")
+        checkEqual(pairs.first?.bank.id, "p1", "bank side p1")
+        checkEqual(Reconcile.unmatchedBank(txns, tz: tz).map { $0.id }, ["p2"], "p2 has no manual match")
+        checkEqual(Reconcile.unconfirmedManual(txns, tz: tz, now: now).map { $0.id }, ["m2"], "m2 uncorroborated by bank")
     }
 }
 

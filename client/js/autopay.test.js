@@ -64,6 +64,33 @@ describe('autopay — runAutopayMark', () => {
     });
   });
 
+  it('marks a card on its autopayDay even before the due day arrives', () => {
+    // Pulls on the 18th (already past on Jun 20) though the statement is
+    // due on the 25th (not yet here).
+    setCards([{ id: 'C1', name: 'Visa', balance: 1000, minPayment: 35, dueDay: 25, autopayDay: 18, autopay: true }]);
+    setSettings({ autopayMark: true, paidGoal: 'minimum' });
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments[0]).toMatchObject({ type: 'card', refId: 'C1', amount: 35 });
+  });
+
+  it('does not mark before the autopayDay even if the due day has passed', () => {
+    // Due on the 20th (here) but autopay pulls on the 25th (not yet).
+    setCards([{ id: 'C1', name: 'Visa', balance: 1000, minPayment: 35, dueDay: 20, autopayDay: 25, autopay: true }]);
+    setSettings({ autopayMark: true, paidGoal: 'minimum' });
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('marks an autopay bill on its autopayDay when due later in the period', () => {
+    // Bill due on the 25th; autopay pulls on the 18th (already past on Jun 20).
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 25, autopayDay: 18, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments[0]).toMatchObject({ type: 'bill', refId: 'B1', amount: 1500 });
+  });
+
   it('is idempotent when a payment already exists or the item was skipped', () => {
     setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }]);
     setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 1500, date: '2026-06-20', monthKey: '2026-06' }]);

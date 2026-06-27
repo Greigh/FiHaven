@@ -15,6 +15,10 @@ export function mountCardEditorDom() {
       <input id="c-minpay" value="25" />
       <input id="c-recommended" />
       <input id="c-apr" value="0" />
+      <input id="c-annualfee" />
+      <select id="c-feemonth"><option value="">—</option><option value="3">March</option></select>
+      <div id="c-annualfee-field"></div>
+      <div id="c-feemonth-field"></div>
       <input id="c-lastdigits" />
       <select id="c-network"><option value="">—</option><option value="Visa">Visa</option></select>
       <input id="c-haspromo" type="checkbox" />
@@ -23,11 +27,17 @@ export function mountCardEditorDom() {
       <input id="c-promobal" />
       <input id="c-dueday" value="1" />
       <input id="c-autopay" type="checkbox" />
+      <input id="c-autopayday" />
+      <div id="c-autopayday-field" hidden></div>
       <input id="c-notes" />
       <input id="c-reward-base" />
       <input id="c-reward-pointvalue" />
       <div id="c-reward-cats"></div>
       <div id="c-reward-rotating" hidden></div>
+      <div id="c-perks-list"></div>
+      <div id="c-perks-field"></div>
+      <div id="c-offers-list"></div>
+      <div id="c-offers-field"></div>
       <div id="c-limit-field"></div>
       <div id="c-current-balance-field"></div>
       <div id="c-recommended-field"></div>

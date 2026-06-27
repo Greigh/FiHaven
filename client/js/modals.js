@@ -15,6 +15,8 @@ import {
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
 import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
+import { PERK_FREQUENCIES, newPerkId } from './perks.js';
+import { newOfferId } from './offers.js';
 import { renderBills } from './bills.js';
 import { renderCards } from './cards.js';
 import { todayISO } from './tz.js';
@@ -30,6 +32,8 @@ let pendingConfirmFn = null;
 let payPresets       = [];   // [{ key, label, sub, amount }] for the pay-modal chips
 let editRotatingPool = [];    // rotating-5% category pool for the card being edited
 let editRotatingRate = 5;     // the elevated rate those pool categories earn when active
+let editPerks        = [];    // recurring credits/perks for the card being edited
+let editOffers       = [];    // card-linked offers for the card being edited
 
 /* ── Card-balance side effect ─────────────────────────────────
    Recording a card payment decrements the card's balance (and
@@ -109,7 +113,9 @@ export function openBillModal(idx) {
   document.getElementById('b-trial').value      = b.trialEnds || '';
   document.getElementById('b-notes').value     = b.notes     || '';
   document.getElementById('b-autopay').checked = !!b.autopay;
+  document.getElementById('b-autopayday').value = b.autopayDay || '';
   syncBillTrialField();
+  syncBillAutopayField();
   populateBillCardOptions(b.cardId);
 
   document.getElementById('bill-modal').classList.add('open');
@@ -126,10 +132,30 @@ function syncBillTrialField() {
   field.hidden = cat.value !== 'Subscriptions';
 }
 
+// The "Autopay day" field only makes sense when autopay is on. It's
+// optional even then — blank means "use the due day".
+function syncBillAutopayField() {
+  var on = document.getElementById('b-autopay');
+  var field = document.getElementById('b-autopayday-field');
+  if (!on || !field) return;
+  field.hidden = !on.checked;
+}
+
+function syncCardAutopayField() {
+  var on = document.getElementById('c-autopay');
+  var field = document.getElementById('c-autopayday-field');
+  if (!on || !field) return;
+  field.hidden = !on.checked;
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', function () {
     var cat = document.getElementById('b-category');
     if (cat) cat.addEventListener('change', syncBillTrialField);
+    var bAuto = document.getElementById('b-autopay');
+    if (bAuto) bAuto.addEventListener('change', syncBillAutopayField);
+    var cAuto = document.getElementById('c-autopay');
+    if (cAuto) cAuto.addEventListener('change', syncCardAutopayField);
   });
 }
 
@@ -169,6 +195,8 @@ export function saveBill() {
     cardId:    cardId,
     notes:     document.getElementById('b-notes').value.trim(),
     autopay:   document.getElementById('b-autopay').checked,
+    // Day money is actually pulled; blank → falls back to the due day.
+    autopayDay: parseInt(document.getElementById('b-autopayday').value, 10) || null,
   };
 
   if (editBillId !== null) bills[editBillId] = obj; else bills.push(obj);
@@ -203,6 +231,12 @@ export function toggleCardTypeFields() {
   document.getElementById('c-recommended-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-haspromo-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-rewards-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-annualfee-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-feemonth-field').style.display = isLoan ? 'none' : '';
+  var offersField = document.getElementById('c-offers-field');
+  if (offersField) offersField.style.display = isLoan ? 'none' : '';
+  var perksField = document.getElementById('c-perks-field');
+  if (perksField) perksField.style.display = isLoan ? 'none' : '';
 
   if (isLoan) {
     document.getElementById('c-haspromo').checked = false;
@@ -313,6 +347,106 @@ export function applyCardPreset(id) {
   renderRotatingToggles(p.rewardCategories || {});
 }
 
+// ── Credits & perks editor ────────────────────────────────────────────
+// A small editable list of recurring statement credits. Each row is
+// label + amount + frequency; usage is logged later on the Rewards tab.
+const PERK_FREQ_LABELS = {
+  monthly: 'Monthly', quarterly: 'Quarterly', semiannual: 'Twice a year', annual: 'Yearly',
+};
+
+function renderPerkInputs() {
+  var box = document.getElementById('c-perks-list');
+  if (!box) return;
+  box.innerHTML = '';
+  editPerks.forEach(function (p, i) {
+    var row = document.createElement('div');
+    row.className = 'perk-edit-row';
+    var opts = PERK_FREQUENCIES.map(function (f) {
+      return '<option value="' + f + '"' + (p.frequency === f ? ' selected' : '') + '>' + PERK_FREQ_LABELS[f] + '</option>';
+    }).join('');
+    row.innerHTML =
+      '<input type="text" data-perk-label="' + i + '" placeholder="e.g. Uber Cash" value="' + escapeAttr(p.label || '') + '"/>' +
+      '<span class="perk-edit-amt">$<input type="number" step="0.01" min="0" data-perk-amount="' + i + '" placeholder="0" value="' + (p.amount || '') + '"/></span>' +
+      '<select data-perk-freq="' + i + '">' + opts + '</select>' +
+      '<button type="button" class="perk-edit-del" data-perk-del="' + i + '" aria-label="Remove credit">✕</button>';
+    box.appendChild(row);
+  });
+  box.querySelectorAll('[data-perk-del]').forEach(function (btn) {
+    btn.onclick = function () {
+      collectPerks();                                  // keep edits to other rows
+      editPerks.splice(parseInt(btn.getAttribute('data-perk-del'), 10), 1);
+      renderPerkInputs();
+    };
+  });
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+export function addPerkRow() {
+  collectPerks();
+  editPerks.push({ id: newPerkId(), label: '', amount: 0, frequency: 'monthly' });
+  renderPerkInputs();
+}
+
+// Read the perk rows back into editPerks (dropping blank/zero rows on save).
+function collectPerks() {
+  editPerks.forEach(function (p, i) {
+    var l = document.querySelector('[data-perk-label="' + i + '"]');
+    var a = document.querySelector('[data-perk-amount="' + i + '"]');
+    var f = document.querySelector('[data-perk-freq="' + i + '"]');
+    if (l) p.label = l.value.trim();
+    if (a) p.amount = parseFloat(a.value) || 0;
+    if (f) p.frequency = f.value;
+  });
+  return editPerks;
+}
+
+// ── Card-linked offers editor ─────────────────────────────────────────
+// Merchant + detail + expiry. "Used" is toggled later on the Rewards tab,
+// so it's preserved here but not edited.
+function renderOfferInputs() {
+  var box = document.getElementById('c-offers-list');
+  if (!box) return;
+  box.innerHTML = '';
+  editOffers.forEach(function (o, i) {
+    var row = document.createElement('div');
+    row.className = 'perk-edit-row';
+    row.innerHTML =
+      '<input type="text" data-offer-merchant="' + i + '" placeholder="Merchant (e.g. Whole Foods)" value="' + escapeAttr(o.merchant || '') + '"/>' +
+      '<input type="text" data-offer-detail="' + i + '" placeholder="e.g. 10% back" value="' + escapeAttr(o.detail || '') + '"/>' +
+      '<input type="date" data-offer-expires="' + i + '" value="' + escapeAttr(o.expires || '') + '"/>' +
+      '<button type="button" class="perk-edit-del" data-offer-del="' + i + '" aria-label="Remove offer">✕</button>';
+    box.appendChild(row);
+  });
+  box.querySelectorAll('[data-offer-del]').forEach(function (btn) {
+    btn.onclick = function () {
+      collectOffers();
+      editOffers.splice(parseInt(btn.getAttribute('data-offer-del'), 10), 1);
+      renderOfferInputs();
+    };
+  });
+}
+
+export function addOfferRow() {
+  collectOffers();
+  editOffers.push({ id: newOfferId(), merchant: '', detail: '', expires: '', used: false });
+  renderOfferInputs();
+}
+
+function collectOffers() {
+  editOffers.forEach(function (o, i) {
+    var m = document.querySelector('[data-offer-merchant="' + i + '"]');
+    var d = document.querySelector('[data-offer-detail="' + i + '"]');
+    var e = document.querySelector('[data-offer-expires="' + i + '"]');
+    if (m) o.merchant = m.value.trim();
+    if (d) o.detail = d.value.trim();
+    if (e) o.expires = e.value || '';
+  });
+  return editOffers;
+}
+
 // Collect the per-category inputs back into a map (only positive values).
 function collectRewardCategories() {
   var out = {};
@@ -341,6 +475,8 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-minpay').value    = c.minPayment  || '';
   document.getElementById('c-recommended').value = c.recommendedPayment || '';
   document.getElementById('c-apr').value       = c.regularAPR  || '';
+  document.getElementById('c-annualfee').value = c.annualFee   || '';
+  document.getElementById('c-feemonth').value  = c.feeMonth    || '';
   document.getElementById('c-lastdigits').value = c.lastDigits  || '';
   document.getElementById('c-network').value   = c.network     || '';
   document.getElementById('c-haspromo').checked = !!c.hasPromo;
@@ -349,6 +485,8 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-promobal').value  = c.promoBalance|| '';
   document.getElementById('c-dueday').value    = c.dueDay      || '';
   document.getElementById('c-autopay').checked = !!c.autopay;
+  document.getElementById('c-autopayday').value = c.autopayDay || '';
+  syncCardAutopayField();
   document.getElementById('c-notes').value     = c.notes       || '';
   document.getElementById('c-reward-base').value = c.rewardBase || '';
   document.getElementById('c-reward-pointvalue').value = c.pointValue || '';
@@ -356,6 +494,15 @@ export function openCardModal(idx, defaultType) {
   editRotatingRate = c.rotatingRate || 5;
   renderRewardCatInputs(c.rewardCategories || {});
   renderRotatingToggles(c.rewardCategories || {});
+  // Deep-copy the saved perks so edits stay local until Save.
+  editPerks = Array.isArray(c.perks)
+    ? c.perks.map(function (p) { return { id: p.id || newPerkId(), label: p.label || '', amount: p.amount || 0, frequency: p.frequency || 'monthly' }; })
+    : [];
+  renderPerkInputs();
+  editOffers = Array.isArray(c.offers)
+    ? c.offers.map(function (o) { return { id: o.id || newOfferId(), merchant: o.merchant || '', detail: o.detail || '', expires: o.expires || '', used: !!o.used }; })
+    : [];
+  renderOfferInputs();
   setupRewardPreset();
 
   toggleCardTypeFields();
@@ -391,16 +538,29 @@ export function saveCard() {
     minPayment:   parseFloat(document.getElementById('c-minpay').value)  || 0,
     recommendedPayment: isLoan ? null : (parseFloat(document.getElementById('c-recommended').value) || null),
     regularAPR:   parseFloat(document.getElementById('c-apr').value)     || 0,
+    // Annual fee + its renewal month power the "is this fee worth it?" check.
+    // Loans don't carry an annual fee.
+    annualFee:    isLoan ? null : (parseFloat(document.getElementById('c-annualfee').value) || null),
+    feeMonth:     isLoan ? null : (parseInt(document.getElementById('c-feemonth').value, 10) || null),
     hasPromo:     hasPromo,
     promoAPR:     hasPromo ? parseFloat(document.getElementById('c-promoapr').value) || 0 : null,
     promoEndDate: hasPromo ? document.getElementById('c-promoend').value : null,
     promoBalance: hasPromo ? (parseFloat(document.getElementById('c-promobal').value) || null) : null,
     dueDay:       parseInt(document.getElementById('c-dueday').value) || null,
     autopay:      document.getElementById('c-autopay').checked,
+    // Day money is actually pulled; blank → falls back to the due day.
+    autopayDay:   parseInt(document.getElementById('c-autopayday').value, 10) || null,
     notes:        document.getElementById('c-notes').value.trim(),
     // Rewards power the "which card should I use?" tool. Loans never earn.
     rewardBase:        isLoan ? 0 : (parseFloat(document.getElementById('c-reward-base').value) || 0),
     rewardCategories:  isLoan ? {} : collectRewardCategories(),
+    // Recurring statement credits, tracked per cycle on the Rewards tab.
+    // Keep only named rows with a positive amount; loans never carry perks.
+    perks:             isLoan ? [] : collectPerks().filter(function (p) { return p.label && p.amount > 0; })
+                                       .map(function (p) { return { id: p.id, label: p.label, amount: p.amount, frequency: p.frequency }; }),
+    // Card-linked offers (manual tracker). Keep rows with a merchant.
+    offers:            isLoan ? [] : collectOffers().filter(function (o) { return o.merchant; })
+                                       .map(function (o) { return { id: o.id, merchant: o.merchant, detail: o.detail, expires: o.expires, used: !!o.used }; }),
     // Cents per point (null → treated as 1 = cash back by the optimizer).
     pointValue:        isLoan ? null : (parseFloat(document.getElementById('c-reward-pointvalue').value) || null),
     // Rotating-5% pool (Freedom Flex, Discover it, Custom Cash, Cash+…) so the
@@ -781,6 +941,7 @@ export function askDelete(fn) {
 Object.assign(window, {
   openBillModal, closeBillModal, saveBill, editBill, editBillById,
   openCardModal, closeCardModal, saveCard, editCard, editCardById, togglePromoFields, toggleCardTypeFields,
+  addPerkRow, addOfferRow,
   openPayModal, openEditPayment, closePayModal, confirmPay,
   openConfirm, closeConfirmModal, askDelete,
 });

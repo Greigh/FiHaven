@@ -39,7 +39,12 @@ struct BankView: View {
     @ViewBuilder
     private func content(_ s: PlaidStatus) -> some View {
         if !s.configured {
-            Section { Text("Bank linking isn't enabled on this server yet.").font(Theme.ui(14)).foregroundStyle(Theme.muted) }
+            Section {
+                Text("Bank linking isn’t enabled on the server this app is connected to.")
+                    .font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                Text("This build is talking to \(AppEnvironment.webBaseURL.host ?? "the server"). Bank linking needs Plaid credentials configured there; manual entry works regardless.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
         } else if !s.pro {
             Section { Text("Linking your bank is a Pro feature. Upgrade from the Get Pro tab to connect an account.").font(Theme.ui(14)) }
         } else {
@@ -48,6 +53,17 @@ struct BankView: View {
                     Text("No banks linked yet.").font(Theme.ui(14)).foregroundStyle(Theme.muted)
                 } else {
                     ForEach(s.items) { item in itemView(item) }
+                }
+            }
+            if let store = env.store {
+                Section {
+                    Toggle("Let bank balances update my cards", isOn: Binding(
+                        get: { store.data.settings.plaidUpdateBalances },
+                        set: { store.setPlaidUpdateBalances($0) }
+                    )).tint(Theme.accent)
+                } footer: {
+                    Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only when it clearly matches by its last 4 digits (include them in the card name).")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
             }
             Section {

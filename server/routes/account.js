@@ -233,7 +233,7 @@ function sendCsv(res, filename, rows) {
 
 router.get('/export/bills.csv', requireAuth, (req, res) => {
   const { bills } = dbApi.getUserData(req.user.id);
-  const rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'Autopay', 'Notes']];
+  const rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'Autopay', 'Autopay Day', 'Notes']];
   bills.forEach((b) => rows.push([
     b.name || '',
     b.category || '',
@@ -241,6 +241,7 @@ router.get('/export/bills.csv', requireAuth, (req, res) => {
     b.dueDay || '',
     b.frequency || '',
     b.autopay ? 'Yes' : 'No',
+    b.autopayDay || '',
     b.notes || '',
   ]));
   sendCsv(res, 'fihaven-bills.csv', rows);
@@ -251,7 +252,7 @@ router.get('/export/cards.csv', requireAuth, (req, res) => {
   const rows = [[
     'Name', 'Balance', 'Credit Limit', 'Min Payment', 'Regular APR',
     'Has Promo', 'Promo APR', 'Promo End Date', 'Promo Balance',
-    'Due Day', 'Autopay', 'Notes',
+    'Due Day', 'Autopay', 'Autopay Day', 'Notes',
   ]];
   cards.forEach((c) => rows.push([
     c.name || '',
@@ -265,6 +266,7 @@ router.get('/export/cards.csv', requireAuth, (req, res) => {
     c.promoBalance || '',
     c.dueDay || '',
     c.autopay ? 'Yes' : 'No',
+    c.autopayDay || '',
     c.notes || '',
   ]));
   sendCsv(res, 'fihaven-cards.csv', rows);

@@ -1,10 +1,15 @@
 package app.fihaven.core.logic
 
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.SpendTransaction
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlin.math.max
+import kotlin.math.roundToLong
 
 /**
  * "Which card should I use?" optimizer. Mirrors client/js/rewards.js.
@@ -161,6 +166,97 @@ object Rewards {
         eligible.sortByDescending { it.value }
         excluded.sortByDescending { it.value }
         return Ranking(eligible, excluded)
+    }
+
+    private fun trimRate(n: Double): String =
+        if (n == Math.floor(n)) n.toInt().toString() else (Math.round(n * 100) / 100.0).toString()
+
+    /**
+     * A short "why this card" line for a category: category bonus vs. flat
+     * base, and (for points cards) multiplier × point-value cash return.
+     */
+    fun explanation(card: Card, category: String): String {
+        val rate = effectiveRate(card, category)
+        if (rate <= 0) return "No reward rate set"
+        val override = card.rewardCategories[category] ?: 0.0
+        val isBonus = override > 0 && override != card.rewardBase
+        val where = if (isBonus) "on ${category.lowercase()}" else "on everything"
+        val pv = pointValue(card)
+        return if (pv != 1.0) {
+            "${trimRate(rate)}× points · ${trimRate(pv)}¢/pt = ${trimRate(rate * pv)}% back $where"
+        } else {
+            "${trimRate(rate)}% back $where"
+        }
+    }
+
+    data class WalletPick(val category: String, val best: Ranked?)
+
+    /** One entry per category — the single best eligible card (null when none
+     *  earn there). The whole-wallet "best card for each" view. */
+    fun walletStrategy(cards: List<Card>, categories: List<String>, zone: ZoneId): List<WalletPick> =
+        categories.map { cat ->
+            val top = rank(cards, cat, zone).eligible.firstOrNull()
+            WalletPick(cat, if ((top?.value ?: 0.0) > 0) top else null)
+        }
+
+    // ── Spend-based rewards estimate (feeds the annual-fee verdict) ──────
+
+    /** Which reward category a transaction counts toward: a merchant-name hint
+     *  first, then the transaction's own category if it's a reward category,
+     *  else "Other". */
+    fun txRewardCategory(t: SpendTransaction): String {
+        Merchants.category(t.merchant)?.let { return it }
+        if (CATEGORIES.contains(t.category)) return t.category
+        return "Other"
+    }
+
+    /**
+     * Annualized spend per reward category from the user's transactions over the
+     * trailing year. Annualizes by the span of data present (clamped so a few
+     * days can't extrapolate to a wild yearly figure). Empty when there's
+     * nothing to go on. Only positive-amount outflows count.
+     */
+    fun categorySpendAnnual(transactions: List<SpendTransaction>, today: LocalDate): Map<String, Double> {
+        val yearAgo = today.minusDays(365)
+        data class Row(val amt: Double, val date: LocalDate, val tx: SpendTransaction)
+        val recent = mutableListOf<Row>()
+        for (t in transactions) {
+            if (t.amount <= 0) continue
+            val d = DateLogic.parseDate(t.date) ?: continue
+            if (d.isBefore(yearAgo) || d.isAfter(today)) continue
+            recent.add(Row(t.amount, d, t))
+        }
+        if (recent.isEmpty()) return emptyMap()
+        val minDate = recent.minOf { it.date }
+        val rawSpan = ChronoUnit.DAYS.between(minDate, today).toInt()
+        val spanDays = max(30, rawSpan).toDouble()
+        val factor = 365.0 / spanDays
+        val totals = mutableMapOf<String, Double>()
+        for (r in recent) {
+            val cat = txRewardCategory(r.tx)
+            totals[cat] = (totals[cat] ?: 0.0) + r.amt
+        }
+        return totals.mapValues { (it.value * factor).roundToLong().toDouble() }
+    }
+
+    /**
+     * Estimated annual rewards a card earns, given annualized category spend.
+     * Only the card's BONUS categories count (rate beats base) — the spend you'd
+     * realistically route here — so the estimate stays honest. Loans earn
+     * nothing. Result is a cash figure (cents-per-point folded in).
+     */
+    fun cardRewardsEstimateAnnual(card: Card, spendByCategory: Map<String, Double>): Double {
+        if (card.type == "loan") return 0.0
+        val base = card.rewardBase
+        var total = 0.0
+        for ((cat, spend) in spendByCategory) {
+            if (spend <= 0) continue
+            val override = card.rewardCategories[cat] ?: 0.0
+            if (override > 0 && override > base) {
+                total += (spend * effectiveValue(card, cat)) / 100  // effectiveValue is a % return
+            }
+        }
+        return total.roundToLong().toDouble()
     }
 
     private fun promoReason(card: Card): String {

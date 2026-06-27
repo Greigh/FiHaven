@@ -79,6 +79,7 @@ import app.fihaven.core.model.hidePaidOnDashboard
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.landingView
 import app.fihaven.core.model.localNotifications
+import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.monthlySummary
 import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.paidGoal
@@ -274,6 +275,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     SwitchRow("Weekly digest email", s.weeklyDigest) { vm.setWeeklyDigest(it) }
                     HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Monthly summary email", s.monthlySummary) { vm.setMonthlySummary(it) }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Card offer reminders", s.offerReminders) { vm.setOfferReminders(it) }
                     if (s.localNotifications || s.billReminders || s.weeklyDigest || s.monthlySummary) {
                         HorizontalDivider(color = Ct.colors.border)
                         NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }

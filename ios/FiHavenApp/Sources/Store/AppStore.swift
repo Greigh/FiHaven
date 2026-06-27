@@ -82,7 +82,14 @@ final class AppStore: ObservableObject {
             let refKey = "bill:\(b.id)"
             guard !handled.contains(refKey) else { return }
             guard b.dueDay != nil || !(b.startDate ?? "").isEmpty else { return }
-            guard BillSchedule.dueOnOrBeforeInPeriod(b, bounds: bounds, tz: tz, asOf: todayDate) != nil else { return }
+            if let apDay = b.autopayDay, apDay > 0 {
+                // Autopay pulls on its own day; the bill must still be
+                // scheduled this period, but the trigger is the autopay day.
+                guard BillSchedule.dueInPeriod(b, bounds: bounds, tz: tz) else { return }
+                guard let due = dueInPeriod(apDay), due <= todayDate else { return }
+            } else {
+                guard BillSchedule.dueOnOrBeforeInPeriod(b, bounds: bounds, tz: tz, asOf: todayDate) != nil else { return }
+            }
             let refId = String(b.id)
             if Schedule.paidAmount(data.payments, type: "bill", refId: refId, in: bounds) > Schedule.paidEpsilon { return }
             if Schedule.isSkipped(data.payments, type: "bill", refId: refId, in: bounds) { return }
@@ -110,8 +117,10 @@ final class AppStore: ObservableObject {
 
         for b in data.bills { considerBill(b) }
         for c in data.cards {
+            // Autopay pulls on `autopayDay`; nil falls back to the due day.
+            let effDay = (c.autopayDay ?? 0) > 0 ? c.autopayDay : c.dueDay
             considerCard(type: "card", refId: String(c.id), name: c.name + " (payment)",
-                         dueDay: c.dueDay, autopay: c.autopay, amount: goalAmount(type: "card", refId: String(c.id)))
+                         dueDay: effDay, autopay: c.autopay, amount: goalAmount(type: "card", refId: String(c.id)))
         }
         if !newPayments.isEmpty {
             // New marks go in this month's bucket; keep buckets for the last
@@ -190,7 +199,7 @@ final class AppStore: ObservableObject {
 
     /// Re-sync on-device bill reminders to the current bills + settings.
     func refreshNotifications() {
-        NotificationScheduler.reschedule(bills: data.bills, settings: data.settings, tz: tz)
+        NotificationScheduler.reschedule(bills: data.bills, cards: data.cards, settings: data.settings, tz: tz)
     }
 
     // ── Derived values (use the ported core logic) ──────────────────
