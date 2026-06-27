@@ -2,7 +2,6 @@ package app.fihaven
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -21,8 +20,10 @@ class BillReminderReceiver : BroadcastReceiver() {
 
         NotificationScheduler.ensureChannel(context)
 
-        val launch = Intent().apply {
-            component = ComponentName(context, MainActivity::class.java)
+        // Explicit (Context, Class) constructor so the destination component is
+        // fixed at creation — CodeQL's implicit-PendingIntent check doesn't
+        // track an apply-block `component =` setter.
+        val launch = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentPi = PendingIntent.getActivity(
