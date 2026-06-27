@@ -1,7 +1,7 @@
 package app.fihaven.core.net
 
 /// Persists the Bearer token. The Android app provides an
-/// EncryptedSharedPreferences-backed implementation; the core ships an
+/// Android Keystore-backed implementation in the app module; the core ships an
 /// in-memory one for tests.
 interface TokenStore {
     fun get(): String?
