@@ -55,6 +55,7 @@ Android (Play).
 - [How a few things work](#how-a-few-things-work)
 - [Production deploy](#production-deploy)
 - [SEO + standards](#seo--standards)
+- [Roadmap & gaps](#roadmap--gaps)
 - [License](#license)
 
 Changelog: [CHANGELOG.md](CHANGELOG.md).
@@ -97,18 +98,22 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ## Free vs Pro
 
-The free tier is genuinely useful on its own — all manual tracking. Pro
-adds the automation and insight tools. The `pro` entitlement is
-server-authoritative and identical across web, iOS, and Android.
+The free tier is genuinely useful on its own — all manual tracking, budget lenses,
+dashboard widgets, and household **membership** (join an existing family). Pro adds
+automation, insight tools, and the ability to **create** a household. The `pro`
+entitlement is server-authoritative and identical across web, iOS, and Android.
 
 | Free | Pro |
 |---|---|
-| Bills, Cards & Loans (track, mark paid, due dates) | Debt-payoff planner |
-| Budget with manual transactions | Due-date calendar + iCal feed |
-| Savings goals | Full payment history |
-| Net worth | Rewards optimizer + card preset database |
-| Light/dark, time zones, MFA, export/import | Subscription finder · Autopay auto-mark |
-| | Bank sync (Plaid) · spending-category budgets |
+| Bills, cards & loans — track, mark paid, due dates, promos | Everything in Free, plus: |
+| Budget with manual transactions + **budget rule lenses** (50/30/20, safe-to-spend, debt-focus, etc.) | **Envelope lens** + assign editor (zero-based lite; web editor today) |
+| Savings goals, net worth, light/dark, time zones, MFA, export/import | **Debt-payoff planner** (snowball / avalanche) |
+| Dashboard widgets (safe-to-spend, budget status, credit util warnings) | **Due-date calendar** + iCal feed |
+| Subscription finder **detection** on web (flagged bills + recurring tx) | **Subscription action panel** — cancel links, duplicates, trial reminders |
+| Join a **Family** household (view shared bills, cards, goals) | **Create** a Family household + invite members (share/unshare UI on web today) |
+| Email + local bill reminders (configurable lead time, weekly digest) | **Payment history**, **rewards optimizer** + card preset database |
+| | **Spending insights** (period-over-period; web Spending tab today) |
+| | **Category budgets**, **autopay auto-mark**, **bank sync (Plaid)** |
 
 Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 `requirePro` on the server, iOS via `ProGate(feature:)`, Android via
@@ -842,6 +847,72 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
   URL, and a description. The home page also ships a JSON-LD
   `WebApplication` schema. Private pages set `noindex,nofollow`.
 - A web manifest + maskable SVG icon make the app installable.
+
+---
+
+## Roadmap & gaps
+
+Honest inventory of what is **not shipped yet**, **web-only**, or **intentionally out of
+scope**. Shipped features live in [CHANGELOG.md](CHANGELOG.md). Competitor-driven
+ideas are tracked in [`docs/competitive-roadmap.md`](docs/competitive-roadmap.md)
+(note: Tier 1/2 items shipped in **1.4.x**; see checklist below).
+
+### Store distribution
+
+| Platform | Status |
+|---|---|
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **iOS** | TestFlight beta — first builds uploading; **not** on the public App Store yet |
+| **Android** | Native app builds locally; **not** on Google Play yet |
+| **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
+
+Marketing copy on some public pages still says mobile apps are “coming soon” until
+store listings go live.
+
+### Platform parity (web leads)
+
+Several **1.4.x** features exist on web first. Native apps **read** synced settings
+(e.g. a budget lens set on web shows on iOS/Android) but may lack the UI to change them.
+
+| Area | Web | iOS | Android |
+|---|---|---|---|
+| Budget lens **display** on Budget tab | Yes | Yes | Yes |
+| Budget lens **settings** (mode, splits, debt-focus extra, envelope rollover) | Settings | — | — |
+| Envelope assign editor (Pro) | Budget tab | — | — |
+| Spending insights vs last period (Pro) | Spending tab | — | — |
+| Household **membership** (create/join/invite) | Settings → Family | Settings → Family | Settings → Family |
+| Household **share/unshare** bills, cards, goals | Settings → Family | View only* | View only* |
+| Passkey **registration** | Settings → Security | — (list/delete on web) | — (list/delete on web) |
+| Plaid bank linking (Pro) | Yes | Yes | Yes |
+
+\*Native Family screens list shared items and live-sync via SSE, but **choosing what to
+share** is web-only today (`Settings → Family` on fihaven.app).
+
+### Product gaps (all platforms)
+
+- **Remote push notifications** — reminders are **email** (server scheduler) and
+  **local** notifications on iOS/Android; no APNs/FCM server push yet.
+- **User overrides for needs/wants/save category mapping** — default bill/spending →
+  bucket maps exist; per-category overrides are a future release
+  ([`docs/competitive-roadmap.md`](docs/competitive-roadmap.md)).
+- **Household rollup views** — shared entity sync exists; consolidated household
+  dashboard / net-worth rollups are not built yet.
+- **Auto-save / round-up rules** — intentionally skipped (conflicts with manual-first
+  positioning unless added as strict opt-in later).
+
+### Out of scope (unless strategy changes)
+
+- Credit bureau scores / credit monitoring (Credit Karma lane)
+- Bill negotiation services (Truebill lane)
+- QuickBooks / SMB bookkeeping parity
+- Heavy AI money coach (suggested rules on-device only, if ever)
+
+### Security & ops
+
+- **Android auth token storage** — AES-256-GCM via Android Keystore (`PrefsTokenStore`);
+  replaces deprecated `androidx.security:security-crypto`.
+- **LinkKit dSYM** — `Scripts/generate-linkkit-dsym.sh` + `ios-testflight.sh` generate a
+  dSYM from the embedded Plaid binary before export so TestFlight symbol upload is clean.
 
 ---
 
