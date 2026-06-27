@@ -7,6 +7,47 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > The repository predates Git release tags, so versions below are grouped by
 > feature wave rather than by tag. Dates are approximate where no tag exists.
 
+## [1.5.0] — 2026-06-27
+
+Card perks, offers, bank reconciliation, and autopay pull day — plus security
+hardening and documentation updates. **Pre-release** (build **1** on iOS/Android).
+
+### Added
+
+- **Card perks** — recurring statement credits with per-cycle usage logging;
+  annual-fee worth-it check compares fee vs captured/potential perk value plus
+  category-spend rewards estimate (web + iOS + Android Rewards tab).
+- **Card-linked offers** — manual tracker for activated issuer deals; active
+  list, mark-used, Plaid-assisted use suggestions; expiry reminders via email
+  and local notifications when `offerReminders` is on.
+- **Bank reconciliation** — Spending panel flags duplicate manual/bank pairs,
+  unmatched Plaid rows, and unconfirmed manual entries (`reconcile.js` ⇄ native
+  cores); resolution stays manual.
+- **Plaid balance sync (opt-in)** — `plaidUpdateBalances` updates card owed
+  balances on unambiguous last-4 match only (server-side; never overwrites by
+  default).
+- **Autopay pull day** — optional `autopayDay` on bills and cards, separate
+  from the due day, drives auto-mark timing on web and native.
+
+### Changed
+
+- **README** — refresh Free vs Pro table and add Roadmap & gaps inventory;
+  update competitive-roadmap checklist (Tier 1/2 shipped in 1.4.x).
+- **Android auth token storage** — migrate `PrefsTokenStore` to Android
+  Keystore AES-256-GCM; drop deprecated `androidx.security:security-crypto`
+  (users on the old encrypted prefs may need to sign in once).
+- **`docs/native-contract.md`** — document perks, offers, reconcile, autopay
+  day, `offerReminders`, and `plaidUpdateBalances`.
+- Android `versionCode` **9**; iOS **1.5.0 (1)** in `project.yml` / `Info.plist`.
+
+### Fixed
+
+- **Android PendingIntents (CodeQL #31, #32)** — alarm and notification tap
+  intents use `setClassName` + `setPackage` via `ExplicitIntents.kt` so
+  CodeQL's Kotlin extractor recognizes explicit destination components.
+- **LinkKit dSYM** — generate `LinkKit.framework.dSYM` at archive/export so
+  TestFlight symbol upload no longer warns on Plaid's prebuilt binary.
+
 ## [1.4.2] — 2026-06-26
 
 Pro and Family sharing messaging on intro, onboarding, paywall, and
@@ -489,6 +530,7 @@ Initial release.
 - Project setup — renamed to FiHaven, with GitHub docs, workflows, and
   repository metadata.
 
+[1.5.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.5.0
 [1.4.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.2
 [1.4.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.0
