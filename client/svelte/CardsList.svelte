@@ -244,7 +244,7 @@
                 <span style="color:{aprColor(c.regularAPR)};font-weight:600;">{c.regularAPR}% APR</span>
                 {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
                 {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
-                {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
+                {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay{#if c.autopayDay} · day {c.autopayDay}{/if}</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
                 {#if c.notes}<span class="card-row-notes">{c.notes}</span>{/if}
               </div>
             </div>

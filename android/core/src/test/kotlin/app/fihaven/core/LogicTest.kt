@@ -191,6 +191,22 @@ class ScheduleTest {
         val g = Rewards.rank(listOf(flat, dining), "Groceries", UTC, NOW)
         assertEquals(1, g.eligible.first().card.id)
     }
+
+    @Test fun rewardsExplanationAndWallet() {
+        val flat = Card(id = 1, name = "Flat 2%", rewardBase = 2.0)
+        val dining = Card(id = 2, name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
+        val bilt = Card(id = 5, name = "Bilt", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 3.0), pointValue = 2.0)
+
+        assertEquals("4% back on dining", Rewards.explanation(dining, "Dining"))
+        assertEquals("1% back on everything", Rewards.explanation(dining, "Gas"))
+        assertEquals("3× points · 2¢/pt = 6% back on dining", Rewards.explanation(bilt, "Dining"))
+        assertEquals("No reward rate set", Rewards.explanation(Card(id = 6), "Gas"))
+
+        val wallet = Rewards.walletStrategy(listOf(flat, dining), listOf("Dining", "Gas"), UTC)
+        assertEquals(2, wallet.first { it.category == "Dining" }.best?.card?.id)
+        assertEquals(1, wallet.first { it.category == "Gas" }.best?.card?.id)
+        assertNull(Rewards.walletStrategy(listOf(Card(id = 7)), listOf("Gas"), UTC).first().best)
+    }
 }
 
 class PeriodTest {
