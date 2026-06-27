@@ -72,6 +72,16 @@ echo "→ Archiving (Release, generic iOS device)"
   CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=365KR8NF53)
 
+# Plaid LinkKit is a prebuilt binary without a bundled dSYM. Ensure one exists
+# in the archive before export so uploadSymbols does not warn.
+LINKKIT_BIN="$ARCHIVE/Products/Applications/FiHaven.app/Frameworks/LinkKit.framework/LinkKit"
+LINKKIT_DSYM="$ARCHIVE/dSYMs/LinkKit.framework.dSYM"
+if [[ -f "$LINKKIT_BIN" && ! -d "$LINKKIT_DSYM" ]]; then
+  echo "→ Generating LinkKit.framework.dSYM for symbol upload"
+  mkdir -p "$ARCHIVE/dSYMs"
+  xcrun dsymutil "$LINKKIT_BIN" -o "$LINKKIT_DSYM"
+fi
+
 if $archive_only; then
   echo "✓ Archive: $ARCHIVE"
   echo "  Upload manually: Xcode → Window → Organizer → Distribute App"

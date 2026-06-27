@@ -78,8 +78,9 @@ match web and iOS — see [`docs/native-contract.md`](../docs/native-contract.md
 
 ## Hardening, dark mode & fonts
 
-- **Token storage:** `EncryptedSharedPreferences` (AES-256, key in the
-  Android Keystore), with a one-time migration from the old plain store.
+- **Token storage:** Android Keystore AES-256-GCM (`PrefsTokenStore`) — the
+  Bearer token is encrypted at rest; upgrading from older builds may require
+  signing in again once.
 - **Cleartext:** release forbids it (`res/xml/network_security_config.xml`);
   a debug override allows only `10.0.2.2` / `localhost`.
 - **Appearance:** System / Light / Dark toggle in Settings, persisted
