@@ -12,7 +12,7 @@ Apple uses **two** places that sound similar:
 | **App Information** (General) | License Agreement (EULA) | **Apple’s Standard EULA** — leave custom **empty** |
 | **TestFlight → Test Information** | License Agreement (big text box) | **Full plain-text Terms** — paste from [`testflight-license-agreement.txt`](./testflight-license-agreement.txt) |
 
-The TestFlight box is **not** a URL field. External testers see this text when joining the beta. Use your **Terms of Use**, not the GitHub AGPL source license.
+The TestFlight box is **not** a URL field. External testers see this text when joining the beta. Use your **Terms of Use**, not the GitHub source license.
 
 ## Recommended legal setup
 
@@ -22,7 +22,7 @@ The TestFlight box is **not** a URL field. External testers see this text when j
 | **License Agreement (EULA)** | **Apple’s Standard EULA** | Leave the custom EULA field **empty**. FiHaven’s [Terms of Use](https://fihaven.app/terms) still apply in-app and on the web; section 6 says store terms apply in addition. |
 | **Terms of Use (in product)** | `https://fihaven.app/terms` | Not pasted into ASC for EULA when using Apple’s standard license. Linked from **More → About** and sign-up on iOS. |
 
-Do **not** use the GitHub AGPL link as the App Store EULA — that is the **source-code** license, not the end-user license for the App Store binary.
+Do **not** use the GitHub LICENSE as the App Store EULA — that is the **source-code** license, not the end-user license for the App Store binary.
 
 ## Where to set this in App Store Connect
 

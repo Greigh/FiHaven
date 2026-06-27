@@ -332,7 +332,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Open-source licenses", null) { dialog = "licenses" }
                     HorizontalDivider(color = Ct.colors.border)
-                    NavRow("License", "AGPL-3.0", Ct.colors.accent) {
+                    NavRow("License", "Source available", Ct.colors.accent) {
                         uriHandler.openUri("https://github.com/Greigh/FiHaven/blob/main/LICENSE")
                     }
                     HorizontalDivider(color = Ct.colors.border)
@@ -482,7 +482,7 @@ private fun LicensesDialog(onDone: () -> Unit) {
             Text("View the Apache License 2.0", color = Ct.colors.accent, fontSize = 13.sp)
         }
         HorizontalDivider(color = Ct.colors.border)
-        Text("FiHaven itself is licensed under AGPL-3.0.", color = Ct.colors.muted, fontSize = 12.sp)
+        Text("FiHaven itself is source available — see github.com/Greigh/FiHaven.", color = Ct.colors.muted, fontSize = 12.sp)
     }
 }
 
