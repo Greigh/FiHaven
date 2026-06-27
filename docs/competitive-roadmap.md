@@ -42,14 +42,14 @@ becoming another noisy “do everything” app.
 
 ## Priority tiers
 
-### Tier 1 — Ship next
+### Tier 1 — Shipped in 1.4.x
 
 1. **Budget rules lens (50/30/20 + custom splits)** — optional setting; Needs / Wants / Save
    targets vs actuals on Budget tab (web + iOS + Android). See `client/js/budgetRules.js`.
 2. **Subscription action panel** — cancel/manage links, duplicate hints, free-trial dates.
 3. **Safe-to-spend number** — after bills, mins, and goal assignments: one “cash left” figure.
 
-### Tier 2 — Pro differentiators
+### Tier 2 — Pro differentiators (shipped in 1.4.x)
 
 | Feature | Source | Hook |
 |---------|--------|------|
@@ -57,7 +57,19 @@ becoming another noisy “do everything” app.
 | Spending insights | Copilot | “Up X% on Dining vs last period” |
 | Credit utilization alert | CK / NerdWallet | From manual card balances (no bureau API) |
 
-### Tier 3 — Skip or partner
+### Tier 3 — Next / later
+
+| Feature | Notes |
+|---------|-------|
+| Household rollup views | Shared sync exists; consolidated dashboard TBD |
+| Budget lens settings on native | Web Settings today; native reads synced values |
+| Envelope editor + spending insights on native | Web-only editors; display on native |
+| Household share/unshare UI on native | Web Settings → Family today |
+| User category → bucket overrides | Default maps only |
+| Remote push (APNs / FCM) | Email + local notifications today |
+| Store distribution | TestFlight beta (iOS); Play Store listing TBD |
+
+### Tier 4 — Skip or partner
 
 - Bill negotiation (Truebill) — humans or B2B APIs
 - Credit score pull — regulatory + bureau deals
@@ -68,29 +80,31 @@ becoming another noisy “do everything” app.
 
 ## Feature checklist
 
-Track progress in GitHub issues (labels: `competitive`, `tier-1`, `tier-2`).
+Track progress in GitHub issues (labels: `competitive`, `tier-1`, `tier-2`). Tier 1/2
+items from the 1.4.x wave are closed; open issues cover Tier 3+ gaps.
 
 ```
 Competitive parity
 ├── Dollarwise
-│   ├── [ ] 50/30/20 (or custom %) budget lens
-│   ├── [ ] Auto-map categories → needs/wants/save
-│   └── [ ] “Simple budget” onboarding toggle
+│   ├── [x] 50/30/20 (or custom %) budget lens
+│   ├── [x] Auto-map categories → needs/wants/save
+│   └── [x] “Simple budget” onboarding toggle
 ├── Truebill / Rocket Money
 │   ├── [x] Subscription detection
 │   ├── [x] Price increase flags
-│   ├── [ ] Cancel / manage links per subscription
-│   ├── [ ] Duplicate sub detection
-│   ├── [ ] Trial-ending reminders
-│   └── [ ] Safe-to-spend / cash left number
+│   ├── [x] Cancel / manage links per subscription
+│   ├── [x] Duplicate sub detection
+│   ├── [x] Trial-ending reminders
+│   └── [x] Safe-to-spend / cash left number
 ├── YNAB
-│   └── [ ] Optional envelope assign (Pro)
+│   └── [x] Optional envelope assign (Pro)
 ├── Monarch
-│   └── [ ] Household — later
+│   └── [x] Household sharing (create/join on all platforms; share UI web-first)
 ├── Copilot
-│   └── [ ] Period-over-period spending insights (Pro)
+│   └── [x] Period-over-period spending insights (Pro)
 ├── Credit Karma / Albert
-│   └── [ ] Credit util alerts; auto-save rules — optional
+│   ├── [x] Credit util alerts (from manual card balances)
+│   └── [ ] Auto-save rules — optional / out of scope for now
 └── QuickBooks
     └── [ ] Out of scope unless SMB mode
 ```
