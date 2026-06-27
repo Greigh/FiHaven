@@ -15,6 +15,7 @@ struct BillEditorView: View {
     @State private var dueDay = 1
     @State private var frequency = "Monthly"
     @State private var autopay = false
+    @State private var autopayDay = 0   // 0 = "Same as due day"
     @State private var notes = ""
     @State private var cardId = ""
     @State private var hasStart = false
@@ -46,6 +47,12 @@ struct BillEditorView: View {
                         ForEach(frequencies, id: \.self) { Text($0).tag($0) }
                     }
                     Toggle("Autopay", isOn: $autopay)
+                    if autopay {
+                        Picker("Autopay day", selection: $autopayDay) {
+                            Text("Same as due day").tag(0)
+                            ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                    }
                     Picker("Charged to", selection: $cardId) {
                         Text("Direct (bank / cash)").tag("")
                         ForEach(store.data.cards) { card in
@@ -104,6 +111,7 @@ struct BillEditorView: View {
         dueDay = bill.dueDay ?? 1
         frequency = bill.frequency
         autopay = bill.autopay
+        autopayDay = bill.autopayDay ?? 0
         notes = bill.notes
         cardId = bill.cardId ?? ""
         if let s = DateLogic.parseDate(bill.startDate, tz: store.tz) {
@@ -130,6 +138,7 @@ struct BillEditorView: View {
             dueDay: effectiveDueDay,
             frequency: frequency,
             autopay: autopay,
+            autopayDay: autopay && autopayDay > 0 ? autopayDay : nil,
             notes: notes,
             business: business.isEmpty ? nil : business.trimmingCharacters(in: .whitespaces),
             cardId: cardId.isEmpty ? nil : cardId,

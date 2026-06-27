@@ -13,7 +13,9 @@
 
 import { mount } from 'svelte';
 import RewardsView from '../svelte/RewardsView.svelte';
-import { setRenderer } from './utils.js';
+import { setRenderer, REWARD_CATEGORIES } from './utils.js';
+import { merchantCategory } from './merchants.js';
+import { today } from './tz.js';
 
 // A card's reward rate for a category: the per-category multiplier when
 // set (> 0), otherwise the card's flat base rate.
@@ -70,6 +72,117 @@ export function rankCardsForCategory(category, list) {
   eligible.sort(function (a, b) { return b.value - a.value; });
   excluded.sort(function (a, b) { return b.value - a.value; });
   return { eligible: eligible, excluded: excluded };
+}
+
+function trimRate(n) {
+  return String(Math.round(n * 100) / 100);
+}
+
+// A short, human "why this card" line for a category: whether the rate is a
+// category bonus or the flat base, and (for points cards) how the multiplier
+// and point value combine into a cash-equivalent return.
+export function rewardExplanation(card, category) {
+  const rate = effectiveRate(card, category);
+  if (rate <= 0) return 'No reward rate set';
+  const base = parseFloat(card.rewardBase) || 0;
+  const override = parseFloat((card.rewardCategories || {})[category]) || 0;
+  const isBonus = override > 0 && override !== base;
+  const where = isBonus ? `on ${category.toLowerCase()}` : 'on everything';
+  const pv = pointValue(card);
+  if (pv !== 1) {
+    return `${trimRate(rate)}× points · ${trimRate(pv)}¢/pt = ${trimRate(rate * pv)}% back ${where}`;
+  }
+  return `${trimRate(rate)}% back ${where}`;
+}
+
+// The whole-wallet view: for each spending category, the single best eligible
+// card (cards in a 0% promo are excluded, same as the per-category ranking).
+// `best` is null when no card earns anything in that category.
+export function walletStrategy(cards, categories) {
+  return (categories || []).map((category) => {
+    const top = rankCardsForCategory(category, cards).eligible[0] || null;
+    // A 0%-return "best" is no recommendation at all.
+    return { category, best: (top && top.value > 0) ? top : null };
+  });
+}
+
+/* ── Spend-based rewards estimate (feeds the annual-fee verdict) ───
+   Manual entry + (optionally) synced bank transactions give us a rough
+   picture of category spend. We use it two ways: a "you shopped at X —
+   best card is Y" nudge, and an estimate of the rewards a card earns in
+   a year. Both are clearly framed as estimates — spend isn't tied to a
+   specific card, so this can't be exact. */
+
+const DAY_MS = 864e5;
+
+function parseTxDate(s) {
+  if (!s) return null;
+  const p = String(s).slice(0, 10).split('-').map(Number);
+  if (p.length < 3 || !p[0] || !p[1] || !p[2]) return null;
+  return new Date(p[0], p[1] - 1, p[2]);
+}
+
+// Which reward category a transaction counts toward: a merchant-name hint
+// first (most reliable for reward mapping), then the transaction's own
+// category if it's already a reward category, else "Other".
+export function txRewardCategory(t) {
+  const hint = merchantCategory(t && t.merchant);
+  if (hint) return hint;
+  if (t && REWARD_CATEGORIES.includes(t.category)) return t.category;
+  return 'Other';
+}
+
+// Annualized spend per reward category from the user's transactions over the
+// trailing year. Annualizes by the span of data present (clamped so a few
+// days can't extrapolate to a wild yearly figure). Returns {} when there's
+// nothing to go on. `transactions` are FiHaven SpendTransactions (manual or
+// Plaid-synced); only positive-amount outflows count.
+export function categorySpendAnnual(transactions, refDate) {
+  const now = refDate || today();
+  const yearAgo = new Date(now.getTime() - 365 * DAY_MS);
+  const recent = [];
+  (transactions || []).forEach((t) => {
+    const amt = Number(t.amount) || 0;
+    if (amt <= 0) return;
+    const d = parseTxDate(t.date);
+    if (!d || d < yearAgo || d > now) return;
+    recent.push({ amt, d, t });
+  });
+  if (!recent.length) return {};
+  let minDate = recent[0].d;
+  recent.forEach((r) => { if (r.d < minDate) minDate = r.d; });
+  // At least a 30-day window so sparse data doesn't over-extrapolate.
+  const spanDays = Math.max(30, Math.round((now - minDate) / DAY_MS) || 0);
+  const factor = 365 / spanDays;
+  const totals = {};
+  recent.forEach((r) => {
+    const cat = txRewardCategory(r.t);
+    totals[cat] = (totals[cat] || 0) + r.amt;
+  });
+  const out = {};
+  Object.keys(totals).forEach((c) => { out[c] = Math.round(totals[c] * factor); });
+  return out;
+}
+
+// Estimated annual rewards a card earns, given annualized category spend.
+// Only the card's BONUS categories count (where its rate beats its base) —
+// that's the spend you'd realistically route to this card, so the estimate
+// stays honest rather than assuming every dollar lands here. Loans earn
+// nothing. Result is a cash figure (cents-per-point already folded in).
+export function cardRewardsEstimateAnnual(card, spendByCategory) {
+  if (!card || (card.type || 'card') === 'loan') return 0;
+  const base = parseFloat(card.rewardBase) || 0;
+  const cats = card.rewardCategories || {};
+  let total = 0;
+  Object.keys(spendByCategory || {}).forEach((cat) => {
+    const spend = Number(spendByCategory[cat]) || 0;
+    if (spend <= 0) return;
+    const override = parseFloat(cats[cat]) || 0;
+    if (override > 0 && override > base) {
+      total += (spend * effectiveValue(card, cat)) / 100; // effectiveValue is a % return
+    }
+  });
+  return Math.round(total);
 }
 
 function promoReason(card) {

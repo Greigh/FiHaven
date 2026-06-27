@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.fihaven.core.model.plaidUpdateBalances
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -112,7 +115,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         when (val s = status) {
             null -> Text("Loading…", color = Ct.colors.muted, fontSize = 14.sp)
             else -> when {
-                !s.configured -> Text("Bank linking isn't enabled on this server yet.", color = Ct.colors.muted, fontSize = 14.sp)
+                !s.configured -> Text("Bank linking isn’t enabled on the server this app is connected to. Bank linking needs Plaid credentials configured there; manual entry works regardless.", color = Ct.colors.muted, fontSize = 14.sp)
                 !s.pro -> Text("Linking your bank is a Pro feature. Upgrade from the Get Pro tab to connect an account.",
                     color = Ct.colors.text, fontSize = 14.sp)
                 else -> {
@@ -145,6 +148,16 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                                 else msg = "Could not refresh. Please try again."
                             }
                         }) { Text("Refresh balances", color = Ct.colors.accent) }
+
+                        val data by vm.data.collectAsStateWithLifecycle()
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Let bank balances update my cards", color = Ct.colors.text, fontSize = 14.sp)
+                                Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only on a clear last-4 match (include them in the card name).",
+                                    color = Ct.colors.muted, fontSize = 11.sp)
+                            }
+                            Switch(checked = data.settings.plaidUpdateBalances, onCheckedChange = { vm.setPlaidUpdateBalances(it) })
+                        }
                     }
                 }
             }

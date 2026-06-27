@@ -283,7 +283,7 @@ private fun BillRow(
             Column(horizontalAlignment = Alignment.End) {
                 Text(Money.fmt(bill.amount), color = Ct.colors.text, fontSize = 15.sp,
                     fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                if (bill.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+                if (bill.autopay) Text(bill.autopayDay?.let { "autopay · day $it" } ?: "autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
             }
         }
     }
@@ -311,6 +311,7 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     var dueDay by remember { mutableStateOf(bill?.dueDay?.toString() ?: "1") }
     var frequency by remember { mutableStateOf(bill?.frequency ?: "Monthly") }
     var autopay by remember { mutableStateOf(bill?.autopay ?: false) }
+    var autopayDay by remember { mutableStateOf(bill?.autopayDay?.toString() ?: "") }
     var notes by remember { mutableStateOf(bill?.notes ?: "") }
     var cardId by remember { mutableStateOf(bill?.cardId ?: "") }
     var startDate by remember { mutableStateOf(bill?.startDate ?: "") }
@@ -336,7 +337,9 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
                     category = category,
                     amount = amount.toDoubleOrNull() ?: 0.0,
                     dueDay = derivedDueDay,
-                    frequency = frequency, autopay = autopay, notes = notes,
+                    frequency = frequency, autopay = autopay,
+                    autopayDay = if (autopay) autopayDay.toIntOrNull()?.coerceIn(1, 31) else null,
+                    notes = notes,
                     cardId = cardId.takeIf { it.isNotBlank() },
                     startDate = start, endDate = end,
                 )
@@ -368,6 +371,12 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Autopay", color = Ct.colors.text, modifier = Modifier.weight(1f))
             Switch(checked = autopay, onCheckedChange = { autopay = it })
+        }
+        if (autopay) {
+            OutlinedTextField(autopayDay, { autopayDay = it.filter(Char::isDigit).take(2) },
+                label = { Text("Autopay day (1–31)") },
+                placeholder = { Text("defaults to due day") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
     }
