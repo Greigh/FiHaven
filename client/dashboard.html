@@ -178,7 +178,7 @@
     <a href="#" onclick="logout();return false;">Log Out</a>
   </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
-      <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">Source</a></div>
+      <div class="site-footer-legal">© 2026 Daniel Hipskind · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub/a></div>
 </footer>
 
 <!-- ═══ BILL MODAL ══════════════════════════════════════ -->
@@ -243,6 +243,10 @@
         <label class="checkbox-label">
           <input type="checkbox" id="b-autopay"/> Autopay enabled
         </label>
+      </div>
+      <div class="field" id="b-autopayday-field" hidden>
+        <label for="b-autopayday">Autopay day <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="b-autopayday" placeholder="defaults to due day" min="1" max="31"/>
       </div>
     </div>
     <div class="modal-footer">
@@ -344,6 +348,10 @@
           <input type="checkbox" id="c-autopay"/> <span id="lbl-c-autopay">Autopay minimum</span>
         </label>
       </div>
+      <div class="field" id="c-autopayday-field" hidden>
+        <label for="c-autopayday">Autopay day <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="c-autopayday" placeholder="defaults to due day" min="1" max="31"/>
+      </div>
       <div class="field" style="grid-column:span 2;">
         <label for="c-notes">Notes</label>
         <input type="text" id="c-notes" placeholder="Rewards program, login, etc."/>
@@ -365,6 +373,11 @@
         <div style="color:var(--muted);font-size:12px;margin:6px 0 4px;">Category bonuses (leave blank to use the base rate)</div>
         <div id="c-reward-cats" class="reward-cats-grid"></div>
         <div id="c-reward-rotating" class="reward-rotating" hidden></div>
+      </div>
+      <div class="field" id="c-perks-field" style="grid-column:span 2;">
+        <label>Credits &amp; perks <span style="color:var(--muted);font-weight:400;">— recurring statement credits to track on the Rewards tab</span></label>
+        <div id="c-perks-list"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="c-perk-add" onclick="addPerkRow()">+ Add credit</button>
       </div>
     </div>
     <div class="modal-footer">
