@@ -67,6 +67,11 @@ val JsonObject.weeklyDigest: Boolean get() = prim("weeklyDigest")?.booleanOrNull
 /// Opt-in: schedule bill reminders as on-device local notifications. Synced so
 /// the preference follows the user, but scheduling is per-device.
 val JsonObject.localNotifications: Boolean get() = prim("localNotifications")?.booleanOrNull ?: false
+/// Opt-in (Pro): remind before an activated card-linked offer expires.
+val JsonObject.offerReminders: Boolean get() = prim("offerReminders")?.booleanOrNull ?: false
+/// Opt-in: let a synced bank balance update a matching card. Off by default —
+/// FiHaven never overrides a typed balance unless this is on.
+val JsonObject.plaidUpdateBalances: Boolean get() = prim("plaidUpdateBalances")?.booleanOrNull ?: false
 
 /** When true (default), fully paid items are hidden from the dashboard upcoming list. */
 val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true
@@ -117,6 +122,21 @@ fun JsonObject.withAutopayDone(done: Map<String, List<String>>): JsonObject = bu
     put("autopayDone", buildJsonObject {
         done.forEach { (k, list) -> put(k, buildJsonArray { list.forEach { add(it) } }) }
     })
+}
+
+/**
+ * Per-cycle card-perk usage: "<cardId>:<perkId>:<cycleKey>" → dollars used
+ * this cycle. Shared with perks.js and Perks.swift/Perks.kt.
+ */
+val JsonObject.perkUsage: Map<String, Double>
+    get() {
+        val o = this["perkUsage"] as? JsonObject ?: return emptyMap()
+        return o.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.doubleOrNull?.let { k to it } }.toMap()
+    }
+
+fun JsonObject.withPerkUsage(usage: Map<String, Double>): JsonObject = buildJsonObject {
+    this@withPerkUsage.forEach { (k, v) -> if (k != "perkUsage") put(k, v) }
+    put("perkUsage", buildJsonObject { usage.forEach { (k, v) -> put(k, v) } })
 }
 
 /// Spending categories used for transactions + budgets.

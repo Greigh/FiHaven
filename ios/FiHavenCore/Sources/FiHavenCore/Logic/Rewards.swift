@@ -169,6 +169,90 @@ public enum Rewards {
         return Ranking(eligible: eligible, excluded: excluded)
     }
 
+    private static func trimRate(_ n: Double) -> String {
+        let r = (n * 100).rounded() / 100
+        return r == r.rounded() ? String(Int(r)) : String(r)
+    }
+
+    /// A short "why this card" line for a category: category bonus vs. flat
+    /// base, and (for points cards) the multiplier × point-value cash return.
+    public static func explanation(_ card: Card, category: String) -> String {
+        let rate = effectiveRate(card, category: category)
+        if rate <= 0 { return "No reward rate set" }
+        let override = card.rewardCategories[category] ?? 0
+        let isBonus = override > 0 && override != card.rewardBase
+        let where_ = isBonus ? "on \(category.lowercased())" : "on everything"
+        let pv = pointValue(card)
+        if pv != 1 {
+            return "\(trimRate(rate))× points · \(trimRate(pv))¢/pt = \(trimRate(rate * pv))% back \(where_)"
+        }
+        return "\(trimRate(rate))% back \(where_)"
+    }
+
+    /// One entry per category — the single best eligible card (nil when no
+    /// card earns anything there). The whole-wallet "best card for each" view.
+    public struct WalletPick { public let category: String; public let best: Ranked? }
+    public static func walletStrategy(_ cards: [Card], categories: [String], tz: TimeZone, now: Date = Date()) -> [WalletPick] {
+        categories.map { cat in
+            let top = rank(cards, category: cat, tz: tz, now: now).eligible.first
+            return WalletPick(category: cat, best: (top?.value ?? 0) > 0 ? top : nil)
+        }
+    }
+
+    // MARK: - Spend-based rewards estimate (feeds the annual-fee verdict)
+
+    /// Which reward category a transaction counts toward: a merchant-name hint
+    /// first, then the transaction's own category if it's a reward category,
+    /// else "Other".
+    public static func txRewardCategory(_ t: SpendTransaction) -> String {
+        if let hint = Merchants.category(t.merchant) { return hint }
+        if categories.contains(t.category) { return t.category }
+        return "Other"
+    }
+
+    /// Annualized spend per reward category from the user's transactions over
+    /// the trailing year. Annualizes by the span of data present (clamped so a
+    /// few days can't extrapolate to a wild yearly figure). Empty when there's
+    /// nothing to go on. Only positive-amount outflows count.
+    public static func categorySpendAnnual(_ transactions: [SpendTransaction], tz: TimeZone, now: Date = Date()) -> [String: Double] {
+        let cal = DateLogic.calendar(tz: tz)
+        let today = DateLogic.today(tz: tz, now: now)
+        guard let yearAgo = cal.date(byAdding: .day, value: -365, to: today) else { return [:] }
+        var recent: [(amt: Double, date: Date, tx: SpendTransaction)] = []
+        for t in transactions {
+            guard t.amount > 0, let d = DateLogic.parseDate(t.date, tz: tz) else { continue }
+            if d < yearAgo || d > today { continue }
+            recent.append((t.amount, d, t))
+        }
+        guard !recent.isEmpty else { return [:] }
+        let minDate = recent.map { $0.date }.min() ?? today
+        let rawSpan = cal.dateComponents([.day], from: minDate, to: today).day ?? 0
+        let spanDays = Double(max(30, rawSpan))
+        let factor = 365.0 / spanDays
+        var totals: [String: Double] = [:]
+        for r in recent { totals[txRewardCategory(r.tx), default: 0] += r.amt }
+        var out: [String: Double] = [:]
+        for (cat, sum) in totals { out[cat] = (sum * factor).rounded() }
+        return out
+    }
+
+    /// Estimated annual rewards a card earns, given annualized category spend.
+    /// Only the card's BONUS categories count (rate beats base) — the spend
+    /// you'd realistically route here — so the estimate stays honest. Loans
+    /// earn nothing. Result is a cash figure (cents-per-point folded in).
+    public static func cardRewardsEstimateAnnual(_ card: Card, spendByCategory: [String: Double]) -> Double {
+        if (card.type ?? "card") == "loan" { return 0 }
+        let base = card.rewardBase
+        var total = 0.0
+        for (cat, spend) in spendByCategory where spend > 0 {
+            let override = card.rewardCategories[cat] ?? 0
+            if override > 0 && override > base {
+                total += (spend * effectiveValue(card, category: cat)) / 100  // effectiveValue is a % return
+            }
+        }
+        return total.rounded()
+    }
+
     private static func promoReason(_ card: Card, tz: TimeZone) -> String {
         let label: String
         if let end = DateLogic.parseDate(card.promoEndDate, tz: tz) {

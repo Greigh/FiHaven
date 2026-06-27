@@ -192,6 +192,9 @@
             <td data-label="Autopay">
               {#if b.autopay}
                 <span class="badge badge-green">✓ Auto</span>
+                {#if b.autopayDay}
+                  <div style="font-size:11px;color:var(--muted);margin-top:3px;">Pays day {b.autopayDay}</div>
+                {/if}
               {:else}
                 <span class="badge badge-gray">Manual</span>
               {/if}

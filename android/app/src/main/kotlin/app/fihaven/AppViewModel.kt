@@ -19,6 +19,8 @@ import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.withCategoryBudget
 import app.fihaven.core.model.autopayDone
+import app.fihaven.core.model.perkUsage
+import app.fihaven.core.model.withPerkUsage
 import app.fihaven.core.model.withAutopayDone
 import app.fihaven.core.model.autopayMark
 import app.fihaven.core.model.incomeAdjustments
@@ -374,7 +376,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val refKey = "bill:${b.id}"
             if (refKey in handled) return
             if (b.dueDay == null && b.startDate.isNullOrEmpty()) return
-            val due = BillSchedule.dueOnOrBeforeInPeriod(b, bounds, zone(), todayD) ?: return
+            val apDay = b.autopayDay ?: 0
+            if (apDay > 0) {
+                // Autopay pulls on its own day; the bill must still be
+                // scheduled this period, but the trigger is the autopay day.
+                if (!BillSchedule.dueInPeriod(b, bounds, zone())) return
+                val due = dueInPeriod(apDay) ?: return
+                if (due.isAfter(todayD)) return
+            } else {
+                BillSchedule.dueOnOrBeforeInPeriod(b, bounds, zone(), todayD) ?: return
+            }
             val refId = b.id.toString()
             if (Schedule.paidAmount(d.payments, "bill", refId, bounds) > Schedule.PAID_EPSILON) return
             if (Schedule.isSkipped(d.payments, "bill", refId, bounds)) return
@@ -395,8 +406,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             handled.add(refKey); newlyMarked.add(refKey)
         }
         d.bills.forEach { considerBill(it) }
-        d.cards.forEach { considerCard("card", it.id.toString(), it.name + " (payment)", it.dueDay, it.autopay,
-            goalAmount("card", it.id.toString())) }
+        d.cards.forEach {
+            // Autopay pulls on `autopayDay`; null falls back to the due day.
+            val effDay = it.autopayDay?.takeIf { day -> day > 0 } ?: it.dueDay
+            considerCard("card", it.id.toString(), it.name + " (payment)", effDay, it.autopay,
+                goalAmount("card", it.id.toString()))
+        }
         if (newPayments.isNotEmpty()) {
             // New marks go in this month's bucket; keep buckets for the last 4
             // months (covers the longest rolling window) and drop the rest.
@@ -602,7 +617,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshNotifications() {
         val d = _data.value
         runCatching {
-            NotificationScheduler.reschedule(getApplication(), d.bills, d.settings, zone())
+            NotificationScheduler.reschedule(getApplication(), d.bills, d.cards, d.settings, zone())
         }
     }
 
@@ -739,6 +754,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setWeeklyDigest(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("weeklyDigest", JsonPrimitive(on))) }
+    /** Card-linked offer expiry reminders (email + on-device). Reschedules so
+     *  a device notification is (un)set immediately. */
+    fun setOfferReminders(on: Boolean) {
+        mutate { it.copy(settings = it.settings.withSetting("offerReminders", JsonPrimitive(on))) }
+        refreshNotifications()
+    }
+    /** Opt-in: let synced bank balances update matching cards (server-applied). */
+    fun setPlaidUpdateBalances(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("plaidUpdateBalances", JsonPrimitive(on))) }
+    /** Mark a card-linked offer used (so it drops off the active list). */
+    fun setOfferUsed(cardId: String, offerId: String, used: Boolean) {
+        mutate { d ->
+            d.copy(cards = d.cards.map { c ->
+                if (c.id.toString() != cardId) c
+                else c.copy(offers = c.offers.map { if (it.id == offerId) it.copy(used = used) else it })
+            })
+        }
+    }
+
+    /** Log how much of a card perk's credit has been used this cycle. */
+    fun setPerkUsage(cardId: String, perk: app.fihaven.core.model.CardPerk, amount: Double) {
+        val next = app.fihaven.core.logic.Perks.applyUsage(
+            _data.value.settings.perkUsage, cardId, perk, amount, DateLogic.today(zone()))
+        mutate { it.copy(settings = it.settings.withPerkUsage(next)) }
+    }
+
     fun setReminderLeadDays(days: Int) =
         mutate { it.copy(settings = it.settings.withSetting("reminderLeadDays", JsonPrimitive(days.coerceIn(0, 14)))) }
     fun setRemindOnDueDay(on: Boolean) =

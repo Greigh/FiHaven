@@ -320,6 +320,48 @@ async function sendTrialReminder(to, trials, leadDays, currency) {
   });
 }
 
+/* ── Card-linked offer expiry reminders ──────────────────────── */
+// `offers` is [{ merchant, detail, expires, cardName }] — activated card
+// offers about to lapse. The nudge is "use it before you lose it".
+async function sendOfferReminder(to, offers, leadDays, currency) {
+  const n = offers.length;
+  const plural = n === 1 ? '' : 's';
+  const phrase = leadPhrase(leadDays).replace('due', 'expiring').replace('today', 'expiring today');
+  const href = link('/dashboard');
+  const items = offers
+    .map((o) => {
+      const end = o.expires
+        ? new Date(o.expires + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : '';
+      const where = o.cardName ? ` on ${esc(o.cardName)}` : '';
+      const det = o.detail ? ` — ${esc(o.detail)}` : '';
+      return `<li style="margin:0 0 6px;"><strong>${esc(o.merchant) || 'Offer'}</strong>${det}${where} (expires ${esc(end)})</li>`;
+    })
+    .join('');
+  const textItems = offers
+    .map((o) => `• ${o.merchant || 'Offer'}${o.detail ? ' — ' + o.detail : ''}${o.cardName ? ' on ' + o.cardName : ''} (expires ${o.expires || ''})`)
+    .join('\n');
+  return mail.sendMail({
+    to,
+    subject: n === 1
+      ? `Offer ${phrase}: ${offers[0].merchant || 'a card offer'}`
+      : `${n} card offer${plural} ${phrase}`,
+    text:
+      `You have ${n} card-linked offer${plural} ${phrase}:\n\n${textItems}\n\n` +
+      `Use them before they lapse — open FiHaven: ${href}\n\n` +
+      `You're getting this because offer reminders are on — turn them off any time in Settings.`,
+    html: layout({
+      heading: `${n} offer${plural} ${phrase}`,
+      lines: [
+        'These activated card offers are about to expire — use them before you lose the credit:',
+        `<ul style="margin:0 0 4px;padding-left:18px;color:#1f2430;font-size:15px;line-height:1.7;">${items}</ul>`,
+      ],
+      cta: { href, label: 'Open FiHaven' },
+      footnote: 'You’re getting this because offer reminders are on — turn them off any time in Settings.',
+    }),
+  });
+}
+
 /* ── Household invite ────────────────────────────────────────── */
 async function sendHouseholdInvite(to, { rawToken, householdName, inviterName }) {
   const href = link('/login?household=' + encodeURIComponent(rawToken));
@@ -351,6 +393,7 @@ module.exports = {
   sendRecovery,
   sendBillReminder,
   sendTrialReminder,
+  sendOfferReminder,
   sendMonthlySummary,
   sendWeeklyDigest,
   sendHouseholdInvite,

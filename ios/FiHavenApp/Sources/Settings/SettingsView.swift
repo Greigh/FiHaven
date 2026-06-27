@@ -397,6 +397,10 @@ struct SettingsView: View {
                 get: { store.data.settings.monthlySummary },
                 set: { store.setMonthlySummary($0) }
             )).tint(Theme.accent)
+            Toggle("Card offer reminders", isOn: Binding(
+                get: { store.data.settings.offerReminders },
+                set: { store.setOfferReminders($0) }
+            )).tint(Theme.accent)
 
             // Send hour (applies to email + on-device reminders).
             if store.data.settings.localNotifications || store.data.settings.billReminders

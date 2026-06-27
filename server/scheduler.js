@@ -91,6 +91,21 @@ function trialsEndingOn(data, lp, days) {
   });
 }
 
+/** Active (unused) card-linked offers expiring in exactly `days` local days,
+ *  flattened with the card name for the reminder email. */
+function offersExpiringOn(data, lp, days) {
+  const out = [];
+  (data.cards || []).forEach((c) => {
+    (c.offers || []).forEach((o) => {
+      if (!o || o.used || !o.expires) return;
+      if (daysUntilYmd(o.expires, lp) === days) {
+        out.push({ merchant: o.merchant || 'Offer', detail: o.detail || '', expires: o.expires, cardName: c.name || 'Card' });
+      }
+    });
+  });
+  return out;
+}
+
 // A bill's optional active window (bills-only feature; mirrors the
 // client's billActive). `ymd` is the user's local "YYYY-MM-DD". A
 // not-yet-started or stopped bill is excluded from autopay, reminders,
@@ -136,13 +151,24 @@ function markAutopay(data, lp) {
     const refId = String(item.id);
     const refKey = `${type}:${refId}`;
     if (handled.has(refKey)) return;                 // already auto-marked this month
+    // Explicit autopay pull day; blank → falls back to the due day.
+    const apDay = parseInt(item.autopayDay, 10) || 0;
     if (type === 'bill') {
       if (!item.dueDay && !item.startDate) return;
-      const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
-      if (!billDueOn(item, today)) return;
       if (!billActiveOn(item, lp.ymd)) return;
+      if (apDay) {
+        // Autopay pulls on its own day; the bill must still be scheduled
+        // this month, but the trigger is the autopay day, not the due date.
+        if (apDay !== lp.d) return;
+        const mb = monthBoundsFromParts(lp);
+        if (!billDueOnOrBeforeInPeriod(item, mb, mb.end)) return;
+      } else {
+        const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
+        if (!billDueOn(item, today)) return;
+      }
     } else {
-      if (!item.dueDay || parseInt(item.dueDay, 10) !== lp.d) return;
+      const dd = apDay || parseInt(item.dueDay, 10);
+      if (!dd || dd !== lp.d) return;
     }
     const already = payments.some(
       (p) => !p.skipped && p.type === type && String(p.refId) === refId && p.monthKey === monthKey
@@ -222,7 +248,7 @@ async function runChecks(now = new Date(), deps = {}) {
   for (const u of users) {
     if (!u.email_verified) continue;
     const s = (u.data && u.data.settings) || {};
-    if (!s.billReminders && !s.monthlySummary && !s.autopayMark && !s.weeklyDigest) continue;
+    if (!s.billReminders && !s.monthlySummary && !s.autopayMark && !s.weeklyDigest && !s.offerReminders) continue;
 
     let lp;
     try { lp = localParts(now, s.timezone || DEFAULT_TZ); }
@@ -293,6 +319,22 @@ async function runChecks(now = new Date(), deps = {}) {
         if (db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
       }
 
+      // Card-linked offer expiry reminders — Pro (offers are a Pro Rewards
+      // feature). Uses the same lead window as bill reminders. Nudges the
+      // user to use an activated offer before it lapses.
+      if (s.offerReminders && isPro && u.last_offer_reminder_day !== lp.ymd) {
+        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
+        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        for (const days of leads) {
+          const expiring = offersExpiringOn(u.data, lp, days);
+          if (expiring.length) {
+            try { await mailer.sendOfferReminder(u.email, expiring, days, currency); }
+            catch (e) { console.error('offer reminder send failed', u.email, e && e.message); }
+          }
+        }
+        if (db.setOfferReminderDay) db.setOfferReminderDay(u.id, lp.ymd);
+      }
+
       // Weekly digest — once a week (Monday), upcoming bills + balances.
       const weekKey = isoWeekKey(lp);
       if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
@@ -325,6 +367,6 @@ function start() {
 
 module.exports = {
   start, runChecks, localParts, daysUntilDue, daysUntilYmd, trialsEndingOn,
-  summarize, weeklyDigest, isoWeekKey, isoWeekday,
+  offersExpiringOn, summarize, weeklyDigest, isoWeekKey, isoWeekday,
   SEND_HOUR, REMINDER_LEAD_DAYS, DEFAULT_TZ,
 };

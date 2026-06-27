@@ -300,6 +300,22 @@
         <label for="c-apr">Regular APR (%)</label>
         <input type="number" id="c-apr" placeholder="e.g. 24.99" step="0.01" min="0"/>
       </div>
+      <div class="field" id="c-annualfee-field">
+        <label for="c-annualfee">Annual fee ($) <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <input type="number" id="c-annualfee" placeholder="e.g. 95" step="0.01" min="0"/>
+      </div>
+      <div class="field" id="c-feemonth-field">
+        <label for="c-feemonth">Fee renews <span style="color:var(--muted);font-weight:400;">— optional</span></label>
+        <select id="c-feemonth">
+          <option value="">—</option>
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+      </div>
       <div class="field" id="c-network-field">
         <label for="c-network">Network</label>
         <select id="c-network">
@@ -378,6 +394,11 @@
         <label>Credits &amp; perks <span style="color:var(--muted);font-weight:400;">— recurring statement credits to track on the Rewards tab</span></label>
         <div id="c-perks-list"></div>
         <button type="button" class="btn btn-ghost btn-sm" id="c-perk-add" onclick="addPerkRow()">+ Add credit</button>
+      </div>
+      <div class="field" id="c-offers-field" style="grid-column:span 2;">
+        <label>Card-linked offers <span style="color:var(--muted);font-weight:400;">— Amex/Chase/BofA deals you’ve activated; tracked on the Rewards tab</span></label>
+        <div id="c-offers-list"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="c-offer-add" onclick="addOfferRow()">+ Add offer</button>
       </div>
     </div>
     <div class="modal-footer">

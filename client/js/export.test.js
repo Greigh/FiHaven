@@ -46,7 +46,7 @@ describe('export — exportCSV', () => {
   it('builds a bills CSV with a header and CSV-escapes a comma field', () => {
     const csv = captureDownload(() => exportCSV('bills'));
     const lines = csv.split('\n');
-    expect(lines[0]).toBe('Name,Category,Amount,Due Day,Frequency,First Due,Stops On,Autopay,Notes');
+    expect(lines[0]).toBe('Name,Category,Amount,Due Day,Frequency,First Due,Stops On,Autopay,Autopay Day,Notes');
     expect(lines[1]).toContain('Rent');
     expect(csv).toContain('"note, with comma"');
   });

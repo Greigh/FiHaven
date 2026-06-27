@@ -542,6 +542,7 @@ import { initHousehold } from './household.js';
     var reminders = document.querySelector('[data-reminders-toggle]');
     var summary   = document.querySelector('[data-summary-toggle]');
     var digest    = document.querySelector('[data-digest-toggle]');
+    var offers    = document.querySelector('[data-offer-reminders-toggle]');
     var dueDay    = document.querySelector('[data-dueday-toggle]');
     var leadSel   = document.querySelector('[data-reminder-lead]');
     var hourSel   = document.querySelector('[data-notify-hour]');
@@ -588,6 +589,7 @@ import { initHousehold } from './household.js';
       if (reminders) reminders.checked = !!s.billReminders;
       if (summary)   summary.checked   = !!s.monthlySummary;
       if (digest)    digest.checked    = !!s.weeklyDigest;
+      if (offers)    offers.checked    = !!s.offerReminders;
       if (dueDay)    dueDay.checked     = !!s.remindOnDueDay;
       if (leadSel)   leadSel.value      = String(s.reminderLeadDays != null ? clampLead(s.reminderLeadDays) : 3);
       if (hourSel)   hourSel.value      = String(s.notifyHour != null ? clampHour(s.notifyHour) : 8);
@@ -620,6 +622,9 @@ import { initHousehold } from './household.js';
     });
     if (digest) digest.addEventListener('change', function () {
       save({ weeklyDigest: digest.checked }, function () { digest.checked = !digest.checked; });
+    });
+    if (offers) offers.addEventListener('change', function () {
+      save({ offerReminders: offers.checked }, function () { offers.checked = !offers.checked; });
     });
     if (dueDay) dueDay.addEventListener('change', function () {
       save({ remindOnDueDay: dueDay.checked }, function () { dueDay.checked = !dueDay.checked; });
@@ -1581,8 +1586,31 @@ import { initHousehold } from './household.js';
     var listEl     = card.querySelector('[data-plaid-list]');
     var connectBtn = card.querySelector('[data-plaid-connect]');
     var refreshBtn = card.querySelector('[data-plaid-refresh]');
+    var balancesToggle = card.querySelector('[data-plaid-balances-toggle]');
 
     function show(el, on) { if (el) el.hidden = !on; }
+
+    // Opt-in: let synced bank balances update matching cards. Off by default;
+    // FiHaven never overrides a typed balance unless this is on.
+    if (balancesToggle) {
+      fetchData().then(function (server) {
+        balancesToggle.checked = !!((server && server.settings) || {}).plaidUpdateBalances;
+      }).catch(function () { /* leave unchecked */ });
+      balancesToggle.addEventListener('change', function () {
+        showMessage('plaid', 'Saving…', false);
+        fetchData().then(function (server) {
+          return pushData({
+            bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { plaidUpdateBalances: balancesToggle.checked }),
+          });
+        }).then(function () {
+          showMessage('plaid', 'Saved.', false);
+        }).catch(function (err) {
+          balancesToggle.checked = !balancesToggle.checked;
+          showMessage('plaid', (err && err.message) || errorText('network'), true);
+        });
+      });
+    }
 
     // Persist the link token across the OAuth full-page redirect so
     // /plaid-oauth can resume the flow. Shared key with plaid-oauth.js.

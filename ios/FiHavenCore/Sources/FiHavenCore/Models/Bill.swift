@@ -11,6 +11,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var dueDay: Int?
     public var frequency: String
     public var autopay: Bool
+    public var autopayDay: Int?        // "Autopay day" — day money is pulled; nil falls back to dueDay
     public var notes: String
     public var business: String?
     public var cardId: String?         // "Charged to" — id of the card this bill is paid on
@@ -26,6 +27,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         dueDay: Int? = nil,
         frequency: String = "Monthly",
         autopay: Bool = false,
+        autopayDay: Int? = nil,
         notes: String = "",
         business: String? = nil,
         cardId: String? = nil,
@@ -40,6 +42,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         self.dueDay = dueDay
         self.frequency = frequency
         self.autopay = autopay
+        self.autopayDay = autopayDay
         self.notes = notes
         self.business = business
         self.cardId = cardId
@@ -49,7 +52,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, category, amount, dueDay, frequency, autopay, notes, business, cardId
+        case id, name, category, amount, dueDay, frequency, autopay, autopayDay, notes, business, cardId
         case startDate, endDate, trialEnds
     }
 
@@ -62,6 +65,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         dueDay = c.flexibleInt(.dueDay)
         frequency = c.flexibleString(.frequency) ?? "Monthly"
         autopay = c.flexibleBool(.autopay) ?? false
+        autopayDay = c.flexibleInt(.autopayDay)
         notes = c.flexibleString(.notes) ?? ""
         business = c.flexibleString(.business)
         cardId = c.flexibleString(.cardId)

@@ -7,6 +7,7 @@ struct SpendingView: View {
     @EnvironmentObject var billing: StoreManager
     @State private var addingTx = false
     @State private var editingBudgets = false
+    @State private var dismissedDupes: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -64,6 +65,8 @@ struct SpendingView: View {
                 }
                 .ctCard()
 
+                if !reconcilePairs.isEmpty || unconfirmedCount > 0 { reconcilePanel }
+
                 if !store.periodTransactions.isEmpty {
                     VStack(spacing: 0) {
                         ForEach(Array(recentTx.enumerated()), id: \.element.id) { i, tx in
@@ -113,6 +116,47 @@ struct SpendingView: View {
 
     private var recentTx: [SpendTransaction] {
         store.data.transactions.sorted { $0.date > $1.date }.prefix(8).map { $0 }
+    }
+
+    // ── Bank-sync reconciliation (only when a bank is linked) ─────────
+    private var reconcilePairs: [Reconcile.DuplicatePair] {
+        Reconcile.duplicatePairs(store.data.transactions, tz: store.tz)
+            .filter { !dismissedDupes.contains($0.bank.id) }
+    }
+    private var unconfirmedCount: Int {
+        store.data.transactions.contains { $0.isBank }
+            ? Reconcile.unconfirmedManual(store.data.transactions, tz: store.tz).count : 0
+    }
+
+    private var reconcilePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("🏦 Bank sync review").font(Theme.ui(13, weight: .bold)).foregroundStyle(Theme.text)
+            if !reconcilePairs.isEmpty {
+                Text("These look like the same purchase entered twice — your entry and a bank import. Keep one.")
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                ForEach(reconcilePairs, id: \.bank.id) { pair in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(pair.bank.merchant.isEmpty ? pair.manual.merchant : pair.bank.merchant) · \(Money.fmt(pair.bank.amount))")
+                                .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.text)
+                            Text("you logged \(pair.manual.date) · bank \(pair.bank.date)")
+                                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        }
+                        Spacer()
+                        Button("Remove mine") { store.deleteTransaction(pair.manual) }
+                            .font(Theme.ui(12, weight: .semibold)).buttonStyle(.plain).foregroundStyle(Theme.red)
+                        Button("Keep") { dismissedDupes.insert(pair.bank.id) }
+                            .font(Theme.ui(12)).buttonStyle(.plain).foregroundStyle(Theme.muted)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            if unconfirmedCount > 0 {
+                Text("\(unconfirmedCount) recent manual \(unconfirmedCount == 1 ? "entry the bank hasn’t" : "entries the bank hasn’t") corroborated yet — double-check if you expected a bank match.")
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+            }
+        }
+        .ctCard()
     }
 
     static func catIcon(_ c: String) -> String {
