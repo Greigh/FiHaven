@@ -28,6 +28,17 @@ household settings — aligned across web, iOS, and Android.
 - **Settings → Family (non-Pro)** — upgrade entry points with clearer copy
   that invitees can join for free; Pro badge on the Family row when locked
   (iOS).
+- Android `versionCode` 8 (same `1.4.2` build for Play re-upload).
+
+### Fixed
+
+- **Android PendingIntents (CodeQL #31, #32)** — bill-reminder alarm and
+  notification tap intents use the explicit `Intent(context, Class)`
+  constructor so CodeQL recognizes fixed destination components (replaces
+  `Intent().apply { component = … }`, which the query did not track).
+- **iOS CI** — `ios.yml` selects Xcode via `maxim-lobanov/setup-xcode@v1`
+  (`latest-stable`) instead of `swift-actions/setup-swift@v2` (Swift 6.0.3),
+  fixing FiHavenCore manifest / SDK mismatch on GitHub runners.
 
 ## [1.4.1] — 2026-06-26
 

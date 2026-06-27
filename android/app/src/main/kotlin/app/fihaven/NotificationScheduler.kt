@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -202,8 +201,10 @@ object NotificationScheduler {
         title: String? = null,
         body: String? = null,
     ): PendingIntent {
-        val intent = Intent().apply {
-            component = ComponentName(context, BillReminderReceiver::class.java)
+        // Use the explicit (Context, Class) constructor so the destination
+        // component is fixed at creation — CodeQL's implicit-PendingIntent
+        // check doesn't track an apply-block `component =` setter.
+        val intent = Intent(context, BillReminderReceiver::class.java).apply {
             putExtra("code", code)
             title?.let { putExtra("title", it) }
             body?.let { putExtra("body", it) }
