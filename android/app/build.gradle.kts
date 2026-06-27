@@ -73,9 +73,6 @@ dependencies {
     // Google Play Billing for subscriptions (docs/native-contract.md §billing).
     implementation("com.android.billingclient:billing-ktx:9.1.0")
 
-    // Keystore-backed encrypted token storage (parity with iOS Keychain).
-    implementation("androidx.security:security-crypto:1.1.0")
-
     // Biometric app lock (fingerprint / face). BiometricPrompt needs the
     // host to be a FragmentActivity.
     implementation("androidx.biometric:biometric:1.1.0")

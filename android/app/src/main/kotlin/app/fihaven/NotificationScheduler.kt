@@ -201,10 +201,7 @@ object NotificationScheduler {
         title: String? = null,
         body: String? = null,
     ): PendingIntent {
-        // Use the explicit (Context, Class) constructor so the destination
-        // component is fixed at creation — CodeQL's implicit-PendingIntent
-        // check doesn't track an apply-block `component =` setter.
-        val intent = Intent(context, BillReminderReceiver::class.java).apply {
+        val intent = explicitIntent(context, BillReminderReceiver::class.java) {
             putExtra("code", code)
             title?.let { putExtra("title", it) }
             body?.let { putExtra("body", it) }
