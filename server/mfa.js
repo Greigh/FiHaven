@@ -224,6 +224,54 @@ async function finishPasskeyAuthentication({ response, expectedChallenge, creden
   });
 }
 
+// The set of origins a passkey assertion may come from. The web origin(s) come
+// from rpConfig; native apps present app-specific origins — iOS reuses the
+// associated web origin (already covered), Android sends `android:apk-key-hash:…`
+// (the base64url SHA-256 of the app signing cert), supplied via env.
+function passkeyOrigins(req) {
+  const { origin } = rpConfig(req);
+  const list = Array.isArray(origin) ? origin.slice() : [origin];
+  // Comma-separated so you can accept several signing keys at once — e.g. the
+  // debug key (local testing), the upload key, and the Play App Signing key.
+  if (process.env.PASSKEY_ANDROID_ORIGIN) {
+    for (const o of process.env.PASSKEY_ANDROID_ORIGIN.split(',')) {
+      const t = o.trim();
+      if (t) list.push(t);
+    }
+  }
+  return list;
+}
+
+// First-factor (passwordless) passkey login. Unlike the MFA variant this runs
+// before we know who the user is, so allowCredentials is empty (the platform
+// offers its discoverable credentials) and user verification is REQUIRED — the
+// passkey plus its biometric/PIN is the sole authentication factor.
+async function startPasskeyLogin(req) {
+  const { rpID } = rpConfig(req);
+  return generateAuthenticationOptions({
+    rpID,
+    allowCredentials: [],
+    userVerification: 'required',
+  });
+}
+
+async function finishPasskeyLogin({ response, expectedChallenge, credential }, req) {
+  const { rpID } = rpConfig(req);
+  return verifyAuthenticationResponse({
+    response,
+    expectedChallenge,
+    expectedOrigin: passkeyOrigins(req),
+    expectedRPID: rpID,
+    credential: {
+      id: credential.credential_id,
+      publicKey: Buffer.from(credential.public_key, 'base64'),
+      counter: credential.counter || 0,
+      transports: parseTransports(credential.transports),
+    },
+    requireUserVerification: true,
+  });
+}
+
 function parseTransports(stored) {
   if (!stored) return undefined;
   try { return JSON.parse(stored); } catch (_) { return undefined; }
@@ -279,6 +327,8 @@ module.exports = {
   finishPasskeyRegistration,
   startPasskeyAuthentication,
   finishPasskeyAuthentication,
+  startPasskeyLogin,
+  finishPasskeyLogin,
   parseTransports,
   stringifyTransports,
   rpConfig,

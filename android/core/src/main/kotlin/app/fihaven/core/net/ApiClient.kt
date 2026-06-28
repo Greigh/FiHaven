@@ -99,6 +99,20 @@ class ApiClient(
 
     suspend fun me(): User? = decode<MeResponse>(send(makeRequest("api/auth/me", HttpMethod.GET))).user
 
+    // ── Passkey login (passwordless first factor) ────────────────────
+    // Start returns a challenge id + the raw WebAuthn options for Credential
+    // Manager; finish posts the authenticator's assertion JSON and yields a
+    // session (no password). The server resolves the account from the signed
+    // credential id, so no email is needed up front.
+    suspend fun passkeyLoginStart(): PasskeyLoginStartResponse =
+        decode(send(makeRequest("api/auth/passkey/login/start", HttpMethod.POST, "{}", tokenMode = true)))
+
+    suspend fun passkeyLoginFinish(challengeId: String, responseJson: String): AuthSession {
+        val resp = FiHavenJson.parseToJsonElement(responseJson)
+        val body = encode(PasskeyLoginFinishBody(challengeId, resp))
+        return storeSession(send(makeRequest("api/auth/passkey/login/finish", HttpMethod.POST, body, tokenMode = true)))
+    }
+
     /** Re-send the email-verification message for the current session. */
     suspend fun resendVerification() {
         send(makeRequest("api/auth/resend-verification", HttpMethod.POST))

@@ -469,6 +469,67 @@ router.post('/mfa/verify', async (req, res) => {
   return finishLogin(res, req, account);
 });
 
+/* ── POST /api/auth/passkey/login/start ──────────────────────────
+   First-factor, passwordless passkey login. No user is known yet, so the
+   options carry no allowCredentials (the device offers its discoverable
+   passkeys, like Bitwarden/iCloud Keychain/Google Password Manager). The
+   challenge is stashed under a fresh, user-less challenge row. */
+
+router.post('/passkey/login/start', async (req, res) => {
+  const options = await mfa.startPasskeyLogin(req);
+  const id = mfa.newChallengeId();
+  const now = Date.now();
+  dbApi.insertChallenge({
+    id,
+    user_id: null, // unknown until the assertion identifies the credential
+    kind: 'passkey-login',
+    payload: options.challenge,
+    created_at: now,
+    expires_at: now + MFA_TOKEN_TTL_MS,
+  });
+  res.json({ challengeId: id, options });
+});
+
+/* ── POST /api/auth/passkey/login/finish ─────────────────────────
+   Verify the assertion, identify the user from the credential id it was
+   signed with, and start a session — no password required. */
+
+router.post('/passkey/login/finish', async (req, res) => {
+  const body = req.body || {};
+  const ch = dbApi.findChallenge(body.challengeId);
+  if (!ch || ch.kind !== 'passkey-login' || ch.expires_at < Date.now()) {
+    if (ch) dbApi.deleteChallenge(ch.id);
+    return sendError(res, 401, 'challenge-invalid');
+  }
+  const credId = body.response && body.response.id;
+  if (!credId) { dbApi.deleteChallenge(ch.id); return sendError(res, 400, 'bad-response'); }
+  const credential = dbApi.findPasskeyByCredId(credId);
+  if (!credential) { dbApi.deleteChallenge(ch.id); return sendError(res, 401, 'passkey-unknown'); }
+
+  let verification;
+  try {
+    verification = await mfa.finishPasskeyLogin(
+      { response: body.response, expectedChallenge: ch.payload, credential },
+      req
+    );
+  } catch (err) {
+    dbApi.deleteChallenge(ch.id);
+    console.error('passkey login failed:', err && err.message);
+    return sendError(res, 401, 'passkey-verify-failed');
+  }
+  if (!verification.verified) {
+    dbApi.deleteChallenge(ch.id);
+    return sendError(res, 401, 'passkey-verify-failed');
+  }
+  const newCounter = (verification.authenticationInfo && verification.authenticationInfo.newCounter) || credential.counter || 0;
+  dbApi.bumpPasskeyUsage(credential.id, newCounter);
+  dbApi.deleteChallenge(ch.id);
+
+  const account = dbApi.findUserById(credential.user_id);
+  if (!account) return sendError(res, 401, 'passkey-unknown');
+  return finishLogin(res, req, account);
+});
+
 /* ── POST /api/auth/mfa/passkey/start ────────────────────────── */
 
 router.post('/mfa/passkey/start', async (req, res) => {

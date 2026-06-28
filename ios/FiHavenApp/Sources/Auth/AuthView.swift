@@ -52,27 +52,29 @@ struct AuthView: View {
                         .padding(.top, -4)
                     }
 
-                    if captchaToken == nil {
-                        // Cloudflare Turnstile — single-use token captured here.
-                        TurnstileView(
-                            siteKey: AppConfig.turnstileSiteKey,
-                            onToken: { token in
-                                performWithAnimation(!reduceMotion) { captchaToken = token }
-                            },
-                            onError: {
-                                performWithAnimation(!reduceMotion) { captchaToken = nil }
-                            },
-                            onHeight: { h in
-                                performWithAnimation(!reduceMotion) { turnstileHeight = min(max(h, 0), 120) }
-                            }
-                        )
-                        .id(captchaReloadID)
-                        .frame(height: turnstileHeight)
-                        .frame(maxWidth: .infinity)
-                        .transition(.opacity)
-                        .accessibilityLabel("Security check")
-                        .accessibilityHint("Completes automatically in the background")
-                    }
+                    // Cloudflare Turnstile. Kept mounted even after it solves so
+                    // the token auto-refreshes before it can expire (sitting on
+                    // the screen otherwise leaves a stale token and a disabled
+                    // submit). A fresh `.id(captchaReloadID)` resets it after a
+                    // failed submit, since tokens are single-use.
+                    TurnstileView(
+                        siteKey: AppConfig.turnstileSiteKey,
+                        onToken: { token in
+                            performWithAnimation(!reduceMotion) { captchaToken = token }
+                        },
+                        onError: {
+                            performWithAnimation(!reduceMotion) { captchaToken = nil }
+                        },
+                        onHeight: { h in
+                            performWithAnimation(!reduceMotion) { turnstileHeight = min(max(h, 0), 120) }
+                        }
+                    )
+                    .id(captchaReloadID)
+                    .frame(height: turnstileHeight)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+                    .accessibilityLabel("Security check")
+                    .accessibilityHint("Completes automatically in the background")
 
                     if let error = env.authError {
                         FormErrorBanner(message: error)
@@ -92,11 +94,6 @@ struct AuthView: View {
                             ? (mode == .login ? "Sign in to your account" : "Create your FiHaven account")
                             : "Complete the security check and enter your email and password"
                     )
-                    .accessibilityHint(canSubmit ? "Sign in to your account" : "Complete the security check and enter your email and password")
-
-                    if mode == .signup {
-                        signupLegalNotice
-                    }
 
                     if mode == .signup {
                         signupLegalNotice
@@ -140,6 +137,21 @@ struct AuthView: View {
                         )
                     }
                     .disabled(env.working)
+
+                    // Passwordless passkey sign-in (explicit). The conditional
+                    // check on appear also offers it in the QuickType bar.
+                    if mode == .login {
+                        Button { Task { await env.loginWithPasskey(auto: false) } } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.badge.key.fill")
+                                Text("Sign in with a passkey")
+                            }
+                            .font(Theme.ui(14, weight: .medium))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                        }
+                        .disabled(env.working)
+                    }
                 }
                 .ctCard(padding: 20)
 
@@ -164,6 +176,9 @@ struct AuthView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .onAppear { env.markAuthStarted() }
+        // Conditional-UI passkey check: surfaces a saved passkey in the
+        // QuickType bar while the email field is focused (silent otherwise).
+        .task { await env.loginWithPasskey(auto: true) }
     }
 
     private var canSubmit: Bool {
