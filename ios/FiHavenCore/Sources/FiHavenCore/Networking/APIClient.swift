@@ -191,12 +191,14 @@ public final class APIClient: Sendable {
     }
 
     /// Create a Plaid Link token to open the native Link flow. Pass `itemId`
-    /// for an update-mode token (re-auth an existing item).
-    public func plaidLinkToken(itemId: Int? = nil) async throws -> String {
+    /// for an update-mode token (re-auth an existing item); set
+    /// `accountSelection` to open update mode with account selection (the
+    /// NEW_ACCOUNTS_AVAILABLE "add accounts" flow).
+    public func plaidLinkToken(itemId: Int? = nil, accountSelection: Bool = false) async throws -> String {
         let req: URLRequest
         if let itemId {
             req = try makeRequest(path: "api/plaid/link/token", method: .POST,
-                                  body: AnyEncodable(PlaidLinkTokenBody(itemId: itemId)))
+                                  body: AnyEncodable(PlaidLinkTokenBody(itemId: itemId, accountSelection: accountSelection ? true : nil)))
         } else {
             req = try makeRequest(path: "api/plaid/link/token", method: .POST)
         }
