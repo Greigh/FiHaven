@@ -182,9 +182,20 @@
     if (!sitekey) return;
     turnstileWidgetId = window.turnstile.render(container, {
       sitekey: sitekey,
+      // Tokens expire after ~5 minutes. If the user sits on the page the
+      // token goes stale and login fails with "captcha-failed". Auto-refresh
+      // keeps a fresh token in hand, and on expiry we reset immediately so a
+      // new one is fetched without the user noticing.
+      'refresh-expired': 'auto',
+      retry: 'auto',
       callback: function (token) { turnstileToken = token; },
       'error-callback': function () { turnstileToken = ''; },
-      'expired-callback': function () { turnstileToken = ''; },
+      'expired-callback': function () {
+        turnstileToken = '';
+        if (turnstileWidgetId !== null && window.turnstile) {
+          window.turnstile.reset(turnstileWidgetId);
+        }
+      },
     });
   }
 
@@ -254,6 +265,12 @@
     // if it has already fired).
     tryRenderCaptcha();
 
+    // Passwordless passkey login via conditional UI. If the device has a
+    // passkey for fihaven.app it appears in the email field's autofill
+    // dropdown (the field opts in with autocomplete="… webauthn"). Entirely
+    // silent if unsupported or the user ignores it — the password form stays.
+    initConditionalPasskey();
+
     form.addEventListener('submit', function (event) {
       event.preventDefault();
 
@@ -302,6 +319,42 @@
         showMessage(message, errorMessage(result.data && result.data.error), true);
       });
     });
+  }
+
+  // Conditional-UI passkey: ask the browser to surface any discoverable
+  // passkey for this site in the autofill picker. No user is identified up
+  // front — the server resolves the account from the signed credential id.
+  function initConditionalPasskey() {
+    if (!window.PublicKeyCredential ||
+        !window.PublicKeyCredential.isConditionalMediationAvailable) return;
+    window.PublicKeyCredential.isConditionalMediationAvailable().then(function (ok) {
+      if (!ok) return;
+      var challengeId;
+      fetch(API + '/passkey/login/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: '{}',
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.data) return;
+          challengeId = res.data.challengeId;
+          return import('@simplewebauthn/browser').then(function (mod) {
+            // useBrowserAutofill wires this to the autocomplete="webauthn" field.
+            return mod.startAuthentication({ optionsJSON: res.data.options, useBrowserAutofill: true });
+          }).then(function (asseResp) {
+            return fetch(API + '/passkey/login/finish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ challengeId: challengeId, response: asseResp }),
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+              .then(function (res2) { if (res2.ok) routeAfterAuth(res2.data); });
+          });
+        })
+        .catch(function () { /* dismissed, aborted, or no passkey — stay on the form */ });
+    }).catch(function () { /* ignore */ });
   }
 
   /* ── second-factor step ─────────────────────────────────────── */

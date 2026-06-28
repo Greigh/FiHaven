@@ -161,7 +161,17 @@ sub.get(Object.keys(LEGACY), (req, res) =>
   res.redirect(301, BASE + LEGACY[req.path])
 );
 
-// RFC 9116 security.txt — express.static ignores dot-directories by default.
+// Apple App Site Association (passkeys / universal links). The file has no
+// extension, so static serving would mislabel it; Apple requires valid JSON
+// over HTTPS. Serve it explicitly with application/json before the static mount.
+sub.get('/.well-known/apple-app-site-association', (req, res) => {
+  res.type('application/json').sendFile(
+    path.join(PUBLIC_ASSET_DIR, '.well-known', 'apple-app-site-association')
+  );
+});
+
+// RFC 9116 security.txt + assetlinks.json (Android passkeys) — express.static
+// ignores dot-directories by default.
 sub.use(
   '/.well-known',
   express.static(path.join(PUBLIC_ASSET_DIR, '.well-known'), {
