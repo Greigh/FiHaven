@@ -81,6 +81,10 @@ to your real public sitekey.
   grace / canceled state — to exercise Pro gating and expiry UI without a real
   purchase. Compiled out of release builds (`#if DEBUG`).
 
+**TestFlight / App Store:** always archive with **Release** (`./scripts/ios-testflight.sh`
+does this explicitly). Debug builds include the Developer screen and other
+`#if DEBUG` tooling; Release does not.
+
 ## Notifications
 
 Opt-in **local** bill reminders (no server push). When `localNotifications` is
@@ -112,7 +116,8 @@ match web and Android — see [`docs/native-contract.md`](../docs/native-contrac
 
 ## App Store Connect & TestFlight
 
-Legal URLs and TestFlight checklist: [`docs/app-store-connect.md`](../docs/app-store-connect.md).
+Legal URLs and TestFlight checklist: `docs/local/app-store-connect.md` (maintainer-local,
+gitignored — see `docs/maintainer/README.md`).
 
 **Upload:** `./scripts/ios-testflight.sh` from the repo root (see the doc for auth and ASC setup).
 

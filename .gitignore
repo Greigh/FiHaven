@@ -1,3 +1,6 @@
+# FiHaven — gitignore
+
+# ── OS & editors ─────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 *.log
@@ -5,27 +8,43 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+.claude/
+
+# ── Dependencies & build output ──────────────────────────────────────────────
+node_modules/
 node_modules/*
-node_modules
 client/css/tailwind-built.css
 dist/
 coverage/
-# Anchored to the repo root so it only ignores the SQLite data dir, NOT
-# nested source packages like android/.../fihaven/data/.
-/data/
-.claude/
-# JetBrains/Android Studio inspection HTML exports (not part of the app)
-android/index.html
-android/script.js
-android/styles.css
-*upload.sh
 
+# ── Secrets & environment ────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
 .env.production
 .env.development
+# App Store Connect API keys (never commit)
+*.p8
+AuthKey_*.p8
 
-# Local secrets / ops credential docs — never commit
+# ── Deploy & ops scripts (copy from scripts/examples/) ───────────────────────
+*upload.sh
+scripts/rollback.sh
+
+# Local ops credential notes (see docs/maintainer/README.md)
 *.secret.md
 mail-server-logins.md
+
+# ── Local runtime data (SQLite + MFA key; created on first `npm run dev`) ───
+/data/
+
+# ── Maintainer-local docs (templates live under docs/maintainer/) ────────────
+docs/local/
+
+# ── Generated policy PDFs (source: docs/*.md — npm run generate:pdfs) ────────
+docs/pdf/
+
+# ── Android Studio inspection exports (not part of the app) ──────────────────
+android/index.html
+android/script.js
+android/styles.css
