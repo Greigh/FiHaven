@@ -72,6 +72,15 @@ echo "→ Archiving (Release, generic iOS device)"
   CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=365KR8NF53)
 
+# Sanity-check: Release must not compile with the DEBUG flag (TestFlight builds
+# must not ship the Developer settings screen or other #if DEBUG tooling).
+if (cd "$APP_DIR" && xcodebuild -project FiHaven.xcodeproj -scheme "$SCHEME" \
+  -showBuildSettings -configuration Release 2>/dev/null) | grep -q 'SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG'; then
+  echo "❌ Release configuration still defines DEBUG — aborting." >&2
+  exit 1
+fi
+echo "✓ Release build verified (DEBUG compile flag off)"
+
 # Plaid LinkKit is a prebuilt binary without a bundled dSYM. Ensure one exists
 # in the archive before export so uploadSymbols does not warn.
 LINKKIT_BIN="$ARCHIVE/Products/Applications/FiHaven.app/Frameworks/LinkKit.framework/LinkKit"
