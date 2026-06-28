@@ -13,7 +13,7 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-06-27
+## [1.5.0] (Pre-Release) — Last updated: 2026-06-28
 
 | | |
 |---|---|
@@ -133,6 +133,13 @@ Each release below uses two layers:
   `ENABLE_USER_SCRIPT_SANDBOXING` for the FiHaven target, made generation
   best-effort, and declared script inputs/outputs (`project.yml`,
   `Scripts/generate-linkkit-dsym.sh`).
+- **iOS Release / TestFlight archives** — Xcode scheme **Archive** and
+  **Profile** now use the **Release** configuration (Run/Test stay Debug).
+  Release sets `SWIFT_ACTIVE_COMPILATION_CONDITIONS` only on Debug and
+  `ENABLE_DEBUG_DYLIB: NO` on Release so `#if DEBUG` tooling (Settings →
+  Developer, `FH_AUTOLOGIN`, StoreKit purchase skip) is not compiled into
+  TestFlight or App Store binaries. `scripts/ios-testflight.sh` aborts if
+  Release still defines the DEBUG compile flag.
 - **Native data sync — record ids unified to strings** — bill/card/account/goal
   ids were `Int` on iOS (64-bit) and Android (32-bit) but the web mints string
   ids (`genId`); web/iOS records (and any id > 2³¹) silently failed to decode on
