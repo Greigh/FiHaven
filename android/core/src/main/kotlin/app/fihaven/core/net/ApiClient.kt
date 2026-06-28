@@ -113,10 +113,12 @@ class ApiClient(
     suspend fun plaidStatus(): PlaidStatus =
         decode(send(makeRequest("api/plaid/status", HttpMethod.GET)))
 
-    // Pass itemId for an update-mode token (re-auth an existing item).
-    suspend fun plaidLinkToken(itemId: Int? = null): String {
+    // Pass itemId for an update-mode token (re-auth an existing item). Set
+    // accountSelection for the NEW_ACCOUNTS_AVAILABLE "add accounts" flow.
+    suspend fun plaidLinkToken(itemId: Int? = null, accountSelection: Boolean = false): String {
         val req = if (itemId != null)
-            makeRequest("api/plaid/link/token", HttpMethod.POST, encode(PlaidLinkTokenBody(itemId)))
+            makeRequest("api/plaid/link/token", HttpMethod.POST,
+                encode(PlaidLinkTokenBody(itemId, if (accountSelection) true else null)))
         else makeRequest("api/plaid/link/token", HttpMethod.POST)
         return decode<PlaidLinkTokenResponse>(send(req)).linkToken
     }
