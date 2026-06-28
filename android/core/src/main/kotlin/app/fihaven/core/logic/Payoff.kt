@@ -11,7 +11,7 @@ import kotlin.math.roundToLong
 enum class PayoffStrategy { NONE, SNOWBALL, AVALANCHE }
 
 data class PayoffCardResult(
-    val id: Int,
+    val id: String,
     val name: String,
     val origBalance: Double,
     val paidOffMonth: Int?,
@@ -31,7 +31,7 @@ data class PayoffResult(
 /// extra pool. Capped at 360 months. Null when no card carries a balance.
 object Payoff {
     private class Sim(
-        val id: Int,
+        val id: String,
         val name: String,
         var balance: Double,
         val origBalance: Double,

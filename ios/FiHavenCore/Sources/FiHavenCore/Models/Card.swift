@@ -62,7 +62,7 @@ public struct CardOffer: Codable, Identifiable, Equatable, Sendable {
 /// A credit card, including optional 0%-promo tracking. Shape mirrors the
 /// web client (docs/native-contract.md §6).
 public struct Card: Codable, Identifiable, Equatable, Sendable {
-    public var id: Int
+    public var id: String
     public var name: String
     public var balance: Double
     public var limit: Double
@@ -93,7 +93,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var offers: [CardOffer]       // card-linked offers (manual tracker)
 
     public init(
-        id: Int,
+        id: String,
         name: String,
         balance: Double = 0,
         limit: Double = 0,
@@ -165,7 +165,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.flexibleInt(.id) ?? 0
+        id = c.flexibleString(.id) ?? ""
         name = c.flexibleString(.name) ?? ""
         balance = c.flexibleDouble(.balance) ?? 0
         limit = c.flexibleDouble(.limit) ?? 0

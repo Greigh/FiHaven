@@ -48,9 +48,9 @@ class PerksTest {
     }
 
     @Test fun feeAssessment() {
-        val card = Card(id = 1, name = "Visa", perks = listOf(perk), annualFee = 95.0)
+        val card = Card(id = "1", name = "Visa", perks = listOf(perk), annualFee = 95.0)
         // Fee-free → null.
-        kotlin.test.assertNull(Perks.feeAssessment(Card(id = 2), emptyMap(), jun20))
+        kotlin.test.assertNull(Perks.feeAssessment(Card(id = "2"), emptyMap(), jun20))
 
         // No usage: potential $120 covers $95 → OPTIMIZE.
         var usage = emptyMap<String, Double>()
@@ -67,7 +67,7 @@ class PerksTest {
         assertEquals(Perks.FeeVerdict.KEEP, a.verdict)
 
         // Fee perks can never cover → REVIEW.
-        val pricey = Card(id = 3, perks = listOf(CardPerk(id = "P2", amount = 100.0, frequency = "annual")), annualFee = 550.0)
+        val pricey = Card(id = "3", perks = listOf(CardPerk(id = "P2", amount = 100.0, frequency = "annual")), annualFee = 550.0)
         assertEquals(Perks.FeeVerdict.REVIEW, Perks.feeAssessment(pricey, emptyMap(), jun20)!!.verdict)
 
         // A spend-based rewards estimate folds into the verdict: $100 rewards
@@ -83,8 +83,8 @@ class PerksTest {
 
     @Test fun portfolioTotals() {
         val cards = listOf(
-            Card(id = 1, perks = listOf(perk)),
-            Card(id = 2, perks = listOf(CardPerk(id = "P2", label = "Travel", amount = 300.0, frequency = "annual"))),
+            Card(id = "1", perks = listOf(perk)),
+            Card(id = "2", perks = listOf(CardPerk(id = "P2", label = "Travel", amount = 300.0, frequency = "annual"))),
         )
         assertEquals(310.0, Perks.unrealizedTotal(cards, emptyMap(), jun20))
         assertEquals(120.0, Perks.annualValue(cards[0]))

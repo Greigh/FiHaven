@@ -21,7 +21,7 @@ public enum Rewards {
         public let pointValue: Double   // cents per point/mile
         public let value: Double        // cash-equivalent return = rate × pointValue
         public let reason: String?      // why it was excluded, if it was
-        public var id: Int { card.id }
+        public var id: String { card.id }
         public init(card: Card, rate: Double, pointValue: Double = 1, value: Double? = nil, reason: String? = nil) {
             self.card = card; self.rate = rate; self.pointValue = pointValue
             self.value = value ?? (rate * pointValue); self.reason = reason

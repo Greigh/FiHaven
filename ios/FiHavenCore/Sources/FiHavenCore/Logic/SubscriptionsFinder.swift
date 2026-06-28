@@ -7,7 +7,7 @@ public enum SubscriptionsFinder {
 
     public struct Item: Identifiable, Equatable, Sendable {
         public var id: String
-        public var billId: Int?
+        public var billId: String?
         public var name: String
         public var monthly: Double
         public var source: String
@@ -68,7 +68,7 @@ public enum SubscriptionsFinder {
                 priceUp: latest.amount > minAmt + 0.005 ? minAmt : nil,
                 stale: days > staleDays,
                 nextDue: nil,
-                manageUrl: SubscriptionLinks.manageUrl(for: Bill(id: 0, name: latest.merchant, business: latest.merchant)),
+                manageUrl: SubscriptionLinks.manageUrl(for: Bill(id: "", name: latest.merchant, business: latest.merchant)),
                 trialEnds: nil,
                 trialDaysLeft: nil,
                 trialSoon: false,
