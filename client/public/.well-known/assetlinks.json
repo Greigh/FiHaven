@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds",
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.fihaven",
+      "sha256_cert_fingerprints": [
+        "E6:EE:E9:96:B3:E6:34:C5:C8:DF:E4:2F:52:C2:64:66:44:03:93:9F:DF:FC:BC:7F:6D:51:14:C1:B9:27:93:0A"
+      ]
+    }
+  }
+]

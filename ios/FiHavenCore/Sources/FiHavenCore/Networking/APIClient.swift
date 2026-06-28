@@ -151,6 +151,31 @@ public final class APIClient: Sendable {
         return try storeSession(from: data)
     }
 
+    // ── Passkey login (passwordless first factor) ────────────────────
+    /// Begin a passwordless passkey login: returns the challenge to sign.
+    public func passkeyLoginStart() async throws -> PasskeyLoginStart {
+        let req = try makeRequest(path: "api/auth/passkey/login/start", method: .POST, tokenMode: true)
+        let data = try await send(req)
+        guard let raw = try? JSONDecoder().decode(PasskeyLoginStartRaw.self, from: data) else {
+            throw APIError.decoding("passkey-options")
+        }
+        return PasskeyLoginStart(
+            challengeId: raw.challengeId,
+            challengeB64URL: raw.options.challenge,
+            rpId: raw.options.rpId ?? "fihaven.app"
+        )
+    }
+
+    /// Finish a passkey login with the authenticator's assertion; the server
+    /// resolves the account from the signed credential id and starts a session.
+    public func passkeyLoginFinish(challengeId: String, response: PasskeyAssertionResponse) async throws -> AuthSession {
+        let body = PasskeyLoginFinishBody(challengeId: challengeId, response: response)
+        let req = try makeRequest(path: "api/auth/passkey/login/finish", method: .POST,
+                                  body: AnyEncodable(body), tokenMode: true)
+        let data = try await send(req)
+        return try storeSession(from: data)
+    }
+
     /// Request an emailed 6-digit code for the email-MFA path.
     public func sendEmailCode(mfaToken: String) async throws {
         let body = MfaTokenRequest(mfaToken: mfaToken)

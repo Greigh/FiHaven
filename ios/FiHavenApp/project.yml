@@ -73,6 +73,12 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        # Passkeys (passwordless sign-in). Must match the rpID 'fihaven.app'
+        # and the server's /.well-known/apple-app-site-association webcredentials
+        # entry (365KR8NF53.app.fihaven). Also enable the Associated Domains
+        # capability on the App ID in the Apple Developer portal.
+        com.apple.developer.associated-domains:
+          - webcredentials:fihaven.app
     dependencies:
       - package: FiHavenCore
       - package: LinkKit

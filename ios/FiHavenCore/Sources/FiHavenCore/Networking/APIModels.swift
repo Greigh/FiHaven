@@ -115,6 +115,51 @@ struct DataPutBody: Encodable {
     let settings: Settings
 }
 
+// ── Passkey (passwordless first-factor login) ────────────────────
+
+/// Result of `/passkey/login/start`: a challenge id to echo back plus the
+/// WebAuthn challenge (base64url) and rpID the authenticator should sign.
+public struct PasskeyLoginStart: Sendable {
+    public let challengeId: String
+    public let challengeB64URL: String
+    public let rpId: String
+}
+
+struct PasskeyLoginStartRaw: Decodable {
+    let challengeId: String
+    let options: Options
+    struct Options: Decodable { let challenge: String; let rpId: String? }
+}
+
+/// The WebAuthn assertion the client sends to `/passkey/login/finish`,
+/// shaped to match `@simplewebauthn/server`'s `AuthenticationResponseJSON`.
+public struct PasskeyAssertionResponse: Encodable, Sendable {
+    public let id: String
+    public let rawId: String
+    public let type: String
+    public let response: Inner
+    public struct Inner: Encodable, Sendable {
+        public let clientDataJSON: String
+        public let authenticatorData: String
+        public let signature: String
+        public let userHandle: String?
+        public init(clientDataJSON: String, authenticatorData: String, signature: String, userHandle: String?) {
+            self.clientDataJSON = clientDataJSON
+            self.authenticatorData = authenticatorData
+            self.signature = signature
+            self.userHandle = userHandle
+        }
+    }
+    public init(id: String, rawId: String, response: Inner, type: String = "public-key") {
+        self.id = id; self.rawId = rawId; self.response = response; self.type = type
+    }
+}
+
+struct PasskeyLoginFinishBody: Encodable {
+    let challengeId: String
+    let response: PasskeyAssertionResponse
+}
+
 // ── Wire response bodies ─────────────────────────────────────────
 
 struct SessionResponse: Decodable {

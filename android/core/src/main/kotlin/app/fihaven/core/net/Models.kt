@@ -9,6 +9,7 @@ import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
@@ -152,6 +153,13 @@ data class PlaidStatus(
     val pro: Boolean = false,
     val items: List<PlaidItem> = emptyList(),
 )
+
+// ── Passkey (passwordless first-factor login) ────────────────────
+// `options` is the raw WebAuthn request options from the server, forwarded
+// verbatim to Credential Manager. `response` (on finish) is the assertion
+// JSON the authenticator produced, parsed back into a JSON element.
+@Serializable data class PasskeyLoginStartResponse(val challengeId: String, val options: JsonObject)
+@Serializable data class PasskeyLoginFinishBody(val challengeId: String, val response: JsonElement)
 
 @Serializable data class PlaidLinkTokenResponse(val linkToken: String)
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
