@@ -10,7 +10,7 @@
 | [`mail-check.js`](mail-check.js) | Outbound-email smoke test — verifies SMTP reachability and (with a recipient arg) sends a test message. Reads `SMTP_*` / `MAIL_FROM` / `MAIL_CHECK_TO` from `.env`; `upload.sh` runs it post-deploy. |
 | [`examples/upload.example.sh`](examples/upload.example.sh) | Deploy template — copy to gitignored `upload.sh` at repo root. |
 | [`examples/rollback.example.sh`](examples/rollback.example.sh) | Restore a pre-deploy backup on the VPS (`npm run rollback`). |
-| [`dev/generate-pdfs.js`](dev/generate-pdfs.js) | Export `docs/*.md` policies to PDF (`npm run generate:pdfs`). Local maintainer tool. |
+| [`dev/generate-pdfs.js`](dev/generate-pdfs.js) | Export `docs/*-policy.md` to `docs/pdf/` (`npm run generate:pdfs`). Local maintainer tool. |
 | [`dev/plaid-sandbox-check.js`](dev/plaid-sandbox-check.js) | One-off Plaid sandbox API smoke test (`npm run plaid:sandbox`). |
 
 `examples/` and `dev/` are **not** rsynced to production during deploy.

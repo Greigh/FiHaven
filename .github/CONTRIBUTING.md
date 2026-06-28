@@ -5,7 +5,16 @@ Thanks for helping improve FiHaven.
 ## Before you start
 
 - Read the main [README](../README.md) and the native contract in [docs/native-contract.md](../docs/native-contract.md) if your change touches the web, iOS, Android, or shared API behavior.
+- FiHaven is **source available** — see [LICENSE](../LICENSE) and [docs/source-available.md](../docs/source-available.md). Contributions are welcome; operating a competing hosted instance is not.
 - Keep changes focused. Small, well-scoped pull requests are easier to review and ship.
+
+## Maintainer-only files
+
+Do not commit personal notes or generated artifacts:
+
+- `docs/local/` — App Store Connect copy-paste notes (see [docs/maintainer/README.md](../docs/maintainer/README.md))
+- `docs/pdf/` — policy PDFs (`npm run generate:pdfs`)
+- `.env`, `*upload.sh`, `*.p8` signing keys
 
 ## Setup
 
