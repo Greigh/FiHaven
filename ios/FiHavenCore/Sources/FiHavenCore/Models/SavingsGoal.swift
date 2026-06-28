@@ -4,7 +4,7 @@ import Foundation
 /// optional target date used to suggest a monthly contribution. Mirrors
 /// the web `goals` shape.
 public struct SavingsGoal: Codable, Identifiable, Equatable, Sendable {
-    public var id: Int
+    public var id: String
     public var name: String
     public var target: Double
     public var saved: Double
@@ -12,7 +12,7 @@ public struct SavingsGoal: Codable, Identifiable, Equatable, Sendable {
     public var notes: String
 
     public init(
-        id: Int,
+        id: String,
         name: String = "",
         target: Double = 0,
         saved: Double = 0,
@@ -33,7 +33,7 @@ public struct SavingsGoal: Codable, Identifiable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.flexibleInt(.id) ?? 0
+        id = c.flexibleString(.id) ?? ""
         name = c.flexibleString(.name) ?? ""
         target = c.flexibleDouble(.target) ?? 0
         saved = c.flexibleDouble(.saved) ?? 0

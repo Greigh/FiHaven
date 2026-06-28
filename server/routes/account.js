@@ -17,6 +17,7 @@ const crypto = require('crypto');
 
 const dbApi = require('../db');
 const mfa = require('../mfa');
+const plaid = require('../plaid');
 const { requireAuth, requireVerified, requireCsrf, destroySession } = require('../session');
 const {
   normalizeEmail,
@@ -129,6 +130,24 @@ router.post('/change-email', requireAuth, requireCsrf, async (req, res) => {
   return res.json({ ok: true, email: newEmail });
 });
 
+// Best-effort revoke of a user's linked Plaid Items AT Plaid before we drop the
+// local rows. Required on offboarding (account delete) and bank disconnect: it
+// stops Plaid billing for the Item and honors data-retention (Plaid deletes the
+// Item's data on /item/remove). Never blocks the user's action — a Plaid hiccup
+// or unconfigured Plaid just leaves the local cleanup to proceed.
+async function revokePlaidItems(userId) {
+  let items;
+  try { items = dbApi.listPlaidItems(userId); } catch (_) { return; }
+  for (const summary of items || []) {
+    try {
+      const item = dbApi.findPlaidItemById(summary.id, userId);
+      if (item && item.access_token_enc) {
+        await plaid.removeItem(plaid.decryptToken(item.access_token_enc));
+      }
+    } catch (_) { /* best-effort; revoke failures must not block offboarding */ }
+  }
+}
+
 /* ── POST /api/account/delete ────────────────────────────────── */
 
 router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
@@ -140,6 +159,11 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   // Re-confirm the second factor (TOTP) when one is enrolled.
   const sf = checkSecondFactor(user, body.code);
   if (sf) return sendError(res, sf.status, sf.error);
+
+  // Revoke any linked banks at Plaid first (the local plaid_items cascade-delete
+  // with the user row, but the Item must be removed AT Plaid to stop billing and
+  // delete its data).
+  await revokePlaidItems(user.id);
 
   // Removes the user row; sessions and user_data cascade-delete.
   dbApi.deleteUser(user.id);
@@ -186,6 +210,12 @@ router.post('/clear-data', requireAuth, requireCsrf, async (req, res) => {
   if (groups.includes('bank')) {
     data.accounts = [];
     data.transactions = [];
+    // Disconnecting bank data also drops the live Plaid connections — revoke
+    // them at Plaid and delete the local items, or they'd just re-sync.
+    await revokePlaidItems(user.id);
+    try {
+      (dbApi.listPlaidItems(user.id) || []).forEach((it) => dbApi.deletePlaidItem(it.id, user.id));
+    } catch (_) { /* best-effort */ }
   }
   // settings are intentionally left untouched.
   dbApi.upsertUserData(user.id, data);

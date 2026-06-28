@@ -1,7 +1,7 @@
 {
   "name": "fihaven",
   "version": "1.5.0",
-  "description": "A focused bill and debt dashboard for people who'd rather spend five calm minutes a week than a frantic afternoon every payday. Track recurring bills, credit cards (including 0% promo periods), monthly budget, payment history, and debt-payoff strategies — all behind a real account with server-side sync.",
+  "description": "Manual-first personal finance — bills, cards, loans, budget lenses, spending, and debt payoff — with optional bank linking (Plaid), rewards optimizer, and family sharing. Web app plus native iOS and Android clients on a shared Node/SQLite backend with server-side sync and FiHaven Pro subscriptions.",
   "license": "SEE LICENSE",
   "author": "Greigh",
   "repository": {
@@ -36,7 +36,6 @@
     "plaid:sandbox": "node scripts/dev/plaid-sandbox-check.js",
     "preview": "vite preview",
     "deploy": "bash upload.sh",
-    "rollback": "bash scripts/examples/rollback.example.sh",
     "promo": "node scripts/promo.js",
     "indexnow": "node scripts/submit-indexnow.js"
   },

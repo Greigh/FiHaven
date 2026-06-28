@@ -56,6 +56,16 @@ targets:
       storeKitConfiguration: FiHaven.storekit
       # Scheme version stamp — matches attributes.LastUpgradeCheck above.
       lastUpgradeVersion: "2600"
+      # TestFlight / App Store archives must use Release (no DEBUG compile flag).
+      # Run and Test stay on Debug for local development.
+      archive:
+        config: Release
+      profile:
+        config: Release
+      run:
+        config: Debug
+      test:
+        config: Debug
       # Baked into the generated scheme so `xcodegen generate` can't wipe
       # them. The app talks to PRODUCTION by default. To run against the
       # local dev server, flip FH_BASE here (or in Xcode's scheme) to
@@ -73,6 +83,12 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        # Passkeys (passwordless sign-in). Must match the rpID 'fihaven.app'
+        # and the server's /.well-known/apple-app-site-association webcredentials
+        # entry (365KR8NF53.app.fihaven). Also enable the Associated Domains
+        # capability on the App ID in the Apple Developer portal.
+        com.apple.developer.associated-domains:
+          - webcredentials:fihaven.app
     dependencies:
       - package: FiHavenCore
       - package: LinkKit
@@ -81,14 +97,20 @@ targets:
     postbuildScripts:
       - name: Generate LinkKit dSYM
         path: Scripts/generate-linkkit-dsym.sh
-        basedOnDependencyAnalysis: false
+        # Declare the framework binary in / dSYM out so Xcode runs this only
+        # when the embedded LinkKit changes (silences the "runs every build"
+        # warning) and orders it after Embed Frameworks.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/LinkKit.framework/LinkKit
+        outputFiles:
+          - $(DWARF_DSYM_FOLDER_PATH)/LinkKit.framework.dSYM
     info:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: FiHaven
         LSApplicationCategoryType: public.app-category.finance
         CFBundleShortVersionString: "1.5.0"
-        CFBundleVersion: "1"
+        CFBundleVersion: "2"
         UILaunchScreen:
           UIColorName: LaunchBg
           UIImageName: LaunchIcon
@@ -130,14 +152,21 @@ targets:
         # App icon — "Fi" monogram in Sources/Assets.xcassets.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.5.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         # Swift 5 language mode keeps the first builds free of strict-
         # concurrency churn; can be bumped to 6 later.
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        # The "Generate LinkKit dSYM" post-build script must read the embedded
+        # Plaid LinkKit.framework and run dsymutil on it. Under the user-script
+        # sandbox that read is denied ("Operation not permitted"), which fails
+        # both local archives and CI (GitHub Actions + Xcode Cloud). Disabling
+        # the script sandbox lets the one build script do its job; it has no
+        # effect on the shipped app. (Previously worked around per-build with
+        # ENABLE_USER_SCRIPT_SANDBOXING=NO on the xcodebuild command line.)
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         STRING_CATALOG_GENERATE_SYMBOLS: YES
@@ -150,5 +179,10 @@ targets:
         # (the always-pass test key) in the scheme.
         TURNSTILE_SITEKEY: 0x4AAAAAADVKKZMye086WePX
       configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
         Release:
+          # TestFlight / App Store: no DEBUG flag — strips #if DEBUG dev UI
+          # (Settings → Developer, FH_AUTOLOGIN, StoreKit skip, etc.).
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+          ENABLE_DEBUG_DYLIB: NO

@@ -99,6 +99,20 @@ class ApiClient(
 
     suspend fun me(): User? = decode<MeResponse>(send(makeRequest("api/auth/me", HttpMethod.GET))).user
 
+    // ── Passkey login (passwordless first factor) ────────────────────
+    // Start returns a challenge id + the raw WebAuthn options for Credential
+    // Manager; finish posts the authenticator's assertion JSON and yields a
+    // session (no password). The server resolves the account from the signed
+    // credential id, so no email is needed up front.
+    suspend fun passkeyLoginStart(): PasskeyLoginStartResponse =
+        decode(send(makeRequest("api/auth/passkey/login/start", HttpMethod.POST, "{}", tokenMode = true)))
+
+    suspend fun passkeyLoginFinish(challengeId: String, responseJson: String): AuthSession {
+        val resp = FiHavenJson.parseToJsonElement(responseJson)
+        val body = encode(PasskeyLoginFinishBody(challengeId, resp))
+        return storeSession(send(makeRequest("api/auth/passkey/login/finish", HttpMethod.POST, body, tokenMode = true)))
+    }
+
     /** Re-send the email-verification message for the current session. */
     suspend fun resendVerification() {
         send(makeRequest("api/auth/resend-verification", HttpMethod.POST))
@@ -113,10 +127,12 @@ class ApiClient(
     suspend fun plaidStatus(): PlaidStatus =
         decode(send(makeRequest("api/plaid/status", HttpMethod.GET)))
 
-    // Pass itemId for an update-mode token (re-auth an existing item).
-    suspend fun plaidLinkToken(itemId: Int? = null): String {
+    // Pass itemId for an update-mode token (re-auth an existing item). Set
+    // accountSelection for the NEW_ACCOUNTS_AVAILABLE "add accounts" flow.
+    suspend fun plaidLinkToken(itemId: Int? = null, accountSelection: Boolean = false): String {
         val req = if (itemId != null)
-            makeRequest("api/plaid/link/token", HttpMethod.POST, encode(PlaidLinkTokenBody(itemId)))
+            makeRequest("api/plaid/link/token", HttpMethod.POST,
+                encode(PlaidLinkTokenBody(itemId, if (accountSelection) true else null)))
         else makeRequest("api/plaid/link/token", HttpMethod.POST)
         return decode<PlaidLinkTokenResponse>(send(req)).linkToken
     }
@@ -153,7 +169,10 @@ class ApiClient(
     suspend fun fetchData(): AppData = decodeAppData(send(makeRequest("api/data", HttpMethod.GET)))
 
     suspend fun saveData(data: AppData) {
-        val body = encode(DataPutBody(data.bills, data.cards, data.payments, data.settings))
+        val body = encode(DataPutBody(
+            data.bills, data.cards, data.payments,
+            data.accounts, data.goals, data.transactions, data.settings,
+        ))
         send(makeRequest("api/data", HttpMethod.PUT, body))
     }
 

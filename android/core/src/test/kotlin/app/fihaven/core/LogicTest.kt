@@ -88,23 +88,23 @@ class DateLogicTest {
 
 class ScheduleTest {
     @Test fun promoNeeded() {
-        val card = Card(id = 10, name = "Chase", balance = 2340.0, hasPromo = true,
+        val card = Card(id = "10", name = "Chase", balance = 2340.0, hasPromo = true,
             promoEndDate = "2026-10-01", promoBalance = 2340.0)
         assertEquals(585.0, Schedule.promoNeeded(card, UTC, NOW), 0.001)
 
-        val fallback = Card(id = 1, name = "X", balance = 1000.0, hasPromo = true,
+        val fallback = Card(id = "1", name = "X", balance = 1000.0, hasPromo = true,
             promoEndDate = "2026-10-01", promoBalance = 0.0)
         assertEquals(250.0, Schedule.promoNeeded(fallback, UTC, NOW), 0.001)
 
-        val expired = Card(id = 1, name = "X", balance = 800.0, hasPromo = true,
+        val expired = Card(id = "1", name = "X", balance = 800.0, hasPromo = true,
             promoEndDate = "2025-01-01", promoBalance = 800.0)
         assertEquals(800.0, Schedule.promoNeeded(expired, UTC, NOW), 1e-6)
     }
 
     @Test fun upcomingSortedAndIcons() {
         val bills = listOf(
-            Bill(id = 1, name = "Late", amount = 50.0, dueDay = 20),
-            Bill(id = 2, name = "Rolled", amount = 30.0, dueDay = 10),
+            Bill(id = "1", name = "Late", amount = 50.0, dueDay = 20),
+            Bill(id = "2", name = "Rolled", amount = 30.0, dueDay = 10),
         )
         val items = Schedule.buildUpcomingItems(bills, emptyList(), UTC, NOW)
         assertEquals(listOf("1", "2"), items.map { it.refId })
@@ -114,7 +114,7 @@ class ScheduleTest {
     }
 
     @Test fun cardUsesPromoNeeded() {
-        val cards = listOf(Card(id = 10, name = "Chase", balance = 2340.0, minPayment = 35.0,
+        val cards = listOf(Card(id = "10", name = "Chase", balance = 2340.0, minPayment = 35.0,
             hasPromo = true, promoEndDate = "2026-10-01", promoBalance = 2340.0, dueDay = 18))
         val items = Schedule.buildUpcomingItems(emptyList(), cards, UTC, NOW)
         assertEquals(1, items.size)
@@ -134,7 +134,7 @@ class ScheduleTest {
     }
 
     @Test fun recommendedAndGoal() {
-        val card = Card(id = 1, name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 24.0)
+        val card = Card(id = "1", name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 24.0)
         // Interest-bearing non-promo recommended = full balance.
         assertEquals(2000.0, Schedule.recommendedAmount(card, UTC, NOW), 1e-6)
         // Per-card override wins.
@@ -154,7 +154,7 @@ class ScheduleTest {
     @Test fun zeroInterestCardRecommendsMinimum() {
         // A 0% card has no interest cost to carry, so recommended/owed is the
         // minimum — not the whole balance — under the recommended policy.
-        val card = Card(id = 1, name = "0% card", balance = 2000.0, minPayment = 50.0, regularAPR = 0.0)
+        val card = Card(id = "1", name = "0% card", balance = 2000.0, minPayment = 50.0, regularAPR = 0.0)
         assertEquals(50.0, Schedule.recommendedAmount(card, UTC, NOW), 1e-6)
         val none = emptyList<Payment>()
         assertEquals(50.0, Schedule.goalAmount(card, PaidGoalPolicy.RECOMMENDED, none, "2026-06", UTC, NOW), 1e-6)
@@ -164,7 +164,7 @@ class ScheduleTest {
 
     @Test fun loanRecommendedIsMonthlyPayment() {
         // A loan recommends its scheduled monthly payment, never the principal.
-        val loan = Card(id = 9, name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)
+        val loan = Card(id = "9", name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)
         assertEquals(1600.0, Schedule.recommendedAmount(loan, UTC, NOW), 1e-6)
         // Goal is the monthly payment under every policy (not the balance).
         val none = emptyList<Payment>()
@@ -176,36 +176,36 @@ class ScheduleTest {
     }
 
     @Test fun rewardsRankExcludesLoansAndPromos() {
-        val flat = Card(id = 1, name = "Flat 2%", rewardBase = 2.0)
-        val dining = Card(id = 2, name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
-        val promo = Card(id = 3, name = "Promo 5%", rewardBase = 5.0, hasPromo = true, promoEndDate = "2026-12-31")
-        val loan = Card(id = 4, name = "Loan", type = "loan", rewardBase = 9.0)
+        val flat = Card(id = "1", name = "Flat 2%", rewardBase = 2.0)
+        val dining = Card(id = "2", name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
+        val promo = Card(id = "3", name = "Promo 5%", rewardBase = 5.0, hasPromo = true, promoEndDate = "2026-12-31")
+        val loan = Card(id = "4", name = "Loan", type = "loan", rewardBase = 9.0)
 
         val r = Rewards.rank(listOf(flat, dining, promo, loan), "Dining", UTC, NOW)
-        assertEquals(2, r.eligible.first().card.id)                 // dining 4% wins
-        assertTrue(r.eligible.none { it.card.id == 4 })             // loan excluded
-        assertTrue(r.excluded.any { it.card.id == 3 })             // active promo excluded
-        assertTrue(r.eligible.none { it.card.id == 3 })
+        assertEquals("2", r.eligible.first().card.id)                 // dining 4% wins
+        assertTrue(r.eligible.none { it.card.id == "4" })             // loan excluded
+        assertTrue(r.excluded.any { it.card.id == "3" })             // active promo excluded
+        assertTrue(r.eligible.none { it.card.id == "3" })
 
         // Groceries → dining card falls back to its 1% base, so flat 2% wins.
         val g = Rewards.rank(listOf(flat, dining), "Groceries", UTC, NOW)
-        assertEquals(1, g.eligible.first().card.id)
+        assertEquals("1", g.eligible.first().card.id)
     }
 
     @Test fun rewardsExplanationAndWallet() {
-        val flat = Card(id = 1, name = "Flat 2%", rewardBase = 2.0)
-        val dining = Card(id = 2, name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
-        val bilt = Card(id = 5, name = "Bilt", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 3.0), pointValue = 2.0)
+        val flat = Card(id = "1", name = "Flat 2%", rewardBase = 2.0)
+        val dining = Card(id = "2", name = "Dining 4%", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0))
+        val bilt = Card(id = "5", name = "Bilt", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 3.0), pointValue = 2.0)
 
         assertEquals("4% back on dining", Rewards.explanation(dining, "Dining"))
         assertEquals("1% back on everything", Rewards.explanation(dining, "Gas"))
         assertEquals("3× points · 2¢/pt = 6% back on dining", Rewards.explanation(bilt, "Dining"))
-        assertEquals("No reward rate set", Rewards.explanation(Card(id = 6), "Gas"))
+        assertEquals("No reward rate set", Rewards.explanation(Card(id = "6"), "Gas"))
 
         val wallet = Rewards.walletStrategy(listOf(flat, dining), listOf("Dining", "Gas"), UTC)
-        assertEquals(2, wallet.first { it.category == "Dining" }.best?.card?.id)
-        assertEquals(1, wallet.first { it.category == "Gas" }.best?.card?.id)
-        assertNull(Rewards.walletStrategy(listOf(Card(id = 7)), listOf("Gas"), UTC).first().best)
+        assertEquals("2", wallet.first { it.category == "Dining" }.best?.card?.id)
+        assertEquals("1", wallet.first { it.category == "Gas" }.best?.card?.id)
+        assertNull(Rewards.walletStrategy(listOf(Card(id = "7")), listOf("Gas"), UTC).first().best)
     }
 }
 
@@ -257,13 +257,13 @@ class PeriodTest {
 
 class PayoffTest {
     @Test fun nilWhenNoDebt() {
-        assertNull(Payoff.runPayoffSim(listOf(Card(id = 1, name = "Paid", balance = 0.0)),
+        assertNull(Payoff.runPayoffSim(listOf(Card(id = "1", name = "Paid", balance = 0.0)),
             PayoffStrategy.AVALANCHE, 0.0, UTC, NOW))
     }
 
     @Test fun zeroInterestMinimums() {
         val r = Payoff.runPayoffSim(
-            listOf(Card(id = 1, name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
             PayoffStrategy.NONE, 0.0, UTC, NOW)!!
         assertEquals(10, r.months)
         assertEquals(0.0, r.totalInterest, 1e-6)
@@ -273,21 +273,21 @@ class PayoffTest {
 
     @Test fun noneIgnoresExtra() {
         val r = Payoff.runPayoffSim(
-            listOf(Card(id = 1, name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
             PayoffStrategy.NONE, 1000.0, UTC, NOW)!!
         assertEquals(10, r.months)
     }
 
     @Test fun extraSpeedsPayoff() {
         val r = Payoff.runPayoffSim(
-            listOf(Card(id = 1, name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
             PayoffStrategy.AVALANCHE, 100.0, UTC, NOW)!!
         assertEquals(5, r.months)
     }
 
     @Test fun interestAccrues() {
         val r = Payoff.runPayoffSim(
-            listOf(Card(id = 1, name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 24.0)),
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 24.0)),
             PayoffStrategy.NONE, 0.0, UTC, NOW)!!
         assertTrue(r.totalInterest > 0)
         assertTrue(r.months > 10)
@@ -295,10 +295,10 @@ class PayoffTest {
 
     @Test fun promoSuppressesInterest() {
         val reg = Payoff.runPayoffSim(
-            listOf(Card(id = 1, name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0)),
+            listOf(Card(id = "1", name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0)),
             PayoffStrategy.NONE, 0.0, UTC, NOW)!!
         val promo = Payoff.runPayoffSim(
-            listOf(Card(id = 2, name = "Promo", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0,
+            listOf(Card(id = "2", name = "Promo", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0,
                 hasPromo = true, promoEndDate = "2030-01-01")),
             PayoffStrategy.NONE, 0.0, UTC, NOW)!!
         assertTrue(reg.totalInterest > promo.totalInterest)
@@ -307,12 +307,12 @@ class PayoffTest {
     @Test fun snowballSmallestFirst() {
         val r = Payoff.runPayoffSim(
             listOf(
-                Card(id = 1, name = "Big", balance = 3000.0, minPayment = 50.0, regularAPR = 0.0),
-                Card(id = 2, name = "Small", balance = 500.0, minPayment = 50.0, regularAPR = 0.0),
+                Card(id = "1", name = "Big", balance = 3000.0, minPayment = 50.0, regularAPR = 0.0),
+                Card(id = "2", name = "Small", balance = 500.0, minPayment = 50.0, regularAPR = 0.0),
             ),
             PayoffStrategy.SNOWBALL, 200.0, UTC, NOW)!!
-        val small = r.cards.first { it.id == 2 }
-        val big = r.cards.first { it.id == 1 }
+        val small = r.cards.first { it.id == "2" }
+        val big = r.cards.first { it.id == "1" }
         assertTrue(small.paidOffMonth != null && big.paidOffMonth != null)
         assertTrue(small.paidOffMonth!! <= big.paidOffMonth!!)
     }
@@ -334,8 +334,8 @@ class BudgetRulesTest {
         val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
         val lens = BudgetRules.lens(
             settings, 5000.0,
-            listOf(Bill(id = 1, category = "Housing", amount = 1500.0)),
-            listOf(Card(id = 1, minPayment = 100.0)),
+            listOf(Bill(id = "1", category = "Housing", amount = 1500.0)),
+            listOf(Card(id = "1", minPayment = 100.0)),
             emptyList(), emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
         )
         assertTrue(lens != null)
@@ -347,8 +347,8 @@ class BudgetRulesTest {
         val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
         val lens = BudgetRules.lens(
             settings, 4000.0,
-            listOf(Bill(id = 1, category = "Utilities", amount = 200.0)),
-            listOf(Card(id = 1, minPayment = 50.0)),
+            listOf(Bill(id = "1", category = "Utilities", amount = 200.0)),
+            listOf(Card(id = "1", minPayment = 50.0)),
             emptyList(), emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
         )
         assertTrue(lens != null)

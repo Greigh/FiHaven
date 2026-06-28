@@ -92,6 +92,8 @@ struct TurnstileView: UIViewRepresentable {
             <div class="cf-turnstile"
                  data-sitekey="\(siteKey)"
                  data-theme="auto"
+                 data-refresh-expired="auto"
+                 data-retry="auto"
                  data-callback="onOK"
                  data-error-callback="onErr"
                  data-expired-callback="onExp"

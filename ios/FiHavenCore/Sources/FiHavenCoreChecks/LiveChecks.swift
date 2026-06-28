@@ -29,7 +29,7 @@ func runLiveChecks() async {
         let marker = "live-check-marker"
 
         var mutated = original
-        mutated.bills.append(Bill(id: 999_999, name: marker, category: "Other",
+        mutated.bills.append(Bill(id: "999999", name: marker, category: "Other",
                                   amount: 12.34, dueDay: 9))
         try await client.saveData(mutated)
 

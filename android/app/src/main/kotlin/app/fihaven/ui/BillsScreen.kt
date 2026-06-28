@@ -52,6 +52,7 @@ import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.Money
 import app.fihaven.core.logic.PaidState
 import app.fihaven.core.model.Bill
+import app.fihaven.core.model.genId
 import app.fihaven.ui.theme.Ct
 
 @Composable
@@ -331,7 +332,7 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
                 ?: dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1
             vm.upsertBill(
                 Bill(
-                    id = bill?.id ?: System.currentTimeMillis().toInt(),
+                    id = bill?.id ?: genId(),
                     name = name.trim(),
                     business = business.trim().takeIf { it.isNotBlank() },
                     category = category,
