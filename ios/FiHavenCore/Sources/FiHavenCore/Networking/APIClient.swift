@@ -260,6 +260,9 @@ public final class APIClient: Sendable {
             bills: appData.bills,
             cards: appData.cards,
             payments: appData.payments,
+            accounts: appData.accounts,
+            goals: appData.goals,
+            transactions: appData.transactions,
             settings: appData.settings
         )
         let req = try makeRequest(path: "api/data", method: .PUT, body: AnyEncodable(body))

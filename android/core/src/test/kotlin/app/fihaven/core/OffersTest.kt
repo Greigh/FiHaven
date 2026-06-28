@@ -26,21 +26,21 @@ class OffersTest {
 
     @Test fun activeSortedDroppingUsedAndExpired() {
         val cards = listOf(
-            Card(id = 1, offers = listOf(
+            Card(id = "1", offers = listOf(
                 offer("a", "2026-06-28"),
                 offer("b", "2026-06-22"),
                 offer("used", "2026-06-21", used = true),
                 offer("gone", "2026-06-01"),
             )),
-            Card(id = 2, offers = listOf(offer("noexp", ""))),
+            Card(id = "2", offers = listOf(offer("noexp", ""))),
         )
         val list = Offers.active(cards, jun20)
         assertEquals(listOf("b", "a", "noexp"), list.map { it.offer.id })
-        assertEquals(1, list.first().card.id)
+        assertEquals("1", list.first().card.id)
     }
 
     @Test fun expiringSoonCount() {
-        val cards = listOf(Card(id = 1, offers = listOf(
+        val cards = listOf(Card(id = "1", offers = listOf(
             offer("soon", "2026-06-23"),  // 3d
             offer("later", "2026-07-15"), // 25d
         )))
@@ -49,7 +49,7 @@ class OffersTest {
     }
 
     @Test fun likelyUsedAndSuggestions() {
-        val card = Card(id = 1, name = "Amex", offers = listOf(
+        val card = Card(id = "1", name = "Amex", offers = listOf(
             CardOffer(id = "match", merchant = "Best Buy", expires = "2026-06-30"),
             CardOffer(id = "used", merchant = "Best Buy", expires = "2026-06-30", used = true),
             CardOffer(id = "expired", merchant = "Best Buy", expires = "2026-06-01"),
