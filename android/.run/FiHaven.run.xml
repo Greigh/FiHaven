@@ -27,7 +27,7 @@
       <option name="WORKING_DIR" value="" />
       <option name="TARGET_LOGGING_CHANNELS" value="lldb process:gdb-remote packets" />
       <option name="SHOW_OPTIMIZED_WARNING" value="true" />
-      <option name="ATTACH_ON_WAIT_FOR_DEBUGGER" value="false" />
+      <option name="ATTACH_ON_WAIT_FOR_DEBUGGER" value="true" />
     </Auto>
     <Hybrid>
       <option name="USE_JAVA_AWARE_DEBUGGER" value="false" />
