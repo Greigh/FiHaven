@@ -25,3 +25,5 @@ We will review the report, confirm the impact, and coordinate a fix before publi
 ## Information security policy
 
 FiHaven's documented information security policy — covering risk management, data handling, encryption, access control, incident response, third-party processors, and Plaid data handling — is maintained at [`docs/information-security-policy.md`](../docs/information-security-policy.md).
+
+PDF exports for auditors (optional) live in `docs/pdf/` and are generated from that markdown via `npm run generate:pdfs`; they are not committed to the repository.
