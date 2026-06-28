@@ -4,7 +4,7 @@ import Foundation
 /// docs/native-contract.md §6). `frequency` is an informational label —
 /// the scheduler treats every bill as monthly on `dueDay`.
 public struct Bill: Codable, Identifiable, Equatable, Sendable {
-    public var id: Int
+    public var id: String
     public var name: String
     public var category: String
     public var amount: Double
@@ -20,7 +20,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var trialEnds: String?      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
 
     public init(
-        id: Int,
+        id: String,
         name: String,
         category: String = "Other",
         amount: Double = 0,
@@ -58,7 +58,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.flexibleInt(.id) ?? 0
+        id = c.flexibleString(.id) ?? ""
         name = c.flexibleString(.name) ?? ""
         category = c.flexibleString(.category) ?? "Other"
         amount = c.flexibleDouble(.amount) ?? 0

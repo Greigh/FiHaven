@@ -143,6 +143,22 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Passwordless passkey sign-in. `auto` runs the conditional-UI check that
+    /// surfaces a passkey in the QuickType bar; it stays silent if the user
+    /// doesn't pick one. An explicit tap (auto: false) shows the modal sheet.
+    func loginWithPasskey(auto: Bool = false) async {
+        do {
+            let start = try await api.passkeyLoginStart()
+            let assertion = try await PasskeyAuth.shared.assertion(
+                challengeB64URL: start.challengeB64URL, rpId: start.rpId, autoFill: auto)
+            let s = try await api.passkeyLoginFinish(challengeId: start.challengeId, response: assertion)
+            await enterSignedIn(s.user, fresh: true)
+        } catch {
+            // Silent for the automatic check; surface a message on explicit taps.
+            if !auto, let e = error as? APIError { authError = e.userMessage }
+        }
+    }
+
     func verifyMfa(code: String) async {
         guard case .mfa(let challenge) = session else { return }
         await runAuth {

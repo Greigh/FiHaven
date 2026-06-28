@@ -1,10 +1,10 @@
 FiHaven — Terms of Use (TestFlight)
 
-Last updated: June 16, 2026
+Last updated: June 26, 2026
 Full text: https://fihaven.app/terms
 Privacy Policy: https://fihaven.app/privacy
 
-These Terms of Use ("Terms") govern your access to and use of FiHaven (the "Service"), a personal bill and debt tracking application available on the web and through native iOS and Android apps. By installing this TestFlight build, creating an account, or otherwise using the Service, you agree to these Terms. If you do not agree, do not use the Service.
+These Terms of Use ("Terms") govern your access to and use of FiHaven (the "Service"), a personal bill and debt tracking application available on the web today, with native iOS and Android apps when listed on the App Store and Google Play. By installing this TestFlight build, creating an account, or otherwise using the Service, you agree to these Terms. If you do not agree, do not use the Service.
 
 BETA NOTICE: This TestFlight build is pre-release software. It may be incomplete, change without notice, or contain bugs. Do not rely on it as your only record of bills, payments, or financial obligations.
 
@@ -14,7 +14,7 @@ You must be at least 16 years old and able to form a legally binding contract to
 2. Your account
 - You register with a valid email address and a password, and you must provide accurate information.
 - You are responsible for keeping your password confidential and for all activity that occurs under your account.
-- You may not share your account, or attempt to access another user's account or data.
+- You may not share your account credentials, share a single Pro subscription among unrelated users, or use household sharing to extend Pro access beyond the limits of your plan.
 - Notify us promptly if you believe your account has been accessed without your permission.
 
 3. Acceptable use
@@ -22,44 +22,50 @@ Use FiHaven only for lawful, personal finance tracking. You agree not to:
 - Disrupt, overload, or interfere with the Service or its infrastructure.
 - Probe, scan, or attempt to breach the security of the Service, or circumvent its authentication or rate-limiting.
 - Use bots or automated tools to abuse forms or create accounts.
+- Access, scrape, or automate use of the Service or its APIs except through the official apps and website, or in ways that circumvent authentication, rate limits, or FiHaven Pro entitlements.
+- Modify client software to obtain Pro features on the hosted Service without a valid subscription or grant verified by our servers.
 - Reverse engineer the Service except where that restriction is prohibited by law.
-- Resell, sublicense, or commercially exploit the Service without our permission.
+- Resell, sublicense, commercially exploit, or operate a competing hosted instance of the Service without our permission.
 
 4. Your content
 You retain ownership of the financial information you enter into FiHaven. You grant us a limited permission to store, process, and display that information solely to operate the Service for you. You are responsible for the accuracy of the information you enter.
 
 5. FiHaven Pro subscriptions
-FiHaven is free to use. FiHaven Pro is an optional paid subscription that unlocks additional features. If you purchase Pro:
-- Billing: Pro is an auto-renewing subscription. By subscribing you authorize recurring charges until you cancel.
-- Where you buy: Web purchases use Stripe. In-app purchases use Apple or Google and are also governed by that store's terms (see section 6).
-- Auto-renewal and cancellation: Subscriptions renew automatically unless you cancel before the renewal date. Cancel in the billing portal (web) or your Apple/Google subscription settings (in-app).
-- Refunds: Except where required by law, payments are non-refundable. App Store refunds are handled by Apple under Apple's policies.
-- Price changes: We may change pricing for future billing periods with notice where required.
-- Bank linking: Optional Plaid connections are authorized by you and may be disconnected at any time.
+FiHaven is free to use. FiHaven Pro is an optional paid subscription that unlocks additional features, including the payoff planner, family (household) sharing, due-date calendar and iCal feed, payment history, rewards optimizer, subscription finder, per-category budgets, optional bank linking through Plaid, and autopay auto-mark. If you purchase Pro, the following apply:
+- Billing: Pro is an auto-renewing subscription (for example, monthly or yearly). By subscribing you authorize a recurring charge each billing period until you cancel.
+- Where you buy: Purchases on the web are processed by Stripe. Purchases made inside the iOS or Android apps are processed by Apple or Google and are also governed by that store's terms (see section 6).
+- Auto-renewal and cancellation: Your subscription renews automatically at the then-current price unless you cancel before the renewal date. You can cancel anytime — on the web through the billing portal, or for in-app purchases through your Apple or Google account's subscription settings. Access continues until the end of the period you have paid for.
+- Refunds: Except where required by law, payments are non-refundable. Refunds for App Store or Google Play purchases are handled by Apple or Google under their respective policies.
+- Price changes: We may change subscription pricing; changes apply to future billing periods, with advance notice where required.
+- Promo codes: Where offered, promo codes grant Pro access on the terms stated with the code, are not transferable, and have no cash value.
+- Bank linking: Plaid bank connections are optional. You authorize each link yourself and can disconnect at any time. FiHaven does not guarantee uninterrupted bank connectivity and is not responsible for errors or delays from your financial institution or Plaid.
 
 6. Mobile apps and app stores
-FiHaven is offered as native iOS and Android applications with the same account and data sync as the website. Your use of an app is additionally subject to the terms of the store you obtained it from.
+When available on the App Store and Google Play, FiHaven is offered as native iOS and Android applications with the same account and data sync as the website. Your use of an app is additionally subject to the terms of the store you obtained it from, and you agree to comply with those terms.
 - We grant you a personal, non-exclusive, non-transferable, revocable license to use the apps on devices you own or control, solely for your personal use under these Terms.
-- Apple is not a party to these Terms and is not responsible for the app or support. Apple's standard Licensed Application End User License Agreement also applies to App Store downloads.
-- In-app purchases and subscriptions are billed and managed by Apple; manage or cancel them in your device's account settings.
+- The app stores are not parties to these Terms and are not responsible for the apps or for providing support. Any end-user license terms required by a store apply in addition to these Terms.
+- In-app purchases and subscriptions are billed and managed by Apple or Google; you can manage or cancel them in your device's account settings.
 
 7. Not financial advice
-FiHaven is a personal organization tool. It does not provide financial, tax, legal, or investment advice. Calculations and projections are estimates for planning only. You are solely responsible for your financial decisions and for making payments on time.
+FiHaven is a personal organization tool. It does not provide financial, tax, legal, or investment advice, and it does not replace statements, due-date notices, or reminders from your banks, lenders, or service providers. Any calculations, projections, or payoff strategies shown are estimates for planning purposes only. You are solely responsible for your financial decisions and for making payments on time.
 
 8. Availability and changes
-We may add, modify, suspend, or discontinue any part of the Service at any time. The Service is provided without a guarantee of uninterrupted or error-free operation.
+We may add, modify, suspend, or discontinue any part of the Service at any time. We aim to keep FiHaven available and reliable, but the Service is provided without a guarantee of uninterrupted or error-free operation.
 
 9. Disclaimers and limitation of liability
-THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, TO THE MAXIMUM EXTENT PERMITTED BY LAW. TO THE FULLEST EXTENT PERMITTED BY LAW, FIHAVEN AND ITS OPERATOR WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, OR FOR ANY MISSED PAYMENTS, LATE FEES, INTEREST, OR FINANCIAL LOSS ARISING FROM YOUR USE OF, OR RELIANCE ON, THE SERVICE.
+THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, TO THE MAXIMUM EXTENT PERMITTED BY LAW. TO THE FULLEST EXTENT PERMITTED BY LAW, FIHAVEN AND ITS OPERATOR WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, OR FOR ANY MISSED PAYMENTS, LATE FEES, INTEREST, OR FINANCIAL LOSS ARISING FROM YOUR USE OF, OR RELIANCE ON, THE SERVICE.
 
 10. Termination
-You may delete your account at any time. We may suspend or terminate access for violations of these Terms or where we reasonably believe an account creates risk for FiHaven or its users.
+You may delete your account at any time from the Account page; doing so permanently removes your data as described in our Privacy Policy (https://fihaven.app/privacy). We may suspend or terminate access to accounts that violate these Terms or that we reasonably believe create risk or legal exposure for FiHaven or its users.
 
 11. Changes to these Terms
-We may update these Terms from time to time. Continued use after changes take effect means you accept the revised Terms.
+We may update these Terms from time to time. When we make material changes, we will revise the "Last updated" date above. Your continued use of the Service after a change takes effect means you accept the revised Terms.
 
 12. Governing law
-These Terms are governed by the laws of the State of Michigan, United States. Disputes will be brought in the state or federal courts located in Michigan.
+These Terms are governed by the laws of the State of Michigan, United States, without regard to its conflict-of-law rules. You and FiHaven agree that any disputes arising out of or relating to these Terms or the Service will be brought exclusively in the state or federal courts located in Michigan, and you consent to the personal jurisdiction of those courts.
 
-13. Contact
-Questions: security@fihaven.app or https://fihaven.app/contact
+13. Source code
+FiHaven publishes source code on GitHub for transparency. That code is source available, not open source: you may inspect it and contribute improvements, but you may not operate a production hosted copy for others, redistribute modified builds, or remove billing or entitlement checks without our written permission. The repository LICENSE (https://github.com/Greigh/FiHaven/blob/main/LICENSE) governs the code; these Terms govern your use of the hosted Service at fihaven.app and the official apps.
+
+14. Contact us
+Questions about these Terms can be sent to security@fihaven.app or via https://fihaven.app/contact
