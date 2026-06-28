@@ -288,13 +288,16 @@ router.post('/link/token', requireAuth, requireCsrf, requirePlaid, requirePro, a
     // Optional itemId → update-mode token to re-auth an existing item.
     let accessToken = null;
     const itemId = parseInt((req.body || {}).itemId, 10);
+    // Update mode with account selection — the NEW_ACCOUNTS_AVAILABLE flow that
+    // lets the user add newly-available accounts to an existing Item.
+    const accountSelection = !!(req.body || {}).accountSelection;
     if (itemId) {
       const item = dbApi.findPlaidItemById(itemId, req.user.id);
       if (!item) return sendError(res, 404, 'not-found');
       accessToken = plaid.decryptToken(item.access_token_enc);
     }
-    const data = await plaid.createLinkToken(req.user, accessToken);
-    res.json({ linkToken: data.link_token, expiration: data.expiration, update: !!accessToken });
+    const data = await plaid.createLinkToken(req.user, accessToken, { accountSelection });
+    res.json({ linkToken: data.link_token, expiration: data.expiration, update: !!accessToken, accountSelection });
   } catch (err) {
     logPlaidErr('link/token', err);
     sendError(res, 502, 'link-token-failed');
@@ -441,8 +444,20 @@ router.post('/webhook', async (req, res) => {
     if (item) {
       const type = body.webhook_type;
       const code = body.webhook_code;
-      if (code === 'ITEM_LOGIN_REQUIRED' || code === 'PENDING_EXPIRATION') {
+      // Item needs the user to re-auth → flag for the cross-platform update-mode
+      // (Reconnect) entry point. PENDING_DISCONNECT is Plaid's heads-up that an
+      // Item is about to drop; treat it like ITEM_LOGIN_REQUIRED so the user can
+      // repair it before it breaks.
+      if (code === 'ITEM_LOGIN_REQUIRED' || code === 'PENDING_EXPIRATION' || code === 'PENDING_DISCONNECT') {
         dbApi.setPlaidItemStatus(item.id, 'login_required', code);
+      } else if (code === 'LOGIN_REPAIRED') {
+        // Re-auth completed out-of-band → clear the Reconnect prompt.
+        dbApi.setPlaidItemStatus(item.id, 'active', null);
+      } else if (code === 'NEW_ACCOUNTS_AVAILABLE') {
+        // The bank exposed new accounts → flag so the UI can offer an "Add
+        // accounts" update-mode flow (account selection). The Item still works,
+        // so this is informational, not a hard error.
+        dbApi.setPlaidItemStatus(item.id, 'new_accounts', code);
       } else if (type === 'ITEM' && code === 'ERROR') {
         dbApi.setPlaidItemStatus(item.id, 'error', (body.error && body.error.error_code) || 'ERROR');
       } else if (type === 'TRANSACTIONS' || code === 'DEFAULT_UPDATE' || code === 'SYNC_UPDATES_AVAILABLE') {

@@ -27,8 +27,8 @@ func runModelChecks() {
     }
 
     section("Models — autopayDay round-trips and tolerates a string") {
-        let bill = Bill(id: 1, name: "Rent", autopay: true, autopayDay: 18)
-        let card = Card(id: 2, name: "Visa", autopay: true, autopayDay: 5)
+        let bill = Bill(id: "1", name: "Rent", autopay: true, autopayDay: 18)
+        let card = Card(id: "2", name: "Visa", autopay: true, autopayDay: 5)
         let rtBill = try JSONDecoder().decode(Bill.self, from: JSONEncoder().encode(bill))
         let rtCard = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(card))
         checkEqual(rtBill.autopayDay, 18, "bill autopayDay round-trip")
@@ -54,7 +54,7 @@ func runModelChecks() {
         checkEqual(Perks.expiresInDays("monthly", date: jun20, cal: cal), 10, "10 days left in June")
 
         let perk = CardPerk(id: "P1", label: "Uber", amount: 10, frequency: "monthly")
-        let card = Card(id: 1, name: "Visa", perks: [perk])
+        let card = Card(id: "1", name: "Visa", perks: [perk])
         var usage: [String: Double] = [:]
         checkClose(Perks.remaining(usage, cardId: "1", perk: perk, date: jun20, cal: cal), 10, "full remaining")
 
@@ -78,9 +78,9 @@ func runModelChecks() {
         var dc = DateComponents(); dc.year = 2026; dc.month = 6; dc.day = 20
         let jun20 = cal.date(from: dc)!
         let perk = CardPerk(id: "P1", label: "Uber", amount: 10, frequency: "monthly")
-        let card = Card(id: 1, name: "Visa", perks: [perk], annualFee: 95)
+        let card = Card(id: "1", name: "Visa", perks: [perk], annualFee: 95)
 
-        check(Perks.feeAssessment(Card(id: 2, name: "Free"), usage: [:], date: jun20, cal: cal) == nil, "fee-free → nil")
+        check(Perks.feeAssessment(Card(id: "2", name: "Free"), usage: [:], date: jun20, cal: cal) == nil, "fee-free → nil")
 
         // No usage: potential $120 covers $95 fee → optimize.
         var usage: [String: Double] = [:]
@@ -97,7 +97,7 @@ func runModelChecks() {
         checkEqual(a.verdict.rawValue, "keep", "keep when captured covers fee")
 
         // Fee perks can never cover → review.
-        let pricey = Card(id: 3, name: "Travel", perks: [CardPerk(id: "P2", label: "Credit", amount: 100, frequency: "annual")], annualFee: 550)
+        let pricey = Card(id: "3", name: "Travel", perks: [CardPerk(id: "P2", label: "Credit", amount: 100, frequency: "annual")], annualFee: 550)
         checkEqual(Perks.feeAssessment(pricey, usage: [:], date: jun20, cal: cal)!.verdict.rawValue, "review", "review when fee > potential")
 
         // A spend-based rewards estimate folds into the verdict: $100 rewards
@@ -111,7 +111,7 @@ func runModelChecks() {
         checkClose(Perks.feeAssessment(card, usage: [:], date: jun20, cal: cal, rewardsEstimate: -50)!.rewards, 0, "negative estimate floored")
 
         // annualFee/feeMonth round-trip.
-        let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(Card(id: 9, name: "X", annualFee: 95, feeMonth: 3)))
+        let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(Card(id: "9", name: "X", annualFee: 95, feeMonth: 3)))
         checkClose(rt.annualFee ?? 0, 95, "annualFee round-trip")
         checkEqual(rt.feeMonth, 3, "feeMonth round-trip")
     }
@@ -140,6 +140,6 @@ func runModelChecks() {
 
     section("Models — empty detection") {
         check(AppData().isEmpty, "fresh AppData is empty")
-        check(!AppData(bills: [Bill(id: 1, name: "x")]).isEmpty, "with a bill is not empty")
+        check(!AppData(bills: [Bill(id: "1", name: "x")]).isEmpty, "with a bill is not empty")
     }
 }

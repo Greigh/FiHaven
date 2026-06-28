@@ -4,14 +4,14 @@ import Foundation
 /// property, cash, etc. Paired with the debts in `cards` to compute net
 /// worth = assets − liabilities. Mirrors the web `accounts` shape.
 public struct Account: Codable, Identifiable, Equatable, Sendable {
-    public var id: Int
+    public var id: String
     public var name: String
     public var type: String    // "checking" | "savings" | "investment" | "property" | "cash" | "other"
     public var balance: Double
     public var notes: String
 
     public init(
-        id: Int,
+        id: String,
         name: String = "",
         type: String = "checking",
         balance: Double = 0,
@@ -30,7 +30,7 @@ public struct Account: Codable, Identifiable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.flexibleInt(.id) ?? 0
+        id = c.flexibleString(.id) ?? ""
         name = c.flexibleString(.name) ?? ""
         type = c.flexibleString(.type) ?? "checking"
         balance = c.flexibleDouble(.balance) ?? 0

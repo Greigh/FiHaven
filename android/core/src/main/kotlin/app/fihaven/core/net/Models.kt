@@ -1,11 +1,15 @@
 package app.fihaven.core.net
 
+import app.fihaven.core.model.Account
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.Entitlement
 import app.fihaven.core.model.Payment
+import app.fihaven.core.model.SavingsGoal
+import app.fihaven.core.model.SpendTransaction
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
@@ -85,6 +89,12 @@ data class DataPutBody(
     val bills: List<Bill>,
     val cards: List<Card>,
     val payments: List<Payment>,
+    // The server PUT replaces the whole record, so every list must be sent or
+    // it's wiped. Accounts/goals/transactions were previously omitted, which
+    // erased them whenever Android saved. Include them all.
+    val accounts: List<Account>,
+    val goals: List<SavingsGoal>,
+    val transactions: List<SpendTransaction>,
     val settings: JsonObject,
 )
 
@@ -144,7 +154,14 @@ data class PlaidStatus(
     val items: List<PlaidItem> = emptyList(),
 )
 
+// ── Passkey (passwordless first-factor login) ────────────────────
+// `options` is the raw WebAuthn request options from the server, forwarded
+// verbatim to Credential Manager. `response` (on finish) is the assertion
+// JSON the authenticator produced, parsed back into a JSON element.
+@Serializable data class PasskeyLoginStartResponse(val challengeId: String, val options: JsonObject)
+@Serializable data class PasskeyLoginFinishBody(val challengeId: String, val response: JsonElement)
+
 @Serializable data class PlaidLinkTokenResponse(val linkToken: String)
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
 @Serializable data class PlaidExchangeBody(@SerialName("public_token") val publicToken: String)
-@Serializable data class PlaidLinkTokenBody(val itemId: Int)
+@Serializable data class PlaidLinkTokenBody(val itemId: Int, val accountSelection: Boolean? = null)

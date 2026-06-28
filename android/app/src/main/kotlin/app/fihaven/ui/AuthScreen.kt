@@ -3,6 +3,8 @@ package app.fihaven.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,6 +46,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetPublicKeyCredentialOption
+import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -104,6 +111,34 @@ fun AuthScreen(vm: AppViewModel) {
         }
     }
 
+    // Passwordless passkey sign-in via Credential Manager. `auto` runs a quiet
+    // check on screen load — it only surfaces UI if a passkey for this app is
+    // immediately available (like Bitwarden offering a saved login); the
+    // explicit button forces the picker. Resolves to a session with no password.
+    fun signInWithPasskey(auto: Boolean) {
+        scope.launch {
+            val start = runCatching { vm.api.passkeyLoginStart() }.getOrNull() ?: return@launch
+            val option = GetPublicKeyCredentialOption(start.options.toString())
+            val request = GetCredentialRequest.Builder()
+                .addCredentialOption(option)
+                .setPreferImmediatelyAvailableCredentials(auto)
+                .build()
+            try {
+                val result = CredentialManager.create(context).getCredential(context, request)
+                val cred = result.credential
+                if (cred is PublicKeyCredential) {
+                    vm.loginWithPasskey(start.challengeId, cred.authenticationResponseJson)
+                }
+            } catch (_: GetCredentialException) {
+                // No passkey, dismissed, or none immediately available — stay on
+                // the password form. (Silent on the automatic check.)
+            }
+        }
+    }
+
+    // Quiet check on first composition so an existing passkey is offered up front.
+    LaunchedEffect(Unit) { signInWithPasskey(auto = true) }
+
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(22.dp),
         verticalArrangement = Arrangement.Center,
@@ -121,7 +156,9 @@ fun AuthScreen(vm: AppViewModel) {
                     value = email, onValueChange = { email = it },
                     label = { Text("Email") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentType = ContentType.Username + ContentType.EmailAddress
+                    },
                 )
                 OutlinedTextField(
                     value = password, onValueChange = { password = it },
@@ -137,7 +174,9 @@ fun AuthScreen(vm: AppViewModel) {
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).semantics {
+                        contentType = if (signup) ContentType.NewPassword else ContentType.Password
+                    },
                 )
                 if (!signup) {
                     val uriHandler = LocalUriHandler.current
@@ -148,20 +187,22 @@ fun AuthScreen(vm: AppViewModel) {
                         Text("Forgot Password?", color = Ct.colors.accent, fontSize = 13.sp)
                     }
                 }
-                if (captchaToken == null) {
-                    TurnstileView(
-                        siteKey = BuildConfig.TURNSTILE_SITEKEY,
-                        baseUrl = BuildConfig.API_BASE.trimEnd('/'),
-                        reloadKey = captchaReload,
-                        onToken = { captchaToken = it },
-                        onError = { captchaToken = null },
-                        onHeight = { turnstileHeight = it.coerceIn(0, 120) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = if (signup) 12.dp else 0.dp)
-                            .height(turnstileHeight.coerceAtLeast(1).dp),
-                    )
-                }
+                // Kept mounted even after it solves so the token auto-refreshes
+                // before it can expire — sitting on the screen otherwise leaves a
+                // stale token and a disabled submit. `reloadKey` (captchaReload)
+                // recreates it after a failed submit, since tokens are single-use.
+                TurnstileView(
+                    siteKey = BuildConfig.TURNSTILE_SITEKEY,
+                    baseUrl = BuildConfig.API_BASE.trimEnd('/'),
+                    reloadKey = captchaReload,
+                    onToken = { captchaToken = it },
+                    onError = { captchaToken = null },
+                    onHeight = { turnstileHeight = it.coerceIn(0, 120) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = if (signup) 12.dp else 0.dp)
+                        .height(turnstileHeight.coerceAtLeast(1).dp),
+                )
                 error?.let {
                     Text(it, color = Ct.colors.red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                 }
@@ -179,6 +220,34 @@ fun AuthScreen(vm: AppViewModel) {
                     modifier = Modifier.fillMaxWidth().padding(top = if (signup) 16.dp else 4.dp),
                 ) {
                     Text(if (working) "Please wait…" else if (signup) "Create account" else "Sign in")
+                }
+
+                // Sign-up consent — mirrors the web + iOS terms notice; both
+                // stores expect terms + privacy reachable before account creation.
+                if (signup) {
+                    val legalHandler = LocalUriHandler.current
+                    val base = BuildConfig.API_BASE.trimEnd('/')
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "By creating an account you agree to our",
+                            color = Ct.colors.muted, fontSize = 12.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = { legalHandler.openUri("$base/terms") },
+                                contentPadding = PaddingValues(horizontal = 4.dp),
+                            ) { Text("Terms of Use", color = Ct.colors.accent, fontSize = 12.sp) }
+                            Text("and", color = Ct.colors.muted, fontSize = 12.sp)
+                            TextButton(
+                                onClick = { legalHandler.openUri("$base/privacy") },
+                                contentPadding = PaddingValues(horizontal = 4.dp),
+                            ) { Text("Privacy Policy", color = Ct.colors.accent, fontSize = 12.sp) }
+                        }
+                    }
                 }
 
                 Text(
@@ -229,6 +298,13 @@ fun AuthScreen(vm: AppViewModel) {
                     Spacer(Modifier.width(10.dp))
                     Text("Continue with Apple", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
+                if (!signup) {
+                    TextButton(
+                        onClick = { signInWithPasskey(auto = false) },
+                        enabled = !working,
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    ) { Text("Sign in with a passkey", color = Ct.colors.accent) }
+                }
             }
         }
         TextButton(onClick = { signup = !signup; reloadCaptcha() }, modifier = Modifier.padding(top = 6.dp)) {
@@ -261,7 +337,11 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
                     value = code, onValueChange = { code = it },
                     label = { Text("6-digit code") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    modifier = Modifier.fillMaxWidth(),
+                    // Tell autofill this is a one-time code, not a password —
+                    // otherwise the system offers saved passwords on the 2FA step.
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentType = ContentType.SmsOtpCode
+                    },
                 )
                 error?.let {
                     Text(it, color = Ct.colors.red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))

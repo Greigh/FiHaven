@@ -270,6 +270,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             runAuth { enterSignedIn(api.oauthSignIn(provider, idToken, name).user, fresh = true) }
         }
 
+    /** Finish a passwordless passkey login: the UI runs Credential Manager and
+     *  hands back the challenge id + the authenticator's assertion JSON. */
+    fun loginWithPasskey(challengeId: String, responseJson: String) =
+        viewModelScope.launch {
+            runAuth { enterSignedIn(api.passkeyLoginFinish(challengeId, responseJson).user, fresh = true) }
+        }
+
     fun cancelMfa() { _session.value = Session.SignedOut; _authError.value = null }
 
     fun logout() = viewModelScope.launch {

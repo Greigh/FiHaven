@@ -83,7 +83,10 @@ struct BankView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(item.institutionName).font(Theme.ui(15, weight: .medium))
-                if item.status != "active" {
+                if item.status == "new_accounts" {
+                    Text("New accounts available")
+                        .font(Theme.ui(11, weight: .medium)).foregroundStyle(Theme.muted)
+                } else if item.status != "active" {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption2)
@@ -97,7 +100,10 @@ struct BankView: View {
                 Button("Disconnect", role: .destructive) { disconnect(item.id) }
                     .font(Theme.ui(13))
             }
-            if item.status != "active" {
+            if item.status == "new_accounts" {
+                Button("Add accounts") { reconnect(item.id, accountSelection: true) }
+                    .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.accent)
+            } else if item.status != "active" {
                 Button("Reconnect") { reconnect(item.id) }
                     .font(Theme.ui(13, weight: .medium)).foregroundStyle(Theme.accent)
             }
@@ -158,13 +164,15 @@ struct BankView: View {
         }
     }
 
-    // Update mode: re-auth an item flagged login_required.
-    private func reconnect(_ id: Int) {
+    // Update mode: re-auth an item flagged login_required, or (when
+    // `accountSelection` is true) add newly-available accounts after a
+    // NEW_ACCOUNTS_AVAILABLE webhook.
+    private func reconnect(_ id: Int, accountSelection: Bool = false) {
         busy = true
         message = nil
         Task {
             do {
-                let token = try await env.api.plaidLinkToken(itemId: id)
+                let token = try await env.api.plaidLinkToken(itemId: id, accountSelection: accountSelection)
                 await MainActor.run { presentUpdate(token: token, itemId: id) }
             } catch {
                 await MainActor.run { busy = false; message = "Could not start reconnect. Please try again." }

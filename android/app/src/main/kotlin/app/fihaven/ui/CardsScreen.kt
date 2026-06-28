@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.width
 import java.util.UUID
 import app.fihaven.core.model.CardPerk
 import app.fihaven.core.model.CardOffer
+import app.fihaven.core.model.genId
 import androidx.compose.ui.graphics.Color
 import app.fihaven.AppViewModel
 import app.fihaven.core.CTConstants
@@ -357,7 +358,7 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
         onSave = {
             vm.upsertCard(
                 Card(
-                    id = card?.id ?: System.currentTimeMillis().toInt(),
+                    id = card?.id ?: genId(),
                     name = name.trim(),
                     type = type,
                     issuer = issuer.trim().takeIf { it.isNotBlank() },
@@ -671,7 +672,7 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
         onSave = {
             vm.upsertAccount(
                 Account(
-                    id = account?.id ?: System.currentTimeMillis().toInt(),
+                    id = account?.id ?: genId(),
                     name = name.trim(), type = type,
                     balance = balance.toDoubleOrNull() ?: 0.0, notes = notes,
                 )

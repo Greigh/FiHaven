@@ -67,23 +67,23 @@ func runScheduleChecks() {
     let now = makeDate(2026, 6, 15, tz: tz)
 
     section("Schedule — promoNeeded") {
-        let c = Card(id: 10, name: "Chase", balance: 2340, hasPromo: true,
+        let c = Card(id: "10", name: "Chase", balance: 2340, hasPromo: true,
                      promoEndDate: "2026-10-01", promoBalance: 2340)
         checkClose(Schedule.promoNeeded(c, tz: tz, now: now), 585, "2340 / 4 months", tol: 0.001)
 
-        let fallback = Card(id: 1, name: "X", balance: 1000, hasPromo: true,
+        let fallback = Card(id: "1", name: "X", balance: 1000, hasPromo: true,
                             promoEndDate: "2026-10-01", promoBalance: 0)
         checkClose(Schedule.promoNeeded(fallback, tz: tz, now: now), 250, "0 promoBalance → use balance", tol: 0.001)
 
-        let expired = Card(id: 1, name: "X", balance: 800, hasPromo: true,
+        let expired = Card(id: "1", name: "X", balance: 800, hasPromo: true,
                            promoEndDate: "2025-01-01", promoBalance: 800)
         checkClose(Schedule.promoNeeded(expired, tz: tz, now: now), 800, "expired → whole balance")
     }
 
     section("Schedule — buildUpcomingItems") {
         let bills = [
-            Bill(id: 1, name: "Late", amount: 50, dueDay: 20),
-            Bill(id: 2, name: "Rolled", amount: 30, dueDay: 10),
+            Bill(id: "1", name: "Late", amount: 50, dueDay: 20),
+            Bill(id: "2", name: "Rolled", amount: 30, dueDay: 10),
         ]
         let items = Schedule.buildUpcomingItems(bills: bills, cards: [], tz: tz, now: now)
         checkEqual(items.map(\.refId), ["1", "2"], "sorted soonest-first")
@@ -91,7 +91,7 @@ func runScheduleChecks() {
         checkEqual(items[1].days, 25, "second item days")
         checkEqual(items[0].icon, "📌", "bill category Other → 📌")
 
-        let cards = [Card(id: 10, name: "Chase", balance: 2340, minPayment: 35,
+        let cards = [Card(id: "10", name: "Chase", balance: 2340, minPayment: 35,
                           hasPromo: true, promoEndDate: "2026-10-01",
                           promoBalance: 2340, dueDay: 18)]
         let cardItems = Schedule.buildUpcomingItems(bills: [], cards: cards, tz: tz, now: now)
@@ -100,7 +100,7 @@ func runScheduleChecks() {
         checkEqual(cardItems[0].name, "Chase (payment)", "card item name")
 
         let noDue = Schedule.buildUpcomingItems(
-            bills: [Bill(id: 1, name: "NoDue", amount: 10, dueDay: nil)], cards: [], tz: tz, now: now)
+            bills: [Bill(id: "1", name: "NoDue", amount: 10, dueDay: nil)], cards: [], tz: tz, now: now)
         check(noDue.isEmpty, "bill without dueDay skipped")
     }
 
@@ -117,13 +117,13 @@ func runScheduleChecks() {
 
     section("Schedule — recommendedAmount / goalAmount") {
         let tz = TimeZone(identifier: "UTC")!
-        let card = Card(id: 1, name: "Reg", balance: 2000, minPayment: 50, regularAPR: 24)
+        let card = Card(id: "1", name: "Reg", balance: 2000, minPayment: 50, regularAPR: 24)
         checkClose(Schedule.recommendedAmount(card, tz: tz), 2000, "interest-bearing non-promo recommended = full balance", tol: 0.001)
         var override = card; override.recommendedPayment = 300
         checkClose(Schedule.recommendedAmount(override, tz: tz), 300, "override wins", tol: 0.001)
 
         // A 0% card has no interest cost to carry, so recommended/owed = minimum.
-        let zeroApr = Card(id: 2, name: "0%", balance: 2000, minPayment: 50, regularAPR: 0)
+        let zeroApr = Card(id: "2", name: "0%", balance: 2000, minPayment: 50, regularAPR: 0)
         checkClose(Schedule.recommendedAmount(zeroApr, tz: tz), 50, "0% card recommended = minimum", tol: 0.001)
         checkClose(Schedule.goalAmount(card: zeroApr, policy: .recommended, payments: [], monthKey: "2026-06", tz: tz),
                    50, "0% card recommended goal = minimum", tol: 0.001)
@@ -139,7 +139,7 @@ func runScheduleChecks() {
                    300, "override goal is the fixed value", tol: 0.001)
 
         // Loans recommend the scheduled monthly payment, never the principal.
-        var loan = Card(id: 9, name: "Mortgage", balance: 250_000, minPayment: 1600)
+        var loan = Card(id: "9", name: "Mortgage", balance: 250_000, minPayment: 1600)
         loan.type = "loan"
         checkClose(Schedule.recommendedAmount(loan, tz: tz), 1600, "loan recommended = monthly payment", tol: 0.001)
         checkClose(Schedule.goalAmount(card: loan, policy: .recommended, payments: [], monthKey: "2026-06", tz: tz),
@@ -151,41 +151,41 @@ func runScheduleChecks() {
     section("Rewards — rank for category") {
         let tz = TimeZone(identifier: "UTC")!
         let now = makeDate(2026, 6, 15, tz: tz)
-        let flat = Card(id: 1, name: "Flat 2%", rewardBase: 2)
-        let dining = Card(id: 2, name: "Dining 4%", rewardBase: 1, rewardCategories: ["Dining": 4])
-        var promo = Card(id: 3, name: "Promo 5%", rewardBase: 5)
+        let flat = Card(id: "1", name: "Flat 2%", rewardBase: 2)
+        let dining = Card(id: "2", name: "Dining 4%", rewardBase: 1, rewardCategories: ["Dining": 4])
+        var promo = Card(id: "3", name: "Promo 5%", rewardBase: 5)
         promo.hasPromo = true; promo.promoEndDate = "2026-12-31"
-        let loan = Card(id: 4, name: "Loan", rewardBase: 9); var l = loan; l.type = "loan"
+        let loan = Card(id: "4", name: "Loan", rewardBase: 9); var l = loan; l.type = "loan"
 
         let r = Rewards.rank([flat, dining, promo, l], category: "Dining", tz: tz, now: now)
-        check(r.eligible.first?.card.id == 2, "dining 4% wins over flat 2%")
-        check(!r.eligible.contains { $0.card.id == 4 }, "loan excluded entirely")
-        check(r.excluded.contains { $0.card.id == 3 }, "active 0% promo card excluded with reason")
-        check(!r.eligible.contains { $0.card.id == 3 }, "promo card not in eligible")
+        check(r.eligible.first?.card.id == "2", "dining 4% wins over flat 2%")
+        check(!r.eligible.contains { $0.card.id == "4" }, "loan excluded entirely")
+        check(r.excluded.contains { $0.card.id == "3" }, "active 0% promo card excluded with reason")
+        check(!r.eligible.contains { $0.card.id == "3" }, "promo card not in eligible")
 
         // Same cards for Groceries → dining card falls back to its 1% base.
         let g = Rewards.rank([flat, dining], category: "Groceries", tz: tz, now: now)
-        check(g.eligible.first?.card.id == 1, "flat 2% wins groceries (dining card uses 1% base)")
+        check(g.eligible.first?.card.id == "1", "flat 2% wins groceries (dining card uses 1% base)")
 
         // Explanation strings.
         checkEqual(Rewards.explanation(dining, category: "Dining"), "4% back on dining", "bonus explanation")
         checkEqual(Rewards.explanation(dining, category: "Gas"), "1% back on everything", "base explanation")
-        let bilt = Card(id: 5, name: "Bilt", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2)
+        let bilt = Card(id: "5", name: "Bilt", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2)
         checkEqual(Rewards.explanation(bilt, category: "Dining"), "3× points · 2¢/pt = 6% back on dining", "points explanation")
-        checkEqual(Rewards.explanation(Card(id: 6, name: "None"), category: "Gas"), "No reward rate set", "no-rate explanation")
+        checkEqual(Rewards.explanation(Card(id: "6", name: "None"), category: "Gas"), "No reward rate set", "no-rate explanation")
 
         // Wallet strategy picks the best per category, nil when none earn.
         let wallet = Rewards.walletStrategy([flat, dining], categories: ["Dining", "Gas"], tz: tz, now: now)
-        checkEqual(wallet.first { $0.category == "Dining" }?.best?.card.id, 2, "dining best is the 4% card")
-        checkEqual(wallet.first { $0.category == "Gas" }?.best?.card.id, 1, "gas best is the flat 2%")
-        check(Rewards.walletStrategy([Card(id: 7, name: "Z")], categories: ["Gas"], tz: tz, now: now).first?.best == nil,
+        checkEqual(wallet.first { $0.category == "Dining" }?.best?.card.id, "2", "dining best is the 4% card")
+        checkEqual(wallet.first { $0.category == "Gas" }?.best?.card.id, "1", "gas best is the flat 2%")
+        check(Rewards.walletStrategy([Card(id: "7", name: "Z")], categories: ["Gas"], tz: tz, now: now).first?.best == nil,
               "no earning card → nil best")
     }
 
     section("Offers — active, expiry, soon") {
         let tz = TimeZone(identifier: "UTC")!
         let now = makeDate(2026, 6, 20, tz: tz)
-        let card = Card(id: 1, name: "Amex", offers: [
+        let card = Card(id: "1", name: "Amex", offers: [
             CardOffer(id: "a", merchant: "Whole Foods", detail: "10% back", expires: "2026-06-28"),
             CardOffer(id: "b", merchant: "Uber", detail: "$5", expires: "2026-06-22"),
             CardOffer(id: "used", merchant: "Used", expires: "2026-06-21", used: true),
@@ -235,16 +235,16 @@ func runScheduleChecks() {
 
         // Rewards estimate counts only bonus categories.
         let est = ["Dining": 1000.0, "Gas": 1000.0, "Other": 5000.0]
-        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: 1, name: "Gold", rewardBase: 1, rewardCategories: ["Dining": 4]), spendByCategory: est), 40, "4% on $1000 dining = $40")
-        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: 2, name: "Pts", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2), spendByCategory: est), 60, "3×2¢ = 6% → $60")
-        var loan = Card(id: 3, name: "Loan", rewardCategories: ["Dining": 4]); loan.type = "loan"
+        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: "1", name: "Gold", rewardBase: 1, rewardCategories: ["Dining": 4]), spendByCategory: est), 40, "4% on $1000 dining = $40")
+        checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: "2", name: "Pts", rewardBase: 1, rewardCategories: ["Dining": 3], pointValue: 2), spendByCategory: est), 60, "3×2¢ = 6% → $60")
+        var loan = Card(id: "3", name: "Loan", rewardCategories: ["Dining": 4]); loan.type = "loan"
         checkClose(Rewards.cardRewardsEstimateAnnual(loan, spendByCategory: est), 0, "loans earn nothing")
     }
 
     section("Offers — use suggestions from transactions") {
         let tz = TimeZone(identifier: "UTC")!
         let now = makeDate(2026, 6, 20, tz: tz)
-        let card = Card(id: 1, name: "Amex", offers: [
+        let card = Card(id: "1", name: "Amex", offers: [
             CardOffer(id: "match", merchant: "Best Buy", expires: "2026-06-30"),
             CardOffer(id: "used", merchant: "Best Buy", expires: "2026-06-30", used: true),
             CardOffer(id: "expired", merchant: "Best Buy", expires: "2026-06-01"),
@@ -293,12 +293,12 @@ func runPayoffChecks() {
     let now = makeDate(2026, 6, 15, tz: tz)
 
     section("Payoff — simulation") {
-        check(Payoff.runPayoffSim(cards: [Card(id: 1, name: "Paid", balance: 0)],
+        check(Payoff.runPayoffSim(cards: [Card(id: "1", name: "Paid", balance: 0)],
                                   strategy: .avalanche, extra: 0, tz: tz, now: now) == nil,
               "no debt → nil")
 
         let zero = Payoff.runPayoffSim(
-            cards: [Card(id: 1, name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
+            cards: [Card(id: "1", name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
             strategy: .none, extra: 0, tz: tz, now: now)!
         checkEqual(zero.months, 10, "0% / $100 min → 10 months")
         checkClose(zero.totalInterest, 0, "no interest at 0%")
@@ -306,38 +306,38 @@ func runPayoffChecks() {
         checkEqual(DateLogic.monthKey(zero.payoffDate, tz: tz), "2027-04", "payoff date Apr 2027")
 
         let ignoreExtra = Payoff.runPayoffSim(
-            cards: [Card(id: 1, name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
+            cards: [Card(id: "1", name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
             strategy: .none, extra: 1000, tz: tz, now: now)!
         checkEqual(ignoreExtra.months, 10, "none strategy ignores extra")
 
         let withExtra = Payoff.runPayoffSim(
-            cards: [Card(id: 1, name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
+            cards: [Card(id: "1", name: "A", balance: 1000, minPayment: 100, regularAPR: 0)],
             strategy: .avalanche, extra: 100, tz: tz, now: now)!
         checkEqual(withExtra.months, 5, "$200/mo → 5 months")
 
         let interest = Payoff.runPayoffSim(
-            cards: [Card(id: 1, name: "A", balance: 1000, minPayment: 100, regularAPR: 24)],
+            cards: [Card(id: "1", name: "A", balance: 1000, minPayment: 100, regularAPR: 24)],
             strategy: .none, extra: 0, tz: tz, now: now)!
         check(interest.totalInterest > 0, "interest accrues on a regular card")
         check(interest.months > 10, "interest stretches payoff past 10 months")
 
         let reg = Payoff.runPayoffSim(
-            cards: [Card(id: 1, name: "Reg", balance: 2000, minPayment: 50, regularAPR: 25)],
+            cards: [Card(id: "1", name: "Reg", balance: 2000, minPayment: 50, regularAPR: 25)],
             strategy: .none, extra: 0, tz: tz, now: now)!
         let promo = Payoff.runPayoffSim(
-            cards: [Card(id: 2, name: "Promo", balance: 2000, minPayment: 50, regularAPR: 25,
+            cards: [Card(id: "2", name: "Promo", balance: 2000, minPayment: 50, regularAPR: 25,
                          hasPromo: true, promoEndDate: "2030-01-01")],
             strategy: .none, extra: 0, tz: tz, now: now)!
         check(reg.totalInterest > promo.totalInterest, "promo suppresses interest while active")
 
         let snow = Payoff.runPayoffSim(
             cards: [
-                Card(id: 1, name: "Big", balance: 3000, minPayment: 50, regularAPR: 0),
-                Card(id: 2, name: "Small", balance: 500, minPayment: 50, regularAPR: 0),
+                Card(id: "1", name: "Big", balance: 3000, minPayment: 50, regularAPR: 0),
+                Card(id: "2", name: "Small", balance: 500, minPayment: 50, regularAPR: 0),
             ],
             strategy: .snowball, extra: 200, tz: tz, now: now)!
-        let small = snow.cards.first { $0.id == 2 }!
-        let big = snow.cards.first { $0.id == 1 }!
+        let small = snow.cards.first { $0.id == "2" }!
+        let big = snow.cards.first { $0.id == "1" }!
         check(small.paidOffMonth != nil && big.paidOffMonth != nil, "both cards pay off")
         check(small.paidOffMonth! <= big.paidOffMonth!, "snowball clears smallest first")
     }

@@ -219,6 +219,23 @@ function refresh() {
   }).catch(function () { /* leave default */ });
 }
 
+// After a successful checkout, Stripe redirects us back before its
+// `checkout.session.completed` webhook has necessarily landed, so the first
+// status read can still say Free. Poll a few times until Pro shows up (or we
+// give up) so the UI reflects the new subscription without a manual reload.
+function pollUntilPro(attempt) {
+  attempt = attempt || 0;
+  return billingFetch('status').then(function (res) {
+    var ent = res.ok && res.data ? res.data.entitlement : null;
+    if (ent) render(ent);
+    if (ent && ent.pro) return true;
+    if (attempt >= 5) return false;
+    return new Promise(function (resolve) {
+      setTimeout(function () { resolve(pollUntilPro(attempt + 1)); }, 1500);
+    });
+  }).catch(function () { return false; });
+}
+
 function startCheckout(plan, btn) {
   btn.disabled = true;
   setMsg('Redirecting to checkout…', false);
@@ -380,6 +397,15 @@ function renderNudge(slot) {
     history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
   } catch (e) { /* ignore */ }
   openProDialog();
-  if (pro === 'success') setMsg('Thanks! Your Pro subscription is now active.', false);
-  else if (pro === 'cancel') setMsg('Checkout cancelled — no charge was made.', true);
+  if (pro === 'success') {
+    setMsg('Thanks! Confirming your Pro subscription…', false);
+    pollUntilPro().then(function (active) {
+      setMsg(
+        active
+          ? 'Your Pro subscription is now active.'
+          : 'Payment received — your Pro access will activate shortly. Refresh in a moment if it hasn’t.',
+        !active
+      );
+    });
+  } else if (pro === 'cancel') setMsg('Checkout cancelled — no charge was made.', true);
 })();

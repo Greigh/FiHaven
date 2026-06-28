@@ -90,7 +90,7 @@ object NotificationScheduler {
                 val fire = due.minusDays(off.toLong()).atStartOfDay(zone).withHour(hour)
                 if (!fire.isAfter(now)) continue
                 scheduled.add(
-                    Scheduled(bill.id * 31 + off, fire.toInstant().toEpochMilli(), "Bill reminder", bodyFor(bill, off))
+                    Scheduled(bill.id.hashCode() * 31 + off, fire.toInstant().toEpochMilli(), "Bill reminder", bodyFor(bill, off))
                 )
             }
         }
@@ -166,7 +166,7 @@ object NotificationScheduler {
                 val fire = end.minusDays(off.toLong()).withHour(hour).withMinute(0)
                 if (!fire.isAfter(now)) continue
                 scheduled.add(
-                    Scheduled(bill.id * 37 + off + 10000, fire.toInstant().toEpochMilli(),
+                    Scheduled(bill.id.hashCode() * 37 + off + 10000, fire.toInstant().toEpochMilli(),
                         "Trial ending soon", trialBodyFor(bill, off))
                 )
             }
