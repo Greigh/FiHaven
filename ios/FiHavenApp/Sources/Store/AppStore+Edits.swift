@@ -372,8 +372,11 @@ extension AppStore {
     }
 
     // ── helpers ──────────────────────────────────────────────────────
-    /// A new unique id (timestamp ms) for bills/cards.
-    static func newID() -> Int { Int(Date().timeIntervalSince1970 * 1000) }
+    /// A new unique *string* id for bills/cards/accounts/goals, matching the
+    /// web's `genId()` format. Ids must be strings so records round-trip across
+    /// platforms — a 64-bit timestamp id overflows Android's 32-bit Int, and
+    /// the web mints non-numeric string ids that aren't parseable as Int.
+    static func newID() -> String { newPaymentID() }
 
     /// A new unique *string* id for payments, matching the web's format
     /// (`Date.now().toString(36) + Math.random().toString(36)`). Keeping the

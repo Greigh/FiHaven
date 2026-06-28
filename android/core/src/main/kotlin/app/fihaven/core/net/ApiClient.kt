@@ -153,7 +153,10 @@ class ApiClient(
     suspend fun fetchData(): AppData = decodeAppData(send(makeRequest("api/data", HttpMethod.GET)))
 
     suspend fun saveData(data: AppData) {
-        val body = encode(DataPutBody(data.bills, data.cards, data.payments, data.settings))
+        val body = encode(DataPutBody(
+            data.bills, data.cards, data.payments,
+            data.accounts, data.goals, data.transactions, data.settings,
+        ))
         send(makeRequest("api/data", HttpMethod.PUT, body))
     }
 

@@ -1,9 +1,12 @@
 package app.fihaven.core.net
 
+import app.fihaven.core.model.Account
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.Entitlement
 import app.fihaven.core.model.Payment
+import app.fihaven.core.model.SavingsGoal
+import app.fihaven.core.model.SpendTransaction
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -85,6 +88,12 @@ data class DataPutBody(
     val bills: List<Bill>,
     val cards: List<Card>,
     val payments: List<Payment>,
+    // The server PUT replaces the whole record, so every list must be sent or
+    // it's wiped. Accounts/goals/transactions were previously omitted, which
+    // erased them whenever Android saved. Include them all.
+    val accounts: List<Account>,
+    val goals: List<SavingsGoal>,
+    val transactions: List<SpendTransaction>,
     val settings: JsonObject,
 )
 

@@ -38,6 +38,7 @@ import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
 import app.fihaven.core.model.IncomeAdjustment
+import app.fihaven.core.model.genId
 import app.fihaven.core.model.IncomeSource
 import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.SavingsGoal
@@ -322,7 +323,7 @@ fun GoalEditorDialog(goal: SavingsGoal?, vm: AppViewModel, onDismiss: () -> Unit
         onSave = {
             vm.upsertGoal(
                 SavingsGoal(
-                    id = goal?.id ?: System.currentTimeMillis().toInt(),
+                    id = goal?.id ?: genId(),
                     name = name.trim(),
                     target = target.toDoubleOrNull() ?: 0.0,
                     saved = saved.toDoubleOrNull() ?: 0.0,

@@ -106,6 +106,12 @@ struct DataPutBody: Encodable {
     let bills: [Bill]
     let cards: [Card]
     let payments: [Payment]
+    // The server PUT replaces the whole record, so any list left out is wiped.
+    // Accounts/goals/transactions were previously omitted, erasing them on
+    // every save — always send them.
+    let accounts: [Account]
+    let goals: [SavingsGoal]
+    let transactions: [SpendTransaction]
     let settings: Settings
 }
 

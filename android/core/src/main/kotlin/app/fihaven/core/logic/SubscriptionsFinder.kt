@@ -13,7 +13,7 @@ object SubscriptionsFinder {
 
     data class Item(
         val id: String,
-        val billId: Int?,
+        val billId: String?,
         val name: String,
         val monthly: Double,
         val source: String,

@@ -53,10 +53,10 @@ class RewardsSpendTest {
     @Test fun rewardsEstimateOnlyBonusCategories() {
         val spend = mapOf("Dining" to 1000.0, "Gas" to 1000.0, "Other" to 5000.0)
         assertEquals(40.0, Rewards.cardRewardsEstimateAnnual(
-            Card(id = 1, name = "Gold", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0)), spend))
+            Card(id = "1", name = "Gold", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 4.0)), spend))
         assertEquals(60.0, Rewards.cardRewardsEstimateAnnual(
-            Card(id = 2, name = "Pts", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 3.0), pointValue = 2.0), spend))
+            Card(id = "2", name = "Pts", rewardBase = 1.0, rewardCategories = mapOf("Dining" to 3.0), pointValue = 2.0), spend))
         assertEquals(0.0, Rewards.cardRewardsEstimateAnnual(
-            Card(id = 3, name = "Loan", type = "loan", rewardCategories = mapOf("Dining" to 4.0)), spend))
+            Card(id = "3", name = "Loan", type = "loan", rewardCategories = mapOf("Dining" to 4.0)), spend))
     }
 }

@@ -18,7 +18,7 @@ val FiHavenJson: Json = Json {
 
 @Serializable
 data class Bill(
-    val id: Int = 0,
+    @Serializable(with = FlexStringIdSerializer::class) val id: String = "",
     val name: String = "",
     val business: String? = null,
     val category: String = "Other",
@@ -36,7 +36,7 @@ data class Bill(
 
 @Serializable
 data class Card(
-    val id: Int = 0,
+    @Serializable(with = FlexStringIdSerializer::class) val id: String = "",
     val name: String = "",
     val type: String = "card", // "card" | "loan"
     val issuer: String? = null,
@@ -149,7 +149,7 @@ data class IncomeAdjustment(
 /// property, cash. Paired with the debts in `cards` for net worth.
 @Serializable
 data class Account(
-    val id: Int = 0,
+    @Serializable(with = FlexStringIdSerializer::class) val id: String = "",
     val name: String = "",
     val type: String = "checking", // checking|savings|investment|property|cash|other
     val balance: Double = 0.0,
@@ -160,7 +160,7 @@ data class Account(
 /// date used to suggest a monthly contribution.
 @Serializable
 data class SavingsGoal(
-    val id: Int = 0,
+    @Serializable(with = FlexStringIdSerializer::class) val id: String = "",
     val name: String = "",
     val target: Double = 0.0,
     val saved: Double = 0.0,

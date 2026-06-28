@@ -7,7 +7,7 @@ public enum PayoffStrategy: String, Sendable, CaseIterable {
 }
 
 public struct PayoffCardResult: Equatable, Sendable, Identifiable {
-    public var id: Int
+    public var id: String
     public var name: String
     public var origBalance: Double
     public var paidOffMonth: Int?
@@ -30,7 +30,7 @@ public struct PayoffResult: Equatable, Sendable {
 /// Returns nil when no card carries a balance.
 public enum Payoff {
     private struct Sim {
-        var id: Int
+        var id: String
         var name: String
         var balance: Double
         var origBalance: Double
