@@ -106,7 +106,10 @@ function countryCodes() {
 // Create a short-lived Link token the browser hands to Plaid Link.
 // Pass `accessToken` to create an UPDATE-MODE token (re-auth an existing
 // item after ITEM_LOGIN_REQUIRED) — update mode omits `products`.
-async function createLinkToken(user, accessToken) {
+// `opts.accountSelection` opens update mode with account selection enabled,
+// the flow for NEW_ACCOUNTS_AVAILABLE (let the user add newly-available
+// accounts to an existing Item).
+async function createLinkToken(user, accessToken, opts = {}) {
   const req = {
     user: { client_user_id: String(user.id) },
     client_name: 'FiHaven',
@@ -115,6 +118,7 @@ async function createLinkToken(user, accessToken) {
   };
   if (accessToken) {
     req.access_token = accessToken; // update mode: re-link the existing item
+    if (opts.accountSelection) req.update = { account_selection_enabled: true };
   } else {
     req.products = products();
   }

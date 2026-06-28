@@ -1649,7 +1649,18 @@ import { initHousehold } from './household.js';
       var name = document.createElement('strong');
       name.textContent = it.institutionName || 'Bank';
       head.appendChild(name);
-      if (it.status && it.status !== 'active') {
+      if (it.status === 'new_accounts') {
+        // The Item still works; just invite the user to add the new accounts.
+        var naBadge = document.createElement('span');
+        naBadge.className = 'badge badge-gray';
+        naBadge.textContent = 'New accounts available';
+        head.appendChild(naBadge);
+        var addBtn = document.createElement('button');
+        addBtn.className = 'btn btn-primary btn-sm';
+        addBtn.textContent = 'Add accounts';
+        addBtn.addEventListener('click', function () { reconnect(it.id, addBtn, true); });
+        head.appendChild(addBtn);
+      } else if (it.status && it.status !== 'active') {
         var badge = document.createElement('span');
         badge.className = 'badge badge-orange';
         badge.textContent = it.status === 'login_required' ? 'Reconnect needed' : it.status;
@@ -1731,13 +1742,16 @@ import { initHousehold } from './household.js';
       });
     }
 
-    // Update mode: re-auth an item flagged login_required. Opens Plaid Link
-    // with an update-mode token (no public-token exchange); on success we
-    // tell the server to mark the item repaired and re-pull its data.
-    function reconnect(id, btn) {
+    // Update mode: re-auth an item flagged login_required, or (when
+    // `accountSelection` is true) add newly-available accounts after a
+    // NEW_ACCOUNTS_AVAILABLE webhook. Opens Plaid Link with an update-mode token
+    // (no public-token exchange); on success we tell the server to mark the item
+    // repaired and re-pull its data (which now includes any new accounts).
+    function reconnect(id, btn, accountSelection) {
       btn.disabled = true;
-      showMessage('plaid', 'Reopening your bank…', false);
-      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { itemId: id })]).then(function (out) {
+      var adding = !!accountSelection;
+      showMessage('plaid', adding ? 'Opening your bank…' : 'Reopening your bank…', false);
+      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { itemId: id, accountSelection: adding })]).then(function (out) {
         var Plaid = out[0];
         var res = out[1];
         btn.disabled = false;
@@ -1750,10 +1764,10 @@ import { initHousehold } from './household.js';
           token: res.data.linkToken,
           onSuccess: function () {
             clearOauth();
-            showMessage('plaid', 'Reconnecting…', false);
+            showMessage('plaid', adding ? 'Updating accounts…' : 'Reconnecting…', false);
             plaidFetch('item/' + id + '/repaired', 'POST').then(function (r) {
-              if (r.ok) { showMessage('plaid', 'Bank reconnected.', false); refreshStatus(); }
-              else showMessage('plaid', 'Could not finish reconnecting.', true);
+              if (r.ok) { showMessage('plaid', adding ? 'Accounts updated.' : 'Bank reconnected.', false); refreshStatus(); }
+              else showMessage('plaid', adding ? 'Could not finish updating accounts.' : 'Could not finish reconnecting.', true);
             }).catch(function () { showMessage('plaid', errorText('network'), true); });
           },
           onExit: function (err) { clearOauth(); if (err) showMessage('plaid', 'Reconnect was cancelled.', false); },

@@ -156,4 +156,4 @@ data class PlaidStatus(
 @Serializable data class PlaidLinkTokenResponse(val linkToken: String)
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
 @Serializable data class PlaidExchangeBody(@SerialName("public_token") val publicToken: String)
-@Serializable data class PlaidLinkTokenBody(val itemId: Int)
+@Serializable data class PlaidLinkTokenBody(val itemId: Int, val accountSelection: Boolean? = null)

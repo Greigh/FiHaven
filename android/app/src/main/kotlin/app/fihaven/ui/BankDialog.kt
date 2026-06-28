@@ -92,12 +92,13 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         }
     }
 
-    // Update mode: re-auth an item flagged login_required.
-    fun reconnect(id: Int) {
+    // Update mode: re-auth an item flagged login_required, or (accountSelection)
+    // add newly-available accounts after a NEW_ACCOUNTS_AVAILABLE webhook.
+    fun reconnect(id: Int, accountSelection: Boolean = false) {
         busy = true
-        msg = "Reopening your bank…"
+        msg = if (accountSelection) "Opening your bank…" else "Reopening your bank…"
         scope.launch {
-            val token = runCatching { vm.api.plaidLinkToken(id) }.getOrNull()
+            val token = runCatching { vm.api.plaidLinkToken(id, accountSelection) }.getOrNull()
             busy = false
             if (token == null) { msg = "Could not start reconnect. Please try again."; return@launch }
             msg = null
@@ -126,7 +127,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                             BankItemRow(
                                 item,
                                 onDisconnect = { scope.launch { runCatching { vm.api.plaidRemove(item.id) }; load() } },
-                                onReconnect = { reconnect(item.id) },
+                                onReconnect = { accountSelection -> reconnect(item.id, accountSelection) },
                             )
                             HorizontalDivider(color = Ct.colors.border)
                         }
@@ -167,17 +168,21 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
 }
 
 @Composable
-private fun BankItemRow(item: PlaidItem, onDisconnect: () -> Unit, onReconnect: () -> Unit) {
+private fun BankItemRow(item: PlaidItem, onDisconnect: () -> Unit, onReconnect: (Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(item.institutionName, color = Ct.colors.text, fontSize = 15.sp,
                 fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            if (item.status != "active") {
-                TextButton(onClick = onReconnect) { Text("Reconnect", color = Ct.colors.accent) }
+            if (item.status == "new_accounts") {
+                TextButton(onClick = { onReconnect(true) }) { Text("Add accounts", color = Ct.colors.accent) }
+            } else if (item.status != "active") {
+                TextButton(onClick = { onReconnect(false) }) { Text("Reconnect", color = Ct.colors.accent) }
             }
             TextButton(onClick = onDisconnect) { Text("Disconnect", color = Ct.colors.red) }
         }
-        if (item.status != "active") {
+        if (item.status == "new_accounts") {
+            Text("New accounts available", color = Ct.colors.muted, fontSize = 11.sp)
+        } else if (item.status != "active") {
             Text(
                 if (item.status == "login_required") "Reconnect needed" else item.status,
                 color = Ct.colors.orange, fontSize = 11.sp,
