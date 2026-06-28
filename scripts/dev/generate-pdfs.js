@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* ═══════════════════════════════════════════════════════════
    scripts/dev/generate-pdfs.js — export docs/*.md compliance
-   policies to styled PDFs in docs/ (headless Chrome print).
+   policies to styled PDFs in docs/pdf/ (headless Chrome print).
 
    Run from repo root:
      npm run generate:pdfs
@@ -20,6 +20,11 @@ const { execSync } = require('child_process');
 
 const REPO_ROOT = path.join(__dirname, '../..');
 const docsDir = path.join(REPO_ROOT, 'docs');
+const pdfDir = path.join(docsDir, 'pdf');
+
+if (!fs.existsSync(pdfDir)) {
+  fs.mkdirSync(pdfDir, { recursive: true });
+}
 
 const DEFAULT_CHROME_MAC =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -60,7 +65,7 @@ console.log(`Using browser: ${chromePath}`);
 files.forEach((file) => {
   const mdPath = path.join(docsDir, `${file.name}.md`);
   const htmlPath = path.join(docsDir, `${file.name}.temp.html`);
-  const pdfPath = path.join(docsDir, `${file.name}.pdf`);
+  const pdfPath = path.join(pdfDir, `${file.name}.pdf`);
 
   if (!fs.existsSync(mdPath)) {
     console.error(`Warning: Markdown file not found: ${mdPath}`);

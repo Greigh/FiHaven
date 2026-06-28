@@ -331,7 +331,7 @@ fihaven/
 | `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies HTTP. |
 | `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
 | `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
-| `npm run generate:pdfs` | Export `docs/*.md` compliance policies to PDF via headless Chrome (`CHROME_PATH` optional). |
+| `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
 ---
