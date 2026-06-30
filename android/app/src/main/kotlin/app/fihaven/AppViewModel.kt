@@ -126,6 +126,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _entitlement = MutableStateFlow(Entitlement())
     val entitlement: StateFlow<Entitlement> = _entitlement.asStateFlow()
+    private val _stripePortal = MutableStateFlow(false)
+    val stripePortal: StateFlow<Boolean> = _stripePortal.asStateFlow()
 
     // Live save/sync state, surfaced in Settings so users know data
     // auto-syncs to their account. Mirrors the web sync pill + iOS syncState.
@@ -284,6 +286,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _session.value = Session.SignedOut
         _data.value = AppData()
         _entitlement.value = Entitlement()
+        _stripePortal.value = false
         _dataLoaded.value = false
         _dataError.value = null
     }
@@ -454,7 +457,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ── Billing / entitlement ────────────────────────────────────────
     suspend fun refreshEntitlement() {
         devEntitlement(devEntitlementOverride)?.let { _entitlement.value = it; return }
-        runCatching { _entitlement.value = api.billingStatus() }
+        runCatching {
+            val status = api.billingStatusFull()
+            _entitlement.value = status.entitlement
+            _stripePortal.value = status.stripePortal
+        }
+    }
+
+    fun billingNote(ent: Entitlement): String? = when {
+        !ent.pro -> null
+        ent.source == "comp" -> "You have complimentary Pro access — no subscription to manage."
+        ent.source == "promo" -> "Your Pro access is from a promo code — no subscription to manage."
+        else -> null
+    }
+
+    fun manageButtonLabel(ent: Entitlement): String? = when {
+        !ent.pro -> null
+        _stripePortal.value -> "Manage subscription"
+        ent.source == "google" -> "Manage in Play Store"
+        else -> null
+    }
+
+    fun manageSubscription(context: android.content.Context) = viewModelScope.launch {
+        when {
+            _stripePortal.value -> runCatching {
+                val url = api.createStripePortal()
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                )
+            }
+            _entitlement.value.source == "google" -> {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://play.google.com/store/account/subscriptions?package=app.fihaven"),
+                    )
+                )
+            }
+        }
     }
 
     // ── Dev-only entitlement override (testing; debug builds) ─────────
@@ -581,6 +621,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _session.value = Session.SignedOut
             _data.value = AppData()
             _entitlement.value = Entitlement()
+        _stripePortal.value = false
         } catch (e: ApiError) {
             onError(e.userMessage)
         } catch (e: Exception) {

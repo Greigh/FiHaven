@@ -33,7 +33,10 @@ function appBaseUrl(req) {
 /* ── GET /api/billing/status ─────────────────────────────────── */
 
 router.get('/status', requireAuth, (req, res) => {
-  res.json({ entitlement: billing.computeEntitlement(req.user.id) });
+  res.json({
+    entitlement: billing.computeEntitlement(req.user.id),
+    stripePortal: billing.canUseStripePortal(req.user.id),
+  });
 });
 
 /* ── POST /api/billing/apple/verify ──────────────────────────── */
@@ -124,7 +127,10 @@ router.post('/stripe/portal', requireAuth, requireCsrf, async (req, res) => {
       if (!billing.stripeConfigured()) {
         return res.json({ url: '/dev-portal' });
       }
-      return sendError(res, 400, 'portal-unavailable');
+      const err = billing.canUseStripePortal(req.user.id)
+        ? 'portal-customer-missing'
+        : 'not-stripe-subscriber';
+      return sendError(res, 400, err);
     }
     res.json({ url });
   } catch (err) {
