@@ -42,6 +42,24 @@ object DateLogic {
         return diff
     }
 
+    fun effectiveDaysUntilDue(
+        dueDay: Int,
+        fullyPaid: Boolean,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Int {
+        if (dueDay <= 0) return 9999
+        if (fullyPaid) {
+            val today = today(zone, now)
+            val firstThis = today.withDayOfMonth(1)
+            val thisMonth = dateForDay(firstThis, dueDay)
+            val target = if (thisMonth.isAfter(today)) thisMonth
+            else dateForDay(firstThis.plusMonths(1), dueDay)
+            return ChronoUnit.DAYS.between(today, target).toInt()
+        }
+        return daysUntilDue(dueDay, zone, now)
+    }
+
     fun nextDueDate(dueDay: Int, zone: ZoneId, now: Instant = Instant.now()): LocalDate? {
         if (dueDay <= 0) return null
         val today = today(zone, now)

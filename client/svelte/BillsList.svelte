@@ -6,7 +6,7 @@
 <script>
   import { bills, cards, save } from '../js/storage.svelte.js';
   import {
-    ICONS, fmt, currentPeriodKey, daysUntilDue, nextDueDate, shortDate,
+    ICONS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilBillDue, nextDueDate, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
     paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
     nextBillDueDate, daysUntilBillDue,
@@ -66,7 +66,7 @@
     const f = activeFilters;
     const list = bills.filter((b) => {
       if (f.unpaid && paidState('bill', String(b.id), mk) === 'full') return false;
-      if (f.overdue && !((b.dueDay || b.startDate) && daysUntilBillDue(b) < 0)) return false;
+      if (f.overdue && !((b.dueDay || b.startDate) && effectiveDaysUntilBillDue(b, mk) < 0)) return false;
       if (f.autopay && !b.autopay) return false;
       if (f.oncard && b.cardId == null) return false;
       if (f.category && f.category !== 'all' && b.category !== f.category) return false;
@@ -114,7 +114,7 @@
           {@const state = paidState('bill', String(b.id), mk)}
           {@const notStarted = billNotStarted(b)}
           {@const ended = billEnded(b)}
-          {@const days  = b.dueDay || b.startDate ? daysUntilBillDue(b) : null}
+          {@const days  = b.dueDay || b.startDate ? effectiveDaysUntilBillDue(b, mk) : null}
           {@const next  = nextBillDueDate(b)}
           {@const stats = paymentStats('bill', String(b.id), 6)}
           {@const sinceLast = daysSinceLastPayment('bill', String(b.id))}

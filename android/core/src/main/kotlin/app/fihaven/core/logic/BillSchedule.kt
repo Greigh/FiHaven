@@ -63,6 +63,19 @@ object BillSchedule {
         return ChronoUnit.DAYS.between(DateLogic.today(zone, now), next).toInt()
     }
 
+    fun effectiveDaysUntilDue(
+        bill: Bill,
+        fullyPaid: Boolean,
+        zone: ZoneId,
+        now: java.time.Instant = java.time.Instant.now(),
+    ): Int {
+        if (fullyPaid) {
+            val next = nextDueDate(bill, zone, DateLogic.today(zone, now)) ?: return 9999
+            return ChronoUnit.DAYS.between(DateLogic.today(zone, now), next).toInt()
+        }
+        return daysUntilDue(bill, zone, now)
+    }
+
     fun dueInPeriod(bill: Bill, bounds: PeriodBounds, zone: ZoneId): Boolean {
         var d = bounds.start
         while (d.isBefore(bounds.end)) {

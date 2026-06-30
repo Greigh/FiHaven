@@ -34,6 +34,9 @@ object Schedule {
         bills: List<Bill>,
         cards: List<Card>,
         zone: ZoneId,
+        payments: List<Payment> = emptyList(),
+        bounds: PeriodBounds? = null,
+        policy: PaidGoalPolicy = PaidGoalPolicy.RECOMMENDED,
         now: Instant = Instant.now(),
     ): List<UpcomingItem> {
         val items = mutableListOf<UpcomingItem>()
@@ -41,14 +44,22 @@ object Schedule {
         for (b in bills) {
             if (b.dueDay == null && b.startDate.isNullOrEmpty()) continue
             if (!DateLogic.billActive(b, zone, now)) continue
+            val ref = b.id.toString()
+            val days = if (bounds != null) {
+                val goal = goalAmount(b)
+                val paid = max(0.0, goal - paidAmount(payments, "bill", ref, bounds)) <= PAID_EPSILON
+                BillSchedule.effectiveDaysUntilDue(b, paid, zone, now)
+            } else {
+                BillSchedule.daysUntilDue(b, zone, now)
+            }
             items.add(
                 UpcomingItem(
                     name = b.name,
                     amount = b.amount,
-                    days = BillSchedule.daysUntilDue(b, zone, now),
+                    days = days,
                     nextDue = BillSchedule.nextDueDate(b, zone, DateLogic.today(zone, now)),
                     type = "bill",
-                    refId = b.id.toString(),
+                    refId = ref,
                     autopay = b.autopay,
                     icon = CTConstants.iconForCategory(b.category),
                 )
@@ -59,14 +70,22 @@ object Schedule {
             val dd = c.dueDay ?: continue
             if (dd == 0) continue
             val needed = if (c.hasPromo) max(c.minPayment, promoNeeded(c, zone, now)) else c.minPayment
+            val ref = c.id.toString()
+            val days = if (bounds != null) {
+                val goal = goalAmount(c, policy, payments, bounds, zone, now)
+                val paid = max(0.0, goal - paidAmount(payments, "card", ref, bounds)) <= PAID_EPSILON
+                DateLogic.effectiveDaysUntilDue(dd, paid, zone, now)
+            } else {
+                DateLogic.daysUntilDue(dd, zone, now)
+            }
             items.add(
                 UpcomingItem(
                     name = c.name + " (payment)",
                     amount = needed,
-                    days = DateLogic.daysUntilDue(dd, zone, now),
+                    days = days,
                     nextDue = DateLogic.nextDueDate(dd, zone, now),
                     type = "card",
-                    refId = c.id.toString(),
+                    refId = ref,
                     autopay = c.autopay,
                     icon = CTConstants.cardIcon,
                 )
