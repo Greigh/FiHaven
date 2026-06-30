@@ -442,19 +442,45 @@ import { initHousehold } from './household.js';
 
   /* ── Section tabs ──────────────────────────────────────── */
   function initTabs() {
+    var tablist = document.querySelector('[data-settings-tabs]');
     var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-settings-tabs] .tab-btn'));
     var panels = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
+    var wrap = document.querySelector('[data-settings-tabs-wrap]');
     if (!tabs.length) return;
 
+    function updateScrollHints() {
+      if (!wrap || !tablist) return;
+      var max = tablist.scrollWidth - tablist.clientWidth;
+      wrap.classList.toggle('can-scroll-left', tablist.scrollLeft > 4);
+      wrap.classList.toggle('can-scroll-right', max - tablist.scrollLeft > 4);
+    }
+
     function activate(name) {
-      tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
+      tabs.forEach(function (t) {
+        var on = t.dataset.tab === name;
+        t.classList.toggle('active', on);
+        if (on && tablist) {
+          try {
+            t.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+          } catch (e) {
+            t.scrollIntoView();
+          }
+        }
+      });
       panels.forEach(function (p) { p.hidden = p.getAttribute('data-tab-panel') !== name; });
       try { history.replaceState(null, '', '#' + name); } catch (e) {}
+      requestAnimationFrame(updateScrollHints);
     }
 
     tabs.forEach(function (t) {
       t.addEventListener('click', function () { activate(t.dataset.tab); });
     });
+
+    if (tablist) {
+      tablist.addEventListener('scroll', updateScrollHints, { passive: true });
+      window.addEventListener('resize', updateScrollHints);
+      updateScrollHints();
+    }
 
     // Honor a #hash deep-link (e.g. /settings#security from onboarding).
     var hash = (window.location.hash || '').replace('#', '');

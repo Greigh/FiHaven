@@ -97,6 +97,7 @@ nav {
   display: flex;
   align-items: center;
   gap: 18px;
+  overflow: visible;
   /* Centered across every page, matching the home page's layout. */
   width: 100%;
   max-width: 1240px;
@@ -141,6 +142,7 @@ nav {
   position: relative;
   flex: 1;
   min-width: 0;
+  overflow: visible;
 }
 .appbar-nav-wrap::before,
 .appbar-nav-wrap::after {
@@ -167,12 +169,22 @@ nav {
   gap: 2px;
   width: 100%;
   min-width: 0;
+  overflow: visible;
+}
+/* Primary tabs scroll horizontally; keep .appbar-more outside so its
+   dropdown isn't clipped (overflow-x: auto forces overflow-y: auto). */
+.appbar-nav-scroll {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   padding: 0 2px;
 }
-.appbar-nav::-webkit-scrollbar { display: none; }
+.appbar-nav-scroll::-webkit-scrollbar { display: none; }
 
 .appbar-tab {
   display: inline-flex;
@@ -246,7 +258,7 @@ nav {
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: var(--surface);
   box-shadow: 0 14px 40px rgba(15, 15, 20, .14);
-  z-index: 120;
+  z-index: 200;
   display: flex;
   flex-direction: column;
   gap: 2px;
