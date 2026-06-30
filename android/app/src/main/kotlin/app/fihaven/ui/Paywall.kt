@@ -150,11 +150,15 @@ private val perks = listOf(
 @Composable
 fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val stripePortal by vm.stripePortal.collectAsStateWithLifecycle()
     val billing = LocalBilling.current
     val products: List<ProductDetails> =
         if (billing != null) billing.products.collectAsStateWithLifecycle().value else emptyList()
     val activity = LocalContext.current.findActivity()
+    val context = LocalContext.current
     var showRedeem by remember { mutableStateOf(false) }
+    val billingNote = vm.billingNote(ent)
+    val manageLabel = vm.manageButtonLabel(ent)
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -191,6 +195,15 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 
                     if (ent.pro) {
                         ActiveCard(ent)
+                        billingNote?.let {
+                            Text(it, color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                        }
+                        manageLabel?.let { label ->
+                            OutlinedButton(
+                                onClick = { vm.manageSubscription(context) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(label, color = Ct.colors.text) }
+                        }
                     } else if (products.isEmpty()) {
                         Text(
                             "Subscriptions aren’t available right now. You can still redeem a code below.",
@@ -236,6 +249,17 @@ private fun ActiveCard(ent: app.fihaven.core.model.Entitlement) {
             Icon(Icons.Filled.CheckCircle, null, tint = Ct.colors.green, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(6.dp))
             Text("You’re on FiHaven Pro", color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+            ent.source?.let { source ->
+                val label = when (source) {
+                    "stripe" -> "Stripe"
+                    "google" -> "Play Store"
+                    "promo" -> "Promo Code"
+                    "comp" -> "Complimentary"
+                    else -> source.replaceFirstChar { it.uppercase() }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("Provider: $label", color = Ct.colors.muted, fontSize = 13.sp)
+            }
             val expiresAt = ent.expiresAt
             val line = when {
                 expiresAt != null -> {
