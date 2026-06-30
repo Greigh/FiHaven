@@ -111,7 +111,7 @@ final class StoreManager: ObservableObject {
         guard let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
         else { return }
-        Task { try? await AppStore.showManageSubscriptions(in: scene) }
+        Task { try? await StoreKit.AppStore.showManageSubscriptions(in: scene) }
         #endif
     }
 
