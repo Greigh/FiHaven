@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-06-28
+## [1.5.0] (Pre-Release) — Last updated: 2026-06-29
 
 | | |
 |---|---|
 | **Status** | Pre-release |
-| **iOS** | 1.5.0 (2) |
-| **Android** | 1.5.0 (build 10) |
+| **iOS** | 1.5.0 (3) |
+| **Android** | 1.5.0 (build 11) |
 
 ### Summary
 
@@ -63,6 +63,14 @@ Each release below uses two layers:
 - Android now autofills the 2FA code correctly instead of offering a password,
   and the sign-up screen shows the Terms/Privacy agreement.
 - Stronger Android sign-in security and more reliable iOS TestFlight builds.
+
+**Build 3 polish**
+
+- Fixed cards and bills showing “overdue” after you’ve already paid this period.
+- Fixed FiHaven Pro “Manage subscription” for Stripe subscribers; clearer
+  messaging for complimentary and promo access.
+- Fixed the dashboard **More** menu and settings tab bar on the web.
+- Updated the marketing homepage to reflect live apps, sync, and bank linking.
 
 ---
 
@@ -109,6 +117,10 @@ Each release below uses two layers:
 
 #### Changed
 
+- **Marketing homepage** — `home.html` reflects TestFlight/live apps, sync,
+  family, passkeys, and Plaid (`pricing.html` one-liner).
+- **Android Plaid Link SDK 6** — migrated to Plaid Link SDK 6.0.0; `compileSdk`
+  37 and lifecycle 2.11.0.
 - **Plaid production deploy** — `upload.sh` ships sanitized `PLAID_*` production
   keys in server `.env` so bank linking works on fihaven.app (previously every
   `PLAID_*` key was stripped from deploy).
@@ -125,6 +137,16 @@ Each release below uses two layers:
 
 #### Fixed
 
+- **Paid items no longer show overdue** — `effectiveDaysUntilDue` /
+  `effectiveDaysUntilBillDue` in `utils.js` and native `DateLogic` / `Schedule`;
+  Cards, Bills, and Dashboard upcoming on web, iOS, and Android.
+- **Stripe billing portal** — customer lookup via active subscription;
+  `stripePortal` flag on `GET /api/billing/status`; Pro dialog shows manage
+  only when applicable (`pro.js`, native Paywall/Pro screens).
+- **Web More menu** — primary tabs scroll inside `.appbar-nav-scroll`; dropdown
+  no longer clipped (`navbar.js`, `components.css`).
+- **Settings tab bar** — horizontal scroll wrapper with edge fades
+  (`settings.html`, `pages.css`, `settings.js`).
 - **Android PendingIntents (CodeQL #31, #32)** — bill-reminder alarm and
   notification tap intents use explicit `setClassName` + `setPackage` via
   `ExplicitIntents.kt`.
