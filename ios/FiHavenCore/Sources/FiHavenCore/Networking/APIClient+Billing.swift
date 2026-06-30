@@ -6,9 +6,23 @@ import Foundation
 extension APIClient {
     /// Current Pro entitlement (`GET /api/billing/status`).
     public func billingStatus() async throws -> Entitlement {
+        try await billingStatusFull().entitlement
+    }
+
+    /// Billing status including whether the Stripe portal is available.
+    public func billingStatusFull() async throws -> BillingStatusResponse {
         let req = try makeRequest(path: "api/billing/status", method: .GET)
         let data = try await send(req)
-        return try decode(EntitlementResponse.self, from: data).entitlement
+        return try decode(BillingStatusResponse.self, from: data)
+    }
+
+    /// Open the Stripe billing portal (`POST /api/billing/stripe/portal`).
+    public func createStripePortal() async throws -> URL {
+        let req = try makeRequest(path: "api/billing/stripe/portal", method: .POST)
+        let data = try await send(req)
+        let urlString = try decode(StripePortalResponse.self, from: data).url
+        guard let url = URL(string: urlString) else { throw APIError.decoding("invalid-portal-url") }
+        return url
     }
 
     /// Verify a StoreKit 2 signed transaction and persist the subscription.

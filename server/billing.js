@@ -459,15 +459,42 @@ async function createStripeCheckout(user, plan, baseUrl) {
   return { url: session.url };
 }
 
+// True when this user has an active Stripe subscription row and Stripe
+// is configured — the billing portal can open for them.
+function canUseStripePortal(userId) {
+  if (!stripeConfigured()) return false;
+  return dbApi.activeSubscriptions(userId).some((s) => s.platform === 'stripe');
+}
+
+async function stripeCustomerIdForUser(user) {
+  const stripe = stripeClient();
+  if (!stripe) return null;
+
+  // Prefer the customer tied to an active Stripe subscription.
+  const subs = dbApi.activeSubscriptions(user.id).filter((s) => s.platform === 'stripe');
+  for (const row of subs) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(row.txn_id);
+      const customer = sub.customer;
+      if (customer) return typeof customer === 'string' ? customer : customer.id;
+    } catch (err) {
+      // Subscription may have been removed in Stripe; try the next row.
+    }
+  }
+
+  const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+  return customers.data[0] ? customers.data[0].id : null;
+}
+
 // Stripe Billing Portal so web users can manage/cancel.
 async function createStripePortal(user, baseUrl) {
   const stripe = stripeClient();
   if (!stripe) return null;
-  const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-  const customer = customers.data[0];
-  if (!customer) return null;
+  if (!canUseStripePortal(user.id)) return null;
+  const customerId = await stripeCustomerIdForUser(user);
+  if (!customerId) return null;
   const session = await stripe.billingPortal.sessions.create({
-    customer: customer.id,
+    customer: customerId,
     return_url: `${baseUrl}/settings`,
   });
   return session.url;
@@ -609,6 +636,7 @@ module.exports = {
   stripeAvailablePlans,
   createStripeCheckout,
   createStripePortal,
+  canUseStripePortal,
   handleStripeWebhook,
   devCancelSubscription,
   devChangeSubscription,

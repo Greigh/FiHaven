@@ -177,8 +177,13 @@ class ApiClient(
     }
 
     // ── Billing / entitlement ─────────────────────────────────────────
-    suspend fun billingStatus(): Entitlement =
-        decode<EntitlementResponse>(send(makeRequest("api/billing/status", HttpMethod.GET))).entitlement
+    suspend fun billingStatus(): Entitlement = billingStatusFull().entitlement
+
+    suspend fun billingStatusFull(): BillingStatusResponse =
+        decode(send(makeRequest("api/billing/status", HttpMethod.GET)))
+
+    suspend fun createStripePortal(): String =
+        decode<StripePortalResponse>(send(makeRequest("api/billing/stripe/portal", HttpMethod.POST))).url
 
     suspend fun verifyGoogle(productId: String, purchaseToken: String, expiryTimeMillis: Long? = null): Entitlement =
         decode<EntitlementResponse>(

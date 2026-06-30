@@ -13,6 +13,7 @@ import UIKit
 @MainActor
 final class StoreManager: ObservableObject {
     @Published private(set) var entitlement = Entitlement()
+    @Published private(set) var stripePortal = false
     @Published private(set) var products: [Product] = []
     @Published private(set) var purchasing = false
     @Published private(set) var loadingProducts = false
@@ -55,6 +56,7 @@ final class StoreManager: ObservableObject {
         listener?.cancel()
         listener = nil
         entitlement = Entitlement()
+        stripePortal = false
         products = []
         message = nil
     }
@@ -63,7 +65,67 @@ final class StoreManager: ObservableObject {
         #if DEBUG
         if let synth = Self.devEntitlement(devEntitlementOverride) { entitlement = synth; return }
         #endif
-        if let ent = try? await api.billingStatus() { entitlement = ent }
+        if let status = try? await api.billingStatusFull() {
+            entitlement = status.entitlement
+            stripePortal = status.stripePortal ?? false
+        }
+    }
+
+    var billingNote: String? {
+        guard isPro else { return nil }
+        switch entitlement.source {
+        case "comp": return "You have complimentary Pro access — no subscription to manage."
+        case "promo": return "Your Pro access is from a promo code — no subscription to manage."
+        default: return nil
+        }
+    }
+
+    var manageButtonLabel: String? {
+        guard isPro else { return nil }
+        if stripePortal { return "Manage subscription" }
+        if entitlement.source == "apple" { return "Manage in App Store" }
+        return nil
+    }
+
+    func manageSubscription() async {
+        if stripePortal {
+            await openStripePortal()
+        } else if entitlement.source == "apple" {
+            showManageSubscriptions()
+        }
+    }
+
+    func openStripePortal() async {
+        do {
+            let url = try await api.createStripePortal()
+            #if canImport(UIKit)
+            await UIApplication.shared.open(url)
+            #endif
+        } catch {
+            message = Self.portalError(error)
+        }
+    }
+
+    func showManageSubscriptions() {
+        #if os(iOS)
+        guard let scene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        else { return }
+        Task { try? await AppStore.showManageSubscriptions(in: scene) }
+        #endif
+    }
+
+    private static func portalError(_ error: Error) -> String {
+        if case APIError.http(_, let code) = error {
+            switch code {
+            case "not-stripe-subscriber":
+                return "No Stripe subscription is linked to this account."
+            case "portal-customer-missing":
+                return "We couldn’t find your Stripe billing profile."
+            default: break
+            }
+        }
+        return "The billing portal couldn’t be opened. Please try again."
     }
 
     #if DEBUG

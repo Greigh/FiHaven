@@ -58,6 +58,11 @@ public struct PromoResult: Codable, Equatable, Sendable {
 
 // ── Wire bodies ──────────────────────────────────────────────────
 struct EntitlementResponse: Decodable { let entitlement: Entitlement }
+public struct BillingStatusResponse: Decodable, Sendable {
+    public let entitlement: Entitlement
+    public let stripePortal: Bool?
+}
+struct StripePortalResponse: Decodable { let url: String }
 struct AppleVerifyBody: Encodable { let signedTransaction: String }
 struct GoogleVerifyBody: Encodable {
     let productId: String
