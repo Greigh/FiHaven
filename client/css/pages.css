@@ -358,19 +358,69 @@
 }
 
 /* ── Settings: tabbed sections (redesign) ─────────────────── */
-.settings-tabs {
+.settings-tabs-wrap {
+  position: relative;
   width: min(720px, 100%);
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   padding: 5px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
 }
+
+.settings-tabs-wrap::before,
+.settings-tabs-wrap::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  width: 28px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+.settings-tabs-wrap::before {
+  left: 5px;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(to right, var(--surface) 35%, transparent);
+}
+
+.settings-tabs-wrap::after {
+  right: 5px;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(to left, var(--surface) 35%, transparent);
+}
+
+.settings-tabs-wrap.can-scroll-left::before,
+.settings-tabs-wrap.can-scroll-right::after {
+  opacity: 1;
+}
+
+.nav-tabs.settings-tabs {
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
 .settings-tabs::-webkit-scrollbar { display: none; }
-.settings-tabs .tab-btn { white-space: nowrap; }
+
+.settings-tabs .tab-btn {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  white-space: nowrap;
+  padding: 7px 11px;
+  font-size: 12.5px;
+}
 
 .settings-panel {
   width: min(720px, 100%);
