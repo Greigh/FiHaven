@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "app.fihaven"
-    compileSdk = 36
+    // androidx.lifecycle 2.11.0 (Compose) requires compiling against API 37; AGP
+    // 9.2.x already supports it. targetSdk stays at 36 — bumping it opts into
+    // Android 17 runtime behavior and is a separate, testable change.
+    compileSdk = 37
     buildToolsVersion = "36.1.0"
 
     defaultConfig {
@@ -64,8 +67,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
