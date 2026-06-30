@@ -12,6 +12,30 @@
 ═══════════════════════════════════════════════════════════ */
 
 var overlay = null;
+var lastBilling = { stripePortal: false };
+
+function billingNote(ent) {
+  if (!ent || !ent.pro) return '';
+  switch (ent.source) {
+    case 'comp': return 'You have complimentary Pro access — no subscription to manage.';
+    case 'promo': return 'Your Pro access is from a promo code — no subscription to manage.';
+    case 'apple': return 'Manage this subscription in the App Store (Settings → Subscriptions).';
+    case 'google': return 'Manage this subscription in Google Play (Subscriptions).';
+    default: return '';
+  }
+}
+
+function portalError(code, ent) {
+  switch (code) {
+    case 'not-stripe-subscriber': return billingNote(ent) || 'No Stripe subscription is linked to this account.';
+    case 'portal-customer-missing':
+      return 'We couldn’t find your Stripe billing profile. Contact support if this persists.';
+    case 'portal-failed':
+      return 'The billing portal couldn’t be opened. Please try again.';
+    default:
+      return 'The billing portal isn’t available right now. Please try again later.';
+  }
+}
 
 /* ── CSRF + fetch helpers ─────────────────────────────────── */
 function csrf() {
@@ -120,6 +144,7 @@ function build() {
       '<div data-pro-manage-wrap hidden style="margin-top:14px;">' +
         '<button class="btn btn-secondary" type="button" data-pro-manage>Manage subscription</button>' +
       '</div>' +
+      '<div data-pro-billing-note hidden style="margin-top:10px;font-size:13px;color:var(--muted);line-height:1.45;"></div>' +
       '<div data-pro-msg aria-live="polite" style="margin-top:10px;min-height:1em;font-size:14px;"></div>' +
       '<form data-pro-promo style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">' +
         '<label for="pro-promo-code" style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px;">Have a promo code?</label>' +
@@ -156,19 +181,31 @@ function onKey(e) {
 function hide() { if (overlay) overlay.style.display = 'none'; }
 
 /* ── Status + plans + actions ─────────────────────────────── */
-function render(ent) {
+function render(ent, billingMeta) {
+  if (billingMeta) {
+    lastBilling.stripePortal = !!billingMeta.stripePortal;
+    if (billingMeta.entitlement !== undefined) lastBilling.entitlement = billingMeta.entitlement;
+  }
+  if (ent) lastBilling.entitlement = ent;
   var statusCard = overlay.querySelector('[data-pro-status-card]');
   var detailsCard = overlay.querySelector('[data-pro-details-card]');
   var upgradeWrap = overlay.querySelector('[data-pro-upgrade]');
   var manageWrap = overlay.querySelector('[data-pro-manage-wrap]');
+  var billingNoteEl = overlay.querySelector('[data-pro-billing-note]');
 
   var isPro = !!(ent && ent.pro);
+  var canManageStripe = !!(isPro && lastBilling.stripePortal);
 
   if (upgradeWrap) {
     upgradeWrap.style.display = isPro ? 'none' : 'flex';
   }
   if (manageWrap) {
-    manageWrap.style.display = isPro ? 'block' : 'none';
+    manageWrap.style.display = canManageStripe ? 'block' : 'none';
+  }
+  if (billingNoteEl) {
+    var note = isPro && !canManageStripe ? billingNote(ent) : '';
+    billingNoteEl.textContent = note;
+    billingNoteEl.hidden = !note;
   }
 
   if (isPro) {
@@ -179,7 +216,7 @@ function render(ent) {
 
       var providerEl = detailsCard.querySelector('[data-pro-provider]');
       var providerRow = detailsCard.querySelector('[data-pro-provider-row]');
-      var providers = { stripe: 'Stripe', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code' };
+      var providers = { stripe: 'Stripe', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code', comp: 'Complimentary' };
       var providerName = providers[ent.source] || (ent.source ? ent.source.charAt(0).toUpperCase() + ent.source.slice(1) : '');
       if (providerName) {
         providerEl.textContent = providerName;
@@ -215,7 +252,9 @@ function render(ent) {
 
 function refresh() {
   return billingFetch('status').then(function (res) {
-    if (res.ok && res.data) render(res.data.entitlement);
+    if (res.ok && res.data) {
+      render(res.data.entitlement, { stripePortal: !!res.data.stripePortal });
+    }
   }).catch(function () { /* leave default */ });
 }
 
@@ -227,7 +266,7 @@ function pollUntilPro(attempt) {
   attempt = attempt || 0;
   return billingFetch('status').then(function (res) {
     var ent = res.ok && res.data ? res.data.entitlement : null;
-    if (ent) render(ent);
+    if (ent) render(ent, { stripePortal: !!(res.data && res.data.stripePortal) });
     if (ent && ent.pro) return true;
     if (attempt >= 5) return false;
     return new Promise(function (resolve) {
@@ -285,7 +324,8 @@ function wire() {
           window.location.assign(res.data.url);
         } else {
           manageBtn.disabled = false;
-          setMsg('The manage portal isn’t available yet.', true);
+          var ent = lastBilling.entitlement;
+          setMsg(portalError(res.data && res.data.error, ent), true);
         }
       }).catch(function () { manageBtn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
     });

@@ -123,6 +123,16 @@ struct PaywallView: View {
                     header
                     perksCard
                     if billing.isPro { activeCard } else { plansSection }
+                    if billing.isPro, let note = billing.billingNote {
+                        Text(note)
+                            .font(Theme.ui(13))
+                            .foregroundStyle(Theme.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                    if let manageLabel = billing.manageButtonLabel {
+                        Button(manageLabel) { Task { await billing.manageSubscription() } }
+                            .buttonStyle(PlanButtonStyle())
+                    }
                     footer
                 }
                 .padding(20)
@@ -225,6 +235,11 @@ struct PaywallView: View {
                     .foregroundStyle(Theme.green)
             }
             Text("You’re on FiHaven Pro").font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
+            if let source = sourceLabel {
+                Text("Provider: \(source)")
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.muted)
+            }
             if let line = renewalLine {
                 Text(line).font(Theme.ui(13)).foregroundStyle(Theme.muted)
             }
@@ -233,6 +248,18 @@ struct PaywallView: View {
         .ctCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("FiHaven Pro is active. \(renewalLine ?? "")")
+    }
+
+    private var sourceLabel: String? {
+        guard let s = billing.entitlement.source else { return nil }
+        switch s {
+        case "stripe": return "Stripe"
+        case "apple": return "App Store"
+        case "google": return "Play Store"
+        case "promo": return "Promo Code"
+        case "comp": return "Complimentary"
+        default: return s.capitalized
+        }
     }
 
     private var footer: some View {
