@@ -20,13 +20,17 @@ struct BillsView: View {
     }
 
     private func dueDays(_ b: Bill) -> Int {
-        BillSchedule.daysUntilDue(b, tz: store.tz)
+        BillSchedule.effectiveDaysUntilDue(
+            b,
+            whenFullyPaid: store.isFullyPaid(type: "bill", refId: String(b.id)),
+            tz: store.tz
+        )
     }
 
     private var displayedBills: [Bill] {
         var list = store.sortedBills.filter { b in
             if fUnpaid && store.paidState(type: "bill", refId: String(b.id)) == .full { return false }
-            if fOverdue && BillSchedule.daysUntilDue(b, tz: store.tz) >= 0 { return false }
+            if fOverdue && dueDays(b) >= 0 { return false }
             if fAutopay && !b.autopay { return false }
             if fOnCard && b.cardId == nil { return false }
             if fCategory != "all" && b.category != fCategory { return false }

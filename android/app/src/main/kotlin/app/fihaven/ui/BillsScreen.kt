@@ -72,7 +72,11 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
 
     val filtered = data.bills.filter { b ->
         if (fUnpaid && vm.paidState("bill", b.id.toString()) == PaidState.FULL) return@filter false
-        if (fOverdue && BillSchedule.daysUntilDue(b, zone) >= 0) return@filter false
+        if (fOverdue && BillSchedule.effectiveDaysUntilDue(
+                b,
+                vm.isFullyPaid("bill", b.id.toString()),
+                zone,
+            ) >= 0) return@filter false
         if (fAutopay && !b.autopay) return@filter false
         if (fOnCard && b.cardId == null) return@filter false
         if (fCategory != "All" && b.category != fCategory) return@filter false
@@ -84,9 +88,11 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
         "name" -> filtered.sortedBy { it.name.lowercase() }
         "unpaid" -> filtered.sortedWith(
             compareBy({ if (vm.paidState("bill", it.id.toString()) == PaidState.FULL) 1 else 0 },
-                { BillSchedule.daysUntilDue(it, zone) })
+                { BillSchedule.effectiveDaysUntilDue(it, vm.isFullyPaid("bill", it.id.toString()), zone) })
         )
-        else -> filtered.sortedBy { BillSchedule.daysUntilDue(it, zone) }
+        else -> filtered.sortedBy {
+            BillSchedule.effectiveDaysUntilDue(it, vm.isFullyPaid("bill", it.id.toString()), zone)
+        }
     }
     val filterCount = listOf(fUnpaid, fOverdue, fAutopay, fOnCard).count { it } + if (fCategory != "All") 1 else 0
 
