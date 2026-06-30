@@ -268,11 +268,16 @@ import { openProDialog } from './pro.js';
       if (e.key === 'Escape') { close(); btn.focus(); }
     }
 
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
       panel.hidden ? open() : close();
     });
-    Array.prototype.forEach.call(panel.querySelectorAll('.tab-btn'), function (item) {
-      item.addEventListener('click', function () { setTimeout(close, 0); });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-tab]'), function (item) {
+      item.addEventListener('click', function () {
+        var tab = item.dataset.tab;
+        if (tab && typeof window.showTab === 'function') window.showTab(tab);
+        close();
+      });
     });
     window.addEventListener('fihaven:tab-changed', close);
   }
@@ -290,7 +295,6 @@ import { openProDialog } from './pro.js';
 
     var moreItems = MORE_TABS.map(function (name) {
       return tab(name, TAB_LABELS[name], {
-        onclick: "showTab('" + name + "')",
         extraClass: 'tab-btn appbar-more-item',
         tab: name,
       });
@@ -305,7 +309,9 @@ import { openProDialog } from './pro.js';
         '<div class="appbar-more-panel" role="menu" hidden data-more-panel>' + moreItems + '</div>' +
       '</div>';
 
-    var tabs = primary + moreMenu;
+    var tabs =
+      '<div class="appbar-nav-scroll" data-nav-scroll>' + primary + '</div>' +
+      moreMenu;
 
     host.className = 'appbar';
     host.innerHTML =
@@ -445,14 +451,25 @@ import { openProDialog } from './pro.js';
   /** Flatten primary nav + More overflow into one list for the mobile drawer. */
   function navItemsForMobile(nav) {
     var out = [];
-    Array.prototype.forEach.call(nav.children, function (child) {
-      if (child.matches('[data-more-menu]')) {
-        var panel = child.querySelector('[data-more-panel]');
-        if (panel) Array.prototype.forEach.call(panel.children, function (c) { out.push(c); });
-      } else {
-        out.push(child);
-      }
-    });
+    var scroll = nav.querySelector('[data-nav-scroll]');
+    if (scroll) {
+      Array.prototype.forEach.call(scroll.children, function (c) { out.push(c); });
+    }
+    var more = nav.querySelector('[data-more-menu]');
+    if (more) {
+      var panel = more.querySelector('[data-more-panel]');
+      if (panel) Array.prototype.forEach.call(panel.children, function (c) { out.push(c); });
+    }
+    if (!out.length) {
+      Array.prototype.forEach.call(nav.children, function (child) {
+        if (child.matches('[data-more-menu]')) {
+          var p = child.querySelector('[data-more-panel]');
+          if (p) Array.prototype.forEach.call(p.children, function (c) { out.push(c); });
+        } else if (!child.matches('[data-nav-scroll]')) {
+          out.push(child);
+        }
+      });
+    }
     return out;
   }
 
@@ -497,7 +514,11 @@ import { openProDialog } from './pro.js';
       var clone = child.cloneNode(true);
       clone.classList.remove('tab-btn');
       clone.classList.add('mnav-item');
-      clone.addEventListener('click', function () { setTimeout(close, 0); });
+      clone.addEventListener('click', function () {
+        var tab = clone.dataset.tab;
+        if (tab && typeof window.showTab === 'function') window.showTab(tab);
+        setTimeout(close, 0);
+      });
       list.appendChild(clone);
     });
 
