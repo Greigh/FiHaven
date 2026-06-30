@@ -10,6 +10,7 @@ import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.PeriodConfig
 import app.fihaven.core.logic.Rewards
 import app.fihaven.core.logic.Schedule
+import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import app.fihaven.core.model.Bill
@@ -72,6 +73,12 @@ class DateLogicTest {
         assertEquals(25, DateLogic.daysUntilDue(10, UTC, NOW))
     }
 
+    @Test fun effectiveDaysUntilDueWhenPaid() {
+        val paid = DateLogic.effectiveDaysUntilDue(28, fullyPaid = true, UTC, Instant.parse("2026-06-29T12:00:00Z"))
+        assertEquals(-1, DateLogic.daysUntilDue(28, UTC, Instant.parse("2026-06-29T12:00:00Z")))
+        assertTrue(paid > 20)
+    }
+
     @Test fun nextDueDate() {
         assertEquals("2026-06", DateLogic.monthKey(DateLogic.nextDueDate(20, UTC, NOW)!!))
         assertEquals("2026-07", DateLogic.monthKey(DateLogic.nextDueDate(10, UTC, NOW)!!))
@@ -106,7 +113,7 @@ class ScheduleTest {
             Bill(id = "1", name = "Late", amount = 50.0, dueDay = 20),
             Bill(id = "2", name = "Rolled", amount = 30.0, dueDay = 10),
         )
-        val items = Schedule.buildUpcomingItems(bills, emptyList(), UTC, NOW)
+        val items = Schedule.buildUpcomingItems(bills, emptyList(), UTC, now = NOW)
         assertEquals(listOf("1", "2"), items.map { it.refId })
         assertEquals(5, items[0].days)
         assertEquals(25, items[1].days)
@@ -116,7 +123,7 @@ class ScheduleTest {
     @Test fun cardUsesPromoNeeded() {
         val cards = listOf(Card(id = "10", name = "Chase", balance = 2340.0, minPayment = 35.0,
             hasPromo = true, promoEndDate = "2026-10-01", promoBalance = 2340.0, dueDay = 18))
-        val items = Schedule.buildUpcomingItems(emptyList(), cards, UTC, NOW)
+        val items = Schedule.buildUpcomingItems(emptyList(), cards, UTC, now = NOW)
         assertEquals(1, items.size)
         assertEquals(585.0, items[0].amount, 0.001)
         assertEquals("Chase (payment)", items[0].name)

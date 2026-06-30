@@ -15,6 +15,7 @@ import {
   paidState,
   remainingForItem,
   daysUntilDue,
+  effectiveDaysUntilDue,
   nextDueDate,
   shortDate,
   paymentHistoryFor,
@@ -253,6 +254,16 @@ describe('utils — due-date math', () => {
     expect(shortDate(new Date(y, 1, 5))).toBe('Feb 5');
     expect(shortDate(new Date(y + 1, 1, 5))).toBe(`Feb 5, ${y + 1}`);
     expect(shortDate(null)).toBe('');
+  });
+
+  it('effectiveDaysUntilDue points to next month when this period is paid', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 29)); // Jun 29
+    setCards([{ id: 'c1', name: 'Test', dueDay: 28, minPayment: 40, balance: 0 }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'c1', amount: 40, date: '2026-06-28' }]);
+    expect(daysUntilDue(28)).toBe(-1);
+    expect(effectiveDaysUntilDue(28, 'card', 'c1')).toBeGreaterThan(20);
+    vi.useRealTimers();
   });
 });
 

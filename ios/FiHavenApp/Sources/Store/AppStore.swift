@@ -247,7 +247,14 @@ final class AppStore: ObservableObject {
     }
     var totalSpent: Double { periodTransactions.reduce(0) { $0 + $1.amount } }
     var upcoming: [UpcomingItem] {
-        Schedule.buildUpcomingItems(bills: data.bills, cards: data.cards, tz: tz)
+        Schedule.buildUpcomingItems(
+            bills: data.bills,
+            cards: data.cards,
+            tz: tz,
+            payments: data.payments,
+            bounds: currentBounds,
+            policy: paidGoalPolicy
+        )
     }
 
     /// Total still owed this period: the sum of each obligation's
