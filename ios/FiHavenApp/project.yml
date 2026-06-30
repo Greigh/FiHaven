@@ -110,7 +110,7 @@ targets:
         CFBundleDisplayName: FiHaven
         LSApplicationCategoryType: public.app-category.finance
         CFBundleShortVersionString: "1.5.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
           UIColorName: LaunchBg
           UIImageName: LaunchIcon
