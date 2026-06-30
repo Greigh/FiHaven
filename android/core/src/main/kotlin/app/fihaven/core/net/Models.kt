@@ -110,6 +110,11 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
 
 // ── Billing ──────────────────────────────────────────────────────
 @Serializable data class EntitlementResponse(val entitlement: Entitlement)
+@Serializable data class BillingStatusResponse(
+    val entitlement: Entitlement,
+    val stripePortal: Boolean = false,
+)
+@Serializable data class StripePortalResponse(val url: String)
 @Serializable data class GoogleVerifyBody(
     val productId: String,
     val purchaseToken: String,
