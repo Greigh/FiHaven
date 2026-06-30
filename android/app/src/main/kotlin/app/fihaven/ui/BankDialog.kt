@@ -1,6 +1,5 @@
 package app.fihaven.ui
 
-import android.app.Application
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,9 +31,11 @@ import app.fihaven.core.Money
 import app.fihaven.core.net.PlaidItem
 import app.fihaven.core.net.PlaidStatus
 import app.fihaven.ui.theme.Ct
-import com.plaid.link.FastOpenPlaidLink
+import com.plaid.link.OnLoadCallback
+import com.plaid.link.OpenPlaidLink
 import com.plaid.link.Plaid
-import com.plaid.link.linkTokenConfiguration
+import com.plaid.link.PlaidLinkSession
+import com.plaid.link.configuration.linkTokenConfiguration
 import com.plaid.link.result.LinkExit
 import com.plaid.link.result.LinkSuccess
 import kotlinx.coroutines.launch
@@ -53,11 +54,15 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     // Non-null while an update-mode (reconnect) Link session is open, so the
     // success callback marks the item repaired instead of exchanging a token.
     var pendingRepairItemId by remember { mutableStateOf<Int?>(null) }
+    // Plaid 6.x preloads a single-use session before opening; held here so the
+    // onLoad callback can launch it once it's ready, then retired on any result.
+    var session by remember { mutableStateOf<PlaidLinkSession?>(null) }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }
 
-    val launcher = rememberLauncherForActivityResult(FastOpenPlaidLink()) { result ->
+    val launcher = rememberLauncherForActivityResult(OpenPlaidLink()) { result ->
+        session = null
         when (result) {
             is LinkSuccess -> {
                 val repairId = pendingRepairItemId
@@ -79,6 +84,16 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         }
     }
 
+    // Plaid 6.x: build a preloading Link session and open it once onLoad signals
+    // it's ready. (5.x's FastOpenPlaidLink + Plaid.create(application, …) is gone.)
+    fun openPlaidLink(token: String) {
+        val config = linkTokenConfiguration {
+            this.token = token
+            onLoad = OnLoadCallback { session?.let { launcher.launch(it) } }
+        }
+        session = Plaid.createPlaidLinkSession(context, config)
+    }
+
     fun connect() {
         busy = true
         msg = "Opening your bank…"
@@ -87,8 +102,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             busy = false
             if (token == null) { msg = "Could not start linking. Please try again."; return@launch }
             msg = null
-            val config = linkTokenConfiguration { this.token = token }
-            launcher.launch(Plaid.create(context.applicationContext as Application, config))
+            openPlaidLink(token)
         }
     }
 
@@ -103,8 +117,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             if (token == null) { msg = "Could not start reconnect. Please try again."; return@launch }
             msg = null
             pendingRepairItemId = id
-            val config = linkTokenConfiguration { this.token = token }
-            launcher.launch(Plaid.create(context.applicationContext as Application, config))
+            openPlaidLink(token)
         }
     }
 
