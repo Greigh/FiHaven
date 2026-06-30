@@ -13,9 +13,23 @@ struct ProView: View {
             VStack(spacing: 18) {
                 header
                 statusCard
-                Button(billing.isPro ? "Manage Pro" : "Upgrade to Pro") { showPaywall = true }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .accessibilityHint(billing.isPro ? "Opens subscription management" : "Opens upgrade options")
+                if billing.isPro {
+                    if let manageLabel = billing.manageButtonLabel {
+                        Button(manageLabel) { Task { await billing.manageSubscription() } }
+                            .buttonStyle(PrimaryButtonStyle())
+                            .accessibilityHint("Opens subscription management")
+                    }
+                    if let note = billing.billingNote {
+                        Text(note)
+                            .font(Theme.ui(13))
+                            .foregroundStyle(Theme.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                } else {
+                    Button("Upgrade to Pro") { showPaywall = true }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityHint("Opens upgrade options")
+                }
                 Button("Redeem a code") { showRedeem = true }
                     .font(Theme.ui(15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
@@ -85,6 +99,7 @@ struct ProView: View {
         case "apple": return "App Store"
         case "google": return "Play Store"
         case "promo": return "Promo Code"
+        case "comp": return "Complimentary"
         default: return s.capitalized
         }
     }
