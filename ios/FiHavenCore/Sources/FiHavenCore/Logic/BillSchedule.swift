@@ -76,6 +76,23 @@ public enum BillSchedule {
         return cal.dateComponents([.day], from: today, to: next).day ?? 9999
     }
 
+    /// Like `daysUntilDue`, but when the current period is fully paid show
+    /// time until the next due occurrence instead of an overdue count.
+    public static func effectiveDaysUntilDue(
+        _ bill: Bill,
+        whenFullyPaid fullyPaid: Bool,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Int {
+        if fullyPaid {
+            guard let next = nextDueDate(bill, tz: tz, from: now) else { return 9999 }
+            let cal = DateLogic.calendar(tz: tz)
+            let today = DateLogic.today(tz: tz, now: now)
+            return cal.dateComponents([.day], from: today, to: next).day ?? 9999
+        }
+        return daysUntilDue(bill, tz: tz, now: now)
+    }
+
     public static func dueInPeriod(_ bill: Bill, bounds: PeriodBounds, tz: TimeZone) -> Bool {
         let cal = DateLogic.calendar(tz: tz)
         var d = cal.startOfDay(for: bounds.startDate)

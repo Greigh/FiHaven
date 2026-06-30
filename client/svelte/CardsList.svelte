@@ -11,7 +11,7 @@
 <script>
   import { cards, save } from '../js/storage.svelte.js';
   import {
-    CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, nextDueDate, shortDate,
+    CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded,
     paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats,
   } from '../js/utils.js';
@@ -118,7 +118,7 @@
     const list = baseCards.filter((c) => {
       if (f.balance && !(parseFloat(c.balance) > 0)) return false;
       if (f.promo && !(c.hasPromo && c.promoEndDate)) return false;
-      if (f.overdue && !(c.dueDay && daysUntilDue(parseInt(c.dueDay)) < 0)) return false;
+      if (f.overdue && !(c.dueDay && effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id), mk) < 0)) return false;
       if (f.autopay && !c.autopay) return false;
       return true;
     });
@@ -136,7 +136,7 @@
         const bH = b.dueDay ? 0 : 1;
         if (aH !== bH) return aH - bH;
         if (!a.dueDay || !b.dueDay) return 0;
-        return daysUntilDue(parseInt(a.dueDay)) - daysUntilDue(parseInt(b.dueDay));
+        return effectiveDaysUntilDue(parseInt(a.dueDay), 'card', String(a.id), mk) - effectiveDaysUntilDue(parseInt(b.dueDay), 'card', String(b.id), mk);
       });
     }
     return out;
@@ -219,7 +219,7 @@
       {@const limit   = parseFloat(c.limit   || 0)}
       {@const util    = limit > 0 ? Math.min(100, Math.round(bal / limit * 100)) : 0}
       {@const uColor  = utilColor(util)}
-      {@const days    = c.dueDay ? daysUntilDue(parseInt(c.dueDay)) : null}
+      {@const days    = c.dueDay ? effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id), mk) : null}
       {@const next    = c.dueDay ? nextDueDate(c.dueDay) : null}
       {@const color   = CARD_COLORS[i % CARD_COLORS.length]}
       {@const state   = paidState('card', String(c.id), mk)}

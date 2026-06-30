@@ -40,6 +40,9 @@ public enum Schedule {
         bills: [Bill],
         cards: [Card],
         tz: TimeZone,
+        payments: [Payment] = [],
+        bounds: PeriodBounds? = nil,
+        policy: PaidGoalPolicy = .recommended,
         now: Date = Date()
     ) -> [UpcomingItem] {
         var items: [UpcomingItem] = []
@@ -47,13 +50,24 @@ public enum Schedule {
         for b in bills {
             guard b.dueDay != nil || !(b.startDate ?? "").isEmpty else { continue }
             guard DateLogic.billActive(b, tz: tz, now: now) else { continue }
+            let ref = String(b.id)
+            let days: Int
+            if let bounds {
+                let paid = remainingForGoal(
+                    type: "bill", refId: ref, goal: goalAmount(bill: b),
+                    payments: payments, in: bounds
+                ) <= paidEpsilon
+                days = BillSchedule.effectiveDaysUntilDue(b, whenFullyPaid: paid, tz: tz, now: now)
+            } else {
+                days = BillSchedule.daysUntilDue(b, tz: tz, now: now)
+            }
             items.append(UpcomingItem(
                 name: b.name,
                 amount: b.amount,
-                days: BillSchedule.daysUntilDue(b, tz: tz, now: now),
+                days: days,
                 nextDue: BillSchedule.nextDueDate(b, tz: tz, from: now),
                 type: "bill",
-                refId: String(b.id),
+                refId: ref,
                 autopay: b.autopay,
                 icon: CTConstants.icon(forCategory: b.category)
             ))
@@ -64,13 +78,25 @@ public enum Schedule {
             let needed = c.hasPromo
                 ? max(c.minPayment, promoNeeded(c, tz: tz, now: now))
                 : c.minPayment
+            let ref = String(c.id)
+            let days: Int
+            if let bounds {
+                let goal = goalAmount(card: c, policy: policy, payments: payments, in: bounds, tz: tz, now: now)
+                let paid = remainingForGoal(
+                    type: "card", refId: ref, goal: goal,
+                    payments: payments, in: bounds
+                ) <= paidEpsilon
+                days = DateLogic.effectiveDaysUntilDue(dueDay: dd, whenFullyPaid: paid, tz: tz, now: now)
+            } else {
+                days = DateLogic.daysUntilDue(dueDay: dd, tz: tz, now: now)
+            }
             items.append(UpcomingItem(
                 name: c.name + " (payment)",
                 amount: needed,
-                days: DateLogic.daysUntilDue(dueDay: dd, tz: tz, now: now),
+                days: days,
                 nextDue: DateLogic.nextDueDate(dueDay: dd, tz: tz, now: now),
                 type: "card",
-                refId: String(c.id),
+                refId: ref,
                 autopay: c.autopay,
                 icon: CTConstants.cardIcon
             ))
@@ -78,6 +104,16 @@ public enum Schedule {
 
         items.sort { $0.days < $1.days }
         return items
+    }
+
+    private static func remainingForGoal(
+        type: String,
+        refId: String,
+        goal: Double,
+        payments: [Payment],
+        in bounds: PeriodBounds
+    ) -> Double {
+        max(0, goal - paidAmount(payments, type: type, refId: refId, in: bounds))
     }
 
     /// True if a (real, non-skip) payment exists for this bill/card in the month.

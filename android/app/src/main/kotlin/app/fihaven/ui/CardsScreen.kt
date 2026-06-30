@@ -86,7 +86,11 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         if (((c.type == "loan")) != isLoanView) return@filter false
         if (fBalance && !(c.balance > 0)) return@filter false
         if (fPromo && !(c.hasPromo && !c.promoEndDate.isNullOrEmpty())) return@filter false
-        if (fOverdue && !(c.dueDay != null && DateLogic.daysUntilDue(c.dueDay!!, zone) < 0)) return@filter false
+        if (fOverdue && !(c.dueDay != null && DateLogic.effectiveDaysUntilDue(
+                c.dueDay!!,
+                vm.isFullyPaid("card", c.id.toString()),
+                zone,
+            ) < 0)) return@filter false
         true
     }
     val cards = when (sortKey) {
@@ -97,7 +101,10 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         "promo" -> filtered.sortedBy {
             if (it.hasPromo && !it.promoEndDate.isNullOrEmpty()) DateLogic.monthsUntil(it.promoEndDate, zone) else 9999
         }
-        else -> filtered.sortedBy { it.dueDay ?: 99 }
+        else -> filtered.sortedBy {
+            val dd = it.dueDay ?: return@sortedBy 99
+            DateLogic.effectiveDaysUntilDue(dd, vm.isFullyPaid("card", it.id.toString()), zone)
+        }
     }
     val filterCount = listOf(fBalance, fPromo, fOverdue).count { it }
 

@@ -131,6 +131,35 @@ export function daysUntilDue(dueDay) {
   return diff < -1 ? Math.round((nextMonth - t) / 864e5) : diff;
 }
 
+// Like daysUntilDue, but when this period is fully paid the obligation
+// for the current cycle is satisfied — show time until the next due date
+// instead of an "overdue" badge.
+export function effectiveDaysUntilDue(dueDay, type, refId, mk) {
+  if (!dueDay) return null;
+  mk = mk || currentPeriodKey();
+  if (type && refId != null && isFullyPaid(type, refId, mk)) {
+    var t = todayInTz();
+    var d = parseInt(dueDay);
+    var thisMonth = new Date(t.getFullYear(), t.getMonth(), d);
+    var target = thisMonth > t
+      ? thisMonth
+      : new Date(t.getFullYear(), t.getMonth() + 1, d);
+    return Math.round((target - t) / 864e5);
+  }
+  return daysUntilDue(dueDay);
+}
+
+export function effectiveDaysUntilBillDue(bill, mk) {
+  if (!bill) return null;
+  mk = mk || currentPeriodKey();
+  if (isFullyPaid('bill', String(bill.id), mk)) {
+    var next = nextBillDueDate(bill);
+    if (!next) return null;
+    return Math.round((next - todayInTz()) / 864e5);
+  }
+  return daysUntilBillDue(bill);
+}
+
 // The actual calendar date of the next forward-looking occurrence
 // of a recurring dueDay. If this month's dueDay is still in the
 // future (or today), returns this month's; otherwise next month's.
@@ -424,7 +453,7 @@ export function buildUpcomingItems() {
     items.push({
       name:    c.name + ' (payment)',
       amount:  needed,
-      days:    daysUntilDue(parseInt(c.dueDay)),
+      days:    effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id)),
       nextDue: nextDueDate(c.dueDay),
       type:    'card',
       refId:   String(c.id),

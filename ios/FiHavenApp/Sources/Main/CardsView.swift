@@ -28,14 +28,20 @@ struct CardsView: View {
 
     private func util(_ c: Card) -> Double { c.limit > 0 ? c.balance / c.limit : 0 }
     private func dueDays(_ c: Card) -> Int {
-        c.dueDay.map { DateLogic.daysUntilDue(dueDay: $0, tz: store.tz) } ?? 9999
+        guard let dd = c.dueDay else { return 9999 }
+        let ref = String(c.id)
+        return DateLogic.effectiveDaysUntilDue(
+            dueDay: dd,
+            whenFullyPaid: store.isFullyPaid(type: "card", refId: ref),
+            tz: store.tz
+        )
     }
 
     private var displayedCards: [Card] {
         var list = baseCards.filter { c in
             if fBalance && !(c.balance > 0) { return false }
             if fPromo && !(c.hasPromo && !(c.promoEndDate ?? "").isEmpty) { return false }
-            if fOverdue && !(c.dueDay.map { DateLogic.daysUntilDue(dueDay: $0, tz: store.tz) < 0 } ?? false) { return false }
+            if fOverdue && !(dueDays(c) < 0) { return false }
             return true
         }
         switch sortKey {

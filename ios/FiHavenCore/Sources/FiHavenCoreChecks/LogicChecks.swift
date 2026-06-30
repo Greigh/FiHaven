@@ -41,6 +41,10 @@ func runDateLogicChecks() {
         checkEqual(DateLogic.daysUntilDue(dueDay: 15, tz: tz, now: now), 0, "today")
         checkEqual(DateLogic.daysUntilDue(dueDay: 14, tz: tz, now: now), -1, "yesterday stays -1")
         checkEqual(DateLogic.daysUntilDue(dueDay: 10, tz: tz, now: now), 25, "rolls to next month")
+        let jun29 = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 29))!
+        check(DateLogic.daysUntilDue(dueDay: 28, tz: tz, now: jun29) < 0, "unpaid past due is negative")
+        check(DateLogic.effectiveDaysUntilDue(dueDay: 28, whenFullyPaid: true, tz: tz, now: jun29) > 20,
+              "paid skips overdue for current cycle")
     }
 
     section("DateLogic — nextDueDate") {

@@ -225,7 +225,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val periodLabel = Period.label(periodBounds, vm.periodConfig())
     val cfg = vm.periodConfig()
     val income = Income.periodIncome(data.settings, periodBounds)
-    val upcoming = Schedule.buildUpcomingItems(data.bills, data.cards, zone)
+    val upcoming = Schedule.buildUpcomingItems(
+        data.bills,
+        data.cards,
+        zone,
+        data.payments,
+        periodBounds,
+        vm.paidGoalPolicy(),
+    )
     val obligations = vm.periodObligationItems(upcoming)
     val visible = vm.dashboardUpcoming(upcoming)
     // "Left to pay" = sum of each obligation's remaining-to-goal, so partial
