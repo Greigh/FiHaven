@@ -72,6 +72,28 @@ public enum DateLogic {
         return diff
     }
 
+    /// Like `daysUntilDue`, but when the current period is fully paid the
+    /// obligation for this cycle is satisfied — show time until the next due.
+    public static func effectiveDaysUntilDue(
+        dueDay: Int,
+        whenFullyPaid fullyPaid: Bool,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Int {
+        guard dueDay > 0 else { return 9999 }
+        if fullyPaid {
+            let cal = calendar(tz: tz)
+            let t = cal.startOfDay(for: now)
+            let c = cal.dateComponents([.year, .month], from: t)
+            let thisMonth = dateForDay(dueDay, year: c.year ?? 0, month: c.month ?? 1, cal: cal)
+            let target = thisMonth > t
+                ? thisMonth
+                : dateForDay(dueDay, year: c.year ?? 0, month: (c.month ?? 1) + 1, cal: cal)
+            return daysBetween(t, target, cal: cal)
+        }
+        return daysUntilDue(dueDay: dueDay, tz: tz, now: now)
+    }
+
     /// The actual date of the next forward-looking occurrence of `dueDay`:
     /// this month's if it's today-or-later, else next month's.
     public static func nextDueDate(dueDay: Int, tz: TimeZone, now: Date = Date()) -> Date? {
