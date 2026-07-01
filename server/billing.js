@@ -193,27 +193,63 @@ async function verifyApple(signedTransaction) {
   };
 }
 
+const googlePlay = require('./googlePlay');
+
 // Google Play sends { productId, purchaseToken }. PRODUCTION: confirm
 // the token via purchases.subscriptionsv2.get with a service account
 // and read the real expiry (guarded by GOOGLE_VERIFY_ENABLED).
 async function verifyGoogle({ productId, purchaseToken, expiryTimeMillis } = {}) {
   if (!productId || !purchaseToken) throw new Error('missing-fields');
-  if (verifyMode() === 'production' && !process.env.GOOGLE_VERIFY_ENABLED) {
+
+  if (verifyMode() !== 'production') {
+    const prod = products()[productId];
+    const expiresAt = expiryTimeMillis
+      ? Number(expiryTimeMillis)
+      : prod ? Date.now() + prod.days * DAY_MS : null;
+    return {
+      txnId: String(purchaseToken),
+      productId,
+      expiresAt,
+      environment: 'Sandbox',
+      autoRenew: true,
+      status: 'active',
+      raw: { productId, purchaseToken },
+    };
+  }
+
+  if (!process.env.GOOGLE_VERIFY_ENABLED) {
     throw new Error('google-verify-not-configured');
   }
-  const prod = products()[productId];
-  const expiresAt = expiryTimeMillis
-    ? Number(expiryTimeMillis)
-    : prod ? Date.now() + prod.days * DAY_MS : null;
-  return {
-    txnId: String(purchaseToken),
-    productId,
-    expiresAt,
-    environment: verifyMode() === 'production' ? 'Production' : 'Sandbox',
-    autoRenew: true,
-    status: 'active',
-    raw: { productId, purchaseToken },
-  };
+
+  try {
+    const sub = await googlePlay.fetchSubscription(purchaseToken);
+    const activeStates = new Set([
+      'SUBSCRIPTION_STATE_ACTIVE',
+      'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+    ]);
+    if (!activeStates.has(sub.subscriptionState)) {
+      throw new Error('subscription-inactive');
+    }
+    const line = (sub.lineItems || []).find((l) => l.productId === productId)
+      || sub.lineItems?.[0];
+    if (!line) throw new Error('product-mismatch');
+    const resolvedProduct = line.productId || productId;
+    const expiresAt = line.expiryTime ? Date.parse(line.expiryTime) : null;
+    return {
+      txnId: String(purchaseToken),
+      productId: resolvedProduct,
+      expiresAt,
+      environment: 'Production',
+      autoRenew: !!line.autoRenewingPlan?.autoRenewEnabled,
+      status: sub.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD'
+        ? 'grace' : 'active',
+      raw: sub,
+    };
+  } catch (err) {
+    if (err.message === 'google-verify-not-configured') throw err;
+    console.error('google verify failed:', err.message);
+    throw new Error('verify-failed');
+  }
 }
 
 // Persist a verified transaction and return the fresh entitlement.
