@@ -7,3 +7,8 @@ local.properties
 *.iml
 captures/
 .cxx/
+
+play-store/
+keystore.properties
+*.jks
+*.keystore
