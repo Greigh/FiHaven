@@ -96,7 +96,9 @@ import app.fihaven.core.logic.PaidGoalPolicy
 import kotlinx.serialization.json.JsonObject
 import app.fihaven.core.net.ApiError
 import app.fihaven.core.net.MfaStatus
+import app.fihaven.core.net.PasskeyInfo
 import app.fihaven.core.net.User
+import androidx.credentials.exceptions.CreateCredentialCancellationException
 import app.fihaven.ui.theme.Ct
 import app.fihaven.ui.theme.LocalThemeController
 import app.fihaven.ui.theme.ThemeController
@@ -176,8 +178,10 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     KeyValueRow("Email", current.email)
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Name", current.name?.takeIf { it.isNotBlank() } ?: "Add") { dialog = "name" }
-                    HorizontalDivider(color = Ct.colors.border)
-                    NavRow("Change email", null) { dialog = "email" }
+                    if (current.emailVerified) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Change email", null) { dialog = "email" }
+                    }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Change password", null) { dialog = "password" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -204,6 +208,12 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         NavRow("Authenticator app", if (m.totp.enabled) "On" else "Set up",
                             valueColor = if (m.totp.enabled) Ct.colors.green else Ct.colors.accent) {
                             dialog = if (m.totp.enabled) "totpDisable" else "totpSetup"
+                        }
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Passkeys",
+                            if (m.passkeys.isEmpty()) "Add" else "${m.passkeys.size} registered",
+                            valueColor = if (m.passkeys.isNotEmpty()) Ct.colors.green else Ct.colors.accent) {
+                            dialog = "passkeys"
                         }
                         HorizontalDivider(color = Ct.colors.border)
                         NavRow("Email codes", if (m.emailMfa.enabled) "On" else "Off",
@@ -380,6 +390,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "delete" -> DeleteAccountDialog(vm, close)
         "totpSetup" -> TotpSetupDialog(vm, close)
         "totpDisable" -> TotpDisableDialog(vm, close)
+        "passkeys" -> PasskeysDialog(vm, mfa?.passkeys.orEmpty(), close)
         "emailEnable" -> EmailEnableDialog(vm, current.email, close)
         "emailDisable" -> EmailDisableDialog(vm, close)
         "backup" -> BackupCodesDialog(vm, close)
@@ -1042,6 +1053,101 @@ private fun ExportRow(vm: AppViewModel) {
 
 // ── dialogs ──────────────────────────────────────────────────────
 @Composable
+private fun PasskeysDialog(vm: AppViewModel, passkeys: List<PasskeyInfo>, onDone: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var name by remember { mutableStateOf("Android device") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var deleteId by remember { mutableStateOf<Int?>(null) }
+    var deletePwd by remember { mutableStateOf("") }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+
+    if (deleteId != null) {
+        FormDialog(
+            title = "Remove passkey",
+            saveEnabled = deletePwd.isNotEmpty() && !busy,
+            saveLabel = "Remove",
+            onSave = {
+                scope.launch {
+                    busy = true
+                    deleteError = null
+                    try {
+                        vm.api.deletePasskey(deleteId!!, deletePwd)
+                        deleteId = null
+                        deletePwd = ""
+                        onDone()
+                    } catch (e: ApiError) {
+                        deleteError = e.userMessage
+                    } catch (e: Exception) {
+                        deleteError = e.message
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            onDismiss = { deleteId = null; deletePwd = ""; deleteError = null },
+        ) {
+            Text("Confirm your password to remove this passkey.", color = Ct.colors.muted, fontSize = 13.sp)
+            PasswordField("Current password", deletePwd) { deletePwd = it }
+            deleteError?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
+        }
+        return
+    }
+
+    FormDialog(
+        title = "Passkeys",
+        saveEnabled = name.isNotBlank() && !busy,
+        saveLabel = "Add passkey",
+        onSave = {
+            scope.launch {
+                busy = true
+                error = null
+                try {
+                    val start = vm.api.passkeyRegisterStart()
+                    val responseJson = createPasskeyCredential(context, start.options.toString())
+                    vm.api.passkeyRegisterFinish(start.challengeId, responseJson, name.trim())
+                    onDone()
+                } catch (_: CreateCredentialCancellationException) {
+                    // User dismissed the system sheet.
+                } catch (e: ApiError) {
+                    error = e.userMessage
+                } catch (e: Exception) {
+                    error = e.message ?: "Couldn't add passkey."
+                } finally {
+                    busy = false
+                }
+            }
+        },
+        onDismiss = onDone,
+    ) {
+        Text(
+            "Sign in with your fingerprint, face, or screen lock — no password needed.",
+            color = Ct.colors.muted, fontSize = 13.sp,
+        )
+        if (passkeys.isNotEmpty()) {
+            Text("Registered on this account", color = Ct.colors.muted, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+            passkeys.forEach { pk ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(pk.name ?: "Passkey", color = Ct.colors.text, fontSize = 15.sp,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = { deleteId = pk.id }) {
+                        Text("Remove", color = Ct.colors.red)
+                    }
+                }
+            }
+        }
+        OutlinedTextField(
+            value = name, onValueChange = { name = it },
+            label = { Text("Label for this device") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        )
+        error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
+    }
+}
+
+@Composable
 private fun ChangeNameDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
     var name by remember { mutableStateOf(user.name ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1065,10 +1171,16 @@ private fun ChangeEmailDialog(vm: AppViewModel, user: User, onDone: () -> Unit) 
     val scope = rememberCoroutineScope()
     FormDialog("Change email", saveEnabled = email.contains("@") && password.isNotEmpty(), onSave = {
         scope.launch {
-            try { val e = vm.api.changeEmail(password, email) ?: email; vm.applyUser(User(e, user.name)); onDone() }
+            try {
+                val result = vm.api.changeEmail(password, email)
+                val newEmail = result.email ?: email
+                vm.applyEmailChange(newEmail, result.verificationRequired)
+                onDone()
+            }
             catch (ex: ApiError) { error = ex.userMessage } catch (ex: Exception) { error = ex.message }
         }
     }, onDismiss = onDone) {
+        Text("You'll need to verify the new address before it takes effect.", color = Ct.colors.muted, fontSize = 13.sp)
         OutlinedTextField(email, { email = it }, label = { Text("New email") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
         PasswordField("Current password", password) { password = it }
