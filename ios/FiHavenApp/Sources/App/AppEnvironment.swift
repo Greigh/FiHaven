@@ -225,6 +225,13 @@ final class AppEnvironment: ObservableObject {
         if case .signedIn = session { session = .signedIn(user) }
     }
 
+    /// After a successful change-email: stay signed in but gate on verify when required.
+    func applyEmailChange(email: String, verificationRequired: Bool) {
+        let name = currentUser?.name
+        let user = User(email: email, name: name, emailVerified: !verificationRequired)
+        session = verificationRequired ? .unverified(user) : .signedIn(user)
+    }
+
     /// Mark first-run onboarding complete, then drop the gate so the tab
     /// shell appears. Best-effort: we flip the local flag regardless so a
     /// transient network error doesn't trap the user on the intro.
