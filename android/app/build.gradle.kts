@@ -26,7 +26,7 @@ android {
         applicationId = "app.fihaven"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
+        versionCode = 13
         versionName = "1.5.0"
         buildConfigField("String", "TURNSTILE_SITEKEY", "\"0x4AAAAAADVKKZMye086WePX\"")
         // Google Sign-In: the WEB OAuth client id is used as the Credential
@@ -43,6 +43,12 @@ android {
     }
 
     buildFeatures { compose = true }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -66,7 +72,15 @@ android {
             buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
         }
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            ndk {
+                debugSymbolLevel = "symbol_table"
+            }
             buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
             if (keystorePropsFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
