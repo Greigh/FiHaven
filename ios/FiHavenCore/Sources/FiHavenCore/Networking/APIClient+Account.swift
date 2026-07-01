@@ -12,10 +12,10 @@ public extension APIClient {
     }
 
     @discardableResult
-    func changeEmail(password: String, newEmail: String) async throws -> String? {
+    func changeEmail(password: String, newEmail: String) async throws -> EmailResult {
         let req = try makeRequest(path: "api/account/change-email", method: .POST,
                                   body: AnyEncodable(ChangeEmailBody(password: password, newEmail: newEmail)))
-        return try decode(EmailResult.self, from: try await send(req)).email
+        return try decode(EmailResult.self, from: try await send(req))
     }
 
     func changePassword(currentPassword: String, newPassword: String) async throws {

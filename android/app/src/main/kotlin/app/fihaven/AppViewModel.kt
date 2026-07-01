@@ -169,6 +169,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val introSeen: StateFlow<Boolean> = _introSeen.asStateFlow()
 
     fun markIntroSeen() {
+        _authError.value = null
         prefs.edit { putBoolean("intro_seen", true) }
         _introSeen.value = true
     }
@@ -227,7 +228,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init { bootstrap() }
 
-    fun markAuthStarted() { authStartedAt = ApiClient.now() }
+    fun markAuthStarted() {
+        authStartedAt = ApiClient.now()
+        _authError.value = null
+    }
 
     private fun bootstrap() = viewModelScope.launch {
         if (tokens.get() != null) {
@@ -283,6 +287,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun logout() = viewModelScope.launch {
         runCatching { api.logout() }
+        _authError.value = null
         _session.value = Session.SignedOut
         _data.value = AppData()
         _entitlement.value = Entitlement()
@@ -324,10 +329,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 user.emailVerified -> { enterSignedIn(user, fresh = true); true }
                 else -> { _session.value = Session.Unverified(user); false }
             }
-        } catch (e: ApiError) {
-            _authError.value = e.userMessage; false
-        } catch (e: Exception) {
-            _authError.value = e.message ?: "Something went wrong."; false
+        } catch (_: ApiError) {
+            false
+        } catch (_: Exception) {
+            false
         }
 
     private suspend fun loadData() {
@@ -602,6 +607,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun applyUser(user: User) {
         if (_session.value is Session.SignedIn) _session.value = Session.SignedIn(user)
+    }
+
+    /** After a successful change-email: stay signed in but gate on verify when required. */
+    fun applyEmailChange(email: String, verificationRequired: Boolean) {
+        val name = currentUser?.name
+        val user = User(email, name, emailVerified = !verificationRequired)
+        _session.value = if (verificationRequired) Session.Unverified(user) else Session.SignedIn(user)
     }
 
     /** Mark first-run onboarding complete, then drop the gate. Best-effort:

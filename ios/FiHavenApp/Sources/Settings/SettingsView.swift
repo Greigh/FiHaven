@@ -112,6 +112,7 @@ struct SettingsView: View {
                 LabeledContent("Name", value: current.name?.isEmpty == false ? current.name! : "Add")
             }
             Button("Change email") { sheet = .changeEmail }
+                .disabled(!current.emailVerified)
             Button("Change password") { sheet = .changePassword }
             HStack(spacing: 8) {
                 let offline = store.syncState == .offline

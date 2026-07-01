@@ -16,8 +16,10 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 const dbApi = require('../db');
+const emails = require('../emails');
 const mfa = require('../mfa');
 const plaid = require('../plaid');
+const tokens = require('../tokens');
 const { requireAuth, requireVerified, requireCsrf, destroySession } = require('../session');
 const {
   normalizeEmail,
@@ -110,6 +112,8 @@ router.post('/change-email', requireAuth, requireCsrf, async (req, res) => {
   const user = await verifyPassword(req.user.id, body.password);
   if (!user) return sendError(res, 401, 'wrong-password');
 
+  if (!user.email_verified) return sendError(res, 403, 'email-unverified');
+
   const newEmail = normalizeEmail(body.newEmail);
   if (!isValidEmail(newEmail)) return sendError(res, 400, 'invalid-email');
   if (newEmail === user.email) return sendError(res, 400, 'email-unchanged');
@@ -127,7 +131,16 @@ router.post('/change-email', requireAuth, requireCsrf, async (req, res) => {
     return sendError(res, 500, 'server-error');
   }
 
-  return res.json({ ok: true, email: newEmail });
+  try {
+    const raw = tokens.issue(user.id, 'verify-email');
+    await emails.sendVerifyEmail(newEmail, raw);
+  } catch (err) {
+    console.error('change-email verification email failed:', err && err.message);
+    // Email is already updated and unverified — let the client redirect to
+    // verify so the user can resend rather than leaving them in limbo.
+  }
+
+  return res.json({ ok: true, email: newEmail, verificationRequired: true });
 });
 
 // Best-effort revoke of a user's linked Plaid Items AT Plaid before we drop the

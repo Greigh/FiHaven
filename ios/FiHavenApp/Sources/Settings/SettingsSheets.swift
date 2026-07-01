@@ -39,6 +39,8 @@ struct ChangeEmailSheet: View {
 
     var body: some View {
         SheetForm(title: "Change email", busy: busy, error: errorText, onSave: save) {
+            Text("You'll need to verify the new address before it takes effect.")
+                .font(Theme.ui(13)).foregroundStyle(Theme.muted)
             TextField("New email", text: $newEmail)
                 .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
             RevealableSecureField(placeholder: "Current password", text: $password, contentType: .password)
@@ -48,8 +50,9 @@ struct ChangeEmailSheet: View {
     private func save() async {
         busy = true; defer { busy = false }
         do {
-            let email = try await env.api.changeEmail(password: password, newEmail: newEmail) ?? newEmail
-            env.applyUser(User(email: email, name: current.name))
+            let result = try await env.api.changeEmail(password: password, newEmail: newEmail)
+            let email = result.email ?? newEmail
+            env.applyEmailChange(email: email, verificationRequired: result.verificationRequired == true)
             dismiss()
         } catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }

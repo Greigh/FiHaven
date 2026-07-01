@@ -124,7 +124,7 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
 @Serializable data class ClearDataBody(val password: String, val code: String, val groups: List<String>)
 @Serializable data class PromoRedeemBody(val code: String)
 @Serializable data class NameResult(val name: String? = null)
-@Serializable data class EmailResult(val email: String? = null)
+@Serializable data class EmailResult(val email: String? = null, val verificationRequired: Boolean = false)
 @Serializable data class BackupCodesResult(val backupCodes: List<String> = emptyList())
 @Serializable data class EmailEnableResult(val challengeId: String)
 @Serializable data class PasskeyListResult(val passkeys: List<PasskeyInfo> = emptyList())
@@ -165,6 +165,8 @@ data class PlaidStatus(
 // JSON the authenticator produced, parsed back into a JSON element.
 @Serializable data class PasskeyLoginStartResponse(val challengeId: String, val options: JsonObject)
 @Serializable data class PasskeyLoginFinishBody(val challengeId: String, val response: JsonElement)
+@Serializable data class PasskeyRegisterStartResponse(val challengeId: String, val options: JsonObject)
+@Serializable data class PasskeyRegisterFinishBody(val challengeId: String, val response: JsonElement, val name: String)
 
 @Serializable data class PlaidLinkTokenResponse(val linkToken: String)
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())

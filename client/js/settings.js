@@ -37,6 +37,10 @@ import { initHousehold } from './household.js';
         return 'That is already your email address.';
       case 'email-taken':
         return 'That email is already in use by another account.';
+      case 'email-unverified':
+        return 'Verify your current email before changing it.';
+      case 'mail-send-failed':
+        return 'Email updated but we couldn\'t send a verification link. Try resending from the verify page.';
       case 'invalid-name':
         return 'Names cannot contain line breaks or control characters.';
       case 'invalid-totp-code':
@@ -174,6 +178,14 @@ import { initHousehold } from './household.js';
       initHousehold(user);
       var nameInput = document.getElementById('display-name');
       if (nameInput) nameInput.value = user.name || '';
+      var emailSection = document.querySelector('[data-change-email-section]');
+      if (emailSection) {
+        if (user.emailVerified === false) {
+          emailSection.hidden = true;
+        } else {
+          emailSection.hidden = false;
+        }
+      }
       // Membership line needs the Pro entitlement (from /api/data).
       fetchData()
         .then(function (server) { renderMembership(user, server && server.entitlement); })
@@ -234,6 +246,10 @@ import { initHousehold } from './household.js';
             setBusy(emailForm, false);
             if (handledSessionLoss(res)) return;
             if (res.ok) {
+              if (res.data && res.data.verificationRequired) {
+                window.location.href = '/verify-email';
+                return;
+              }
               showMessage('email', 'Email updated.', false);
               auth.me().then(function (u) {
                 if (u) {

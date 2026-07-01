@@ -50,7 +50,7 @@ struct PasskeyDeleteBody: Encodable { let passkeyId: Int; let password: String }
 
 struct OkBody: Decodable { let ok: Bool? }
 struct NameResult: Decodable { let name: String? }
-struct EmailResult: Decodable { let email: String? }
+struct EmailResult: Decodable { let email: String?; let verificationRequired: Bool? }
 struct BackupCodesResult: Decodable { let backupCodes: [String] }
 struct EmailEnableResult: Decodable { let challengeId: String }
 struct PasskeyListResult: Decodable { let passkeys: [PasskeyInfo] }
