@@ -46,11 +46,15 @@ class ApiClient(
         } catch (e: Exception) {
             throw ApiError.Transport(e.message ?: "transport error")
         }
-        if (resp.status == 401) throw ApiError.Unauthenticated
         if (resp.status !in 200..299) {
             val code = runCatching {
                 FiHavenJson.decodeFromString(ErrorBody.serializer(), resp.body).error
             }.getOrNull()
+            // Only bearer/session expiry uses Unauthenticated; login/MFA/passkey
+            // 401s carry specific { error } codes (invalid-credentials, etc.).
+            if (resp.status == 401 && (code == null || code == "unauthenticated")) {
+                throw ApiError.Unauthenticated
+            }
             throw ApiError.Http(resp.status, code)
         }
         return resp.body
@@ -233,8 +237,8 @@ class ApiClient(
     suspend fun changeName(name: String): String? =
         decode<NameResult>(send(makeRequest("api/account/change-name", HttpMethod.POST, encode(ChangeNameBody(name))))).name
 
-    suspend fun changeEmail(password: String, newEmail: String): String? =
-        decode<EmailResult>(send(makeRequest("api/account/change-email", HttpMethod.POST, encode(ChangeEmailBody(password, newEmail))))).email
+    suspend fun changeEmail(password: String, newEmail: String): EmailResult =
+        decode(send(makeRequest("api/account/change-email", HttpMethod.POST, encode(ChangeEmailBody(password, newEmail)))))
 
     suspend fun changePassword(currentPassword: String, newPassword: String) {
         send(makeRequest("api/account/change-password", HttpMethod.POST, encode(ChangePasswordBody(currentPassword, newPassword))))
@@ -277,6 +281,18 @@ class ApiClient(
 
     suspend fun emailMfaDisable(password: String) {
         send(makeRequest("api/account/mfa/email/disable", HttpMethod.POST, encode(PasswordBody(password))))
+    }
+
+    suspend fun passkeyRegisterStart(): PasskeyRegisterStartResponse =
+        decode(send(makeRequest("api/account/mfa/passkey/register-start", HttpMethod.POST, "{}")))
+
+    suspend fun passkeyRegisterFinish(challengeId: String, responseJson: String, name: String) {
+        val resp = FiHavenJson.parseToJsonElement(responseJson)
+        send(makeRequest(
+            "api/account/mfa/passkey/register-finish",
+            HttpMethod.POST,
+            encode(PasskeyRegisterFinishBody(challengeId, resp, name)),
+        ))
     }
 
     suspend fun listPasskeys(): List<PasskeyInfo> =

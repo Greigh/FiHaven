@@ -25,12 +25,17 @@ sealed class ApiError : Exception() {
                 "invalid-email" -> "That email address looks invalid."
                 "weak-password" -> "Password must be 10+ characters with a letter and a number."
                 "email-taken" -> "An account with that email already exists."
+                "email-unverified" -> "Verify your current email before changing it."
+                "mail-send-failed" -> "Email updated but we couldn't send a verification link. Try resending from the verify screen."
                 "captcha-failed" -> "Captcha verification failed. Please try again."
                 "too-fast", "spam" -> "Something went wrong. Please try again."
                 "rate-limited" -> "Too many attempts. Please wait and try again."
                 "mfa-token-invalid" -> "Your verification session expired. Please sign in again."
                 "invalid-totp-code" -> "That code wasn't valid."
                 "wrong-password" -> "That password is incorrect."
+                "passkey-verify-failed" -> "Passkey verification failed. Try again."
+                "bad-challenge", "challenge-expired" -> "That setup session expired. Please try again."
+                "bad-passkey-id" -> "Passkey not found."
                 else -> code ?: "Request failed ($status)."
             }
         }

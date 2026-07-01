@@ -31,6 +31,8 @@ public enum APIError: Error, Equatable, Sendable {
             case "invalid-email": return "That email address looks invalid."
             case "weak-password": return "Password must be 10+ characters with a letter and a number."
             case "email-taken": return "An account with that email already exists."
+            case "email-unverified": return "Verify your current email before changing it."
+            case "mail-send-failed": return "Email updated but we couldn't send a verification link. Try resending from the verify screen."
             case "captcha-failed": return "Captcha verification failed. Please try again."
             case "too-fast", "spam": return "Something went wrong. Please try again."
             case "rate-limited": return "Too many attempts. Please wait and try again."
