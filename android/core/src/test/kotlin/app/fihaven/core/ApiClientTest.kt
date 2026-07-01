@@ -91,6 +91,15 @@ class ApiClientTest {
         assertFailsWith<ApiError.Unauthenticated> { client(InMemoryTokenStore("t"), t).fetchData() }
     }
 
+    @Test fun loginInvalidCredentialsCarriesCode() = runTest {
+        val t = FakeTransport().apply {
+            responder = { HttpResponse(401, """{"error":"invalid-credentials"}""") }
+        }
+        val e = assertFailsWith<ApiError.Http> { client(transport = t).login("a@b.com", "wrong", "tok", 0) }
+        assertEquals("invalid-credentials", e.code)
+        assertEquals("Incorrect email or password.", e.userMessage)
+    }
+
     @Test fun serverErrorCarriesCode() = runTest {
         val t = FakeTransport().apply { responder = { HttpResponse(400, """{"error":"weak-password"}""") } }
         val e = assertFailsWith<ApiError.Http> { client(transport = t).signup("a@b.com", "short", "t", 0) }
