@@ -44,6 +44,12 @@ android {
 
     buildFeatures { compose = true }
 
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -66,6 +72,11 @@ android {
             buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
         }
         getByName("release") {
+            // Native .so from Plaid/Billing — symbol table is bundled and also
+            // written to native-debug-symbols.zip for Play Console upload.
+            ndk {
+                debugSymbolLevel = "symbol_table"
+            }
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
             if (keystorePropsFile.exists()) {
