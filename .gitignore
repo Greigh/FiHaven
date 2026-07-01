@@ -48,3 +48,8 @@ docs/pdf/
 android/index.html
 android/script.js
 android/styles.css
+
+# ── Local IDE / Play Store marketing assets (generated or machine-specific) ──
+android/.run/
+android/play-store/
+ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-512.png
