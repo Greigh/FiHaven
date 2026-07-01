@@ -19,7 +19,7 @@ Each release below uses two layers:
 |---|---|
 | **Status** | Pre-release |
 | **iOS** | 1.5.0 (4) |
-| **Android** | 1.5.0 (build 12) |
+| **Android** | 1.5.0 (build 13) |
 
 ### Summary
 
@@ -144,6 +144,9 @@ Each release below uses two layers:
   returns `verificationRequired`; clients hide change-email when unverified.
 - **Android release signing** — optional `keystore.properties` + `bundleRelease`
   (`android/app/build.gradle.kts`, `keystore.properties.example`).
+- **Android release build 13** — R8 minify/shrink + `proguard-rules.pro` for Play
+  deobfuscation mapping; `ndk.debugSymbolLevel = symbol_table` for native crash
+  symbols (`versionCode` 13).
 - **Marketing homepage** — `home.html` reflects TestFlight/live apps, sync,
   family, passkeys, and Plaid (`pricing.html` one-liner).
 - **Android Plaid Link SDK 6** — migrated to Plaid Link SDK 6.0.0; `compileSdk`
