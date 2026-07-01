@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-06-29
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-01
 
 | | |
 |---|---|
 | **Status** | Pre-release |
-| **iOS** | 1.5.0 (3) |
-| **Android** | 1.5.0 (build 11) |
+| **iOS** | 1.5.0 (4) |
+| **Android** | 1.5.0 (build 12) |
 
 ### Summary
 
@@ -63,6 +63,18 @@ Each release below uses two layers:
 - Android now autofills the 2FA code correctly instead of offering a password,
   and the sign-up screen shows the Terms/Privacy agreement.
 - Stronger Android sign-in security and more reliable iOS TestFlight builds.
+
+**Build 4 polish**
+
+- Changing your email now requires a verified current address; the new address
+  must be confirmed before it takes effect (web, iOS, Android).
+- Android can register and remove passkeys in Settings; passkey enrollment
+  accepts Play-signed app origins.
+- Google Play Pro subscriptions are verified server-side via the Developer API.
+- Android login no longer shows “session expired” on a wrong password; auth
+  screens scroll above the keyboard and settings dialogs size to their content.
+- Play Store upload signing via local `keystore.properties` (documented in
+  `android/README.md`).
 
 **Build 3 polish**
 
@@ -115,8 +127,23 @@ Each release below uses two layers:
   `PASSKEY_ANDROID_ORIGIN` env for the Android `apk-key-hash` origin. (Passkeys
   also remain available as a second factor.)
 
+#### Added
+
+- **Google Play receipt verification** — `server/googlePlay.js` calls
+  `purchases.subscriptionsv2.get` when `GOOGLE_VERIFY_ENABLED=1`;
+  `upload.sh` can ship `GOOGLE_PLAY_SA_LOCAL` → server JSON path.
+- **Android passkey registration** — Settings → Passkeys uses Credential
+  Manager (`PasskeyRegistration.kt`); `passkeyOrigins(req)` on enroll/finish
+  (`server/mfa.js`).
+- **`scripts/seed-user-data.js`** — demo/screenshot account seeding CLI.
+
 #### Changed
 
+- **Change-email verification gate** — `POST /api/account/change-email` requires
+  a verified current email, clears `email_verified`, emails the new address, and
+  returns `verificationRequired`; clients hide change-email when unverified.
+- **Android release signing** — optional `keystore.properties` + `bundleRelease`
+  (`android/app/build.gradle.kts`, `keystore.properties.example`).
 - **Marketing homepage** — `home.html` reflects TestFlight/live apps, sync,
   family, passkeys, and Plaid (`pricing.html` one-liner).
 - **Android Plaid Link SDK 6** — migrated to Plaid Link SDK 6.0.0; `compileSdk`
@@ -137,6 +164,12 @@ Each release below uses two layers:
 
 #### Fixed
 
+- **Android login 401 mapping** — `ApiClient.send()` only throws
+  `Unauthenticated` when the server returns `unauthenticated`, not on
+  `invalid-credentials` (`ApiClientTest`).
+- **Android auth/form UX** — `authScreen()` IME padding + vertical scroll on
+  login/MFA/intro/onboarding; `FormDialog` uses `wrapContentHeight` with a max
+  height cap.
 - **Paid items no longer show overdue** — `effectiveDaysUntilDue` /
   `effectiveDaysUntilBillDue` in `utils.js` and native `DateLogic` / `Schedule`;
   Cards, Bills, and Dashboard upcoming on web, iOS, and Android.
