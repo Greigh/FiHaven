@@ -47,6 +47,20 @@ cross-platform parity.
    ```
    Output: `app/build/outputs/bundle/release/app-release.aab`
 
+   Play Console may warn about missing crash-debug assets. After each
+   `bundleRelease`, upload these for the matching `versionCode` (they must
+   come from the **same** Gradle build as the `.aab`):
+
+   | File | Path | When |
+   |------|------|------|
+   | Native debug symbols | `app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip` | Always (Plaid/Billing ship `.so` libs) |
+   | Deobfuscation (R8) | `app/build/outputs/mapping/release/mapping.txt` | Only when `isMinifyEnabled = true` |
+
+   In Play Console: **Release** → **App bundle explorer** → select the
+   version → **Downloads** → upload native debug symbols (and mapping when
+   R8 is on). If R8 is off, the deobfuscation warning is informational —
+   there is no mapping file to upload.
+
 Bump `versionCode` in `app/build.gradle.kts` before each Play upload.
 
 - **API:** debug and release builds both point at `https://fihaven.app`.
