@@ -184,11 +184,11 @@ async function startPasskeyRegistration(user, existingPasskeys, req) {
 }
 
 async function finishPasskeyRegistration(response, expectedChallenge, req) {
-  const { rpID, origin } = rpConfig(req);
+  const { rpID } = rpConfig(req);
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge,
-    expectedOrigin: origin,
+    expectedOrigin: passkeyOrigins(req),
     expectedRPID: rpID,
     requireUserVerification: false,
   });
@@ -208,11 +208,11 @@ async function startPasskeyAuthentication(allowed, req) {
 }
 
 async function finishPasskeyAuthentication({ response, expectedChallenge, credential }, req) {
-  const { rpID, origin } = rpConfig(req);
+  const { rpID } = rpConfig(req);
   return verifyAuthenticationResponse({
     response,
     expectedChallenge,
-    expectedOrigin: origin,
+    expectedOrigin: passkeyOrigins(req),
     expectedRPID: rpID,
     credential: {
       id: credential.credential_id,

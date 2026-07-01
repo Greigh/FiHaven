@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -144,7 +145,7 @@ fun BrandMark(size: Int = 26, modifier: Modifier = Modifier) {
 @Composable
 fun LoadingScreen() {
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg),
+        Modifier.fillMaxSize().background(Ct.colors.bg).systemBarsPadding(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -159,7 +160,7 @@ fun DataLoadScreen() = LoadingScreen()
 @Composable
 fun DataErrorScreen(message: String, onRetry: () -> Unit, onLogout: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(24.dp),
+        Modifier.authScreen().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
