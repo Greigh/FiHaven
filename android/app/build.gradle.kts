@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     kotlin("plugin.compose")
     kotlin("plugin.serialization")
+}
+
+// Local release signing — copy keystore.properties.example → keystore.properties
+// (gitignored). Never commit the .jks or passwords.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(keystorePropsFile.inputStream())
 }
 
 android {
@@ -39,6 +49,17 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
@@ -47,6 +68,9 @@ android {
         getByName("release") {
             isMinifyEnabled = false
             buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     buildFeatures { buildConfig = true }
