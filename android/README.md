@@ -32,6 +32,23 @@ cross-platform parity.
 ./gradlew :app:assembleDebug
 ```
 
+### Release signing (Play Store upload)
+
+1. Generate an upload keystore once (back it up safely):
+   ```sh
+   keytool -genkey -v -keystore ~/fihaven-upload-key.jks -alias fihaven \
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. Copy `android/keystore.properties.example` → `android/keystore.properties`
+   (gitignored) and point `storeFile` at your `.jks` with passwords.
+3. Build a signed bundle:
+   ```sh
+   ./gradlew :app:bundleRelease
+   ```
+   Output: `app/build/outputs/bundle/release/app-release.aab`
+
+Bump `versionCode` in `app/build.gradle.kts` before each Play upload.
+
 - **API:** debug and release builds both point at `https://fihaven.app`.
   For local server work, change `API_BASE` in `app/build.gradle.kts` or
   run JVM tests against `ApiConfig.localhost`.
