@@ -2,6 +2,7 @@ package app.fihaven.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -140,8 +143,7 @@ fun AuthScreen(vm: AppViewModel) {
     LaunchedEffect(Unit) { signInWithPasskey(auto = true) }
 
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(22.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.authScreen().verticalScroll(rememberScrollState()).padding(22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Wordmark(38)
@@ -307,7 +309,7 @@ fun AuthScreen(vm: AppViewModel) {
                 }
             }
         }
-        TextButton(onClick = { signup = !signup; reloadCaptcha() }, modifier = Modifier.padding(top = 6.dp)) {
+        TextButton(onClick = { signup = !signup; reloadCaptcha() }, modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)) {
             Text(
                 if (signup) "Already have an account? Sign in" else "No account? Create one",
                 color = Ct.colors.accent,
@@ -324,8 +326,7 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
     val uriHandler = LocalUriHandler.current
 
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(22.dp),
-        verticalArrangement = Arrangement.Center,
+        Modifier.authScreen().verticalScroll(rememberScrollState()).padding(22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Wordmark(34)
