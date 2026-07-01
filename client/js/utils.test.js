@@ -410,9 +410,10 @@ describe('utils — billInPeriod and paid goal helpers', () => {
 
   it('isFullyPaid compares paid amount to the goal', () => {
     setSettings({ paidGoal: 'minimum' });
-    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 100, date: '2026-06-15' }]);
+    const today = localIso();
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 100, date: today }]);
     expect(isFullyPaid('card', 'C1')).toBe(true);
-    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 50, date: '2026-06-15' }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 50, date: today }]);
     expect(isFullyPaid('card', 'C1')).toBe(false);
   });
 
