@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -97,9 +99,9 @@ fun IntroScreen(vm: AppViewModel) {
     val page = pages[step]
     val badgeColor = if (page.badge == "PRO") Ct.colors.accent else Ct.colors.green
 
-    Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(horizontal = 24.dp)) {
+    Column(Modifier.authScreen().padding(horizontal = 24.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(top = 14.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -107,12 +109,13 @@ fun IntroScreen(vm: AppViewModel) {
             if (!last) TextButton(onClick = { vm.markIntroSeen() }) { Text("Skip", color = Ct.colors.muted) }
         }
 
-        Spacer(Modifier.weight(1f))
-
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            // Soft gradient disc with the FiHaven mark (page 1) or page glyph.
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
             Box(
-                Modifier.size(132.dp).clip(RoundedCornerShape(50))
+                Modifier.size(120.dp).clip(RoundedCornerShape(50))
                     .background(
                         Brush.linearGradient(
                             listOf(Ct.colors.accent.copy(alpha = 0.18f), badgeColor.copy(alpha = 0.06f)),
@@ -165,10 +168,8 @@ fun IntroScreen(vm: AppViewModel) {
             }
         }
 
-        Spacer(Modifier.weight(1f))
-
         Row(
-            Modifier.fillMaxWidth().padding(bottom = 20.dp),
+            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.Center,
         ) {
             pages.indices.forEach { i ->
@@ -182,7 +183,7 @@ fun IntroScreen(vm: AppViewModel) {
         }
         Button(
             onClick = { if (!last) step++ else vm.markIntroSeen() },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
         ) {
             Text(if (!last) "Next" else "Get started")

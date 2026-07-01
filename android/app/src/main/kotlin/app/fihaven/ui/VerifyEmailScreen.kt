@@ -39,7 +39,7 @@ fun VerifyEmailScreen(vm: AppViewModel, user: User) {
     var resendLabel by remember { mutableStateOf("Resend the email") }
 
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(28.dp),
+        Modifier.authScreen().padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

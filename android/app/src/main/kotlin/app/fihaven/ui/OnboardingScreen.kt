@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -132,14 +134,18 @@ fun OnboardingScreen(vm: AppViewModel) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(horizontal = 24.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End) {
+    Column(Modifier.authScreen().padding(horizontal = 24.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = { finish() }, enabled = !finishing) {
                 Text("Skip", color = Ct.colors.muted)
             }
         }
-        Spacer(Modifier.weight(1f))
 
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
         if (goalsStep) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("What brings you to FiHaven?", color = Ct.colors.text, fontSize = 26.sp,
@@ -214,9 +220,9 @@ fun OnboardingScreen(vm: AppViewModel) {
                 }
             }
         }
+        }
 
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), horizontalArrangement = Arrangement.Center) {
             repeat(totalSteps) { i ->
                 Box(
                     Modifier.padding(horizontal = 4.dp)
@@ -231,7 +237,7 @@ fun OnboardingScreen(vm: AppViewModel) {
             // own sheet, so a single entry point avoids a redundant pair of
             // buttons that open the same paywall.
             Column(
-                Modifier.fillMaxWidth().padding(bottom = 30.dp),
+                Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
@@ -250,7 +256,7 @@ fun OnboardingScreen(vm: AppViewModel) {
             Button(
                 onClick = { step++ },
                 enabled = !finishing,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
             ) {
                 Text(

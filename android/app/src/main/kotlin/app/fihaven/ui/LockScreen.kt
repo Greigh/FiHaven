@@ -40,7 +40,7 @@ fun LockScreen(vm: AppViewModel) {
     LaunchedEffect(Unit) { prompt() }
 
     Column(
-        Modifier.fillMaxSize().background(Ct.colors.bg).padding(28.dp),
+        Modifier.authScreen().padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
