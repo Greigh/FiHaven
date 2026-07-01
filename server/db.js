@@ -374,7 +374,9 @@ const stmt = {
   updateUserPassword: db.prepare(
     `UPDATE users SET password_hash = ? WHERE id = ?`
   ),
-  updateUserEmail: db.prepare(`UPDATE users SET email = ? WHERE id = ?`),
+  updateUserEmail: db.prepare(
+    `UPDATE users SET email = ?, email_verified = 0, email_verified_at = NULL WHERE id = ?`
+  ),
   updateUserName: db.prepare(`UPDATE users SET name = ? WHERE id = ?`),
   updateUserIcalToken: db.prepare(`UPDATE users SET ical_token = ? WHERE id = ?`),
   deleteUser: db.prepare(`DELETE FROM users WHERE id = ?`),
