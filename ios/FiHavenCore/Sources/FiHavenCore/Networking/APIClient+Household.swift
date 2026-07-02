@@ -51,6 +51,11 @@ public extension APIClient {
         return try decode(HouseholdSharedData.self, from: try await send(req))
     }
 
+    func householdRollup() async throws -> HouseholdRollup {
+        let req = try makeRequest(path: "api/household/rollup", method: .GET)
+        return try decode(HouseholdRollup.self, from: try await send(req))
+    }
+
     func shareHouseholdEntity(kind: String, item: JSONValue) async throws -> SharedEntity {
         let req = try makeRequest(path: "api/household/entities", method: .POST,
                                   body: AnyEncodable(ShareEntityBody(kind: kind, item: item)))

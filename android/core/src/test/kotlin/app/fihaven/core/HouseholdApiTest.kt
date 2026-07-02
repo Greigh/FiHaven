@@ -67,4 +67,12 @@ class HouseholdApiTest {
         assertEquals("http://localhost:5222/api/household/entities/goal/g1", t.last?.url)
         assertEquals(HttpMethod.DELETE, t.last?.method)
     }
+
+    @Test fun rollupDecodesTotals() = runTest {
+        val json = """{"householdId":1,"asOf":9,"totals":{"billsMonthly":1500,"cardDebt":800,"goalsTarget":5000},"byMember":[],"entityCount":{"bill":1}}"""
+        val t = FakeTransport().apply { responder = { HttpResponse(200, json) } }
+        val rollup = client(t).getHouseholdRollup()
+        assertEquals(1500.0, rollup?.totals?.billsMonthly)
+        assertEquals("http://localhost:5222/api/household/rollup", t.last?.url)
+    }
 }

@@ -7,6 +7,7 @@ import FiHavenCore
 final class HouseholdModel: ObservableObject {
     @Published var info: HouseholdInfo?
     @Published var entities: [SharedEntity] = []
+    @Published var rollup: HouseholdRollup?
     @Published var error: String?
     @Published var loaded = false
     @Published var busy = false
@@ -29,6 +30,7 @@ final class HouseholdModel: ObservableObject {
                 await loadShared()
             } else {
                 entities = []
+                rollup = nil
                 stopStream()
             }
         } catch {
@@ -43,6 +45,11 @@ final class HouseholdModel: ObservableObject {
             entities = data.entities
             startStream(since: data.seq ?? 0)
         } catch { /* snapshot best-effort */ }
+        do {
+            rollup = try await api.householdRollup()
+        } catch {
+            rollup = nil
+        }
     }
 
     private func startStream(since: Int64) {
@@ -241,6 +248,32 @@ struct HouseholdSettingsView: View {
             }
         }
 
+        if let rollup = model.rollup {
+            Section("Household totals") {
+                rollupRow("Bills (monthly)", rollup.totals.billsMonthly)
+                rollupRow("Card debt", rollup.totals.cardDebt)
+                rollupRow("Goals (target)", rollup.totals.goalsTarget)
+            }
+            if !rollup.byMember.isEmpty {
+                Section("By member") {
+                    ForEach(rollup.byMember, id: \.userId) { m in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(m.name).font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
+                            HStack {
+                                Text("Bills \(Money.fmt(m.billsMonthly))")
+                                Text("·").foregroundStyle(Theme.muted)
+                                Text("Debt \(Money.fmt(m.cardDebt))")
+                                Text("·").foregroundStyle(Theme.muted)
+                                Text("Goals \(Money.fmt(m.goalsTarget))")
+                            }
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+
         Section {
             Button(role: .destructive) { Task { await model.leave() } } label: {
                 Text(isOwner ? "Leave (transfers or dissolves)" : "Leave household")
@@ -254,5 +287,13 @@ struct HouseholdSettingsView: View {
             if case .string(let merchant)? = o["merchant"] { return merchant }
         }
         return e.kind.capitalized
+    }
+
+    private func rollupRow(_ label: String, _ amount: Double) -> some View {
+        HStack {
+            Text(label).font(Theme.ui(15)).foregroundStyle(Theme.text)
+            Spacer()
+            Text(Money.fmt(amount)).font(Theme.mono(15)).foregroundStyle(Theme.text)
+        }
     }
 }

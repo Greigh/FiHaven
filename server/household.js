@@ -303,6 +303,64 @@ function setSharePrefs(user, prefs) {
   return clean;
 }
 
+/** Monarch-style rollup of shared household entities (no private member data). */
+function computeRollup(userId) {
+  const view = viewFor(userId);
+  if (!view) return null;
+  const data = listSharedData(userId);
+  const memberNames = {};
+  view.members.forEach((m) => {
+    memberNames[m.userId] = m.name || m.email || 'Member';
+  });
+
+  const totals = { billsMonthly: 0, cardDebt: 0, goalsTarget: 0 };
+  const byMember = {};
+  const entityCount = { bill: 0, card: 0, goal: 0, account: 0, transaction: 0 };
+
+  function memberRow(uid) {
+    if (!byMember[uid]) {
+      byMember[uid] = {
+        userId: uid,
+        name: memberNames[uid] || 'Member',
+        billsMonthly: 0,
+        cardDebt: 0,
+        goalsTarget: 0,
+      };
+    }
+    return byMember[uid];
+  }
+
+  data.entities.forEach((e) => {
+    entityCount[e.kind] = (entityCount[e.kind] || 0) + 1;
+    const row = memberRow(e.ownerUserId);
+    const d = e.data || {};
+    if (e.kind === 'bill') {
+      const amt = parseFloat(d.amount) || 0;
+      row.billsMonthly += amt;
+      totals.billsMonthly += amt;
+    } else if (e.kind === 'card') {
+      const bal = parseFloat(d.balance) || 0;
+      row.cardDebt += bal;
+      totals.cardDebt += bal;
+    } else if (e.kind === 'goal') {
+      const tgt = parseFloat(d.target) || 0;
+      row.goalsTarget += tgt;
+      totals.goalsTarget += tgt;
+    }
+  });
+
+  return {
+    householdId: data.householdId,
+    asOf: Date.now(),
+    members: view.members.map((m) => ({
+      userId: m.userId, name: m.name, email: m.email, role: m.role,
+    })),
+    totals,
+    byMember: Object.values(byMember),
+    entityCount,
+  };
+}
+
 module.exports = {
   viewFor,
   create,
@@ -315,6 +373,7 @@ module.exports = {
   // Selective sharing
   requireMembership,
   listSharedData,
+  computeRollup,
   shareEntity,
   updateEntity,
   deleteEntity,

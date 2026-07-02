@@ -293,6 +293,13 @@ struct SettingsView: View {
                 Text("Rolling window").tag("rolling")
             }
             .pickerStyle(.menu)
+            NavigationLink {
+                BudgetRuleSettingsView()
+            } label: {
+                LabeledContent("Budget lens",
+                               value: BudgetRules.mode(from: store.data.settings) == "off"
+                                   ? "Off" : BudgetRules.title(BudgetRules.mode(from: store.data.settings)))
+            }
             if (store.data.settings.periodMode ?? "calendar") == "startDay" {
                 Stepper("Starts on day \(store.data.settings.periodStartDay ?? 1)",
                         value: Binding(get: { store.data.settings.periodStartDay ?? 1 },

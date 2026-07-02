@@ -24,10 +24,19 @@ public enum BudgetRules {
         public var pct: Double; public var limit: Int; public var over: Bool
     }
 
+    public struct EnvelopeAssignments: Equatable, Sendable {
+        public var goalMap: [String: Double]
+        public var catMap: [String: Double]
+        public var goalsTotal: Double
+        public var catsTotal: Double
+        public var total: Double
+    }
+
     public struct Lens: Equatable, Sendable {
         public var mode: String; public var title: String; public var subtitle: String
         public var headline: Headline?; public var rows: [Row]; public var warnings: [Warning]
         public var proLocked: Bool
+        public var envelope: EnvelopeAssignments?
     }
 
     public static let housingRatioLimit = 30
@@ -75,6 +84,86 @@ public enum BudgetRules {
 
     public static func enabled(_ settings: Settings) -> Bool { mode(from: settings) != "off" }
     public static func title(_ mode: String) -> String { titles[mode] ?? mode }
+
+    public static let billCategories = CTConstants.categories
+
+    public static func billBucket(_ category: String, settings: Settings) -> Bucket {
+        let o = settings.budgetBucketOverrides.bills[category]
+        if let o, let b = Bucket(rawValue: o) { return b }
+        return billBuckets[category] ?? .needs
+    }
+
+    public static func spendingBucket(_ category: String, settings: Settings) -> Bucket {
+        let o = settings.budgetBucketOverrides.spending[category]
+        if let o, let b = Bucket(rawValue: o) { return b }
+        return spendingBuckets[category] ?? .wants
+    }
+
+    public static func transactionInPeriod(_ date: String, bounds: PeriodBounds) -> Bool {
+        guard !date.isEmpty else { return false }
+        return date >= bounds.startKey && date < bounds.endKey
+    }
+
+    public static func envelopeAssignments(_ settings: Settings, goals: [SavingsGoal], tz: TimeZone) -> EnvelopeAssignments {
+        var goalMap = settings.envelopeAssign.goals
+        var catMap = settings.envelopeAssign.categories
+        let rolloverCats = settings.envelopeRolloverBal.categories
+
+        for g in goals {
+            let id = g.id
+            if goalMap[id] == nil {
+                let sug = suggestedGoalMonthly(g, tz: tz)
+                if sug > 0 { goalMap[id] = sug }
+            }
+        }
+
+        for (cat, budget) in settings.categoryBudgets {
+            if catMap[cat] == nil { catMap[cat] = budget }
+        }
+
+        if settings.envelopeRollover {
+            for (cat, extra) in rolloverCats where extra > 0 {
+                catMap[cat] = (catMap[cat] ?? 0) + extra
+            }
+        }
+
+        let goalsTotal = goalMap.values.reduce(0, +)
+        let catsTotal = catMap.values.reduce(0, +)
+        return EnvelopeAssignments(
+            goalMap: goalMap, catMap: catMap,
+            goalsTotal: goalsTotal, catsTotal: catsTotal,
+            total: goalsTotal + catsTotal
+        )
+    }
+
+    /// Apply unused category budget from the previous period into envelopeRolloverBal.
+    public static func applyEnvelopeRollover(
+        _ settings: Settings,
+        transactions: [SpendTransaction],
+        prevBounds: PeriodBounds
+    ) -> Settings {
+        guard settings.envelopeRollover else { return settings }
+        let mk = prevBounds.key
+        if settings.envelopeRolloverAppliedFor == mk { return settings }
+
+        let spent = SpendingInsights.spentByCategory(transactions, bounds: prevBounds)
+        let budgets = settings.categoryBudgets
+        let assign = settings.envelopeAssign.categories
+        var nextCats = settings.envelopeRolloverBal.categories
+
+        for cat in budgets.keys {
+            let budget = assign[cat] ?? budgets[cat] ?? 0
+            let unused = max(0, budget - (spent[cat] ?? 0))
+            if unused > 0.005 {
+                nextCats[cat] = (nextCats[cat] ?? 0) + unused
+            }
+        }
+
+        var next = settings
+        next.envelopeRolloverBal = Settings.EnvelopeRolloverBal(categories: nextCats)
+        next.envelopeRolloverAppliedFor = mk
+        return next
+    }
 
     public static func splits(from settings: Settings) -> Splits? {
         let m = mode(from: settings)
@@ -167,11 +256,13 @@ public enum BudgetRules {
         billAmount: (Bill) -> Double, cardAmount: (Card) -> Double, warnings: [Warning]) -> Lens? {
         guard let sp = splits(from: settings) else { return nil }
         var actual: [Bucket: Double] = [.needs: 0, .wants: 0, .save: 0]
-        bills.filter(billDueInPeriod).forEach { b in actual[billBuckets[b.category] ?? .needs, default: 0] += billAmount(b) }
+        bills.filter(billDueInPeriod).forEach { b in
+            actual[billBucket(b.category, settings: settings), default: 0] += billAmount(b)
+        }
         cards.forEach { actual[.needs, default: 0] += cardAmount($0) }
         transactions.forEach { t in
             guard transactionInPeriod(t.date, bounds: bounds) else { return }
-            actual[spendingBuckets[t.category] ?? .wants, default: 0] += abs(t.amount)
+            actual[spendingBucket(t.category, settings: settings), default: 0] += abs(t.amount)
         }
         actual[.save] = max(0, income - actual[.needs, default: 0] - actual[.wants, default: 0])
         let rows = [
@@ -180,7 +271,7 @@ public enum BudgetRules {
             splitRow("save", "Save", sp.save, income * Double(sp.save) / 100, actual[.save]!, isSave: true),
         ]
         return Lens(mode: mode, title: title(mode), subtitle: "Needs, wants, and save targets from income.",
-            headline: nil, rows: rows, warnings: warnings, proLocked: false)
+            headline: nil, rows: rows, warnings: warnings, proLocked: false, envelope: nil)
     }
 
     private static func obligationsFirst(income: Double, bills: [Bill], cards: [Card], goals: [SavingsGoal],
@@ -199,7 +290,7 @@ public enum BudgetRules {
         return Lens(mode: "obligations-first", title: title("obligations-first"),
             subtitle: "What is left after fixed obligations and planned savings.",
             headline: Headline(label: "Safe to spend", amount: safe, status: safe >= 0 ? "ok" : "over"),
-            rows: rows, warnings: warnings, proLocked: false)
+            rows: rows, warnings: warnings, proLocked: false, envelope: nil)
     }
 
     private static func debtFocus(income: Double, settings: Settings, bills: [Bill], cards: [Card],
@@ -218,7 +309,7 @@ public enum BudgetRules {
         ]
         return Lens(mode: "debt-focus", title: title("debt-focus"), subtitle: "Minimums plus your planned extra payment.",
             headline: Headline(label: "After debt plan", amount: flex, status: flex >= 0 ? "ok" : "over"),
-            rows: rows, warnings: warnings, proLocked: false)
+            rows: rows, warnings: warnings, proLocked: false, envelope: nil)
     }
 
     private static func envelope(income: Double, settings: Settings, bills: [Bill], cards: [Card], goals: [SavingsGoal],
@@ -226,17 +317,16 @@ public enum BudgetRules {
         warnings: [Warning], tz: TimeZone) -> Lens {
         if !isPro {
             return Lens(mode: "envelope", title: title("envelope"), subtitle: "Assign every dollar — goals plus category budgets.",
-                headline: nil, rows: [], warnings: [], proLocked: true)
+                headline: nil, rows: [], warnings: [], proLocked: true, envelope: nil)
         }
         let obligations = obligationsTotal(bills: bills, cards: cards, billDueInPeriod: billDueInPeriod,
             billAmount: billAmount, cardAmount: cardAmount)
-        let goalsTotal = goals.reduce(0) { $0 + suggestedGoalMonthly($1, tz: tz) }
-        let catsTotal = settings.categoryBudgets.values.reduce(0, +)
-        let unassigned = income - obligations - goalsTotal - catsTotal
+        let env = envelopeAssignments(settings, goals: goals, tz: tz)
+        let unassigned = income - obligations - env.total
         let rows = [
             Row(key: "obligations", label: "Fixed obligations", pct: nil, target: nil, actual: obligations, delta: 0, status: "ok", hint: nil),
-            Row(key: "goals", label: "Assigned to goals", pct: nil, target: nil, actual: goalsTotal, delta: 0, status: "ok", hint: nil),
-            Row(key: "categories", label: "Assigned to categories", pct: nil, target: nil, actual: catsTotal, delta: 0, status: "ok", hint: nil),
+            Row(key: "goals", label: "Assigned to goals", pct: nil, target: nil, actual: env.goalsTotal, delta: 0, status: "ok", hint: nil),
+            Row(key: "categories", label: "Assigned to categories", pct: nil, target: nil, actual: env.catsTotal, delta: 0, status: "ok", hint: nil),
             Row(key: "unassigned", label: "Left to assign", pct: nil, target: nil, actual: unassigned, delta: 0,
                 status: abs(unassigned) < 0.01 ? "ok" : (unassigned > 0 ? "under" : "over"),
                 hint: unassigned > 0 ? "Assign to goals or category budgets" : "Over-assigned"),
@@ -245,7 +335,7 @@ public enum BudgetRules {
             subtitle: "Zero-based lite: goals + category budgets should use income after obligations.",
             headline: Headline(label: "Unassigned", amount: unassigned,
                 status: abs(unassigned) < 0.01 ? "ok" : (unassigned > 0 ? "under" : "over")),
-            rows: rows, warnings: warnings, proLocked: false)
+            rows: rows, warnings: warnings, proLocked: false, envelope: env)
     }
 
     private static func splitRow(_ key: String, _ label: String, _ pct: Int, _ target: Double, _ actual: Double, isSave: Bool = false) -> Row {
@@ -255,8 +345,4 @@ public enum BudgetRules {
         return Row(key: key, label: label, pct: pct, target: target, actual: actual, delta: actual - target, status: status, hint: nil)
     }
 
-    private static func transactionInPeriod(_ date: String, bounds: PeriodBounds) -> Bool {
-        guard !date.isEmpty else { return false }
-        return date >= bounds.startKey && date < bounds.endKey
-    }
 }

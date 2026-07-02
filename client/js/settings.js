@@ -15,6 +15,9 @@ import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 import { initHousehold } from './household.js';
+import {
+  BILL_CATEGORIES, SPENDING_CATEGORIES, BUDGET_BUCKETS,
+} from './budgetRules.js';
 
     function showMessage(form, text, isError) {
     var el = document.querySelector('[data-message="' + form + '"]');
@@ -432,6 +435,7 @@ import { initHousehold } from './household.js';
 
     /* ── Budget rule lens ──────────────────────────────────── */
     initBudgetRuleSection();
+    initBucketOverridesSection();
 
     /* ── Autopay auto-mark ─────────────────────────────────── */
     initAutopaySection();
@@ -1125,6 +1129,76 @@ import { initHousehold } from './household.js';
         .catch(function (err) {
           setBusy(form, false);
           showMessage('budgetrule', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Category bucket overrides ──────────────────────────── */
+  function initBucketOverridesSection() {
+    var form = document.querySelector('[data-form="bucketoverrides"]');
+    var root = document.querySelector('[data-bucket-overrides-root]');
+    if (!form || !root) return;
+
+    function bucketSelect(kind, cat, value) {
+      var opts = ['default'].concat(BUDGET_BUCKETS).map(function (b) {
+        var lbl = b === 'default' ? 'Default' : (b.charAt(0).toUpperCase() + b.slice(1));
+        var sel = ((b === 'default' && !value) || b === value) ? ' selected' : '';
+        return '<option value="' + b + '"' + sel + '>' + lbl + '</option>';
+      }).join('');
+      return '<div class="auth-field" style="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:6px;">' +
+        '<label style="margin:0;font-size:14px;">' + cat + '</label>' +
+        '<select data-bucket-kind="' + kind + '" data-bucket-cat="' + cat + '">' + opts + '</select></div>';
+    }
+
+    function renderFields(overrides) {
+      var bills = (overrides && overrides.bills) || {};
+      var spending = (overrides && overrides.spending) || {};
+      var html = '<h3 style="font-size:15px;margin:0 0 8px;">Bills</h3>';
+      BILL_CATEGORIES.forEach(function (cat) { html += bucketSelect('bill', cat, bills[cat]); });
+      html += '<h3 style="font-size:15px;margin:16px 0 8px;">Spending</h3>';
+      SPENDING_CATEGORIES.forEach(function (cat) { html += bucketSelect('spending', cat, spending[cat]); });
+      root.innerHTML = html;
+    }
+
+    fetchData()
+      .then(function (server) {
+        var o = (server && server.settings && server.settings.budgetBucketOverrides) || {};
+        renderFields(o);
+      })
+      .catch(function () { renderFields({}); });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var bills = {};
+      var spending = {};
+      root.querySelectorAll('select[data-bucket-kind]').forEach(function (sel) {
+        var v = sel.value;
+        if (v === 'default') return;
+        var cat = sel.getAttribute('data-bucket-cat');
+        if (sel.getAttribute('data-bucket-kind') === 'bill') bills[cat] = v;
+        else spending[cat] = v;
+      });
+      setBusy(form, true);
+      showMessage('bucketoverrides', 'Saving…', false);
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, {
+              budgetBucketOverrides: { bills: bills, spending: spending },
+            }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('bucketoverrides', 'Category buckets saved.', false);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('bucketoverrides', (err && err.message) || errorText('network'), true);
         });
     });
   }
