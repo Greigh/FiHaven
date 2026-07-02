@@ -92,6 +92,14 @@ import app.fihaven.core.model.periodMode
 import app.fihaven.core.model.periodStartDay
 import app.fihaven.core.model.tabBar
 import app.fihaven.core.model.timezoneSetting
+import app.fihaven.core.model.budgetRule
+import app.fihaven.core.model.budgetRuleSplits
+import app.fihaven.core.model.debtFocusExtra
+import app.fihaven.core.model.envelopeRollover
+import app.fihaven.core.model.budgetBucketOverrides
+import app.fihaven.core.model.SPENDING_CATEGORIES
+import app.fihaven.core.CTConstants
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.PaidGoalPolicy
 import kotlinx.serialization.json.JsonObject
 import app.fihaven.core.net.ApiError
@@ -147,6 +155,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     GroupRow("Security", "Two-factor, recovery") { group = "security" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Preferences", "Currency, period, display") { group = "preferences" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    GroupRow("Budget lens", "Split presets, debt focus, envelopes") { group = "budgetlens" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Notifications", "Reminders, digest, summary") { group = "notifications" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -301,6 +311,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
           }
           if (group == "family") {
             item { HouseholdSection(vm) }
+          }
+          if (group == "budgetlens") {
+            item { BudgetLensSection(vm, data.settings) }
           }
           if (group == "automation") {
             item {
@@ -955,6 +968,7 @@ private fun groupTitle(group: String): String = when (group) {
     "preferences" -> "Preferences"
     "notifications" -> "Notifications"
     "family" -> "Family"
+    "budgetlens" -> "Budget lens"
     "automation" -> "Automation"
     "bank" -> "Bank"
     "data" -> "Data"
@@ -1445,4 +1459,128 @@ private fun decodeDataUrl(s: String): androidx.compose.ui.graphics.ImageBitmap? 
         val bytes = Base64.decode(s.substring(comma + 1), Base64.DEFAULT)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
     }.getOrNull()
+}
+
+private val BUDGET_LENS_MODES = listOf(
+    "off" to "Off",
+    "50-30-20" to "50 / 30 / 20",
+    "80-20" to "80 / 20",
+    "60-20-20" to "60 / 20 / 20",
+    "70-20-10" to "70 / 20 / 10",
+    "custom" to "Custom split",
+    "obligations-first" to "Obligations first",
+    "debt-focus" to "Debt focus",
+    "envelope" to "Envelope lite (Pro)",
+)
+
+@Composable
+private fun BudgetLensSection(vm: AppViewModel, settings: JsonObject) {
+    var mode by remember(settings) { mutableStateOf(BudgetRules.mode(settings)) }
+    var needs by remember(settings) { mutableStateOf(settings.budgetRuleSplits.needs.toString()) }
+    var wants by remember(settings) { mutableStateOf(settings.budgetRuleSplits.wants.toString()) }
+    var save by remember(settings) { mutableStateOf(settings.budgetRuleSplits.save.toString()) }
+    var debtExtra by remember(settings) { mutableStateOf(settings.debtFocusExtra.takeIf { it > 0 }?.toString() ?: "") }
+    var rollover by remember(settings) { mutableStateOf(settings.envelopeRollover) }
+    val overrides = settings.budgetBucketOverrides
+
+    Section("BUDGET LENS") {
+        Text("Optional lens on the Budget tab — compare income to bills, spending, and goals.",
+            color = Ct.colors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        BUDGET_LENS_MODES.forEachIndexed { i, (value, label) ->
+            if (i > 0) HorizontalDivider(color = Ct.colors.border)
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    mode = value
+                    vm.setBudgetRule(value)
+                }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (mode == value) "●" else "○",
+                    color = if (mode == value) Ct.colors.accent else Ct.colors.muted,
+                    fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+                Text(label, color = Ct.colors.text, fontSize = 16.sp)
+            }
+        }
+        if (mode == "custom") {
+            HorizontalDivider(color = Ct.colors.border)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Custom split (%)", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(needs, { needs = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Needs") }, singleLine = true, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(wants, { wants = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Wants") }, singleLine = true, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(save, { save = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Save") }, singleLine = true, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+                TextButton(onClick = {
+                    vm.setBudgetRuleSplits(
+                        needs.toIntOrNull() ?: 50,
+                        wants.toIntOrNull() ?: 30,
+                        save.toIntOrNull() ?: 20,
+                    )
+                }) { Text("Save custom split", color = Ct.colors.accent) }
+            }
+        }
+        if (mode == "debt-focus") {
+            HorizontalDivider(color = Ct.colors.border)
+            Column(Modifier.padding(16.dp)) {
+                OutlinedTextField(debtExtra, {
+                    debtExtra = it
+                    vm.setDebtFocusExtra(it.toDoubleOrNull() ?: 0.0)
+                }, label = { Text("Extra debt payment / month") }, prefix = { Text("$") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+                    modifier = Modifier.fillMaxWidth())
+            }
+        }
+        if (mode == "envelope") {
+            HorizontalDivider(color = Ct.colors.border)
+            SwitchRow("Roll unused categories to next period", rollover) {
+                rollover = it
+                vm.setEnvelopeRollover(it)
+            }
+        }
+    }
+    Section("CATEGORY BUCKETS") {
+        Text("Override which needs/wants/save bucket a bill or spending category counts toward in split lenses.",
+            color = Ct.colors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Text("Bills", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        CTConstants.categories.forEach { cat ->
+            BucketOverrideRow("bills", cat, overrides.bills[cat], vm)
+            HorizontalDivider(color = Ct.colors.border)
+        }
+        Text("Spending", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        SPENDING_CATEGORIES.forEachIndexed { i, cat ->
+            BucketOverrideRow("spending", cat, overrides.spending[cat], vm)
+            if (i < SPENDING_CATEGORIES.lastIndex) HorizontalDivider(color = Ct.colors.border)
+        }
+    }
+}
+
+@Composable
+private fun BucketOverrideRow(kind: String, category: String, current: String?, vm: AppViewModel) {
+    val options = listOf(null to "Default") + BudgetRules.budgetBuckets.map { it to it.replaceFirstChar { c -> c.uppercase() } }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(category, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        options.forEach { (value, label) ->
+            val selected = current == value || (value == null && current == null)
+            Text(
+                label,
+                color = if (selected) Color.White else Ct.colors.text,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (selected) Ct.colors.accent else Ct.colors.bg)
+                    .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(6.dp))
+                    .clickable { vm.setBudgetBucketOverride(kind, category, value) }
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+            )
+        }
+    }
 }

@@ -65,6 +65,30 @@ public struct HouseholdSharedData: Codable, Equatable, Sendable {
     public var entities: [SharedEntity]
 }
 
+public struct HouseholdRollupTotals: Codable, Equatable, Sendable {
+    public var billsMonthly: Double
+    public var cardDebt: Double
+    public var goalsTarget: Double
+}
+
+public struct HouseholdMemberRollup: Codable, Equatable, Sendable {
+    public var userId: Int
+    public var name: String
+    public var billsMonthly: Double
+    public var cardDebt: Double
+    public var goalsTarget: Double
+}
+
+/// GET /api/household/rollup — aggregated totals for shared entities.
+public struct HouseholdRollup: Codable, Equatable, Sendable {
+    public var householdId: Int?
+    public var asOf: Int64?
+    public var members: [HouseholdMember]
+    public var totals: HouseholdRollupTotals
+    public var byMember: [HouseholdMemberRollup]
+    public var entityCount: [String: Int]
+}
+
 // ── Wire envelopes ───────────────────────────────────────────────
 struct HouseholdEnvelope: Decodable { let household: HouseholdView }
 struct SharedEntityEnvelope: Decodable { let entity: SharedEntity }

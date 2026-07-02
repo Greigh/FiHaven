@@ -101,11 +101,27 @@ export function budgetRuleSplits(settings) {
   };
 }
 
-export function billBucket(category) {
+export const BILL_CATEGORIES = Object.keys(BILL_BUCKET);
+export const SPENDING_CATEGORIES = Object.keys(SPENDING_BUCKET);
+
+function bucketOverrides(settings) {
+  const raw = settings && settings.budgetBucketOverrides;
+  if (!raw || typeof raw !== 'object') return { bills: {}, spending: {} };
+  return {
+    bills: (raw.bills && typeof raw.bills === 'object') ? raw.bills : {},
+    spending: (raw.spending && typeof raw.spending === 'object') ? raw.spending : {},
+  };
+}
+
+export function billBucket(category, settings) {
+  const o = bucketOverrides(settings).bills[category];
+  if (o && BUDGET_BUCKETS.includes(o)) return o;
   return BILL_BUCKET[category] || 'needs';
 }
 
-export function spendingBucket(category) {
+export function spendingBucket(category, settings) {
+  const o = bucketOverrides(settings).spending[category];
+  if (o && BUDGET_BUCKETS.includes(o)) return o;
   return SPENDING_BUCKET[category] || 'wants';
 }
 
@@ -323,12 +339,12 @@ function computeSplitLens(mode, ctx) {
 
   const actual = { needs: 0, wants: 0, save: 0 };
   ctx.bills.filter((b) => (ctx.billDueInPeriod ? ctx.billDueInPeriod(b, ctx.periodBounds) : true)).forEach((b) => {
-    actual[billBucket(b.category)] += billAmt(b, ctx.goalAmountFor, ctx.mk);
+    actual[billBucket(b.category, settings)] += billAmt(b, ctx.goalAmountFor, ctx.mk);
   });
   ctx.cards.forEach((c) => { actual.needs += cardAmt(c, ctx.goalAmountFor, ctx.mk); });
   (ctx.transactions || []).forEach((t) => {
     if (!transactionInPeriod(t, ctx.periodBounds)) return;
-    actual[spendingBucket(t.category)] += Math.abs(parseFloat(t.amount) || 0);
+    actual[spendingBucket(t.category, settings)] += Math.abs(parseFloat(t.amount) || 0);
   });
   actual.save = Math.max(0, income - actual.needs - actual.wants);
 

@@ -249,6 +249,21 @@
             </div>
           </form>
         </section>
+
+        <!-- ── Category bucket overrides ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Category buckets</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Override how bill and spending categories map to <strong>needs</strong>, <strong>wants</strong>, or <strong>save</strong> in split budget lenses. Leave at default to use FiHaven&rsquo;s built-in map.
+          </p>
+          <form class="auth-form" data-form="bucketoverrides" style="margin-top:14px;">
+            <div data-bucket-overrides-root></div>
+            <div class="auth-error" data-message="bucketoverrides" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save category buckets</button>
+            </div>
+          </form>
+        </section>
       </div>
 
       <!-- ═══════════════ Payments ═══════════════ -->

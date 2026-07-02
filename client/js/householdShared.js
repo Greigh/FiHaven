@@ -28,6 +28,7 @@ var KINDS = {
 var members = {};   // userId -> label
 var myId = null;
 var entities = [];
+var rollup = null;
 var es = null;
 
 function ownerLabel(id) {
@@ -53,12 +54,34 @@ function render() {
   el.innerHTML =
     '<div class="card" style="padding:16px;">' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
-        '<span style="font-weight:600;">Shared with your household</span>' +
+        '<span style="font-weight:600;">Household</span>' +
         '<span class="badge badge-blue">Live</span>' +
         '<a href="/settings?tab=family" style="margin-left:auto;font-size:13px;">Manage</a>' +
       '</div>' +
+      '<div data-household-rollup style="margin-top:10px;font-size:13px;color:var(--muted);"></div>' +
       rows +
     '</div>';
+  renderRollup();
+}
+
+function renderRollup() {
+  var el = host();
+  if (!el) return;
+  var slot = el.querySelector('[data-household-rollup]');
+  if (!slot) return;
+  if (!rollup || !rollup.totals) { slot.textContent = ''; return; }
+  var t = rollup.totals;
+  slot.innerHTML =
+    'Shared totals · Bills <strong>' + money(t.billsMonthly) + '</strong>/mo · ' +
+    'Card debt <strong>' + money(t.cardDebt) + '</strong> · ' +
+    'Goals <strong>' + money(t.goalsTarget) + '</strong>';
+}
+
+function loadRollup() {
+  return fetch('/api/household/rollup', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { rollup = d; renderRollup(); })
+    .catch(function () {});
 }
 
 function applyDelta(entity) {
@@ -68,6 +91,7 @@ function applyDelta(entity) {
   else if (i >= 0) entities[i] = entity;
   else entities.push(entity);
   render();
+  loadRollup();
 }
 
 function openStream(since) {
@@ -104,6 +128,7 @@ export function initHouseholdShared() {
         .then(function (snap) {
           entities = snap.entities || [];
           render();
+          loadRollup();
           openStream(snap.seq || 0);
         });
     })

@@ -96,6 +96,117 @@ val JsonObject.budgetRuleSplits: BudgetRuleSplits
 val JsonObject.debtFocusExtra: Double
     get() = (prim("debtFocusExtra")?.doubleOrNull ?: 0.0).coerceAtLeast(0.0)
 
+/** Envelope lite: roll unused category assignments into the next period. */
+val JsonObject.envelopeRollover: Boolean get() = prim("envelopeRollover")?.booleanOrNull ?: false
+
+/** Period key envelope rollover was last applied for (prevents double-apply). */
+val JsonObject.envelopeRolloverAppliedFor: String?
+    get() = prim("envelopeRolloverAppliedFor")?.contentOrNull?.takeIf { it.isNotEmpty() }
+
+data class EnvelopeAssign(val goals: Map<String, Double>, val categories: Map<String, Double>)
+
+/** Per-goal and per-category envelope assignments (envelope lens). */
+val JsonObject.envelopeAssign: EnvelopeAssign
+    get() {
+        val o = this["envelopeAssign"] as? JsonObject ?: return EnvelopeAssign(emptyMap(), emptyMap())
+        fun mapOfDoubles(key: String): Map<String, Double> {
+            val inner = o[key] as? JsonObject ?: return emptyMap()
+            return inner.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.doubleOrNull?.let { k to it } }.toMap()
+        }
+        return EnvelopeAssign(mapOfDoubles("goals"), mapOfDoubles("categories"))
+    }
+
+/** Rolled-over unused category envelope balances. */
+val JsonObject.envelopeRolloverBal: Map<String, Double>
+    get() {
+        val cats = (this["envelopeRolloverBal"] as? JsonObject)?.get("categories") as? JsonObject ?: return emptyMap()
+        return cats.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.doubleOrNull?.let { k to it } }.toMap()
+    }
+
+data class BudgetBucketOverrides(val bills: Map<String, String>, val spending: Map<String, String>)
+
+/** Override bill/spending category → needs/wants/save bucket mappings. */
+val JsonObject.budgetBucketOverrides: BudgetBucketOverrides
+    get() {
+        val o = this["budgetBucketOverrides"] as? JsonObject ?: return BudgetBucketOverrides(emptyMap(), emptyMap())
+        fun mapOfStrings(key: String): Map<String, String> {
+            val inner = o[key] as? JsonObject ?: return emptyMap()
+            return inner.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }.toMap()
+        }
+        return BudgetBucketOverrides(mapOfStrings("bills"), mapOfStrings("spending"))
+    }
+
+fun JsonObject.withBudgetRule(mode: String): JsonObject = buildJsonObject {
+    this@withBudgetRule.forEach { (k, v) -> if (k != "budgetRule") put(k, v) }
+    put("budgetRule", mode)
+}
+
+fun JsonObject.withBudgetRuleSplits(needs: Int, wants: Int, save: Int): JsonObject = buildJsonObject {
+    this@withBudgetRuleSplits.forEach { (k, v) -> if (k != "budgetRuleSplits") put(k, v) }
+    put("budgetRuleSplits", buildJsonObject {
+        put("needs", needs.coerceIn(0, 100))
+        put("wants", wants.coerceIn(0, 100))
+        put("save", save.coerceIn(0, 100))
+    })
+}
+
+fun JsonObject.withDebtFocusExtra(amount: Double): JsonObject = buildJsonObject {
+    this@withDebtFocusExtra.forEach { (k, v) -> if (k != "debtFocusExtra") put(k, v) }
+    put("debtFocusExtra", amount.coerceAtLeast(0.0))
+}
+
+fun JsonObject.withEnvelopeRollover(on: Boolean): JsonObject = buildJsonObject {
+    this@withEnvelopeRollover.forEach { (k, v) -> if (k != "envelopeRollover") put(k, v) }
+    put("envelopeRollover", on)
+}
+
+fun JsonObject.withEnvelopeAssignGoal(goalId: String, amount: Double): JsonObject = buildJsonObject {
+    this@withEnvelopeAssignGoal.forEach { (k, v) -> if (k != "envelopeAssign") put(k, v) }
+    val existing = this@withEnvelopeAssignGoal.envelopeAssign
+    val goals = existing.goals.toMutableMap()
+    if (amount > 0) goals[goalId] = amount else goals.remove(goalId)
+    put("envelopeAssign", buildJsonObject {
+        put("goals", buildJsonObject { goals.forEach { (k, v) -> put(k, v) } })
+        put("categories", buildJsonObject { existing.categories.forEach { (k, v) -> put(k, v) } })
+    })
+}
+
+fun JsonObject.withEnvelopeAssignCategory(category: String, amount: Double): JsonObject = buildJsonObject {
+    this@withEnvelopeAssignCategory.forEach { (k, v) -> if (k != "envelopeAssign") put(k, v) }
+    val existing = this@withEnvelopeAssignCategory.envelopeAssign
+    val cats = existing.categories.toMutableMap()
+    if (amount > 0) cats[category] = amount else cats.remove(category)
+    put("envelopeAssign", buildJsonObject {
+        put("goals", buildJsonObject { existing.goals.forEach { (k, v) -> put(k, v) } })
+        put("categories", buildJsonObject { cats.forEach { (k, v) -> put(k, v) } })
+    })
+}
+
+fun JsonObject.withBudgetBucketOverride(kind: String, category: String, bucket: String?): JsonObject = buildJsonObject {
+    this@withBudgetBucketOverride.forEach { (k, v) -> if (k != "budgetBucketOverrides") put(k, v) }
+    val existing = this@withBudgetBucketOverride.budgetBucketOverrides
+    val bills = existing.bills.toMutableMap()
+    val spending = existing.spending.toMutableMap()
+    when (kind) {
+        "bills" -> if (bucket.isNullOrBlank()) bills.remove(category) else bills[category] = bucket
+        "spending" -> if (bucket.isNullOrBlank()) spending.remove(category) else spending[category] = bucket
+    }
+    put("budgetBucketOverrides", buildJsonObject {
+        put("bills", buildJsonObject { bills.forEach { (k, v) -> put(k, v) } })
+        put("spending", buildJsonObject { spending.forEach { (k, v) -> put(k, v) } })
+    })
+}
+
+fun JsonObject.withEnvelopeRolloverBal(categories: Map<String, Double>, appliedFor: String): JsonObject = buildJsonObject {
+    this@withEnvelopeRolloverBal.forEach { (k, v) ->
+        if (k != "envelopeRolloverBal" && k != "envelopeRolloverAppliedFor") put(k, v)
+    }
+    put("envelopeRolloverBal", buildJsonObject {
+        put("categories", buildJsonObject { categories.forEach { (k, v) -> put(k, v) } })
+    })
+    put("envelopeRolloverAppliedFor", appliedFor)
+}
+
 /** Ordered enabled dashboard widget ids (Widgets mode). Empty = default set. */
 val JsonObject.dashboardWidgets: List<String>
     get() = (this["dashboardWidgets"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()

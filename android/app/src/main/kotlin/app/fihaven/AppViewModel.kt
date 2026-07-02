@@ -18,6 +18,14 @@ import app.fihaven.core.model.PromoResult
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.withCategoryBudget
+import app.fihaven.core.model.withBudgetBucketOverride
+import app.fihaven.core.model.withBudgetRule
+import app.fihaven.core.model.withBudgetRuleSplits
+import app.fihaven.core.model.withDebtFocusExtra
+import app.fihaven.core.model.withEnvelopeAssignCategory
+import app.fihaven.core.model.withEnvelopeAssignGoal
+import app.fihaven.core.model.envelopeRollover
+import app.fihaven.core.model.withEnvelopeRollover
 import app.fihaven.core.model.autopayDone
 import app.fihaven.core.model.perkUsage
 import app.fihaven.core.model.withPerkUsage
@@ -39,6 +47,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import app.fihaven.core.logic.BillSchedule
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.PaidState
@@ -340,7 +349,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _dataError.value = null
         try {
             val fetched = api.fetchData()
-            _data.value = fetched
+            _data.value = applyEnvelopeRolloverIfNeeded(fetched)
             Money.setCurrency(fetched.settings.currency)
             fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
@@ -728,6 +737,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setCategoryBudget(category: String, amount: Double) =
         mutate { it.copy(settings = it.settings.withCategoryBudget(category, amount)) }
+
+    fun setBudgetRule(mode: String) = mutate { it.copy(settings = it.settings.withBudgetRule(mode)) }
+
+    fun setBudgetRuleSplits(needs: Int, wants: Int, save: Int) =
+        mutate { it.copy(settings = it.settings.withBudgetRuleSplits(needs, wants, save)) }
+
+    fun setDebtFocusExtra(amount: Double) =
+        mutate { it.copy(settings = it.settings.withDebtFocusExtra(amount)) }
+
+    fun setEnvelopeRollover(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withEnvelopeRollover(on)) }
+
+    fun setEnvelopeAssignGoal(goalId: String, amount: Double) =
+        mutate { it.copy(settings = it.settings.withEnvelopeAssignGoal(goalId, amount)) }
+
+    fun setEnvelopeAssignCategory(category: String, amount: Double) =
+        mutate { it.copy(settings = it.settings.withEnvelopeAssignCategory(category, amount)) }
+
+    fun setBudgetBucketOverride(kind: String, category: String, bucket: String?) =
+        mutate { it.copy(settings = it.settings.withBudgetBucketOverride(kind, category, bucket)) }
+
+    /** Roll unused envelope category amounts from the previous period once per period key. */
+    private fun applyEnvelopeRolloverIfNeeded(data: AppData): AppData {
+        val settings = data.settings
+        if (!settings.envelopeRollover) return data
+        val cfg = Period.config(settings)
+        val zone = DateLogic.zone(settings.timezoneSetting)
+        val bounds = Period.currentBounds(cfg, zone)
+        val prev = Period.shift(bounds, -1, cfg)
+        val nextSettings = BudgetRules.applyEnvelopeRollover(settings, data.transactions, prev)
+        return if (nextSettings == settings) data else data.copy(settings = nextSettings)
+    }
 
     fun deletePayment(payment: Payment) = mutate { d ->
         val payments = d.payments.filterNot { p -> p.id == payment.id }
