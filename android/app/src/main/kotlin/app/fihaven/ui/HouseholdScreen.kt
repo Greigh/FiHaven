@@ -25,9 +25,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.fihaven.AppViewModel
 import app.fihaven.core.model.HouseholdInfo
+import app.fihaven.core.model.HouseholdRollup
 import app.fihaven.core.model.HouseholdView
 import app.fihaven.core.model.SharedEntity
 import app.fihaven.core.net.ApiError
+import app.fihaven.core.Money
+import app.fihaven.ui.theme.PlexMono
 import app.fihaven.ui.theme.Ct
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.contentOrNull
@@ -39,6 +42,7 @@ import kotlinx.serialization.json.jsonPrimitive
 @Composable
 fun HouseholdSection(vm: AppViewModel) {
     var info by remember { mutableStateOf<HouseholdInfo?>(null) }
+    var rollup by remember { mutableStateOf<HouseholdRollup?>(null) }
     var entities by remember { mutableStateOf<List<SharedEntity>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -50,7 +54,11 @@ fun HouseholdSection(vm: AppViewModel) {
     val myEmail = vm.currentUser?.email ?: ""
 
     suspend fun reload() {
-        try { info = vm.api.getHousehold(); error = null }
+        try {
+            info = vm.api.getHousehold()
+            rollup = if (info?.household != null) vm.api.getHouseholdRollup() else null
+            error = null
+        }
         catch (e: Exception) { error = errMsg(e) }
         loaded = true
     }
@@ -72,6 +80,7 @@ fun HouseholdSection(vm: AppViewModel) {
         if (hid == null) { entities = emptyList(); return@LaunchedEffect }
         val snap = runCatching { vm.api.getHouseholdSharedData() }.getOrNull()
         entities = snap?.entities ?: emptyList()
+        rollup = runCatching { vm.api.getHouseholdRollup() }.getOrNull() ?: rollup
         vm.streamHousehold(snap?.seq ?: 0L) { e -> entities = applyDelta(entities, e) }
     }
 
@@ -83,7 +92,7 @@ fun HouseholdSection(vm: AppViewModel) {
         } else {
             val view = info?.household
             if (view == null) joinOrCreate(info, name, { name = it }, joinCode, { joinCode = it }, busy, ::act, vm, { showPaywall = true })
-            else householdBody(view, entities, myEmail, inviteEmail, { inviteEmail = it }, busy, ::act, vm)
+            else householdBody(view, entities, rollup, myEmail, inviteEmail, { inviteEmail = it }, busy, ::act, vm)
         }
     }
 }
@@ -122,7 +131,7 @@ private fun joinOrCreate(
 
 @Composable
 private fun householdBody(
-    view: HouseholdView, entities: List<SharedEntity>, myEmail: String,
+    view: HouseholdView, entities: List<SharedEntity>, rollup: HouseholdRollup?, myEmail: String,
     inviteEmail: String, onInvite: (String) -> Unit,
     busy: Boolean, act: (suspend () -> Unit) -> Unit, vm: AppViewModel,
 ) {
@@ -155,6 +164,16 @@ private fun householdBody(
             Button(onClick = { act { vm.api.inviteToHousehold(inviteEmail.trim()) } }, enabled = !busy && inviteEmail.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                 Text("Send invite")
             }
+        }
+    }
+
+    rollup?.totals?.let { t ->
+        LabeledCard("HOUSEHOLD TOTALS") {
+            Text(
+                "Shared totals · Bills ${Money.fmt(t.billsMonthly)}/mo · " +
+                    "Card debt ${Money.fmt(t.cardDebt)} · Goals ${Money.fmt(t.goalsTarget)}",
+                color = Ct.colors.muted, fontSize = 13.sp, fontFamily = PlexMono,
+            )
         }
     }
 

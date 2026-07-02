@@ -109,6 +109,7 @@ struct BudgetView: View {
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Budget")
+        .task { store.applyEnvelopeRolloverIfNeeded() }
         .sheet(isPresented: $creating) { IncomeEditorView(source: nil) }
         .sheet(item: $editing) { src in IncomeEditorView(source: src) }
         .sheet(isPresented: $creatingAdj) { IncomeAdjustmentEditorView(adjustment: nil, monthKey: store.currentPeriodKey) }
@@ -227,9 +228,57 @@ struct BudgetView: View {
                         .font(Theme.ui(11))
                         .foregroundStyle(w.over ? Theme.orange : Theme.muted)
                 }
+                if lens.mode == "envelope", let env = lens.envelope {
+                    envelopeEditor(env)
+                }
             }
         }
         .ctCard()
+    }
+
+    @ViewBuilder
+    private func envelopeEditor(_ env: BudgetRules.EnvelopeAssignments) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider().overlay(Theme.border)
+            Text("Assign envelopes").font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.text)
+            if !store.data.goals.isEmpty {
+                Text("Goals").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                ForEach(store.data.goals) { g in
+                    envelopeAmountRow(
+                        g.name.isEmpty ? "Goal" : g.name,
+                        value: env.goalMap[g.id] ?? 0
+                    ) { store.setEnvelopeAssignGoal(g.id, $0) }
+                }
+            }
+            Text("Categories").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            ForEach(spendingCategories, id: \.self) { cat in
+                envelopeAmountRow(
+                    "\(SpendingView.catIcon(cat)) \(cat)",
+                    value: env.catMap[cat] ?? 0
+                ) { store.setEnvelopeAssignCategory(cat, $0) }
+            }
+            if store.data.settings.envelopeRollover {
+                Text("Unused category amounts roll into the next period.")
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func envelopeAmountRow(_ label: String, value: Double, onChange: @escaping (Double) -> Void) -> some View {
+        HStack {
+            Text(label).font(Theme.ui(13)).foregroundStyle(Theme.text)
+            Spacer()
+            Text("$").foregroundStyle(Theme.muted)
+            TextField("0", value: Binding(
+                get: { value },
+                set: { onChange(max(0, $0)) }
+            ), format: .number)
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 88)
+        }
+        .padding(.vertical, 2)
     }
 
     private func summaryRow(_ label: String, _ value: String, _ tone: A11y.MoneyTone) -> some View {

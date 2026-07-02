@@ -57,19 +57,23 @@ becoming another noisy “do everything” app.
 | Spending insights | Copilot | “Up X% on Dining vs last period” |
 | Credit utilization alert | CK / NerdWallet | From manual card balances (no bureau API) |
 
-### Tier 3 — Next / later
+### Tier 3 — Shipped in 1.5.x
 
 | Feature | Notes |
 |---------|-------|
-| Household rollup views | Shared sync exists; consolidated dashboard TBD |
-| Budget lens settings on native | Web Settings today; native reads synced values |
-| Envelope editor + spending insights on native | Web-only editors; display on native |
-| Household share/unshare UI on native | Web Settings → Family today |
-| User category → bucket overrides | Default maps only |
-| Remote push (APNs / FCM) | Email + local notifications today |
-| Store distribution | TestFlight beta (iOS); Play Store listing TBD |
+| Budget lens settings on native | Settings → Budget lens on iOS and Android |
+| Envelope editor + spending insights on native | Budget tab envelope assign (Pro); Spending insights vs last period (Pro) |
+| Household rollup views | `GET /api/household/rollup` + dashboard card + Family settings on all platforms |
+| User category → bucket overrides | Settings → Category buckets (web + native) |
 
-### Tier 4 — Skip or partner
+### Tier 4 — Next / later
+
+| Feature | Notes |
+|---------|-------|
+| Remote push (APNs / FCM) | Email + local notifications today |
+| Store distribution | TestFlight (iOS); Play internal testing (Android) |
+
+### Tier 5 — Skip or partner
 
 - Bill negotiation (Truebill) — humans or B2B APIs
 - Credit score pull — regulatory + bureau deals

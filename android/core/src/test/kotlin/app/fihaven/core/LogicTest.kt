@@ -10,6 +10,7 @@ import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.PeriodConfig
 import app.fihaven.core.logic.Rewards
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.logic.SpendingInsights
 import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -17,6 +18,10 @@ import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.Payment
+import app.fihaven.core.model.SavingsGoal
+import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.envelopeRolloverBal
+import app.fihaven.core.model.envelopeRolloverAppliedFor
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -360,5 +365,59 @@ class BudgetRulesTest {
         )
         assertTrue(lens != null)
         assertEquals(250.0, lens!!.rows.first { it.key == "needs" }.actual, 1e-6)
+    }
+
+    @Test fun bucketOverridesAffectSplitLens() {
+        val settings = FiHavenJson.parseToJsonElement(
+            """{"budgetRule":"50-30-20","budgetBucketOverrides":{"bills":{"Utilities":"wants"}}}""",
+        ).jsonObject
+        assertEquals(BudgetRules.Bucket.WANTS, BudgetRules.billBucket("Utilities", settings))
+        val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
+        val lens = BudgetRules.lens(
+            settings, 4000.0,
+            listOf(Bill(id = "1", category = "Utilities", amount = 200.0)),
+            emptyList(), emptyList(), emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
+        )
+        assertEquals(200.0, lens!!.rows.first { it.key == "wants" }.actual, 1e-6)
+    }
+
+    @Test fun envelopeAssignmentsUsesGoalsAndBudgets() {
+        val settings = FiHavenJson.parseToJsonElement(
+            """{"categoryBudgets":{"Groceries":300},"envelopeAssign":{"categories":{"Dining":100}}}""",
+        ).jsonObject
+        val goals = listOf(SavingsGoal(id = "g1", name = "Trip", target = 1200.0, saved = 0.0, targetDate = "2027-01-01"))
+        val env = BudgetRules.envelopeAssignments(settings, goals, java.time.ZoneId.of("UTC"))
+        assertTrue(env.goalsTotal > 0)
+        assertEquals(300.0, env.catMap["Groceries"]!!, 1e-6)
+        assertEquals(100.0, env.catMap["Dining"]!!, 1e-6)
+    }
+
+    @Test fun applyEnvelopeRolloverOncePerPeriod() {
+        val settings = FiHavenJson.parseToJsonElement(
+            """{"envelopeRollover":true,"categoryBudgets":{"Groceries":100},"envelopeAssign":{"categories":{"Groceries":100}}}""",
+        ).jsonObject
+        val prev = Period.bounds(LocalDate.of(2026, 5, 1), PeriodConfig.normalized("calendar", null, 35))
+        val tx = listOf(
+            SpendTransaction(id = "1", date = "2026-05-10", amount = 40.0, category = "Groceries", merchant = "", note = ""),
+        )
+        val next = BudgetRules.applyEnvelopeRollover(settings, tx, prev)
+        assertEquals(60.0, next.envelopeRolloverBal["Groceries"]!!, 1e-6)
+        assertEquals(prev.key, next.envelopeRolloverAppliedFor)
+        assertEquals(next, BudgetRules.applyEnvelopeRollover(next, tx, prev))
+    }
+}
+
+class SpendingInsightsTest {
+    @Test fun computeSortsByDelta() {
+        val cur = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
+        val prev = Period.shift(cur, -1, PeriodConfig.normalized("calendar", null, 35))
+        val tx = listOf(
+            SpendTransaction(id = "1", date = "2026-06-05", amount = 200.0, category = "Dining", merchant = "", note = ""),
+            SpendTransaction(id = "2", date = "2026-05-05", amount = 50.0, category = "Dining", merchant = "", note = ""),
+            SpendTransaction(id = "3", date = "2026-06-03", amount = 80.0, category = "Groceries", merchant = "", note = ""),
+        )
+        val rows = SpendingInsights.compute(tx, cur, prev)
+        assertEquals("Dining", rows.first().cat)
+        assertEquals(150.0, rows.first().delta, 1e-6)
     }
 }

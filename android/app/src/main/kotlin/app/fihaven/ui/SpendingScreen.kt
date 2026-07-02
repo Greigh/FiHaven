@@ -32,6 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.Money
 import app.fihaven.core.logic.Reconcile
+import app.fihaven.core.logic.SpendingInsights
+import app.fihaven.core.logic.Period
 import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.ui.theme.Ct
@@ -51,6 +53,9 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
         Reconcile.unconfirmedManual(data.transactions, today).size else 0
 
     val bounds = vm.currentBounds()
+    val cfg = vm.periodConfig()
+    val prevBounds = Period.shift(bounds, -1, cfg)
+    val insights = if (ent.pro) SpendingInsights.compute(data.transactions, bounds, prevBounds) else emptyList()
     val periodTx = data.transactions.filter { it.date.isNotEmpty() && it.date >= bounds.startKey && it.date < bounds.endKey }
     val spentByCat = periodTx.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }
     val totalSpent = periodTx.sumOf { it.amount }
@@ -104,6 +109,32 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                             color = if (spent > budget) Ct.colors.red else Ct.colors.green,
                                             trackColor = Ct.colors.border,
                                         )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (ent.pro && insights.isNotEmpty()) {
+                item {
+                    CtCard(padding = 14) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("VS LAST PERIOD", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            insights.take(6).forEach { row ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${spendIcon(row.cat)} ${row.cat}", color = Ct.colors.text, fontSize = 13.sp,
+                                        modifier = Modifier.weight(1f))
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(Money.fmt(row.now), color = Ct.colors.text, fontSize = 12.sp, fontFamily = PlexMono)
+                                        val deltaColor = when {
+                                            row.delta > 0 -> Ct.colors.red
+                                            row.delta < 0 -> Ct.colors.green
+                                            else -> Ct.colors.muted
+                                        }
+                                        val sign = if (row.delta > 0) "+" else ""
+                                        Text("$sign${Money.fmt(row.delta)} (${row.pct}%)",
+                                            color = deltaColor, fontSize = 11.sp, fontFamily = PlexMono)
                                     }
                                 }
                             }

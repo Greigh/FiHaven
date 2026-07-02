@@ -8,6 +8,7 @@ import app.fihaven.core.model.PromoResult
 import app.fihaven.core.model.HouseholdInfo
 import app.fihaven.core.model.HouseholdView
 import app.fihaven.core.model.HouseholdSharedData
+import app.fihaven.core.model.HouseholdRollup
 import app.fihaven.core.model.SharedEntity
 import app.fihaven.core.model.HouseholdEnvelope
 import app.fihaven.core.model.SharedEntityEnvelope
@@ -225,6 +226,9 @@ class ApiClient(
 
     suspend fun getHouseholdSharedData(): HouseholdSharedData =
         decode(send(makeRequest("api/household/data", HttpMethod.GET)))
+
+    suspend fun getHouseholdRollup(): HouseholdRollup? =
+        runCatching { decode<HouseholdRollup>(send(makeRequest("api/household/rollup", HttpMethod.GET))) }.getOrNull()
 
     suspend fun shareHouseholdEntity(kind: String, item: JsonElement): SharedEntity =
         decode<SharedEntityEnvelope>(send(makeRequest("api/household/entities", HttpMethod.POST, encode(ShareEntityBody(kind, item))))).entity
