@@ -121,6 +121,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val tokens = PrefsTokenStore(app)
     val api = ApiClient(ApiConfig(BuildConfig.API_BASE), tokens)
 
+    init {
+        PushRegistrar.configure(api)
+    }
+
     private val _session = MutableStateFlow<Session>(Session.Loading)
     val session: StateFlow<Session> = _session.asStateFlow()
 
@@ -295,6 +299,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelMfa() { _session.value = Session.SignedOut; _authError.value = null }
 
     fun logout() = viewModelScope.launch {
+        PushRegistrar.clear()
         runCatching { api.logout() }
         _authError.value = null
         _session.value = Session.SignedOut
@@ -357,6 +362,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _dataLoaded.value = true
             _syncState.value = SyncState.Saved
             refreshNotifications()
+            refreshPush()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
@@ -892,6 +898,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setLocalNotifications(on: Boolean) {
         mutate { it.copy(settings = it.settings.withSetting("localNotifications", JsonPrimitive(on))) }
         refreshNotifications()
+    }
+
+    fun setPushNotifications(on: Boolean) {
+        mutate { it.copy(settings = it.settings.withSetting("pushNotifications", JsonPrimitive(on))) }
+        refreshPush()
+    }
+
+    private fun refreshPush() = viewModelScope.launch {
+        PushRegistrar.sync(getApplication(), _data.value.settings)
     }
 
     fun setAutopayMark(on: Boolean) {

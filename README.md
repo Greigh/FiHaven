@@ -939,8 +939,9 @@ share (bills, cards, goals), live-syncing via SSE — at parity with web.
 
 ### Product gaps (all platforms)
 
-- **Remote push notifications** — reminders are **email** (server scheduler) and
-  **local** notifications on iOS/Android; no APNs/FCM server push yet.
+- **Remote push notifications** — reminders are **email** (server scheduler),
+  **local** on-device (iOS/Android), and optional **server push** (APNs / FCM)
+  when `pushNotifications` is enabled; see `docs/push-setup.md`.
 - **User overrides for needs/wants/save category mapping** — per-category overrides in Settings → Category buckets (web + native).
 - **Household rollup views** — shared-entity totals on the dashboard and in Family settings (`GET /api/household/rollup`).
 - **Auto-save / round-up rules** — intentionally skipped (conflicts with manual-first

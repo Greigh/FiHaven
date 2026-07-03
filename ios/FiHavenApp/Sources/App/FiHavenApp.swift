@@ -3,6 +3,7 @@ import GoogleSignIn
 
 @main
 struct FiHavenApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var env = AppEnvironment()
     @StateObject private var theme = ThemeStore()
     @Environment(\.scenePhase) private var scenePhase

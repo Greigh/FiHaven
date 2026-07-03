@@ -6,6 +6,8 @@ plugins {
     kotlin("plugin.serialization")
 }
 
+val hasGoogleServices = file("google-services.json").exists()
+
 // Local release signing — copy keystore.properties.example → keystore.properties
 // (gitignored). Never commit the .jks or passwords.
 val keystorePropsFile = rootProject.file("keystore.properties")
@@ -26,7 +28,7 @@ android {
         applicationId = "app.fihaven"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
+        versionCode = 14
         versionName = "1.5.0"
         buildConfigField("String", "TURNSTILE_SITEKEY", "\"0x4AAAAAADVKKZMye086WePX\"")
         // Google Sign-In: the WEB OAuth client id is used as the Credential
@@ -40,6 +42,7 @@ android {
         // Sign in with Apple (web flow): the Services ID is the OAuth client
         // for the Custom Tab authorize request. Public value.
         buildConfigField("String", "APPLE_SERVICES_ID", "\"app.fihaven.web\"")
+        buildConfigField("Boolean", "FCM_ENABLED", hasGoogleServices.toString())
     }
 
     buildFeatures { compose = true }
@@ -130,4 +133,12 @@ dependencies {
 
     // Custom Tabs for the Sign in with Apple web flow.
     implementation("androidx.browser:browser:1.10.0")
+
+    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
+}
+
+if (hasGoogleServices) {
+    apply(plugin = "com.google.gms.google-services")
 }
