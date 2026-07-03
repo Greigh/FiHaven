@@ -20,7 +20,10 @@ function stubModule(modulePath, exports) {
 
 function clearModule(modulePath) {
   try {
-    delete require.cache[require.resolve(modulePath, { paths: [serverDir] })];
+    const resolved = modulePath.startsWith('.')
+      ? require.resolve(modulePath, { paths: [serverDir] })
+      : require.resolve(modulePath);
+    delete require.cache[resolved];
   } catch (_) { /* not loaded */ }
 }
 
