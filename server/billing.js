@@ -32,6 +32,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PRODUCTS = {
   'app.fihaven.pro.monthly': { plan: 'monthly', days: 31 },
   'app.fihaven.pro.yearly': { plan: 'yearly', days: 366 },
+  'app.fihaven.pro.family': { plan: 'family', days: 366 },
 };
 
 function products() {
@@ -490,7 +491,10 @@ async function createStripeCheckout(user, plan, baseUrl) {
     success_url: `${baseUrl}/settings?pro=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/settings?pro=cancel`,
     metadata: { userId: String(user.id) },
-    subscription_data: { metadata: { userId: String(user.id) } },
+    // 7-day free trial on every web plan (parity with the App Store / Play
+    // intro offers). Checkout still collects a card up front, so it converts
+    // automatically when the trial ends; the webhook treats `trialing` as active.
+    subscription_data: { metadata: { userId: String(user.id) }, trial_period_days: 7 },
   });
   return { url: session.url };
 }

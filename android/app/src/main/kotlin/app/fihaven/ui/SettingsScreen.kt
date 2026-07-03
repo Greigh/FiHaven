@@ -79,6 +79,7 @@ import app.fihaven.core.model.hidePaidOnDashboard
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.landingView
 import app.fihaven.core.model.localNotifications
+import app.fihaven.core.model.pushNotifications
 import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.monthlySummary
 import app.fihaven.core.model.notifyHour
@@ -284,6 +285,13 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         }
                     }
                     HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Push notifications", s.pushNotifications) { on ->
+                        vm.setPushNotifications(on)
+                        if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                    HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Email me bill reminders", s.billReminders) { vm.setBillReminders(it) }
                     if (s.localNotifications || s.billReminders) {
                         HorizontalDivider(color = Ct.colors.border)
@@ -302,7 +310,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }
                     }
                     Text(
-                        "On-device reminders work offline. Emails go to your verified address. The weekly digest sends Mondays; the monthly summary on the 1st — all in your time zone.",
+                        "On-device reminders work offline. Push and email use your reminder settings above and fire in your time zone. Enable push in the iOS or Android app — the web can't register a device token.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
                     )

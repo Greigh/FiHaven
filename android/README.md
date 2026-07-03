@@ -92,14 +92,13 @@ Bump `versionCode` in `app/build.gradle.kts` before each Play upload.
 
 ## Notifications
 
-Opt-in **local** bill reminders (no server push). When `localNotifications` is
-on, `NotificationScheduler` arms `AlarmManager` reminders from the shared
-settings — lead time (`reminderLeadDays`), send hour (`notifyHour`), optional
-due-day reminder (`remindOnDueDay`), and the weekly digest (`weeklyDigest`).
-A `BootReceiver` (`RECEIVE_BOOT_COMPLETED`) **re-arms them after a reboot** from
-a persisted schedule, since alarms don't survive a restart. Needs the
-`POST_NOTIFICATIONS` runtime permission (API 33+). The same settings drive the
-server's reminder/digest **emails** — see the contract's §6 + §11.
+Three channels share the same reminder settings (§6 in the contract):
+
+1. **Local** — `localNotifications` schedules on-device alarms (`NotificationScheduler`).
+2. **Email** — server scheduler to your verified address.
+3. **Push** — `pushNotifications` registers an FCM token with the server (Settings → Push notifications). Requires `android/app/google-services.json` from the Firebase console (see `google-services.json.example`) plus server `FCM_SERVICE_ACCOUNT_JSON`.
+
+Local reminders need `POST_NOTIFICATIONS` (API 33+). A `BootReceiver` re-arms local alarms after reboot.
 
 ## Dashboard layouts
 

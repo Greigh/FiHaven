@@ -70,15 +70,18 @@ becoming another noisy “do everything” app.
 
 | Feature | Notes |
 |---------|-------|
-| Remote push (APNs / FCM) | Email + local notifications today |
+| Remote push (APNs / FCM) | **Shipped** — `pushNotifications` setting, device token API, scheduler integration |
 | Store distribution | TestFlight (iOS); Play internal testing (Android) |
 
-### Tier 5 — Skip or partner
+### Tier 5 — Out of scope (unless strategy changes)
 
-- Bill negotiation (Truebill) — humans or B2B APIs
+Explicitly **not** on the roadmap:
+
+- Auto-save rules (beyond existing budget lenses / envelopes)
 - Credit score pull — regulatory + bureau deals
-- QuickBooks parity — different product
-- Heavy AI coach — on-device / suggested rules only
+- Bill negotiation (Truebill-style) — humans or B2B APIs
+- QuickBooks parity — different product category
+- Heavy AI coach — on-device / suggested rules only; no LLM financial advisor
 
 ---
 

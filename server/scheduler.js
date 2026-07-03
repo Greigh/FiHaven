@@ -15,6 +15,7 @@
 
 const dbApi = require('./db');
 const emails = require('./emails');
+const push = require('./push');
 const billing = require('./billing');
 const {
   billDueOn, daysUntilBillDue, billDueOnOrBeforeInPeriod,
@@ -248,7 +249,8 @@ async function runChecks(now = new Date(), deps = {}) {
   for (const u of users) {
     if (!u.email_verified) continue;
     const s = (u.data && u.data.settings) || {};
-    if (!s.billReminders && !s.monthlySummary && !s.autopayMark && !s.weeklyDigest && !s.offerReminders) continue;
+    if (!s.billReminders && !s.monthlySummary && !s.autopayMark && !s.weeklyDigest
+      && !s.offerReminders && !s.pushNotifications) continue;
 
     let lp;
     try { lp = localParts(now, s.timezone || DEFAULT_TZ); }
@@ -300,6 +302,10 @@ async function runChecks(now = new Date(), deps = {}) {
           if (due.length) {
             try { await mailer.sendBillReminder(u.email, due, days, currency); }
             catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+            if (s.pushNotifications) {
+              try { await push.sendBillReminderPush(u.id, due, days, currency); }
+              catch (e) { console.error('push reminder failed', u.email, e && e.message); }
+            }
           }
         }
         db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
@@ -314,6 +320,10 @@ async function runChecks(now = new Date(), deps = {}) {
           if (ending.length) {
             try { await mailer.sendTrialReminder(u.email, ending, days, currency); }
             catch (e) { console.error('trial reminder send failed', u.email, e && e.message); }
+            if (s.pushNotifications) {
+              try { await push.sendTrialReminderPush(u.id, ending, days); }
+              catch (e) { console.error('push trial reminder failed', u.email, e && e.message); }
+            }
           }
         }
         if (db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
@@ -330,6 +340,10 @@ async function runChecks(now = new Date(), deps = {}) {
           if (expiring.length) {
             try { await mailer.sendOfferReminder(u.email, expiring, days, currency); }
             catch (e) { console.error('offer reminder send failed', u.email, e && e.message); }
+            if (s.pushNotifications) {
+              try { await push.sendOfferReminderPush(u.id, expiring, days); }
+              catch (e) { console.error('push offer reminder failed', u.email, e && e.message); }
+            }
           }
         }
         if (db.setOfferReminderDay) db.setOfferReminderDay(u.id, lp.ymd);
@@ -338,15 +352,25 @@ async function runChecks(now = new Date(), deps = {}) {
       // Weekly digest — once a week (Monday), upcoming bills + balances.
       const weekKey = isoWeekKey(lp);
       if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
-        try { await mailer.sendWeeklyDigest(u.email, weeklyDigest(u.data, lp), currency); }
+        const digest = weeklyDigest(u.data, lp);
+        try { await mailer.sendWeeklyDigest(u.email, digest, currency); }
         catch (e) { console.error('digest send failed', u.email, e && e.message); }
+        if (s.pushNotifications) {
+          try { await push.sendWeeklyDigestPush(u.id, digest, currency); }
+          catch (e) { console.error('push digest failed', u.email, e && e.message); }
+        }
         if (db.setDigestWeek) db.setDigestWeek(u.id, weekKey);
       }
 
       // Monthly summary — the 1st of the local month.
       if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
-        try { await mailer.sendMonthlySummary(u.email, summarize(u.data, lp), currency); }
+        const summary = summarize(u.data, lp);
+        try { await mailer.sendMonthlySummary(u.email, summary, currency); }
         catch (e) { console.error('summary send failed', u.email, e && e.message); }
+        if (s.pushNotifications) {
+          try { await push.sendMonthlySummaryPush(u.id, summary, currency); }
+          catch (e) { console.error('push summary failed', u.email, e && e.message); }
+        }
         db.setSummaryMonth(u.id, lp.ym);
       }
     }

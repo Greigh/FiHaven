@@ -17,6 +17,8 @@ import app.fihaven.core.model.HouseholdInviteBody
 import app.fihaven.core.model.HouseholdAcceptBody
 import app.fihaven.core.model.ShareEntityBody
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /// Talks to the FiHaven REST API with token/Bearer auth
 /// (docs/native-contract.md §3–5). Mirrors the Swift APIClient.
@@ -161,6 +163,19 @@ class ApiClient(
     suspend fun logout() {
         runCatching { send(makeRequest("api/auth/logout", HttpMethod.POST)) }
         tokens.clear()
+    }
+
+    suspend fun registerPushDevice(platform: String, token: String) {
+        val body = buildJsonObject {
+            put("platform", platform)
+            put("token", token)
+        }.toString()
+        send(makeRequest("api/push/register", HttpMethod.POST, body))
+    }
+
+    suspend fun unregisterPushDevice(token: String) {
+        val body = buildJsonObject { put("token", token) }.toString()
+        send(makeRequest("api/push/unregister", HttpMethod.POST, body))
     }
 
     private fun storeSession(body: String): AuthSession {

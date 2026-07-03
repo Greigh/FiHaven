@@ -374,6 +374,11 @@ struct SettingsView: View {
                 set: { store.setLocalNotifications($0) }
             )).tint(Theme.accent)
 
+            Toggle("Push notifications", isOn: Binding(
+                get: { store.data.settings.pushNotifications },
+                set: { store.setPushNotifications($0) }
+            )).tint(Theme.accent)
+
             // Email reminders (server scheduler).
             Toggle("Email me bill reminders", isOn: Binding(
                 get: { store.data.settings.billReminders },

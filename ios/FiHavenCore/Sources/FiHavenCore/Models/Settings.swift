@@ -172,6 +172,14 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["localNotifications"] = .bool(newValue) }
     }
 
+    /// Opt-in: server push to registered iOS/Android devices (APNs / FCM).
+    /// Uses the same reminder/digest settings as email; each device registers
+    /// its token when this is on.
+    public var pushNotifications: Bool {
+        get { raw["pushNotifications"]?.asBool ?? false }
+        set { raw["pushNotifications"] = .bool(newValue) }
+    }
+
     /// Opt-in (Pro): remind before an activated card-linked offer expires.
     public var offerReminders: Bool {
         get { raw["offerReminders"]?.asBool ?? false }
@@ -195,6 +203,11 @@ public struct Settings: Codable, Equatable, Sendable {
         public var needs: Int
         public var wants: Int
         public var save: Int
+        public init(needs: Int, wants: Int, save: Int) {
+            self.needs = needs
+            self.wants = wants
+            self.save = save
+        }
     }
 
     /// Planned extra monthly debt payment (debt-focus lens).

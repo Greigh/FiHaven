@@ -87,13 +87,13 @@ does this explicitly). Debug builds include the Developer screen and other
 
 ## Notifications
 
-Opt-in **local** bill reminders (no server push). When `localNotifications` is
-on, `NotificationScheduler` schedules `UNUserNotificationCenter` reminders from
-the shared settings — lead time (`reminderLeadDays`), send hour (`notifyHour`),
-optional due-day reminder (`remindOnDueDay`), and the weekly digest
-(`weeklyDigest`) — re-syncing whenever data loads or is pushed. The same
-settings also drive the server's reminder/digest **emails**; see the contract's
-§6 + §11.
+Three channels share the same reminder settings (§6 in the contract):
+
+1. **Local** — `localNotifications` schedules on-device reminders (`NotificationScheduler`).
+2. **Email** — server scheduler to your verified address.
+3. **Push** — `pushNotifications` registers an APNs device token with the server (Settings → Push notifications). Requires the Push Notifications capability on `app.fihaven` and server APNs credentials (`APNS_*` in `.env`).
+
+Enable **Push Notifications** on the App ID in the Apple Developer portal and use a provisioning profile that includes the `aps-environment` entitlement.
 
 ## Dashboard layouts
 
