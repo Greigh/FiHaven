@@ -35,6 +35,7 @@ describe('push — sendToUser', () => {
   beforeEach(() => {
     clearModule('./push');
     clearModule('./db');
+    clearModule('apns2');
     vi.unstubAllEnvs();
     delete process.env.APNS_KEY_ID;
     delete process.env.APNS_TEAM_ID;
