@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,12 +25,23 @@ function clearModule(modulePath) {
 }
 
 describe('push — sendToUser', () => {
+  let tmpKeyPath;
+
   beforeEach(() => {
     clearModule('./push');
     clearModule('./db');
     vi.unstubAllEnvs();
     delete process.env.APNS_KEY_ID;
+    delete process.env.APNS_TEAM_ID;
+    delete process.env.APNS_KEY_PATH;
+    delete process.env.APNS_SA_LOCAL;
     delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+    tmpKeyPath = path.join(os.tmpdir(), `fihaven-apns-test-${Date.now()}.p8`);
+    fs.writeFileSync(tmpKeyPath, 'fake-signing-key');
+  });
+
+  afterEach(() => {
+    if (tmpKeyPath && fs.existsSync(tmpKeyPath)) fs.unlinkSync(tmpKeyPath);
   });
 
   it('no-ops when push is not configured', async () => {
@@ -41,7 +54,7 @@ describe('push — sendToUser', () => {
   it('no-ops when the user has no registered devices', async () => {
     process.env.APNS_KEY_ID = 'KEY';
     process.env.APNS_TEAM_ID = 'TEAM';
-    process.env.APNS_KEY_PATH = '/dev/null';
+    process.env.APNS_KEY_PATH = tmpKeyPath;
     stubModule('apns2', {
       ApnsClient: vi.fn(() => ({ send: vi.fn() })),
       Notification: vi.fn(function Notification(token, payload) {
