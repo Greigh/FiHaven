@@ -67,6 +67,8 @@ val JsonObject.weeklyDigest: Boolean get() = prim("weeklyDigest")?.booleanOrNull
 /// Opt-in: schedule bill reminders as on-device local notifications. Synced so
 /// the preference follows the user, but scheduling is per-device.
 val JsonObject.localNotifications: Boolean get() = prim("localNotifications")?.booleanOrNull ?: false
+/** Opt-in: server push to registered iOS/Android devices (APNs / FCM). */
+val JsonObject.pushNotifications: Boolean get() = prim("pushNotifications")?.booleanOrNull ?: false
 /// Opt-in (Pro): remind before an activated card-linked offer expires.
 val JsonObject.offerReminders: Boolean get() = prim("offerReminders")?.booleanOrNull ?: false
 /// Opt-in: let a synced bank balance update a matching card. Off by default —

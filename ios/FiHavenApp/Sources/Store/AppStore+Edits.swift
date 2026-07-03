@@ -312,6 +312,12 @@ extension AppStore {
         }
     }
 
+    /// Server push (APNs). Registers this device when turned on.
+    func setPushNotifications(_ on: Bool) {
+        mutate { $0.settings.pushNotifications = on }
+        PushRegistrar.shared.setEnabled(on)
+    }
+
     func setAutopayMark(_ on: Bool) {
         mutate { $0.settings.autopayMark = on }
         if on { runAutopayMark() }
