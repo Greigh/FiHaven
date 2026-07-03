@@ -74,6 +74,33 @@ data class HouseholdSharedData(
     val entities: List<SharedEntity> = emptyList(),
 )
 
+@Serializable
+data class HouseholdRollupTotals(
+    val billsMonthly: Double = 0.0,
+    val cardDebt: Double = 0.0,
+    val goalsTarget: Double = 0.0,
+)
+
+@Serializable
+data class HouseholdRollupMember(
+    val userId: Int,
+    val name: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+    val billsMonthly: Double = 0.0,
+    val cardDebt: Double = 0.0,
+    val goalsTarget: Double = 0.0,
+)
+
+@Serializable
+data class HouseholdRollup(
+    val householdId: Int? = null,
+    val asOf: Long? = null,
+    val totals: HouseholdRollupTotals? = null,
+    val byMember: List<HouseholdRollupMember> = emptyList(),
+    val entityCount: Map<String, Int> = emptyMap(),
+)
+
 /** One SSE delta frame: `{ "seq": N, "entity": {…} }`. */
 @Serializable
 data class HouseholdStreamFrame(val seq: Long? = null, val entity: SharedEntity)

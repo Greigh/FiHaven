@@ -42,6 +42,7 @@ const billingRouter = require('./routes/billing');
 const plaidRouter = require('./routes/plaid');
 const adminRouter = require('./routes/admin');
 const householdRouter = require('./routes/household');
+const pushRouter = require('./routes/push');
 const scheduler = require('./scheduler');
 const mail = require('./mail');
 
@@ -131,6 +132,7 @@ if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
 sub.use('/api/auth', authRouter);
 sub.use('/api/data', requireVerified, dataRouter);
 sub.use('/api/household', requireVerified, householdRouter);
+sub.use('/api/push', requireVerified, pushRouter);
 sub.use('/api/account', accountRouter);
 sub.use('/api/account/mfa', requireVerified, mfaRouter);
 sub.use('/api/billing', billingRouter);

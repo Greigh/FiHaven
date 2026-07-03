@@ -134,6 +134,7 @@ describe('split lens', () => {
     expect(needs.actual).toBe(250);
     expect(billBucket('Subscriptions')).toBe('wants');
     expect(spendingBucket('Dining')).toBe('wants');
+    expect(billBucket('Subscriptions', { budgetBucketOverrides: { bills: { Subscriptions: 'save' } } })).toBe('save');
   });
 });
 

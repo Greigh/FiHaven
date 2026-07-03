@@ -172,6 +172,14 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["localNotifications"] = .bool(newValue) }
     }
 
+    /// Opt-in: server push to registered iOS/Android devices (APNs / FCM).
+    /// Uses the same reminder/digest settings as email; each device registers
+    /// its token when this is on.
+    public var pushNotifications: Bool {
+        get { raw["pushNotifications"]?.asBool ?? false }
+        set { raw["pushNotifications"] = .bool(newValue) }
+    }
+
     /// Opt-in (Pro): remind before an activated card-linked offer expires.
     public var offerReminders: Bool {
         get { raw["offerReminders"]?.asBool ?? false }
@@ -195,6 +203,11 @@ public struct Settings: Codable, Equatable, Sendable {
         public var needs: Int
         public var wants: Int
         public var save: Int
+        public init(needs: Int, wants: Int, save: Int) {
+            self.needs = needs
+            self.wants = wants
+            self.save = save
+        }
     }
 
     /// Planned extra monthly debt payment (debt-focus lens).
@@ -220,6 +233,101 @@ public struct Settings: Codable, Equatable, Sendable {
                 "needs": .number(Double(newValue.needs)),
                 "wants": .number(Double(newValue.wants)),
                 "save": .number(Double(newValue.save)),
+            ])
+        }
+    }
+
+    /// Roll unused category envelope amounts into the next period (envelope lens).
+    public var envelopeRollover: Bool {
+        get { raw["envelopeRollover"]?.asBool ?? false }
+        set { raw["envelopeRollover"] = .bool(newValue) }
+    }
+
+    public struct EnvelopeAssign: Equatable, Sendable {
+        public var goals: [String: Double]
+        public var categories: [String: Double]
+        public init(goals: [String: Double] = [:], categories: [String: Double] = [:]) {
+            self.goals = goals
+            self.categories = categories
+        }
+    }
+
+    /// Envelope lens: assigned monthly amounts per goal id and spending category.
+    public var envelopeAssign: EnvelopeAssign {
+        get {
+            guard let o = raw["envelopeAssign"]?.asObject else { return EnvelopeAssign() }
+            var goals: [String: Double] = [:]
+            var categories: [String: Double] = [:]
+            if let g = o["goals"]?.asObject {
+                for (k, v) in g where v.asDouble != nil { goals[k] = v.asDouble! }
+            }
+            if let c = o["categories"]?.asObject {
+                for (k, v) in c where v.asDouble != nil { categories[k] = v.asDouble! }
+            }
+            return EnvelopeAssign(goals: goals, categories: categories)
+        }
+        set {
+            raw["envelopeAssign"] = .object([
+                "goals": .object(newValue.goals.mapValues { .number($0) }),
+                "categories": .object(newValue.categories.mapValues { .number($0) }),
+            ])
+        }
+    }
+
+    public struct EnvelopeRolloverBal: Equatable, Sendable {
+        public var categories: [String: Double]
+        public init(categories: [String: Double] = [:]) { self.categories = categories }
+    }
+
+    /// Unused category envelope amounts carried into the current period.
+    public var envelopeRolloverBal: EnvelopeRolloverBal {
+        get {
+            guard let o = raw["envelopeRolloverBal"]?.asObject,
+                  let c = o["categories"]?.asObject else { return EnvelopeRolloverBal() }
+            var cats: [String: Double] = [:]
+            for (k, v) in c where v.asDouble != nil { cats[k] = v.asDouble! }
+            return EnvelopeRolloverBal(categories: cats)
+        }
+        set {
+            raw["envelopeRolloverBal"] = .object([
+                "categories": .object(newValue.categories.mapValues { .number($0) }),
+            ])
+        }
+    }
+
+    /// Period key rollover was last applied for (prevents double-apply).
+    public var envelopeRolloverAppliedFor: String? {
+        get { raw["envelopeRolloverAppliedFor"]?.asString }
+        set { raw["envelopeRolloverAppliedFor"] = newValue.map { .string($0) } ?? .null }
+    }
+
+    public struct BudgetBucketOverrides: Equatable, Sendable {
+        public var bills: [String: String]
+        public var spending: [String: String]
+        public init(bills: [String: String] = [:], spending: [String: String] = [:]) {
+            self.bills = bills
+            self.spending = spending
+        }
+    }
+
+    /// Override needs/wants/save mapping for bill and spending categories.
+    public var budgetBucketOverrides: BudgetBucketOverrides {
+        get {
+            guard let o = raw["budgetBucketOverrides"]?.asObject else { return BudgetBucketOverrides() }
+            var bills: [String: String] = [:]
+            var spending: [String: String] = [:]
+            if let b = o["bills"]?.asObject {
+                for (k, v) in b where v.asString != nil { bills[k] = v.asString! }
+            }
+            if let s = o["spending"]?.asObject {
+                for (k, v) in s where v.asString != nil { spending[k] = v.asString! }
+            }
+            return BudgetBucketOverrides(bills: bills, spending: spending)
+        }
+        set {
+            raw["budgetBucketOverrides"] = .object([
+                "bills": .object(newValue.bills.mapValues { .string($0) }),
+                "spending": .object(newValue.spending.mapValues { .string($0) }),
             ])
         }
     }

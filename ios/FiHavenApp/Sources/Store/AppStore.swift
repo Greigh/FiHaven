@@ -38,6 +38,7 @@ final class AppStore: ObservableObject {
             syncState = .saved
             runAutopayMark()
             refreshNotifications()
+            PushRegistrar.shared.syncIfNeeded(settings: data.settings)
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline

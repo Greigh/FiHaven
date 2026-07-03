@@ -291,6 +291,16 @@ db.exec(`
     created_at   INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_household_events_hh ON household_events(household_id, seq);
+
+  -- Registered device tokens for server push (APNs / FCM).
+  CREATE TABLE IF NOT EXISTS push_devices (
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform   TEXT NOT NULL,              -- 'ios' | 'android'
+    token      TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, token)
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);
 `);
 
 // Idempotent column additions for older databases created before
@@ -676,6 +686,21 @@ const stmt = {
   maxHouseholdEventSeq: db.prepare(
     `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events WHERE household_id = ?`
   ),
+
+  /* ── Push device tokens (APNs / FCM) ─────────────────────────── */
+  upsertPushDevice: db.prepare(
+    `INSERT INTO push_devices (user_id, platform, token, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, token) DO UPDATE SET platform = excluded.platform, updated_at = excluded.updated_at`
+  ),
+  deletePushDevice: db.prepare(
+    `DELETE FROM push_devices WHERE user_id = ? AND token = ?`
+  ),
+  listPushDevices: db.prepare(
+    `SELECT platform, token FROM push_devices WHERE user_id = ?`
+  ),
+  deletePushDeviceByToken: db.prepare(
+    `DELETE FROM push_devices WHERE token = ?`
+  ),
 };
 
 /* ── thin function wrappers ──────────────────────────────────── */
@@ -1012,6 +1037,20 @@ function insertHouseholdEvent(householdId, payload) {
 function listHouseholdEventsSince(householdId, sinceSeq) { return stmt.listHouseholdEventsSince.all(householdId, sinceSeq); }
 function householdEventSeq(householdId)      { return stmt.maxHouseholdEventSeq.get(householdId).s; }
 
+/* ── Push device wrappers ─────────────────────────────────────── */
+function upsertPushDevice(userId, platform, token) {
+  stmt.upsertPushDevice.run(userId, platform, token, Date.now());
+}
+function deletePushDevice(userId, token) {
+  return stmt.deletePushDevice.run(userId, token).changes;
+}
+function listPushDevices(userId) {
+  return stmt.listPushDevices.all(userId);
+}
+function deletePushDeviceByToken(token) {
+  return stmt.deletePushDeviceByToken.run(token).changes;
+}
+
 module.exports = {
   db,
   DB_PATH,
@@ -1131,4 +1170,8 @@ module.exports = {
   insertHouseholdEvent,
   listHouseholdEventsSince,
   householdEventSeq,
+  upsertPushDevice,
+  deletePushDevice,
+  listPushDevices,
+  deletePushDeviceByToken,
 };

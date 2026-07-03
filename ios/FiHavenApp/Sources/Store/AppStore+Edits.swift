@@ -312,6 +312,12 @@ extension AppStore {
         }
     }
 
+    /// Server push (APNs). Registers this device when turned on.
+    func setPushNotifications(_ on: Bool) {
+        mutate { $0.settings.pushNotifications = on }
+        PushRegistrar.shared.setEnabled(on)
+    }
+
     func setAutopayMark(_ on: Bool) {
         mutate { $0.settings.autopayMark = on }
         if on { runAutopayMark() }
@@ -338,6 +344,66 @@ extension AppStore {
         let next = Perks.applyUsage(data.settings.perkUsage, cardId: cardId, perk: perk,
                                     amount: amount, date: now, cal: cal)
         mutate { $0.settings.perkUsage = next }
+    }
+
+    // ── Budget lens settings ─────────────────────────────────────────
+    func setBudgetRule(_ mode: String) {
+        mutate { $0.settings.budgetRule = mode }
+    }
+
+    func setBudgetRuleSplits(needs: Int, wants: Int, save: Int) {
+        mutate {
+            $0.settings.budgetRuleSplits = Settings.BudgetRuleSplits(
+                needs: min(100, max(0, needs)),
+                wants: min(100, max(0, wants)),
+                save: min(100, max(0, save))
+            )
+        }
+    }
+
+    func setDebtFocusExtra(_ amount: Double) {
+        mutate { $0.settings.debtFocusExtra = max(0, amount) }
+    }
+
+    func setEnvelopeRollover(_ on: Bool) {
+        mutate { $0.settings.envelopeRollover = on }
+    }
+
+    func setEnvelopeAssignGoal(_ goalId: String, _ amount: Double) {
+        mutate { data in
+            var assign = data.settings.envelopeAssign
+            if amount > 0 { assign.goals[goalId] = amount } else { assign.goals.removeValue(forKey: goalId) }
+            data.settings.envelopeAssign = assign
+        }
+    }
+
+    func setEnvelopeAssignCategory(_ category: String, _ amount: Double) {
+        mutate { data in
+            var assign = data.settings.envelopeAssign
+            if amount > 0 { assign.categories[category] = amount } else { assign.categories.removeValue(forKey: category) }
+            data.settings.envelopeAssign = assign
+        }
+    }
+
+    func setBudgetBucketOverride(kind: String, category: String, bucket: String?) {
+        mutate { data in
+            var o = data.settings.budgetBucketOverrides
+            if kind == "bills" {
+                if let bucket, !bucket.isEmpty { o.bills[category] = bucket } else { o.bills.removeValue(forKey: category) }
+            } else {
+                if let bucket, !bucket.isEmpty { o.spending[category] = bucket } else { o.spending.removeValue(forKey: category) }
+            }
+            data.settings.budgetBucketOverrides = o
+        }
+    }
+
+    /// Apply unused envelope amounts from the previous period once per period key.
+    func applyEnvelopeRolloverIfNeeded() {
+        guard data.settings.envelopeRollover else { return }
+        let prev = Period.shift(currentBounds, by: -1, config: periodConfig, tz: tz)
+        let next = BudgetRules.applyEnvelopeRollover(data.settings, transactions: data.transactions, prevBounds: prev)
+        guard next != data.settings else { return }
+        mutate { $0.settings = next }
     }
 
     // ── History ──────────────────────────────────────────────────────

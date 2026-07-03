@@ -151,6 +151,17 @@ router.get('/data', requireAuth, (req, res) => {
   }
 });
 
+// GET /api/household/rollup — aggregated totals for shared entities.
+router.get('/rollup', requireAuth, (req, res) => {
+  try {
+    const rollup = household.computeRollup(req.user.id);
+    if (!rollup) return sendError(res, 404, 'not-in-household');
+    res.json(rollup);
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
 // POST /api/household/entities — share one of my items { kind, item }.
 router.post('/entities', requireAuth, requireCsrf, (req, res) => {
   const body = req.body || {};

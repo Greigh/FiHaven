@@ -12,7 +12,7 @@ backend.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
-[![Version](https://img.shields.io/badge/version-1.5.0-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D22.14.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+[![Version](https://img.shields.io/badge/version-1.5.0-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
 </div>
 
@@ -110,7 +110,7 @@ entitlement is server-authoritative and identical across web, iOS, and Android.
 | Savings goals, net worth, light/dark, time zones, MFA, export/import | **Debt-payoff planner** (snowball / avalanche) |
 | Dashboard widgets (safe-to-spend, budget status, credit util warnings) | **Due-date calendar** + iCal feed |
 | Subscription finder **detection** on web (flagged bills + recurring tx) | **Subscription action panel** — cancel links, duplicates, trial reminders |
-| Join a **Family** household (view shared bills, cards, goals) | **Create** a Family household + invite members (share/unshare UI on web today) |
+| Join a **Family** household (view shared bills, cards, goals) | **Create** a Family household + invite members (share/unshare on web, iOS, and Android) |
 | Email + local bill reminders (configurable lead time, weekly digest) | **Payment history**, **rewards optimizer** + card preset database |
 | | **Spending insights** (period-over-period; web Spending tab today) |
 | | **Category budgets**, **autopay auto-mark**, **bank sync (Plaid)** |
@@ -128,10 +128,10 @@ Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 | **Frontend pages** | Svelte 5 (runes) for each dashboard tab, vanilla JS for navbar / modals / auth / theme |
 | **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
-| **Server** | Node 22 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
+| **Server** | Node 24 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
 | **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) — see [`docs/social-login-setup.md`](docs/social-login-setup.md) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
-| **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes |
+| **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth redirect, `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
 | **Deploy** | Copy [`scripts/examples/upload.example.sh`](scripts/examples/upload.example.sh) → gitignored `upload.sh`; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart |
@@ -145,8 +145,8 @@ other apps on the same host.
 
 ## Quick start
 
-Requires **Node ≥ 22** (for native `fetch`, `--watch`, and the
-better-sqlite3 / bcrypt prebuilds).
+Requires **Node ≥ 24** (see `engines` in `package.json`; for native
+`fetch`, `--watch`, and the better-sqlite3 / bcrypt prebuilds).
 
 ```bash
 git clone <repo> fihaven
@@ -199,10 +199,12 @@ entitlement is server-authoritative and unified across web (Stripe), iOS
 ```
 fihaven/
 ├── client/
-│   ├── *.html                       page entries: home, login, dashboard,
-│   │                                settings, plaid-oauth, welcome (onboarding),
+│   ├── *.html                       page entries: home, login, pricing, faq,
+│   │                                security, contact, dashboard, settings,
+│   │                                plaid-oauth, welcome (onboarding),
 │   │                                verify-email, reset (password),
-│   │                                recover (lost-2FA), terms, privacy, 404, 500
+│   │                                recover (lost-2FA), dev-portal (comp Pro),
+│   │                                terms, privacy, 404, 500
 │   ├── css/
 │   │   ├── styles.css               manifest — @imports the others
 │   │   ├── tokens.css               design tokens + body bg
@@ -278,7 +280,12 @@ fihaven/
 │   ├── captcha.js                   Cloudflare Turnstile siteverify
 │   ├── mfa.js                       AES-256-GCM, TOTP, backup codes, passkeys, email codes
 │   ├── billing.js                   Stripe + entitlement (FiHaven Pro)
+│   ├── googlePlay.js                Google Play Developer API — verify Play
+│   │                                purchases + Real-time Developer Notifications
 │   ├── plaid.js                     optional Plaid bank-linking helpers
+│   ├── plaidBalances.js             Plaid balance sync (opt-in card auto-update)
+│   ├── household.js                 Family/household model + caps
+│   ├── householdEvents.js           per-household SSE broadcast (live share sync)
 │   ├── mail.js                      thin nodemailer wrapper
 │   ├── rateLimit.js                 in-memory login throttle, IP+email (5 / 15 min)
 │   │                                (per-IP flood guard is express-rate-limit in index.js)
@@ -293,6 +300,7 @@ fihaven/
 │       ├── billing.js               Stripe checkout / portal / webhook + entitlement
 │       ├── plaid.js                 Pro-gated bank linking (link / exchange /
 │       │                            refresh / item-remove / repaired / webhook)
+│       ├── household.js             Family/household create/join/invite + share
 │       ├── admin.js                 admin-only stats + user management
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
 ├── data/                            SQLite file + mfa.key live here (gitignored)
@@ -403,11 +411,20 @@ the Vite dev middleware.
 |---|---|---|---|
 | `/` | Marketing landing | public | ✅ |
 | `/login` | Log-in / sign-up | public | ✅ |
+| `/pricing` | Plans & FiHaven Pro pricing | public | ✅ |
+| `/faq` | Frequently asked questions | public | ✅ |
+| `/security` | Security & privacy overview | public | ✅ |
+| `/contact` | Contact / support | public | ✅ |
 | `/terms` | Terms of Use | public | ✅ |
 | `/privacy` | Privacy Policy | public | ✅ |
 | `/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
 | `/settings` | Grouped settings (open a group to drill in) — Profile, Preferences (time zone, theme, dashboard layout, **reminders/notifications**), Security (2FA), Payments/Pro, Calendar/iCal, Bank linking, Data (export/import/delete). Auto-synced to the server. | required | ❌ noindex |
+| `/welcome` | Post-signup onboarding flow | required | ❌ noindex |
+| `/verify-email` | Email-verification landing (token) | public | ❌ noindex |
+| `/reset` | Forgot / reset password (token) | public | ❌ noindex |
+| `/recover` | Lost-2FA account recovery (token) | public | ❌ noindex |
 | `/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/dev-portal` | Developer subscription portal (manage a comp/dev Pro grant) | required | ❌ noindex |
 | `/404` | Not-found page | public | ❌ |
 | `/500` | Server-error page | public | ❌ |
 
@@ -511,6 +528,27 @@ AES-256-GCM-encrypted at rest.
 | `POST` | `/api/plaid/item/:id/repaired` | Mark a reconnected (update-mode) item healthy |
 | `POST` | `/api/plaid/item/:id/remove` | Unlink a bank (manual data untouched) |
 | `POST` | `/api/plaid/webhook` | Plaid webhooks (ES256 JWT-verified in production) |
+
+### Household (Family — create is Pro-gated)
+
+Share bills, cards, and goals with family members. Creating a household
+requires Pro; **joining** one is free. Shared entities live-sync via SSE.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/household` | Current household — members + pending invites |
+| `POST` | `/api/household` | Create a household (Pro) |
+| `POST` | `/api/household/invite` | Invite a member by email |
+| `DELETE` | `/api/household/invites/:id` | Cancel a pending invite |
+| `POST` | `/api/household/accept` | Accept an invite |
+| `DELETE` | `/api/household/members/:userId` | Remove a member |
+| `POST` | `/api/household/leave` | Leave the household |
+| `GET` | `/api/household/data` | Shared-entities snapshot |
+| `POST` | `/api/household/entities` | Share a bill / card / goal |
+| `PUT` | `/api/household/entities/:kind/:id` | Update a shared entity |
+| `DELETE` | `/api/household/entities/:kind/:id` | Unshare an entity |
+| `PUT` | `/api/household/share-prefs` | Update share/unshare preferences |
+| `GET` | `/api/household/stream[/:since]` | SSE stream of live household changes |
 
 All mutating routes (every `POST` / `PUT` / `DELETE` above) require
 the session cookie **and** the `X-CSRF-Token` header — its value is
@@ -627,9 +665,9 @@ invalidates any existing subscription instantly.
 
 ### Live snapshot + variance + cushion + audit
 
-- **HeroPanel.svelte** sits at the top of the dashboard and shows
-  monthly income, due-this-month bills, cushion, and the next bill
-  due, all derived live from `$state` proxies.
+- **DashboardView.svelte** renders the "Overview tiles" at the top of
+  the dashboard — monthly income, due-this-month bills, cushion, and the
+  next bill due, all derived live from `$state` proxies.
 - **Sparkline.svelte** is rendered next to each bill, showing the
   amount actually paid each of the last 6 months — a quick visual on
   variable bills.
@@ -751,21 +789,28 @@ cp scripts/examples/upload.example.sh upload.sh
 The template handles local build → remote backup → rsync →
 `npm ci --omit=dev` + PM2 restart on a Node + nginx VPS:
 
-1. **Backs up** the remote deploy directory to a timestamped sibling
+1. **Pre-flight**: fails fast locally if `package-lock.json` is out of
+   sync with `package.json` (`npm ci --dry-run`), so a stale lock is
+   caught before the remote is touched rather than aborting mid-deploy.
+2. **Backs up** the remote deploy directory to a timestamped sibling
    (e.g. `/var/www/fihaven.app.backup_20260615_153045`). Includes
    `data/` (SQLite + MFA key); excludes `node_modules/`. Deletes
    backups older than `BACKUP_RETENTION_DAYS` (default **7**). Skipped
    on first deploy when the remote path does not exist yet.
-2. Builds Tailwind utility CSS and the Vite client into `dist/`.
-3. Pre-gzips static assets for `gzip_static`.
-4. rsyncs `dist/`, `server/`, `scripts/`, `package.json`,
-   `package-lock.json`, and a **sanitized** `.env` (drops `SSH_*` /
-   `DEV_USER_*`, pins `NODE_ENV=production`) — **never overwrites**
-   remote `data/` during upload.
-5. SSHes in and runs `npm ci --omit=dev` (installing
-   `build-essential` once if missing, so `better-sqlite3` + `bcrypt`
-   can compile) and `pm2 restart fihaven --update-env`.
-6. Verifies PM2 is online and `PUBLIC_ORIGIN` responds (HTTP, up to
+3. Builds Tailwind utility CSS and the Vite client into `dist/`.
+4. Pre-gzips static assets for `gzip_static`.
+5. rsyncs `dist/`, `server/`, `scripts/`, `package.json`,
+   `package-lock.json`, the Google Play service-account JSON (into
+   `data/`, for Play receipt verification), and a **sanitized** `.env`
+   (drops `SSH_*` / `DEV_USER_*`, pins `NODE_ENV=production`) —
+   **never overwrites** remote `data/` during upload.
+6. SSHes in and runs `npm ci --omit=dev` and
+   `pm2 restart fihaven --update-env`. To keep native builds reliable
+   on small VPSes it installs `build-essential` once if missing (so
+   `better-sqlite3` + `bcrypt` can compile), ensures a swapfile exists
+   to absorb the compile's memory peak, and retries `npm ci` a few
+   times to ride out transient registry hiccups.
+7. Verifies PM2 is online and `PUBLIC_ORIGIN` responds (HTTP, up to
    five retries), then prints a summary (build date, backup path, URL).
 
 ### Rollback
@@ -840,9 +885,12 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 
 ## SEO + standards
 
-- `robots.txt` allows everything except `/dashboard`,
-  `/settings`, `/api/*` and points to the sitemap.
-- `sitemap.xml` lists the four public pages.
+- `robots.txt` allows everything except the authenticated/utility
+  routes (`/dashboard`, `/settings`, `/welcome`, `/verify-email`,
+  `/reset`, `/recover`, `/plaid-oauth`, `/dev-portal`) and `/api/*`,
+  and points to the sitemap.
+- `sitemap.xml` lists the eight public pages (`/`, `/pricing`, `/faq`,
+  `/login`, `/security`, `/contact`, `/terms`, `/privacy`).
 - Every public page carries Open Graph + Twitter cards, a canonical
   URL, and a description. The home page also ships a JSON-LD
   `WebApplication` schema. Private pages set `noindex,nofollow`.
@@ -862,41 +910,40 @@ ideas are tracked in [`docs/competitive-roadmap.md`](docs/competitive-roadmap.md
 | Platform | Status |
 |---|---|
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | TestFlight beta — first builds uploading; **not** on the public App Store yet |
-| **Android** | Native app builds locally; **not** on Google Play yet |
+| **iOS** | TestFlight beta — not on the public App Store yet |
+| **Android** | Internal testing on Google Play — public listing coming soon |
 | **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
 
 Marketing copy on some public pages still says mobile apps are “coming soon” until
 store listings go live.
 
-### Platform parity (web leads)
+### Platform parity
 
-Several **1.4.x** features exist on web first. Native apps **read** synced settings
-(e.g. a budget lens set on web shows on iOS/Android) but may lack the UI to change them.
+Budget lens, envelope editor, spending insights, and household rollup are now on **web, iOS, and Android**.
 
 | Area | Web | iOS | Android |
 |---|---|---|---|
 | Budget lens **display** on Budget tab | Yes | Yes | Yes |
-| Budget lens **settings** (mode, splits, debt-focus extra, envelope rollover) | Settings | — | — |
-| Envelope assign editor (Pro) | Budget tab | — | — |
-| Spending insights vs last period (Pro) | Spending tab | — | — |
+| Budget lens **settings** (mode, splits, debt-focus extra, envelope rollover, bucket overrides) | Settings | Settings → Budget lens | Settings → Budget lens |
+| Envelope assign editor (Pro) | Budget tab | Budget tab | Budget tab |
+| Spending insights vs last period (Pro) | Spending tab | Spending tab | Spending tab |
 | Household **membership** (create/join/invite) | Settings → Family | Settings → Family | Settings → Family |
-| Household **share/unshare** bills, cards, goals | Settings → Family | View only* | View only* |
-| Passkey **registration** | Settings → Security | — (list/delete on web) | — (list/delete on web) |
+| Household **share/unshare** bills, cards, goals | Settings → Family | Settings → Family | Settings → Family |
+| Household rollup (shared totals) | Dashboard card | Settings → Family | Settings → Family |
+| Passkey **registration** | Settings → Security | — (list/delete on web) | Settings → Security |
+| Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
 | Plaid bank linking (Pro) | Yes | Yes | Yes |
 
-\*Native Family screens list shared items and live-sync via SSE, but **choosing what to
-share** is web-only today (`Settings → Family` on fihaven.app).
+Native Family screens now create/join households, invite members, and choose what to
+share (bills, cards, goals), live-syncing via SSE — at parity with web.
 
 ### Product gaps (all platforms)
 
-- **Remote push notifications** — reminders are **email** (server scheduler) and
-  **local** notifications on iOS/Android; no APNs/FCM server push yet.
-- **User overrides for needs/wants/save category mapping** — default bill/spending →
-  bucket maps exist; per-category overrides are a future release
-  ([`docs/competitive-roadmap.md`](docs/competitive-roadmap.md)).
-- **Household rollup views** — shared entity sync exists; consolidated household
-  dashboard / net-worth rollups are not built yet.
+- **Remote push notifications** — reminders are **email** (server scheduler),
+  **local** on-device (iOS/Android), and optional **server push** (APNs / FCM)
+  when `pushNotifications` is enabled; see `docs/push-setup.md`.
+- **User overrides for needs/wants/save category mapping** — per-category overrides in Settings → Category buckets (web + native).
+- **Household rollup views** — shared-entity totals on the dashboard and in Family settings (`GET /api/household/rollup`).
 - **Auto-save / round-up rules** — intentionally skipped (conflicts with manual-first
   positioning unless added as strict opt-in later).
 

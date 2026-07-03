@@ -18,6 +18,14 @@ import app.fihaven.core.model.PromoResult
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.withCategoryBudget
+import app.fihaven.core.model.withBudgetBucketOverride
+import app.fihaven.core.model.withBudgetRule
+import app.fihaven.core.model.withBudgetRuleSplits
+import app.fihaven.core.model.withDebtFocusExtra
+import app.fihaven.core.model.withEnvelopeAssignCategory
+import app.fihaven.core.model.withEnvelopeAssignGoal
+import app.fihaven.core.model.envelopeRollover
+import app.fihaven.core.model.withEnvelopeRollover
 import app.fihaven.core.model.autopayDone
 import app.fihaven.core.model.perkUsage
 import app.fihaven.core.model.withPerkUsage
@@ -39,6 +47,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import app.fihaven.core.logic.BillSchedule
+import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.PaidState
@@ -111,6 +120,10 @@ enum class SyncState { Idle, Saving, Saved, Offline }
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val tokens = PrefsTokenStore(app)
     val api = ApiClient(ApiConfig(BuildConfig.API_BASE), tokens)
+
+    init {
+        PushRegistrar.configure(api)
+    }
 
     private val _session = MutableStateFlow<Session>(Session.Loading)
     val session: StateFlow<Session> = _session.asStateFlow()
@@ -286,6 +299,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelMfa() { _session.value = Session.SignedOut; _authError.value = null }
 
     fun logout() = viewModelScope.launch {
+        PushRegistrar.clear()
         runCatching { api.logout() }
         _authError.value = null
         _session.value = Session.SignedOut
@@ -340,7 +354,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _dataError.value = null
         try {
             val fetched = api.fetchData()
-            _data.value = fetched
+            _data.value = applyEnvelopeRolloverIfNeeded(fetched)
             Money.setCurrency(fetched.settings.currency)
             fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
@@ -348,6 +362,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _dataLoaded.value = true
             _syncState.value = SyncState.Saved
             refreshNotifications()
+            refreshPush()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
@@ -729,6 +744,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setCategoryBudget(category: String, amount: Double) =
         mutate { it.copy(settings = it.settings.withCategoryBudget(category, amount)) }
 
+    fun setBudgetRule(mode: String) = mutate { it.copy(settings = it.settings.withBudgetRule(mode)) }
+
+    fun setBudgetRuleSplits(needs: Int, wants: Int, save: Int) =
+        mutate { it.copy(settings = it.settings.withBudgetRuleSplits(needs, wants, save)) }
+
+    fun setDebtFocusExtra(amount: Double) =
+        mutate { it.copy(settings = it.settings.withDebtFocusExtra(amount)) }
+
+    fun setEnvelopeRollover(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withEnvelopeRollover(on)) }
+
+    fun setEnvelopeAssignGoal(goalId: String, amount: Double) =
+        mutate { it.copy(settings = it.settings.withEnvelopeAssignGoal(goalId, amount)) }
+
+    fun setEnvelopeAssignCategory(category: String, amount: Double) =
+        mutate { it.copy(settings = it.settings.withEnvelopeAssignCategory(category, amount)) }
+
+    fun setBudgetBucketOverride(kind: String, category: String, bucket: String?) =
+        mutate { it.copy(settings = it.settings.withBudgetBucketOverride(kind, category, bucket)) }
+
+    /** Roll unused envelope category amounts from the previous period once per period key. */
+    private fun applyEnvelopeRolloverIfNeeded(data: AppData): AppData {
+        val settings = data.settings
+        if (!settings.envelopeRollover) return data
+        val cfg = Period.config(settings)
+        val zone = DateLogic.zone(settings.timezoneSetting)
+        val bounds = Period.currentBounds(cfg, zone)
+        val prev = Period.shift(bounds, -1, cfg)
+        val nextSettings = BudgetRules.applyEnvelopeRollover(settings, data.transactions, prev)
+        return if (nextSettings == settings) data else data.copy(settings = nextSettings)
+    }
+
     fun deletePayment(payment: Payment) = mutate { d ->
         val payments = d.payments.filterNot { p -> p.id == payment.id }
         // Undo the balance decrement a card payment applied.
@@ -851,6 +898,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setLocalNotifications(on: Boolean) {
         mutate { it.copy(settings = it.settings.withSetting("localNotifications", JsonPrimitive(on))) }
         refreshNotifications()
+    }
+
+    fun setPushNotifications(on: Boolean) {
+        mutate { it.copy(settings = it.settings.withSetting("pushNotifications", JsonPrimitive(on))) }
+        refreshPush()
+    }
+
+    private fun refreshPush() = viewModelScope.launch {
+        PushRegistrar.sync(getApplication(), _data.value.settings)
     }
 
     fun setAutopayMark(on: Boolean) {
