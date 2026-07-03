@@ -336,6 +336,7 @@ The server stores `settings` verbatim as an object. Known keys:
 | `weeklyDigest` | boolean | send/show a Monday week-ahead digest (default `false`) |
 | `offerReminders` | boolean | Pro: remind before an activated card-linked offer expires — email + local notif, same lead window as bill reminders (default `false`) |
 | `localNotifications` | boolean | native opt-in to schedule local bill reminders (default `false`) |
+| `pushNotifications` | boolean | native opt-in to register for server push (APNs / FCM); uses the same reminder/digest settings as email (default `false`) |
 | `plaidUpdateBalances` | boolean | opt-in: let a synced bank balance update a matching card. Off by default — a linked bank NEVER overrides typed balances; when on, the server updates a card only on an unambiguous last-4 mask match (default `false`) |
 | `dashboardLayout` | `"classic"|"widgets"` | dashboard mode (default `classic`) |
 | `dashboardWidgets` | `string[]` | enabled widget ids, in display order (`widgets` mode) |
@@ -346,9 +347,11 @@ The server stores `settings` verbatim as an object. Known keys:
 `incomes[].frequency` ∈ `weekly | biweekly | semimonthly | monthly | annual`.
 
 The reminder/digest keys drive **server-sent email** (the tz-aware scheduler,
-[`server/scheduler.js`](../server/scheduler.js)) and, when `localNotifications`
-is on, **local device notifications** scheduled by each native app — both read
-the same settings so behavior matches. `dashboardWidgets` ids come from a shared
+[`server/scheduler.js`](../server/scheduler.js)), **server push** (APNs / FCM via
+[`server/push.js`](../server/push.js) when `pushNotifications` is on and a device
+token is registered), and, when `localNotifications` is on, **local device
+notifications** scheduled by each native app — all read the same settings so
+behavior matches. `dashboardWidgets` ids come from a shared
 catalog of nine: `stats, cashflow, alerts, upcoming, networth, spending, goals,
 subscriptions, incomeHistory` (web [`dashboardWidgets.js`](../client/js/dashboardWidgets.js),
 iOS `DashboardWidget`, Android `DashboardWidgets`); ids not in the catalog are
@@ -493,12 +496,38 @@ derived from store subscriptions + promo grants ([`server/billing.js`](../server
 transaction or redeem a promo, then read the entitlement back.
 
 **Products** (must match App Store Connect / Play Console and the server map):
-`app.fihaven.pro.monthly`, `…pro.yearly` (auto-renewing subs).
+`app.fihaven.pro.monthly`, `…pro.yearly`, `…pro.family` (auto-renewing subs).
+
+**Pricing ladder.** The same product ids and `plan` keys are used on every
+platform, but the **displayed price differs by store** so the take-home is even
+after fees. iOS/Android carry a ~15% store commission (App Store / Play Small
+Business Program); web (Stripe) is 2.9% + $0.30, whose flat fee dominates on
+small charges. iOS/Android prices are bumped to net roughly the same as — or a
+hair above — web. The price is display-only: the server maps `product → plan`
+and never reads it, so entitlement is identical regardless of what a plan cost.
+
+| Plan | Product id | Web (Stripe) | iOS / Android (15%) | Server plan key |
+|---|---|---|---|---|
+| Monthly | `app.fihaven.pro.monthly` | $1.99 / mo | $1.99 / mo | `monthly` |
+| Yearly (default) | `app.fihaven.pro.yearly` | $14.99 / yr | $16.99 / yr | `yearly` |
+| Family | `app.fihaven.pro.family` | $25.99 / yr | $29.99 / yr | `family` |
+
+Net after fees (keep this even when adjusting prices): web ≈ $1.63 / $14.26 /
+$24.94; iOS/Android @15% ≈ $1.69 / $14.44 / $25.49. Monthly stays $1.99 on all
+platforms because Stripe's flat $0.30 already eats more of a small charge than
+Apple/Google's 15% does. If a store cut is 30% (not enrolled in the small-business
+tier), the iOS/Android points would need to rise (~$2.49 / $20.99 / $35.99) —
+enroll in the 15% program instead.
+
+All plans carry a **7-day free trial** — a store intro offer (Introductory Offer →
+Free → 7 days, one per subscription group) on iOS/Android, and
+`trial_period_days: 7` on the Stripe checkout on web. On web, Stripe reports the
+subscription as `trialing`, which the server treats as an active `pro` grant.
 
 **Entitlement shape** (in `GET /api/data` and `GET /api/billing/status`):
 ```json
 { "pro": true, "source": "apple|google|promo", "productId": "…",
-  "plan": "monthly|yearly", "expiresAt": 1812068865760 }
+  "plan": "monthly|yearly|family", "expiresAt": 1812068865760 }
 ```
 `expiresAt` is epoch-ms (null = lifetime/none). The effective entitlement is
 the longest-lasting active grant across subscriptions + promos.

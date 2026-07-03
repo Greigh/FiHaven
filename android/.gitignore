@@ -10,5 +10,6 @@ captures/
 
 play-store/
 keystore.properties
+google-services.json
 *.jks
 *.keystore

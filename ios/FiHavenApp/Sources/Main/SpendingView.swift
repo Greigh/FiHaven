@@ -9,6 +9,19 @@ struct SpendingView: View {
     @State private var editingBudgets = false
     @State private var dismissedDupes: Set<String> = []
 
+    private var prevBounds: PeriodBounds {
+        Period.shift(store.currentBounds, by: -1, config: store.periodConfig, tz: store.tz)
+    }
+
+    private var spendingInsights: [SpendingInsights.Row] {
+        guard billing.isPro else { return [] }
+        return Array(SpendingInsights.compute(
+            store.data.transactions,
+            currentBounds: store.currentBounds,
+            prevBounds: prevBounds
+        ).prefix(4))
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -64,6 +77,31 @@ struct SpendingView: View {
                     }
                 }
                 .ctCard()
+
+                if billing.isPro && !spendingInsights.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("vs last period")
+                            .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+                        ForEach(spendingInsights, id: \.cat) { row in
+                            HStack {
+                                Text("\(Self.catIcon(row.cat)) \(row.cat)")
+                                    .font(Theme.ui(13)).foregroundStyle(Theme.text)
+                                Spacer()
+                                HStack(spacing: 4) {
+                                    Text(row.delta >= 0 ? "+\(Money.fmt(row.delta))" : Money.fmt(row.delta))
+                                        .font(Theme.mono(12))
+                                        .foregroundStyle(row.delta > 0 ? Theme.red : (row.delta < 0 ? Theme.green : Theme.muted))
+                                    if row.was > 0 {
+                                        Text("(\(row.pct >= 0 ? "+" : "")\(row.pct)%)")
+                                            .font(Theme.ui(11))
+                                            .foregroundStyle(Theme.muted)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .ctCard()
+                }
 
                 if !reconcilePairs.isEmpty || unconfirmedCount > 0 { reconcilePanel }
 

@@ -6,8 +6,14 @@ import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.budgetRule
 import app.fihaven.core.model.budgetRuleSplits
+import app.fihaven.core.model.budgetBucketOverrides
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.core.model.debtFocusExtra
+import app.fihaven.core.model.envelopeAssign
+import app.fihaven.core.model.envelopeRollover
+import app.fihaven.core.model.envelopeRolloverAppliedFor
+import app.fihaven.core.model.envelopeRolloverBal
+import app.fihaven.core.model.withEnvelopeRolloverBal
 import kotlinx.serialization.json.JsonObject
 import java.time.LocalDate
 import kotlin.math.abs
@@ -42,6 +48,14 @@ object BudgetRules {
         val over: Boolean,
     )
 
+    data class EnvelopeAssignments(
+        val goalMap: Map<String, Double>,
+        val catMap: Map<String, Double>,
+        val goalsTotal: Double,
+        val catsTotal: Double,
+        val total: Double,
+    )
+
     data class Lens(
         val mode: String,
         val title: String,
@@ -50,7 +64,10 @@ object BudgetRules {
         val rows: List<Row>,
         val warnings: List<Warning>,
         val proLocked: Boolean = false,
+        val envelope: EnvelopeAssignments? = null,
     )
+
+    val budgetBuckets = listOf("needs", "wants", "save")
 
     const val HOUSING_RATIO_LIMIT = 30
     const val DEBT_RATIO_LIMIT = 36
@@ -78,7 +95,11 @@ object BudgetRules {
 
     private val debtBillCategories = setOf("Loan", "Auto")
 
+    val billCategories = billBuckets.keys.toList()
+    val spendingCategories = spendingBuckets.keys.toList()
+
     private val titles = mapOf(
+        "off" to "Off",
         "50-30-20" to "50 / 30 / 20",
         "80-20" to "80 / 20",
         "60-20-20" to "60 / 20 / 20",
@@ -102,6 +123,71 @@ object BudgetRules {
     fun enabled(settings: JsonObject): Boolean = mode(settings) != "off"
 
     fun title(mode: String): String = titles[mode] ?: mode
+
+    fun billBucket(category: String, settings: JsonObject): Bucket {
+        val o = settings.budgetBucketOverrides.bills[category]
+        if (o != null && o in budgetBuckets) return when (o) {
+            "needs" -> Bucket.NEEDS
+            "wants" -> Bucket.WANTS
+            else -> Bucket.SAVE
+        }
+        return billBuckets[category] ?: Bucket.NEEDS
+    }
+
+    fun spendingBucket(category: String, settings: JsonObject): Bucket {
+        val o = settings.budgetBucketOverrides.spending[category]
+        if (o != null && o in budgetBuckets) return when (o) {
+            "needs" -> Bucket.NEEDS
+            "wants" -> Bucket.WANTS
+            else -> Bucket.SAVE
+        }
+        return spendingBuckets[category] ?: Bucket.WANTS
+    }
+
+    fun envelopeAssignments(settings: JsonObject, goals: List<SavingsGoal>, zone: java.time.ZoneId): EnvelopeAssignments {
+        val raw = settings.envelopeAssign
+        val goalMap = raw.goals.toMutableMap()
+        val catMap = raw.categories.toMutableMap()
+        goals.forEach { g ->
+            val id = g.id.toString()
+            if (id !in goalMap) {
+                val sug = suggestedGoalMonthly(g, zone)
+                if (sug > 0) goalMap[id] = sug
+            }
+        }
+        settings.categoryBudgets.forEach { (cat, amt) ->
+            if (cat !in catMap) catMap[cat] = amt
+        }
+        if (settings.envelopeRollover) {
+            settings.envelopeRolloverBal.forEach { (cat, extra) ->
+                if (extra > 0) catMap[cat] = (catMap[cat] ?: 0.0) + extra
+            }
+        }
+        val goalsTotal = goalMap.values.sum()
+        val catsTotal = catMap.values.sum()
+        return EnvelopeAssignments(goalMap, catMap, goalsTotal, catsTotal, goalsTotal + catsTotal)
+    }
+
+    /** Apply unused category budget from prev period into envelopeRolloverBal. */
+    fun applyEnvelopeRollover(
+        settings: JsonObject,
+        transactions: List<SpendTransaction>,
+        prevBounds: PeriodBounds,
+    ): JsonObject {
+        if (!settings.envelopeRollover) return settings
+        val mk = prevBounds.key
+        if (settings.envelopeRolloverAppliedFor == mk) return settings
+        val spent = SpendingInsights.spentByCategory(transactions, prevBounds)
+        val budgets = settings.categoryBudgets
+        val assign = settings.envelopeAssign.categories
+        val nextBal = settings.envelopeRolloverBal.toMutableMap()
+        budgets.keys.forEach { cat ->
+            val budget = assign[cat] ?: budgets[cat] ?: 0.0
+            val unused = max(0.0, budget - (spent[cat] ?: 0.0))
+            if (unused > 0.005) nextBal[cat] = (nextBal[cat] ?: 0.0) + unused
+        }
+        return settings.withEnvelopeRolloverBal(nextBal, mk)
+    }
 
     fun splits(settings: JsonObject): Splits? {
         val m = mode(settings)
@@ -219,12 +305,13 @@ object BudgetRules {
         )
         val actual = mutableMapOf(Bucket.NEEDS to 0.0, Bucket.WANTS to 0.0, Bucket.SAVE to 0.0)
         bills.filter(billDueInPeriod).forEach { b ->
-            actual[billBuckets[b.category] ?: Bucket.NEEDS] = actual.getValue(billBuckets[b.category] ?: Bucket.NEEDS) + billAmount(b)
+            val bucket = billBucket(b.category, settings)
+            actual[bucket] = actual.getValue(bucket) + billAmount(b)
         }
         cards.forEach { actual[Bucket.NEEDS] = actual.getValue(Bucket.NEEDS) + cardAmount(it) }
         transactions.forEach { t ->
             if (!transactionInPeriod(t.date, bounds)) return@forEach
-            val b = spendingBuckets[t.category] ?: Bucket.WANTS
+            val b = spendingBucket(t.category, settings)
             actual[b] = actual.getValue(b) + abs(t.amount)
         }
         actual[Bucket.SAVE] = max(0.0, income - actual.getValue(Bucket.NEEDS) - actual.getValue(Bucket.WANTS))
@@ -283,20 +370,19 @@ object BudgetRules {
                 proLocked = true, rows = emptyList(), warnings = emptyList())
         }
         val obligations = obligationsTotal(bills, cards, bounds, billDueInPeriod, billAmount, cardAmount)
-        val goalsTotal = goals.sumOf { suggestedGoalMonthly(it, zone) }
-        val catsTotal = settings.categoryBudgets.values.sum()
-        val unassigned = income - obligations - goalsTotal - catsTotal
+        val env = envelopeAssignments(settings, goals, zone)
+        val unassigned = income - obligations - env.total
         val rows = listOf(
             Row("obligations", "Fixed obligations", actual = obligations, status = "ok"),
-            Row("goals", "Assigned to goals", actual = goalsTotal, status = "ok"),
-            Row("categories", "Assigned to categories", actual = catsTotal, status = "ok"),
+            Row("goals", "Assigned to goals", actual = env.goalsTotal, status = "ok"),
+            Row("categories", "Assigned to categories", actual = env.catsTotal, status = "ok"),
             Row("unassigned", "Left to assign", actual = unassigned,
                 status = if (abs(unassigned) < 0.01) "ok" else if (unassigned > 0) "under" else "over",
                 hint = if (unassigned > 0) "Assign to goals or category budgets" else "Over-assigned"),
         )
         return Lens("envelope", title("envelope"), "Zero-based lite: goals + category budgets should use income after obligations.",
             Headline("Unassigned", unassigned, if (abs(unassigned) < 0.01) "ok" else if (unassigned > 0) "under" else "over"),
-            rows, warnings)
+            rows, warnings, envelope = env)
     }
 
     private fun splitRow(key: String, label: String, pct: Int, target: Double, actual: Double, isSave: Boolean = false) = Row(
