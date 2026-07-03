@@ -39,6 +39,7 @@ final class AppEnvironment: ObservableObject {
         self.api = api
         self.billing = StoreManager(api: api)
         self.session = .signedOut
+        PushRegistrar.shared.configure(api: api)
         print("[AppEnvironment] Initialized — deferring bootstrap to first view task")
     }
 
@@ -208,6 +209,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func logout() async {
+        PushRegistrar.shared.clear()
         try? await api.logout()
         billing.reset()
         store = nil

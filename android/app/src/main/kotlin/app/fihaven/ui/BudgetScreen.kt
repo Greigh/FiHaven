@@ -43,6 +43,7 @@ import app.fihaven.core.model.IncomeSource
 import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.categoryBudgets
+import app.fihaven.core.model.envelopeRollover
 import app.fihaven.core.model.incomeAdjustments
 import app.fihaven.core.model.incomes
 import app.fihaven.core.model.timezoneSetting
@@ -92,6 +93,17 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
             }
             budgetLens?.let { lens ->
                 item { BudgetLensCard(lens) }
+                val env = lens.envelope
+                if (lens.mode == "envelope" && ent.pro && !lens.proLocked && env != null) {
+                    item {
+                        EnvelopeEditorCard(
+                            goals = data.goals,
+                            envelope = env,
+                            rollover = data.settings.envelopeRollover,
+                            vm = vm,
+                        )
+                    }
+                }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -447,6 +459,62 @@ private fun BudgetLensCard(lens: BudgetRules.Lens) {
                     fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun EnvelopeEditorCard(
+    goals: List<SavingsGoal>,
+    envelope: BudgetRules.EnvelopeAssignments,
+    rollover: Boolean,
+    vm: AppViewModel,
+) {
+    CtCard {
+        Text("ASSIGN ENVELOPES", color = Ct.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        if (goals.isNotEmpty()) {
+            Text("Goals", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+            goals.forEach { g ->
+                var v by remember(g.id, envelope.goalMap[g.id.toString()]) {
+                    mutableStateOf(envelope.goalMap[g.id.toString()]?.takeIf { it > 0 }?.toString() ?: "")
+                }
+                OutlinedTextField(
+                    v,
+                    {
+                        v = it
+                        vm.setEnvelopeAssignGoal(g.id.toString(), it.toDoubleOrNull() ?: 0.0)
+                    },
+                    label = { Text(g.name.ifBlank { "Goal" }) },
+                    prefix = { Text("$") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                )
+            }
+        }
+        Text("Categories", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+        SPENDING_CATEGORIES.forEach { cat ->
+            var v by remember(cat, envelope.catMap[cat]) {
+                mutableStateOf(envelope.catMap[cat]?.takeIf { it > 0 }?.toString() ?: "")
+            }
+            OutlinedTextField(
+                v,
+                {
+                    v = it
+                    vm.setEnvelopeAssignCategory(cat, it.toDoubleOrNull() ?: 0.0)
+                },
+                label = { Text("${spendIcon(cat)} $cat") },
+                prefix = { Text("$") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            )
+        }
+        if (rollover) {
+            Text("Unused category amounts roll into the next period.",
+                color = Ct.colors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

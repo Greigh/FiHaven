@@ -8,6 +8,7 @@ import app.fihaven.core.model.PromoResult
 import app.fihaven.core.model.HouseholdInfo
 import app.fihaven.core.model.HouseholdView
 import app.fihaven.core.model.HouseholdSharedData
+import app.fihaven.core.model.HouseholdRollup
 import app.fihaven.core.model.SharedEntity
 import app.fihaven.core.model.HouseholdEnvelope
 import app.fihaven.core.model.SharedEntityEnvelope
@@ -16,6 +17,8 @@ import app.fihaven.core.model.HouseholdInviteBody
 import app.fihaven.core.model.HouseholdAcceptBody
 import app.fihaven.core.model.ShareEntityBody
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /// Talks to the FiHaven REST API with token/Bearer auth
 /// (docs/native-contract.md §3–5). Mirrors the Swift APIClient.
@@ -162,6 +165,19 @@ class ApiClient(
         tokens.clear()
     }
 
+    suspend fun registerPushDevice(platform: String, token: String) {
+        val body = buildJsonObject {
+            put("platform", platform)
+            put("token", token)
+        }.toString()
+        send(makeRequest("api/push/register", HttpMethod.POST, body))
+    }
+
+    suspend fun unregisterPushDevice(token: String) {
+        val body = buildJsonObject { put("token", token) }.toString()
+        send(makeRequest("api/push/unregister", HttpMethod.POST, body))
+    }
+
     private fun storeSession(body: String): AuthSession {
         val r = decode<SessionResponse>(body)
         val token = r.token ?: throw ApiError.Decoding("missing token in auth response")
@@ -225,6 +241,9 @@ class ApiClient(
 
     suspend fun getHouseholdSharedData(): HouseholdSharedData =
         decode(send(makeRequest("api/household/data", HttpMethod.GET)))
+
+    suspend fun getHouseholdRollup(): HouseholdRollup? =
+        runCatching { decode<HouseholdRollup>(send(makeRequest("api/household/rollup", HttpMethod.GET))) }.getOrNull()
 
     suspend fun shareHouseholdEntity(kind: String, item: JsonElement): SharedEntity =
         decode<SharedEntityEnvelope>(send(makeRequest("api/household/entities", HttpMethod.POST, encode(ShareEntityBody(kind, item))))).entity

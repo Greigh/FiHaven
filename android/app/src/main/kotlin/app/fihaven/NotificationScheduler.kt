@@ -256,4 +256,29 @@ object NotificationScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    /** Show a server push immediately (FCM foreground delivery). */
+    fun showImmediate(context: Context, title: String, body: String) {
+        ensureChannel(context)
+        val code = (title + body).hashCode()
+        val launch = explicitIntent(context, MainActivity::class.java) {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPi = PendingIntent.getActivity(
+            context, code, launch,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(context.applicationInfo.icon)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(contentPi)
+            .build()
+        try {
+            androidx.core.app.NotificationManagerCompat.from(context).notify(code, notification)
+        } catch (_: SecurityException) { /* POST_NOTIFICATIONS revoked */ }
+    }
 }

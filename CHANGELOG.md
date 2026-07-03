@@ -13,18 +13,38 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-07-01
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-03
 
 | | |
 |---|---|
-| **Status** | Pre-release |
-| **iOS** | 1.5.0 (4) |
-| **Android** | 1.5.0 (build 13) |
+| **Status** | Pre-release — **launch candidate** (first public tester wave) |
+| **iOS** | 1.5.0 (5) |
+| **Android** | 1.5.0 (build 14) |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
 
-> Rewards and optional bank linking on the live site — plus autopay timing and
-> reliability fixes. [Jump to technical changelog ↓](#150-technical-changelog)
+> The 1.5.0 launch build: budget lenses and family rollup on every platform,
+> push notifications, smarter Pro tools, and the reliability fixes from builds
+> 3–4. [Jump to technical changelog ↓](#150-technical-changelog)
+
+**Budget & spending (Tier 3)**
+
+- **Budget lens on native** — pick 50/30/20, envelopes, debt-focus, and more in
+  Settings on iOS and Android (not just the web).
+- **Envelope editor (Pro)** — assign money to categories from the Budget tab.
+- **Spending insights (Pro)** — see how this period compares to last on the
+  Spending tab.
+- **Household rollup** — couples/families see a shared dashboard card with
+  combined upcoming bills and balances.
+- **Category → bucket overrides** — map your bill/spending categories to
+  needs, wants, or save.
+
+**Notifications**
+
+- **Push notifications** — opt in on iOS or Android for bill reminders, weekly
+  digests, and monthly summaries (alongside email and on-device reminders).
+- Production server sends via APNs + Firebase; see `docs/push-setup.md`.
 
 **Smarter Credit Card rewards**
 
@@ -64,6 +84,16 @@ Each release below uses two layers:
   and the sign-up screen shows the Terms/Privacy agreement.
 - Stronger Android sign-in security and more reliable iOS TestFlight builds.
 
+**Build 5 — launch candidate**
+
+- Tier 3 competitive parity on web, iOS, and Android (native budget lens,
+  envelope editor, spending insights, household rollup, category bucket overrides).
+- Remote push (APNs / FCM) with `settings.pushNotifications` and device token API.
+- Marketing homepage: TestFlight + Play internal testing badges.
+- Web Stripe checkout includes a **7-day free trial** on every plan (parity with
+  App Store / Play intro offers).
+- iOS CI fix: public `BudgetRuleSplits` initializer for native budget settings.
+
 **Build 4 polish**
 
 - Changing your email now requires a verified current address; the new address
@@ -92,6 +122,19 @@ Each release below uses two layers:
 
 #### Added
 
+- **Remote push (APNs / FCM)** — `push_devices` table; `POST /api/push/register`
+  and `/unregister`; `server/push.js` (env-gated `apns2` + `firebase-admin`);
+  scheduler sends push alongside email when `settings.pushNotifications` is on;
+  native token registration (`PushRegistrar` iOS/Android); `docs/push-setup.md`,
+  `scripts/push-check.js`.
+- **Tier 3 native budget lens** — `BudgetRuleSettingsView` (iOS) and Settings →
+  Budget lens (Android); mirrors web budget rules.
+- **Native envelope editor (Pro)** — assign envelope amounts from Budget tab.
+- **Native spending insights (Pro)** — period-over-period category comparison.
+- **Household rollup** — `GET /api/household/rollup`; dashboard card; Family
+  settings on all platforms.
+- **Category bucket overrides** — `settings.budgetBucketOverrides` on web +
+  native Settings.
 - **Card perks** — recurring statement credits with per-cycle usage logging;
   annual-fee worth-it check (fee vs perk value + estimated category rewards) on
   web, iOS, and Android Rewards tab (`perks.js` ⇄ `Perks.swift` / `Perks.kt`).
@@ -144,11 +187,17 @@ Each release below uses two layers:
   returns `verificationRequired`; clients hide change-email when unverified.
 - **Android release signing** — optional `keystore.properties` + `bundleRelease`
   (`android/app/build.gradle.kts`, `keystore.properties.example`).
+- **Android release build 14** — Tier 3 + push (`google-services.json` for FCM);
+  `versionCode` 14.
+- **iOS build 5** — Tier 3 + push (`CURRENT_PROJECT_VERSION` 5); public
+  `BudgetRuleSplits` initializer.
 - **Android release build 13** — R8 minify/shrink + `proguard-rules.pro` for Play
   deobfuscation mapping; `ndk.debugSymbolLevel = symbol_table` for native crash
   symbols (`versionCode` 13).
-- **Marketing homepage** — `home.html` reflects TestFlight/live apps, sync,
-  family, passkeys, and Plaid (`pricing.html` one-liner).
+- **Stripe web checkout** — 7-day trial on all hosted Checkout plans
+  (`trial_period_days`); `app.fihaven.pro.family` product map entry.
+- **Deploy** — `upload.example.sh` ships `APNS_*` / `FCM_*` env vars and uploads
+  APNs key + Firebase service account JSON (mirrors Play SA upload).
 - **Android Plaid Link SDK 6** — migrated to Plaid Link SDK 6.0.0; `compileSdk`
   37 and lifecycle 2.11.0.
 - **Plaid production deploy** — `upload.sh` ships sanitized `PLAID_*` production
