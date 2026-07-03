@@ -9,7 +9,9 @@ const require = createRequire(import.meta.url);
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 
 function stubModule(modulePath, exports) {
-  const resolved = require.resolve(modulePath, { paths: [serverDir] });
+  const resolved = modulePath.startsWith('.')
+    ? require.resolve(modulePath, { paths: [serverDir] })
+    : require.resolve(modulePath);
   require.cache[resolved] = {
     id: resolved,
     filename: resolved,
@@ -59,7 +61,9 @@ describe('push — sendToUser', () => {
     process.env.APNS_TEAM_ID = 'TEAM';
     process.env.APNS_KEY_PATH = tmpKeyPath;
     stubModule('apns2', {
-      ApnsClient: vi.fn(() => ({ send: vi.fn() })),
+      ApnsClient: vi.fn().mockImplementation(function MockApnsClient() {
+        this.send = vi.fn();
+      }),
       Notification: vi.fn(function Notification(token, payload) {
         this.token = token;
         this.payload = payload;
