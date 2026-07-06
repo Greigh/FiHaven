@@ -44,14 +44,20 @@ struct IntroView: View {
 
     private var page: Page { pages[step] }
     private var isLast: Bool { step == pages.count - 1 }
-    private var accentForBadge: Color { page.badge == "PRO" ? Theme.accent : Theme.green }
+    private func accent(for page: Page) -> Color { page.badge == "PRO" ? Theme.accent : Theme.green }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Spacer(minLength: 0)
-            hero
-            Spacer(minLength: 0)
+            // Swipeable pager — swipe left/right between pages or tap Next.
+            // Selection is bound to `step`, so the dots + footer button and the
+            // Skip control stay in sync however the page changes.
+            TabView(selection: $step) {
+                ForEach(pages.indices, id: \.self) { i in
+                    heroView(pages[i]).tag(i)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,67 +80,70 @@ struct IntroView: View {
     }
 
     // ── Hero: tinted badge + title/body (+ features on page 1) ───────
-    private var hero: some View {
-        VStack(spacing: 20) {
-            heroBadge
+    // One page's hero, self-centering so it sits correctly inside the pager.
+    private func heroView(_ page: Page) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            VStack(spacing: 20) {
+                heroBadge(page)
 
-            VStack(spacing: 12) {
-                if let badge = page.badge {
-                    Text(badge)
-                        .font(Theme.ui(11, weight: .bold)).tracking(1.2)
-                        .foregroundStyle(accentForBadge)
-                        .padding(.horizontal, 11).padding(.vertical, 4)
-                        .background(accentForBadge.opacity(0.14))
-                        .clipShape(Capsule())
-                }
-                Text(page.title)
-                    .font(Theme.ui(28, weight: .bold))
-                    .foregroundStyle(Theme.text)
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-                Text(page.body)
-                    .font(Theme.ui(16))
-                    .foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !page.features.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(page.features.indices, id: \.self) { i in
-                        let f = page.features[i]
-                        HStack(spacing: 12) {
-                            Image(systemName: f.icon)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 26)
-                                .accessibilityHidden(true)
-                            Text(f.text)
-                                .font(Theme.ui(15))
-                                .foregroundStyle(Theme.text)
-                            Spacer(minLength: 0)
-                        }
-                        .accessibilityElement(children: .combine)
+                VStack(spacing: 12) {
+                    if let badge = page.badge {
+                        Text(badge)
+                            .font(Theme.ui(11, weight: .bold)).tracking(1.2)
+                            .foregroundStyle(accent(for: page))
+                            .padding(.horizontal, 11).padding(.vertical, 4)
+                            .background(accent(for: page).opacity(0.14))
+                            .clipShape(Capsule())
                     }
+                    Text(page.title)
+                        .font(Theme.ui(28, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(page.body)
+                        .font(Theme.ui(16))
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
-                .padding(.top, 4)
+
+                if !page.features.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(page.features.indices, id: \.self) { i in
+                            let f = page.features[i]
+                            HStack(spacing: 12) {
+                                Image(systemName: f.icon)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                                    .frame(width: 26)
+                                    .accessibilityHidden(true)
+                                Text(f.text)
+                                    .font(Theme.ui(15))
+                                    .foregroundStyle(Theme.text)
+                                Spacer(minLength: 0)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
+                    .padding(.top, 4)
+                }
             }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
-        .id(step) // re-run the transition when the page changes
-        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .trailing)))
     }
 
     /// A soft gradient disc with the FiHaven mark (page 1) or page glyph.
-    private var heroBadge: some View {
+    private func heroBadge(_ page: Page) -> some View {
         ZStack {
             Circle()
                 .fill(LinearGradient(
-                    colors: [Theme.accent.opacity(0.18), accentForBadge.opacity(0.06)],
+                    colors: [Theme.accent.opacity(0.18), accent(for: page).opacity(0.06)],
                     startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 132, height: 132)
             if page.brand {
@@ -142,7 +151,7 @@ struct IntroView: View {
             } else {
                 Image(systemName: page.icon)
                     .font(.system(size: 52))
-                    .foregroundStyle(accentForBadge)
+                    .foregroundStyle(accent(for: page))
             }
         }
         .accessibilityLabel(page.title)
