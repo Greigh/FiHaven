@@ -276,7 +276,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
           }
           if (group == "notifications") {
             item {
-                Section("NOTIFICATIONS") {
+                Section("ON THIS DEVICE") {
                     val s = data.settings
                     SwitchRow("Remind me on this device", s.localNotifications) { on ->
                         vm.setLocalNotifications(on)
@@ -291,26 +291,35 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
-                    HorizontalDivider(color = Ct.colors.border)
+                    Text(
+                        "On-device reminders work offline. Push needs the iOS or Android app — the web can't register a device token.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                    )
+                }
+            }
+            item {
+                Section("EMAIL") {
+                    val s = data.settings
                     SwitchRow("Email me bill reminders", s.billReminders) { vm.setBillReminders(it) }
-                    if (s.localNotifications || s.billReminders) {
-                        HorizontalDivider(color = Ct.colors.border)
-                        NavRow("Remind me", leadLabel(s.reminderLeadDays)) { dialog = "leaddays" }
-                        HorizontalDivider(color = Ct.colors.border)
-                        SwitchRow("Also remind on the due day", s.remindOnDueDay) { vm.setRemindOnDueDay(it) }
-                    }
                     HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Weekly digest email", s.weeklyDigest) { vm.setWeeklyDigest(it) }
                     HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Monthly summary email", s.monthlySummary) { vm.setMonthlySummary(it) }
+                }
+            }
+            item {
+                Section("REMINDER TIMING") {
+                    val s = data.settings
+                    NavRow("Remind me", leadLabel(s.reminderLeadDays)) { dialog = "leaddays" }
+                    HorizontalDivider(color = Ct.colors.border)
+                    SwitchRow("Also remind on the due day", s.remindOnDueDay) { vm.setRemindOnDueDay(it) }
+                    HorizontalDivider(color = Ct.colors.border)
+                    NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }
                     HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Card offer reminders", s.offerReminders) { vm.setOfferReminders(it) }
-                    if (s.localNotifications || s.billReminders || s.weeklyDigest || s.monthlySummary) {
-                        HorizontalDivider(color = Ct.colors.border)
-                        NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }
-                    }
                     Text(
-                        "On-device reminders work offline. Push and email use your reminder settings above and fire in your time zone. Enable push in the iOS or Android app — the web can't register a device token.",
+                        "These apply to both on-device and email reminders, and fire in your time zone.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
                     )
