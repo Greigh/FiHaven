@@ -491,7 +491,13 @@
           </div>
           <div class="auth-card" style="margin-top:16px;">
             <h2 style="font-size:20px;letter-spacing:-.03em;">Push notifications</h2>
-            <p style="margin-top:6px;color:var(--muted);font-size:14px;">Bill reminders, digests, and summaries can also arrive as push notifications on your phone. Turn this on in the <strong>iOS</strong> or <strong>Android</strong> app (Settings → Notifications) — the web app can't register a device token.</p>
+            <p style="margin-top:6px;color:var(--muted);font-size:14px;">Get bill reminders, digests, and summaries as push notifications — in this browser, or in the <strong>iOS</strong>/<strong>Android</strong> app. They use your reminder settings above.</p>
+            <div data-webpush-wrap hidden style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <button class="btn btn-primary" type="button" data-webpush-enable>Enable browser notifications</button>
+              <button class="btn btn-ghost" type="button" data-webpush-disable hidden>Turn off in this browser</button>
+            </div>
+            <div class="auth-note" data-webpush-status style="margin-top:8px;"></div>
+            <p data-webpush-unsupported hidden style="margin-top:12px;color:var(--muted);font-size:13px;">This browser doesn't support push notifications (or web push isn't enabled on the server yet). You can still get push in the iOS or Android app.</p>
           </div>
           <div class="auth-error" data-message="notifications" aria-live="polite" style="margin-top:12px;"></div>
         </section>

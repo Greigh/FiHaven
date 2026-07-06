@@ -7,13 +7,16 @@
 
 const express = require('express');
 const dbApi = require('../db');
+const push = require('../push');
 const { requireAuth, requireVerified, requireCsrf } = require('../session');
 const { sendError } = require('../util');
 
 const router = express.Router();
 
-const PLATFORMS = new Set(['ios', 'android']);
-const MAX_TOKEN_LEN = 512;
+// 'web' stores a browser PushSubscription (JSON) as its token, which is much
+// longer than an APNs/FCM device token — hence the roomier cap.
+const PLATFORMS = new Set(['ios', 'android', 'web']);
+const MAX_TOKEN_LEN = 2048;
 
 function normalizeToken(raw) {
   const token = String(raw || '').trim();
@@ -35,6 +38,12 @@ router.post('/unregister', requireAuth, requireVerified, requireCsrf, (req, res)
   if (!token) return sendError(res, 400, 'invalid-token');
   dbApi.deletePushDevice(req.user.id, token);
   return res.json({ ok: true });
+});
+
+// Public VAPID key so a browser can subscribe to web push. Null when web push
+// isn't configured on the server — the client then hides the "enable" button.
+router.get('/config', requireAuth, requireVerified, (req, res) => {
+  return res.json({ webPushPublicKey: push.vapidPublicKey() });
 });
 
 module.exports = router;
