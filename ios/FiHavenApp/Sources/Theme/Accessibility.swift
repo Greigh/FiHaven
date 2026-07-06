@@ -8,8 +8,8 @@ enum A11y {
 
     // MARK: - Paid state
 
-    static func paidStateLabel(_ state: PaidState, skipped: Bool = false) -> String {
-        if skipped { return "Skipped this month" }
+    static func paidStateLabel(_ state: PaidState, skipped: Bool = false, periodNoun: String = "month") -> String {
+        if skipped { return "Skipped this \(periodNoun)" }
         switch state {
         case .full: return "Paid"
         case .partial: return "Partially paid"
@@ -26,8 +26,8 @@ enum A11y {
         }
     }
 
-    static func paidStateHint(_ state: PaidState, skipped: Bool = false) -> String {
-        if skipped { return "Double tap to un-skip this month" }
+    static func paidStateHint(_ state: PaidState, skipped: Bool = false, periodNoun: String = "month") -> String {
+        if skipped { return "Double tap to un-skip this \(periodNoun)" }
         switch state {
         case .full: return "Double tap to undo payment"
         case .partial, .unpaid: return "Double tap to record payment"

@@ -1013,6 +1013,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun paidState(item: UpcomingItem) = paidState(item.type, item.refId)
     fun isSkipped(item: UpcomingItem) = isSkipped(item.type, item.refId)
 
+    /** Billing-cycle noun for period-correct labels ("Paid this quarter").
+     *  Cards are always monthly; bills follow their own frequency. */
+    fun periodNoun(item: UpcomingItem): String {
+        if (item.type != "bill") return "month"
+        val bill = _data.value.bills.firstOrNull { it.id.toString() == item.refId } ?: return "month"
+        return BillSchedule.periodNoun(bill.frequency)
+    }
+
     /** A warning to show before skipping a card this period, or null when it's
      *  safe to skip. Warns if the minimum (late-fee risk) or the suggested
      *  payment under the active goal policy hasn't been met. Mirrors the web's

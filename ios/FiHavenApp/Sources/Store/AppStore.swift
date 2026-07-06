@@ -233,6 +233,15 @@ final class AppStore: ObservableObject {
         return upcoming
     }
 
+    /// Billing-cycle noun for period-correct labels ("Paid this quarter").
+    /// Cards are always monthly; bills follow their own frequency.
+    func periodNoun(_ item: UpcomingItem) -> String {
+        guard item.type == "bill",
+              let bill = data.bills.first(where: { String($0.id) == item.refId })
+        else { return "month" }
+        return BillSchedule.periodNoun(bill.frequency)
+    }
+
     // ── Net worth (assets − liabilities) ────────────────────────────
     var assets: Double { data.accounts.reduce(0) { $0 + $1.balance } }
     var liabilities: Double { data.cards.reduce(0) { $0 + $1.balance } }

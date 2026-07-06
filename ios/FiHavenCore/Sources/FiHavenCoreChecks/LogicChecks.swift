@@ -70,6 +70,15 @@ func runScheduleChecks() {
     let tz = utcTZ
     let now = makeDate(2026, 6, 15, tz: tz)
 
+    section("BillSchedule — periodNoun") {
+        checkEqual(BillSchedule.periodNoun("Monthly"), "month", "monthly → month")
+        checkEqual(BillSchedule.periodNoun("Quarterly"), "quarter", "quarterly → quarter")
+        checkEqual(BillSchedule.periodNoun("Annually"), "year", "annually → year")
+        checkEqual(BillSchedule.periodNoun("Weekly"), "week", "weekly → week")
+        checkEqual(BillSchedule.periodNoun("Bi-weekly"), "cycle", "bi-weekly → cycle")
+        checkEqual(BillSchedule.periodNoun("nonsense"), "month", "unknown → month")
+    }
+
     section("Schedule — promoNeeded") {
         let c = Card(id: "10", name: "Chase", balance: 2340, hasPromo: true,
                      promoEndDate: "2026-10-01", promoBalance: 2340)

@@ -223,8 +223,8 @@ private struct BillRow: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(bill.name), \(skipped ? "Skipped this month" : A11y.paidStateLabel(state))")
-            .accessibilityHint(A11y.paidStateHint(state, skipped: skipped))
+            .accessibilityLabel("\(bill.name), \(skipped ? "Skipped this \(periodNoun)" : A11y.paidStateLabel(state))")
+            .accessibilityHint(A11y.paidStateHint(state, skipped: skipped, periodNoun: periodNoun))
 
             Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 20))
                 .accessibilityHidden(true)
@@ -245,7 +245,7 @@ private struct BillRow: View {
                 } else if DateLogic.billNotStarted(bill, tz: store.tz) {
                     Text("Starts \(friendlyDate(bill.startDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } else {
-                    Text(skipped ? "⏭ Skipped this month" : dueText)
+                    Text(skipped ? "⏭ Skipped this \(periodNoun)" : dueText)
                         .font(Theme.ui(12))
                         .foregroundStyle(state == .partial ? Theme.orange : Theme.muted)
                 }
@@ -275,7 +275,7 @@ private struct BillRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bill.name), \(Money.fmt(bill.amount)), \(skipped ? "Skipped this month" : dueText)")
+        .accessibilityLabel("\(bill.name), \(Money.fmt(bill.amount)), \(skipped ? "Skipped this \(periodNoun)" : dueText)")
         .accessibilityHint("Double tap to edit")
         .contextMenu {
             if state == .full && !skipped {
@@ -284,9 +284,9 @@ private struct BillRow: View {
                 Button { onPay() } label: { Label("Record payment", systemImage: "checkmark.circle") }
             }
             if skipped {
-                Button { onUnskip() } label: { Label("Un-skip month", systemImage: "arrow.uturn.backward") }
+                Button { onUnskip() } label: { Label("Un-skip \(periodNoun)", systemImage: "arrow.uturn.backward") }
             } else {
-                Button { onSkip() } label: { Label("Skip this month", systemImage: "forward.end") }
+                Button { onSkip() } label: { Label("Skip this \(periodNoun)", systemImage: "forward.end") }
             }
             Button { onEdit() } label: { Label("Edit bill", systemImage: "pencil") }
         }
@@ -306,9 +306,11 @@ private struct BillRow: View {
         }
     }
 
+    private var periodNoun: String { BillSchedule.periodNoun(bill.frequency) }
+
     private var dueText: String {
         switch state {
-        case .full: return "Paid this month"
+        case .full: return "Paid this \(periodNoun)"
         case .partial: return "Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(bill.amount))"
         case .unpaid:
             if let next = BillSchedule.nextDueDate(bill, tz: store.tz) {
