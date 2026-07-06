@@ -11,6 +11,8 @@ const db = require('./db');
 
 let apnsClient = null;
 let fcmReady = false;
+let webPush = null;
+let webPushReady = false;
 
 function money(amount, currency) {
   return new Intl.NumberFormat('en-US', {
@@ -68,10 +70,31 @@ function init() {
       fcmReady = false;
     }
   }
+
+  // Web Push (browser notifications) via VAPID. The public key is also served
+  // to the client (see routes/push.js /config) so it can subscribe.
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    try {
+      webPush = require('web-push');
+      webPush.setVapidDetails(
+        process.env.VAPID_SUBJECT || 'mailto:support@fihaven.app',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY,
+      );
+      webPushReady = true;
+    } catch (e) {
+      console.error('Web push init failed', e && e.message);
+      webPushReady = false;
+    }
+  }
 }
 
 function configured() {
-  return !!(apnsClient || fcmReady);
+  return !!(apnsClient || fcmReady || webPushReady);
+}
+
+function vapidPublicKey() {
+  return webPushReady ? (process.env.VAPID_PUBLIC_KEY || null) : null;
 }
 
 async function sendApns(token, { title, body }) {
@@ -92,7 +115,15 @@ async function sendFcm(token, { title, body }) {
   });
 }
 
+// Web Push (VAPID). The stored token is the JSON PushSubscription the browser
+// handed us at subscribe time; the service worker renders {title, body}.
+async function sendWeb(token, { title, body }) {
+  await webPush.sendNotification(JSON.parse(token), JSON.stringify({ title, body }));
+}
+
 function isStaleTokenError(err) {
+  // Web Push: 404/410 mean the browser subscription is gone — drop it.
+  if (err && (err.statusCode === 404 || err.statusCode === 410)) return true;
   const msg = String((err && err.message) || err || '').toLowerCase();
   const code = err && (err.code || err.reason);
   if (code === 'BadDeviceToken' || code === 'Unregistered') return true;
@@ -117,6 +148,9 @@ async function sendToUser(userId, payload) {
         sent += 1;
       } else if (platform === 'android' && fcmReady) {
         await sendFcm(token, payload);
+        sent += 1;
+      } else if (platform === 'web' && webPushReady) {
+        await sendWeb(token, payload);
         sent += 1;
       }
     } catch (e) {
@@ -178,6 +212,7 @@ init();
 
 module.exports = {
   configured,
+  vapidPublicKey,
   sendToUser,
   sendBillReminderPush,
   sendTrialReminderPush,
