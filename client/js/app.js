@@ -15,6 +15,7 @@ import {
   setMoneyFormat,
 } from './utils.js';
 import { runAutopayMark } from './autopay.js';
+import { openRolloverReview, saveRolloverReview, closeRolloverReview } from './rollover.js';
 
 // Side-effect imports — each renderer self-registers via setRenderer,
 // modals.js wires backdrop handlers + exposes window.* for inline
@@ -162,9 +163,21 @@ function checkNewMonth() {
     var prevLabel = monthKeyLabel(lastMk);
     var currLabel = monthKeyLabel(currentMk);
 
-    var missedHtml = missed.length
-      ? ' <strong>' + missed.length + ' item' + (missed.length !== 1 ? 's' : '') + '</strong> from ' + prevLabel + ' were never marked paid.'
-      : ' Everything from ' + prevLabel + ' was marked paid. Great work!';
+    // Names come from user data, so escape before injecting into innerHTML.
+    var esc = function (s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; };
+
+    var missedHtml;
+    if (missed.length) {
+      var names = missed.map(function (u) { return u.name; }).filter(Boolean);
+      var shown = names.slice(0, 8).map(esc).join(', ');
+      var more  = names.length > 8 ? ' and ' + (names.length - 8) + ' more' : '';
+      missedHtml = ' <strong>' + missed.length + ' item' + (missed.length !== 1 ? 's' : '') + '</strong> from ' +
+        prevLabel + ' ' + (missed.length !== 1 ? 'were' : 'was') + ' never marked paid: ' + shown + more + '.';
+    } else {
+      missedHtml = ' Everything from ' + prevLabel + ' was marked paid. Great work!';
+    }
+
+    var monthName = currLabel.split(' ')[0];
 
     var banner = document.getElementById('new-month-banner');
     banner.className = 'new-month-banner';
@@ -173,11 +186,14 @@ function checkNewMonth() {
       '<div style="display:flex;align-items:center;gap:10px;">' +
         '<span style="font-size:20px;">🗓</span>' +
         '<div>' +
-          '<strong>Welcome to ' + currLabel + '!</strong> ' +
+          '<strong>Welcome to ' + esc(currLabel) + '!</strong> ' +
           'All bills have automatically reset to unpaid.' + missedHtml +
         '</div>' +
       '</div>' +
-      '<button class="btn btn-ghost btn-sm" onclick="dismissBanner()" style="flex-shrink:0;">Dismiss</button>';
+      '<div style="display:flex;gap:8px;flex-shrink:0;">' +
+        '<button class="btn btn-primary btn-sm" onclick="openRolloverReview()">Set ' + esc(monthName) + ' amounts</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="dismissBanner()">Dismiss</button>' +
+      '</div>';
   }
 
   settings.lastVisitKey = currentMk;
@@ -202,6 +218,9 @@ function startApp() {
   showTab(landing);
 }
 
-Object.assign(window, { showTab, dismissBanner, refreshAll });
+Object.assign(window, {
+  showTab, dismissBanner, refreshAll,
+  openRolloverReview, saveRolloverReview, closeRolloverReview,
+});
 
 bootstrapData().then(startApp);
