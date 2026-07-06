@@ -20,6 +20,17 @@ public enum BillSchedule {
         }
     }
 
+    /// Billing-cycle noun for labels like "Paid this quarter". Cards are always monthly.
+    public static func periodNoun(_ frequency: String) -> String {
+        switch frequency {
+        case "Weekly": return "week"
+        case "Bi-weekly": return "cycle"
+        case "Quarterly": return "quarter"
+        case "Annually": return "year"
+        default: return "month"
+        }
+    }
+
     public static func anchor(_ bill: Bill, tz: TimeZone, now: Date = Date()) -> Date {
         if let s = bill.startDate, !s.isEmpty, let d = DateLogic.parseDate(s, tz: tz) {
             return DateLogic.calendar(tz: tz).startOfDay(for: d)
