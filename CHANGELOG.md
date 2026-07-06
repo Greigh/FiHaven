@@ -13,20 +13,21 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-07-03
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-05
 
 | | |
 |---|---|
 | **Status** | Pre-release — **launch candidate** (first public tester wave) |
-| **iOS** | 1.5.0 (5) |
-| **Android** | 1.5.0 (build 14) |
+| **iOS** | 1.5.0 (6) |
+| **Android** | 1.5.0 (build 15) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
 
 > The 1.5.0 launch build: budget lenses and family rollup on every platform,
 > push notifications, smarter Pro tools, and the reliability fixes from builds
-> 3–4. [Jump to technical changelog ↓](#150-technical-changelog)
+> 3–4. Build 6 adds monthly rollover, dashboard editing, browser push, and
+> period-accurate labels. [Jump to technical changelog ↓](#150-technical-changelog)
 
 **Budget & spending (Tier 3)**
 
@@ -84,6 +85,30 @@ Each release below uses two layers:
   and the sign-up screen shows the Terms/Privacy agreement.
 - Stronger Android sign-in security and more reliable iOS TestFlight builds.
 
+**Build 6 — rollover, dashboard editing & browser push**
+
+- **Monthly rollover** — when a new month starts, FiHaven offers to review each
+  bill's amount. A dashboard card names anything from last month that was never
+  marked paid, and the review pre-fills amounts your way: the average of recent
+  months (default), the same as last month, or blank. On web, iOS, and Android.
+- **Edit from the Dashboard** — tap-and-hold (or the ⋯ menu) on a dashboard item
+  to edit the bill or card right there, using the same editor as its main page
+  (iOS and Android).
+- **Right words for non-monthly bills** — a quarterly bill now says "Paid this
+  quarter" and "Skip this quarter" instead of always "this month" (also weekly,
+  bi-weekly, and yearly).
+- **Swipe through the intro** — the onboarding screens are now swipeable on iOS
+  and Android.
+- **Browser notifications** — get bill reminders, digests, and summaries as push
+  notifications in Chrome or Firefox, opt in from web Settings (no app needed).
+- **Bank purchases are opt-in** — importing purchases from a linked bank into
+  Spending is now an explicit toggle, **off by default**; FiHaven stays
+  manual-entry-first (balance sync is still separate and also opt-in).
+- **Clearer notification settings** — iOS and Android split reminders into
+  *On this device*, *Email*, and *Reminder timing*.
+- **Fixes** — closing a bill/card editor no longer jumps to the GitHub page;
+  Settings checkboxes and the Family tab line up correctly.
+
 **Build 5 — launch candidate**
 
 - Tier 3 competitive parity on web, iOS, and Android (native budget lens,
@@ -119,6 +144,56 @@ Each release below uses two layers:
 <a id="150-technical-changelog"></a>
 
 ### Technical changelog
+
+#### Added (build 6)
+
+- **Monthly rollover** — new-month detection (reuses `settings.lastVisitKey`)
+  surfaces a dashboard prompt naming items never marked paid last month, and a
+  review that pre-fills each active bill's amount. New `settings.rolloverPrefill`
+  (`average` | `carry` | `blank`). Shared logic `recentPaymentAverage()` +
+  `rolloverAmount()` in `client/js/utils.js` ⇄ `Schedule.kt` / `Schedule.swift`
+  (+ tests / checks). Web module `client/js/rollover.js`; native
+  `RolloverReviewView` (iOS) / `RolloverReviewDialog` (Android); Settings prefill
+  picker on all three platforms. (#110)
+- **Dashboard inline edit** — an Edit action on dashboard upcoming rows opens the
+  existing editors: iOS `BillEditorView` / `CardEditorView` sheets, Android
+  `BillEditorDialog` / `CardEditorDialog`. (#109)
+- **Period-correct labels** — `billPeriodNoun()` / `BillSchedule.periodNoun()`
+  (`week` / `cycle` / `quarter` / `year` / `month`) mirrored across `billSchedule.js`,
+  `BillSchedule.kt`, `BillSchedule.swift`; threaded through bills lists, dashboard
+  rows, skip/un-skip actions, and iOS accessibility labels;
+  `periodNoun(item)` on `AppStore` / `AppViewModel`. (#108)
+- **Swipeable onboarding** — iOS paged `TabView`; Android `HorizontalPager`. (#107)
+- **Browser web push** — `client/js/webpush.js` (registers `/sw.js`, subscribes
+  with the VAPID key from `GET /api/push/config`, `POST /api/push/register` with
+  CSRF), service worker `client/public/sw.js`, and Settings enable/disable UI.
+  Server: VAPID init + `sendWeb()` (`web-push`), `platform='web'` in `sendToUser`,
+  `GET /api/push/config`, 404/410 stale-subscription cleanup; `VAPID_PUBLIC_KEY` /
+  `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` env (documented in `.env.example`; no-op
+  until set). (#112)
+
+#### Changed (build 6)
+
+- **iOS build 6 / Android build 15** — `CURRENT_PROJECT_VERSION` 6; `versionCode` 15.
+- **Bank purchase import is opt-in** — `mergePlaidTransactions` is now gated on
+  `settings.plaidUpdatePurchases` (off by default) in `server/routes/plaid.js`;
+  previously it ran on every sync. Settings gains the toggle. (#113)
+- **Native notification settings** — regrouped into *On this device* / *Email* /
+  *Reminder timing* on iOS (`SettingsView`) and Android (`SettingsScreen`); same
+  toggles and stored settings. (#111)
+
+#### Fixed (build 6)
+
+- **Web modal Cancel/Save navigated to GitHub** — an unclosed footer anchor
+  (`GitHub/a>`) left the `<a>` open and swallowed the modals; buttons followed the
+  link. Closed the tag across all 14 client pages. (#105)
+- **Settings form styling** — excluded checkbox/radio inputs from the
+  `.auth-field input` text-field styling (alignment), scoped Family-tab
+  input/select styling, and set the autopay row to `display:flex`. (#106)
+- **Android implicit PendingIntents (CodeQL #35)** — inline explicit
+  `setClassName` + `setPackage` at each `PendingIntent` construction in
+  `NotificationScheduler` / `BillReminderReceiver`; removed the `ExplicitIntents`
+  helper CodeQL couldn't trace (`java/android/implicit-pendingintents`). (#104)
 
 #### Added
 
