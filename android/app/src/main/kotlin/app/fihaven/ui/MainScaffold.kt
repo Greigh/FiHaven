@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.fihaven.core.model.Bill
+import app.fihaven.core.model.Card
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.dashboardWidgets
 import app.fihaven.core.model.landingView
@@ -241,6 +243,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     var paying by remember { mutableStateOf<UpcomingItem?>(null) }
     // A pending "skip a card you still owe on" confirmation.
     var skipConfirm by remember { mutableStateOf<Pair<UpcomingItem, String>?>(null) }
+    var editingBill by remember { mutableStateOf<Bill?>(null) }
+    var editingCard by remember { mutableStateOf<Card?>(null) }
 
     // Skip an upcoming item — but for a card you still owe on, confirm first.
     val requestSkip: (UpcomingItem) -> Unit = { item ->
@@ -372,6 +376,12 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
                                                 onPay = { paying = item },
                                                 onSkip = { requestSkip(item) },
                                                 onUnskip = { vm.unskip(item.type, item.refId) },
+                                                onEdit = {
+                                                    if (item.type == "bill")
+                                                        editingBill = data.bills.firstOrNull { it.id.toString() == item.refId }
+                                                    else
+                                                        editingCard = data.cards.firstOrNull { it.id.toString() == item.refId }
+                                                },
                                             )
                                         }
                                     }
@@ -385,6 +395,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     }
 
     paying?.let { PayDialog(vm, it.type, it.refId, it.name) { paying = null } }
+    editingBill?.let { BillEditorDialog(it, vm, onDismiss = { editingBill = null }) }
+    editingCard?.let { CardEditorDialog(it, vm, onDismiss = { editingCard = null }) }
 
     skipConfirm?.let { (item, warning) ->
         AlertDialog(
@@ -588,6 +600,7 @@ private fun UpcomingRow(
     onPay: () -> Unit,
     onSkip: () -> Unit,
     onUnskip: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val c = Ct.colors
     var menuOpen by remember { mutableStateOf(false) }
@@ -623,6 +636,7 @@ private fun UpcomingRow(
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("Pay") }, onClick = { menuOpen = false; onPay() })
+            DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onEdit() })
             if (skipped) {
                 DropdownMenuItem(text = { Text("Un-skip $periodNoun") }, onClick = { menuOpen = false; onUnskip() })
             } else {
