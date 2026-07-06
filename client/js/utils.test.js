@@ -21,6 +21,8 @@ import {
   paymentHistoryFor,
   daysSinceLastPayment,
   paymentStats,
+  recentPaymentAverage,
+  rolloverAmount,
   buildUpcomingItems,
   monthKey,
   monthLabel,
@@ -291,6 +293,23 @@ describe('utils — payment history & stats', () => {
     expect(s.avg).toBeCloseTo(150);
     expect(s.amounts).toEqual([100, 150, 200]); // oldest → newest
     expect(paymentStats('card', 'nope')).toBe(null);
+  });
+
+  it('recentPaymentAverage returns the mean of recent payments, or null', () => {
+    expect(recentPaymentAverage('card', 'C1')).toBeCloseTo(150);
+    expect(recentPaymentAverage('card', 'nope')).toBe(null);
+  });
+
+  it('rolloverAmount seeds new-period amounts per policy', () => {
+    // average → the recent average, falling back to the current amount
+    expect(rolloverAmount('average', 90, 150)).toBe(150);
+    expect(rolloverAmount('average', 90, null)).toBe(90);
+    expect(rolloverAmount('average', 90, 0)).toBe(90);
+    // carry keeps the current amount; blank clears it
+    expect(rolloverAmount('carry', 90, 150)).toBe(90);
+    expect(rolloverAmount('blank', 90, 150)).toBe(0);
+    // unknown mode falls back to the average behavior
+    expect(rolloverAmount('nonsense', 90, 150)).toBe(150);
   });
 
   it('daysSinceLastPayment is null with no history, positive otherwise', () => {
