@@ -367,26 +367,44 @@ struct SettingsView: View {
     private static let leadDayChoices = [0, 1, 2, 3, 5, 7, 10, 14]
 
     private var notificationsSection: some View {
-        Section("Notifications") {
-            // On-device reminders (local notifications).
-            Toggle("Remind me on this device", isOn: Binding(
-                get: { store.data.settings.localNotifications },
-                set: { store.setLocalNotifications($0) }
-            )).tint(Theme.accent)
+        Group {
+            // On-device reminders (local notifications + server push).
+            Section("On this device") {
+                Toggle("Remind me on this device", isOn: Binding(
+                    get: { store.data.settings.localNotifications },
+                    set: { store.setLocalNotifications($0) }
+                )).tint(Theme.accent)
 
-            Toggle("Push notifications", isOn: Binding(
-                get: { store.data.settings.pushNotifications },
-                set: { store.setPushNotifications($0) }
-            )).tint(Theme.accent)
+                Toggle("Push notifications", isOn: Binding(
+                    get: { store.data.settings.pushNotifications },
+                    set: { store.setPushNotifications($0) }
+                )).tint(Theme.accent)
+
+                Text("On-device reminders work offline. Push needs the app installed — the web can't register a device token.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
 
             // Email reminders (server scheduler).
-            Toggle("Email me bill reminders", isOn: Binding(
-                get: { store.data.settings.billReminders },
-                set: { store.setBillReminders($0) }
-            )).tint(Theme.accent)
+            Section("Email") {
+                Toggle("Email me bill reminders", isOn: Binding(
+                    get: { store.data.settings.billReminders },
+                    set: { store.setBillReminders($0) }
+                )).tint(Theme.accent)
+                Toggle("Weekly digest email", isOn: Binding(
+                    get: { store.data.settings.weeklyDigest },
+                    set: { store.setWeeklyDigest($0) }
+                )).tint(Theme.accent)
+                Toggle("Monthly summary email", isOn: Binding(
+                    get: { store.data.settings.monthlySummary },
+                    set: { store.setMonthlySummary($0) }
+                )).tint(Theme.accent)
 
-            // Shared reminder options (apply to both device + email reminders).
-            if store.data.settings.localNotifications || store.data.settings.billReminders {
+                Text("Emails go to your verified address. The weekly digest sends Mondays; the monthly summary on the 1st.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
+
+            // Shared timing — applies to both on-device and email reminders.
+            Section("Reminder timing") {
                 Picker("Remind me", selection: Binding(
                     get: { store.data.settings.reminderLeadDays },
                     set: { store.setReminderLeadDays($0) }
@@ -400,24 +418,6 @@ struct SettingsView: View {
                     get: { store.data.settings.remindOnDueDay },
                     set: { store.setRemindOnDueDay($0) }
                 )).tint(Theme.accent)
-            }
-
-            Toggle("Weekly digest email", isOn: Binding(
-                get: { store.data.settings.weeklyDigest },
-                set: { store.setWeeklyDigest($0) }
-            )).tint(Theme.accent)
-            Toggle("Monthly summary email", isOn: Binding(
-                get: { store.data.settings.monthlySummary },
-                set: { store.setMonthlySummary($0) }
-            )).tint(Theme.accent)
-            Toggle("Card offer reminders", isOn: Binding(
-                get: { store.data.settings.offerReminders },
-                set: { store.setOfferReminders($0) }
-            )).tint(Theme.accent)
-
-            // Send hour (applies to email + on-device reminders).
-            if store.data.settings.localNotifications || store.data.settings.billReminders
-                || store.data.settings.weeklyDigest || store.data.settings.monthlySummary {
                 Picker("Send at", selection: Binding(
                     get: { store.data.settings.notifyHour },
                     set: { store.setNotifyHour($0) }
@@ -427,10 +427,14 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-            }
+                Toggle("Card offer reminders", isOn: Binding(
+                    get: { store.data.settings.offerReminders },
+                    set: { store.setOfferReminders($0) }
+                )).tint(Theme.accent)
 
-            Text("On-device reminders work offline. Emails go to your verified address. The weekly digest sends Mondays; the monthly summary on the 1st — all in your time zone.")
-                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("These apply to both on-device and email reminders, and fire in your time zone.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
         }
     }
 
