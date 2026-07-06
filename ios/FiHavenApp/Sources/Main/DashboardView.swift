@@ -163,7 +163,8 @@ struct DashboardView: View {
                             paidSoFar: store.paidAmount(item),
                             goal: store.goalAmount(item),
                             remaining: store.remaining(item),
-                            tz: store.tz
+                            tz: store.tz,
+                            periodNoun: store.periodNoun(item)
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { paying = PayTarget(item) }
@@ -173,11 +174,11 @@ struct DashboardView: View {
                             }
                             if store.isSkipped(item) {
                                 Button { store.unskip(type: item.type, refId: item.refId) } label: {
-                                    Label("Un-skip month", systemImage: "arrow.uturn.backward")
+                                    Label("Un-skip \(store.periodNoun(item))", systemImage: "arrow.uturn.backward")
                                 }
                             } else {
                                 Button { requestSkip(item) } label: {
-                                    Label("Skip this month", systemImage: "forward.end")
+                                    Label("Skip this \(store.periodNoun(item))", systemImage: "forward.end")
                                 }
                             }
                         }
@@ -196,6 +197,7 @@ private struct UpcomingRow: View {
     let goal: Double
     let remaining: Double
     let tz: TimeZone
+    var periodNoun: String = "month"
 
     var body: some View {
         HStack(spacing: 12) {
@@ -257,7 +259,7 @@ private struct UpcomingRow: View {
 
     private var dueLabel: String {
         switch state {
-        case .full: return "Paid this month"
+        case .full: return "Paid this \(periodNoun)"
         case .partial: return "Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))"
         case .unpaid: break
         }

@@ -19,6 +19,15 @@ object BillSchedule {
         else -> Spec("month", 1)
     }
 
+    /** Billing-cycle noun for labels like "Paid this quarter". Cards are always monthly. */
+    fun periodNoun(frequency: String): String = when (frequency) {
+        "Weekly" -> "week"
+        "Bi-weekly" -> "cycle"
+        "Quarterly" -> "quarter"
+        "Annually" -> "year"
+        else -> "month"
+    }
+
     fun anchor(bill: Bill, zone: ZoneId, now: java.time.Instant = java.time.Instant.now()): LocalDate {
         bill.startDate?.takeIf { it.isNotEmpty() }?.let { DateLogic.parseDate(it) }?.let { return it }
         val dd = bill.dueDay ?: 1

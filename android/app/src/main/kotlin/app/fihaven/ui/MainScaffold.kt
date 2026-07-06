@@ -368,6 +368,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
                                                 goal = vm.goalAmount(item),
                                                 remaining = vm.remainingFor(item),
                                                 skipped = vm.isSkipped(item),
+                                                periodNoun = vm.periodNoun(item),
                                                 onPay = { paying = item },
                                                 onSkip = { requestSkip(item) },
                                                 onUnskip = { vm.unskip(item.type, item.refId) },
@@ -388,7 +389,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     skipConfirm?.let { (item, warning) ->
         AlertDialog(
             onDismissRequest = { skipConfirm = null },
-            title = { Text("Skip this month?") },
+            title = { Text("Skip this ${vm.periodNoun(item)}?") },
             text = { Text(warning) },
             confirmButton = {
                 TextButton(onClick = {
@@ -583,6 +584,7 @@ private fun UpcomingRow(
     goal: Double,
     remaining: Double,
     skipped: Boolean,
+    periodNoun: String = "month",
     onPay: () -> Unit,
     onSkip: () -> Unit,
     onUnskip: () -> Unit,
@@ -597,7 +599,7 @@ private fun UpcomingRow(
         else -> c.muted
     }
     val label = when (state) {
-        PaidState.FULL -> "Paid this month"
+        PaidState.FULL -> "Paid this $periodNoun"
         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
         PaidState.UNPAID -> dueLabel(item, false)
     }
@@ -622,9 +624,9 @@ private fun UpcomingRow(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("Pay") }, onClick = { menuOpen = false; onPay() })
             if (skipped) {
-                DropdownMenuItem(text = { Text("Un-skip month") }, onClick = { menuOpen = false; onUnskip() })
+                DropdownMenuItem(text = { Text("Un-skip $periodNoun") }, onClick = { menuOpen = false; onUnskip() })
             } else {
-                DropdownMenuItem(text = { Text("Skip this month") }, onClick = { menuOpen = false; onSkip() })
+                DropdownMenuItem(text = { Text("Skip this $periodNoun") }, onClick = { menuOpen = false; onSkip() })
             }
         }
     }
