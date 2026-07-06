@@ -246,11 +246,14 @@ object NotificationScheduler {
         title: String? = null,
         body: String? = null,
     ): PendingIntent {
-        val intent = explicitIntent(context, BillReminderReceiver::class.java) {
-            putExtra("code", code)
-            title?.let { putExtra("title", it) }
-            body?.let { putExtra("body", it) }
-        }
+        // Explicit destination set inline via direct setters (no helper / `apply`)
+        // so CodeQL's implicit-PendingIntent dataflow sees the fixed component.
+        val intent = Intent()
+        intent.setClassName(context.packageName, BillReminderReceiver::class.java.name)
+        intent.setPackage(context.packageName)
+        intent.putExtra("code", code)
+        title?.let { intent.putExtra("title", it) }
+        body?.let { intent.putExtra("body", it) }
         return PendingIntent.getBroadcast(
             context, code, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -261,9 +264,12 @@ object NotificationScheduler {
     fun showImmediate(context: Context, title: String, body: String) {
         ensureChannel(context)
         val code = (title + body).hashCode()
-        val launch = explicitIntent(context, MainActivity::class.java) {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        // Explicit destination set inline via direct setters (no helper / `apply`)
+        // so CodeQL's implicit-PendingIntent dataflow sees the fixed component.
+        val launch = Intent()
+        launch.setClassName(context.packageName, MainActivity::class.java.name)
+        launch.setPackage(context.packageName)
+        launch.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         val contentPi = PendingIntent.getActivity(
             context, code, launch,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,

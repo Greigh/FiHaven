@@ -20,9 +20,12 @@ class BillReminderReceiver : BroadcastReceiver() {
 
         NotificationScheduler.ensureChannel(context)
 
-        val launch = explicitIntent(context, MainActivity::class.java) {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        // Explicit destination set inline via direct setters (no helper / `apply`)
+        // so CodeQL's implicit-PendingIntent dataflow sees the fixed component.
+        val launch = Intent()
+        launch.setClassName(context.packageName, MainActivity::class.java.name)
+        launch.setPackage(context.packageName)
+        launch.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         val contentPi = PendingIntent.getActivity(
             context, code, launch,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
