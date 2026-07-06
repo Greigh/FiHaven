@@ -1791,6 +1791,29 @@ import {
       });
     }
 
+    // Opt-in: import bank outflows into Spending. Off by default; FiHaven is
+    // manual-entry-first, so nothing is imported unless this is on.
+    var purchasesToggle = card.querySelector('[data-plaid-purchases-toggle]');
+    if (purchasesToggle) {
+      fetchData().then(function (server) {
+        purchasesToggle.checked = !!((server && server.settings) || {}).plaidUpdatePurchases;
+      }).catch(function () { /* leave unchecked */ });
+      purchasesToggle.addEventListener('change', function () {
+        showMessage('plaid', 'Saving…', false);
+        fetchData().then(function (server) {
+          return pushData({
+            bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { plaidUpdatePurchases: purchasesToggle.checked }),
+          });
+        }).then(function () {
+          showMessage('plaid', 'Saved.', false);
+        }).catch(function (err) {
+          purchasesToggle.checked = !purchasesToggle.checked;
+          showMessage('plaid', (err && err.message) || errorText('network'), true);
+        });
+      });
+    }
+
     // Persist the link token across the OAuth full-page redirect so
     // /plaid-oauth can resume the flow. Shared key with plaid-oauth.js.
     function stashOauth(o) { try { localStorage.setItem('fh_plaid_oauth', JSON.stringify(o)); } catch (_) { /* ignore */ } }
