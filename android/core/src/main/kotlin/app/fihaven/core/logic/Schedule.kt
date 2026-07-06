@@ -121,6 +121,28 @@ object Schedule {
         payments.filter { !it.skipped && it.type == type && it.refId == refId && bounds.contains(it) }
             .sumOf { it.amount }
 
+    // ── Monthly rollover ────────────────────────────────────────────
+    /** Average of a bill/card's recent (non-skip) payment amounts — the
+     *  "average of recent months" seed for the rollover review. Null when
+     *  there's no history to average. Mirrors recentPaymentAverage in utils.js. */
+    fun recentPaymentAverage(payments: List<Payment>, type: String, refId: String, n: Int = 6): Double? {
+        val recent = payments
+            .filter { !it.skipped && it.type == type && it.refId == refId }
+            .sortedByDescending { it.date }
+            .take(n)
+        if (recent.isEmpty()) return null
+        return recent.sumOf { it.amount } / recent.size
+    }
+
+    /** Amount to pre-fill for a bill when a new period starts, under the active
+     *  policy: "average" (default) → recentAvg (else current); "carry" →
+     *  current; "blank" → 0. Mirrors rolloverAmount in utils.js. */
+    fun rolloverAmount(mode: String, currentAmount: Double, recentAvg: Double?): Double = when (mode) {
+        "carry" -> currentAmount
+        "blank" -> 0.0
+        else -> if (recentAvg != null && recentAvg.isFinite() && recentAvg > 0) recentAvg else currentAmount
+    }
+
     fun goalAmount(
         card: Card,
         policy: PaidGoalPolicy,

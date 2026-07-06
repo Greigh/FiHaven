@@ -272,6 +272,32 @@ export function paymentStats(type, refId, n) {
   return { count: amounts.length, min: min, max: max, avg: avg, amounts: amounts.slice().reverse() };
 }
 
+// The average of a bill/card's recent actual (non-skip) payments — the
+// "average of recent months" used to seed the monthly rollover review.
+// Returns null when there's no payment history to average.
+export function recentPaymentAverage(type, refId, n) {
+  var stats = paymentStats(type, refId, n || 6);
+  return stats ? stats.avg : null;
+}
+
+// The amount to pre-fill for a bill when a new period starts, under the
+// active rollover policy:
+//   'average' → the average of recent payments (falls back to the current
+//               amount when there's no history to average) — the default
+//   'carry'   → the bill's current amount, unchanged
+//   'blank'   → 0, so the user types the real figure as they learn it
+// `recentAvg` is supplied by the caller (see recentPaymentAverage).
+export function rolloverAmount(mode, currentAmount, recentAvg) {
+  var cur = parseFloat(currentAmount) || 0;
+  switch (mode) {
+    case 'carry': return cur;
+    case 'blank': return 0;
+    case 'average':
+    default:
+      return (typeof recentAvg === 'number' && isFinite(recentAvg) && recentAvg > 0) ? recentAvg : cur;
+  }
+}
+
 export function monthsUntil(dateStr) {
   if (!dateStr) return 0;
   var end = new Date(dateStr);
