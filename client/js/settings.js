@@ -428,6 +428,9 @@ import {
     /* ── Payment goal policy ───────────────────────────────── */
     initPaymentGoalSection();
 
+    /* ── Monthly rollover pre-fill ─────────────────────────── */
+    initRolloverSection();
+
     /* ── Dashboard display ─────────────────────────────────── */
     initDashboardSection();
 
@@ -910,6 +913,62 @@ import {
         .catch(function (err) {
           setBusy(form, false);
           showMessage('paidgoal', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  function initRolloverSection() {
+    var form   = document.querySelector('[data-form="rollover"]');
+    var select = document.querySelector('[data-rollover-prefill]');
+    var noteEl = document.querySelector('[data-rollover-effective]');
+    if (!form || !select) return;
+
+    var DESCRIPTIONS = {
+      average: 'Each bill starts at the average of its recent payments — a smart estimate for bills that vary.',
+      carry:   'Each bill starts at the same amount as last month.',
+      blank:   'Each bill starts blank so you fill in the real figure.',
+    };
+    function normalize(v) {
+      return (v === 'carry' || v === 'blank') ? v : 'average';
+    }
+    function describe(v) {
+      if (noteEl) noteEl.textContent = DESCRIPTIONS[normalize(v)];
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        select.value = normalize(s.rolloverPrefill);
+        describe(select.value);
+      })
+      .catch(function () { describe(select.value); });
+
+    select.addEventListener('change', function () { describe(select.value); });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var chosen = normalize(select.value);
+      setBusy(form, true);
+      showMessage('rollover', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { rolloverPrefill: chosen }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('rollover', 'Rollover setting saved.', false);
+          describe(chosen);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('rollover', (err && err.message) || errorText('network'), true);
         });
     });
   }

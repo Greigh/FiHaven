@@ -450,6 +450,21 @@
   </div>
 </div>
 
+<!-- ═══ MONTHLY ROLLOVER REVIEW ══════════════════════════ -->
+<div class="modal-overlay" id="rollover-modal">
+  <div class="modal" style="max-width:460px;">
+    <h2>Review this month's bill amounts</h2>
+    <p style="color:var(--muted);font-size:14px;margin:6px 0 14px;line-height:1.5;">
+      Pre-filled from your rollover setting. Adjust any that changed, then save — leave a field blank to keep that bill as-is.
+    </p>
+    <div id="rollover-body" style="max-height:52vh;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" type="button" onclick="closeRolloverReview()">Cancel</button>
+      <button class="btn btn-primary" type="button" onclick="saveRolloverReview()">Save amounts</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ TOAST ════════════════════════════════════════════ -->
 <div id="toast"></div>
 

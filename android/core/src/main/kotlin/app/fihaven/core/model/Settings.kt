@@ -27,6 +27,10 @@ val JsonObject.theme: String? get() = prim("theme")?.contentOrNull
 /// bill/card counts as fully paid. Parse via PaidGoalPolicy.from.
 val JsonObject.paidGoal: String? get() = prim("paidGoal")?.contentOrNull
 
+/// Monthly-rollover pre-fill policy: "average" (default) | "carry" | "blank".
+val JsonObject.rolloverPrefill: String
+    get() = prim("rolloverPrefill")?.contentOrNull?.takeIf { it == "carry" || it == "blank" } ?: "average"
+
 /// Budget-period mode: "calendar" | "startDay" | "rolling" (see Period).
 val JsonObject.periodMode: String? get() = prim("periodMode")?.contentOrNull
 /// Day-of-month a "startDay" period begins on (1–28).

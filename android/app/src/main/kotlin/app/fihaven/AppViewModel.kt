@@ -41,6 +41,8 @@ import app.fihaven.core.model.withIncomeAdjustments
 import app.fihaven.core.model.withIncomes
 import app.fihaven.core.model.withPaidGoal
 import app.fihaven.core.model.withSetting
+import app.fihaven.core.model.rolloverPrefill
+import app.fihaven.core.model.lastVisitKey
 import app.fihaven.core.model.withTimezone
 import app.fihaven.core.Money
 import kotlinx.serialization.json.JsonPrimitive
@@ -363,6 +365,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _syncState.value = SyncState.Saved
             refreshNotifications()
             refreshPush()
+            checkNewMonth()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
@@ -774,6 +777,62 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val prev = Period.shift(bounds, -1, cfg)
         val nextSettings = BudgetRules.applyEnvelopeRollover(settings, data.transactions, prev)
         return if (nextSettings == settings) data else data.copy(settings = nextSettings)
+    }
+
+    // ── Monthly rollover ────────────────────────────────────────────
+    data class RolloverPrompt(val prevLabel: String, val currLabel: String, val missedNames: List<String>)
+
+    private val _rolloverPrompt = MutableStateFlow<RolloverPrompt?>(null)
+    val rolloverPrompt: StateFlow<RolloverPrompt?> = _rolloverPrompt.asStateFlow()
+
+    /** New-month detection (mirrors the web's checkNewMonth): when the calendar
+     *  month has advanced since the last visit, surface the rollover prompt with
+     *  the items that were never marked paid, then record the new month so it
+     *  fires only once. */
+    fun checkNewMonth() {
+        val d = _data.value
+        val zone = DateLogic.zone(d.settings.timezoneSetting)
+        val currentMk = DateLogic.monthKey(DateLogic.today(zone))
+        val lastMk = d.settings.lastVisitKey
+        if (!lastMk.isNullOrBlank() && lastMk != currentMk) {
+            val missed = buildList {
+                d.bills.filter { (it.dueDay != null || it.startDate != null) && DateLogic.billActive(it, zone) }
+                    .forEach { if (!Schedule.isPaid(d.payments, "bill", it.id, lastMk)) add(it.name) }
+                d.cards.filter { it.dueDay != null }
+                    .forEach { if (!Schedule.isPaid(d.payments, "card", it.id, lastMk)) add(it.name) }
+            }
+            _rolloverPrompt.value = RolloverPrompt(
+                DateLogic.monthKeyLabel(lastMk), DateLogic.monthKeyLabel(currentMk), missed,
+            )
+        }
+        if (lastMk != currentMk) {
+            mutate { it.copy(settings = it.settings.withSetting("lastVisitKey", JsonPrimitive(currentMk))) }
+        }
+    }
+
+    fun dismissRolloverPrompt() { _rolloverPrompt.value = null }
+
+    fun setRolloverPrefill(mode: String) =
+        mutate { it.copy(settings = it.settings.withSetting("rolloverPrefill", JsonPrimitive(mode))) }
+
+    /** Bills active in the current period — the rows shown in the rollover review. */
+    fun rolloverBills(): List<Bill> {
+        val d = _data.value
+        val zone = DateLogic.zone(d.settings.timezoneSetting)
+        return d.bills.filter { (it.dueDay != null || it.startDate != null) && DateLogic.billActive(it, zone) }
+    }
+
+    /** Pre-filled amount for a bill under the active rollover policy. */
+    fun rolloverPrefillAmount(bill: Bill): Double {
+        val d = _data.value
+        val avg = Schedule.recentPaymentAverage(d.payments, "bill", bill.id)
+        return Schedule.rolloverAmount(d.settings.rolloverPrefill, bill.amount, avg)
+    }
+
+    /** Apply reviewed amounts (billId → amount) to the matching bills. */
+    fun applyRolloverAmounts(amounts: Map<String, Double>) {
+        if (amounts.isEmpty()) return
+        mutate { d -> d.copy(bills = d.bills.map { b -> amounts[b.id]?.let { b.copy(amount = it) } ?: b }) }
     }
 
     fun deletePayment(payment: Payment) = mutate { d ->

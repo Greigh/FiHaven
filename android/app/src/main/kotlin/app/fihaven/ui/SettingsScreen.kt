@@ -84,6 +84,7 @@ import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.monthlySummary
 import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.paidGoal
+import app.fihaven.core.model.rolloverPrefill
 import app.fihaven.core.model.reminderLeadDays
 import app.fihaven.core.model.remindOnDueDay
 import app.fihaven.core.model.weeklyDigest
@@ -262,6 +263,13 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     PaidGoalPicker(PaidGoalPolicy.from(data.settings.paidGoal)) { vm.setPaidGoal(it) }
                     Text(
                         "How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+                    )
+                    HorizontalDivider(color = Ct.colors.border)
+                    RolloverPrefillPicker(data.settings.rolloverPrefill) { vm.setRolloverPrefill(it) }
+                    Text(
+                        "When a new month starts, how each bill's amount is pre-filled in the review. Average uses your recent payments.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
                     )
@@ -555,6 +563,39 @@ private fun PaidGoalPicker(current: PaidGoalPolicy, onSelect: (PaidGoalPolicy) -
                         .background(if (selected) Ct.colors.accent else Ct.colors.bg)
                         .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(8.dp))
                         .clickable { onSelect(policy) }
+                        .padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RolloverPrefillPicker(current: String, onSelect: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text("New month bill amounts", color = Ct.colors.text, fontSize = 16.sp)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf(
+                "average" to "Average",
+                "carry" to "Same",
+                "blank" to "Blank",
+            ).forEach { (mode, label) ->
+                val selected = mode == current
+                Text(
+                    label,
+                    color = if (selected) Color.White else Ct.colors.text,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) Ct.colors.accent else Ct.colors.bg)
+                        .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(mode) }
                         .padding(vertical = 10.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )

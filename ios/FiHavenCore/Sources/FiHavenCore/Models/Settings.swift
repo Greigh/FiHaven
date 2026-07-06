@@ -68,6 +68,15 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["paidGoal"] = newValue.map { .string($0) } ?? .null }
     }
 
+    /// Monthly-rollover pre-fill policy: "average" (default) | "carry" | "blank".
+    public var rolloverPrefill: String {
+        get {
+            let v = raw["rolloverPrefill"]?.asString
+            return (v == "carry" || v == "blank") ? v! : "average"
+        }
+        set { raw["rolloverPrefill"] = .string(newValue) }
+    }
+
     /// Budget-period mode: "calendar" | "startDay" | "rolling" (see Period).
     public var periodMode: String? {
         get { raw["periodMode"]?.asString }
