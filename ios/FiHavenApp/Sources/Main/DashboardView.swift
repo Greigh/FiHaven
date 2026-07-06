@@ -7,6 +7,8 @@ struct DashboardView: View {
     @EnvironmentObject var store: AppStore
     @State private var paying: PayTarget?
     @State private var skipPrompt: SkipPrompt?
+    @State private var editingBill: Bill?
+    @State private var editingCard: Card?
 
     /// A pending "skip a card you still owe on" confirmation.
     private struct SkipPrompt: Identifiable {
@@ -37,6 +39,8 @@ struct DashboardView: View {
             }
         }
         .sheet(item: $paying) { target in PayView(target: target) }
+        .sheet(item: $editingBill) { bill in BillEditorView(bill: bill) }
+        .sheet(item: $editingCard) { card in CardEditorView(card: card) }
         .alert(
             "Skip this month?",
             isPresented: Binding(get: { skipPrompt != nil }, set: { if !$0 { skipPrompt = nil } }),
@@ -171,6 +175,15 @@ struct DashboardView: View {
                         .contextMenu {
                             Button { paying = PayTarget(item) } label: {
                                 Label("Pay", systemImage: "dollarsign.circle")
+                            }
+                            Button {
+                                if item.type == "bill" {
+                                    editingBill = store.data.bills.first { String($0.id) == item.refId }
+                                } else {
+                                    editingCard = store.data.cards.first { String($0.id) == item.refId }
+                                }
+                            } label: {
+                                Label(item.type == "bill" ? "Edit bill" : "Edit card", systemImage: "pencil")
                             }
                             if store.isSkipped(item) {
                                 Button { store.unskip(type: item.type, refId: item.refId) } label: {
