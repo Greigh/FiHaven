@@ -284,6 +284,24 @@ struct SettingsView: View {
             Text("How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text("New month bill amounts")
+                    .font(Theme.ui(15))
+                    .foregroundStyle(Theme.text)
+                Picker("", selection: Binding(
+                    get: { store.data.settings.rolloverPrefill },
+                    set: { store.setRolloverPrefill($0) }
+                )) {
+                    Text("Average").tag("average")
+                    Text("Same").tag("carry")
+                    Text("Blank").tag("blank")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text("When a new month starts, how each bill's amount is pre-filled in the review. Average uses your recent payments.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
             Picker("Budget period", selection: Binding(
                 get: { store.data.settings.periodMode ?? "calendar" },
                 set: { store.setPeriodMode($0) }

@@ -36,6 +36,11 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -245,6 +250,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     var skipConfirm by remember { mutableStateOf<Pair<UpcomingItem, String>?>(null) }
     var editingBill by remember { mutableStateOf<Bill?>(null) }
     var editingCard by remember { mutableStateOf<Card?>(null) }
+    var rolloverReview by remember { mutableStateOf(false) }
+    val rolloverPrompt by vm.rolloverPrompt.collectAsStateWithLifecycle()
 
     // Skip an upcoming item — but for a card you still owe on, confirm first.
     val requestSkip: (UpcomingItem) -> Unit = { item ->
@@ -315,6 +322,15 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            rolloverPrompt?.let { rp ->
+                item {
+                    RolloverPromptCard(
+                        prompt = rp,
+                        onReview = { rolloverReview = true },
+                        onDismiss = { vm.dismissRolloverPrompt() },
+                    )
+                }
+            }
             val widgetIds = if (data.settings.dashboardLayout == "widgets")
                 DashboardWidgets.enabled(data.settings) else listOf("stats", "upcoming")
             widgetIds.forEach { id ->
@@ -397,6 +413,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     paying?.let { PayDialog(vm, it.type, it.refId, it.name) { paying = null } }
     editingBill?.let { BillEditorDialog(it, vm, onDismiss = { editingBill = null }) }
     editingCard?.let { CardEditorDialog(it, vm, onDismiss = { editingCard = null }) }
+    if (rolloverReview) RolloverReviewDialog(vm, onDismiss = { rolloverReview = false })
 
     skipConfirm?.let { (item, warning) ->
         AlertDialog(
@@ -657,4 +674,87 @@ private fun dueLabel(item: UpcomingItem, paid: Boolean): String {
         else -> "Due in ${item.days} days"
     }
     return item.nextDue?.let { "$base · ${shortDate.format(it)}" } ?: base
+}
+
+// ── Monthly rollover ────────────────────────────────────────────────
+@Composable
+private fun RolloverPromptCard(
+    prompt: AppViewModel.RolloverPrompt,
+    onReview: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CtCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("🗓", fontSize = 22.sp, modifier = Modifier.padding(end = 10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Welcome to ${prompt.currLabel}!", color = Ct.colors.text,
+                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                val missedText = if (prompt.missedNames.isEmpty()) {
+                    "Everything from ${prompt.prevLabel} was marked paid. Great work!"
+                } else {
+                    val shown = prompt.missedNames.take(6).joinToString(", ")
+                    val more = if (prompt.missedNames.size > 6) " and ${prompt.missedNames.size - 6} more" else ""
+                    "${prompt.missedNames.size} from ${prompt.prevLabel} never marked paid: $shown$more."
+                }
+                Text(missedText, color = Ct.colors.muted, fontSize = 12.sp)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onDismiss) { Text("Dismiss", color = Ct.colors.muted) }
+            Button(onClick = onReview, colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent)) {
+                Text("Set ${prompt.currLabel.substringBefore(' ')} amounts")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RolloverReviewDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val bills = remember { vm.rolloverBills() }
+    val amounts = remember {
+        mutableStateMapOf<String, String>().apply {
+            bills.forEach { b ->
+                val pre = vm.rolloverPrefillAmount(b)
+                put(b.id, if (pre > 0) String.format(Locale.US, "%.2f", pre) else "")
+            }
+        }
+    }
+    FormDialog(
+        title = "Review this month's bills",
+        saveLabel = "Save amounts",
+        onSave = {
+            val map = bills.mapNotNull { b ->
+                amounts[b.id]?.trim()?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()?.let { b.id to it }
+            }.toMap()
+            vm.applyRolloverAmounts(map)
+            onDismiss()
+        },
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            "Pre-filled from your rollover setting. Adjust any that changed — leave a field blank to keep that bill as-is.",
+            color = Ct.colors.muted, fontSize = 13.sp,
+        )
+        if (bills.isEmpty()) {
+            Text("No active bills to review.", color = Ct.colors.muted, fontSize = 14.sp)
+        } else {
+            bills.forEach { b ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(b.name, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = amounts[b.id] ?: "",
+                        onValueChange = { v -> amounts[b.id] = v.filter { it.isDigit() || it == '.' } },
+                        prefix = { Text("$") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.width(130.dp),
+                    )
+                }
+            }
+        }
+    }
 }

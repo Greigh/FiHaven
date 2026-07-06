@@ -169,6 +169,32 @@ public enum Schedule {
             .reduce(0) { $0 + $1.amount }
     }
 
+    // ── Monthly rollover ────────────────────────────────────────────
+    /// Average of a bill/card's recent (non-skip) payment amounts — the
+    /// "average of recent months" seed for the rollover review. Nil when
+    /// there's no history to average. Mirrors recentPaymentAverage in utils.js.
+    public static func recentPaymentAverage(_ payments: [Payment], type: String, refId: String, n: Int = 6) -> Double? {
+        let recent = payments
+            .filter { !$0.skipped && $0.type == type && $0.refId == refId }
+            .sorted { $0.date > $1.date }
+            .prefix(n)
+        if recent.isEmpty { return nil }
+        return recent.reduce(0) { $0 + $1.amount } / Double(recent.count)
+    }
+
+    /// Amount to pre-fill for a bill when a new period starts, under the active
+    /// policy: "average" (default) → recentAvg (else current); "carry" →
+    /// current; "blank" → 0. Mirrors rolloverAmount in utils.js.
+    public static func rolloverAmount(mode: String, currentAmount: Double, recentAvg: Double?) -> Double {
+        switch mode {
+        case "carry": return currentAmount
+        case "blank": return 0
+        default:
+            if let avg = recentAvg, avg.isFinite, avg > 0 { return avg }
+            return currentAmount
+        }
+    }
+
     public static func goalAmount(
         card: Card,
         policy: PaidGoalPolicy,

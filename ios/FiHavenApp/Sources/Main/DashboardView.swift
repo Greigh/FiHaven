@@ -9,6 +9,7 @@ struct DashboardView: View {
     @State private var skipPrompt: SkipPrompt?
     @State private var editingBill: Bill?
     @State private var editingCard: Card?
+    @State private var rolloverReview = false
 
     /// A pending "skip a card you still owe on" confirmation.
     private struct SkipPrompt: Identifiable {
@@ -20,6 +21,9 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if let prompt = store.rolloverPrompt {
+                    rolloverCard(prompt)
+                }
                 if store.data.settings.dashboardLayout == "widgets" {
                     ForEach(DashboardWidget.enabled(store.data.settings), id: \.self) { id in
                         widget(id)
@@ -41,6 +45,7 @@ struct DashboardView: View {
         .sheet(item: $paying) { target in PayView(target: target) }
         .sheet(item: $editingBill) { bill in BillEditorView(bill: bill) }
         .sheet(item: $editingCard) { card in CardEditorView(card: card) }
+        .sheet(isPresented: $rolloverReview) { RolloverReviewView().environmentObject(store) }
         .alert(
             "Skip this month?",
             isPresented: Binding(get: { skipPrompt != nil }, set: { if !$0 { skipPrompt = nil } }),
@@ -200,6 +205,112 @@ struct DashboardView: View {
                 .ctCard(padding: 0)
             }
         }
+    }
+
+    // ── Monthly rollover ─────────────────────────────────────────────
+    private func rolloverCard(_ prompt: AppStore.RolloverPrompt) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("🗓").font(.system(size: 22))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome to \(prompt.currLabel)!")
+                        .font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
+                    Text(missedSummary(prompt))
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Dismiss") { store.dismissRolloverPrompt() }
+                    .font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                Button("Set \(monthWord(prompt.currLabel)) amounts") { rolloverReview = true }
+                    .buttonStyle(.borderedProminent).tint(Theme.accent)
+            }
+        }
+        .ctCard()
+    }
+
+    private func missedSummary(_ prompt: AppStore.RolloverPrompt) -> String {
+        if prompt.missedNames.isEmpty {
+            return "Everything from \(prompt.prevLabel) was marked paid. Great work!"
+        }
+        let shown = prompt.missedNames.prefix(6).joined(separator: ", ")
+        let more = prompt.missedNames.count > 6 ? " and \(prompt.missedNames.count - 6) more" : ""
+        return "\(prompt.missedNames.count) from \(prompt.prevLabel) never marked paid: \(shown)\(more)."
+    }
+
+    private func monthWord(_ label: String) -> String {
+        String(label.split(separator: " ").first ?? "")
+    }
+}
+
+// Full-screen review of each active bill's amount for the new month.
+private struct RolloverReviewView: View {
+    @EnvironmentObject var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var amounts: [String: String] = [:]
+
+    private var bills: [Bill] { store.rolloverBills() }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Pre-filled from your rollover setting. Adjust any that changed — clear a field to keep that bill as-is.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                }
+                if bills.isEmpty {
+                    Text("No active bills to review.").foregroundStyle(Theme.muted)
+                } else {
+                    ForEach(bills) { bill in
+                        HStack {
+                            Text(bill.name).foregroundStyle(Theme.text)
+                            Spacer()
+                            Text("$").foregroundStyle(Theme.muted)
+                            TextField("0.00", text: binding(for: bill))
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 90)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Review bills")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+            }
+            .onAppear(perform: seed)
+        }
+    }
+
+    private func seed() {
+        guard amounts.isEmpty else { return }
+        for b in bills {
+            let pre = store.rolloverPrefillAmount(b)
+            amounts[String(b.id)] = pre > 0 ? String(format: "%.2f", pre) : ""
+        }
+    }
+
+    private func binding(for bill: Bill) -> Binding<String> {
+        Binding(
+            get: { amounts[String(bill.id)] ?? "" },
+            set: { amounts[String(bill.id)] = $0 }
+        )
+    }
+
+    private func save() {
+        var map: [String: Double] = [:]
+        for b in bills {
+            if let s = amounts[String(b.id)], !s.trimmingCharacters(in: .whitespaces).isEmpty, let v = Double(s) {
+                map[String(b.id)] = v
+            }
+        }
+        store.applyRolloverAmounts(map)
+        dismiss()
     }
 }
 

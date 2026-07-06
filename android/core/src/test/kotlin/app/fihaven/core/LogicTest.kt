@@ -106,6 +106,28 @@ class DateLogicTest {
         assertEquals("cycle", BillSchedule.periodNoun("Bi-weekly"))
         assertEquals("month", BillSchedule.periodNoun("nonsense"))
     }
+
+    @Test fun rolloverAmount() {
+        assertEquals(150.0, Schedule.rolloverAmount("average", 90.0, 150.0), 1e-9)
+        assertEquals(90.0, Schedule.rolloverAmount("average", 90.0, null), 1e-9)
+        assertEquals(90.0, Schedule.rolloverAmount("average", 90.0, 0.0), 1e-9)
+        assertEquals(90.0, Schedule.rolloverAmount("carry", 90.0, 150.0), 1e-9)
+        assertEquals(0.0, Schedule.rolloverAmount("blank", 90.0, 150.0), 1e-9)
+        assertEquals(150.0, Schedule.rolloverAmount("nonsense", 90.0, 150.0), 1e-9)
+    }
+
+    @Test fun recentPaymentAverage() {
+        val pays = listOf(
+            Payment(type = "bill", refId = "1", amount = 100.0, date = "2026-04-01"),
+            Payment(type = "bill", refId = "1", amount = 200.0, date = "2026-05-01"),
+            Payment(type = "bill", refId = "1", amount = 150.0, date = "2026-06-01"),
+            Payment(type = "bill", refId = "1", amount = 0.0, date = "2026-06-15", skipped = true),
+            Payment(type = "card", refId = "1", amount = 999.0, date = "2026-06-01"),
+        )
+        assertEquals(150.0, Schedule.recentPaymentAverage(pays, "bill", "1")!!, 1e-9)
+        assertEquals(175.0, Schedule.recentPaymentAverage(pays, "bill", "1", 2)!!, 1e-9)
+        assertNull(Schedule.recentPaymentAverage(pays, "bill", "nope"))
+    }
 }
 
 class ScheduleTest {
