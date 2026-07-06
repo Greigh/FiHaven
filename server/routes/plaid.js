@@ -249,6 +249,9 @@ function mergePlaidTransactions(userId, sync) {
   if (!added.length && !modified.length && !removed.length) return;
 
   const data = dbApi.getUserData(userId);
+  // Opt-in: import bank outflows into Spending only when the user turns it on.
+  // FiHaven is manual-entry-first; off by default (parallel to plaidUpdateBalances).
+  if (!(data.settings && data.settings.plaidUpdatePurchases)) return;
   const all = Array.isArray(data.transactions) ? data.transactions.slice() : [];
 
   // Index bank rows by plaidId; keep manual rows aside untouched.
