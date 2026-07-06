@@ -292,6 +292,29 @@
           </form>
         </section>
 
+        <!-- ── Monthly rollover ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Monthly rollover</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            When a new month starts, FiHaven offers to review each bill's amount. Choose how those amounts are pre-filled — you can always edit them in the review.
+          </p>
+          <form class="auth-form" data-form="rollover" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="rollover-prefill">Pre-fill new amounts with</label>
+              <select id="rollover-prefill" data-rollover-prefill>
+                <option value="average">The average of recent months</option>
+                <option value="carry">The same as last month</option>
+                <option value="blank">Leave blank to fill in</option>
+              </select>
+            </div>
+            <div class="auth-note" data-rollover-effective></div>
+            <div class="auth-error" data-message="rollover" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save rollover setting</button>
+            </div>
+          </form>
+        </section>
+
         <!-- ── Dashboard display ── -->
         <section class="auth-card">
           <h2 style="font-size:20px;letter-spacing:-.03em;">Dashboard</h2>

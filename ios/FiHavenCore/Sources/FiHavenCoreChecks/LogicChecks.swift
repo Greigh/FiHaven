@@ -79,6 +79,26 @@ func runScheduleChecks() {
         checkEqual(BillSchedule.periodNoun("nonsense"), "month", "unknown → month")
     }
 
+    section("Schedule — rollover") {
+        checkClose(Schedule.rolloverAmount(mode: "average", currentAmount: 90, recentAvg: 150), 150, "average → recent avg")
+        checkClose(Schedule.rolloverAmount(mode: "average", currentAmount: 90, recentAvg: nil), 90, "average, no history → current")
+        checkClose(Schedule.rolloverAmount(mode: "average", currentAmount: 90, recentAvg: 0), 90, "average, zero → current")
+        checkClose(Schedule.rolloverAmount(mode: "carry", currentAmount: 90, recentAvg: 150), 90, "carry → current")
+        checkClose(Schedule.rolloverAmount(mode: "blank", currentAmount: 90, recentAvg: 150), 0, "blank → 0")
+        checkClose(Schedule.rolloverAmount(mode: "nonsense", currentAmount: 90, recentAvg: 150), 150, "unknown → average")
+
+        let pays = [
+            Payment(id: "1", type: "bill", refId: "1", amount: 100, date: "2026-04-01"),
+            Payment(id: "2", type: "bill", refId: "1", amount: 200, date: "2026-05-01"),
+            Payment(id: "3", type: "bill", refId: "1", amount: 150, date: "2026-06-01"),
+            Payment(id: "4", type: "bill", refId: "1", amount: 0, date: "2026-06-15", skipped: true),
+            Payment(id: "5", type: "card", refId: "1", amount: 999, date: "2026-06-01"),
+        ]
+        checkClose(Schedule.recentPaymentAverage(pays, type: "bill", refId: "1") ?? -1, 150, "avg of 100/200/150")
+        checkClose(Schedule.recentPaymentAverage(pays, type: "bill", refId: "1", n: 2) ?? -1, 175, "last 2 → 150,200")
+        check(Schedule.recentPaymentAverage(pays, type: "bill", refId: "nope") == nil, "no history → nil")
+    }
+
     section("Schedule — promoNeeded") {
         let c = Card(id: "10", name: "Chase", balance: 2340, hasPromo: true,
                      promoEndDate: "2026-10-01", promoBalance: 2340)

@@ -23,6 +23,15 @@ final class AppStore: ObservableObject {
     @Published private(set) var data = AppData()
     @Published private(set) var syncState: SyncState = .idle
     @Published private(set) var loaded = false
+    @Published private(set) var rolloverPrompt: RolloverPrompt?
+
+    /// A pending "new month started" prompt, shown once per month on the dashboard.
+    struct RolloverPrompt: Identifiable {
+        let id = UUID()
+        let prevLabel: String
+        let currLabel: String
+        let missedNames: [String]
+    }
 
     private let api: APIClient
     private var saveTask: Task<Void, Never>?
@@ -39,6 +48,7 @@ final class AppStore: ObservableObject {
             runAutopayMark()
             refreshNotifications()
             PushRegistrar.shared.syncIfNeeded(settings: data.settings)
+            checkNewMonth()
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline
@@ -206,6 +216,60 @@ final class AppStore: ObservableObject {
     // ── Derived values (use the ported core logic) ──────────────────
     var tz: TimeZone { DateLogic.resolveTimeZone(data.settings.timezone) }
     var currentMonthKey: String { DateLogic.currentMonthKey(tz: tz) }
+
+    // ── Monthly rollover ─────────────────────────────────────────────
+    /// New-month detection (mirrors the web's checkNewMonth): when the calendar
+    /// month has advanced since the last visit, surface the rollover prompt with
+    /// the items never marked paid, then record the new month so it fires once.
+    func checkNewMonth() {
+        let currentMk = currentMonthKey
+        let lastMk = data.settings.lastVisitKey
+        if let lastMk, !lastMk.isEmpty, lastMk != currentMk {
+            var missed: [String] = []
+            for b in data.bills where (b.dueDay != nil || !(b.startDate ?? "").isEmpty) && DateLogic.billActive(b, tz: tz) {
+                if !Schedule.isPaid(data.payments, type: "bill", refId: String(b.id), monthKey: lastMk) { missed.append(b.name) }
+            }
+            for c in data.cards where c.dueDay != nil {
+                if !Schedule.isPaid(data.payments, type: "card", refId: String(c.id), monthKey: lastMk) { missed.append(c.name) }
+            }
+            rolloverPrompt = RolloverPrompt(
+                prevLabel: DateLogic.monthKeyLabel(lastMk, tz: tz),
+                currLabel: DateLogic.monthKeyLabel(currentMk, tz: tz),
+                missedNames: missed
+            )
+        }
+        if data.settings.lastVisitKey != currentMk {
+            mutate { $0.settings.lastVisitKey = currentMk }
+        }
+    }
+
+    func dismissRolloverPrompt() { rolloverPrompt = nil }
+
+    func setRolloverPrefill(_ mode: String) { mutate { $0.settings.rolloverPrefill = mode } }
+
+    /// Bills active in the current period — the rows shown in the rollover review.
+    func rolloverBills() -> [Bill] {
+        data.bills.filter { ($0.dueDay != nil || !($0.startDate ?? "").isEmpty) && DateLogic.billActive($0, tz: tz) }
+    }
+
+    /// Pre-filled amount for a bill under the active rollover policy.
+    func rolloverPrefillAmount(_ bill: Bill) -> Double {
+        let avg = Schedule.recentPaymentAverage(data.payments, type: "bill", refId: String(bill.id))
+        return Schedule.rolloverAmount(mode: data.settings.rolloverPrefill, currentAmount: bill.amount, recentAvg: avg)
+    }
+
+    /// Apply reviewed amounts (billId → amount) to the matching bills.
+    func applyRolloverAmounts(_ amounts: [String: Double]) {
+        guard !amounts.isEmpty else { return }
+        mutate { d in
+            d.bills = d.bills.map { b in
+                var b = b
+                if let a = amounts[String(b.id)] { b.amount = a }
+                return b
+            }
+        }
+    }
+
     // The active budgeting period (calendar / startDay / rolling).
     var periodConfig: PeriodConfig { Period.config(from: data.settings) }
     var currentBounds: PeriodBounds { Period.currentBounds(config: periodConfig, tz: tz) }
