@@ -20,6 +20,19 @@ export function billFrequencySpec(frequency) {
   }
 }
 
+/** The billing-cycle noun for a bill's frequency, for labels like
+ *  "Paid this quarter" / "Skip this week". Cards are always monthly,
+ *  so this is bills-only. */
+export function billPeriodNoun(frequency) {
+  switch (frequency) {
+    case 'Weekly': return 'week';
+    case 'Bi-weekly': return 'cycle';
+    case 'Quarterly': return 'quarter';
+    case 'Annually': return 'year';
+    default: return 'month';
+  }
+}
+
 function atMidnight(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }

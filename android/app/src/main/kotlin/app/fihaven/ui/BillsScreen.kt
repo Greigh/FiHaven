@@ -225,6 +225,7 @@ private fun BillRow(
     onSkip: () -> Unit = {},
     onUnskip: () -> Unit = {},
 ) {
+    val periodNoun = BillSchedule.periodNoun(bill.frequency)
     val statusTap: () -> Unit = {
         when {
             skipped -> onUnskip()
@@ -262,8 +263,8 @@ private fun BillRow(
                     Text(bill.business ?: "", color = Ct.colors.muted, fontSize = 12.sp, maxLines = 1)
                 }
                 Text(
-                    windowLabel ?: if (skipped) "⏭ Skipped this month" else when (state) {
-                        PaidState.FULL -> "Paid this month"
+                    windowLabel ?: if (skipped) "⏭ Skipped this $periodNoun" else when (state) {
+                        PaidState.FULL -> "Paid this $periodNoun"
                         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amount)}"
                         PaidState.UNPAID -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
                             ?: "No due date"
@@ -283,7 +284,7 @@ private fun BillRow(
                     Text("Undo payment", color = Ct.colors.accent, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onUnmark).padding(top = 2.dp))
                 } else if (state == PaidState.UNPAID && windowLabel == null) {
-                    Text("Skip this month", color = Ct.colors.muted, fontSize = 12.sp,
+                    Text("Skip this $periodNoun", color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.clickable(onClick = onSkip).padding(top = 2.dp))
                 }
             }
