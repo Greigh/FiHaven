@@ -31,11 +31,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,7 +64,6 @@ private data class IntroPage(
 /// FiHaven is and which features are free vs Pro.
 @Composable
 fun IntroScreen(vm: AppViewModel) {
-    var step by remember { mutableIntStateOf(0) }
     val pages = remember {
         listOf(
             IntroPage(
@@ -95,9 +95,10 @@ fun IntroScreen(vm: AppViewModel) {
             ),
         )
     }
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    val step = pagerState.currentPage
     val last = step == pages.lastIndex
-    val page = pages[step]
-    val badgeColor = if (page.badge == "PRO") Ct.colors.accent else Ct.colors.green
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.authScreen().padding(horizontal = 24.dp)) {
         Row(
@@ -109,63 +110,14 @@ fun IntroScreen(vm: AppViewModel) {
             if (!last) TextButton(onClick = { vm.markIntroSeen() }) { Text("Skip", color = Ct.colors.muted) }
         }
 
-        Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Box(
-                Modifier.size(120.dp).clip(RoundedCornerShape(50))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Ct.colors.accent.copy(alpha = 0.18f), badgeColor.copy(alpha = 0.06f)),
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (page.brand) {
-                    BrandMark(size = 72)
-                } else {
-                    Icon(page.icon, contentDescription = null, tint = badgeColor, modifier = Modifier.size(52.dp))
-                }
-            }
-
-            page.badge?.let { b ->
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(badgeColor.copy(alpha = 0.14f))
-                        .padding(horizontal = 11.dp, vertical = 4.dp),
-                ) {
-                    Text(b, color = badgeColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-            Text(page.title, color = Ct.colors.text, fontSize = 28.sp,
-                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
-            Text(page.body, color = Ct.colors.muted, fontSize = 16.sp, textAlign = TextAlign.Center)
-
-            if (page.features.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Column(
-                    Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Ct.colors.surface)
-                        .border(1.dp, Ct.colors.border, RoundedCornerShape(14.dp))
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    page.features.forEach { f ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(f.icon, contentDescription = null, tint = Ct.colors.accent,
-                                modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(f.text, color = Ct.colors.text, fontSize = 15.sp)
-                        }
-                    }
-                }
-            }
+        // Swipeable pager — swipe left/right between pages or tap Next. The
+        // dots + footer button and the Skip control read pagerState.currentPage,
+        // so they stay in sync however the page changes.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) { pageIndex ->
+            IntroPageContent(pages[pageIndex])
         }
 
         Row(
@@ -182,11 +134,74 @@ fun IntroScreen(vm: AppViewModel) {
             }
         }
         Button(
-            onClick = { if (!last) step++ else vm.markIntroSeen() },
+            onClick = { if (!last) scope.launch { pagerState.animateScrollToPage(step + 1) } else vm.markIntroSeen() },
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
         ) {
             Text(if (!last) "Next" else "Get started")
+        }
+    }
+}
+
+@Composable
+private fun IntroPageContent(page: IntroPage) {
+    val badgeColor = if (page.badge == "PRO") Ct.colors.accent else Ct.colors.green
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier.size(120.dp).clip(RoundedCornerShape(50))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Ct.colors.accent.copy(alpha = 0.18f), badgeColor.copy(alpha = 0.06f)),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (page.brand) {
+                BrandMark(size = 72)
+            } else {
+                Icon(page.icon, contentDescription = null, tint = badgeColor, modifier = Modifier.size(52.dp))
+            }
+        }
+
+        page.badge?.let { b ->
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(50)).background(badgeColor.copy(alpha = 0.14f))
+                    .padding(horizontal = 11.dp, vertical = 4.dp),
+            ) {
+                Text(b, color = badgeColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text(page.title, color = Ct.colors.text, fontSize = 28.sp,
+            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(12.dp))
+        Text(page.body, color = Ct.colors.muted, fontSize = 16.sp, textAlign = TextAlign.Center)
+
+        if (page.features.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Ct.colors.surface)
+                    .border(1.dp, Ct.colors.border, RoundedCornerShape(14.dp))
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                page.features.forEach { f ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(f.icon, contentDescription = null, tint = Ct.colors.accent,
+                            modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(f.text, color = Ct.colors.text, fontSize = 15.sp)
+                    }
+                }
+            }
         }
     }
 }
