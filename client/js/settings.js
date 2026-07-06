@@ -15,6 +15,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 import { initHousehold } from './household.js';
+import { webPushSupported, webPushStatus, enableWebPush, disableWebPush } from './webpush.js';
 import {
   BILL_CATEGORIES, SPENDING_CATEGORIES, BUDGET_BUCKETS,
 } from './budgetRules.js';
@@ -456,6 +457,9 @@ import {
     /* ── Email notifications (reminders, monthly summary) ── */
     initNotificationsSection();
 
+    /* ── Browser push (web push) ───────────────────────────── */
+    initWebPushSection();
+
     /* ── Section tabs ────────────────────────────────────── */
     initTabs();
   }
@@ -685,6 +689,65 @@ import {
   }
 
   /* ── Developer: subscription override (admin/dev only) ──── */
+  function initWebPushSection() {
+    var wrap = document.querySelector('[data-webpush-wrap]');
+    var unsupported = document.querySelector('[data-webpush-unsupported]');
+    var enableBtn = document.querySelector('[data-webpush-enable]');
+    var disableBtn = document.querySelector('[data-webpush-disable]');
+    var statusEl = document.querySelector('[data-webpush-status]');
+    if (!wrap) return;
+
+    function paint(st) {
+      var ok = !!(st && st.supported && st.configured);
+      wrap.hidden = !ok;
+      if (unsupported) unsupported.hidden = ok;
+      if (!ok) { if (statusEl) statusEl.textContent = ''; return; }
+      if (enableBtn) enableBtn.hidden = !!st.enabled;
+      if (disableBtn) disableBtn.hidden = !st.enabled;
+      if (statusEl) {
+        statusEl.textContent = st.enabled
+          ? 'Browser notifications are on for this device.'
+          : (st.permission === 'denied'
+            ? 'Notifications are blocked in your browser — allow them for this site, then try again.'
+            : 'Off — enable to get reminders in this browser.');
+      }
+    }
+
+    webPushStatus().then(paint).catch(function () {
+      paint({ supported: webPushSupported(), configured: false, enabled: false, permission: 'default' });
+    });
+
+    if (enableBtn) {
+      enableBtn.addEventListener('click', function () {
+        if (statusEl) statusEl.textContent = 'Enabling…';
+        enableWebPush()
+          .then(function () { return webPushStatus(); })
+          .then(paint)
+          .catch(function (err) {
+            var m = err && err.message;
+            if (statusEl) {
+              statusEl.textContent = m === 'denied'
+                ? 'You declined notifications. Allow them for this site to enable.'
+                : (m === 'not-configured'
+                  ? 'Web push isn’t enabled on the server yet.'
+                  : 'Couldn’t enable notifications. Please try again.');
+            }
+          });
+      });
+    }
+    if (disableBtn) {
+      disableBtn.addEventListener('click', function () {
+        if (statusEl) statusEl.textContent = 'Turning off…';
+        disableWebPush()
+          .then(function () { return webPushStatus(); })
+          .then(paint)
+          .catch(function () {
+            paint({ supported: true, configured: true, enabled: false, permission: Notification.permission });
+          });
+      });
+    }
+  }
+
   function initDeveloperSection() {
     var tab = document.querySelector('[data-dev-tab]');
     if (tab) tab.hidden = false;
