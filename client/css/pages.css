@@ -152,7 +152,7 @@
   color: var(--muted);
 }
 
-.auth-field input,
+.auth-field input:not([type="checkbox"]):not([type="radio"]),
 .auth-field select {
   width: 100%;
   padding: 12px 14px;
@@ -166,8 +166,31 @@
   transition: border-color .2s, box-shadow .2s, background .2s;
 }
 
-.auth-field input:focus,
+.auth-field input:not([type="checkbox"]):not([type="radio"]):focus,
 .auth-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Family & household tab: the invite email + share selects are rendered in
+   JS outside .auth-field, so give them the same polished styling as the
+   standard settings fields (matches .auth-field input/select). */
+[data-household-root] input[type="email"],
+[data-household-root] input[type="text"],
+[data-household-root] select {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+[data-household-root] input[type="email"]:focus,
+[data-household-root] input[type="text"]:focus,
+[data-household-root] select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
