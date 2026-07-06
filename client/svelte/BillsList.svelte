@@ -15,6 +15,7 @@
   // "YYYY-MM-DD" → local Date for friendly display (e.g. "Jul 15").
   const parseYmd = (s) => (s ? new Date(s + 'T00:00:00') : null);
   import { askDelete, openPayModal, editBillById, skipMonth, unskipMonth } from '../js/modals.js';
+  import { billPeriodNoun } from '../js/billSchedule.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
 
@@ -204,7 +205,7 @@
                 <span style="color:var(--muted);">—</span>
               {:else if state === 'skipped'}
                 <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
-                  <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
+                  <span class="badge badge-gray" title="No payment expected this {billPeriodNoun(b.frequency)}">⏭ Skipped</span>
                   <button class="btn btn-ghost btn-xs" onclick={() => unskipMonth('bill', String(b.id))}>
                     Undo skip
                   </button>
@@ -235,7 +236,7 @@
                   </button>
                   <button
                     class="btn btn-ghost btn-xs"
-                    title="Skip this bill this month — owes nothing, no payment recorded"
+                    title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
                     onclick={() => skipMonth('bill', String(b.id), b.name)}
                   >
                     Skip

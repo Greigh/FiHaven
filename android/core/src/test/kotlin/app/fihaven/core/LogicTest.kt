@@ -1,5 +1,6 @@
 package app.fihaven.core
 
+import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
@@ -95,6 +96,15 @@ class DateLogicTest {
         assertEquals(0, DateLogic.monthsUntil("2025-01-01", UTC, NOW))
         assertEquals(0, DateLogic.monthsUntil(null, UTC, NOW))
         assertEquals("June 2026", DateLogic.monthKeyLabel("2026-06"))
+    }
+
+    @Test fun billPeriodNoun() {
+        assertEquals("month", BillSchedule.periodNoun("Monthly"))
+        assertEquals("quarter", BillSchedule.periodNoun("Quarterly"))
+        assertEquals("year", BillSchedule.periodNoun("Annually"))
+        assertEquals("week", BillSchedule.periodNoun("Weekly"))
+        assertEquals("cycle", BillSchedule.periodNoun("Bi-weekly"))
+        assertEquals("month", BillSchedule.periodNoun("nonsense"))
     }
 }
 

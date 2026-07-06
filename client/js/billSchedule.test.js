@@ -6,6 +6,7 @@ import {
   billDueInPeriod,
   billDueOnOrBeforeInPeriod,
   billFrequencySpec,
+  billPeriodNoun,
   parseBillYmd,
   billAnchor,
 } from './billSchedule.js';
@@ -19,6 +20,22 @@ describe('billSchedule — billFrequencySpec', () => {
     expect(billFrequencySpec('Bi-weekly')).toEqual({ unit: 'day', step: 14 });
     expect(billFrequencySpec('Annually')).toEqual({ unit: 'month', step: 12 });
     expect(billFrequencySpec(undefined)).toEqual({ unit: 'month', step: 1 });
+  });
+});
+
+describe('billSchedule — billPeriodNoun', () => {
+  it('maps each frequency to its billing-cycle noun', () => {
+    expect(billPeriodNoun('Monthly')).toBe('month');
+    expect(billPeriodNoun('Quarterly')).toBe('quarter');
+    expect(billPeriodNoun('Annually')).toBe('year');
+    expect(billPeriodNoun('Weekly')).toBe('week');
+    expect(billPeriodNoun('Bi-weekly')).toBe('cycle');
+  });
+
+  it('falls back to "month" for unknown or missing frequency', () => {
+    expect(billPeriodNoun(undefined)).toBe('month');
+    expect(billPeriodNoun('')).toBe('month');
+    expect(billPeriodNoun('Fortnightly')).toBe('month');
   });
 });
 
