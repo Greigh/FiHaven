@@ -73,10 +73,9 @@ struct SubscriptionsView: View {
     private func subscriptionRow(_ s: SubscriptionsFinder.Item) -> some View {
         let status = subStatus(s)
         return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: s.source == "bill" ? "doc.text" : "arrow.triangle.2.circlepath")
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.accent)
-                .frame(width: 20)
+            Text(SubscriptionIcons.emoji(s.name, category: "Subscriptions"))
+                .font(.system(size: 16))
+                .frame(width: 22)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)

@@ -286,7 +286,9 @@
           {@const goal = goalAmountFor(u.type, u.refId)}
           {@const rem = remainingForItem(u.type, u.refId, mk)}
           <div class="upcoming-item">
-            <div class="upcoming-icon">{u.icon}</div>
+            <div class="upcoming-icon">
+              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand}{u.brand.emoji}{:else}{u.icon}{/if}
+            </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>
               <div class="upcoming-meta">
