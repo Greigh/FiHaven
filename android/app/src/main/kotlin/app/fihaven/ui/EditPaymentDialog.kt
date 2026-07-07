@@ -37,12 +37,7 @@ fun EditPaymentDialog(payment: Payment, vm: AppViewModel, onDismiss: () -> Unit)
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         )
-        OutlinedTextField(
-            value = dateIso,
-            onValueChange = { dateIso = it },
-            label = { Text("Date (YYYY-MM-DD)") },
-            singleLine = true,
-        )
+        DateField("Date", dateIso, { dateIso = it }, clearable = false)
         OutlinedTextField(
             value = note,
             onValueChange = { note = it },

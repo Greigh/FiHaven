@@ -193,14 +193,7 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                     fontSize = 12.sp
             )
         }
-        OutlinedTextField(
-                dateStr,
-                { dateStr = it },
-                label = { Text("Date paid (YYYY-MM-DD)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-        )
+        DateField("Date paid", dateStr, { dateStr = it }, clearable = false)
         OutlinedTextField(
                 note,
                 { note = it },
