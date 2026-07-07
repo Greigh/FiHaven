@@ -9,6 +9,11 @@
   import { fmt, shortDate } from '../js/utils.js';
   import { buildSubscriptionItems, totalMonthlySubs } from '../js/subscriptionsFinder.js';
 
+  // `kicker` shows the small "Subscriptions" label above the total — useful on
+  // the dashboard widget, but redundant on the Subscriptions tab (which already
+  // has a page title), so that mount passes kicker={false}.
+  let { kicker = true } = $props();
+
   let subs = $derived.by(() => buildSubscriptionItems(bills, transactions));
   let totalMonthly = $derived(totalMonthlySubs(subs));
 </script>
@@ -17,7 +22,7 @@
   <section class="subs-card">
     <div class="subs-head">
       <div>
-        <div class="subs-kicker">Subscriptions</div>
+        {#if kicker}<div class="subs-kicker">Subscriptions</div>{/if}
         <div class="subs-total">{fmt(totalMonthly)}<span class="subs-total-sub">/mo across {subs.length}</span></div>
       </div>
     </div>
