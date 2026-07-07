@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.Money
+import app.fihaven.core.logic.SubscriptionIcons
 import app.fihaven.core.logic.SubscriptionsFinder
 import app.fihaven.ui.theme.Ct
 
@@ -81,7 +82,7 @@ private fun SubscriptionsCard(subs: List<SubscriptionsFinder.Item>) {
             Column(Modifier.padding(top = 6.dp)) {
                 subs.forEach { s ->
                     Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 5.dp)) {
-                        Text(if (s.source == "bill") "📄" else "🔁", fontSize = 15.sp,
+                        Text(SubscriptionIcons.emoji(s.name, "Subscriptions"), fontSize = 16.sp,
                             modifier = Modifier.padding(end = 10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(s.name, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
