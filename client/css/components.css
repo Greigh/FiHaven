@@ -1607,7 +1607,8 @@ main {
   border-color: color-mix(in srgb, var(--red) 28%, var(--border));
   background: color-mix(in srgb, var(--red-bg) 28%, var(--surface));
 }
-.upcoming-icon { font-size: 18px; line-height: 1; }
+.upcoming-icon { font-size: 18px; line-height: 1; display: inline-flex; align-items: center; }
+.upcoming-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 5px; }
 .upcoming-body { min-width: 0; }
 .upcoming-name {
   font-weight: 700; font-size: 14px;
