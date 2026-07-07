@@ -36,6 +36,8 @@
     "plaid:sandbox": "node scripts/dev/plaid-sandbox-check.js",
     "preview": "vite preview",
     "deploy": "bash upload.sh",
+    "deploy:ios": "bash scripts/ios-testflight.sh",
+    "deploy:android": "bash scripts/play-upload.js",
     "promo": "node scripts/promo.js",
     "indexnow": "node scripts/submit-indexnow.js"
   },
@@ -59,15 +61,15 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@sveltejs/vite-plugin-svelte": "^7.1.4",
     "@tailwindcss/cli": "^4.3.2",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.3",
     "jsdom": "^29.1.1",
     "svelte": "^5.56.4",
     "tailwindcss": "^4.3.2",
     "vite": "^8.1.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true,
