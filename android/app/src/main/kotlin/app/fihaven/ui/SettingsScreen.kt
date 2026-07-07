@@ -238,13 +238,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                             NavRow("Backup codes", "${m.backupCodes.unused} left") { dialog = "backup" }
                         }
                     }
-                }
-            }
-          }
-          if (group == "preferences") {
-            item {
-                Section("PREFERENCES") {
-                    NavRow("Appearance", themeController.pref.label) { dialog = "appearance" }
+                    // App lock (device biometric/passcode) — a security control,
+                    // so it lives here rather than under Preferences.
                     if (activity != null && BiometricAuth.isAvailable(activity)) {
                         HorizontalDivider(color = Ct.colors.border)
                         SwitchRow("Require biometric unlock", biometricEnabled) { vm.setBiometricEnabled(it) }
@@ -253,6 +248,13 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                             NavRow("Stay unlocked for", stayUnlockedLabel(lockAfter)) { dialog = "biolock" }
                         }
                     }
+                }
+            }
+          }
+          if (group == "preferences") {
+            item {
+                Section("PREFERENCES") {
+                    NavRow("Appearance", themeController.pref.label) { dialog = "appearance" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Time zone", data.settings.timezoneSetting ?: "Auto") { dialog = "timezone" }
                     HorizontalDivider(color = Ct.colors.border)
