@@ -292,7 +292,7 @@
         </header>
 
         <!-- Stats: balance + limit + min + util -->
-        <div class="card-row-stats">
+        <div class="card-row-stats{c.type === 'loan' ? ' is-loan' : ''}">
           <div class="card-row-stat">
             <div class="card-row-stat-label">{c.type === 'loan' ? 'Remaining Principal' : 'Statement Balance'}</div>
             <div class="card-row-stat-value" style="color:{bal > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(bal)}</div>
