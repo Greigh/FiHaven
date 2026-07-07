@@ -226,75 +226,64 @@ private fun BillRow(
     onUnskip: () -> Unit = {},
 ) {
     val periodNoun = BillSchedule.periodNoun(bill.frequency)
-    val statusTap: () -> Unit = {
-        when {
-            skipped -> onUnskip()
-            state == PaidState.FULL -> onUnmark()
-            else -> onPay()
-        }
+    val statusText = windowLabel ?: if (skipped) "⏭ Skipped this $periodNoun" else when (state) {
+        PaidState.FULL -> "Paid this $periodNoun"
+        PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amount)}"
+        PaidState.UNPAID -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
+            ?: "No due date"
     }
-    CtCard(padding = 14) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = statusTap) {
-                Icon(
+    val statusColor = when {
+        skipped || windowLabel != null -> Ct.colors.muted
+        state == PaidState.FULL -> Ct.colors.green
+        state == PaidState.PARTIAL -> Ct.colors.orange
+        else -> Ct.colors.muted
+    }
+    // Cards-tab tile style: category icon + name + amount up top, then a
+    // status line with compact quick-actions (swipe still pays / deletes).
+    CtCard(Modifier.clickable(onClick = onEdit), padding = 14) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(CTConstants.iconForCategory(bill.category), fontSize = 22.sp,
+                    modifier = Modifier.padding(end = 10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(bill.name, color = Ct.colors.text, fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    if (!bill.business.isNullOrBlank()) {
+                        Text(bill.business ?: "", color = Ct.colors.muted, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(Money.fmt(bill.amount), color = Ct.colors.text, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                    if (bill.autopay) Text(bill.autopayDay?.let { "autopay · day $it" } ?: "autopay",
+                        color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(statusText, color = statusColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     when {
-                        skipped -> Icons.Outlined.Circle
-                        state == PaidState.FULL -> Icons.Filled.CheckCircle
-                        else -> Icons.Outlined.Circle
-                    },
-                    contentDescription = when {
-                        skipped -> "Un-skip"
-                        state == PaidState.FULL -> "Undo payment"
-                        else -> "Pay"
-                    },
-                    tint = when {
-                        skipped -> Ct.colors.muted
-                        state == PaidState.FULL -> Ct.colors.green
-                        state == PaidState.PARTIAL -> Ct.colors.orange
-                        else -> Ct.colors.muted
-                    },
-                )
-            }
-            Text(CTConstants.iconForCategory(bill.category), fontSize = 20.sp,
-                modifier = Modifier.padding(horizontal = 8.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onEdit)) {
-                Text(bill.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                if (!bill.business.isNullOrBlank()) {
-                    Text(bill.business ?: "", color = Ct.colors.muted, fontSize = 12.sp, maxLines = 1)
-                }
-                Text(
-                    windowLabel ?: if (skipped) "⏭ Skipped this $periodNoun" else when (state) {
-                        PaidState.FULL -> "Paid this $periodNoun"
-                        PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amount)}"
-                        PaidState.UNPAID -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
-                            ?: "No due date"
-                    },
-                    color = if (state == PaidState.PARTIAL && !skipped && windowLabel == null) Ct.colors.orange else Ct.colors.muted,
-                    fontSize = 12.sp,
-                )
-                if (!chargedTo.isNullOrBlank()) {
-                    Text("💳 Charged to $chargedTo · not a bank debit",
-                        color = Ct.colors.muted, fontSize = 11.sp)
-                }
-                // Skip / un-skip affordance.
-                if (skipped) {
-                    Text("Undo skip", color = Ct.colors.accent, fontSize = 12.sp,
-                        modifier = Modifier.clickable(onClick = onUnskip).padding(top = 2.dp))
-                } else if (state == PaidState.FULL) {
-                    Text("Undo payment", color = Ct.colors.accent, fontSize = 12.sp,
-                        modifier = Modifier.clickable(onClick = onUnmark).padding(top = 2.dp))
-                } else if (state == PaidState.UNPAID && windowLabel == null) {
-                    Text("Skip this $periodNoun", color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.clickable(onClick = onSkip).padding(top = 2.dp))
+                        skipped -> QuickAction("Undo skip", Ct.colors.accent, onUnskip)
+                        state == PaidState.FULL -> QuickAction("Undo", Ct.colors.muted, onUnmark)
+                        windowLabel == null -> {
+                            QuickAction("Skip", Ct.colors.muted, onSkip)
+                            QuickAction("Pay", Ct.colors.accent, onPay)
+                        }
+                    }
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(Money.fmt(bill.amount), color = Ct.colors.text, fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                if (bill.autopay) Text(bill.autopayDay?.let { "autopay · day $it" } ?: "autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+            if (!chargedTo.isNullOrBlank()) {
+                Text("💳 Charged to $chargedTo · not a bank debit",
+                    color = Ct.colors.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }
+}
+
+@Composable
+private fun QuickAction(label: String, color: Color, onClick: () -> Unit) {
+    Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.clickable(onClick = onClick))
 }
 
 /// "YYYY-MM-DD" or LocalDate → a short "MMM d" label.

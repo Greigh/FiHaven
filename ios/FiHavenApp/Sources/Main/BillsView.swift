@@ -211,58 +211,41 @@ private struct BillRow: View {
     let onEdit: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: statusTap) {
-                VStack(spacing: 2) {
-                    Image(systemName: skipped ? "forward.end.circle.fill" : A11y.paidStateIcon(state))
-                        .font(.system(size: 24))
-                        .foregroundStyle(skipped ? Theme.muted : statusColor)
-                    Text(skipped ? "Skipped" : A11y.paidStateLabel(state))
-                        .font(Theme.ui(9, weight: .medium))
-                        .foregroundStyle(skipped ? Theme.muted : statusColor)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 22))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bill.name)
+                        .font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text).lineLimit(1)
+                    if let bus = bill.business, !bus.isEmpty {
+                        Text(bus).font(Theme.ui(12)).foregroundStyle(Theme.muted).lineLimit(1)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Money.fmt(bill.amount)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
+                    if bill.autopay {
+                        Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
+                            .font(Theme.mono(9)).foregroundStyle(Theme.muted)
+                    }
                 }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(bill.name), \(skipped ? "Skipped this \(periodNoun)" : A11y.paidStateLabel(state))")
-            .accessibilityHint(A11y.paidStateHint(state, skipped: skipped, periodNoun: periodNoun))
-
-            Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 20))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(bill.name)
-                    .font(Theme.ui(15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(1)
-                if let bus = bill.business, !bus.isEmpty {
-                    Text(bus)
-                        .font(Theme.ui(12))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                }
-                if DateLogic.billEnded(bill, tz: store.tz) {
-                    Text("⏹ Ended \(friendlyDate(bill.endDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                } else if DateLogic.billNotStarted(bill, tz: store.tz) {
-                    Text("Starts \(friendlyDate(bill.startDate))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                } else {
-                    Text(skipped ? "⏭ Skipped this \(periodNoun)" : dueText)
-                        .font(Theme.ui(12))
-                        .foregroundStyle(state == .partial ? Theme.orange : Theme.muted)
-                }
-                if let cid = bill.cardId, let card = store.data.cards.first(where: { String($0.id) == cid }) {
-                    Text("💳 Charged to \(card.name) · not a bank debit")
-                        .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+            HStack(spacing: 16) {
+                Text(statusLine).font(Theme.ui(12)).foregroundStyle(skipped ? Theme.muted : statusColor)
+                Spacer()
+                if skipped {
+                    quickAction("Undo skip", Theme.accent, onUnskip)
+                } else if state == .full {
+                    quickAction("Undo", Theme.muted, onUnmark)
+                } else if !isWindowEdge {
+                    quickAction("Skip", Theme.muted, onSkip)
+                    quickAction("Pay", Theme.accent, onPay)
                 }
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Money.fmt(bill.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.text)
-                if bill.autopay {
-                    Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
-                        .font(Theme.mono(9)).foregroundStyle(Theme.muted)
-                }
+            if let cid = bill.cardId, let card = store.data.cards.first(where: { String($0.id) == cid }) {
+                Text("💳 Charged to \(card.name) · not a bank debit")
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
             }
         }
         .padding(14)
@@ -292,10 +275,22 @@ private struct BillRow: View {
         }
     }
 
-    private func statusTap() {
-        if skipped { onUnskip() }
-        else if state == .full { onUnmark() }
-        else { onPay() }
+    private func quickAction(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).font(Theme.ui(12, weight: .medium)).foregroundStyle(color)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var statusLine: String {
+        if DateLogic.billEnded(bill, tz: store.tz) { return "⏹ Ended \(friendlyDate(bill.endDate))" }
+        if DateLogic.billNotStarted(bill, tz: store.tz) { return "Starts \(friendlyDate(bill.startDate))" }
+        if skipped { return "⏭ Skipped this \(periodNoun)" }
+        return dueText
+    }
+
+    private var isWindowEdge: Bool {
+        DateLogic.billEnded(bill, tz: store.tz) || DateLogic.billNotStarted(bill, tz: store.tz)
     }
 
     private var statusColor: Color {
