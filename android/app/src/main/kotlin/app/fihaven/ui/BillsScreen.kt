@@ -362,15 +362,12 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
         DropdownField("Category", CTConstants.categories, category) { category = it }
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, prefix = { Text("$") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(dueDay, { dueDay = it.filter(Char::isDigit).take(2) }, label = { Text("Due day (1–31)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        DayField("Due day (1–31)", dueDay) { dueDay = it }
         DropdownField("Frequency", BILL_FREQUENCIES, frequency) { frequency = it }
-        OutlinedTextField(startDate, { startDate = it }, label = { Text("First bill due on (YYYY-MM-DD)") },
-            placeholder = { Text("optional — sets the due day") },
-            singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(endDate, { endDate = it }, label = { Text("Stops on (YYYY-MM-DD)") },
-            placeholder = { Text("optional — marks the bill Ended after") },
-            singleLine = true, modifier = Modifier.fillMaxWidth())
+        DateField("First bill due on", startDate, { startDate = it },
+            supportingText = "Optional — sets the recurring due day.")
+        DateField("Stops on", endDate, { endDate = it },
+            supportingText = "Optional — marks the bill Ended after this date.")
         DropdownField(
             "Charged to",
             cardOptions.map { it.first },
@@ -381,10 +378,7 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
             Switch(checked = autopay, onCheckedChange = { autopay = it })
         }
         if (autopay) {
-            OutlinedTextField(autopayDay, { autopayDay = it.filter(Char::isDigit).take(2) },
-                label = { Text("Autopay day (1–31)") },
-                placeholder = { Text("defaults to due day") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+            DayField("Autopay day", autopayDay, allowSame = true) { autopayDay = it }
         }
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
     }
