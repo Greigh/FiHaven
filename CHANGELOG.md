@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-07-05
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-06
 
 | | |
 |---|---|
 | **Status** | Pre-release — **launch candidate** (first public tester wave) |
-| **iOS** | 1.5.0 (6) |
-| **Android** | 1.5.0 (build 15) |
+| **iOS** | 1.5.0 (7) |
+| **Android** | 1.5.0 (build 16) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
@@ -27,7 +27,9 @@ Each release below uses two layers:
 > The 1.5.0 launch build: budget lenses and family rollup on every platform,
 > push notifications, smarter Pro tools, and the reliability fixes from builds
 > 3–4. Build 6 adds monthly rollover, dashboard editing, browser push, and
-> period-accurate labels. [Jump to technical changelog ↓](#150-technical-changelog)
+> period-accurate labels. Build 7 brings real subscription brand logos, a
+> redesigned native Bills tab, and an on/off biometric app lock.
+> [Jump to technical changelog ↓](#150-technical-changelog)
 
 **Budget & spending (Tier 3)**
 
@@ -84,6 +86,24 @@ Each release below uses two layers:
 - Android now autofills the 2FA code correctly instead of offering a password,
   and the sign-up screen shows the Terms/Privacy agreement.
 - Stronger Android sign-in security and more reliable iOS TestFlight builds.
+
+**Build 7 — brand logos, native Bills redesign & app lock**
+
+- **Real subscription logos** — recognized services (Netflix, Spotify, YouTube,
+  and dozens more) now show their actual logo next to the name in Subscriptions
+  and on the Dashboard's Upcoming list, with a per-brand emoji fallback for
+  anything without a bundled logo. iOS and Android show the per-brand emoji.
+- **Redesigned Bills tab (iOS & Android)** — bills now use the same clean
+  two-line tile as the Cards tab, with the pay/skip actions on their own row —
+  no more cramped layout or awkward white space.
+- **App lock on/off (Android)** — a clear switch to require biometric/passcode
+  unlock, plus a "Stay unlocked for" duration; moved into **Settings → Security**
+  where it belongs.
+- **Editing polish (Android)** — bill/card editors use real date and day
+  pickers instead of free-text fields, and the Save button always has room
+  above the navigation bar.
+- **Fixes** — the Subscriptions page no longer shows its title twice; the web
+  Loans list is no longer squished; Preferences pickers line up correctly.
 
 **Build 6 — rollover, dashboard editing & browser push**
 
@@ -144,6 +164,48 @@ Each release below uses two layers:
 <a id="150-technical-changelog"></a>
 
 ### Technical changelog
+
+#### Added (build 7)
+
+- **Subscription brand logos** — `client/js/subscriptionLogos.js` bundles 48
+  curated single-path brand marks (Simple Icons, CC0) keyed by normalized name,
+  with brand colors and a `logoDataUri()` renderer. `subscriptionIcons.js`
+  resolves real logo → per-brand emoji → category/generic; new `brandIconInfo()`
+  returns `null` on no-match, and `LOGO_ALIASES` maps "HBO Max" / "Amazon Prime
+  Video" / etc. to their bundled logo. Wired into the Subscriptions panel and
+  the Dashboard **Upcoming** rows (`buildUpcomingItems` in `utils.js`). Native
+  mirrors the emoji layer only: `SubscriptionIcons.swift` / `SubscriptionIcons.kt`
+  feed the Subscriptions rows. Tests: `subscriptionIcons.test.js` (11),
+  `SubscriptionIconChecks` (iOS), `SubscriptionIconsTest` (Android). (#122)
+- **Native Bills redesign** — `BillsScreen.kt` / `BillsView.swift` bill rows now
+  use the Cards-tab two-tier tile: emoji + name/business + amount on top, colored
+  status + Pay/Skip/Undo quick actions below (Android `QuickAction`, iOS
+  `quickAction`). (#119)
+- **Android editor pickers** — `Form.kt` gains `DateField` (Material date picker,
+  ISO storage, clearable) and `DayField` (1–31 picker); replaced free-text
+  `YYYY-MM-DD` / due-day fields in the bill, card, budget, pay, and settings
+  editors. `FormDialog` root gets `navigationBarsPadding().imePadding()` so the
+  Save button clears the nav bar. (#115)
+
+#### Changed (build 7)
+
+- **iOS build 7 / Android build 16** — `CURRENT_PROJECT_VERSION` 7; `versionCode` 16.
+- **Biometric app lock is an explicit toggle (Android)** — `SettingsScreen.kt`
+  replaces the "Require biometric / passcode after" nav row with a
+  `SwitchRow` (`biometricEnabled` / `setBiometricEnabled`) plus a conditional
+  "Stay unlocked for" duration; `NEVER` dropped from the delay options. The whole
+  block now lives under **Security** rather than Preferences. (#121)
+- **Web Loans layout** — `.card-row-stats.is-loan` uses a 2-column grid capped at
+  `520px` so loans (2 stats) no longer stretch across the 4-column card grid.
+  (#120)
+- **Web Subscriptions title** — `SubscriptionsPanel.svelte` takes a `kicker` prop;
+  the Subscriptions tab mount passes `kicker={false}` so the page title isn't
+  duplicated. (#116)
+- **Android Preferences alignment** — picker rows use `horizontal=16, vertical=12`
+  padding so labels and helper text line up. (#117)
+- **Deploy tooling** — tracked `scripts/play-upload.js` (secret-free Play uploader,
+  reads env only), `deploy:ios` / `deploy:android` npm scripts, and dev-dependency
+  bumps (vitest, svelte plugin). (#118)
 
 #### Added (build 6)
 
