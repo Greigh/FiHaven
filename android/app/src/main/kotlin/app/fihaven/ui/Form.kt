@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,16 +20,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +50,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.fihaven.ui.theme.Ct
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /// Title row for a screen, with optional back (←) and add (+) actions.
 @Composable
@@ -94,7 +108,10 @@ fun FormDialog(
                 .wrapContentHeight()
                 .heightIn(max = maxDialogHeight),
         ) {
-            Column(Modifier.fillMaxWidth()) {
+            // Keep the whole dialog — especially the bottom Save/Cancel row —
+            // clear of the gesture navigation bar and the on-screen keyboard, so
+            // the action buttons stay reachable while a field is focused.
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(title, color = Ct.colors.text, fontSize = 18.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -140,5 +157,88 @@ fun DropdownField(label: String, options: List<String>, selected: String, onSele
                 }
             }
         }
+    }
+}
+
+/// Day-of-month picker (1–31), styled like [DropdownField]. When [allowSame]
+/// is set it offers "Same as due day" first, which maps to an empty value.
+@Composable
+fun DayField(
+    label: String,
+    value: String,
+    allowSame: Boolean = false,
+    sameLabel: String = "Same as due day",
+    onChange: (String) -> Unit,
+) {
+    val days = (1..31).map { it.toString() }
+    val options = if (allowSame) listOf(sameLabel) + days else days
+    val selected = if (value.isBlank()) (if (allowSame) sameLabel else "1") else value
+    DropdownField(label, options, selected) { picked ->
+        onChange(if (picked == sameLabel) "" else picked)
+    }
+}
+
+private val isoDateFmt: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+private val prettyDateFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
+
+private fun isoToLocalDate(iso: String): LocalDate? =
+    iso.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it, isoDateFmt) }.getOrNull() }
+
+private fun isoToPretty(iso: String): String = isoToLocalDate(iso)?.format(prettyDateFmt) ?: ""
+
+private fun isoToMillis(iso: String): Long? =
+    isoToLocalDate(iso)?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+
+private fun millisToIso(millis: Long): String =
+    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().format(isoDateFmt)
+
+/// Read-only date field styled like [DropdownField]; tapping opens a Material
+/// date picker. Stores an ISO "YYYY-MM-DD" string (empty when unset). Clearable
+/// dates show a ✕ to unset them.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DateField(
+    label: String,
+    valueIso: String,
+    onChange: (String) -> Unit,
+    clearable: Boolean = true,
+    supportingText: String? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    val pretty = isoToPretty(valueIso)
+    Column {
+        FieldLabel(label)
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                pretty.ifEmpty { "Select a date" },
+                color = if (pretty.isEmpty()) Ct.colors.muted else Ct.colors.text,
+                modifier = Modifier.weight(1f),
+            )
+            if (clearable && valueIso.isNotBlank()) {
+                Icon(
+                    Icons.Filled.Clear, contentDescription = "Clear date", tint = Ct.colors.muted,
+                    modifier = Modifier.clickable { onChange("") },
+                )
+            } else {
+                Icon(Icons.Filled.DateRange, contentDescription = null, tint = Ct.colors.muted)
+            }
+        }
+        if (supportingText != null) {
+            Text(supportingText, color = Ct.colors.muted, fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp))
+        }
+    }
+    if (open) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = isoToMillis(valueIso))
+        DatePickerDialog(
+            onDismissRequest = { open = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { onChange(millisToIso(it)) }
+                    open = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } },
+        ) { DatePicker(state = state) }
     }
 }

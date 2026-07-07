@@ -356,9 +356,8 @@ fun GoalEditorDialog(goal: SavingsGoal?, vm: AppViewModel, onDismiss: () -> Unit
         OutlinedTextField(target, { target = it }, label = { Text("Target") }, prefix = { Text("$") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
             modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(targetDate, { targetDate = it },
-            label = { Text("Target date (YYYY-MM-DD, optional)") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth())
+        DateField("Target date", targetDate, { targetDate = it },
+            supportingText = "Optional — when you want to reach this goal.")
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
     }
 }
@@ -385,8 +384,7 @@ fun TransactionEditorDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         DropdownField("Category", SPENDING_CATEGORIES, category) { category = it }
         OutlinedTextField(merchant, { merchant = it }, label = { Text("Merchant (optional)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(dateIso, { dateIso = it }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth())
+        DateField("Date", dateIso, { dateIso = it }, clearable = false)
     }
 }
 
