@@ -264,14 +264,14 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         "How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.",
                         color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                     HorizontalDivider(color = Ct.colors.border)
                     RolloverPrefillPicker(data.settings.rolloverPrefill) { vm.setRolloverPrefill(it) }
                     Text(
                         "When a new month starts, how each bill's amount is pre-filled in the review. Average uses your recent payments.",
                         color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
@@ -540,7 +540,7 @@ private fun LicensesDialog(onDone: () -> Unit) {
 
 @Composable
 private fun PaidGoalPicker(current: PaidGoalPolicy, onSelect: (PaidGoalPolicy) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text("Mark fully paid at", color = Ct.colors.text, fontSize = 16.sp)
         Row(
             Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -573,7 +573,7 @@ private fun PaidGoalPicker(current: PaidGoalPolicy, onSelect: (PaidGoalPolicy) -
 
 @Composable
 private fun RolloverPrefillPicker(current: String, onSelect: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text("New month bill amounts", color = Ct.colors.text, fontSize = 16.sp)
         Row(
             Modifier.fillMaxWidth().padding(top = 10.dp),
