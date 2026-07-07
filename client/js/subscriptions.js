@@ -14,7 +14,9 @@ let instance = null;
 export function renderSubscriptions() {
   const target = document.getElementById('subscriptions-mount');
   if (!target || instance) return;
-  instance = mount(SubscriptionsPanel, { target });
+  // The Subscriptions tab already has a page title, so hide the panel's
+  // redundant "Subscriptions" kicker here (the dashboard widget keeps it).
+  instance = mount(SubscriptionsPanel, { target, props: { kicker: false } });
 }
 
 setRenderer('subscriptions', renderSubscriptions);
