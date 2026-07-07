@@ -434,17 +434,13 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
             color = Ct.colors.muted, fontSize = 12.sp)
         OutlinedTextField(apr, { apr = it }, label = { Text("Regular APR %") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(dueDay, { dueDay = it.filter(Char::isDigit).take(2) }, label = { Text("Due day (1–31)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        DayField("Due day (1–31)", dueDay) { dueDay = it }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Autopay", color = Ct.colors.text, modifier = Modifier.weight(1f))
             Switch(checked = autopay, onCheckedChange = { autopay = it })
         }
         if (autopay) {
-            OutlinedTextField(autopayDay, { autopayDay = it.filter(Char::isDigit).take(2) },
-                label = { Text("Autopay day (1–31)") },
-                placeholder = { Text("defaults to due day") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+            DayField("Autopay day", autopayDay, allowSame = true) { autopayDay = it }
         }
         if (!isLoan) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -455,8 +451,7 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                 OutlinedTextField(promoApr, { promoApr = it }, label = { Text("Promo APR %") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
                 money(promoBalance, "Promo balance") { promoBalance = it }
-                OutlinedTextField(promoEnd, { promoEnd = it }, label = { Text("Promo ends (YYYY-MM-DD)") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                DateField("Promo ends", promoEnd, { promoEnd = it })
             }
         }
         if (!isLoan) {
@@ -546,11 +541,9 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(o.detail, { o.detail = it }, label = { Text("Detail (e.g. 10% back)") },
                         singleLine = true, modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(8.dp))
-                    OutlinedTextField(o.expires, { o.expires = it }, label = { Text("Expires (YYYY-MM-DD)") },
-                        singleLine = true, modifier = Modifier.weight(1.2f))
                     TextButton({ offers.removeAt(i) }) { Text("✕", color = Ct.colors.muted) }
                 }
+                DateField("Expires", o.expires, { o.expires = it })
             }
             TextButton({ offers.add(OfferEditState(UUID.randomUUID().toString(), "", "", "", false)) }) {
                 Text("+ Add offer")

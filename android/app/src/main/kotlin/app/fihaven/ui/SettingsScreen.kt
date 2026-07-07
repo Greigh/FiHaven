@@ -979,11 +979,8 @@ private fun PeriodDialog(vm: AppViewModel, settings: JsonObject, onDone: () -> U
                 label = { Text("Window length, days (7–90)") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(anchor, { anchor = it.filter { c -> c.isDigit() || c == '-' }.take(10) },
-                label = { Text("Start on (YYYY-MM-DD, optional)") }, singleLine = true,
-                placeholder = { Text("e.g. 2026-06-10") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth())
+            DateField("Start on", anchor, { anchor = it },
+                supportingText = "Optional — the window's start anchor date.")
         }
     }
 }
