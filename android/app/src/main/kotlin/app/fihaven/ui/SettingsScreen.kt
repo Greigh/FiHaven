@@ -122,6 +122,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     val themeController = LocalThemeController.current
     val activity = LocalContext.current.findFragmentActivity()
     val lockAfter by vm.lockAfterMinutes.collectAsStateWithLifecycle()
+    val biometricEnabled by vm.biometricEnabled.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<String?>(null) }
     var mfa by remember { mutableStateOf<MfaStatus?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -246,7 +247,11 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Appearance", themeController.pref.label) { dialog = "appearance" }
                     if (activity != null && BiometricAuth.isAvailable(activity)) {
                         HorizontalDivider(color = Ct.colors.border)
-                        NavRow("Require biometric / passcode after", BioLockDelay.label(lockAfter)) { dialog = "biolock" }
+                        SwitchRow("Require biometric unlock", biometricEnabled) { vm.setBiometricEnabled(it) }
+                        if (biometricEnabled) {
+                            HorizontalDivider(color = Ct.colors.border)
+                            NavRow("Stay unlocked for", stayUnlockedLabel(lockAfter)) { dialog = "biolock" }
+                        }
                     }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Time zone", data.settings.timezoneSetting ?: "Auto") { dialog = "timezone" }
@@ -773,6 +778,13 @@ private fun DefaultViewDialog(vm: AppViewModel, current: String, onDone: () -> U
     }
 }
 
+/// "Stay unlocked for" duration label (on/off is handled by the toggle).
+private fun stayUnlockedLabel(minutes: Int): String = when (minutes) {
+    BioLockDelay.IMMEDIATELY -> "0 minutes"
+    1 -> "1 minute"
+    else -> "$minutes minutes"
+}
+
 @Composable
 private fun BioLockDialog(
     vm: AppViewModel,
@@ -783,10 +795,10 @@ private fun BioLockDialog(
     var customMinutes by remember(current) {
         mutableIntStateOf(if (current > 0 && current !in BioLockDelay.PRESET_MINUTES) current else 5)
     }
+    // On/off is the toggle in Preferences; this dialog only picks the delay.
     val options = listOf(
-        BioLockDelay.NEVER to BioLockDelay.label(BioLockDelay.NEVER),
-        BioLockDelay.IMMEDIATELY to BioLockDelay.label(BioLockDelay.IMMEDIATELY),
-    ) + BioLockDelay.PRESET_MINUTES.map { it to BioLockDelay.label(it) }
+        BioLockDelay.IMMEDIATELY to stayUnlockedLabel(BioLockDelay.IMMEDIATELY),
+    ) + BioLockDelay.PRESET_MINUTES.map { it to stayUnlockedLabel(it) }
 
     fun apply(minutes: Int) {
         val enabling = minutes >= 0 && current < 0
@@ -803,9 +815,9 @@ private fun BioLockDialog(
         }
     }
 
-    FormDialog("Require unlock after", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+    FormDialog("Stay unlocked for", saveEnabled = false, onSave = {}, onDismiss = onDone) {
         Text(
-            "Choose when FiHaven asks for your fingerprint, face, or device passcode after you leave the app.",
+            "How long FiHaven stays unlocked after you leave the app before asking for your fingerprint, face, or device passcode again.",
             color = Ct.colors.muted, fontSize = 13.sp,
         )
         options.forEach { (value, label) ->
