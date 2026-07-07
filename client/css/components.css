@@ -2013,6 +2013,12 @@ main {
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface2) 50%, transparent);
 }
+/* Loans only have two stats (principal + payment) — a 4-col grid left the
+   right half empty. Give them their own two-column layout so they fill it. */
+.card-row-stats.is-loan {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 520px;
+}
 .card-row-stat-label {
   font-size: 10px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
