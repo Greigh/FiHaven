@@ -12,6 +12,7 @@ import {
 import {
   billDueOn, nextBillDueDate, daysUntilBillDue, billDueInPeriod,
 } from './billSchedule.js';
+import { brandIconInfo } from './subscriptionIcons.js';
 
 export {
   nextBillDueDate, daysUntilBillDue, billDueOn, billDueInPeriod,
@@ -468,6 +469,8 @@ export function buildUpcomingItems() {
       refId:   String(b.id),
       autopay: b.autopay,
       icon:    ICONS[b.category] || '📌',
+      // A recognized brand (Netflix, Spotify…) overrides the category icon.
+      brand:   brandIconInfo(b.name),
     });
   });
 

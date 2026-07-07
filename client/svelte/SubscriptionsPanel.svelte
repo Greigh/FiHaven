@@ -8,6 +8,7 @@
   import { bills, transactions } from '../js/storage.svelte.js';
   import { fmt, shortDate } from '../js/utils.js';
   import { buildSubscriptionItems, totalMonthlySubs } from '../js/subscriptionsFinder.js';
+  import { subscriptionIconInfo } from '../js/subscriptionIcons.js';
 
   // `kicker` shows the small "Subscriptions" label above the total — useful on
   // the dashboard widget, but redundant on the Subscriptions tab (which already
@@ -28,8 +29,11 @@
     </div>
     <div class="subs-list">
       {#each subs as s (s.key)}
+        {@const icon = subscriptionIconInfo(s.name, s.category)}
         <div class="subs-item">
-          <div class="subs-item-icon">{s.source === 'bill' ? '📄' : '🔁'}</div>
+          <div class="subs-item-icon">
+            {#if icon.isLogo}<img class="subs-item-logo" src={icon.logo} alt="" />{:else}{icon.emoji}{/if}
+          </div>
           <div class="subs-item-main">
             <div class="subs-item-name">{s.name}</div>
             <div class="subs-item-sub">
