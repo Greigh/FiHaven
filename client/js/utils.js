@@ -25,7 +25,7 @@ export { currentPeriodKey, periodKeyLabel, periodKeyForPayment };
 export const ICONS = {
   Housing:       '🏠',
   Utilities:     '⚡',
-  Subscriptions: '📱',
+  Subscriptions: '🔁',
   Insurance:     '🛡️',
   Loan:          '🏦',
   Auto:          '🚗',
