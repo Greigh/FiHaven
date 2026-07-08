@@ -82,6 +82,10 @@ val JsonObject.plaidUpdateBalances: Boolean get() = prim("plaidUpdateBalances")?
 /** When true (default), fully paid items are hidden from the dashboard upcoming list. */
 val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true
 
+/** When on, the destructive action on bills/cards/loans archives (soft,
+ *  restorable) instead of deleting outright. Off by default. */
+val JsonObject.archiveInsteadOfDelete: Boolean get() = prim("archiveInsteadOfDelete")?.booleanOrNull ?: false
+
 /** Dashboard layout: "classic" (fixed) or "widgets" (customizable order). */
 val JsonObject.dashboardLayout: String get() = prim("dashboardLayout")?.contentOrNull ?: "classic"
 

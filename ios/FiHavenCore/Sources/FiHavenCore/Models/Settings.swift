@@ -136,6 +136,13 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["hidePaidOnDashboard"] = .bool(newValue) }
     }
 
+    /// When on, the destructive action on bills/cards/loans archives (soft,
+    /// restorable) instead of deleting outright. Off by default.
+    public var archiveInsteadOfDelete: Bool {
+        get { raw["archiveInsteadOfDelete"]?.asBool ?? false }
+        set { raw["archiveInsteadOfDelete"] = .bool(newValue) }
+    }
+
     /// Dashboard layout: "classic" (fixed) or "widgets" (customizable order).
     public var dashboardLayout: String {
         get { raw["dashboardLayout"]?.asString ?? "classic" }

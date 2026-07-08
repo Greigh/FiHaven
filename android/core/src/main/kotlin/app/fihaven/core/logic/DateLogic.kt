@@ -100,7 +100,7 @@ object DateLogic {
         return !e.isNullOrEmpty() && ymd > e
     }
     fun billActive(bill: Bill, ymd: String): Boolean =
-        !billNotStarted(bill, ymd) && !billEnded(bill, ymd)
+        !bill.archived && !billNotStarted(bill, ymd) && !billEnded(bill, ymd)
 
     fun billNotStarted(bill: Bill, zone: ZoneId, now: Instant = Instant.now()): Boolean =
         billNotStarted(bill, ymd(today(zone, now)))
