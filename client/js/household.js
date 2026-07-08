@@ -28,7 +28,7 @@ function api(path, method, body) {
 }
 
 var ERR = {
-  'pro-required': 'Household sharing is a Pro feature.',
+  'pro-required': 'Household sharing is part of the Family plan.',
   'already-in-household': 'You’re already in a household.',
   'not-owner': 'Only the household owner can do that.',
   'invalid-email': 'Enter a valid email address.',
@@ -79,9 +79,9 @@ function renderUpsell() {
     '<div class="card" style="padding:16px;">' +
       '<div style="font-weight:600;">Share with your family</div>' +
       '<p style="margin-top:6px;color:var(--muted);font-size:14px;">' +
-        'Household sharing is part of <strong>FiHaven Pro</strong>. Upgrade to start a household and invite up to three people.' +
+        'Household sharing is part of the <strong>FiHaven Family plan</strong> ($25.99/yr). Upgrade to start a household and invite up to three people.' +
       '</p>' +
-      '<button class="btn btn-primary" type="button" data-hh-upgrade style="margin-top:12px;">Upgrade to Pro</button>' +
+      '<button class="btn btn-primary" type="button" data-hh-upgrade style="margin-top:12px;">See the Family plan</button>' +
     '</div>';
   root().querySelector('[data-hh-upgrade]').addEventListener('click', function () { openProDialog(); });
 }

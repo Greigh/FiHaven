@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestServer, listen, cookieFrom } from './helpers/testServer.js';
 
-// End-to-end household (couples / families) flows: Pro gating, invite +
-// accept, member-cap enforcement, and leave/transfer.
+// End-to-end household (couples / families) flows: Family-plan gating,
+// invite + accept, member-cap enforcement, and leave/transfer.
 
 describe('integration — shared households', () => {
   let ctx;
@@ -35,11 +35,11 @@ describe('integration — shared households', () => {
     return { id: user.id, email, cookie, csrf: session.csrfToken };
   }
 
-  function grantPro(userId) {
+  function grantFamily(userId) {
     const db = ctx.db();
     const now = Date.now();
     db.upsertSubscription({
-      user_id: userId, platform: 'comp', product_id: 'pro', txn_id: `test_${userId}`,
+      user_id: userId, platform: 'comp', product_id: 'app.fihaven.pro.family', txn_id: `test_${userId}`,
       status: 'active', expires_at: now + 365 * 86400000, environment: 'Test',
       auto_renew: 1, raw: null, created_at: now, updated_at: now,
     });
@@ -58,14 +58,14 @@ describe('integration — shared households', () => {
     return m ? decodeURIComponent(m[1]) : null;
   }
 
-  it('requires Pro to create a household, then creates one', async () => {
+  it('requires the Family plan to create a household, then creates one', async () => {
     const owner = await makeUser('owner');
 
     const denied = await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Smith Family' }));
     expect(denied.status).toBe(403);
     expect((await denied.json()).error).toBe('pro-required');
 
-    grantPro(owner.id);
+    grantFamily(owner.id);
 
     const ok = await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Smith Family' }));
     expect(ok.status).toBe(200);
@@ -78,7 +78,7 @@ describe('integration — shared households', () => {
 
   it('invites a member who accepts, and both see the household', async () => {
     const owner = await makeUser('owner2');
-    grantPro(owner.id);
+    grantFamily(owner.id);
     await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Casa' }));
 
     const partner = await makeUser('partner');
@@ -102,7 +102,7 @@ describe('integration — shared households', () => {
 
   it('rejects an invite accepted by a different email', async () => {
     const owner = await makeUser('owner3');
-    grantPro(owner.id);
+    grantFamily(owner.id);
     await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'X' }));
     await fetch(`${base}/api/household/invite`, J(owner, 'POST', { email: 'someone-else@test.com' }));
     const token = latestInviteToken();
@@ -113,9 +113,9 @@ describe('integration — shared households', () => {
     expect((await res.json()).error).toBe('invite-email-mismatch');
   });
 
-  it('enforces the member cap (Pro = 3)', async () => {
+  it('enforces the member cap (Family = 3)', async () => {
     const owner = await makeUser('owner4');
-    grantPro(owner.id);
+    grantFamily(owner.id);
     await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Full House' }));
 
     // Fill to the cap of 3 (owner + 2).
@@ -135,7 +135,7 @@ describe('integration — shared households', () => {
 
   it('lets a member leave, and transfers ownership when the owner leaves', async () => {
     const owner = await makeUser('owner5');
-    grantPro(owner.id);
+    grantFamily(owner.id);
     await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Leavers' }));
 
     const partner = await makeUser('leaver');
