@@ -29,6 +29,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -97,7 +98,6 @@ fun FormDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val maxDialogHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
-    val maxContentHeight = maxDialogHeight - 120.dp
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -117,22 +117,34 @@ fun FormDialog(
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("Cancel", color = Ct.colors.muted) }
                 }
+                // weight(fill = false) lets the header and the action row be
+                // measured first and take exactly what they need; the scrolling
+                // content then gets whatever is left, and shrinks rather than
+                // pushing Save past the bottom of the dialog. A fixed content
+                // cap (maxDialogHeight - 120dp) could not know the real header
+                // and footer heights, so on tall forms, large font scales, or
+                // with the keyboard up, Save ended up off-screen.
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .heightIn(max = maxContentHeight)
+                        .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) { content() }
+                HorizontalDivider(color = Ct.colors.border)
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (onDelete != null) {
-                        TextButton(onClick = onDelete) { Text("Delete", color = Ct.colors.red) }
+                        TextButton(
+                            onClick = onDelete,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text("Delete", color = Ct.colors.red) }
                     }
                     Spacer(Modifier.weight(1f))
                     Button(
                         onClick = onSave, enabled = saveEnabled,
                         colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+                        modifier = Modifier.heightIn(min = 48.dp),
                     ) { Text(saveLabel) }
                 }
             }
