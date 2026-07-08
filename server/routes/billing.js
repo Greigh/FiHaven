@@ -36,6 +36,9 @@ router.get('/status', requireAuth, (req, res) => {
   res.json({
     entitlement: billing.computeEntitlement(req.user.id),
     stripePortal: billing.canUseStripePortal(req.user.id),
+    // Whether the dev subscription override may be honored. Only the server
+    // knows who is an admin, so the client never decides this for itself.
+    admin: req.user.role === 'admin',
   });
 });
 

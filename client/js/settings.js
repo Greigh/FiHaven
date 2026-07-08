@@ -194,10 +194,10 @@ import {
       fetchData()
         .then(function (server) { renderMembership(user, server && server.entitlement); })
         .catch(function () { renderMembership(user, null); });
-      // Developer tools (subscription override) — admins or a local fh_dev flag.
-      var isDev = (user.role === 'admin');
-      try { isDev = isDev || localStorage.getItem('fh_dev') === '1'; } catch (e) { /* ignore */ }
-      if (isDev) initDeveloperSection();
+      // Developer tools (subscription override) — admins only. The role comes
+      // from the server; there is deliberately no local flag to flip, and the
+      // override itself is re-checked server-side on every refresh.
+      if (user.role === 'admin') initDeveloperSection();
     });
 
     /* ── Display name ──────────────────────────────────────── */
