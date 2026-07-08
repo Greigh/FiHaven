@@ -4,12 +4,12 @@
   import) automatically re-render this list.
 -->
 <script>
-  import { bills, cards, save } from '../js/storage.svelte.js';
+  import { bills, cards, save, settings } from '../js/storage.svelte.js';
   import {
     ICONS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilBillDue, nextDueDate, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
     paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
-    nextBillDueDate, daysUntilBillDue,
+    nextBillDueDate, daysUntilBillDue, archiveInsteadOfDelete,
   } from '../js/utils.js';
 
   // "YYYY-MM-DD" → local Date for friendly display (e.g. "Jul 15").
@@ -41,6 +41,20 @@
     });
   }
 
+  /* ── Archive (soft delete) ──────────────────────────────── */
+  let useArchive = $derived(archiveInsteadOfDelete(settings));
+  let showArchived = $state(false);
+  let archivedBills = $derived(bills.filter((b) => b.archived));
+
+  function archiveBill(bill) {
+    const b = bills.find((x) => x.id === bill.id);
+    if (b) { b.archived = true; save('fh_bills', bills); }
+  }
+  function restoreBill(bill) {
+    const b = bills.find((x) => x.id === bill.id);
+    if (b) { delete b.archived; save('fh_bills', bills); }
+  }
+
   /* ── Sort + filter ──────────────────────────────────────── */
   let sort = $state('due');
   let activeFilters = $state({});
@@ -66,6 +80,7 @@
   let visibleBills = $derived.by(() => {
     const f = activeFilters;
     const list = bills.filter((b) => {
+      if (b.archived) return false;
       if (f.unpaid && paidState('bill', String(b.id), mk) === 'full') return false;
       if (f.overdue && !((b.dueDay || b.startDate) && effectiveDaysUntilBillDue(b, mk) < 0)) return false;
       if (f.autopay && !b.autopay) return false;
@@ -247,7 +262,11 @@
             <td data-cell="actions">
               <div class="action-btns">
                 <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
-                <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+                {#if useArchive}
+                  <button class="btn btn-ghost btn-sm" onclick={() => archiveBill(b)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+                {:else}
+                  <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+                {/if}
               </div>
             </td>
           </tr>
@@ -256,3 +275,24 @@
     </table>
   {/if}
 </div>
+
+{#if archivedBills.length > 0}
+  <div class="archived-block">
+    <button class="archived-toggle" type="button" onclick={() => (showArchived = !showArchived)}>
+      <span class="archived-chevron" class:open={showArchived}>▾</span>
+      Archived bills ({archivedBills.length})
+    </button>
+    {#if showArchived}
+      <div class="archived-list">
+        {#each archivedBills as b (b.id)}
+          <div class="archived-row">
+            <span class="archived-name">{ICONS[b.category] || '📌'} {b.name}</span>
+            <span class="archived-amt">{fmt(b.amount)}</span>
+            <button class="btn btn-ghost btn-xs" onclick={() => restoreBill(b)}>Restore</button>
+            <button class="btn btn-danger btn-xs" onclick={() => deleteBill(b)}>Delete forever</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}

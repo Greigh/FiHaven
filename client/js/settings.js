@@ -977,6 +977,7 @@ import {
     var form = document.querySelector('[data-form="dashboard"]');
     if (!form) return;
     var checkbox   = form.querySelector('[data-hide-paid-dashboard]');
+    var archiveCb  = form.querySelector('[data-archive-instead-delete]');
     var layoutSel  = form.querySelector('[data-dash-layout]');
     var widgetsWrap = form.querySelector('[data-dash-widgets-wrap]');
     var widgetsList = form.querySelector('[data-dash-widgets]');
@@ -1037,6 +1038,7 @@ import {
       .then(function (server) {
         var s = (server && server.settings) || {};
         if (checkbox) checkbox.checked = s.hidePaidOnDashboard !== false;
+        if (archiveCb) archiveCb.checked = !!s.archiveInsteadOfDelete;
         if (layoutSel) layoutSel.value = dashboardLayout(s);
         seedOrder(s);
         renderWidgets();
@@ -1048,6 +1050,7 @@ import {
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var hidePaid = !!(checkbox && checkbox.checked);
+      var archiveMode = !!(archiveCb && archiveCb.checked);
       var layout = layoutSel ? layoutSel.value : 'classic';
       var dashboardWidgets = order.filter(function (e) { return e.on; }).map(function (e) { return e.id; });
       setBusy(form, true);
@@ -1059,10 +1062,14 @@ import {
             bills: server.bills || [],
             cards: server.cards || [],
             payments: server.payments || [],
+            accounts: server.accounts || [],
+            goals: server.goals || [],
+            transactions: server.transactions || [],
             settings: Object.assign({}, server.settings || {}, {
               hidePaidOnDashboard: hidePaid,
               dashboardLayout: layout,
               dashboardWidgets: dashboardWidgets,
+              archiveInsteadOfDelete: archiveMode,
             }),
           };
           return pushData(snapshot);
