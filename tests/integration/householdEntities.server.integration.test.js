@@ -34,11 +34,11 @@ describe('integration — household shared entities', () => {
     return { id: user.id, email, cookie, csrf: session.csrfToken };
   }
 
-  function grantPro(userId) {
+  function grantFamily(userId) {
     const db = ctx.db();
     const now = Date.now();
     db.upsertSubscription({
-      user_id: userId, platform: 'comp', product_id: 'pro', txn_id: `test_${userId}`,
+      user_id: userId, platform: 'comp', product_id: 'app.fihaven.pro.family', txn_id: `test_${userId}`,
       status: 'active', expires_at: now + 365 * 86400000, environment: 'Test',
       auto_renew: 1, raw: null, created_at: now, updated_at: now,
     });
@@ -58,7 +58,7 @@ describe('integration — household shared entities', () => {
   // A couple sharing a household: returns { owner, partner }.
   async function couple(seed) {
     const owner = await makeUser(`${seed}-o`);
-    grantPro(owner.id);
+    grantFamily(owner.id);
     await fetch(`${base}/api/household`, J(owner, 'POST', { name: 'Shared' }));
     const partner = await makeUser(`${seed}-p`);
     await fetch(`${base}/api/household/invite`, J(owner, 'POST', { email: partner.email }));

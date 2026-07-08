@@ -10,3 +10,4 @@ import './navbar.js';
 import './public-footer.js';
 import './passwordToggle.js';
 import './social-login.js';
+import './home-hero.js';
