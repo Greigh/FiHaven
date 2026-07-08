@@ -58,9 +58,9 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     // the rewards estimate in the fee check and the offer-use detection.
     val spendByCategory = Rewards.categorySpendAnnual(data.transactions, DateLogic.today(vm.zone()))
 
-    val creditCards = data.cards.filter { it.type != "loan" }
+    val creditCards = data.activeCards.filter { it.type != "loan" }
     val anyRewards = creditCards.any { it.rewardBase > 0 || it.rewardCategories.values.any { v -> v > 0 } }
-    val ranking = Rewards.rank(data.cards, category, vm.zone())
+    val ranking = Rewards.rank(data.activeCards, category, vm.zone())
 
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
@@ -187,7 +187,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                     }
                 }
 
-                val wallet = Rewards.walletStrategy(data.cards, Rewards.CATEGORIES, vm.zone()).filter { it.best != null }
+                val wallet = Rewards.walletStrategy(data.activeCards, Rewards.CATEGORIES, vm.zone()).filter { it.best != null }
                 if (wallet.isNotEmpty()) {
                     CtCard {
                         Column {
@@ -217,7 +217,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                 val today = DateLogic.today(vm.zone())
 
                 // "Looks like you used this" — offers with a matching recent charge.
-                val suggestions = Offers.useSuggestions(data.cards, data.transactions, today)
+                val suggestions = Offers.useSuggestions(data.activeCards, data.transactions, today)
                 if (suggestions.isNotEmpty()) {
                     CtCard {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -242,9 +242,9 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                     }
                 }
 
-                val offers = Offers.active(data.cards, today)
+                val offers = Offers.active(data.activeCards, today)
                 if (offers.isNotEmpty()) {
-                    val soon = Offers.expiringSoon(data.cards, today)
+                    val soon = Offers.expiringSoon(data.activeCards, today)
                     CtCard {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
@@ -278,7 +278,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                     }
                 }
 
-                val feeCards = data.cards.mapNotNull { c ->
+                val feeCards = data.activeCards.mapNotNull { c ->
                     val est = Rewards.cardRewardsEstimateAnnual(c, spendByCategory)
                     Perks.feeAssessment(c, data.settings.perkUsage, today, est)?.let { c to it }
                 }
@@ -315,11 +315,11 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                     }
                 }
 
-                val cardsWithPerks = data.cards.filter { it.perks.isNotEmpty() }
+                val cardsWithPerks = data.activeCards.filter { it.perks.isNotEmpty() }
                 if (cardsWithPerks.isNotEmpty()) {
                     val today = DateLogic.today(vm.zone())
                     val usage = data.settings.perkUsage
-                    val unrealized = Perks.unrealizedTotal(data.cards, usage, today)
+                    val unrealized = Perks.unrealizedTotal(data.activeCards, usage, today)
                     CtCard {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {

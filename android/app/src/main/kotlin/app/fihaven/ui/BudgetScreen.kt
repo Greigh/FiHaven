@@ -65,13 +65,13 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     val cfg = vm.periodConfig()
     val income = Income.periodIncome(data.settings, bounds)
     val obligations = data.bills.filter { BillSchedule.dueInPeriod(it, bounds, vm.zone()) }.sumOf { it.amount } +
-        data.cards.sumOf { it.minPayment }
+        data.activeCards.sumOf { it.minPayment }
     val leftover = income - obligations
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     val zone = vm.zone()
     val billDue: (app.fihaven.core.model.Bill) -> Boolean = { BillSchedule.dueInPeriod(it, bounds, zone) }
     val budgetLens = BudgetRules.lens(
-        data.settings, income, data.bills, data.cards, data.transactions, data.goals,
+        data.settings, income, data.bills, data.activeCards, data.transactions, data.goals,
         bounds, billDue, ent.pro, zone,
     )
     val sources = data.settings.incomes

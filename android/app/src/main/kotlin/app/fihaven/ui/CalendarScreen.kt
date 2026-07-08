@@ -77,7 +77,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 }
             }
         }
-        data.cards.forEach { c ->
+        data.activeCards.forEach { c ->
             c.dueDay?.let { d ->
                 val amt = if (c.hasPromo) max(c.minPayment, Schedule.promoNeeded(c, zone)) else c.minPayment
                 map.getOrPut(d) { mutableListOf() }
