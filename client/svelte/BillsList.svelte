@@ -185,7 +185,7 @@
                   <span class="badge badge-gray">Day {b.dueDay}</span>
                 {/if}
                 {#if next}
-                  <div style="font-size:11px;color:var(--muted);margin-top:3px;">Next: {shortDate(next)}</div>
+                  <div style="font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;">Next: {shortDate(next)}</div>
                 {/if}
               {/if}
             </td>
