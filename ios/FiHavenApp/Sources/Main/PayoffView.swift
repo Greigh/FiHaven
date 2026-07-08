@@ -19,7 +19,7 @@ struct PayoffView: View {
     @State private var calcStartNew = false
 
     private var result: PayoffResult? {
-        Payoff.runPayoffSim(cards: store.data.cards, strategy: strategy, extra: extra, tz: store.tz)
+        Payoff.runPayoffSim(cards: store.activeCards, strategy: strategy, extra: extra, tz: store.tz)
     }
 
     var body: some View {
@@ -227,7 +227,7 @@ struct PayoffView: View {
     }
 
     private var splitPlan: [(name: String, apr: Double, pay: Double)] {
-        var list = store.data.cards
+        var list = store.activeCards
             .filter { ($0.type ?? "card") == "card" || $0.type == "loan" }
             .map { c -> (name: String, apr: Double, min: Double, bal: Double, pay: Double) in
                 let bal = (c.currentBalance ?? 0) > 0 ? (c.currentBalance ?? 0) : c.balance
