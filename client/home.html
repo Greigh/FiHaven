@@ -90,11 +90,11 @@
               <span class="marketing-accent">Calm month.</span>
             </h1>
             <p class="marketing-sub">
-              FiHaven is a focused bill and debt dashboard for people who'd rather
-              spend a calm five minutes a week than a frantic afternoon every payday.
-              Track bills, cards, loans, spending, and payoff plans on the web, iPhone,
-              and iPad — one account, synced everywhere. Optional bank linking, card perks,
-              and family sharing on Pro. Manual-first: you own every number.
+              A focused bill and debt dashboard for people who'd rather spend a calm
+              five minutes a week than a frantic afternoon every payday. Track bills,
+              cards, loans, and payoff plans across web, iPhone, iPad, and Android —
+              one synced account, manual-first, with optional bank linking and family
+              sharing on Pro.
             </p>
             <div class="marketing-cta">
               <a class="btn btn-primary btn-lg" href="/login" data-login-cta>Create your free account</a>
@@ -139,7 +139,7 @@
                 <div class="marketing-preview-month">
                   <div>
                     <div class="marketing-preview-label">Dashboard</div>
-                    <div class="marketing-preview-title">June 2026</div>
+                    <div class="marketing-preview-title" id="hero-preview-month">June 2026</div>
                   </div>
                   <span class="sync-status" data-state="saved">All changes saved</span>
                 </div>
@@ -171,6 +171,16 @@
           </div>
         </div>
       </section>
+
+      <!-- ═══ RECENTLY SHIPPED ════════════════════════════════ -->
+      <div class="marketing-shipped">
+        <span class="marketing-shipped-badge">Just shipped</span>
+        <p>
+          Real subscription brand logos, a redesigned native Bills tab, and an
+          on/off biometric app lock.
+          <a href="https://github.com/Greigh/FiHaven/blob/main/CHANGELOG.md" target="_blank" rel="noopener">See what's new →</a>
+        </p>
+      </div>
 
       <!-- ═══ FEATURE GRID ════════════════════════════════════ -->
       <section class="marketing-section" id="features">
@@ -256,6 +266,11 @@
             <h3>Own your data</h3>
             <p>Download everything as JSON or CSV anytime. Delete your account and every byte is gone. No lock-in, no ads.</p>
           </article>
+          <article class="marketing-feature marketing-feature-more">
+            <h3>…and plenty more</h3>
+            <p>Bill reminders and push notifications, monthly rollover, rearrangeable dashboard widgets, autopay tracking, income sources, and dark mode — all in the same calm workspace.</p>
+            <a class="marketing-feature-more-link" href="/pricing">See everything →</a>
+          </article>
         </div>
       </section>
 
@@ -295,6 +310,10 @@
           <article class="marketing-plan">
             <div class="marketing-plan-name">Free</div>
             <div class="marketing-plan-lead">The calm, manual workspace — yours for nothing.</div>
+            <div class="marketing-plan-price">
+              <span class="plan-price-amount">$0</span>
+              <span class="plan-price-cycle">forever</span>
+            </div>
             <ul class="marketing-plan-list">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Unlimited bills, cards &amp; loans</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Spending log, net worth, savings goals &amp; mark paid</li>
@@ -307,8 +326,14 @@
           </article>
           <!-- Pro -->
           <article class="marketing-plan marketing-plan-pro">
-            <div class="marketing-plan-name">FiHaven Pro</div>
+            <div class="marketing-plan-name">FiHaven Pro <span class="plan-tag">Most popular</span></div>
             <div class="marketing-plan-lead">Everything in Free, plus the automated overlay.</div>
+            <div class="marketing-plan-price">
+              <span class="plan-price-amount">$1.99</span>
+              <span class="plan-price-cycle">/ month</span>
+              <span class="plan-price-badge">or $14.99/yr · save 37%</span>
+            </div>
+            <div class="marketing-plan-note">Family plan <strong>$25.99/yr</strong> for your whole household.</div>
             <ul class="marketing-plan-list">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Payoff planner — snowball, avalanche &amp; minimums</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Calendar view &amp; private iCal feed</li>
@@ -377,7 +402,7 @@
             </p>
           </div>
           <div class="app-badges">
-            <a class="app-badge" href="/login" style="text-decoration:none;color:inherit;" aria-label="Use FiHaven on the web">
+            <a class="app-badge" href="/login" style="text-decoration:none;" aria-label="Use FiHaven on the web">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm2 0v14h12V5H6zm3 15h6v2H9v-2z"/></svg>
               <span class="app-badge-text"><small>Use it now on the</small><strong>Web</strong></span>
             </a>
