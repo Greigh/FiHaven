@@ -178,6 +178,17 @@ class ApiClient(
         send(makeRequest("api/push/unregister", HttpMethod.POST, body))
     }
 
+    /** Offer a subscription's manage/cancel link to the shared database. The
+     * server mails it to us with the sender as reply-to; nothing is stored, so
+     * a failure here never affects the user's own saved link. */
+    suspend fun shareSubscriptionLink(name: String, url: String) {
+        val body = buildJsonObject {
+            put("name", name)
+            put("url", url)
+        }.toString()
+        send(makeRequest("api/feedback/subscription-link", HttpMethod.POST, body))
+    }
+
     private fun storeSession(body: String): AuthSession {
         val r = decode<SessionResponse>(body)
         val token = r.token ?: throw ApiError.Decoding("missing token in auth response")
