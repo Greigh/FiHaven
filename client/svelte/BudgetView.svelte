@@ -139,6 +139,7 @@
       autopay: b.autopay,
     }));
     cards.forEach((c) => {
+      if (c.archived) return;
       rs.push({
         type: 'card', refId: String(c.id), name: c.name + ' (payment)',
         icon: '💳', category: 'Credit Card',

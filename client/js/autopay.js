@@ -99,8 +99,8 @@ export function runAutopayMark() {
     added = true;
   };
 
-  bills.forEach((b) => mark(b, 'bill', b.name, parseFloat(b.amount) || 0));
-  cards.forEach((c) => mark(c, 'card', (c.name || 'Card') + ' (payment)',
+  bills.filter((b) => !b.archived).forEach((b) => mark(b, 'bill', b.name, parseFloat(b.amount) || 0));
+  cards.filter((c) => !c.archived).forEach((c) => mark(c, 'card', (c.name || 'Card') + ' (payment)',
     goalAmountFor('card', String(c.id), mk)));
 
   if (added) {

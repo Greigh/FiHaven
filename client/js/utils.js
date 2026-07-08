@@ -202,12 +202,20 @@ export function billEnded(bill, atDate) {
 // excluded from due/overdue, monthly totals, the calendar, and
 // reminders (it still shows in the list with a badge).
 export function billActive(bill, atDate) {
+  if (bill && bill.archived) return false;
   return !billNotStarted(bill, atDate) && !billEnded(bill, atDate);
 }
+
+// Archived records are hidden from every list, total, calendar, and
+// reminder — a soft delete that stays restorable. Kept as a flag on the
+// record (inside the synced bills/cards lists) so it round-trips across
+// web/iOS/Android without a data-shape change.
+export function isArchived(x) { return !!(x && x.archived); }
 
 // True if a bill's active window overlaps a budgeting period
 // (matches BudgetView's billInPeriod filter).
 export function billInPeriod(bill, bounds) {
+  if (bill && bill.archived) return false;
   if (!bounds || !bounds.start || !bounds.end) return billActive(bill);
   const lastDay = new Date(bounds.end.getTime() - 864e5);
   return !billEnded(bill, bounds.start) && !billNotStarted(bill, lastDay);
@@ -224,6 +232,12 @@ export function periodObligationItems(items, bounds) {
 
 export function hidePaidOnDashboard(s) {
   return s && s.hidePaidOnDashboard !== false;
+}
+
+// When on, the destructive button on bills/cards/loans archives (soft,
+// restorable) instead of deleting outright. Off by default.
+export function archiveInsteadOfDelete(s) {
+  return !!(s && s.archiveInsteadOfDelete);
 }
 
 // Short calendar label (e.g. "Feb 5"); "Feb 5, 2027" if it's in a
@@ -475,6 +489,7 @@ export function buildUpcomingItems() {
   });
 
   cards.forEach(function(c) {
+    if (c.archived) return;
     if (!c.dueDay) return;
     var needed = c.hasPromo
       ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
