@@ -89,10 +89,13 @@ export function setEntitlement(e) {
   entitlement.expiresAt = next.expiresAt ?? null;
 }
 
-/* ── Dev entitlement override (testing only) ────────────────
-   Lets an admin/dev simulate every Pro state without a real
-   purchase. Persisted in localStorage; when set, it replaces the
-   server entitlement everywhere via refreshEntitlement(). */
+/* ── Dev entitlement override (admins only) ─────────────────
+   Lets an admin simulate every Pro state without a real purchase.
+   The choice is persisted in localStorage, but localStorage is
+   attacker-controlled: only the server can say who is an admin, so
+   the override is applied solely through applyEntitlement() below,
+   which honors it only when the server's payload says `admin: true`.
+   For everyone else a stored value is ignored and erased. */
 const DEV_ENT_KEY = 'fh_dev_entitlement';
 
 export function getDevEntitlement() {
@@ -105,6 +108,10 @@ export function setDevEntitlement(state) {
     else localStorage.setItem(DEV_ENT_KEY, state);
   } catch (e) { /* ignore */ }
   return refreshEntitlement();
+}
+
+function clearDevEntitlement() {
+  try { localStorage.removeItem(DEV_ENT_KEY); } catch (e) { /* ignore */ }
 }
 
 // Synthetic entitlement for a simulated state, or null to use the server's.
@@ -121,14 +128,29 @@ function devEntitlement(state) {
   }
 }
 
-// Re-fetch the authoritative entitlement (after a checkout return / redeem).
-// A dev override, if set, short-circuits the server call.
-export function refreshEntitlement() {
+/* The single place a server payload becomes the live entitlement. Non-admins
+   get exactly what the server sent; a leftover override is wiped so it can't
+   resurface if the account is ever promoted. */
+export function applyEntitlement(payload) {
+  const isAdmin = !!(payload && payload.admin);
+  if (!isAdmin) {
+    clearDevEntitlement();
+    setEntitlement(payload && payload.entitlement);
+    return entitlement;
+  }
   const override = devEntitlement(getDevEntitlement());
-  if (override) { setEntitlement(override); return Promise.resolve(entitlement); }
+  setEntitlement(override || (payload && payload.entitlement));
+  return entitlement;
+}
+
+// Re-fetch the authoritative entitlement (after a checkout return / redeem,
+// or when the override changes). Always asks the server, because the server's
+// answer is what decides whether an override is allowed at all. On a failed
+// fetch the current entitlement stands — we never upgrade ourselves offline.
+export function refreshEntitlement() {
   return fetch('/api/billing/status', { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : null))
-    .then((d) => { if (d) setEntitlement(d.entitlement); return entitlement; })
+    .then((d) => (d ? applyEntitlement(d) : entitlement))
     .catch(() => entitlement);
 }
 
@@ -319,7 +341,7 @@ export function bootstrapData() {
       return r.json();
     })
     .then((server) => {
-      setEntitlement(server.entitlement);
+      applyEntitlement(server);
       const owner = server.email || '';
       const serverEmpty =
         !(server.bills && server.bills.length) &&
