@@ -42,7 +42,10 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import app.fihaven.AppViewModel
@@ -259,9 +262,11 @@ private fun BillRow(
                         color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Actions carry their own 48dp padding now, so the row needs less
+            // top gap and less spacing between them.
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(statusText, color = statusColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     when {
                         skipped -> QuickAction("Undo skip", Ct.colors.accent, onUnskip)
                         state == PaidState.FULL -> QuickAction("Undo", Ct.colors.muted, onUnmark)
@@ -280,10 +285,23 @@ private fun BillRow(
     }
 }
 
+/// A compact row action (Skip / Pay / Undo). The label alone is far smaller
+/// than Material's 48dp minimum touch target, and the whole card behind it is
+/// clickable (it opens the editor) — so a near-miss used to edit the bill
+/// instead of paying it. The padding sits *inside* the clickable, which is what
+/// grows the hit area rather than just the visual box.
 @Composable
 private fun QuickAction(label: String, color: Color, onClick: () -> Unit) {
-    Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-        modifier = Modifier.clickable(onClick = onClick))
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick, role = Role.Button)
+            .sizeIn(minWidth = 56.dp, minHeight = 48.dp)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
 }
 
 /// "YYYY-MM-DD" or LocalDate → a short "MMM d" label.
