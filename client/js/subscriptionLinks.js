@@ -46,6 +46,8 @@ export function normalizeMerchantKey(name) {
 /** Best-effort manage/cancel URL from bill name, business, or notes. */
 export function subscriptionManageUrl(bill) {
   if (!bill) return null;
+  // A link the user saved on the bill wins over everything else.
+  if (bill.manageUrl && /^https?:\/\//i.test(bill.manageUrl)) return bill.manageUrl;
   const fromNotes = extractUrl(bill.notes);
   if (fromNotes) return fromNotes;
 
