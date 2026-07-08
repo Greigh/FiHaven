@@ -17,10 +17,10 @@ struct BudgetView: View {
     }
 
     private var obligations: Double {
-        store.data.bills
+        store.activeBills
             .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
             .reduce(0) { $0 + $1.amount }
-            + store.data.cards.reduce(0) { $0 + $1.minPayment }
+            + store.activeCards.reduce(0) { $0 + $1.minPayment }
     }
     private var leftover: Double { store.periodIncome - obligations }
 
@@ -28,8 +28,8 @@ struct BudgetView: View {
         BudgetRules.lens(
             settings: store.data.settings,
             income: store.periodIncome,
-            bills: store.data.bills,
-            cards: store.data.cards,
+            bills: store.activeBills,
+            cards: store.activeCards,
             transactions: store.data.transactions,
             goals: store.data.goals,
             bounds: store.currentBounds,

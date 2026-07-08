@@ -25,6 +25,15 @@ final class AppStore: ObservableObject {
     @Published private(set) var loaded = false
     @Published private(set) var rolloverPrompt: RolloverPrompt?
 
+    /// Non-archived bills/cards — what every list, total, and calculation
+    /// should read. Archived records stay in `data` (so they round-trip and
+    /// can be restored) but are hidden from active views. Mirrors web, where
+    /// archived items are excluded everywhere.
+    var activeBills: [Bill] { data.bills.filter { !$0.archived } }
+    var activeCards: [Card] { data.cards.filter { !$0.archived } }
+    var archivedBills: [Bill] { data.bills.filter { $0.archived } }
+    var archivedCards: [Card] { data.cards.filter { $0.archived } }
+
     /// A pending "new month started" prompt, shown once per month on the dashboard.
     struct RolloverPrompt: Identifiable {
         let id = UUID()

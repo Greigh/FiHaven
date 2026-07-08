@@ -45,19 +45,19 @@ struct AlertsWidget: View {
     @EnvironmentObject var store: AppStore
     private var alerts: [String] {
         var out: [String] = []
-        for c in store.data.cards where c.type != "loan" && c.limit > 0 {
+        for c in store.activeCards where c.type != "loan" && c.limit > 0 {
             let util = Int((c.balance / c.limit) * 100)
             if util >= 80 {
                 out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(c.balance)) of \(Money.fmt(c.limit))).")
             }
         }
-        for b in store.data.bills where !(b.trialEnds ?? "").isEmpty {
+        for b in store.activeBills where !(b.trialEnds ?? "").isEmpty {
             if let left = trialDaysLeft(b.trialEnds, tz: store.tz), left >= 0, left <= 3 {
                 let dayWord = left == 0 ? "today" : (left == 1 ? "tomorrow" : "in \(left) days")
                 out.append("⏳ \(b.name) — free trial ends \(dayWord).")
             }
         }
-        for c in store.data.cards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
+        for c in store.activeCards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
             let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
             let bal = c.promoBalance ?? c.balance
             let need = max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz))
@@ -139,7 +139,7 @@ struct SubscriptionsWidget: View {
 
     private var subs: [(name: String, monthly: Double)] {
         var out: [(String, Double)] = []
-        for b in store.data.bills where b.category == "Subscriptions" && !DateLogic.billEnded(b, tz: store.tz) {
+        for b in store.activeBills where b.category == "Subscriptions" && !DateLogic.billEnded(b, tz: store.tz) {
             out.append((b.name.isEmpty ? "Subscription" : b.name, monthlyOfBill(b)))
         }
         let withMerchant = store.data.transactions.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -186,8 +186,8 @@ struct BudgetStatusWidget: View {
         BudgetRules.lens(
             settings: store.data.settings,
             income: store.periodIncome,
-            bills: store.data.bills,
-            cards: store.data.cards,
+            bills: store.activeBills,
+            cards: store.activeCards,
             transactions: store.data.transactions,
             goals: store.data.goals,
             bounds: store.currentBounds,
@@ -215,10 +215,10 @@ struct BudgetStatusWidget: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .ctCard()
         } else if store.periodIncome > 0 {
-            let obligations = store.data.bills
+            let obligations = store.activeBills
                 .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
                 .reduce(0) { $0 + $1.amount }
-                + store.data.cards.reduce(0) { $0 + $1.minPayment }
+                + store.activeCards.reduce(0) { $0 + $1.minPayment }
             let cushion = store.periodIncome - obligations
             VStack(alignment: .leading, spacing: 6) {
                 FieldLabel(text: "Cushion after bills")
