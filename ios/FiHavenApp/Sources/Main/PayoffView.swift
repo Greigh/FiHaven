@@ -171,14 +171,17 @@ struct PayoffView: View {
         }
     }
 
+    @ViewBuilder
     private func numField(_ label: String, _ value: Binding<Double>, _ suffix: String) -> some View {
-        HStack {
-            Text(label).font(Theme.ui(13)).foregroundStyle(Theme.muted)
-            Spacer()
-            TextField("0", value: value, format: .number)
-                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 120)
-            Text(suffix).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+        Group {
+            if suffix == "%" {
+                PercentField(label: label, value: value)
+            } else {
+                CurrencyField(label: label, value: value)
+            }
         }
+        .font(Theme.ui(13))
+        .foregroundStyle(Theme.muted)
     }
 
     private var iMonthlyInterest: Double { iBal * iApr / 100 / 12 }

@@ -71,12 +71,18 @@ struct CardEditorView: View {
                     money(type == "loan" ? "Remaining Principal" : "Statement Balance", $balance)
                     
                     if type == "card" {
+                        // Kept as a String binding so an empty field stays empty
+                        // (rather than collapsing to 0) — this one is optional.
                         HStack {
                             Text("Current Balance (Optional)")
-                            Spacer()
-                            Text("$").foregroundStyle(Theme.muted)
-                            TextField("0", text: $currentBalance)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                            Spacer(minLength: 8)
+                            HStack(spacing: 2) {
+                                Text("$").foregroundStyle(Theme.muted)
+                                TextField("0", text: $currentBalance)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .frame(width: 132, alignment: .leading)
                         }
                         money("Credit limit", $limit)
                     }
@@ -87,13 +93,7 @@ struct CardEditorView: View {
                         money("Recommended payment", $recommendedPayment)
                     }
                     
-                    HStack {
-                        Text("Regular APR")
-                        Spacer()
-                        TextField("APR", value: $regularAPR, format: .number)
-                            .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                        Text("%").foregroundStyle(Theme.muted)
-                    }
+                    PercentField(label: "Regular APR", value: $regularAPR, placeholder: "APR")
                     Picker("Due day", selection: $dueDay) {
                         ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
                     }
@@ -114,13 +114,7 @@ struct CardEditorView: View {
                     Section {
                         Toggle("0% / promo APR", isOn: $hasPromo)
                         if hasPromo {
-                            HStack {
-                                Text("Promo APR")
-                                Spacer()
-                                TextField("APR", value: $promoAPR, format: .number)
-                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                                Text("%").foregroundStyle(Theme.muted)
-                            }
+                            PercentField(label: "Promo APR", value: $promoAPR, placeholder: "APR")
                             money("Promo balance", $promoBalance)
                             DatePicker("Promo ends", selection: $promoEnd, displayedComponents: .date)
                         }
@@ -129,13 +123,7 @@ struct CardEditorView: View {
 
                 if type == "card" {
                     Section {
-                        HStack {
-                            Text("Annual fee")
-                            Spacer()
-                            Text("$").foregroundStyle(Theme.muted)
-                            TextField("0", value: $annualFee, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                        }
+                        CurrencyField(label: "Annual fee", value: $annualFee)
                         Picker("Fee renews", selection: $feeMonth) {
                             Text("—").tag(0)
                             ForEach(1...12, id: \.self) { Text(Self.monthName($0)).tag($0) }
@@ -207,13 +195,7 @@ struct CardEditorView: View {
                         ForEach($perks) { $perk in
                             VStack(alignment: .leading, spacing: 6) {
                                 TextField("Credit name (e.g. Uber Cash)", text: $perk.label)
-                                HStack {
-                                    Text("Amount")
-                                    Spacer()
-                                    Text("$").foregroundStyle(Theme.muted)
-                                    TextField("0", value: $perk.amount, format: .number)
-                                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
-                                }
+                                CurrencyField(label: "Amount", value: $perk.amount)
                                 Picker("Resets", selection: $perk.frequency) {
                                     Text("Monthly").tag("monthly")
                                     Text("Quarterly").tag("quarterly")
@@ -318,13 +300,7 @@ struct CardEditorView: View {
     }
 
     private func money(_ label: String, _ value: Binding<Double>) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text("$").foregroundStyle(Theme.muted)
-            TextField("0", value: value, format: .number)
-                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-        }
+        CurrencyField(label: label, value: value)
     }
 
     private static func monthName(_ m: Int) -> String {
