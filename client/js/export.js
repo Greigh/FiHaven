@@ -34,7 +34,7 @@ export function exportCSV(type) {
 
   if (type === 'bills') {
     rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'First Due', 'Stops On', 'Autopay', 'Autopay Day', 'Notes']];
-    bills.forEach(function (b) {
+    bills.filter(function (b) { return !b.archived; }).forEach(function (b) {
       rows.push([b.name, b.category, b.amount, b.dueDay || '', b.frequency, b.startDate || '', b.endDate || '', b.autopay ? 'Yes' : 'No', b.autopayDay || '', b.notes || '']);
     });
     downloadCSV('fihaven-bills.csv', toCSV(rows));
@@ -44,7 +44,7 @@ export function exportCSV(type) {
     rows = [['Name', 'Balance', 'Credit Limit', 'Min Payment', 'Regular APR',
              'Has Promo', 'Promo APR', 'Promo End Date', 'Promo Balance',
              'Monthly Needed', 'Due Day', 'Autopay', 'Autopay Day', 'Notes']];
-    cards.forEach(function (c) {
+    cards.filter(function (c) { return !c.archived; }).forEach(function (c) {
       var needed = c.hasPromo
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0);
@@ -75,14 +75,14 @@ export function exportCSV(type) {
     var mk = monthKey(d);
     rows   = [['Name', 'Type', 'Category', 'Goal', 'Status', 'Amount Paid', 'Month']];
     var statusLabel = { full: 'Paid', partial: 'Partial', unpaid: 'No' };
-    bills.forEach(function (b) {
+    bills.filter(function (b) { return !b.archived; }).forEach(function (b) {
       var state = paidState('bill', String(b.id), mk);
       rows.push([b.name, 'Bill', b.category, goalAmountFor('bill', String(b.id), mk).toFixed(2),
         statusLabel[state],
         paidAmount('bill', String(b.id), mk),
         mk]);
     });
-    cards.forEach(function (c) {
+    cards.filter(function (c) { return !c.archived; }).forEach(function (c) {
       var state = paidState('card', String(c.id), mk);
       rows.push([c.name, 'Card Payment', 'Credit Card', goalAmountFor('card', String(c.id), mk).toFixed(2),
         statusLabel[state],
