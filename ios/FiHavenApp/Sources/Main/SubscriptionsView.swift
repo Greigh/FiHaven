@@ -6,11 +6,19 @@ import FiHavenCore
 /// subs, duplicates, trials, and cancel/manage links.
 struct SubscriptionsView: View {
     @EnvironmentObject var store: AppStore
+    @State private var editingBill: Bill?
+    @State private var linking: SubscriptionsFinder.Item?
 
     private struct SubStatus {
         let icon: String
         let text: String
         let tone: A11y.MoneyTone
+    }
+
+    /// The tracked bill behind a detected subscription, if there is one.
+    private func bill(for item: SubscriptionsFinder.Item) -> Bill? {
+        guard let id = item.billId else { return nil }
+        return store.data.bills.first { $0.id == id }
     }
 
     private var subscriptions: [SubscriptionsFinder.Item] {
@@ -68,6 +76,11 @@ struct SubscriptionsView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Subscriptions")
+        .sheet(item: $editingBill) { bill in BillEditorView(bill: bill) }
+        .sheet(item: $linking) { item in
+            ManageLinkSheet(item: item, bill: bill(for: item))
+                .environmentObject(store)
+        }
     }
 
     private func subscriptionRow(_ s: SubscriptionsFinder.Item) -> some View {
@@ -84,12 +97,27 @@ struct SubscriptionsView: View {
                     Link("Manage or cancel", destination: link)
                         .font(Theme.ui(11))
                 }
+                HStack(spacing: 14) {
+                    if let b = bill(for: s) {
+                        Button("Edit bill") { editingBill = b }
+                            .font(Theme.ui(11))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Theme.accent)
+                    }
+                    Button(s.manageUrl == nil ? "Add manage link" : "Change manage link") { linking = s }
+                        .font(Theme.ui(11))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.accent)
+                }
+                .padding(.top, 2)
             }
             Spacer()
             Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(13)).foregroundStyle(Theme.text)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
+        // The row carries its own buttons, so it must not collapse into a
+        // single accessibility element — that would hide them from VoiceOver.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(rowAccessibilityLabel(s, status: status))
         .accessibilityHint(s.manageUrl != nil ? "Includes a manage or cancel link" : "")
     }
@@ -133,5 +161,85 @@ struct SubscriptionsView: View {
         f.dateFormat = Calendar.current.component(.year, from: date) == Calendar.current.component(.year, from: Date())
             ? "MMM d" : "MMM d, yyyy"
         return f.string(from: date)
+    }
+}
+
+/// Add or change a subscription's manage/cancel link. Mirrors the web's
+/// `SubscriptionsPanel` link form: the URL is saved on the user's own bill
+/// *and* offered to the shared database. The personal save is what matters,
+/// so a failed share is reported but never blocks it.
+private struct ManageLinkSheet: View {
+    @EnvironmentObject var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+
+    let item: SubscriptionsFinder.Item
+    let bill: Bill?
+
+    @State private var url: String = ""
+    @State private var busy = false
+    @State private var message: String?
+
+    private var isValid: Bool {
+        guard let u = URL(string: url.trimmingCharacters(in: .whitespaces)),
+              let scheme = u.scheme?.lowercased(),
+              u.host?.isEmpty == false
+        else { return false }
+        return scheme == "http" || scheme == "https"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("https://…/account/subscriptions", text: $url)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Manage or cancel link for \(item.name)")
+                } footer: {
+                    Text(bill == nil
+                        ? "Sent to the FiHaven team so we can add it to the shared database."
+                        : "Saved on your bill, and sent to the FiHaven team so we can add it to the shared database.")
+                }
+                if let message {
+                    Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
+                }
+            }
+            .navigationTitle("Manage link")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(busy ? "Saving…" : "Save") { Task { await submit() } }
+                        .disabled(!isValid || busy)
+                }
+            }
+            .onAppear { url = item.manageUrl ?? "" }
+        }
+    }
+
+    private func submit() async {
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        guard isValid else { return }
+        busy = true
+        message = nil
+
+        // 1) The user's own bill — the part that must not be lost.
+        if let bill { store.setBillManageUrl(billId: bill.id, url: trimmed) }
+
+        // 2) Offer it to the shared database. Best effort.
+        let shared = await store.shareSubscriptionLink(name: item.name, url: trimmed)
+        busy = false
+
+        if bill != nil {
+            message = shared ? "Saved to your bill and shared — thanks!" : "Saved to your bill."
+            dismiss()
+        } else if shared {
+            message = "Shared — thanks!"
+            dismiss()
+        } else {
+            message = "Couldn’t send that just now. Please try again."
+        }
     }
 }
