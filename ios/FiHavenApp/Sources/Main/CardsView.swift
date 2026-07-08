@@ -262,11 +262,7 @@ struct AccountEditorView: View {
                     Picker("Type", selection: $type) {
                         ForEach(Self.types, id: \.0) { Text($0.1).tag($0.0) }
                     }
-                    HStack {
-                        Text("Balance"); Spacer(); Text("$").foregroundStyle(Theme.muted)
-                        TextField("0", value: $balance, format: .number)
-                            .keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
-                    }
+                    CurrencyField(label: "Balance", value: $balance)
                     TextField("Notes", text: $notes, axis: .vertical)
                 }
                 if account != nil {
