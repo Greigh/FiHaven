@@ -31,6 +31,9 @@ router.get('/', requireAuth, (req, res) => {
     // Effective Pro entitlement so clients can gate features without a
     // second round-trip. Authoritative copy lives at /api/billing/status.
     entitlement: billing.computeEntitlement(req.user.id),
+    // Whether the dev subscription override may be honored. Only the server
+    // knows who is an admin, so the client never decides this for itself.
+    admin: req.user.role === 'admin',
   });
 });
 
