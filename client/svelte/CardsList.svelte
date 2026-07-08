@@ -9,11 +9,11 @@
   (modals, server sync, import) re-render automatically.
 -->
 <script>
-  import { cards, save } from '../js/storage.svelte.js';
+  import { cards, save, settings } from '../js/storage.svelte.js';
   import {
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded,
-    paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats,
+    paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
   import { askDelete, openPayModal, editCard } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
@@ -27,7 +27,29 @@
   // tabs, so each view filters the shared `cards` array to its own type.
   let { kind = 'card' } = $props();
   let isLoanView = $derived(kind === 'loan');
-  let baseCards = $derived(cards.filter((c) => isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan'));
+  const inView = (c) => (isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan');
+  let baseCards = $derived(cards.filter((c) => !c.archived && inView(c)));
+
+  /* ── Archive (soft delete) ──────────────────────────────── */
+  let useArchive = $derived(archiveInsteadOfDelete(settings));
+  let showArchived = $state(false);
+  let archivedCards = $derived(cards.filter((c) => c.archived && inView(c)));
+
+  function archiveCardObj(c) {
+    const card = cards.find((x) => x.id === c.id);
+    if (card) { card.archived = true; save('fh_cards', cards); }
+  }
+  function restoreCardObj(c) {
+    const card = cards.find((x) => x.id === c.id);
+    if (card) { delete card.archived; save('fh_cards', cards); }
+  }
+  function deleteCardObj(c) {
+    askDelete(() => {
+      const idx = cards.findIndex((x) => x.id === c.id);
+      if (idx >= 0) cards.splice(idx, 1);
+      save('fh_cards', cards);
+    });
+  }
 
   /* ── Sort + filter state (per-session, local to this view) ──── */
   let sort = $state('due');
@@ -324,7 +346,11 @@
               </button>
             {/if}
             <button class="btn btn-ghost btn-sm" onclick={() => editCard(i)} title="Edit card">Edit</button>
-            <button class="btn btn-danger btn-sm" onclick={() => deleteCard(i)} title="Delete card">Del</button>
+            {#if useArchive}
+              <button class="btn btn-ghost btn-sm" onclick={() => archiveCardObj(c)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+            {:else}
+              <button class="btn btn-danger btn-sm" onclick={() => deleteCard(i)} title="Delete card">Del</button>
+            {/if}
           </div>
         </header>
 
@@ -437,4 +463,25 @@
     {/each}
     </div>
   {/if}
+{/if}
+
+{#if archivedCards.length > 0}
+  <div class="archived-block">
+    <button class="archived-toggle" type="button" onclick={() => (showArchived = !showArchived)}>
+      <span class="archived-chevron" class:open={showArchived}>▾</span>
+      Archived {isLoanView ? 'loans' : 'cards'} ({archivedCards.length})
+    </button>
+    {#if showArchived}
+      <div class="archived-list">
+        {#each archivedCards as c (c.id)}
+          <div class="archived-row">
+            <span class="archived-name">{c.type === 'loan' ? '🏦' : '💳'} {c.name}</span>
+            <span class="archived-amt">{fmt(c.balance || 0)}</span>
+            <button class="btn btn-ghost btn-xs" onclick={() => restoreCardObj(c)}>Restore</button>
+            <button class="btn btn-danger btn-xs" onclick={() => deleteCardObj(c)}>Delete forever</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 {/if}
