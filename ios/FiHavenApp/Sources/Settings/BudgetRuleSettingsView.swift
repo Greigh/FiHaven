@@ -51,18 +51,10 @@ struct BudgetRuleSettingsView: View {
 
             if mode == "debt-focus" {
                 Section {
-                    HStack {
-                        Text("Extra monthly debt payment")
-                        Spacer()
-                        Text("$").foregroundStyle(Theme.muted)
-                        TextField("0", value: Binding(
-                            get: { store.data.settings.debtFocusExtra },
-                            set: { store.setDebtFocusExtra($0) }
-                        ), format: .number)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 90)
-                    }
+                    CurrencyField(label: "Extra monthly debt payment", value: Binding(
+                        get: { store.data.settings.debtFocusExtra },
+                        set: { store.setDebtFocusExtra($0) }
+                    ))
                 } footer: {
                     Text("Planned dollars above minimums — same idea as the Payoff planner extra payment.")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
