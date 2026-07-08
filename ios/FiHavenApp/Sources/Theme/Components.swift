@@ -186,3 +186,59 @@ struct FieldLabel: View {
             .foregroundStyle(Theme.muted)
     }
 }
+
+/// Width of the entry box in `CurrencyField` / `PercentField`, wide enough for
+/// a seven-figure balance without truncating.
+private let amountBoxWidth: CGFloat = 132
+
+/// A labeled money input. The "$" is a *leading* prefix hugging the number,
+/// matching the web's `.goal-amount` inputs (`<span>$</span><input>`) — the
+/// symbol never trails the value. Amounts are capped at two decimal places so
+/// a typed "300.000" settles as "300".
+struct CurrencyField: View {
+    let label: String
+    @Binding var value: Double
+    var placeholder: String = "0"
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                Text("$").foregroundStyle(Theme.muted)
+                TextField(placeholder, value: $value,
+                          format: .number.precision(.fractionLength(0...2)))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: amountBoxWidth, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label), in dollars")
+    }
+}
+
+/// A labeled percentage input. Percent conventionally *trails* the number,
+/// so this is the one place a suffix is correct.
+struct PercentField: View {
+    let label: String
+    @Binding var value: Double
+    var placeholder: String = "0"
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                TextField(placeholder, value: $value,
+                          format: .number.precision(.fractionLength(0...2)))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.leading)
+                Text("%").foregroundStyle(Theme.muted)
+            }
+            .frame(width: amountBoxWidth, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label), percent")
+    }
+}
