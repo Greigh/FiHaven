@@ -6,7 +6,7 @@ public enum CTConstants {
     public static let categoryIcons: [String: String] = [
         "Housing": "🏠",
         "Utilities": "⚡",
-        "Subscriptions": "📱",
+        "Subscriptions": "🔁",
         "Insurance": "🛡️",
         "Loan": "🏦",
         "Auto": "🚗",

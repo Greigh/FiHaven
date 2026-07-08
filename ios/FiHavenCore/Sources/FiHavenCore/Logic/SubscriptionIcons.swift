@@ -55,9 +55,9 @@ public enum SubscriptionIcons {
         return nil
     }
 
-    /// Emoji for a subscription/merchant (per-brand → category → generic).
+    /// Emoji for a subscription/merchant (per-brand → generic recurring).
     public static func emoji(_ name: String, category: String? = nil) -> String {
         if let hit = brand(name) { return hit }
-        return category == "Subscriptions" ? "📱" : "🔁"
+        return "🔁"
     }
 }

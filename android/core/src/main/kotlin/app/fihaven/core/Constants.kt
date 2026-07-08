@@ -5,7 +5,7 @@ object CTConstants {
     val categoryIcons: Map<String, String> = mapOf(
         "Housing" to "🏠",
         "Utilities" to "⚡",
-        "Subscriptions" to "📱",
+        "Subscriptions" to "🔁",
         "Insurance" to "🛡️",
         "Loan" to "🏦",
         "Auto" to "🚗",
