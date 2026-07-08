@@ -112,6 +112,16 @@
   let overallUtil  = $derived(totalLimit > 0 ? Math.round((baseCards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
   let promoCount   = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
 
+  /* ── Payoff snapshot (cards view only) ──────────────────
+     Cards without a 0% promo accrue interest now, so their balance is a
+     "pay this off first" lump. Cards with a 0% promo instead get a monthly
+     amount that clears the promo balance before it expires. */
+  let nonPromoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && !(c.hasPromo && c.promoEndDate) && (parseFloat(c.balance) || 0) > 0));
+  let nonPromoPayoff = $derived(nonPromoCards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
+  let promoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate));
+  let promoMonthly = $derived(promoCards.reduce((s, c) => s + promoNeeded(c), 0));
+  let promoLongestMonths = $derived(promoCards.reduce((m, c) => Math.max(m, monthsUntil(c.promoEndDate)), 0));
+
   /* ── Filtered + sorted view ─────────────────────────── */
   let displayCards = $derived.by(() => {
     const f = activeFilters;
@@ -200,6 +210,32 @@
       <div class="cards-summary-sub">required this cycle</div>
     </div>
   </div>
+
+  {#if nonPromoCards.length > 0 || promoCards.length > 0}
+    <div class="cards-payoff">
+      <div class="cards-payoff-title">Payoff plan</div>
+      {#if nonPromoCards.length > 0}
+        <div class="cards-payoff-row">
+          <div class="cards-payoff-icon" style="background:var(--red-bg);color:var(--red);">🔥</div>
+          <div class="cards-payoff-body">
+            <div class="cards-payoff-label">Pay off interest-bearing cards</div>
+            <div class="cards-payoff-sub">{nonPromoCards.length} card{nonPromoCards.length === 1 ? '' : 's'} without 0% financing — clear these first to stop the APR</div>
+          </div>
+          <div class="cards-payoff-amt" style="color:var(--red);">{fmt(nonPromoPayoff)}</div>
+        </div>
+      {/if}
+      {#if promoCards.length > 0}
+        <div class="cards-payoff-row">
+          <div class="cards-payoff-icon" style="background:var(--accent-bg);color:var(--accent);">📆</div>
+          <div class="cards-payoff-body">
+            <div class="cards-payoff-label">Stay ahead of 0% promos</div>
+            <div class="cards-payoff-sub">Clears {promoCards.length} promo balance{promoCards.length === 1 ? '' : 's'} on time{promoLongestMonths > 0 ? ` — up to ${promoLongestMonths}mo left` : ''}</div>
+          </div>
+          <div class="cards-payoff-amt">{fmt(promoMonthly)}<span class="cards-payoff-mo">/mo</span></div>
+        </div>
+      {/if}
+    </div>
+  {/if}
   {/if}
 
   <!-- ── Sort + filter ─────────────────────────────────── -->
@@ -213,6 +249,7 @@
       <p>No cards match this filter. Try "All" to see everything.</p>
     </div>
   {:else}
+    <div class="cards-grid">
     {#each displayCards as c, viewIdx (c.id)}
       {@const i       = originalIndex(c)}
       {@const bal     = parseFloat(c.balance || 0)}
@@ -398,5 +435,6 @@
         {/if}
       </article>
     {/each}
+    </div>
   {/if}
 {/if}

@@ -43,6 +43,7 @@ const plaidRouter = require('./routes/plaid');
 const adminRouter = require('./routes/admin');
 const householdRouter = require('./routes/household');
 const pushRouter = require('./routes/push');
+const feedbackRouter = require('./routes/feedback');
 const scheduler = require('./scheduler');
 const mail = require('./mail');
 
@@ -133,6 +134,7 @@ sub.use('/api/auth', authRouter);
 sub.use('/api/data', requireVerified, dataRouter);
 sub.use('/api/household', requireVerified, householdRouter);
 sub.use('/api/push', requireVerified, pushRouter);
+sub.use('/api/feedback', requireVerified, feedbackRouter);
 sub.use('/api/account', accountRouter);
 sub.use('/api/account/mfa', requireVerified, mfaRouter);
 sub.use('/api/billing', billingRouter);

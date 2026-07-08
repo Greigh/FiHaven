@@ -5,10 +5,11 @@
   stale subscriptions, duplicates, trials, and cancel/manage links.
 -->
 <script>
-  import { bills, transactions } from '../js/storage.svelte.js';
+  import { bills, transactions, save } from '../js/storage.svelte.js';
   import { fmt, shortDate } from '../js/utils.js';
   import { buildSubscriptionItems, totalMonthlySubs } from '../js/subscriptionsFinder.js';
   import { subscriptionIconInfo } from '../js/subscriptionIcons.js';
+  import { editBillById } from '../js/modals.js';
 
   // `kicker` shows the small "Subscriptions" label above the total — useful on
   // the dashboard widget, but redundant on the Subscriptions tab (which already
@@ -17,6 +18,57 @@
 
   let subs = $derived.by(() => buildSubscriptionItems(bills, transactions));
   let totalMonthly = $derived(totalMonthlySubs(subs));
+
+  /* ── Manage-link submission ─────────────────────────────
+     Users can save a manage/cancel URL onto their own bill AND offer it to
+     the shared database (emailed to us). Bill-sourced items also get a quick
+     "Edit bill" jump into the editor. */
+  let openLink = $state(null);   // key of the item whose link form is open
+  let linkVal = $state('');
+  let linkBusy = $state(false);
+  let linkMsg = $state('');
+
+  function csrf() {
+    return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
+  }
+
+  function startLink(item) {
+    openLink = openLink === item.key ? null : item.key;
+    linkVal = item.manageUrl || '';
+    linkMsg = '';
+  }
+
+  async function submitLink(item) {
+    const url = linkVal.trim();
+    if (!/^https?:\/\/.+/i.test(url)) { linkMsg = 'Enter a full https:// link.'; return; }
+    linkBusy = true; linkMsg = '';
+
+    // 1) Save on the user's own bill (personal manage link).
+    if (item.billId != null) {
+      const b = bills.find((x) => String(x.id) === String(item.billId));
+      if (b) { b.manageUrl = url; save('fh_bills', bills); }
+    }
+
+    // 2) Offer it to the shared database (emails us; non-blocking on failure).
+    let shared = false;
+    try {
+      const r = await fetch('/api/feedback/subscription-link', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+        body: JSON.stringify({ name: item.name, url }),
+      });
+      shared = r.ok;
+    } catch (_) { shared = false; }
+
+    linkBusy = false;
+    if (item.billId != null) {
+      linkMsg = shared ? 'Saved to your bill and shared — thanks!' : 'Saved to your bill.';
+    } else {
+      linkMsg = shared ? 'Shared — thanks!' : 'Couldn’t send that just now.';
+    }
+    if (item.billId != null || shared) setTimeout(() => { openLink = null; linkMsg = ''; }, 1600);
+  }
 </script>
 
 {#if subs.length > 0}
@@ -55,8 +107,35 @@
                 {/if}
               {/if}
             </div>
-            {#if s.manageUrl}
-              <a class="subs-manage-link" href={s.manageUrl} target="_blank" rel="noopener noreferrer">Manage / cancel ↗</a>
+            <div class="subs-item-actions">
+              {#if s.manageUrl}
+                <a class="subs-manage-link" href={s.manageUrl} target="_blank" rel="noopener noreferrer">Manage / cancel ↗</a>
+              {/if}
+              {#if s.billId != null}
+                <button type="button" class="subs-linkbtn" onclick={() => editBillById(String(s.billId))}>Edit bill</button>
+              {/if}
+              <button type="button" class="subs-linkbtn" onclick={() => startLink(s)}>
+                {s.manageUrl ? 'Change manage link' : 'Add manage link'}
+              </button>
+            </div>
+            {#if openLink === s.key}
+              <div class="subs-linkform">
+                <input
+                  type="url"
+                  placeholder="https://…/account/subscriptions"
+                  bind:value={linkVal}
+                  onkeydown={(e) => { if (e.key === 'Enter') submitLink(s); }}
+                />
+                <button class="btn btn-primary btn-xs" disabled={linkBusy} onclick={() => submitLink(s)}>
+                  {linkBusy ? 'Saving…' : 'Save & send'}
+                </button>
+                {#if linkMsg}<span class="subs-linkmsg">{linkMsg}</span>{/if}
+                <div class="subs-linkhint">
+                  {s.billId != null
+                    ? 'Saves to your bill and shares it with us so we can help others.'
+                    : 'Shares it with us so we can add it for everyone.'}
+                </div>
+              </div>
             {/if}
           </div>
           <div class="subs-item-amt">{fmt(s.monthly)}<span class="subs-item-mo">/mo</span></div>
@@ -75,9 +154,34 @@
 <style>
   .subs-flag-dup { color: var(--orange, #c06010); margin-right: 6px; }
   .subs-flag-trial { color: var(--accent); margin-right: 6px; }
+  .subs-item-actions {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 12px; margin-top: 4px;
+  }
   .subs-manage-link {
-    display: inline-block; margin-top: 4px; font-size: 12px;
+    font-size: 12px;
     color: var(--accent); text-decoration: none;
   }
   .subs-manage-link:hover { text-decoration: underline; }
+  .subs-linkbtn {
+    padding: 0; border: 0; background: none; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--accent);
+  }
+  .subs-linkbtn:hover { text-decoration: underline; }
+  .subs-linkform {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 8px; margin-top: 8px;
+  }
+  .subs-linkform input {
+    flex: 1 1 220px; min-width: 0;
+    padding: 8px 10px; border-radius: 10px;
+    border: 1.5px solid var(--border); background: var(--surface2);
+    color: var(--text); font: inherit; font-size: 13px; outline: none;
+  }
+  .subs-linkform input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .subs-linkmsg { font-size: 12px; color: var(--green); }
+  .subs-linkhint { flex-basis: 100%; font-size: 11px; color: var(--muted); }
 </style>
