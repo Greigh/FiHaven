@@ -1,7 +1,8 @@
 <!--
-  NetWorthPanel.svelte — shown atop the Cards tab. Net worth =
+  NetWorthPanel.svelte — the Net Worth tab. Net worth =
   assets (accounts you own) − liabilities (the cards/loans you owe).
   Accounts are edited inline, like income sources in the Budget tab.
+  Archived cards are excluded from liabilities.
 -->
 <script>
   import { accounts, cards, save } from '../js/storage.svelte.js';
