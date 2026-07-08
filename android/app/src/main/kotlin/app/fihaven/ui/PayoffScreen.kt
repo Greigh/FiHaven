@@ -55,7 +55,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
     var strategy by remember { mutableStateOf(PayoffStrategy.AVALANCHE) }
     var extra by remember { mutableFloatStateOf(100f) }
-    val result = Payoff.runPayoffSim(data.cards, strategy, extra.toDouble(), vm.zone())
+    val result = Payoff.runPayoffSim(data.activeCards, strategy, extra.toDouble(), vm.zone())
 
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
@@ -117,7 +117,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues) {
                 }
             }
 
-            CalculatorTools(data.cards)
+            CalculatorTools(data.activeCards)
         }
     }
 }

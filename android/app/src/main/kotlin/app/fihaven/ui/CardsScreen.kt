@@ -52,6 +52,11 @@ import java.util.UUID
 import app.fihaven.core.model.CardPerk
 import app.fihaven.core.model.CardOffer
 import app.fihaven.core.model.genId
+import app.fihaven.core.model.archiveInsteadOfDelete
+import app.fihaven.core.logic.Schedule
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.graphics.Color
 import app.fihaven.AppViewModel
 import app.fihaven.core.CTConstants
@@ -78,11 +83,14 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     var fBalance by remember { mutableStateOf(false) }
     var fPromo by remember { mutableStateOf(false) }
     var fOverdue by remember { mutableStateOf(false) }
+    var showArchived by remember { mutableStateOf(false) }
     val zone = vm.zone()
 
-    val creditCards = data.cards.filter { it.type != "loan" }
+    val creditCards = data.activeCards.filter { it.type != "loan" }
+    val useArchive = data.settings.archiveInsteadOfDelete
+    val archivedForKind = data.archivedCards.filter { (it.type == "loan") == isLoanView }
 
-    val filtered = data.cards.filter { c ->
+    val filtered = data.activeCards.filter { c ->
         if (((c.type == "loan")) != isLoanView) return@filter false
         if (fBalance && !(c.balance > 0)) return@filter false
         if (fPromo && !(c.hasPromo && !c.promoEndDate.isNullOrEmpty())) return@filter false
@@ -124,6 +132,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!isLoanView && creditCards.isNotEmpty()) {
                 item { CardsSummaryCard(creditCards) }
+                item { CardsPayoffCard(creditCards, zone) }
             }
             if (cards.isEmpty()) {
                 item { CtCard { Text(
@@ -139,7 +148,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
                             dismissState.reset()
                         }
                         SwipeToDismissBoxValue.EndToStart -> {
-                            vm.deleteCard(card)
+                            if (useArchive) vm.archiveCard(card) else vm.deleteCard(card)
                             dismissState.reset()
                         }
                         else -> Unit
@@ -190,6 +199,18 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
                         goal = vm.goalAmount("card", card.id.toString()),
                         onPay = { paying = card },
                         onEdit = { editing = card },
+                    )
+                }
+            }
+            if (archivedForKind.isNotEmpty()) {
+                item {
+                    ArchivedItemsCard(
+                        title = "Archived ${if (isLoanView) "loans" else "cards"} (${archivedForKind.size})",
+                        expanded = showArchived,
+                        onToggle = { showArchived = !showArchived },
+                        rows = archivedForKind.map { c ->
+                            ArchivedRow(c.name, Money.fmt(c.balance), { vm.restoreCard(c) }, { vm.deleteCard(c) })
+                        },
                     )
                 }
             }
@@ -691,5 +712,78 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
             modifier = Modifier.fillMaxWidth())
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+// ── Payoff plan: lump for interest-bearing cards, monthly for 0% promos ──
+@Composable
+private fun CardsPayoffCard(cards: List<Card>, zone: java.time.ZoneId) {
+    val nonPromo = cards.filter { !(it.hasPromo && !it.promoEndDate.isNullOrEmpty()) && it.balance > 0 }
+    val promo = cards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }
+    if (nonPromo.isEmpty() && promo.isEmpty()) return
+    val nonPromoTotal = nonPromo.sumOf { it.balance }
+    val promoMonthly = promo.sumOf { Schedule.promoNeeded(it, zone) }
+    val longestMonths = promo.maxOfOrNull { DateLogic.monthsUntil(it.promoEndDate, zone) } ?: 0
+    CtCard {
+        Text("PAYOFF PLAN", color = Ct.colors.muted, fontSize = 10.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(Modifier.height(10.dp))
+        if (nonPromo.isNotEmpty()) {
+            PayoffRow("🔥", "Pay off interest-bearing cards",
+                "${nonPromo.size} card${if (nonPromo.size == 1) "" else "s"} without 0% financing — clear these first",
+                Money.fmt(nonPromoTotal), Ct.colors.red, null)
+        }
+        if (promo.isNotEmpty()) {
+            if (nonPromo.isNotEmpty()) Spacer(Modifier.height(12.dp))
+            PayoffRow("📆", "Stay ahead of 0% promos",
+                "Clears ${promo.size} promo balance${if (promo.size == 1) "" else "s"} on time" +
+                    if (longestMonths > 0) " — up to ${longestMonths}mo left" else "",
+                Money.fmt(promoMonthly), Ct.colors.text, "/mo")
+        }
+    }
+}
+
+@Composable
+private fun PayoffRow(emoji: String, title: String, sub: String, amount: String, amountColor: Color, suffix: String?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(emoji, fontSize = 16.sp, modifier = Modifier.padding(end = 12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(sub, color = Ct.colors.muted, fontSize = 12.sp)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(amount, color = amountColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            if (suffix != null) Text(suffix, color = Ct.colors.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+// ── Archived items (shared by Cards + Bills): restore or delete forever ──
+data class ArchivedRow(val name: String, val amount: String, val onRestore: () -> Unit, val onDelete: () -> Unit)
+
+@Composable
+fun ArchivedItemsCard(title: String, expanded: Boolean, onToggle: () -> Unit, rows: List<ArchivedRow>) {
+    CtCard {
+        Row(Modifier.fillMaxWidth().clickable { onToggle() }, verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = Ct.colors.muted, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Icon(if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null, tint = Ct.colors.muted)
+        }
+        if (expanded) {
+            Spacer(Modifier.height(8.dp))
+            rows.forEach { r ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.name, color = Ct.colors.text, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    Text(r.amount, color = Ct.colors.muted, fontSize = 13.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Restore", color = Ct.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { r.onRestore() })
+                    Spacer(Modifier.width(12.dp))
+                    Text("Delete", color = Ct.colors.red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { r.onDelete() })
+                }
+            }
+        }
     }
 }
