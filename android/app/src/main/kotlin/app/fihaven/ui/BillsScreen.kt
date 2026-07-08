@@ -53,6 +53,7 @@ import app.fihaven.core.Money
 import app.fihaven.core.logic.PaidState
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.genId
+import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.ui.theme.Ct
 
 @Composable
@@ -68,9 +69,13 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
     var fAutopay by remember { mutableStateOf(false) }
     var fOnCard by remember { mutableStateOf(false) }
     var fCategory by remember { mutableStateOf("All") }
+    var showArchived by remember { mutableStateOf(false) }
     val zone = vm.zone()
 
-    val filtered = data.bills.filter { b ->
+    val useArchive = data.settings.archiveInsteadOfDelete
+    val archivedBills = data.archivedBills
+
+    val filtered = data.activeBills.filter { b ->
         if (fUnpaid && vm.paidState("bill", b.id.toString()) == PaidState.FULL) return@filter false
         if (fOverdue && BillSchedule.effectiveDaysUntilDue(
                 b,
@@ -122,7 +127,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
                             dismissState.reset()
                         }
                         SwipeToDismissBoxValue.EndToStart -> {
-                            vm.deleteBill(bill)
+                            if (useArchive) vm.archiveBill(bill) else vm.deleteBill(bill)
                             dismissState.reset()
                         }
                         else -> Unit
@@ -184,6 +189,18 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
                         onEdit = { editing = bill },
                         onSkip = { vm.skipMonth("bill", bill.id.toString(), bill.name) },
                         onUnskip = { vm.unskip("bill", bill.id.toString()) },
+                    )
+                }
+            }
+            if (archivedBills.isNotEmpty()) {
+                item {
+                    ArchivedItemsCard(
+                        title = "Archived bills (${archivedBills.size})",
+                        expanded = showArchived,
+                        onToggle = { showArchived = !showArchived },
+                        rows = archivedBills.map { b ->
+                            ArchivedRow(b.name, Money.fmt(b.amount), { vm.restoreBill(b) }, { vm.deleteBill(b) })
+                        },
                     )
                 }
             }
@@ -314,7 +331,7 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     var startDate by remember { mutableStateOf(bill?.startDate ?: "") }
     var endDate by remember { mutableStateOf(bill?.endDate ?: "") }
     val data by vm.data.collectAsStateWithLifecycle()
-    val cardOptions = listOf("Direct (bank / cash)" to "") + data.cards.map { it.name to it.id.toString() }
+    val cardOptions = listOf("Direct (bank / cash)" to "") + data.activeCards.map { it.name to it.id.toString() }
 
     FormDialog(
         title = if (bill == null) "New Bill" else "Edit Bill",

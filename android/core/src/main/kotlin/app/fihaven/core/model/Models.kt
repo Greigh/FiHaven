@@ -205,4 +205,12 @@ data class AppData(
     val entitlement: Entitlement? = null,
 ) {
     val isEmpty: Boolean get() = bills.isEmpty() && cards.isEmpty() && payments.isEmpty()
+
+    /** Non-archived bills/cards — what every list, total, and calculation
+     *  should read. Archived records stay in the lists (so they round-trip
+     *  and can be restored) but are hidden from active views. */
+    val activeBills: List<Bill> get() = bills.filter { !it.archived }
+    val activeCards: List<Card> get() = cards.filter { !it.archived }
+    val archivedBills: List<Bill> get() = bills.filter { it.archived }
+    val archivedCards: List<Card> get() = cards.filter { it.archived }
 }
