@@ -17,8 +17,19 @@ const MAPPING = process.env.GOOGLE_PLAY_MAPPING
   || path.join(path.dirname(AAB), '../../mapping/release/mapping.txt');
 
 async function main() {
-  if (!KEY_FILE || !fs.existsSync(KEY_FILE)) {
-    console.error('Missing GOOGLE_PLAY_SA_LOCAL or key file:', KEY_FILE);
+  // Never echo the key path itself — it comes from the environment and points
+  // at a service-account credential (CodeQL js/clear-text-logging).
+  if (!KEY_FILE) {
+    console.error(
+      'Missing service-account key: set GOOGLE_PLAY_SA_LOCAL (or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON).'
+    );
+    process.exit(1);
+  }
+  if (!fs.existsSync(KEY_FILE)) {
+    console.error(
+      'Service-account key file not found at the path given by GOOGLE_PLAY_SA_LOCAL ' +
+      '(or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON).'
+    );
     process.exit(1);
   }
   if (!fs.existsSync(AAB)) {
