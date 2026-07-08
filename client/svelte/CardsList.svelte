@@ -18,7 +18,6 @@
   import { askDelete, openPayModal, editCard } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
-  import NetWorthPanel from './NetWorthPanel.svelte';
 
   const mk = currentPeriodKey();
 
@@ -178,8 +177,6 @@
     return cards.findIndex((c) => c.id === card.id);
   }
 </script>
-
-{#if !isLoanView}<NetWorthPanel />{/if}
 
 {#if baseCards.length === 0}
   <div class="empty">
