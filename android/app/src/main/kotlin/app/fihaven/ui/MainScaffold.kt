@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -105,6 +106,7 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("subscriptions", "Subscriptions", Icons.Filled.Autorenew),
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
+    NETWORTH("networth", "Net Worth", Icons.Filled.AccountBalanceWallet),
     ;
     companion object { fun from(id: String?): TabId? = entries.find { it.id == id } }
 }
@@ -219,6 +221,7 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.SUBSCRIPTIONS -> ProGate(vm, ProFeature.SUBSCRIPTIONS, padding, onBack) { SubscriptionsScreen(vm, padding, onBack) }
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
+        TabId.NETWORTH -> NetWorthScreen(vm, padding)   // Free — net worth is not Pro-gated
     }
 }
 
