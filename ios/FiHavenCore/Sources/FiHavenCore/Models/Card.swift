@@ -91,6 +91,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var annualFee: Double?        // annual fee — powers the "is it worth it?" check
     public var feeMonth: Int?            // month (1–12) the fee renews; nil if unknown
     public var offers: [CardOffer]       // card-linked offers (manual tracker)
+    public var archived: Bool            // Soft delete — hidden from lists/totals, restorable
 
     public init(
         id: String,
@@ -121,7 +122,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         perks: [CardPerk] = [],
         annualFee: Double? = nil,
         feeMonth: Int? = nil,
-        offers: [CardOffer] = []
+        offers: [CardOffer] = [],
+        archived: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -152,6 +154,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.annualFee = annualFee
         self.feeMonth = feeMonth
         self.offers = offers
+        self.archived = archived
     }
 
     enum CodingKeys: String, CodingKey {
@@ -160,7 +163,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         case dueDay, autopay, autopayDay, notes
         case type, issuer, currentBalance, lastDigits, network
         case rewardBase, rewardCategories, rotatingPool, rotatingRate, pointValue, perks
-        case annualFee, feeMonth, offers
+        case annualFee, feeMonth, offers, archived
     }
 
     public init(from decoder: Decoder) throws {
@@ -197,5 +200,6 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         annualFee = c.flexibleDouble(.annualFee)
         feeMonth = c.flexibleInt(.feeMonth)
         offers = (try? c.decode([CardOffer].self, forKey: .offers)) ?? []
+        archived = c.flexibleBool(.archived) ?? false
     }
 }
