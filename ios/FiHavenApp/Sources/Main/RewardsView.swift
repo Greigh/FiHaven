@@ -9,7 +9,7 @@ struct RewardsView: View {
     @State private var category = "Dining"
     @State private var merchantQuery = ""
 
-    private var creditCards: [Card] { store.data.cards.filter { ($0.type ?? "card") != "loan" } }
+    private var creditCards: [Card] { store.activeCards.filter { ($0.type ?? "card") != "loan" } }
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.
@@ -20,7 +20,7 @@ struct RewardsView: View {
         creditCards.contains { $0.rewardBase > 0 || $0.rewardCategories.values.contains { $0 > 0 } }
     }
     private var ranking: Rewards.Ranking {
-        Rewards.rank(store.data.cards, category: category, tz: store.tz)
+        Rewards.rank(store.activeCards, category: category, tz: store.tz)
     }
 
     var body: some View {
@@ -223,7 +223,7 @@ struct RewardsView: View {
 
     // ── Wallet at a glance ───────────────────────────────────────────
     private var walletPicks: [Rewards.WalletPick] {
-        Rewards.walletStrategy(store.data.cards, categories: Rewards.categories, tz: store.tz).filter { $0.best != nil }
+        Rewards.walletStrategy(store.activeCards, categories: Rewards.categories, tz: store.tz).filter { $0.best != nil }
     }
 
     private var walletPanel: some View {
@@ -259,11 +259,11 @@ struct RewardsView: View {
     }
 
     // ── Credits & perks ──────────────────────────────────────────────
-    private var cardsWithPerks: [Card] { store.data.cards.filter { !$0.perks.isEmpty } }
+    private var cardsWithPerks: [Card] { store.activeCards.filter { !$0.perks.isEmpty } }
     private var cal: Calendar { DateLogic.calendar(tz: store.tz) }
     private var now: Date { DateLogic.today(tz: store.tz) }
     private var unrealized: Double {
-        Perks.unrealizedTotal(store.data.cards, usage: store.data.settings.perkUsage, date: now, cal: cal)
+        Perks.unrealizedTotal(store.activeCards, usage: store.data.settings.perkUsage, date: now, cal: cal)
     }
     private static let freqLabels = ["monthly": "Monthly", "quarterly": "Quarterly",
                                      "semiannual": "Twice a year", "annual": "Yearly"]
@@ -330,8 +330,8 @@ struct RewardsView: View {
     }
 
     // ── Card-linked offers ───────────────────────────────────────────
-    private var activeOffers: [Offers.ActiveOffer] { Offers.active(store.data.cards, tz: store.tz) }
-    private var offersSoon: Int { Offers.expiringSoon(store.data.cards, tz: store.tz) }
+    private var activeOffers: [Offers.ActiveOffer] { Offers.active(store.activeCards, tz: store.tz) }
+    private var offersSoon: Int { Offers.expiringSoon(store.activeCards, tz: store.tz) }
     private func offerExpiryLabel(_ d: Int?) -> String {
         guard let d else { return "no expiry" }
         if d <= 0 { return "ends today" }
@@ -383,7 +383,7 @@ struct RewardsView: View {
 
     // ── "Looks like you used this" offer suggestions ─────────────────
     private var offerSuggestions: [Offers.UseSuggestion] {
-        Offers.useSuggestions(store.data.cards, transactions: store.data.transactions, tz: store.tz)
+        Offers.useSuggestions(store.activeCards, transactions: store.data.transactions, tz: store.tz)
     }
 
     private var offerSuggestionsPanel: some View {
@@ -423,7 +423,7 @@ struct RewardsView: View {
 
     // ── Annual-fee check ─────────────────────────────────────────────
     private var feeCards: [(card: Card, a: Perks.FeeAssessment)] {
-        store.data.cards.compactMap { c in
+        store.activeCards.compactMap { c in
             let est = Rewards.cardRewardsEstimateAnnual(c, spendByCategory: spendByCategory)
             return Perks.feeAssessment(c, usage: store.data.settings.perkUsage, date: now, cal: cal, rewardsEstimate: est).map { (c, $0) }
         }
