@@ -55,8 +55,8 @@ object BiometricAuth {
         if (BuildConfig.DEBUG && demoMode) { onResult(true); return }
 
         // A Cipher locked to the biometric-gated KeyStore key. If a new
-        // biometric was enrolled the key is invalidated, so we drop it and
-        // regenerate once.
+        // biometric was enrolled, the key is invalidated, so we drop it and
+        //  regenerate at once.
         val crypto = buildCryptoObject()
         if (crypto == null) {
             // Fail closed: never fall back to an unguarded prompt — that would
@@ -117,7 +117,7 @@ object BiometricAuth {
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setUserAuthenticationRequired(true)
                 // Enrolling a new fingerprint/face invalidates the key, forcing
-                // a regenerate — so a freshly added biometric can't silently
+                // a regenerating — so a freshly added biometric can't silently
                 // inherit an existing lock without re-enabling it.
                 .setInvalidatedByBiometricEnrollment(true)
                 .build(),
