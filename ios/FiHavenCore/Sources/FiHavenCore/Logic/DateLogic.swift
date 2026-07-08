@@ -153,7 +153,8 @@ public enum DateLogic {
         return ymd > e
     }
     public static func billActive(_ bill: Bill, onYmd ymd: String) -> Bool {
-        !billNotStarted(bill, onYmd: ymd) && !billEnded(bill, onYmd: ymd)
+        if bill.archived { return false }
+        return !billNotStarted(bill, onYmd: ymd) && !billEnded(bill, onYmd: ymd)
     }
 
     /// Convenience: the active checks evaluated against `tz`'s today.
