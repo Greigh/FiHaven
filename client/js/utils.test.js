@@ -35,6 +35,8 @@ import {
   isFullyPaid,
   paidGoalPolicy,
   hidePaidOnDashboard,
+  archiveInsteadOfDelete,
+  isArchived,
   toast,
   setRenderer,
   renderTab,
@@ -354,6 +356,12 @@ describe('utils — bill active window (start/end dates)', () => {
     expect(billEnded({})).toBe(false);
   });
 
+  it('an archived bill is never active (soft-deleted, excluded everywhere)', () => {
+    expect(billActive({ archived: true })).toBe(false);
+    // Even within its active window, archived wins.
+    expect(billActive({ startDate: '2026-06-01', endDate: '2026-06-30', archived: true }, at('2026-06-15'))).toBe(false);
+  });
+
   it('billNotStarted is true strictly before startDate, false on/after', () => {
     const b = { startDate: '2026-06-15' };
     expect(billNotStarted(b, at('2026-06-14'))).toBe(true);
@@ -440,6 +448,18 @@ describe('utils — billInPeriod and paid goal helpers', () => {
     expect(hidePaidOnDashboard({ hidePaidOnDashboard: false })).toBe(false);
     expect(hidePaidOnDashboard({})).toBe(true);
     expect(hidePaidOnDashboard(null)).toBeFalsy();
+  });
+
+  it('archiveInsteadOfDelete defaults to false unless explicitly enabled', () => {
+    expect(archiveInsteadOfDelete({ archiveInsteadOfDelete: true })).toBe(true);
+    expect(archiveInsteadOfDelete({})).toBe(false);
+    expect(archiveInsteadOfDelete(null)).toBe(false);
+  });
+
+  it('isArchived reflects the archived flag', () => {
+    expect(isArchived({ archived: true })).toBe(true);
+    expect(isArchived({})).toBe(false);
+    expect(isArchived(null)).toBe(false);
   });
 });
 

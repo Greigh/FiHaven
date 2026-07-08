@@ -40,8 +40,8 @@
 
   let cushion = $derived.by(() => {
     if (!lens || lens.headline) return null;
-    const obligations = bills.reduce((s, b) => s + (goalAmountFor('bill', String(b.id), mk) || 0), 0)
-      + cards.reduce((s, c) => s + (goalAmountFor('card', String(c.id), mk) || 0), 0);
+    const obligations = bills.filter((b) => !b.archived).reduce((s, b) => s + (goalAmountFor('bill', String(b.id), mk) || 0), 0)
+      + cards.filter((c) => !c.archived).reduce((s, c) => s + (goalAmountFor('card', String(c.id), mk) || 0), 0);
     return income - obligations;
   });
 </script>

@@ -18,7 +18,7 @@
   const iconFor = (t) => (TYPES.find((x) => x.key === t) || TYPES[5]).icon;
 
   let assets      = $derived(accounts.reduce((s, a) => s + (parseFloat(a.balance) || 0), 0));
-  let liabilities = $derived(cards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
+  let liabilities = $derived(cards.filter((c) => !c.archived).reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
   let netWorth    = $derived(assets - liabilities);
 
   function persist() { save('fh_accounts', accounts); }
