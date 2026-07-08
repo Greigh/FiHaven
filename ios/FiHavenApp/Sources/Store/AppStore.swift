@@ -317,7 +317,8 @@ final class AppStore: ObservableObject {
 
     // ── Net worth (assets − liabilities) ────────────────────────────
     var assets: Double { data.accounts.reduce(0) { $0 + $1.balance } }
-    var liabilities: Double { data.cards.reduce(0) { $0 + $1.balance } }
+    // Archived cards are soft-deleted, so they must not count as debt.
+    var liabilities: Double { activeCards.reduce(0) { $0 + $1.balance } }
     var netWorth: Double { assets - liabilities }
 
     // ── Spending (transactions in the current period) ───────────────
