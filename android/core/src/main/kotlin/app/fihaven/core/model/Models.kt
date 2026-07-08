@@ -32,6 +32,8 @@ data class Bill(
     val startDate: String? = null,      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
     val endDate: String? = null,        // "Stops on" — "YYYY-MM-DD"; bill is retired after this
     val trialEnds: String? = null,      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
+    val manageUrl: String? = null,      // User-saved manage/cancel link (subscription panel)
+    val archived: Boolean = false,      // Soft delete — hidden from lists/totals, restorable
 )
 
 @Serializable
@@ -65,6 +67,7 @@ data class Card(
     val annualFee: Double? = null,            // annual fee — powers the "is it worth it?" check
     val feeMonth: Int? = null,                // month (1–12) the fee renews; null if unknown
     val offers: List<CardOffer> = emptyList(), // card-linked offers (manual tracker)
+    val archived: Boolean = false,            // Soft delete — hidden from lists/totals, restorable
 )
 
 /**

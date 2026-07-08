@@ -16,7 +16,7 @@ class SubscriptionIconsTest {
     }
 
     @Test fun fallbacks() {
-        assertEquals("📱", SubscriptionIcons.emoji("Local Gym LLC", "Subscriptions"))
+        assertEquals("🔁", SubscriptionIcons.emoji("Local Gym LLC", "Subscriptions"))
         assertEquals("🔁", SubscriptionIcons.emoji("Local Gym LLC"))
         assertEquals("🔁", SubscriptionIcons.emoji(null))
         assertNull(SubscriptionIcons.brand("Local Gym LLC"))

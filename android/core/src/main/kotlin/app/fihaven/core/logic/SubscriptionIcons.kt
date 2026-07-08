@@ -54,7 +54,7 @@ object SubscriptionIcons {
         return null
     }
 
-    /** Emoji for a subscription/merchant (per-brand → category → generic). */
+    /** Emoji for a subscription/merchant (per-brand → generic recurring). */
     fun emoji(name: String?, category: String? = null): String =
-        brand(name) ?: if (category == "Subscriptions") "📱" else "🔁"
+        brand(name) ?: "🔁"
 }

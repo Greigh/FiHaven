@@ -18,6 +18,8 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var startDate: String?      // "First bill due on" — "YYYY-MM-DD"; gates when it begins
     public var endDate: String?        // "Stops on" — "YYYY-MM-DD"; bill is retired after this
     public var trialEnds: String?      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
+    public var manageUrl: String?      // User-saved manage/cancel link (subscription panel)
+    public var archived: Bool          // Soft delete — hidden from lists/totals, restorable
 
     public init(
         id: String,
@@ -33,7 +35,9 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         cardId: String? = nil,
         startDate: String? = nil,
         endDate: String? = nil,
-        trialEnds: String? = nil
+        trialEnds: String? = nil,
+        manageUrl: String? = nil,
+        archived: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -49,11 +53,13 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         self.startDate = startDate
         self.endDate = endDate
         self.trialEnds = trialEnds
+        self.manageUrl = manageUrl
+        self.archived = archived
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, amount, dueDay, frequency, autopay, autopayDay, notes, business, cardId
-        case startDate, endDate, trialEnds
+        case startDate, endDate, trialEnds, manageUrl, archived
     }
 
     public init(from decoder: Decoder) throws {
@@ -72,5 +78,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         startDate = c.flexibleString(.startDate)
         endDate = c.flexibleString(.endDate)
         trialEnds = c.flexibleString(.trialEnds)
+        manageUrl = c.flexibleString(.manageUrl)
+        archived = c.flexibleBool(.archived) ?? false
     }
 }

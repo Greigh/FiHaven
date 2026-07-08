@@ -37,7 +37,7 @@ object SubscriptionsFinder {
 
     fun build(bills: List<Bill>, transactions: List<SpendTransaction>, zone: ZoneId): List<Item> {
         val out = mutableListOf<Item>()
-        bills.filter { it.category == "Subscriptions" && !DateLogic.billEnded(it, zone) }.forEach { b ->
+        bills.filter { it.category == "Subscriptions" && !it.archived && !DateLogic.billEnded(it, zone) }.forEach { b ->
             val trial = b.trialEnds
             val left = trialDaysLeft(trial, zone)
             out += Item(

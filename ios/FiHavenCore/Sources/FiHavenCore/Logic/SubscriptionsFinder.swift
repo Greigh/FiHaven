@@ -33,7 +33,7 @@ public enum SubscriptionsFinder {
 
     public static func build(bills: [Bill], transactions: [SpendTransaction], tz: TimeZone) -> [Item] {
         var out: [Item] = []
-        for b in bills where b.category == "Subscriptions" && !DateLogic.billEnded(b, tz: tz) {
+        for b in bills where b.category == "Subscriptions" && !b.archived && !DateLogic.billEnded(b, tz: tz) {
             let left = trialDaysLeft(b.trialEnds, tz: tz)
             out.append(Item(
                 id: "bill-\(b.id)",
