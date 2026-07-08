@@ -172,7 +172,7 @@ export function obligationsTotal({
   bills.filter((b) => (billDueInPeriod ? billDueInPeriod(b, periodBounds) : true)).forEach((b) => {
     total += billAmt(b, goalAmountFor, mk);
   });
-  cards.forEach((c) => { total += cardAmt(c, goalAmountFor, mk); });
+  cards.filter((c) => !c.archived).forEach((c) => { total += cardAmt(c, goalAmountFor, mk); });
   return total;
 }
 
@@ -197,7 +197,7 @@ export function debtPaymentsMonthly({
   goalAmountFor,
   mk,
 }) {
-  let total = cards.reduce((s, c) => s + cardAmt(c, goalAmountFor, mk), 0);
+  let total = cards.filter((c) => !c.archived).reduce((s, c) => s + cardAmt(c, goalAmountFor, mk), 0);
   bills
     .filter((b) => DEBT_BILL_CATEGORIES.has(b.category))
     .filter((b) => (billDueInPeriod ? billDueInPeriod(b, periodBounds) : true))
@@ -341,7 +341,7 @@ function computeSplitLens(mode, ctx) {
   ctx.bills.filter((b) => (ctx.billDueInPeriod ? ctx.billDueInPeriod(b, ctx.periodBounds) : true)).forEach((b) => {
     actual[billBucket(b.category, settings)] += billAmt(b, ctx.goalAmountFor, ctx.mk);
   });
-  ctx.cards.forEach((c) => { actual.needs += cardAmt(c, ctx.goalAmountFor, ctx.mk); });
+  ctx.cards.filter((c) => !c.archived).forEach((c) => { actual.needs += cardAmt(c, ctx.goalAmountFor, ctx.mk); });
   (ctx.transactions || []).forEach((t) => {
     if (!transactionInPeriod(t, ctx.periodBounds)) return;
     actual[spendingBucket(t.category, settings)] += Math.abs(parseFloat(t.amount) || 0);

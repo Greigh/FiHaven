@@ -27,8 +27,8 @@
 
   // ── Credits & perks ──────────────────────────────────────────────
   const FREQ_LABEL = { monthly: 'Monthly', quarterly: 'Quarterly', semiannual: 'Twice a year', annual: 'Yearly' };
-  let cardsWithPerks = $derived(cards.filter((c) => Array.isArray(c.perks) && c.perks.length > 0));
-  let unrealized = $derived(unrealizedCreditTotal(cards));
+  let cardsWithPerks = $derived(cards.filter((c) => !c.archived && Array.isArray(c.perks) && c.perks.length > 0));
+  let unrealized = $derived(unrealizedCreditTotal(cards.filter((c) => !c.archived)));
   const used = (cardId, p) => perkUsed(cardId, p);
   const remaining = (cardId, p) => perkRemaining(cardId, p);
   const expiresLabel = (p) => {
@@ -83,7 +83,7 @@
   let hasSpendData = $derived(Object.keys(spendByCategory).length > 0);
 
   // Only credit cards can carry rewards; loans are excluded upstream.
-  let creditCards = $derived(cards.filter((c) => (c.type || 'card') !== 'loan'));
+  let creditCards = $derived(cards.filter((c) => !c.archived && (c.type || 'card') !== 'loan'));
   let anyRewards = $derived(creditCards.some((c) => (parseFloat(c.rewardBase) || 0) > 0 ||
     Object.values(c.rewardCategories || {}).some((v) => (parseFloat(v) || 0) > 0)));
 

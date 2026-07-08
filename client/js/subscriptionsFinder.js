@@ -53,6 +53,7 @@ export function buildSubscriptionItems(bills, transactions, now = Date.now()) {
   const out = [];
 
   bills.forEach((b) => {
+    if (b.archived) return;
     if (billEnded(b)) return;
     if (b.category === 'Subscriptions') {
       const trialEnds = b.trialEnds || null;

@@ -29,6 +29,7 @@ import { setRenderer } from './utils.js';
 export function runPayoffSim(strategy, userExtra) {
   const now       = new Date();
   const debtCards = cards.filter((c) => {
+    if (c.archived) return false;
     const bal = c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance);
     return bal > 0;
   });

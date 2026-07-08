@@ -47,6 +47,7 @@
       }
     });
     cards.forEach((c) => {
+      if (c.archived) return;
       if (!c.dueDay) return;
       const d = Math.min(parseInt(c.dueDay), daysIn);
       (map[d] = map[d] || []).push({

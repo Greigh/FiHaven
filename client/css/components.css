@@ -1769,6 +1769,29 @@ main {
 }
 .cards-payoff-mo { font-size: 12px; font-weight: 600; color: var(--muted); margin-left: 2px; }
 
+/* Archived items block (Bills / Cards / Loans): collapsed by default,
+   each archived row offers Restore + Delete forever. */
+.archived-block { margin-top: 16px; }
+.archived-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 0; cursor: pointer;
+  background: none; color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 600;
+}
+.archived-toggle:hover { color: var(--text); }
+.archived-chevron { transition: transform .18s ease; display: inline-block; }
+.archived-chevron.open { transform: rotate(180deg); }
+.archived-list { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.archived-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 96%, white);
+}
+.archived-name { flex: 1 1 auto; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archived-amt { font-weight: 700; letter-spacing: -.02em; }
+
 /* Loans tab hero */
 .loans-panel { gap: 18px; }
 .loans-hero {

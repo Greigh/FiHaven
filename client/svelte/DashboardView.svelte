@@ -42,8 +42,9 @@
   const periodCfg = getPeriodConfig();
 
   /* ── Top stat tiles ──────────────────────────────────── */
-  let totalDebt = $derived(cards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
-  let promoCards = $derived(cards.filter((c) => c.hasPromo && c.promoEndDate));
+  let activeCards = $derived(cards.filter((c) => !c.archived));
+  let totalDebt = $derived(activeCards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
+  let promoCards = $derived(activeCards.filter((c) => c.hasPromo && c.promoEndDate));
   let urgentPromo = $derived(promoCards.filter((c) => monthsUntil(c.promoEndDate) <= 3).length);
 
   let allItems   = $derived(buildUpcomingItems());
@@ -83,7 +84,7 @@
   /* ── Alerts (promo cliff, credit util, trials) ───────── */
   let alerts = $derived.by(() => {
     const out = [];
-    cards.forEach((c) => {
+    activeCards.forEach((c) => {
       if (c.type === 'loan') return;
       const util = cardUtil(c);
       if (util != null && util >= 80) {
@@ -221,7 +222,7 @@
   <div class="stat-tile {totalDebt > 0 ? 'is-bad' : 'is-good'}">
     <div class="stat-label">Card debt</div>
     <div class="stat-value">{fmt(totalDebt)}</div>
-    <div class="stat-sub">{cards.length} card{cards.length === 1 ? '' : 's'} tracked</div>
+    <div class="stat-sub">{activeCards.length} card{activeCards.length === 1 ? '' : 's'} tracked</div>
   </div>
   <div class="stat-tile {urgentPromo > 0 ? 'is-bad' : 'is-good'}">
     <div class="stat-label">0% APR ≤ 3 mo</div>
