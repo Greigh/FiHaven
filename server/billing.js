@@ -58,16 +58,16 @@ const STRIPE_PLANS = {
   monthly:     { env: 'STRIPE_PRICE_MONTHLY',     label: 'Monthly',  order: 1, devDays: 31 },
   three_month: { env: 'STRIPE_PRICE_THREE_MONTH', label: '3 months', order: 2, devDays: 92 },
   yearly:      { env: 'STRIPE_PRICE_YEARLY',      label: 'Yearly',   order: 3, devDays: 366 },
-  // Family plan: same Pro features, larger shared-household cap. Pricing
-  // is still TBD, so it only appears once STRIPE_PRICE_FAMILY is set.
+  // Family plan ($25.99/yr): same Pro features plus a shared household of up
+  // to three people. Only appears once STRIPE_PRICE_FAMILY is set.
   family:      { env: 'STRIPE_PRICE_FAMILY',      label: 'Family',   order: 4, devDays: 366 },
 };
 
-// How many people a household can hold, by tier. Any Pro plan unlocks the
-// base size; the dedicated Family plan unlocks more. Overridable via env so
-// the caps can be tuned without a deploy once pricing is settled.
-const HOUSEHOLD_MAX_PRO = parseInt(process.env.HOUSEHOLD_MAX_PRO || '3', 10);
-const HOUSEHOLD_MAX_FAMILY = parseInt(process.env.HOUSEHOLD_MAX_FAMILY || '6', 10);
+// How many people a household can hold, by tier. Individual Pro is a single
+// account (no shared household); only the dedicated Family plan unlocks
+// sharing. Overridable via env so the caps can be tuned without a deploy.
+const HOUSEHOLD_MAX_PRO = parseInt(process.env.HOUSEHOLD_MAX_PRO || '0', 10);
+const HOUSEHOLD_MAX_FAMILY = parseInt(process.env.HOUSEHOLD_MAX_FAMILY || '3', 10);
 
 // Max household members the given entitlement can own. 0 = can't create one.
 function householdMaxFor(pro, plan) {
