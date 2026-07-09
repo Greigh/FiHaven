@@ -13,22 +13,23 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-07-06
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-08
 
 | | |
 |---|---|
 | **Status** | Pre-release — **launch candidate** (first public tester wave) |
-| **iOS** | 1.5.0 (7) |
-| **Android** | 1.5.0 (build 16) |
+| **iOS** | 1.5.0 (8) |
+| **Android** | 1.5.0 (build 17) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
 
-> The 1.5.0 launch build: budget lenses and family rollup on every platform,
-> push notifications, smarter Pro tools, and the reliability fixes from builds
-> 3–4. Build 6 adds monthly rollover, dashboard editing, browser push, and
-> period-accurate labels. Build 7 brings real subscription brand logos, a
-> redesigned native Bills tab, and an on/off biometric app lock.
+> The 1.5.0 launch build. Budget lenses, household rollup, and push
+> notifications land on every platform; bank linking goes live in production;
+> subscriptions get real brand logos and manage-links; and bills, cards, and
+> loans can now be **archived** instead of deleted. Net worth moves to its own
+> tab, sign-in works without a password, and a long tail of reliability and
+> layout fixes lands across web, iOS, and Android.
 > [Jump to technical changelog ↓](#150-technical-changelog)
 
 **Budget & spending (Tier 3)**
@@ -43,19 +44,63 @@ Each release below uses two layers:
 - **Category → bucket overrides** — map your bill/spending categories to
   needs, wants, or save.
 
+**Net worth & accounts**
+
+- **Net Worth is its own tab** — assets minus debts, with your savings,
+  checking, investment, and property accounts, on web, iOS, and Android. It's
+  free, not a Pro feature, and no longer buried on the Cards tab.
+
+**Bills, cards & loans**
+
+- **Archive instead of delete** — retire a bill, card, or loan without losing its
+  history. Archived items drop out of due dates, totals, the calendar, and
+  reminders, and can be restored any time. Turn it on in Settings; each tab has
+  a *Show archived* filter. On web, iOS, and Android.
+- **Payoff plan for 0% cards** — the Cards tab now shows what to pay off in a
+  lump sum (cards with no promo rate) alongside the monthly amount needed to
+  clear each 0%-financing card before its promo ends.
+- **Two-column cards & loans (web)** — the Cards and Loans pages use the width
+  they have instead of one long column.
+- **Set a separate autopay day** from the due date so "mark paid" lines up with
+  when your bank actually pulls payment.
+
+**Subscriptions**
+
+- **Real brand logos** — recognized services (Netflix, Spotify, YouTube, and
+  dozens more) show their actual logo next to the name in Subscriptions and on
+  the Dashboard's Upcoming list, with a per-brand emoji fallback. iOS and
+  Android show the per-brand emoji.
+- **Jump straight to the bill** behind a subscription, and **save a manage or
+  cancel link** for it — kept on your own bill, and optionally shared with us so
+  we can seed it for everyone. On web, iOS, and Android.
+
 **Notifications**
 
 - **Push notifications** — opt in on iOS or Android for bill reminders, weekly
   digests, and monthly summaries (alongside email and on-device reminders).
-- Production server sends via APNs + Firebase; see `docs/push-setup.md`.
+- **Browser notifications** — the same reminders in Chrome or Firefox, opt in
+  from web Settings, no app needed.
+- **Clearer notification settings** — iOS and Android split reminders into
+  *On this device*, *Email*, and *Reminder timing*.
 
-**Smarter Credit Card rewards**
+**Monthly rollover**
 
-- See recurring card perks (Uber credits, airline fees, etc.) and log what you’ve
-  used each month — plus a “is this annual fee worth it?” check on the Rewards tab.
+- When a new month starts, FiHaven offers to review each bill's amount. A
+  dashboard card names anything from last month that was never marked paid, and
+  the review pre-fills amounts your way: the average of recent months (default),
+  the same as last month, or blank. On web, iOS, and Android.
+- **Edit from the Dashboard** — tap-and-hold (or the ⋯ menu) on a dashboard item
+  to edit the bill or card right there (iOS and Android).
+- **Right words for non-monthly bills** — a quarterly bill now says "Paid this
+  quarter" instead of always "this month" (also weekly, bi-weekly, and yearly).
+
+**Smarter credit card rewards**
+
+- See recurring card perks (Uber credits, airline fees, etc.) and log what you've
+  used each month — plus an "is this annual fee worth it?" check on the Rewards tab.
 - Track activated card offers (Amex/Chase deals) before they expire; mark them
-  used when you’re done and get a heads-up before they lapse.
-- FiHaven can suggest which card to use at a store based on where you’re shopping.
+  used when you're done and get a heads-up before they lapse.
+- FiHaven can suggest which card to use at a store based on where you're shopping.
 
 **Bank linking (Pro, optional)**
 
@@ -63,13 +108,9 @@ Each release below uses two layers:
 - If your bank adds accounts later, link them without starting over.
 - Spending can flag when a bank import looks like a purchase you already entered
   by hand (you choose what to keep).
-- Opt in to updating card balances from the bank; by default FiHaven never
-  overwrites what you typed.
-
-**Bills & cards**
-
-- Set a separate **autopay day** from the due date so “mark paid” lines up with
-  when your bank actually pulls payment.
+- **Bank purchases are opt-in** — importing purchases into Spending is an explicit
+  toggle, **off by default**; FiHaven stays manual-entry-first. Updating card
+  balances from the bank is separate and also opt-in.
 
 **Sign in**
 
@@ -77,87 +118,58 @@ Each release below uses two layers:
   right on the login screen (Face ID / Touch ID, iCloud Keychain, Google
   Password Manager, Bitwarden, and friends) on web, iOS, and Android.
 
-**Reliability**
+**Pricing & plans**
 
+- Real prices on the marketing and pricing pages: **$1.99/mo**, **$14.99/yr**, and
+  a **$25.99/yr Family** plan.
+- **Family is a shared household of up to 3 people.** Pro is a single account.
+
+**Reliability & polish**
+
+- **Bank linking failed for everyone** with "Could not start linking" — the server
+  was authenticating against Plaid with a stale key. Fixed server-side, so no app
+  update is needed.
 - Fixed cards, bills, accounts, and goals not showing up on Android (and a
   save bug that could drop accounts/goals/transactions on phones).
-- The login security check no longer “times out” if you leave the sign-in
+- **Android:** the Save button stays reachable on long add/edit screens, and
+  Skip/Pay on a bill are large enough to hit without opening the editor by
+  mistake. Editors use real date and day pickers instead of free-text fields.
+- **iOS:** every money field puts the dollar sign to the left of the amount, and
+  amounts no longer render as `300.000`.
+- **Redesigned Bills tab (iOS & Android)** — bills use the same clean two-line
+  tile as the Cards tab, with pay/skip actions on their own row.
+- **App lock on/off (Android)** — a clear switch to require biometric/passcode
+  unlock, plus a "Stay unlocked for" duration, under **Settings → Security**.
+- **Swipe through the intro** — onboarding screens are swipeable on iOS and Android.
+- The login security check no longer "times out" if you leave the sign-in
   screen open for a while — it refreshes itself.
 - Android now autofills the 2FA code correctly instead of offering a password,
   and the sign-up screen shows the Terms/Privacy agreement.
-- Stronger Android sign-in security and more reliable iOS TestFlight builds.
-
-**Build 7 — brand logos, native Bills redesign & app lock**
-
-- **Real subscription logos** — recognized services (Netflix, Spotify, YouTube,
-  and dozens more) now show their actual logo next to the name in Subscriptions
-  and on the Dashboard's Upcoming list, with a per-brand emoji fallback for
-  anything without a bundled logo. iOS and Android show the per-brand emoji.
-- **Redesigned Bills tab (iOS & Android)** — bills now use the same clean
-  two-line tile as the Cards tab, with the pay/skip actions on their own row —
-  no more cramped layout or awkward white space.
-- **App lock on/off (Android)** — a clear switch to require biometric/passcode
-  unlock, plus a "Stay unlocked for" duration; moved into **Settings → Security**
-  where it belongs.
-- **Editing polish (Android)** — bill/card editors use real date and day
-  pickers instead of free-text fields, and the Save button always has room
-  above the navigation bar.
-- **Fixes** — the Subscriptions page no longer shows its title twice; the web
-  Loans list is no longer squished; Preferences pickers line up correctly.
-
-**Build 6 — rollover, dashboard editing & browser push**
-
-- **Monthly rollover** — when a new month starts, FiHaven offers to review each
-  bill's amount. A dashboard card names anything from last month that was never
-  marked paid, and the review pre-fills amounts your way: the average of recent
-  months (default), the same as last month, or blank. On web, iOS, and Android.
-- **Edit from the Dashboard** — tap-and-hold (or the ⋯ menu) on a dashboard item
-  to edit the bill or card right there, using the same editor as its main page
-  (iOS and Android).
-- **Right words for non-monthly bills** — a quarterly bill now says "Paid this
-  quarter" and "Skip this quarter" instead of always "this month" (also weekly,
-  bi-weekly, and yearly).
-- **Swipe through the intro** — the onboarding screens are now swipeable on iOS
-  and Android.
-- **Browser notifications** — get bill reminders, digests, and summaries as push
-  notifications in Chrome or Firefox, opt in from web Settings (no app needed).
-- **Bank purchases are opt-in** — importing purchases from a linked bank into
-  Spending is now an explicit toggle, **off by default**; FiHaven stays
-  manual-entry-first (balance sync is still separate and also opt-in).
-- **Clearer notification settings** — iOS and Android split reminders into
-  *On this device*, *Email*, and *Reminder timing*.
-- **Fixes** — closing a bill/card editor no longer jumps to the GitHub page;
-  Settings checkboxes and the Family tab line up correctly.
-
-**Build 5 — launch candidate**
-
-- Tier 3 competitive parity on web, iOS, and Android (native budget lens,
-  envelope editor, spending insights, household rollup, category bucket overrides).
-- Remote push (APNs / FCM) with `settings.pushNotifications` and device token API.
-- Marketing homepage: TestFlight + Play internal testing badges.
-- Web Stripe checkout includes a **7-day free trial** on every plan (parity with
-  App Store / Play intro offers).
-- iOS CI fix: public `BudgetRuleSplits` initializer for native budget settings.
-
-**Build 4 polish**
-
-- Changing your email now requires a verified current address; the new address
-  must be confirmed before it takes effect (web, iOS, Android).
-- Android can register and remove passkeys in Settings; passkey enrollment
-  accepts Play-signed app origins.
-- Google Play Pro subscriptions are verified server-side via the Developer API.
-- Android login no longer shows “session expired” on a wrong password; auth
-  screens scroll above the keyboard and settings dialogs size to their content.
-- Play Store upload signing via local `keystore.properties` (documented in
-  `android/README.md`).
-
-**Build 3 polish**
-
-- Fixed cards and bills showing “overdue” after you’ve already paid this period.
-- Fixed FiHaven Pro “Manage subscription” for Stripe subscribers; clearer
+- Fixed cards and bills showing "overdue" after you've already paid this period.
+- Fixed FiHaven Pro "Manage subscription" for Stripe subscribers; clearer
   messaging for complimentary and promo access.
-- Fixed the dashboard **More** menu and settings tab bar on the web.
-- Updated the marketing homepage to reflect live apps, sync, and bank linking.
+- Fixed the dashboard **More** menu, the settings tab bar, the squished web Loans
+  list, the duplicated Subscriptions title, and Preferences picker alignment.
+- Closing a bill/card editor no longer jumps to the GitHub page.
+- Refreshed the marketing homepage, pricing page, and FAQ (including dark mode).
+
+#### Build history
+
+Builds within this pre-release, newest first. Everything above is the combined
+result; this table is only for tracing when something landed.
+
+| Build | iOS / Android | Date | Theme |
+|-------|---------------|------|-------|
+| **8** | 8 / 17 | 2026-07-08 | Plaid production fix, admin gate, archive, Net Worth tab, touch targets |
+| 7 | — / 16 | 2026-07-06 | Brand logos, native Bills redesign, Android app lock |
+| 6 | — / 15 | 2026-07-06 | Monthly rollover, dashboard editing, browser push |
+| 5 | 5 / 14 | 2026-07-05 | Launch candidate: Tier 3 parity, remote push, passkeys |
+| 4 | — / 13 | 2026-07-02 | Email-change gate, Android passkeys, Play verification |
+| 3 | — / — | — | Overdue fix, Stripe portal, More menu, string record ids |
+
+> Builds 6 and 7 were announced with iOS build numbers that `project.yml` never
+> actually carried — `CURRENT_PROJECT_VERSION` sat at `5`. Corrected to `8` in
+> build 8; the dashes above are honest about what shipped.
 
 ---
 
@@ -165,256 +177,282 @@ Each release below uses two layers:
 
 ### Technical changelog
 
-#### Added (build 7)
+Collapsed across builds 3–8. Each entry carries its PR number.
 
+#### Added
+
+- **Archive (soft delete) for bills, cards & loans** — new `archived` flag on the
+  bill/card models, an `archiveInsteadOfDelete` setting, and a per-tab *Show
+  archived* filter. Bills route through the single `billActive()` /
+  `billInPeriod()` gate, so archived bills leave due dates, totals, calendar,
+  rollover, reminders, and the subscription finder for free; **cards have no such
+  gate**, so archived cards are filtered at every consumer. Web `utils.js` ⇄
+  `DateLogic.swift` ⇄ `DateLogic.kt`; `activeBills`/`activeCards`/`archivedBills`/
+  `archivedCards` on `AppStore` and `AppData`. (#126, #127, #129)
+- **Net Worth as its own tab** — moved out of `CardsList.svelte` into
+  `client/js/networth.js` + `#tab-networth`; new `NetWorthView.swift`
+  (`TabItem.networth`) and `NetWorthScreen.kt` (`TabId.NETWORTH`). Free tier — no
+  `PRO_TABS` / `ProGate`. (#131, #132)
+- **Subscription manage links** — `POST /api/feedback/subscription-link`
+  (`server/routes/feedback.js`, `requireAuth` + `requireVerified` + `requireCsrf`,
+  `isHttpUrl()` validation) mails a volunteered link with the sender as reply-to;
+  `SUBSCRIPTION_LINK_INBOX` overrides the destination. Saving writes
+  `bill.manageUrl` locally **and** offers the link, in that order. Web
+  `SubscriptionsPanel.svelte`; iOS `ManageLinkSheet` + `APIClient+Feedback.swift`;
+  Android `ManageLinkDialog` + `ApiClient.shareSubscriptionLink`. (#125, #137)
+- **Cards payoff plan** — lump-sum total for cards with no promo APR, plus the
+  monthly payment needed to clear each 0%-financing card before its promo ends
+  (`cardsPayoffPanel`). (#125, #129)
+- **iOS `CurrencyField` / `PercentField`** (`Components.swift`) — leading `$`
+  against a left-aligned value in a fixed-width box, mirroring the web's
+  `.goal-amount` input; percent still trails. Amounts capped at two fraction
+  digits. Adopted across the bill, card, payment, budget, and account editors and
+  the Payoff calculator. (#135)
 - **Subscription brand logos** — `client/js/subscriptionLogos.js` bundles 48
   curated single-path brand marks (Simple Icons, CC0) keyed by normalized name,
   with brand colors and a `logoDataUri()` renderer. `subscriptionIcons.js`
-  resolves real logo → per-brand emoji → category/generic; new `brandIconInfo()`
+  resolves real logo → per-brand emoji → category/generic; `brandIconInfo()`
   returns `null` on no-match, and `LOGO_ALIASES` maps "HBO Max" / "Amazon Prime
   Video" / etc. to their bundled logo. Wired into the Subscriptions panel and
   the Dashboard **Upcoming** rows (`buildUpcomingItems` in `utils.js`). Native
-  mirrors the emoji layer only: `SubscriptionIcons.swift` / `SubscriptionIcons.kt`
-  feed the Subscriptions rows. Tests: `subscriptionIcons.test.js` (11),
-  `SubscriptionIconChecks` (iOS), `SubscriptionIconsTest` (Android). (#122)
-- **Native Bills redesign** — `BillsScreen.kt` / `BillsView.swift` bill rows now
-  use the Cards-tab two-tier tile: emoji + name/business + amount on top, colored
-  status + Pay/Skip/Undo quick actions below (Android `QuickAction`, iOS
-  `quickAction`). (#119)
+  mirrors the emoji layer only. Tests: `subscriptionIcons.test.js` (11),
+  `SubscriptionIconChecks` (iOS), `SubscriptionIconsTest` (Android). (#122, #127)
+- **Native Bills redesign** — `BillsScreen.kt` / `BillsView.swift` bill rows use
+  the Cards-tab two-tier tile: emoji + name/business + amount on top, colored
+  status + Pay/Skip/Undo quick actions below. (#119)
 - **Android editor pickers** — `Form.kt` gains `DateField` (Material date picker,
   ISO storage, clearable) and `DayField` (1–31 picker); replaced free-text
-  `YYYY-MM-DD` / due-day fields in the bill, card, budget, pay, and settings
-  editors. `FormDialog` root gets `navigationBarsPadding().imePadding()` so the
-  Save button clears the nav bar. (#115)
-
-#### Changed (build 7)
-
-- **iOS build 7 / Android build 16** — `CURRENT_PROJECT_VERSION` 7; `versionCode` 16.
-- **Biometric app lock is an explicit toggle (Android)** — `SettingsScreen.kt`
-  replaces the "Require biometric / passcode after" nav row with a
-  `SwitchRow` (`biometricEnabled` / `setBiometricEnabled`) plus a conditional
-  "Stay unlocked for" duration; `NEVER` dropped from the delay options. The whole
-  block now lives under **Security** rather than Preferences. (#121)
-- **Web Loans layout** — `.card-row-stats.is-loan` uses a 2-column grid capped at
-  `520px` so loans (2 stats) no longer stretch across the 4-column card grid.
-  (#120)
-- **Web Subscriptions title** — `SubscriptionsPanel.svelte` takes a `kicker` prop;
-  the Subscriptions tab mount passes `kicker={false}` so the page title isn't
-  duplicated. (#116)
-- **Android Preferences alignment** — picker rows use `horizontal=16, vertical=12`
-  padding so labels and helper text line up. (#117)
-- **Deploy tooling** — tracked `scripts/play-upload.js` (secret-free Play uploader,
-  reads env only), `deploy:ios` / `deploy:android` npm scripts, and dev-dependency
-  bumps (vitest, svelte plugin). (#118)
-
-#### Added (build 6)
-
+  `YYYY-MM-DD` / due-day fields across the bill, card, budget, pay, and settings
+  editors. (#115)
 - **Monthly rollover** — new-month detection (reuses `settings.lastVisitKey`)
   surfaces a dashboard prompt naming items never marked paid last month, and a
   review that pre-fills each active bill's amount. New `settings.rolloverPrefill`
-  (`average` | `carry` | `blank`). Shared logic `recentPaymentAverage()` +
-  `rolloverAmount()` in `client/js/utils.js` ⇄ `Schedule.kt` / `Schedule.swift`
-  (+ tests / checks). Web module `client/js/rollover.js`; native
-  `RolloverReviewView` (iOS) / `RolloverReviewDialog` (Android); Settings prefill
-  picker on all three platforms. (#110)
+  (`average` | `carry` | `blank`). Shared `recentPaymentAverage()` +
+  `rolloverAmount()` in `client/js/utils.js` ⇄ `Schedule.kt` / `Schedule.swift`.
+  Web `client/js/rollover.js`; native `RolloverReviewView` / `RolloverReviewDialog`. (#110)
 - **Dashboard inline edit** — an Edit action on dashboard upcoming rows opens the
-  existing editors: iOS `BillEditorView` / `CardEditorView` sheets, Android
-  `BillEditorDialog` / `CardEditorDialog`. (#109)
+  existing `BillEditorView` / `CardEditorView` sheets and `BillEditorDialog` /
+  `CardEditorDialog`. (#109)
 - **Period-correct labels** — `billPeriodNoun()` / `BillSchedule.periodNoun()`
   (`week` / `cycle` / `quarter` / `year` / `month`) mirrored across `billSchedule.js`,
   `BillSchedule.kt`, `BillSchedule.swift`; threaded through bills lists, dashboard
-  rows, skip/un-skip actions, and iOS accessibility labels;
-  `periodNoun(item)` on `AppStore` / `AppViewModel`. (#108)
+  rows, skip/un-skip actions, and iOS accessibility labels. (#108)
 - **Swipeable onboarding** — iOS paged `TabView`; Android `HorizontalPager`. (#107)
 - **Browser web push** — `client/js/webpush.js` (registers `/sw.js`, subscribes
   with the VAPID key from `GET /api/push/config`, `POST /api/push/register` with
   CSRF), service worker `client/public/sw.js`, and Settings enable/disable UI.
   Server: VAPID init + `sendWeb()` (`web-push`), `platform='web'` in `sendToUser`,
-  `GET /api/push/config`, 404/410 stale-subscription cleanup; `VAPID_PUBLIC_KEY` /
-  `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` env (documented in `.env.example`; no-op
-  until set). (#112)
-
-#### Changed (build 6)
-
-- **iOS build 6 / Android build 15** — `CURRENT_PROJECT_VERSION` 6; `versionCode` 15.
-- **Bank purchase import is opt-in** — `mergePlaidTransactions` is now gated on
-  `settings.plaidUpdatePurchases` (off by default) in `server/routes/plaid.js`;
-  previously it ran on every sync. Settings gains the toggle. (#113)
-- **Native notification settings** — regrouped into *On this device* / *Email* /
-  *Reminder timing* on iOS (`SettingsView`) and Android (`SettingsScreen`); same
-  toggles and stored settings. (#111)
-
-#### Fixed (build 6)
-
-- **Web modal Cancel/Save navigated to GitHub** — an unclosed footer anchor
-  (`GitHub/a>`) left the `<a>` open and swallowed the modals; buttons followed the
-  link. Closed the tag across all 14 client pages. (#105)
-- **Settings form styling** — excluded checkbox/radio inputs from the
-  `.auth-field input` text-field styling (alignment), scoped Family-tab
-  input/select styling, and set the autopay row to `display:flex`. (#106)
-- **Android implicit PendingIntents (CodeQL #35)** — inline explicit
-  `setClassName` + `setPackage` at each `PendingIntent` construction in
-  `NotificationScheduler` / `BillReminderReceiver`; removed the `ExplicitIntents`
-  helper CodeQL couldn't trace (`java/android/implicit-pendingintents`). (#104)
-
-#### Added
-
+  `GET /api/push/config`, 404/410 stale-subscription cleanup. No-op until
+  `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` are set. (#112)
 - **Remote push (APNs / FCM)** — `push_devices` table; `POST /api/push/register`
   and `/unregister`; `server/push.js` (env-gated `apns2` + `firebase-admin`);
   scheduler sends push alongside email when `settings.pushNotifications` is on;
-  native token registration (`PushRegistrar` iOS/Android); `docs/push-setup.md`,
-  `scripts/push-check.js`.
+  native `PushRegistrar`; `docs/push-setup.md`, `scripts/push-check.js`.
 - **Tier 3 native budget lens** — `BudgetRuleSettingsView` (iOS) and Settings →
   Budget lens (Android); mirrors web budget rules.
-- **Native envelope editor (Pro)** — assign envelope amounts from Budget tab.
-- **Native spending insights (Pro)** — period-over-period category comparison.
-- **Household rollup** — `GET /api/household/rollup`; dashboard card; Family
-  settings on all platforms.
-- **Category bucket overrides** — `settings.budgetBucketOverrides` on web +
-  native Settings.
-- **Card perks** — recurring statement credits with per-cycle usage logging;
-  annual-fee worth-it check (fee vs perk value + estimated category rewards) on
-  web, iOS, and Android Rewards tab (`perks.js` ⇄ `Perks.swift` / `Perks.kt`).
-- **Card-linked offers** — manual tracker for activated issuer deals; active
-  list, mark-used, and Plaid-assisted use suggestions (`offers.js` ⇄ native
-  cores).
-- **Merchant → category hints** — Rewards optimizer maps merchant names to
-  spending categories (`merchants.js` ⇄ native cores).
-- **Offer expiry reminders** — email (`sendOfferReminder`) and on-device
-  notifications when `settings.offerReminders` is on.
-- **Bank reconciliation** — Spending panel flags duplicate manual/bank pairs,
-  unmatched Plaid rows, and unconfirmed manual entries; manual resolution
-  (`reconcile.js` ⇄ `Reconcile.swift` / `Reconcile.kt`).
-- **Plaid balance sync (opt-in)** — `settings.plaidUpdateBalances` updates card
-  owed balances on unambiguous last-4 match only (`plaidBalances.js`; server-side;
-  off by default).
+- **Native envelope editor (Pro)** — assign envelope amounts from the Budget tab.
 - **Autopay pull day** — optional `autopayDay` on bills and cards, separate from
   `dueDay`; drives auto-mark timing on web, iOS, and Android.
-
-#### Added
-
-- **Passwordless passkey sign-in** — log in with a device passkey (Face ID /
-  Touch ID, iCloud Keychain, Google Password Manager, Bitwarden, etc.) and no
-  password. New first-factor endpoints `POST /api/auth/passkey/login/start` +
-  `/finish` (`mfa.startPasskeyLogin`/`finishPasskeyLogin`, discoverable
-  credentials, user-verification required) resolve the account from the signed
-  credential id. The login screen runs a check automatically: **web** conditional
-  UI (`autocomplete="… webauthn"` + `useBrowserAutofill`), **iOS** ASAuthorization
-  AutoFill-assisted requests (+ a “Sign in with a passkey” button), **Android**
-  Credential Manager `GetPublicKeyCredentialOption`. Adds association files served
-  from `/.well-known/` (`apple-app-site-association`, `assetlinks.json`), the iOS
-  `webcredentials:fihaven.app` entitlement, and an optional
-  `PASSKEY_ANDROID_ORIGIN` env for the Android `apk-key-hash` origin. (Passkeys
-  also remain available as a second factor.)
-
-#### Added
-
+- **Passwordless passkey sign-in** — log in with a device passkey and no password.
+  First-factor endpoints `POST /api/auth/passkey/login/start` + `/finish`
+  (`mfa.startPasskeyLogin` / `finishPasskeyLogin`, discoverable credentials,
+  user-verification required) resolve the account from the signed credential id.
+  The login screen checks automatically: **web** conditional UI
+  (`autocomplete="… webauthn"` + `useBrowserAutofill`), **iOS** ASAuthorization
+  AutoFill-assisted requests, **Android** Credential Manager
+  `GetPublicKeyCredentialOption`. Adds `/.well-known/` association files, the iOS
+  `webcredentials:fihaven.app` entitlement, and optional `PASSKEY_ANDROID_ORIGIN`.
 - **Google Play receipt verification** — `server/googlePlay.js` calls
-  `purchases.subscriptionsv2.get` when `GOOGLE_VERIFY_ENABLED=1`;
-  `upload.sh` can ship `GOOGLE_PLAY_SA_LOCAL` → server JSON path.
-- **Android passkey registration** — Settings → Passkeys uses Credential
-  Manager (`PasskeyRegistration.kt`); `passkeyOrigins(req)` on enroll/finish
-  (`server/mfa.js`).
+  `purchases.subscriptionsv2.get` when `GOOGLE_VERIFY_ENABLED=1`.
+- **Android passkey registration** — Settings → Passkeys via Credential Manager
+  (`PasskeyRegistration.kt`); `passkeyOrigins(req)` on enroll/finish.
 - **`scripts/seed-user-data.js`** — demo/screenshot account seeding CLI.
 
 #### Changed
 
+- **iOS build 8 / Android build 17** — `CURRENT_PROJECT_VERSION` 8; `versionCode` 17.
+  The iOS value had drifted: `project.yml` still read `5` while builds 6 and 7 were
+  announced as 6 and 7, because #123 bumped only `build.gradle.kts`. Nothing in
+  `ci_post_clone.sh` or the workflows auto-bumps it.
+- **Family plan is a shared household of up to 3; Pro is a single account** —
+  `HOUSEHOLD_MAX_PRO` defaults to `0` and `HOUSEHOLD_MAX_FAMILY` to `3`;
+  `householdMaxFor(pro, plan)` returns the family cap only for `plan === 'family'`.
+  Household integration tests now grant `app.fihaven.pro.family`. (#124)
+- **Marketing, pricing & FAQ refresh** — real prices ($1.99/mo, $14.99/yr,
+  $25.99/yr Family), an "…and plenty more" feature tile, a "Just shipped" ribbon,
+  a live hero month (`client/js/home-hero.js`, replacing a hardcoded one), a
+  readable Web-app badge, and accessible FAQ body text. (#124)
+- **Two-column cards & loans (web)** — `grid-template-columns: repeat(auto-fit,
+  minmax(440px, 1fr))` on the cards/loans grids. (#125)
+- **Biometric app lock is an explicit toggle (Android)** — `SettingsScreen.kt`
+  replaces the "Require biometric / passcode after" nav row with a `SwitchRow`
+  (`biometricEnabled` / `setBiometricEnabled`) plus a conditional "Stay unlocked
+  for" duration; `NEVER` dropped from the delay options. Moved under **Security**. (#121)
+- **Web Loans layout** — `.card-row-stats.is-loan` uses a 2-column grid capped at
+  `520px` so loans (2 stats) no longer stretch across the 4-column card grid. (#120)
+- **Web Subscriptions title** — `SubscriptionsPanel.svelte` takes a `kicker` prop;
+  the Subscriptions tab mount passes `kicker={false}`. (#116)
+- **Android Preferences alignment** — picker rows use `horizontal=16, vertical=12`
+  padding so labels and helper text line up. (#117)
+- **Bank purchase import is opt-in** — `mergePlaidTransactions` is gated on
+  `settings.plaidUpdatePurchases` (off by default) in `server/routes/plaid.js`;
+  previously it ran on every sync. (#113)
+- **Native notification settings** — regrouped into *On this device* / *Email* /
+  *Reminder timing* on iOS (`SettingsView`) and Android (`SettingsScreen`). (#111)
+- **Deploy env whitelist** — `upload.sh` and `scripts/examples/upload.example.sh`
+  now ship `TOKEN_TTL_DAYS`, `APPLE_VERIFY_ENABLED`, `VAPID_*`, `HOUSEHOLD_MAX_*`,
+  and `SUBSCRIPTION_LINK_INBOX`. Web push had been fully built but permanently
+  no-op in production because the VAPID keys were stripped from the deployed
+  `.env`. (#128)
+- **Deploy tooling** — tracked `scripts/play-upload.js` (secret-free Play uploader,
+  reads env only), `deploy:ios` / `deploy:android` npm scripts, dev-dependency
+  bumps. (#118)
 - **Change-email verification gate** — `POST /api/account/change-email` requires
   a verified current email, clears `email_verified`, emails the new address, and
   returns `verificationRequired`; clients hide change-email when unverified.
-- **Android release signing** — optional `keystore.properties` + `bundleRelease`
-  (`android/app/build.gradle.kts`, `keystore.properties.example`).
-- **Android release build 14** — Tier 3 + push (`google-services.json` for FCM);
-  `versionCode` 14.
-- **iOS build 5** — Tier 3 + push (`CURRENT_PROJECT_VERSION` 5); public
-  `BudgetRuleSplits` initializer.
-- **Android release build 13** — R8 minify/shrink + `proguard-rules.pro` for Play
-  deobfuscation mapping; `ndk.debugSymbolLevel = symbol_table` for native crash
-  symbols (`versionCode` 13).
+- **Android release signing** — optional `keystore.properties` + `bundleRelease`,
+  R8 minify/shrink + `proguard-rules.pro`, `ndk.debugSymbolLevel = symbol_table`.
 - **Stripe web checkout** — 7-day trial on all hosted Checkout plans
   (`trial_period_days`); `app.fihaven.pro.family` product map entry.
-- **Deploy** — `upload.example.sh` ships `APNS_*` / `FCM_*` env vars and uploads
-  APNs key + Firebase service account JSON (mirrors Play SA upload).
-- **Android Plaid Link SDK 6** — migrated to Plaid Link SDK 6.0.0; `compileSdk`
-  37 and lifecycle 2.11.0.
+- **Android Plaid Link SDK 6** — migrated to 6.0.0; `compileSdk` 37, lifecycle 2.11.0.
 - **Plaid production deploy** — `upload.sh` ships sanitized `PLAID_*` production
-  keys in server `.env` so bank linking works on fihaven.app (previously every
-  `PLAID_*` key was stripped from deploy).
+  keys in the server `.env` (previously every `PLAID_*` key was stripped).
 - **Plaid webhooks & item lifecycle** — handle `PENDING_DISCONNECT`,
   `LOGIN_REPAIRED`, and `NEW_ACCOUNTS_AVAILABLE`; **Add accounts** (update mode)
   on web, iOS, and Android; account deletion / bank-data clear calls Plaid
   `/item/remove`.
-- **Android auth token storage** — `PrefsTokenStore` migrated to Android
-  Keystore AES-256-GCM; removed `androidx.security:security-crypto` (one-time
-  sign-in may be required after upgrade).
-- **Android create-account consent** — the “By creating an account you agree to
-  our Terms of Use and Privacy Policy” notice now shows on the Android sign-up
-  form (parity with web and iOS).
+- **Android auth token storage** — `PrefsTokenStore` migrated to Android Keystore
+  AES-256-GCM; removed `androidx.security:security-crypto` (one-time sign-in may
+  be required after upgrade).
+- **Android create-account consent** — the Terms/Privacy notice now shows on the
+  Android sign-up form (parity with web and iOS).
 
 #### Fixed
 
-- **Android login 401 mapping** — `ApiClient.send()` only throws
-  `Unauthenticated` when the server returns `unauthenticated`, not on
-  `invalid-credentials` (`ApiClientTest`).
-- **Android auth/form UX** — `authScreen()` IME padding + vertical scroll on
-  login/MFA/intro/onboarding; `FormDialog` uses `wrapContentHeight` with a max
-  height cap.
-- **Paid items no longer show overdue** — `effectiveDaysUntilDue` /
-  `effectiveDaysUntilBillDue` in `utils.js` and native `DateLogic` / `Schedule`;
-  Cards, Bills, and Dashboard upcoming on web, iOS, and Android.
-- **Stripe billing portal** — customer lookup via active subscription;
-  `stripePortal` flag on `GET /api/billing/status`; Pro dialog shows manage
-  only when applicable (`pro.js`, native Paywall/Pro screens).
-- **Web More menu** — primary tabs scroll inside `.appbar-nav-scroll`; dropdown
-  no longer clipped (`navbar.js`, `components.css`).
-- **Settings tab bar** — horizontal scroll wrapper with edge fades
-  (`settings.html`, `pages.css`, `settings.js`).
-- **Android PendingIntents (CodeQL #31, #32)** — bill-reminder alarm and
-  notification tap intents use explicit `setClassName` + `setPackage` via
-  `ExplicitIntents.kt`.
-- **LinkKit dSYM in CI** — post-build `dsymutil` on Plaid’s LinkKit framework
-  was sandbox-blocked in GitHub Actions / Xcode Cloud. Disabled
-  `ENABLE_USER_SCRIPT_SANDBOXING` for the FiHaven target, made generation
-  best-effort, and declared script inputs/outputs (`project.yml`,
-  `Scripts/generate-linkkit-dsym.sh`).
-- **iOS Release / TestFlight archives** — Xcode scheme **Archive** and
-  **Profile** now use the **Release** configuration (Run/Test stay Debug).
-  Release sets `SWIFT_ACTIVE_COMPILATION_CONDITIONS` only on Debug and
-  `ENABLE_DEBUG_DYLIB: NO` on Release so `#if DEBUG` tooling (Settings →
-  Developer, `FH_AUTOLOGIN`, StoreKit purchase skip) is not compiled into
-  TestFlight or App Store binaries. `scripts/ios-testflight.sh` aborts if
-  Release still defines the DEBUG compile flag.
+- **Bank linking failed in production for every client** — `plaidSecret()` picked
+  the generic `PLAID_SECRET` ahead of the environment-specific one, the opposite
+  of what its own comment described. With `PLAID_ENV=production` and a stale
+  sandbox-era `PLAID_SECRET`, every call authenticated with the wrong key: Plaid
+  returned `INVALID_API_KEYS`, `POST /api/plaid/link/token` answered `502
+  link-token-failed`, and web, iOS, and Android all surfaced "Could not start
+  linking. Please try again." The env-specific secret now wins, and secrets never
+  cross environments — a sandbox-only secret leaves a production deployment
+  reporting `plaid-not-configured` (503) instead of failing every call at the API.
+  New `server/plaid.test.js`. One server fix; no app release needed. (#133)
+- **Android: Save pushed off the bottom of scrollable dialogs** — `FormDialog`
+  capped its content at `maxDialogHeight - 120.dp`, a guess at the header + footer
+  height. When they exceeded it (tall forms, large font scale, gesture-nav insets,
+  keyboard up) the action row was clipped. The content column now uses
+  `weight(1f, fill = false)`, so the unweighted header and footer are measured
+  first at their real heights. Every add/edit dialog routes through `FormDialog`. (#136)
+- **Android: Skip / Pay were nearly unhittable** — `QuickAction` was a bare 12sp
+  `Text` with `.clickable` (~26×16dp, against Material's 48dp minimum) inside a
+  card that is itself clickable and opens the editor, so a near-miss edited the
+  bill. Now a 56×48dp `Box` with the padding *inside* the `clickable`, a rounded
+  ripple, and `Role.Button`. (#136)
+- **iOS: money fields had no dollar sign, or a trailing one** — the bill, Pay, and
+  Edit-Payment amounts rendered bare; the Payoff calculator trailed `$`; rows that
+  did have one let the field expand so it floated mid-row. `format: .number` also
+  defaulted to three fraction digits (`300.000`). See `CurrencyField` above. (#135)
+- **iOS: archived cards still counted as debt** — `AppStore.liabilities` summed
+  `data.cards` rather than `activeCards`, so a soft-deleted card inflated the
+  dashboard net-worth card. Android already read `activeCards`. (#129)
+- **Web: saving dashboard settings could drop your data** — `client/js/settings.js`
+  rebuilt the sync snapshot without `accounts`, `goals`, or `transactions`. Since
+  `PUT /api/data` replaces the whole record, saving a dashboard setting cleared
+  them server-side. (#126)
+- **Native models silently stripped new synced fields** — iOS `Bill`/`Card` are
+  `Codable` structs with explicit `CodingKeys` and Android's are `@Serializable`
+  data classes, so both drop unknown JSON keys on re-encode. Because
+  `PUT /api/data` replaces the whole record, the first native sync after the web
+  started writing `archived` / `manageUrl` would have erased them. Both fields
+  were added to the native models **before** the web change shipped. (#127)
 - **Native data sync — record ids unified to strings** — bill/card/account/goal
   ids were `Int` on iOS (64-bit) and Android (32-bit) but the web mints string
   ids (`genId`); web/iOS records (and any id > 2³¹) silently failed to decode on
-  Android, so cards, bills, accounts, and goals didn’t appear there. All four
+  Android, so cards, bills, accounts, and goals didn't appear there. All four
   models now use flexible **string** ids on iOS (`flexibleString`) and Android
-  (`FlexStringIdSerializer`), and new records mint web-style string ids
-  (`newID`/`genId`). Payoff/Subscriptions/Rewards id types and the model checks
-  follow suit.
+  (`FlexStringIdSerializer`), and new records mint web-style string ids.
 - **Native data sync — full save payload** — `DataPutBody` on iOS and Android
-  omitted `accounts`, `goals`, and `transactions`; since `PUT /api/data`
-  replaces the whole record, every native save wiped them. All three lists are
-  now included in the save body.
-- **2FA autofill on Android** — the verification-code field declared no
-  autofill type, so the system offered saved passwords. Email, password, and
-  the 2FA code field now set Compose `ContentType` (`Username`+`EmailAddress`,
-  `Password`/`NewPassword`, `SmsOtpCode`). iOS and web were already correct.
+  omitted `accounts`, `goals`, and `transactions`; since `PUT /api/data` replaces
+  the whole record, every native save wiped them. All three lists are now included.
+- **Paid items no longer show overdue** — `effectiveDaysUntilDue` /
+  `effectiveDaysUntilBillDue` in `utils.js` and native `DateLogic` / `Schedule`;
+  Cards, Bills, and Dashboard upcoming on web, iOS, and Android.
 - **Login security check timing out** — Cloudflare Turnstile tokens expire after
-  ~5 minutes; sitting on the login screen left a stale/empty token and a
-  disabled sign-in button. Widgets now self-refresh on every platform:
-  `refresh-expired="auto"` + `retry="auto"` on all three, an auto-reset
-  `expired-callback` on web, and the native iOS/Android `TurnstileView` is now
-  kept **mounted after it solves** (instead of being unmounted once a token was
-  captured) so the held token refreshes before it can expire. A submit still
-  resets it (single-use tokens).
-- **iOS create-account consent** — the “By creating an account you agree…”
-  notice rendered twice; removed the duplicate (and a duplicate
-  `accessibilityHint`).
-- **Stripe checkout confirmation** — after `?pro=success` the UI didn’t re-check
-  entitlement, so it could still show Free until reload (the
-  `checkout.session.completed` webhook can land after the redirect). The Pro
-  dialog now polls `/api/billing/status` until Pro is active.
+  ~5 minutes; sitting on the login screen left a stale/empty token and a disabled
+  sign-in button. Widgets self-refresh on every platform (`refresh-expired="auto"`
+  + `retry="auto"`, an auto-reset `expired-callback` on web), and the native
+  `TurnstileView` stays **mounted after it solves** so the held token refreshes
+  before it can expire. A submit still resets it (single-use tokens).
+- **2FA autofill on Android** — the verification-code field declared no autofill
+  type, so the system offered saved passwords. Email, password, and the 2FA code
+  field now set Compose `ContentType` (`Username`+`EmailAddress`,
+  `Password`/`NewPassword`, `SmsOtpCode`). iOS and web were already correct.
+- **Android login 401 mapping** — `ApiClient.send()` only throws `Unauthenticated`
+  when the server returns `unauthenticated`, not on `invalid-credentials`
+  (`ApiClientTest`).
+- **Android auth/form UX** — `authScreen()` IME padding + vertical scroll on
+  login/MFA/intro/onboarding; `FormDialog` roots at
+  `navigationBarsPadding().imePadding()`.
+- **Web modal Cancel/Save navigated to GitHub** — an unclosed footer anchor
+  (`GitHub/a>`) left the `<a>` open and swallowed the modals. Closed across all
+  14 client pages. (#105)
+- **Settings form styling** — excluded checkbox/radio inputs from the
+  `.auth-field input` text-field styling, scoped Family-tab input/select styling,
+  set the autopay row to `display:flex`. (#106)
+- **Pricing page in dark mode** — `.legal-card` / `.public-copy` / `.auth-card` /
+  `.public-panel` used a `color-mix(… white)` gradient that washed out under
+  `[data-theme="dark"]`. (#124)
+- **Subscriptions row layout & category icon** — fixed the wrapping date ("July
+  30??") and the broken Subscriptions category icon (`ICONS.Subscriptions`). (#125)
+- **Stripe billing portal** — customer lookup via active subscription;
+  `stripePortal` flag on `GET /api/billing/status`; the Pro dialog shows manage
+  only when applicable.
+- **Stripe checkout confirmation** — after `?pro=success` the UI didn't re-check
+  entitlement, so it could show Free until reload (the `checkout.session.completed`
+  webhook can land after the redirect). The Pro dialog now polls
+  `/api/billing/status` until Pro is active.
+- **Web More menu** — primary tabs scroll inside `.appbar-nav-scroll`; dropdown
+  no longer clipped (`navbar.js`, `components.css`).
+- **Settings tab bar** — horizontal scroll wrapper with edge fades.
+- **iOS create-account consent** — the notice rendered twice; removed the
+  duplicate (and a duplicate `accessibilityHint`).
+- **LinkKit dSYM in CI** — post-build `dsymutil` on Plaid's LinkKit framework was
+  sandbox-blocked in GitHub Actions / Xcode Cloud. Disabled
+  `ENABLE_USER_SCRIPT_SANDBOXING` for the FiHaven target, made generation
+  best-effort, and declared script inputs/outputs.
+- **iOS Release / TestFlight archives** — the **Archive** and **Profile** schemes
+  use the **Release** configuration (Run/Test stay Debug). Release sets
+  `SWIFT_ACTIVE_COMPILATION_CONDITIONS` only on Debug and `ENABLE_DEBUG_DYLIB: NO`
+  on Release, so `#if DEBUG` tooling (Settings → Developer, `FH_AUTOLOGIN`,
+  StoreKit purchase skip) is not compiled into TestFlight or App Store binaries.
+  `scripts/ios-testflight.sh` aborts if Release still defines the DEBUG flag.
+- **iOS CI** — public `BudgetRuleSplits` initializer for native budget settings.
+
+#### Security
+
+- **The dev subscription override was not gated on being an admin** — the
+  Developer settings tab was revealed to admins *or* to anyone with
+  `localStorage.fh_dev === '1'`, and the override it controls was applied by
+  `refreshEntitlement()` straight from `localStorage` with no role check at all:
+  setting `fh_dev_entitlement = 'active'` in devtools flipped the client to Pro
+  and unlocked every client-rendered Pro gate. `GET /api/data` and
+  `GET /api/billing/status` now return `admin`; `applyEntitlement()` is the single
+  choke point where a server payload becomes the live entitlement and honors a
+  stored override only when that payload says admin — for everyone else the value
+  is ignored *and erased*. `refreshEntitlement()` no longer short-circuits the
+  network call, and a failed status fetch leaves the entitlement alone rather than
+  applying the override. Server-side Pro gates (Plaid's `requirePro`, household
+  caps, billing) were never bypassable this way. (#134)
+- **Clear-text logging of a service-account path (CodeQL #36)** — `scripts/play-upload.js`
+  echoed `KEY_FILE`, the path to the Google Play service-account credential
+  (`js/clear-text-logging`). Split into "env var not set" vs "file not found" so
+  the error stays actionable without printing the value. (#130)
+- **Android implicit PendingIntents (CodeQL #31, #32, #35)** — inline explicit
+  `setClassName` + `setPackage` at each `PendingIntent` construction in
+  `NotificationScheduler` / `BillReminderReceiver`; removed the `ExplicitIntents`
+  helper CodeQL couldn't trace (`java/android/implicit-pendingintents`). (#104)
 
 #### Documentation
 
@@ -423,6 +461,7 @@ Each release below uses two layers:
 - **`docs/native-contract.md`** — perks, offers, reconcile, `autopayDay`,
   `offerReminders`, and `plaidUpdateBalances`.
 
+---
 ## [1.4.2] (Latest Release) — 2026-06-26
 
 | | |
