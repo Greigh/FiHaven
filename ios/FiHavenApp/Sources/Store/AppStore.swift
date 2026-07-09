@@ -217,6 +217,19 @@ final class AppStore: ObservableObject {
         refreshNotifications()
     }
 
+    /// Offer a subscription's manage/cancel link to the shared database.
+    /// Returns whether it was accepted; the caller has already saved the link
+    /// on the user's own bill, so a false here is a soft failure, not a loss.
+    /// (`api` is file-private, so this can't live in AppStore+Edits.)
+    func shareSubscriptionLink(name: String, url: String) async -> Bool {
+        do {
+            try await api.shareSubscriptionLink(name: name, url: url)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Re-sync on-device bill reminders to the current bills + settings.
     func refreshNotifications() {
         NotificationScheduler.reschedule(bills: data.bills, cards: data.cards, settings: data.settings, tz: tz)
