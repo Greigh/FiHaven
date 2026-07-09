@@ -3,7 +3,7 @@ import SwiftUI
 /// The customizable app tabs — everything except the fixed "More" overflow
 /// and the Free-only "Get Pro" slot. Declaration order is the default order.
 enum TabItem: String, CaseIterable, Identifiable, Hashable {
-    case dashboard, bills, cards, loans, payoff, rewards, budget, spending, subscriptions, calendar, history
+    case dashboard, bills, cards, loans, payoff, rewards, budget, spending, subscriptions, calendar, history, networth
     var id: String { rawValue }
 
     var title: String {
@@ -19,6 +19,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .subscriptions: return "Subscriptions"
         case .calendar: return "Calendar"
         case .history: return "History"
+        case .networth: return "Net Worth"
         }
     }
 
@@ -35,6 +36,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .subscriptions: return "arrow.triangle.2.circlepath"
         case .calendar: return "calendar"
         case .history: return "clock.arrow.circlepath"
+        case .networth: return "chart.line.uptrend.xyaxis"
         }
     }
 
@@ -52,6 +54,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .subscriptions: ProGate(feature: .subscriptions) { SubscriptionsView() }
         case .calendar: ProGate(feature: .calendar) { CalendarView() }
         case .history: ProGate(feature: .history) { HistoryView() }
+        case .networth: NetWorthView()   // Free — net worth is not Pro-gated
         }
     }
 }

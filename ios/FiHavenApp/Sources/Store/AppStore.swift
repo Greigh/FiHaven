@@ -25,6 +25,15 @@ final class AppStore: ObservableObject {
     @Published private(set) var loaded = false
     @Published private(set) var rolloverPrompt: RolloverPrompt?
 
+    /// Non-archived bills/cards — what every list, total, and calculation
+    /// should read. Archived records stay in `data` (so they round-trip and
+    /// can be restored) but are hidden from active views. Mirrors web, where
+    /// archived items are excluded everywhere.
+    var activeBills: [Bill] { data.bills.filter { !$0.archived } }
+    var activeCards: [Card] { data.cards.filter { !$0.archived } }
+    var archivedBills: [Bill] { data.bills.filter { $0.archived } }
+    var archivedCards: [Card] { data.cards.filter { $0.archived } }
+
     /// A pending "new month started" prompt, shown once per month on the dashboard.
     struct RolloverPrompt: Identifiable {
         let id = UUID()
@@ -321,7 +330,8 @@ final class AppStore: ObservableObject {
 
     // ── Net worth (assets − liabilities) ────────────────────────────
     var assets: Double { data.accounts.reduce(0) { $0 + $1.balance } }
-    var liabilities: Double { data.cards.reduce(0) { $0 + $1.balance } }
+    // Archived cards are soft-deleted, so they must not count as debt.
+    var liabilities: Double { activeCards.reduce(0) { $0 + $1.balance } }
     var netWorth: Double { assets - liabilities }
 
     // ── Spending (transactions in the current period) ───────────────

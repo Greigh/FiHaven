@@ -76,6 +76,7 @@ import app.fihaven.core.model.autopayMarkHour
 import app.fihaven.core.model.billReminders
 import app.fihaven.core.model.currency
 import app.fihaven.core.model.hidePaidOnDashboard
+import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.landingView
 import app.fihaven.core.model.localNotifications
@@ -285,6 +286,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Hide fully paid on dashboard", data.settings.hidePaidOnDashboard) {
                         vm.setHidePaidOnDashboard(it)
+                    }
+                    SwitchRow("Archive instead of delete", data.settings.archiveInsteadOfDelete) {
+                        vm.setArchiveInsteadOfDelete(it)
                     }
                 }
             }

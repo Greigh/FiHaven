@@ -351,6 +351,14 @@ struct SettingsView: View {
             Text("When on, bills and cards you've fully paid this period won't appear in Upcoming on the dashboard.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
+            Toggle("Archive instead of delete", isOn: Binding(
+                get: { store.data.settings.archiveInsteadOfDelete },
+                set: { store.setArchiveInsteadOfDelete($0) }
+            ))
+            .tint(Theme.accent)
+            Text("When on, deleting a bill, card, or loan archives it instead — hidden from your lists but restorable. Manage archived items from the bottom of each list.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
             NavigationLink {
                 DashboardLayoutView()
             } label: {

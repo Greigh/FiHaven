@@ -265,14 +265,18 @@ private struct RolloverReviewView: View {
                     Text("No active bills to review.").foregroundStyle(Theme.muted)
                 } else {
                     ForEach(bills) { bill in
+                        // String binding: a blank field must stay blank so an
+                        // unreviewed bill isn't silently zeroed.
                         HStack {
                             Text(bill.name).foregroundStyle(Theme.text)
-                            Spacer()
-                            Text("$").foregroundStyle(Theme.muted)
-                            TextField("0.00", text: binding(for: bill))
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 90)
+                            Spacer(minLength: 8)
+                            HStack(spacing: 2) {
+                                Text("$").foregroundStyle(Theme.muted)
+                                TextField("0.00", text: binding(for: bill))
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .frame(width: 132, alignment: .leading)
                         }
                     }
                 }

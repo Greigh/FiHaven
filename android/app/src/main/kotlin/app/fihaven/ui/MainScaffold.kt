@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -105,6 +106,7 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("subscriptions", "Subscriptions", Icons.Filled.Autorenew),
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
+    NETWORTH("networth", "Net Worth", Icons.Filled.AccountBalanceWallet),
     ;
     companion object { fun from(id: String?): TabId? = entries.find { it.id == id } }
 }
@@ -219,6 +221,7 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.SUBSCRIPTIONS -> ProGate(vm, ProFeature.SUBSCRIPTIONS, padding, onBack) { SubscriptionsScreen(vm, padding, onBack) }
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
+        TabId.NETWORTH -> NetWorthScreen(vm, padding)   // Free — net worth is not Pro-gated
     }
 }
 
@@ -234,7 +237,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val income = Income.periodIncome(data.settings, periodBounds)
     val upcoming = Schedule.buildUpcomingItems(
         data.bills,
-        data.cards,
+        data.activeCards,
         zone,
         data.payments,
         periodBounds,
@@ -261,7 +264,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     }
 
     // Net worth / debt / spending for the optional widgets.
-    val debt = data.cards.sumOf { it.balance }
+    val debt = data.activeCards.sumOf { it.balance }
     val netWorth = data.accounts.sumOf { it.balance } - debt
     val spent = data.transactions
         .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
@@ -270,7 +273,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
-    val utilAlerts = data.cards.filter { it.type != "loan" && it.limit > 0 }.mapNotNull { c ->
+    val utilAlerts = data.activeCards.filter { it.type != "loan" && it.limit > 0 }.mapNotNull { c ->
         val util = ((c.balance / c.limit) * 100).toInt()
         when {
             util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
@@ -285,7 +288,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
         val dayWord = when (left) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $left days" }
         "⏳ ${b.name} — free trial ends $dayWord."
     }
-    val promoAlerts = data.cards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
+    val promoAlerts = data.activeCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
         val need = maxOf(c.minPayment, Schedule.promoNeeded(c, zone))
@@ -485,7 +488,7 @@ private fun BudgetStatusWidget(
         settings = data.settings,
         income = income,
         bills = data.bills,
-        cards = data.cards,
+        cards = data.activeCards,
         transactions = data.transactions,
         goals = data.goals,
         bounds = bounds,
