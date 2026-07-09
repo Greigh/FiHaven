@@ -15,13 +15,8 @@ struct EditPaymentView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Text("Amount").foregroundStyle(Theme.text)
-                        Spacer()
-                        TextField("Amount", value: $amount, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    CurrencyField(label: "Amount", value: $amount)
+                        .foregroundStyle(Theme.text)
                 }
                 Section {
                     DatePicker("Date paid", selection: $date, displayedComponents: .date)

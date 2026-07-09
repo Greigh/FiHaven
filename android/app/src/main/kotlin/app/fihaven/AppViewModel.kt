@@ -438,8 +438,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             newPayments.add(Payment(newPaymentId(), type, refId, name, amount, iso, mkCal, "Auto-marked (autopay)", false))
             handled.add(refKey); newlyMarked.add(refKey)
         }
-        d.bills.forEach { considerBill(it) }
-        d.cards.forEach {
+        d.activeBills.forEach { considerBill(it) }
+        d.activeCards.forEach {
             // Autopay pulls on `autopayDay`; null falls back to the due day.
             val effDay = it.autopayDay?.takeIf { day -> day > 0 } ?: it.dueDay
             considerCard("card", it.id.toString(), it.name + " (payment)", effDay, it.autopay,
@@ -718,6 +718,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun shareSubscriptionLink(name: String, url: String): Boolean =
         runCatching { api.shareSubscriptionLink(name, url) }.isSuccess
 
+    // ── Archive (soft delete) ─────────────────────────────────────────
+    fun archiveBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = true) else b }) }
+    fun restoreBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = false) else b }) }
+    fun archiveCard(card: Card) = mutate { it.copy(cards = it.cards.map { c -> if (c.id == card.id) c.copy(archived = true) else c }) }
+    fun restoreCard(card: Card) = mutate { it.copy(cards = it.cards.map { c -> if (c.id == card.id) c.copy(archived = false) else c }) }
+
     fun upsertCard(card: Card) = mutate { d ->
         val list = d.cards.toMutableList()
         val i = list.indexOfFirst { it.id == card.id }
@@ -808,7 +814,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val missed = buildList {
                 d.bills.filter { (it.dueDay != null || it.startDate != null) && DateLogic.billActive(it, zone) }
                     .forEach { if (!Schedule.isPaid(d.payments, "bill", it.id, lastMk)) add(it.name) }
-                d.cards.filter { it.dueDay != null }
+                d.activeCards.filter { it.dueDay != null }
                     .forEach { if (!Schedule.isPaid(d.payments, "card", it.id, lastMk)) add(it.name) }
             }
             _rolloverPrompt.value = RolloverPrompt(
@@ -919,6 +925,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setHidePaidOnDashboard(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("hidePaidOnDashboard", JsonPrimitive(on))) }
+
+    fun setArchiveInsteadOfDelete(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("archiveInsteadOfDelete", JsonPrimitive(on))) }
 
     fun setDashboardLayout(layout: String) =
         mutate { it.copy(settings = it.settings.withSetting("dashboardLayout", JsonPrimitive(layout))) }

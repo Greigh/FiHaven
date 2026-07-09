@@ -18,9 +18,12 @@ struct CardsView: View {
     @State private var fOverdue = false
 
     private var isLoanView: Bool { kind == "loan" }
+    private func inKind(_ c: Card) -> Bool { (((c.type ?? "card") == "loan")) == isLoanView }
     private var baseCards: [Card] {
-        store.sortedCards.filter { ((($0.type ?? "card") == "loan")) == isLoanView }
+        store.sortedCards.filter { !$0.archived && inKind($0) }
     }
+    private var archivedForKind: [Card] { store.archivedCards.filter(inKind) }
+    private var useArchive: Bool { store.data.settings.archiveInsteadOfDelete }
 
     private var filterCount: Int {
         (fBalance ? 1 : 0) + (fPromo ? 1 : 0) + (fOverdue ? 1 : 0)
@@ -63,6 +66,7 @@ struct CardsView: View {
         List {
             if !isLoanView && !baseCards.isEmpty {
                 cardsSummaryHeader
+                cardsPayoffPanel
             }
 
             if baseCards.isEmpty {
@@ -107,10 +111,19 @@ struct CardsView: View {
                         .tint(isFull ? Theme.muted : Theme.accent)
                     }
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            store.deleteCard(card)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        if useArchive {
+                            Button {
+                                store.archiveCard(card)
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                            .tint(Theme.muted)
+                        } else {
+                            Button(role: .destructive) {
+                                store.deleteCard(card)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                         Button {
                             editing = card
@@ -123,6 +136,10 @@ struct CardsView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
                 }
+            }
+
+            if !archivedForKind.isEmpty {
+                archivedSection
             }
         }
         .listStyle(.plain)
@@ -236,6 +253,74 @@ struct CardsView: View {
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
     }
+
+    // ── Payoff plan: lump for interest-bearing cards, monthly for 0% promos
+    @ViewBuilder
+    private var cardsPayoffPanel: some View {
+        let nonPromo = baseCards.filter { $0.type != "loan" && !($0.hasPromo && !($0.promoEndDate ?? "").isEmpty) && $0.balance > 0 }
+        let promo = baseCards.filter { $0.type != "loan" && $0.hasPromo && !($0.promoEndDate ?? "").isEmpty }
+        if !nonPromo.isEmpty || !promo.isEmpty {
+            let nonPromoTotal = nonPromo.reduce(0.0) { $0 + $1.balance }
+            let promoMonthly = promo.reduce(0.0) { $0 + Schedule.promoNeeded($1, tz: store.tz) }
+            let longestMonths = promo.reduce(0) { max($0, DateLogic.monthsUntil($1.promoEndDate, tz: store.tz)) }
+            VStack(alignment: .leading, spacing: 12) {
+                FieldLabel(text: "Payoff plan")
+                if !nonPromo.isEmpty {
+                    payoffRow(icon: "flame.fill", tint: Theme.red,
+                              title: "Pay off interest-bearing cards",
+                              sub: "\(nonPromo.count) card\(nonPromo.count == 1 ? "" : "s") without 0% financing — clear these first",
+                              amount: Money.fmt(nonPromoTotal), amountTint: Theme.red, suffix: nil)
+                }
+                if !promo.isEmpty {
+                    payoffRow(icon: "calendar", tint: Theme.accent,
+                              title: "Stay ahead of 0% promos",
+                              sub: "Clears \(promo.count) promo balance\(promo.count == 1 ? "" : "s") on time" + (longestMonths > 0 ? " — up to \(longestMonths)mo left" : ""),
+                              amount: Money.fmt(promoMonthly), amountTint: Theme.text, suffix: "/mo")
+                }
+            }
+            .ctCard()
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 6, trailing: 16))
+        }
+    }
+
+    private func payoffRow(icon: String, tint: Color, title: String, sub: String,
+                           amount: String, amountTint: Color, suffix: String?) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 15)).foregroundStyle(tint).frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Theme.ui(14, weight: .semibold)).foregroundStyle(Theme.text)
+                Text(sub).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
+            Spacer()
+            Text(amount).font(Theme.mono(17, weight: .bold)).foregroundStyle(amountTint)
+                + Text(suffix ?? "").font(Theme.mono(12)).foregroundStyle(Theme.muted)
+        }
+    }
+
+    // ── Archived cards/loans: restore or delete forever ──────────────
+    @ViewBuilder
+    private var archivedSection: some View {
+        DisclosureGroup {
+            ForEach(archivedForKind) { card in
+                HStack(spacing: 10) {
+                    Text(card.name).font(Theme.ui(14)).foregroundStyle(Theme.text).lineLimit(1)
+                    Spacer()
+                    Text(Money.fmt(card.balance)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.muted)
+                    Button("Restore") { store.restoreCard(card) }
+                        .font(Theme.ui(12, weight: .semibold)).buttonStyle(.borderless).tint(Theme.accent)
+                    Button(role: .destructive) { store.deleteCard(card) } label: { Text("Delete") }
+                        .font(Theme.ui(12, weight: .semibold)).buttonStyle(.borderless)
+                }
+            }
+        } label: {
+            Text("Archived \(isLoanView ? "loans" : "cards") (\(archivedForKind.count))")
+                .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+        }
+        .ctCard()
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 10, trailing: 16))
+    }
 }
 
 /// Add/edit an asset account.
@@ -262,11 +347,7 @@ struct AccountEditorView: View {
                     Picker("Type", selection: $type) {
                         ForEach(Self.types, id: \.0) { Text($0.1).tag($0.0) }
                     }
-                    HStack {
-                        Text("Balance"); Spacer(); Text("$").foregroundStyle(Theme.muted)
-                        TextField("0", value: $balance, format: .number)
-                            .keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
-                    }
+                    CurrencyField(label: "Balance", value: $balance)
                     TextField("Notes", text: $notes, axis: .vertical)
                 }
                 if account != nil {
