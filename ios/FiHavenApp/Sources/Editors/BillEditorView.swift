@@ -38,8 +38,7 @@ struct BillEditorView: View {
                                 .accessibilityLabel(c)
                         }
                     }
-                    TextField("Amount", value: $amount, format: .number)
-                        .keyboardType(.decimalPad)
+                    CurrencyField(label: "Amount", value: $amount)
                     Picker("Due day", selection: $dueDay) {
                         ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
                     }

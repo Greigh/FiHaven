@@ -17,10 +17,10 @@ struct BudgetView: View {
     }
 
     private var obligations: Double {
-        store.data.bills
+        store.activeBills
             .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
             .reduce(0) { $0 + $1.amount }
-            + store.data.cards.reduce(0) { $0 + $1.minPayment }
+            + store.activeCards.reduce(0) { $0 + $1.minPayment }
     }
     private var leftover: Double { store.periodIncome - obligations }
 
@@ -28,8 +28,8 @@ struct BudgetView: View {
         BudgetRules.lens(
             settings: store.data.settings,
             income: store.periodIncome,
-            bills: store.data.bills,
-            cards: store.data.cards,
+            bills: store.activeBills,
+            cards: store.activeCards,
             transactions: store.data.transactions,
             goals: store.data.goals,
             bounds: store.currentBounds,
@@ -266,18 +266,12 @@ struct BudgetView: View {
     }
 
     private func envelopeAmountRow(_ label: String, value: Double, onChange: @escaping (Double) -> Void) -> some View {
-        HStack {
-            Text(label).font(Theme.ui(13)).foregroundStyle(Theme.text)
-            Spacer()
-            Text("$").foregroundStyle(Theme.muted)
-            TextField("0", value: Binding(
-                get: { value },
-                set: { onChange(max(0, $0)) }
-            ), format: .number)
-            .keyboardType(.decimalPad)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 88)
-        }
+        CurrencyField(label: label, value: Binding(
+            get: { value },
+            set: { onChange(max(0, $0)) }
+        ))
+        .font(Theme.ui(13))
+        .foregroundStyle(Theme.text)
         .padding(.vertical, 2)
     }
 
@@ -330,13 +324,7 @@ struct IncomeEditorView: View {
             Form {
                 Section {
                     TextField("Label (e.g. Paycheck)", text: $label)
-                    HStack {
-                        Text(frequency == "hourly" ? "Hourly rate" : "Amount")
-                        Spacer()
-                        Text("$").foregroundStyle(Theme.muted)
-                        TextField("0", value: $amount, format: .number)
-                            .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                    }
+                    CurrencyField(label: frequency == "hourly" ? "Hourly rate" : "Amount", value: $amount)
                     Picker("Frequency", selection: $frequency) {
                         ForEach(Income.frequencies, id: \.key) { f in
                             Text(f.label).tag(f.key)
@@ -525,13 +513,7 @@ struct GoalEditorView: View {
     }
 
     private func amountRow(_ label: String, _ value: Binding<Double>) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text("$").foregroundStyle(Theme.muted)
-            TextField("0", value: value, format: .number)
-                .keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
-        }
+        CurrencyField(label: label, value: value)
     }
 
     private func save() {
@@ -564,11 +546,7 @@ struct TransactionEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                HStack {
-                    Text("Amount"); Spacer(); Text("$").foregroundStyle(Theme.muted)
-                    TextField("0", value: $amount, format: .number)
-                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                }
+                CurrencyField(label: "Amount", value: $amount)
                 Picker("Category", selection: $category) {
                     ForEach(spendingCategories, id: \.self) { cat in
                         Text("\(SpendingView.catIcon(cat)) \(cat)")
@@ -611,17 +589,11 @@ struct CategoryBudgetsView: View {
                 }
                 Section {
                     ForEach(spendingCategories, id: \.self) { cat in
-                        HStack {
-                            Text("\(SpendingView.catIcon(cat)) \(cat)")
-                                .accessibilityLabel(cat)
-                            Spacer(); Text("$").foregroundStyle(Theme.muted)
-                            TextField("0", value: Binding(
-                                get: { store.data.settings.categoryBudgets[cat] ?? 0 },
-                                set: { store.setCategoryBudget(cat, $0) }
-                            ), format: .number)
-                            .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
-                            .accessibilityLabel("\(cat) monthly budget")
-                        }
+                        CurrencyField(label: "\(SpendingView.catIcon(cat)) \(cat)", value: Binding(
+                            get: { store.data.settings.categoryBudgets[cat] ?? 0 },
+                            set: { store.setCategoryBudget(cat, $0) }
+                        ))
+                        .accessibilityLabel("\(cat) monthly budget")
                     }
                 }
             }

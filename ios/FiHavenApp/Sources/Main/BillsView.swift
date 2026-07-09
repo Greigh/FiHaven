@@ -19,6 +19,9 @@ struct BillsView: View {
         (fUnpaid ? 1 : 0) + (fOverdue ? 1 : 0) + (fAutopay ? 1 : 0) + (fOnCard ? 1 : 0) + (fCategory != "all" ? 1 : 0)
     }
 
+    private var useArchive: Bool { store.data.settings.archiveInsteadOfDelete }
+    private var archivedBills: [Bill] { store.archivedBills }
+
     private func dueDays(_ b: Bill) -> Int {
         BillSchedule.effectiveDaysUntilDue(
             b,
@@ -29,6 +32,7 @@ struct BillsView: View {
 
     private var displayedBills: [Bill] {
         var list = store.sortedBills.filter { b in
+            if b.archived { return false }
             if fUnpaid && store.paidState(type: "bill", refId: String(b.id)) == .full { return false }
             if fOverdue && dueDays(b) >= 0 { return false }
             if fAutopay && !b.autopay { return false }
@@ -108,10 +112,19 @@ struct BillsView: View {
                         .tint(skipped ? Theme.muted : Theme.orange)
                     }
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            store.deleteBill(bill)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        if useArchive {
+                            Button {
+                                store.archiveBill(bill)
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                            .tint(Theme.muted)
+                        } else {
+                            Button(role: .destructive) {
+                                store.deleteBill(bill)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                         Button {
                             editing = bill
@@ -124,6 +137,28 @@ struct BillsView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
                 }
+            }
+
+            if !archivedBills.isEmpty {
+                DisclosureGroup {
+                    ForEach(archivedBills) { bill in
+                        HStack(spacing: 10) {
+                            Text(bill.name).font(Theme.ui(14)).foregroundStyle(Theme.text).lineLimit(1)
+                            Spacer()
+                            Text(Money.fmt(bill.amount)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.muted)
+                            Button("Restore") { store.restoreBill(bill) }
+                                .font(Theme.ui(12, weight: .semibold)).buttonStyle(.borderless).tint(Theme.accent)
+                            Button(role: .destructive) { store.deleteBill(bill) } label: { Text("Delete") }
+                                .font(Theme.ui(12, weight: .semibold)).buttonStyle(.borderless)
+                        }
+                    }
+                } label: {
+                    Text("Archived bills (\(archivedBills.count))")
+                        .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+                }
+                .ctCard()
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 10, trailing: 16))
             }
         }
         .listStyle(.plain)

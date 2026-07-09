@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import app.fihaven.BuildConfig
 import java.util.UUID
+import androidx.core.net.toUri
 
 /**
  * Sign in with Apple on Android — a web flow (Apple has no native SDK).
@@ -25,7 +26,7 @@ object AppleWebSignIn {
         val state = UUID.randomUUID().toString()
         pendingState = state
         val redirectUri = BuildConfig.API_BASE.trimEnd('/') + "/api/auth/oauth/apple/callback"
-        val url = Uri.parse("https://appleid.apple.com/auth/authorize").buildUpon()
+        val url = "https://appleid.apple.com/auth/authorize".toUri().buildUpon()
             // form_post is required once name/email scopes are requested.
             .appendQueryParameter("response_type", "code id_token")
             .appendQueryParameter("response_mode", "form_post")

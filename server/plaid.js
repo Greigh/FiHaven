@@ -50,13 +50,15 @@ function plaidClientId() {
   );
 }
 
-// The secret IS per-environment. Prefer the one matching PLAID_ENV,
-// then fall back to a generic PLAID_SECRET.
+// The secret IS per-environment. Prefer the one matching PLAID_ENV, then fall
+// back to a generic PLAID_SECRET. Order matters: a stale generic PLAID_SECRET
+// left over from sandbox would otherwise shadow PLAID_PRODUCTION_SECRET and
+// every call would fail INVALID_API_KEYS.
 function plaidSecret() {
   if (plaidEnv() === 'production') {
-    return process.env.PLAID_SECRET || process.env.PLAID_PRODUCTION_SECRET || '';
+    return process.env.PLAID_PRODUCTION_SECRET || process.env.PLAID_SECRET || '';
   }
-  return process.env.PLAID_SECRET || process.env.PLAID_SANDBOX_SECRET || '';
+  return process.env.PLAID_SANDBOX_SECRET || process.env.PLAID_SECRET || '';
 }
 
 function plaidConfigured() {
@@ -236,6 +238,8 @@ async function verifyWebhook(headerJwt, rawBody) {
 module.exports = {
   plaidConfigured,
   plaidEnv,
+  plaidClientId,
+  plaidSecret,
   createLinkToken,
   exchangePublicToken,
   verifyWebhook,

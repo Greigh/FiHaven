@@ -35,7 +35,7 @@ struct CalendarView: View {
     private var itemsByDay: [Int: [DayItem]] {
         var map: [Int: [DayItem]] = [:]
         let first = DateLogic.dateForDay(1, year: year, month: month, cal: cal)
-        for b in store.data.bills {
+        for b in store.activeBills {
             for day in 1...daysInMonth {
                 let d = cal.date(byAdding: .day, value: day - 1, to: first)!
                 guard BillSchedule.dueOn(b, date: d, tz: store.tz) else { continue }
@@ -44,7 +44,7 @@ struct CalendarView: View {
                     icon: CTConstants.icon(forCategory: b.category), type: "bill", refId: String(b.id)))
             }
         }
-        for c in store.data.cards {
+        for c in store.activeCards {
             guard let d = c.dueDay else { continue }
             let amt = c.hasPromo ? max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz)) : c.minPayment
             map[d, default: []].append(DayItem(

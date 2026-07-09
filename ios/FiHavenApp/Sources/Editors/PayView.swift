@@ -131,13 +131,8 @@ struct PayView: View {
                         .accessibilityValue(isSelected(p) ? "Selected" : "")
                         .accessibilityAddTraits(isSelected(p) ? .isSelected : [])
                     }
-                    HStack {
-                        Text("Amount").foregroundStyle(Theme.text)
-                        Spacer()
-                        TextField("Amount", value: $amount, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    CurrencyField(label: "Amount", value: $amount)
+                        .foregroundStyle(Theme.text)
                 } header: {
                     Text("How much?")
                 } footer: {

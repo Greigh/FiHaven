@@ -95,6 +95,28 @@ extension AppStore {
         mutate { $0.cards.removeAll { $0.id == card.id } }
     }
 
+    // ── Archive (soft delete) ─────────────────────────────────────────
+    func archiveCard(_ card: Card) {
+        mutate { data in
+            if let i = data.cards.firstIndex(where: { $0.id == card.id }) { data.cards[i].archived = true }
+        }
+    }
+    func restoreCard(_ card: Card) {
+        mutate { data in
+            if let i = data.cards.firstIndex(where: { $0.id == card.id }) { data.cards[i].archived = false }
+        }
+    }
+    func archiveBill(_ bill: Bill) {
+        mutate { data in
+            if let i = data.bills.firstIndex(where: { $0.id == bill.id }) { data.bills[i].archived = true }
+        }
+    }
+    func restoreBill(_ bill: Bill) {
+        mutate { data in
+            if let i = data.bills.firstIndex(where: { $0.id == bill.id }) { data.bills[i].archived = false }
+        }
+    }
+
     // ── Mark paid ────────────────────────────────────────────────────
     /// Toggle the paid state of an upcoming item for the current month:
     /// add a payment if none exists, else remove it.
@@ -253,6 +275,7 @@ extension AppStore {
     func setPeriodAnchor(_ anchor: String?) { mutate { $0.settings.periodAnchor = anchor } }
 
     func setHidePaidOnDashboard(_ on: Bool) { mutate { $0.settings.hidePaidOnDashboard = on } }
+    func setArchiveInsteadOfDelete(_ on: Bool) { mutate { $0.settings.archiveInsteadOfDelete = on } }
 
     func setCurrency(_ code: String) {
         Money.setCurrency(code)
