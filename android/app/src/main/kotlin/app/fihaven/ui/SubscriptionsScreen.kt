@@ -5,20 +5,32 @@ import app.fihaven.ui.theme.PlexMono
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -28,13 +40,22 @@ import app.fihaven.AppViewModel
 import app.fihaven.core.Money
 import app.fihaven.core.logic.SubscriptionIcons
 import app.fihaven.core.logic.SubscriptionsFinder
+import app.fihaven.core.model.Bill
 import app.fihaven.ui.theme.Ct
+import kotlinx.coroutines.launch
 
 @Composable
 fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     val zone = vm.zone()
     val subs = SubscriptionsFinder.build(data.bills, data.transactions, zone)
+
+    var editing by remember { mutableStateOf<Bill?>(null) }
+    var linking by remember { mutableStateOf<SubscriptionsFinder.Item?>(null) }
+
+    // The tracked bill behind a detected subscription, if there is one.
+    fun billFor(item: SubscriptionsFinder.Item): Bill? =
+        item.billId?.let { id -> data.bills.firstOrNull { it.id == id } }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Subscriptions", onBack = onBack, branded = true)
@@ -61,14 +82,31 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
                     }
                 }
             } else {
-                item { SubscriptionsCard(subs) }
+                item {
+                    SubscriptionsCard(
+                        subs,
+                        billFor = ::billFor,
+                        onEditBill = { editing = it },
+                        onManageLink = { linking = it },
+                    )
+                }
             }
         }
+    }
+
+    editing?.let { BillEditorDialog(it, vm, onDismiss = { editing = null }) }
+    linking?.let { item ->
+        ManageLinkDialog(item, billFor(item), vm, onDismiss = { linking = null })
     }
 }
 
 @Composable
-private fun SubscriptionsCard(subs: List<SubscriptionsFinder.Item>) {
+private fun SubscriptionsCard(
+    subs: List<SubscriptionsFinder.Item>,
+    billFor: (SubscriptionsFinder.Item) -> Bill?,
+    onEditBill: (Bill) -> Unit,
+    onManageLink: (SubscriptionsFinder.Item) -> Unit,
+) {
     val uriHandler = LocalUriHandler.current
     val total = subs.sumOf { it.monthly }
     CtCard(padding = 14) {
@@ -95,6 +133,14 @@ private fun SubscriptionsCard(subs: List<SubscriptionsFinder.Item>) {
                                     textDecoration = TextDecoration.Underline,
                                     modifier = Modifier.padding(top = 2.dp).clickable { uriHandler.openUri(url) },
                                 )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                billFor(s)?.let { b ->
+                                    SubAction("Edit bill") { onEditBill(b) }
+                                }
+                                SubAction(if (s.manageUrl == null) "Add manage link" else "Change manage link") {
+                                    onManageLink(s)
+                                }
                             }
                         }
                         Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
@@ -132,3 +178,84 @@ private fun subDetailColor(s: SubscriptionsFinder.Item) = when {
 
 private fun subFriendlyDate(d: java.time.LocalDate): String =
     d.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3) + " ${d.dayOfMonth}"
+
+/// A compact text action on a subscription row, sized to Material's 48dp
+/// minimum touch target (the padding sits inside the clickable).
+@Composable
+private fun SubAction(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick, role = Role.Button)
+            .sizeIn(minHeight = 48.dp)
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = Ct.colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+/// Add or change a subscription's manage/cancel link. Mirrors the web's
+/// `SubscriptionsPanel` link form: the URL is saved on the user's own bill
+/// *and* offered to the shared database. The personal save is what matters,
+/// so a failed share is reported but never blocks it.
+@Composable
+private fun ManageLinkDialog(
+    item: SubscriptionsFinder.Item,
+    bill: Bill?,
+    vm: AppViewModel,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf(item.manageUrl ?: "") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val trimmed = url.trim()
+    val valid = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
+
+    FormDialog(
+        title = "Manage link",
+        saveEnabled = valid && !busy,
+        saveLabel = if (busy) "Saving…" else "Save",
+        onDismiss = onDismiss,
+        onSave = {
+            busy = true
+            message = null
+            // 1) The user's own bill — the part that must not be lost.
+            bill?.let { vm.setBillManageUrl(it.id, trimmed) }
+            // 2) Offer it to the shared database. Best effort.
+            scope.launch {
+                val shared = vm.shareSubscriptionLink(item.name, trimmed)
+                busy = false
+                when {
+                    bill != null -> onDismiss()
+                    shared -> onDismiss()
+                    else -> message = "Couldn't send that just now. Please try again."
+                }
+            }
+        },
+    ) {
+        Text(
+            "Manage or cancel link for ${item.name}",
+            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+        )
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            placeholder = { Text("https://…/account/subscriptions") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            if (bill == null) {
+                "Sent to the FiHaven team so we can add it to the shared database."
+            } else {
+                "Saved on your bill, and sent to the FiHaven team so we can add it to the shared database."
+            },
+            color = Ct.colors.muted, fontSize = 12.sp,
+        )
+        message?.let { Text(it, color = Ct.colors.red, fontSize = 12.sp) }
+    }
+}

@@ -19,6 +19,14 @@ extension AppStore {
         mutate { $0.bills.removeAll { $0.id == bill.id } }
     }
 
+    /// Save a subscription's manage/cancel link on the user's own bill.
+    func setBillManageUrl(billId: String, url: String) {
+        mutate { data in
+            guard let i = data.bills.firstIndex(where: { $0.id == billId }) else { return }
+            data.bills[i].manageUrl = url
+        }
+    }
+
     // ── Cards ────────────────────────────────────────────────────────
     func upsertCard(_ card: Card) {
         mutate { data in

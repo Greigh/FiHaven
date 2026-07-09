@@ -708,6 +708,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteBill(bill: Bill) = mutate { it.copy(bills = it.bills.filterNot { b -> b.id == bill.id }) }
 
+    /** Save a subscription's manage/cancel link on the user's own bill. */
+    fun setBillManageUrl(billId: String, url: String) = mutate { d ->
+        d.copy(bills = d.bills.map { if (it.id == billId) it.copy(manageUrl = url) else it })
+    }
+
+    /** Offer the link to the shared database. The caller has already saved it
+     * on the user's bill, so a false here is a soft failure, not a loss. */
+    suspend fun shareSubscriptionLink(name: String, url: String): Boolean =
+        runCatching { api.shareSubscriptionLink(name, url) }.isSuccess
+
     // ── Archive (soft delete) ─────────────────────────────────────────
     fun archiveBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = true) else b }) }
     fun restoreBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = false) else b }) }
