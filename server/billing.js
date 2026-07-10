@@ -466,6 +466,13 @@ function recordStripeSubscription(userId, s) {
 async function createStripeCheckout(user, plan, baseUrl) {
   const def = STRIPE_PLANS[plan];
   if (!def) throw new Error('unknown-plan');
+  // BILLING SAFETY: a Checkout Session always *creates* a subscription. Someone
+  // who already has an active Stripe one (solo Pro switching to Family) must go
+  // through the Billing Portal, which swaps the price on the existing
+  // subscription. Without this they'd be charged for both.
+  const hasStripeSub = dbApi.activeSubscriptions(user.id)
+    .some((s) => s.platform === 'stripe');
+  if (hasStripeSub) throw new Error('already-subscribed');
   const stripe = stripeClient();
   if (!stripe) {
     // SECURITY: the dev-grant below skips payment — never allow it in

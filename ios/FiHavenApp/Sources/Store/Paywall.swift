@@ -51,17 +51,31 @@ struct ProGate<Content: View>: View {
     }
 }
 
-/// "PRO" pill.
-struct ProBadge: View {
+/// Plan pill — "PRO" or "FAMILY". Two tiers gate different things: Pro unlocks
+/// the planning tools, and only the Family plan can create a household.
+struct PlanBadge: View {
+    let text: String
+    let accessibility: String
+
     var body: some View {
-        Text("PRO")
+        Text(text)
             .font(Theme.mono(11, weight: .bold)).tracking(1)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Theme.accentBg)
             .foregroundStyle(Theme.accent)
             .clipShape(Capsule())
-            .accessibilityLabel("Pro feature")
+            .accessibilityLabel(accessibility)
     }
+}
+
+/// "PRO" pill.
+struct ProBadge: View {
+    var body: some View { PlanBadge(text: "PRO", accessibility: "Pro feature") }
+}
+
+/// "FAMILY" pill — for the one thing solo Pro does not unlock.
+struct FamilyBadge: View {
+    var body: some View { PlanBadge(text: "FAMILY", accessibility: "Family plan feature") }
 }
 
 /// Shown in place of a Pro feature when the user is on the free tier.
@@ -103,9 +117,11 @@ struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showRedeem = false
 
+    /// Pro perks only. Family sharing is deliberately absent: creating a household
+    /// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
+    /// so it gets its own card below rather than a bullet here.
     private let perks: [(String, String, String)] = [
         ("chart.line.downtrend.xyaxis", "Payoff planner", "Snowball & avalanche plans + your debt-free date"),
-        ("person.2.fill", "Family sharing", "Share bills, cards & goals with your household"),
         ("calendar", "Due-date calendar", "Every bill and card on a monthly view"),
         ("clock.arrow.circlepath", "Payment history", "Search and review everything you've paid"),
         ("star.circle.fill", "Rewards optimizer", "See which card earns the most for each purchase"),
@@ -122,7 +138,19 @@ struct PaywallView: View {
                 VStack(spacing: 22) {
                     header
                     perksCard
-                    if billing.isPro { activeCard } else { plansSection }
+                    if billing.isPro {
+                        activeCard
+                        // A solo-Pro subscriber previously had no way to reach
+                        // Family from anywhere in the app.
+                        if !onFamily, let family = familyProduct {
+                            familyOption(family, isUpgrade: true)
+                        }
+                    } else {
+                        plansSection
+                        if let family = familyProduct {
+                            familyOption(family, isUpgrade: false)
+                        }
+                    }
                     if billing.isPro, let note = billing.billingNote {
                         Text(note)
                             .font(Theme.ui(13))
@@ -187,6 +215,15 @@ struct PaywallView: View {
         .ctCard()
     }
 
+    /// Family is a separate subscription, not a Pro tier — it gets its own card.
+    private var familyProduct: Product? {
+        billing.products.first { $0.id == StoreManager.familyID }
+    }
+    private var proProducts: [Product] {
+        billing.products.filter { $0.id != StoreManager.familyID }
+    }
+    private var onFamily: Bool { billing.entitlement.plan == "family" }
+
     private var plansSection: some View {
         VStack(spacing: 12) {
             if billing.loadingProducts {
@@ -196,7 +233,7 @@ struct PaywallView: View {
                     .font(Theme.ui(13)).foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
             } else {
-                ForEach(billing.products, id: \.id) { product in
+                ForEach(proProducts, id: \.id) { product in
                     Button {
                         Task { await billing.purchase(product) }
                     } label: {
@@ -222,6 +259,30 @@ struct PaywallView: View {
                 }
             }
         }
+    }
+
+    /// The Family subscription (`app.fihaven.pro.family`) — the only plan the
+    /// server grants a shared household to (billing.js `householdMaxFor`).
+    /// `isUpgrade` is true when the user already holds solo Pro; StoreKit treats
+    /// the purchase as a crossgrade within the subscription group.
+    private func familyOption(_ product: Product, isUpgrade: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                FamilyBadge()
+                Spacer()
+                Text(product.displayPrice).font(Theme.mono(16, weight: .semibold))
+            }
+            Text("Everything in Pro, plus a shared household — share bills, cards & goals with up to 3 people. Joining a household is always free.")
+                .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            Button(isUpgrade ? "Upgrade to Family" : "Get the Family plan") {
+                Task { await billing.purchase(product) }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(billing.purchasing)
+        }
+        .ctCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Family plan, \(product.displayPrice)")
     }
 
     private var activeCard: some View {
