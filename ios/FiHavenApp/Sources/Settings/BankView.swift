@@ -7,10 +7,23 @@ import LinkKit
 /// and disconnect run through the existing /api/plaid endpoints; "Connect"
 /// opens Plaid Link with a server-issued link token and exchanges the
 /// resulting public token back to the server.
+/// Status line under the bank list. Failures read red so a real problem never
+/// looks like ordinary progress text.
+private struct BankMessage {
+    let text: String
+    let isError: Bool
+
+    static func info(_ text: String) -> BankMessage { BankMessage(text: text, isError: false) }
+    static func error(_ text: String) -> BankMessage { BankMessage(text: text, isError: true) }
+    static func result(ok: Bool, _ good: String, _ bad: String) -> BankMessage {
+        ok ? .info(good) : .error(bad)
+    }
+}
+
 struct BankView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var status: PlaidStatus?
-    @State private var message: String?
+    @State private var message: BankMessage?
     @State private var busy = false
     @State private var handler: Handler?
 
@@ -26,7 +39,11 @@ struct BankView: View {
                 Section { HStack { Text("Loading…").foregroundStyle(Theme.muted); Spacer(); ProgressView() } }
             }
             if let message {
-                Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
+                Section {
+                    Text(message.text)
+                        .font(Theme.ui(13))
+                        .foregroundStyle(message.isError ? Theme.red : Theme.muted)
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -63,6 +80,15 @@ struct BankView: View {
                     )).tint(Theme.accent)
                 } footer: {
                     Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only when it clearly matches by its last 4 digits (include them in the card name).")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
+                Section {
+                    Toggle("Let bank import my purchases", isOn: Binding(
+                        get: { store.data.settings.plaidUpdatePurchases },
+                        set: { store.setPlaidUpdatePurchases($0) }
+                    )).tint(Theme.accent)
+                } footer: {
+                    Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
             }
@@ -136,7 +162,7 @@ struct BankView: View {
                 let token = try await env.api.plaidLinkToken()
                 await MainActor.run { present(token: token) }
             } catch {
-                await MainActor.run { busy = false; message = "Could not start linking. Please try again." }
+                await MainActor.run { busy = false; message = .error("Could not start linking. Please try again.") }
             }
         }
     }
@@ -148,8 +174,9 @@ struct BankView: View {
             let token = success.publicToken
             Task { @MainActor in self.exchange(token) }
         })
-        config.onExit = { _ in
-            Task { @MainActor in self.message = "Linking cancelled." }
+        config.onExit = { exit in
+            let result = Self.exitMessage(exit, cancelled: "Linking cancelled.")
+            Task { @MainActor in self.message = result }
         }
         switch Plaid.create(config) {
         case .success(let h):
@@ -157,11 +184,20 @@ struct BankView: View {
             if let vc = Self.topViewController() {
                 h.open(presentUsing: .viewController(vc))
             } else {
-                message = "Could not present Plaid Link."
+                message = .error("Could not present Plaid Link.")
             }
         case .failure:
-            message = "Could not start linking. Please try again."
+            message = .error("Could not start linking. Please try again.")
         }
+    }
+
+    /// Plaid sets `exit.error` only when Link itself failed; a plain user close
+    /// leaves it nil. Reporting both as a cancellation hides real failures.
+    private static func exitMessage(_ exit: LinkExit, cancelled: String) -> BankMessage {
+        guard let error = exit.error else { return .info(cancelled) }
+        if let display = error.displayMessage, !display.isEmpty { return .error(display) }
+        if !error.errorMessage.isEmpty { return .error(error.errorMessage) }
+        return .error("Bank linking failed (\(error.errorCode.description)).")
     }
 
     // Update mode: re-auth an item flagged login_required, or (when
@@ -175,7 +211,7 @@ struct BankView: View {
                 let token = try await env.api.plaidLinkToken(itemId: id, accountSelection: accountSelection)
                 await MainActor.run { presentUpdate(token: token, itemId: id) }
             } catch {
-                await MainActor.run { busy = false; message = "Could not start reconnect. Please try again." }
+                await MainActor.run { busy = false; message = .error("Could not start reconnect. Please try again.") }
             }
         }
     }
@@ -186,34 +222,41 @@ struct BankView: View {
         var config = LinkTokenConfiguration(token: token, onSuccess: { _ in
             Task { @MainActor in self.repaired(itemId) }
         })
-        config.onExit = { _ in Task { @MainActor in self.message = "Reconnect cancelled." } }
+        config.onExit = { exit in
+            let result = Self.exitMessage(exit, cancelled: "Reconnect cancelled.")
+            Task { @MainActor in self.message = result }
+        }
         switch Plaid.create(config) {
         case .success(let h):
             handler = h
             if let vc = Self.topViewController() {
                 h.open(presentUsing: .viewController(vc))
             } else {
-                message = "Could not present Plaid Link."
+                message = .error("Could not present Plaid Link.")
             }
         case .failure:
-            message = "Could not start reconnect. Please try again."
+            message = .error("Could not start reconnect. Please try again.")
         }
     }
 
     private func repaired(_ id: Int) {
-        message = "Reconnecting…"
+        message = .info("Reconnecting…")
         Task {
             let ok = (try? await env.api.plaidRepaired(itemId: id)) != nil
-            await MainActor.run { message = ok ? "Bank reconnected." : "Could not finish reconnecting." }
+            await MainActor.run {
+                message = .result(ok: ok, "Bank reconnected.", "Could not finish reconnecting.")
+            }
             await load()
         }
     }
 
     private func exchange(_ publicToken: String) {
-        message = "Linking…"
+        message = .info("Linking…")
         Task {
             let ok = (try? await env.api.plaidExchange(publicToken: publicToken)) != nil
-            await MainActor.run { message = ok ? "Bank linked." : "Could not finish linking. Please try again." }
+            await MainActor.run {
+                message = .result(ok: ok, "Bank linked.", "Could not finish linking. Please try again.")
+            }
             await load()
         }
     }
@@ -226,10 +269,12 @@ struct BankView: View {
     }
 
     private func refresh() {
-        message = "Refreshing balances…"
+        message = .info("Refreshing balances…")
         Task {
             let ok = (try? await env.api.plaidRefresh()) != nil
-            await MainActor.run { message = ok ? "Balances updated." : "Could not refresh. Please try again." }
+            await MainActor.run {
+                message = .result(ok: ok, "Balances updated.", "Could not refresh. Please try again.")
+            }
             await load()
         }
     }

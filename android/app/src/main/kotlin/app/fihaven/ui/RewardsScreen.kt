@@ -24,10 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,8 +41,10 @@ import app.fihaven.core.logic.Merchants
 import app.fihaven.core.logic.Offers
 import app.fihaven.core.logic.Perks
 import app.fihaven.core.logic.Rewards
+import app.fihaven.core.model.Card
 import app.fihaven.core.model.perkUsage
 import app.fihaven.ui.theme.Ct
+import kotlinx.coroutines.launch
 import app.fihaven.ui.theme.PlexMono
 
 /**
@@ -53,6 +57,9 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
     var category by remember { mutableStateOf("Dining") }
     var merchantQuery by remember { mutableStateOf("") }
+    // Non-null while the rewards-link dialog is open for that card.
+    var linkingCard by remember { mutableStateOf<Card?>(null) }
+    val uriHandler = LocalUriHandler.current
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.
@@ -350,8 +357,99 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                         }
                     }
                 }
+
+                // Per-card rewards/offers links. Mirrors the Subscriptions tab's
+                // manage-link flow: saved on the user's own card, and optionally
+                // offered to the shared database (which emails us — disclosed).
+                CtCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column {
+                            FieldLabel("Rewards & offers")
+                            Text("Where to find your offers",
+                                fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Ct.colors.text)
+                        }
+                        creditCards.forEach { c ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("💳 ${c.name.ifEmpty { "Card" }}",
+                                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Ct.colors.text)
+                                    c.rewardsUrl?.let { url ->
+                                        Text(
+                                            "Open offers ↗", color = Ct.colors.accent, fontSize = 11.sp,
+                                            modifier = Modifier.clickable { uriHandler.openUri(url) },
+                                        )
+                                    }
+                                }
+                                TextButton(onClick = { linkingCard = c }) {
+                                    Text(
+                                        if (c.rewardsUrl == null) "Add rewards link" else "Change rewards link",
+                                        color = Ct.colors.accent, fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            "Adding a rewards link emails the card name, the link, and your email address " +
+                                "to FiHaven so we can share it with other users. Optional — see our Privacy Policy.",
+                            color = Ct.colors.muted, fontSize = 11.sp,
+                        )
+                    }
+                }
             }
         }
+    }
+
+    linkingCard?.let { RewardsLinkDialog(it, vm, onDismiss = { linkingCard = null }) }
+}
+
+/// Add or change a card's rewards/offers link. Mirrors `ManageLinkDialog` on the
+/// Subscriptions screen: saved on the user's own card *and* offered to the shared
+/// database. The personal save is what matters, so a failed share never blocks it.
+@Composable
+private fun RewardsLinkDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf(card.rewardsUrl ?: "") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val trimmed = url.trim()
+    val valid = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
+
+    FormDialog(
+        title = "Rewards link",
+        saveEnabled = valid && !busy,
+        saveLabel = if (busy) "Saving…" else "Save",
+        onDismiss = onDismiss,
+        onSave = {
+            busy = true
+            message = null
+            // 1) The user's own card — the part that must not be lost.
+            vm.setCardRewardsUrl(card.id, trimmed)
+            // 2) Offer it to the shared database. Best effort.
+            scope.launch {
+                vm.shareRewardsLink(card.name.ifEmpty { "Card" }, trimmed)
+                busy = false
+                onDismiss()
+            }
+        },
+    ) {
+        Text(
+            "Rewards or offers link for ${card.name.ifEmpty { "this card" }}",
+            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            placeholder = { Text("https://…/rewards/offers") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Saved on your card. Also emails the card name, the link, and your email address to " +
+                "FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.",
+            color = Ct.colors.muted, fontSize = 12.sp,
+        )
+        message?.let { Text(it, color = Ct.colors.red, fontSize = 12.sp) }
     }
 }
 
