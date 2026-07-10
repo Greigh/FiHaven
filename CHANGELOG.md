@@ -13,18 +13,18 @@ Each release below uses two layers:
 
 ---
 
-## [1.5.0] (Pre-Release) — Last updated: 2026-07-08
+## [1.5.0] (Pre-Release) — Last updated: 2026-07-09
 
 | | |
 |---|---|
 | **Status** | Pre-release — **launch candidate** (first public tester wave) |
-| **iOS** | 1.5.0 (8) |
-| **Android** | 1.5.0 (build 17) |
+| **iOS** | 1.5.0 (10) |
+| **Android** | 1.5.0 (build 18) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
 
-> The 1.5.0 launch build. Budget lenses, household rollup, and push
+> The 1.5.0 pre-launch build. Budget lenses, household rollup, and push
 > notifications land on every platform; bank linking goes live in production;
 > subscriptions get real brand logos and manage-links; and bills, cards, and
 > loans can now be **archived** instead of deleted. Net worth moves to its own
@@ -73,6 +73,11 @@ Each release below uses two layers:
 - **Jump straight to the bill** behind a subscription, and **save a manage or
   cancel link** for it — kept on your own bill, and optionally shared with us so
   we can seed it for everyone. On web, iOS, and Android.
+- **Clearer about what sharing a link sends us.** Offering a manage link emails
+  the service name, the link, and *your email address* to FiHaven. The old wording
+  never said so. Now spelled out in the app and covered in the
+  [Privacy Policy](https://fihaven.app/privacy). Saving a link only to your own
+  bill still sends us nothing.
 
 **Notifications**
 
@@ -101,6 +106,10 @@ Each release below uses two layers:
 - Track activated card offers (Amex/Chase deals) before they expire; mark them
   used when you're done and get a heads-up before they lapse.
 - FiHaven can suggest which card to use at a store based on where you're shopping.
+- **Save a rewards or offers link per card** — the same flow Subscriptions has.
+  Kept on your own card, and optionally shared with us (which emails us the card
+  name, the link, and your email address) so we can seed it for everyone. Web,
+  iOS, and Android.
 
 **Bank linking (Pro, optional)**
 
@@ -110,7 +119,12 @@ Each release below uses two layers:
   by hand (you choose what to keep).
 - **Bank purchases are opt-in** — importing purchases into Spending is an explicit
   toggle, **off by default**; FiHaven stays manual-entry-first. Updating card
-  balances from the bank is separate and also opt-in.
+  balances from the bank is separate and also opt-in. The purchases toggle now
+  exists on **iOS and Android**, not just the web.
+- **Bank linking works again.** Connecting a bank failed at the final step with
+  "Could not finish linking." Fixed server-side — no app update needed.
+- When Plaid does fail, the app now **tells you what went wrong** instead of
+  claiming you cancelled.
 
 **Sign in**
 
@@ -123,9 +137,24 @@ Each release below uses two layers:
 - Real prices on the marketing and pricing pages: **$1.99/mo**, **$14.99/yr**, and
   a **$25.99/yr Family** plan.
 - **Family is a shared household of up to 3 people.** Pro is a single account.
+- **Family is now its own option, not a Pro perk.** The paywalls used to list
+  "Family sharing" under Pro, which was wrong — only the Family plan can create a
+  household. Joining one is still free on any tier.
+- **You can upgrade to Family.** Previously, once you were on Pro, no screen in
+  any app offered it. Existing subscribers now see a Family upgrade card.
+- Your plan is named everywhere: **Pro · Family** rather than a bare "Pro".
+- iOS gains a **Manage Pro** button, matching Android.
 
 **Reliability & polish**
 
+- **Android layout fixes** — the card name no longer crowds the network and last-4
+  digits on the Cards tab; the "Ends in" field stops wrapping onto a second line;
+  the two Payoff summary boxes are the same height; and the selected day on the
+  Calendar is a rounded cell rather than a tall, narrow pill.
+- **Settings are better organized** — Budget period and Budget lens live together
+  in a new **Budget** section, and "Hide fully paid on dashboard" moved to
+  **Automation**. On iOS and Android.
+- **Android's More screen** is grouped into sections, matching iOS.
 - **Bank linking failed for everyone** with "Could not start linking" — the server
   was authenticating against Plaid with a stale key. Fixed server-side, so no app
   update is needed.
@@ -160,7 +189,8 @@ result; this table is only for tracing when something landed.
 
 | Build | iOS / Android | Date | Theme |
 |-------|---------------|------|-------|
-| **8** | 8 / 17 | 2026-07-08 | Plaid production fix, admin gate, archive, Net Worth tab, touch targets |
+| **10** | 10 / 18 | 2026-07-09 | Plaid `INVALID_PRODUCT` fix, rewards links + email disclosure, Pro vs Family split, Android layout fixes |
+| 9 | 9 / 17 | 2026-07-08 | Plaid production fix, admin gate, archive, Net Worth tab, touch targets |
 | 7 | — / 16 | 2026-07-06 | Brand logos, native Bills redesign, Android app lock |
 | 6 | — / 15 | 2026-07-06 | Monthly rollover, dashboard editing, browser push |
 | 5 | 5 / 14 | 2026-07-05 | Launch candidate: Tier 3 parity, remote push, passkeys |
@@ -168,8 +198,8 @@ result; this table is only for tracing when something landed.
 | 3 | — / — | — | Overdue fix, Stripe portal, More menu, string record ids |
 
 > Builds 6 and 7 were announced with iOS build numbers that `project.yml` never
-> actually carried — `CURRENT_PROJECT_VERSION` sat at `5`. Corrected to `8` in
-> build 8; the dashes above are honest about what shipped.
+> actually carried — `CURRENT_PROJECT_VERSION` sat at `5`. Corrected to `9` in
+> build 9; the dashes above are honest about what shipped.
 
 ---
 
@@ -177,9 +207,59 @@ result; this table is only for tracing when something landed.
 
 ### Technical changelog
 
-Collapsed across builds 3–8. Each entry carries its PR number.
+Collapsed across builds 3–10. Each entry carries its PR number. Build 8 was skipped due to an App Store Connect issue. 
 
 #### Added
+
+- **Rewards links** — `POST /api/feedback/rewards-link`, a sibling of
+  `subscription-link` (both now share one `linkHandler(kind)`). New optional
+  `Card.rewardsUrl` on web, `Card.swift`, and `Models.kt`; per-card add/change UI
+  in `RewardsView.svelte`, `RewardsView.swift`, and `RewardsScreen.kt`. Both
+  routes email the name, URL, **and sender address** — disclosed in-app and in
+  `privacy.html`. (#140)
+- **`settings.plaidUpdatePurchases` on native** — accessor + setter + toggle in
+  `BankView.swift` / `BankDialog.kt`. The server already honored it; only the
+  native UI was missing. (#140)
+- **Family upgrade path** — `app.fihaven.pro.family` added to
+  `StoreManager.productIDs` and `BillingManager`'s query list; a dedicated Family
+  card on all three paywalls, shown to existing solo-Pro subscribers who
+  previously had no way to reach it. Android uses
+  `SubscriptionProductReplacementParams` (the *current* per-product API — its
+  `ReplacementMode` ints differ from the deprecated one). (#141)
+- **`Budget` settings section** on iOS + Android; `hidePaidOnDashboard` moved to
+  Automation; Android's More screen grouped like iOS. (#142)
+
+#### Fixed
+
+- **`/link/exchange` returned 502 `INVALID_PRODUCT`** — `plaid.getAccounts` used
+  `accountsBalanceGet`, Plaid's paid **Balance** product, which our production
+  client id has no entitlement to. Switched to the free `accountsGet` (same
+  `AccountsGetResponse` shape; balances cached as of the item's last update).
+  Sandbox grants every product, which is why `plaid-sandbox-check.js` passed — it
+  also bypassed `plaid.getAccounts` entirely, and now goes through it. (#139)
+- **Plaid `onExit` was inverted** — Plaid passes a *null* error when the user
+  simply closes Link, so the web handler announced "Linking was cancelled" only
+  when a real failure occurred, discarding `error_code`/`display_message`. New
+  shared `client/js/plaidLink.js`; same fix on iOS and Android. `/plaid-oauth`
+  now reports its outcome via `sessionStorage` (a query param would let a crafted
+  link render arbitrary text in FiHaven's voice). (#139)
+- **`/link/exchange` conflated upstream and local failures** — Plaid errors stay
+  502; a local persistence failure is now 500 and revokes the orphaned Item at
+  Plaid rather than leaving one we're billed for. (#139)
+- **Paywalls sold Family sharing as a Pro perk.** `billing.householdMaxFor`
+  returns `HOUSEHOLD_MAX_PRO` (0) for solo Pro, so `household.js` throws
+  `pro-required`. `family` was also missing from the plan-label map on all three
+  clients, so Family subscribers saw a bare "Pro". (#141)
+- **⚠ `createStripeCheckout` could double-charge.** A Checkout Session always
+  *creates* a subscription; there was no guard against an existing one. Now
+  `409 already-subscribed`, and the web Family row sends existing Stripe
+  subscribers to the Billing Portal instead. (#141)
+- **Android layout** — Cards row name/network crowding (unweighted `Row`), the
+  wrapping "Ends in" label, unequal Payoff stat boxes (`IntrinsicSize.Min` +
+  `fillMaxHeight`), and the Calendar's selected day rendering as a tall pill (a
+  `height` with no `width`). (#142)
+
+#### Added (earlier builds)
 
 - **Archive (soft delete) for bills, cards & loans** — new `archived` flag on the
   bill/card models, an `archiveInsteadOfDelete` setting, and a per-tab *Show

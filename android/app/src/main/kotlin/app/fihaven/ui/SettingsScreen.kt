@@ -158,15 +158,15 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Security", "Two-factor, recovery") { group = "security" }
                     HorizontalDivider(color = Ct.colors.border)
-                    GroupRow("Preferences", "Currency, period, display") { group = "preferences" }
+                    GroupRow("Preferences", "Currency, display, tabs") { group = "preferences" }
                     HorizontalDivider(color = Ct.colors.border)
-                    GroupRow("Budget lens", "Split presets, debt focus, envelopes") { group = "budgetlens" }
+                    GroupRow("Budget", "Period, budget lens") { group = "budget" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Notifications", "Reminders, digest, summary") { group = "notifications" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Family", "Share with your household") { group = "family" }
                     HorizontalDivider(color = Ct.colors.border)
-                    GroupRow("Automation", "Autopay auto-mark") { group = "automation" }
+                    GroupRow("Automation", "Autopay, dashboard tidying") { group = "automation" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Bank", "Linked accounts") { group = "bank" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -282,11 +282,6 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                     HorizontalDivider(color = Ct.colors.border)
-                    NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
-                    HorizontalDivider(color = Ct.colors.border)
-                    SwitchRow("Hide fully paid on dashboard", data.settings.hidePaidOnDashboard) {
-                        vm.setHidePaidOnDashboard(it)
-                    }
                     SwitchRow("Archive instead of delete", data.settings.archiveInsteadOfDelete) {
                         vm.setArchiveInsteadOfDelete(it)
                     }
@@ -348,12 +343,36 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
           if (group == "family") {
             item { HouseholdSection(vm) }
           }
-          if (group == "budgetlens") {
+          if (group == "budget") {
+            item {
+                // Period definition + the budget lens: both shape how paid/owed
+                // is tracked, so they live together rather than in Preferences.
+                Section("BUDGET") {
+                    NavRow("Budget period", periodModeLabel(data.settings.periodMode)) { dialog = "period" }
+                    Text(
+                        "How a period is defined for paid/owed tracking. A custom start day groups " +
+                            "early-next-month bills into the period you'd plan for. A rolling window " +
+                            "repeats every N days from an optional start date.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    )
+                }
+            }
             item { BudgetLensSection(vm, data.settings) }
           }
           if (group == "automation") {
             item {
                 Section("AUTOMATION") {
+                    SwitchRow("Hide fully paid on dashboard", data.settings.hidePaidOnDashboard) {
+                        vm.setHidePaidOnDashboard(it)
+                    }
+                    Text(
+                        "When on, bills and cards you've fully paid this period won't appear in " +
+                            "Upcoming on the dashboard.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    )
+                    HorizontalDivider(color = Ct.colors.border)
                     SwitchRow("Auto-mark autopay paid", data.settings.autopayMark) { vm.setAutopayMark(it) }
                     if (data.settings.autopayMark) {
                         HorizontalDivider(color = Ct.colors.border)
@@ -1041,7 +1060,7 @@ private fun groupTitle(group: String): String = when (group) {
     "preferences" -> "Preferences"
     "notifications" -> "Notifications"
     "family" -> "Family"
-    "budgetlens" -> "Budget lens"
+    "budget" -> "Budget"
     "automation" -> "Automation"
     "bank" -> "Bank"
     "data" -> "Data"

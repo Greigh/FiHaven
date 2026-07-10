@@ -41,22 +41,14 @@ Android (Play).
 
 ## Contents
 
-- [Highlights](#highlights)
-- [Free vs Pro](#free-vs-pro)
-- [Stack](#stack)
-- [Quick start](#quick-start)
-- [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android)
-- [Project structure](#project-structure)
-- [npm scripts](#npm-scripts)
-- [Environment](#environment)
-- [URLs](#urls)
-- [API](#api)
-- [Admin & promo codes](#admin--promo-codes)
-- [How a few things work](#how-a-few-things-work)
-- [Production deploy](#production-deploy)
-- [SEO + standards](#seo--standards)
-- [Roadmap & gaps](#roadmap--gaps)
-- [License](#license)
+| Getting started | Reference | Operations |
+|---|---|---|
+| [Highlights](#highlights) | [Project structure](#project-structure) | [Production deploy](#production-deploy) |
+| [Free vs Pro](#free-vs-pro) | [npm scripts](#npm-scripts) | [Admin & promo codes](#admin--promo-codes) |
+| [Stack](#stack) | [Environment](#environment) | [SEO + standards](#seo--standards) |
+| [Quick start](#quick-start) | [URLs](#urls) | [Roadmap & gaps](#roadmap--gaps) |
+| [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android) | [API](#api) | [License](#license) |
+| | [How a few things work](#how-a-few-things-work) | |
 
 Changelog: [CHANGELOG.md](CHANGELOG.md).
 
@@ -100,24 +92,29 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 The free tier is genuinely useful on its own — all manual tracking, budget lenses,
 dashboard widgets, and household **membership** (join an existing family). Pro adds
-automation, insight tools, and the ability to **create** a household. The `pro`
-entitlement is server-authoritative and identical across web, iOS, and Android.
+automation and insight tools. **Creating** a household is the Family plan only. The
+`pro` entitlement is server-authoritative and identical across web, iOS, and Android.
 
-| Free | Pro |
-|---|---|
-| Bills, cards & loans — track, mark paid, due dates, promos | Everything in Free, plus: |
-| Budget with manual transactions + **budget rule lenses** (50/30/20, safe-to-spend, debt-focus, etc.) | **Envelope lens** + assign editor (zero-based lite; web editor today) |
-| Savings goals, net worth, light/dark, time zones, MFA, export/import | **Debt-payoff planner** (snowball / avalanche) |
-| Dashboard widgets (safe-to-spend, budget status, credit util warnings) | **Due-date calendar** + iCal feed |
-| Subscription finder **detection** on web (flagged bills + recurring tx) | **Subscription action panel** — cancel links, duplicates, trial reminders |
-| Join a **Family** household (view shared bills, cards, goals) | **Create** a Family household + invite members (share/unshare on web, iOS, and Android) |
-| Email + local bill reminders (configurable lead time, weekly digest) | **Payment history**, **rewards optimizer** + card preset database |
-| | **Spending insights** (period-over-period; web Spending tab today) |
-| | **Category budgets**, **autopay auto-mark**, **bank sync (Plaid)** |
+| Free | Pro (solo) | Family |
+|---|---|---|
+| Bills, cards & loans — track, mark paid, due dates, promos | Everything in Free, plus: | Everything in Pro, plus: |
+| Budget with manual transactions + **budget rule lenses** (50/30/20, safe-to-spend, debt-focus, etc.) | **Envelope lens** + assign editor (zero-based lite; web editor today) | **Create** a household + invite members |
+| Savings goals, net worth, light/dark, time zones, MFA, export/import | **Debt-payoff planner** (snowball / avalanche) | Share/unshare bills, cards & goals (web, iOS, Android) |
+| Dashboard widgets (safe-to-spend, budget status, credit util warnings) | **Due-date calendar** + iCal feed | Up to **3 people** (`HOUSEHOLD_MAX_FAMILY`) |
+| Subscription finder **detection** on web (flagged bills + recurring tx) | **Subscription action panel** — cancel links, duplicates, trial reminders | |
+| **Join** a Family household (view shared bills, cards, goals) | **Payment history**, **rewards optimizer** + card preset database | |
+| Email + local bill reminders (configurable lead time, weekly digest) | **Spending insights** (period-over-period; web Spending tab today) | |
+| | **Category budgets**, **autopay auto-mark**, **bank sync (Plaid)** | |
 
 Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 `requirePro` on the server, iOS via `ProGate(feature:)`, Android via
 `ProGate(vm, ProFeature.X)`.
+
+Household creation is gated separately from `pro`: `billing.householdMaxFor`
+returns `HOUSEHOLD_MAX_PRO` (default **0**) for solo Pro and
+`HOUSEHOLD_MAX_FAMILY` (default **3**) for the Family plan, and
+`GET /api/household` exposes it to clients as `canCreate` / `memberMax`.
+Solo Pro therefore cannot create a household — only join one, which is free.
 
 ---
 
@@ -519,6 +516,12 @@ Manual-first overlay: Plaid only *adds* transactions you may have
 missed. All routes require Pro (`402` otherwise); access tokens are
 AES-256-GCM-encrypted at rest.
 
+Product scope is **Transactions only**. Account balances come from the
+free `/accounts/get` (cached as of the item's last update), never the paid
+`/accounts/balance/get` — that endpoint needs the Balance entitlement and
+returns `400 INVALID_PRODUCT` in production. Sandbox grants every product,
+so this class of failure cannot be reproduced there.
+
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/plaid/status` | Linked items + last-sync state |
@@ -528,6 +531,19 @@ AES-256-GCM-encrypted at rest.
 | `POST` | `/api/plaid/item/:id/repaired` | Mark a reconnected (update-mode) item healthy |
 | `POST` | `/api/plaid/item/:id/remove` | Unlink a bank (manual data untouched) |
 | `POST` | `/api/plaid/webhook` | Plaid webhooks (ES256 JWT-verified in production) |
+
+### Volunteered links (`/api/feedback`)
+
+Optional, user-initiated. Each route emails the submitted name, the URL,
+**and the sender's email address** to `SUBSCRIPTION_LINK_INBOX` (default
+`support@fihaven.app`) so the link can be added to a shared database.
+Nothing is stored server-side. Both require a verified session; the
+disclosure is surfaced in-app and in the privacy policy.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/feedback/subscription-link` | Offer a subscription's manage/cancel link |
+| `POST` | `/api/feedback/rewards-link` | Offer a card's rewards/offers link |
 
 ### Household (Family — create is Pro-gated)
 
