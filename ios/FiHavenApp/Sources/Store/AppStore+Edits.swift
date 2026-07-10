@@ -27,6 +27,14 @@ extension AppStore {
         }
     }
 
+    /// The user's own rewards/offers link for a card (rewards panel).
+    func setCardRewardsUrl(cardId: String, url: String) {
+        mutate { data in
+            guard let i = data.cards.firstIndex(where: { $0.id == cardId }) else { return }
+            data.cards[i].rewardsUrl = url
+        }
+    }
+
     // ── Cards ────────────────────────────────────────────────────────
     func upsertCard(_ card: Card) {
         mutate { data in
@@ -313,6 +321,11 @@ extension AppStore {
     /// Opt-in: let synced bank balances update matching cards (server-applied).
     func setPlaidUpdateBalances(_ on: Bool) {
         mutate { $0.settings.plaidUpdateBalances = on }
+    }
+
+    /// Opt-in: import bank outflows into Spending (server-applied, additive).
+    func setPlaidUpdatePurchases(_ on: Bool) {
+        mutate { $0.settings.plaidUpdatePurchases = on }
     }
 
     func setDashboardLayout(_ layout: String) {

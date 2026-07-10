@@ -230,6 +230,16 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Same, for a card's rewards/offers link (saved on the user's own card first).
+    func shareRewardsLink(name: String, url: String) async -> Bool {
+        do {
+            try await api.shareRewardsLink(name: name, url: url)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Re-sync on-device bill reminders to the current bills + settings.
     func refreshNotifications() {
         NotificationScheduler.reschedule(bills: data.bills, cards: data.cards, settings: data.settings, tz: tz)

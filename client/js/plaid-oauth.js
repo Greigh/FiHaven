@@ -11,6 +11,7 @@
 
 import './theme.js';
 import './auth.js';
+import { plaidExitError, PLAID_OAUTH_RESULT } from './plaidLink.js';
 
 // Shared with settings.js connect()/reconnect(): { token, mode, itemId }.
 var STASH = 'fh_plaid_oauth';
@@ -70,6 +71,13 @@ function loadPlaidLink() {
 
   var done = function (to) { localStorage.removeItem(STASH); go(to || '/settings'); };
 
+  // This page has no UI of its own to recover from, so the outcome rides back
+  // to Settings in sessionStorage and is shown there.
+  function report(outcome, reason) {
+    try { sessionStorage.setItem(PLAID_OAUTH_RESULT, JSON.stringify({ outcome: outcome, reason: reason })); } catch (_) { /* ignore */ }
+  }
+  var fail = function (reason) { report('error', reason); done('/settings'); };
+
   // Ensure the session/CSRF are bootstrapped, then resume Link.
   var ready = (window.AppAuth && window.AppAuth.me) ? window.AppAuth.me() : Promise.resolve();
   ready.then(loadPlaidLink).then(function (Plaid) {
@@ -80,18 +88,23 @@ function loadPlaidLink() {
         setStatus('Linking your accounts…');
         if (stash.mode === 'update' && stash.itemId != null) {
           plaidFetch('item/' + stash.itemId + '/repaired', 'POST').then(function () {
-            done('/settings?bank=reconnected');
-          }).catch(function () { done('/settings'); });
+            report('reconnected');
+            done('/settings');
+          }).catch(function () { fail('Could not finish reconnecting. Please try again.'); });
         } else {
           plaidFetch('link/exchange', 'POST', {
             public_token: publicToken,
             institution: metadata && metadata.institution,
-          }).then(function () { done('/settings?bank=linked'); })
-            .catch(function () { done('/settings'); });
+          }).then(function () { report('linked'); done('/settings'); })
+            .catch(function () { fail('Could not finish linking. Please try again.'); });
         }
       },
-      onExit: function () { done('/settings'); },
+      onExit: function (err) {
+        var failure = plaidExitError(err);
+        if (failure) fail(failure);
+        else done('/settings');
+      },
     });
     handler.open();
-  }).catch(function () { done('/settings'); });
+  }).catch(function () { fail('Could not load Plaid. Check your connection.'); });
 })();

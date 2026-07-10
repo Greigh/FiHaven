@@ -114,6 +114,25 @@ func runModelChecks() {
         let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(Card(id: "9", name: "X", annualFee: 95, feeMonth: 3)))
         checkClose(rt.annualFee ?? 0, 95, "annualFee round-trip")
         checkEqual(rt.feeMonth, 3, "feeMonth round-trip")
+
+        // rewardsUrl round-trip. Card is a fixed struct: a field missing from
+        // CodingKeys is silently dropped on save, so prove it survives both a
+        // native re-encode and a decode of web-written JSON.
+        let withURL = Card(id: "10", name: "Amex", rewardsUrl: "https://amex.com/offers")
+        let urlRT = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(withURL))
+        checkEqual(urlRT.rewardsUrl, "https://amex.com/offers", "rewardsUrl survives native round-trip")
+
+        let fromWeb = #"{"id":"11","name":"Bilt","rewardsUrl":"https://bilt.com/rewards"}"#
+        let decoded = try JSONDecoder().decode(Card.self, from: Data(fromWeb.utf8))
+        checkEqual(decoded.rewardsUrl, "https://bilt.com/rewards", "rewardsUrl decodes from web JSON")
+
+        // Absent stays nil rather than "" — the UI keys "Add" vs "Change" on nil.
+        let noURL = try JSONDecoder().decode(Card.self, from: Data(#"{"id":"12","name":"Z"}"#.utf8))
+        check(noURL.rewardsUrl == nil, "absent rewardsUrl stays nil")
+
+        // And re-encoding a web card keeps the field present for the server.
+        let reencoded = String(data: try JSONEncoder().encode(decoded), encoding: .utf8) ?? ""
+        check(reencoded.contains("rewardsUrl"), "rewardsUrl present after native re-encode")
     }
 
     section("Models — settings typed accessors") {

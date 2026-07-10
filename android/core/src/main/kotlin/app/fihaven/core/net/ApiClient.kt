@@ -181,12 +181,20 @@ class ApiClient(
     /** Offer a subscription's manage/cancel link to the shared database. The
      * server mails it to us with the sender as reply-to; nothing is stored, so
      * a failure here never affects the user's own saved link. */
-    suspend fun shareSubscriptionLink(name: String, url: String) {
+    suspend fun shareSubscriptionLink(name: String, url: String) =
+        shareLink("api/feedback/subscription-link", name, url)
+
+    /** Offer a card's rewards/offers link to the shared database. Same contract
+     * as [shareSubscriptionLink] — mailed, never stored. */
+    suspend fun shareRewardsLink(name: String, url: String) =
+        shareLink("api/feedback/rewards-link", name, url)
+
+    private suspend fun shareLink(path: String, name: String, url: String) {
         val body = buildJsonObject {
             put("name", name)
             put("url", url)
         }.toString()
-        send(makeRequest("api/feedback/subscription-link", HttpMethod.POST, body))
+        send(makeRequest(path, HttpMethod.POST, body))
     }
 
     private fun storeSession(body: String): AuthSession {

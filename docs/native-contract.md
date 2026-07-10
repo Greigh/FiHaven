@@ -256,7 +256,8 @@ today's `YYYY-MM-DD` in the user's tz.
   ],
   "offers": [               // optional — card-linked offers (manual tracker)
     { "id": "o1", "merchant": "Whole Foods", "detail": "10% back", "expires": "2026-07-31", "used": false }
-  ]
+  ],
+  "rewardsUrl": "https://…"  // optional — user-saved rewards/offers link (Rewards tab)
 }
 ```
 **Credits & perks (`perks`).** Each perk is a recurring statement credit

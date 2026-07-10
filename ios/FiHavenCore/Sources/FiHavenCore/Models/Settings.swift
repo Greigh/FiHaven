@@ -209,6 +209,13 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["plaidUpdateBalances"] = .bool(newValue) }
     }
 
+    /// Opt-in: add bank-sourced outflows to Spending. Off by default — spending
+    /// stays manual-entry, and imported rows never overwrite a typed one.
+    public var plaidUpdatePurchases: Bool {
+        get { raw["plaidUpdatePurchases"]?.asBool ?? false }
+        set { raw["plaidUpdatePurchases"] = .bool(newValue) }
+    }
+
     /// Budget rule lens: off | 50-30-20 | presets | custom | obligations-first | debt-focus | envelope.
     public var budgetRule: String {
         get { raw["budgetRule"]?.asString ?? "off" }
