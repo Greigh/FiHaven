@@ -34,16 +34,22 @@ struct SettingsView: View {
                 groupRow("Security", "lock.shield.fill", "Two-factor, recovery") {
                     detail("Security") { securitySection }
                 }
-                groupRow("Preferences", "slider.horizontal.3", "Currency, period, display") {
+                groupRow("Preferences", "slider.horizontal.3", "Currency, display, tabs") {
                     detail("Preferences") { preferencesSection }
+                }
+                groupRow("Budget", "chart.pie.fill", "Period, budget lens") {
+                    detail("Budget") { budgetSection }
                 }
                 groupRow("Notifications", "bell.badge.fill", "Reminders, digest, summary") {
                     detail("Notifications") { notificationsSection }
                 }
-                groupRow("Family", "person.2.fill", "Share with your household", proLocked: !billing.isPro) {
+                // No plan badge: joining a household is free, and *creating* one
+                // needs the Family plan rather than Pro — so a "PRO" pill here
+                // would be wrong both ways. HouseholdView upsells in context.
+                groupRow("Family", "person.2.fill", "Share with your household") {
                     HouseholdSettingsView(api: env.api, myEmail: current.email)
                 }
-                groupRow("Automation", "wand.and.stars", "Autopay auto-mark") {
+                groupRow("Automation", "wand.and.stars", "Autopay, dashboard tidying") {
                     detail("Automation") { autopaySection }
                 }
                 groupRow("Bank", "building.columns.fill", "Linked accounts") {
@@ -74,19 +80,15 @@ struct SettingsView: View {
     /// A landing row that drills into a settings detail screen.
     private func groupRow<Destination: View>(
         _ title: String, _ icon: String, _ subtitle: String,
-        proLocked: Bool = false,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
         NavigationLink {
             destination()
         } label: {
             Label {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
-                        Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                    }
-                    if proLocked { Spacer(); ProBadge() }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(Theme.ui(16)).foregroundStyle(Theme.text)
+                    Text(subtitle).font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
             } icon: {
                 Image(systemName: icon).foregroundStyle(Theme.accent)
@@ -302,6 +304,49 @@ struct SettingsView: View {
             Text("When a new month starts, how each bill's amount is pre-filled in the review. Average uses your recent payments.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
+            Toggle("Archive instead of delete", isOn: Binding(
+                get: { store.data.settings.archiveInsteadOfDelete },
+                set: { store.setArchiveInsteadOfDelete($0) }
+            ))
+            .tint(Theme.accent)
+            Text("When on, deleting a bill, card, or loan archives it instead — hidden from your lists but restorable. Manage archived items from the bottom of each list.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
+            NavigationLink {
+                DashboardLayoutView()
+            } label: {
+                LabeledContent("Dashboard layout",
+                               value: store.data.settings.dashboardLayout == "widgets" ? "Widgets" : "Classic")
+            }
+
+            Picker("Currency", selection: Binding(
+                get: { store.data.settings.currency ?? "USD" },
+                set: { store.setCurrency($0) }
+            )) {
+                ForEach(Self.currencies, id: \.0) { Text("\($0.0) — \($0.1)").tag($0.0) }
+            }
+            .pickerStyle(.menu)
+
+            Picker("Default view", selection: Binding(
+                get: {
+                    let v = store.data.settings.landingView ?? "dashboard"
+                    return Self.views.contains { $0.0 == v } ? v : "dashboard"
+                },
+                set: { store.setLandingView($0) }
+            )) {
+                ForEach(Self.views, id: \.0) { Text($0.1).tag($0.0) }
+            }
+            .pickerStyle(.menu)
+
+            NavigationLink { TabsEditorView() } label: { Text("Customize tabs") }
+        }
+    }
+
+    // ── Budget ───────────────────────────────────────────────────────
+    // Period definition + the budget lens. Both shape how paid/owed is
+    // tracked, so they read better together than buried in Preferences.
+    private var budgetSection: some View {
+        Section("Budget") {
             Picker("Budget period", selection: Binding(
                 get: { store.data.settings.periodMode ?? "calendar" },
                 set: { store.setPeriodMode($0) }
@@ -342,50 +387,6 @@ struct SettingsView: View {
             }
             Text("How a period is defined for paid/owed tracking. A custom start day groups early-next-month bills into the period you'd plan for. A rolling window repeats every N days from an optional start date.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-
-            Toggle("Hide fully paid on dashboard", isOn: Binding(
-                get: { store.data.settings.hidePaidOnDashboard },
-                set: { store.setHidePaidOnDashboard($0) }
-            ))
-            .tint(Theme.accent)
-            Text("When on, bills and cards you've fully paid this period won't appear in Upcoming on the dashboard.")
-                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-
-            Toggle("Archive instead of delete", isOn: Binding(
-                get: { store.data.settings.archiveInsteadOfDelete },
-                set: { store.setArchiveInsteadOfDelete($0) }
-            ))
-            .tint(Theme.accent)
-            Text("When on, deleting a bill, card, or loan archives it instead — hidden from your lists but restorable. Manage archived items from the bottom of each list.")
-                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-
-            NavigationLink {
-                DashboardLayoutView()
-            } label: {
-                LabeledContent("Dashboard layout",
-                               value: store.data.settings.dashboardLayout == "widgets" ? "Widgets" : "Classic")
-            }
-
-            Picker("Currency", selection: Binding(
-                get: { store.data.settings.currency ?? "USD" },
-                set: { store.setCurrency($0) }
-            )) {
-                ForEach(Self.currencies, id: \.0) { Text("\($0.0) — \($0.1)").tag($0.0) }
-            }
-            .pickerStyle(.menu)
-
-            Picker("Default view", selection: Binding(
-                get: {
-                    let v = store.data.settings.landingView ?? "dashboard"
-                    return Self.views.contains { $0.0 == v } ? v : "dashboard"
-                },
-                set: { store.setLandingView($0) }
-            )) {
-                ForEach(Self.views, id: \.0) { Text($0.1).tag($0.0) }
-            }
-            .pickerStyle(.menu)
-
-            NavigationLink { TabsEditorView() } label: { Text("Customize tabs") }
         }
     }
 
@@ -477,6 +478,13 @@ struct SettingsView: View {
     // ── Data ─────────────────────────────────────────────────────────
     private var autopaySection: some View {
         Section("Automation") {
+            Toggle("Hide fully paid on dashboard", isOn: Binding(
+                get: { store.data.settings.hidePaidOnDashboard },
+                set: { store.setHidePaidOnDashboard($0) }
+            )).tint(Theme.accent)
+            Text("When on, bills and cards you've fully paid this period won't appear in Upcoming on the dashboard.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
             Toggle("Auto-mark autopay items paid", isOn: Binding(
                 get: { store.data.settings.autopayMark },
                 set: { store.setAutopayMark($0) }
