@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -155,8 +156,10 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
 
 @Composable
 private fun DayCell(day: Int, isToday: Boolean, isSelected: Boolean, hasItems: Boolean, onClick: () -> Unit) {
+    // Width matters: with only a height the background hugged the digit and the
+    // selected day rendered as a tall, narrow pill instead of a rounded square.
     Column(
-        Modifier.height(44.dp).clip(RoundedCornerShape(9.dp))
+        Modifier.width(38.dp).height(44.dp).clip(RoundedCornerShape(12.dp))
             .background(if (isSelected) Ct.colors.accent else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(top = 6.dp),
