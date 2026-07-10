@@ -13,22 +13,17 @@ struct ProView: View {
             VStack(spacing: 18) {
                 header
                 statusCard
-                if billing.isPro {
-                    if let manageLabel = billing.manageButtonLabel {
-                        Button(manageLabel) { Task { await billing.manageSubscription() } }
-                            .buttonStyle(PrimaryButtonStyle())
-                            .accessibilityHint("Opens subscription management")
-                    }
-                    if let note = billing.billingNote {
-                        Text(note)
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
-                    }
-                } else {
-                    Button("Upgrade to Pro") { showPaywall = true }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .accessibilityHint("Opens upgrade options")
+                // "Manage Pro" opens the paywall (matching Android), which is where
+                // plan options — including upgrading to Family — and the store's
+                // own subscription-management link live.
+                Button(billing.isPro ? "Manage Pro" : "Upgrade to Pro") { showPaywall = true }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityHint(billing.isPro ? "Opens plan options" : "Opens upgrade options")
+                if billing.isPro, let note = billing.billingNote {
+                    Text(note)
+                        .font(Theme.ui(13))
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
                 }
                 Button("Redeem a code") { showRedeem = true }
                     .font(Theme.ui(15, weight: .semibold))
@@ -112,6 +107,7 @@ struct ProView: View {
         case "monthly": return "Pro · Monthly"
         case "three_month": return "Pro · 3 Months"
         case "yearly": return "Pro · Yearly"
+        case "family": return "Pro · Family"
         default: return "Pro"
         }
     }
