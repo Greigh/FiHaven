@@ -713,10 +713,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         d.copy(bills = d.bills.map { if (it.id == billId) it.copy(manageUrl = url) else it })
     }
 
+    /** Save a card's rewards/offers link on the user's own card. */
+    fun setCardRewardsUrl(cardId: String, url: String) = mutate { d ->
+        d.copy(cards = d.cards.map { if (it.id == cardId) it.copy(rewardsUrl = url) else it })
+    }
+
     /** Offer the link to the shared database. The caller has already saved it
      * on the user's bill, so a false here is a soft failure, not a loss. */
     suspend fun shareSubscriptionLink(name: String, url: String): Boolean =
         runCatching { api.shareSubscriptionLink(name, url) }.isSuccess
+
+    /** Same, for a card's rewards/offers link. */
+    suspend fun shareRewardsLink(name: String, url: String): Boolean =
+        runCatching { api.shareRewardsLink(name, url) }.isSuccess
 
     // ── Archive (soft delete) ─────────────────────────────────────────
     fun archiveBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = true) else b }) }
@@ -948,6 +957,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Opt-in: let synced bank balances update matching cards (server-applied). */
     fun setPlaidUpdateBalances(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("plaidUpdateBalances", JsonPrimitive(on))) }
+    /** Opt-in: import bank outflows into Spending (server-applied, additive). */
+    fun setPlaidUpdatePurchases(on: Boolean) =
+        mutate { it.copy(settings = it.settings.withSetting("plaidUpdatePurchases", JsonPrimitive(on))) }
     /** Mark a card-linked offer used (so it drops off the active list). */
     fun setOfferUsed(cardId: String, offerId: String, used: Boolean) {
         mutate { d ->

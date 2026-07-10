@@ -54,6 +54,7 @@ function createTestServer() {
   const dataRouter = require(path.join(SERVER_DIR, 'routes/data'));
   const householdRouter = require(path.join(SERVER_DIR, 'routes/household'));
   const billingRouter = require(path.join(SERVER_DIR, 'routes/billing'));
+  const feedbackRouter = require(path.join(SERVER_DIR, 'routes/feedback'));
 
   const app = express();
   app.set('trust proxy', 1);
@@ -64,6 +65,7 @@ function createTestServer() {
   app.use('/api/data', requireVerified, dataRouter);
   app.use('/api/household', requireVerified, householdRouter);
   app.use('/api/billing', billingRouter);
+  app.use('/api/feedback', feedbackRouter);
 
   return {
     app,
