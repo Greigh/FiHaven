@@ -5,8 +5,10 @@ import app.fihaven.ui.theme.PlexMono
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -89,10 +91,18 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues) {
             if (result == null) {
                 CtCard { Text("Add a card or loan with a balance to see a payoff plan.", color = Ct.colors.muted) }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // IntrinsicSize.Min + fillMaxHeight so both cards match the taller
+                // one; only the left stat has a subtitle, which otherwise leaves
+                // the right card short and the row visibly uneven.
+                Row(
+                    Modifier.height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     stat("Debt-free in", "${result.months} mo", Ct.colors.accent,
-                        DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)), Modifier.weight(1f))
-                    stat("Total interest", Money.fmtShort(result.totalInterest), Ct.colors.red, null, Modifier.weight(1f))
+                        DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)),
+                        Modifier.weight(1f).fillMaxHeight())
+                    stat("Total interest", Money.fmtShort(result.totalInterest), Ct.colors.red, null,
+                        Modifier.weight(1f).fillMaxHeight())
                 }
                 CtCard(padding = 0) {
                     Column {
