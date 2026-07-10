@@ -44,6 +44,9 @@ function logPlaidErr(event, err) {
     error_code: d.error_code,
     error_type: d.error_type,
     request_id: d.request_id,
+    // A local (db/crypto) failure carries no Plaid response, and its message
+    // alone rarely says where it came from — keep the stack for those.
+    stack: d.error_code ? undefined : (err && err.stack),
   });
 }
 
@@ -338,24 +341,39 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
   // Institution metadata Link hands back (best-effort; refined below).
   const meta = (req.body || {}).institution || {};
 
+  // Phase 1 — talk to Plaid. A failure here is genuinely upstream (502).
+  let accessToken;
+  let itemId;
+  let accounts;
+  let institutionId;
+  let institutionName;
   try {
-    const { accessToken, itemId } = await plaid.exchangePublicToken(publicToken);
+    ({ accessToken, itemId } = await plaid.exchangePublicToken(publicToken));
 
     // Pull accounts + balances now so the UI has something immediately.
-    const { item, accounts } = await plaid.getAccounts(accessToken);
-    const institutionId = (item && item.institution_id) || meta.institution_id || null;
-
-    // Don't store a second Item for a bank+accounts the user already linked.
-    const dup = findDuplicateItem(req.user.id, institutionId, accounts);
-    if (dup) {
-      try { await plaid.removeItem(accessToken); } catch (_) { /* best-effort revoke */ }
-      logPlaid('exchange:duplicate', { userId: req.user.id, institutionId, existingItem: dup.id });
-      return sendError(res, 409, 'already-linked');
-    }
+    const got = await plaid.getAccounts(accessToken);
+    accounts = got.accounts;
+    institutionId = (got.item && got.item.institution_id) || meta.institution_id || null;
 
     const inst = await plaid.getInstitution(institutionId);
-    const institutionName = (inst && inst.name) || meta.name || 'Bank';
+    institutionName = (inst && inst.name) || meta.name || 'Bank';
+  } catch (err) {
+    logPlaidErr('link/exchange', err);
+    return sendError(res, 502, 'exchange-failed');
+  }
 
+  // Don't store a second Item for a bank+accounts the user already linked.
+  const dup = findDuplicateItem(req.user.id, institutionId, accounts);
+  if (dup) {
+    try { await plaid.removeItem(accessToken); } catch (_) { /* best-effort revoke */ }
+    logPlaid('exchange:duplicate', { userId: req.user.id, institutionId, existingItem: dup.id });
+    return sendError(res, 409, 'already-linked');
+  }
+
+  // Phase 2 — persist locally. Nothing below touches Plaid, so a failure is
+  // ours (500), not a bad gateway. Revoke the Item we just created rather than
+  // leave an orphan we'd be billed for but have no access token for.
+  try {
     const now = Date.now();
     const itemPk = dbApi.insertPlaidItem({
       user_id: req.user.id,
@@ -376,8 +394,9 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
     logPlaid('item-linked', { userId: req.user.id, itemPk, institutionId, accounts: accounts.length });
     res.status(201).json({ item: serializeItem(stored) });
   } catch (err) {
-    logPlaidErr('link/exchange', err);
-    sendError(res, 502, 'exchange-failed');
+    logPlaidErr('link/exchange:persist', err);
+    try { await plaid.removeItem(accessToken); } catch (_) { /* best-effort revoke */ }
+    sendError(res, 500, 'save-failed');
   }
 });
 
