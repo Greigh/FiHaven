@@ -250,9 +250,11 @@ private fun ManageLinkDialog(
         )
         Text(
             if (bill == null) {
-                "Sent to the FiHaven team so we can add it to the shared database."
+                "Emails the service name, the link, and your email address to FiHaven so we can add " +
+                    "it to the shared database. Optional — see our Privacy Policy."
             } else {
-                "Saved on your bill, and sent to the FiHaven team so we can add it to the shared database."
+                "Saved on your bill. Also emails the service name, the link, and your email address " +
+                    "to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy."
             },
             color = Ct.colors.muted, fontSize = 12.sp,
         )

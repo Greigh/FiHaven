@@ -132,8 +132,8 @@
                 {#if linkMsg}<span class="subs-linkmsg">{linkMsg}</span>{/if}
                 <div class="subs-linkhint">
                   {s.billId != null
-                    ? 'Saves to your bill and shares it with us so we can help others.'
-                    : 'Shares it with us so we can add it for everyone.'}
+                    ? 'Saves to your bill, then emails the name, the link, and your email address to FiHaven so we can add it for everyone.'
+                    : 'Emails the name, the link, and your email address to FiHaven so we can add it for everyone.'}
                 </div>
               </div>
             {/if}
@@ -142,6 +142,11 @@
         </div>
       {/each}
     </div>
+    <p class="subs-disclosure">
+      Adding a manage link emails the service name, the link, and your email address to FiHaven so
+      we can share it with other users. It is optional — see our
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+    </p>
   </section>
 {:else}
   <div class="empty">
@@ -163,6 +168,12 @@
     color: var(--accent); text-decoration: none;
   }
   .subs-manage-link:hover { text-decoration: underline; }
+  .subs-disclosure {
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px; line-height: 1.6; color: var(--muted);
+  }
+  .subs-disclosure a { color: var(--accent); }
   .subs-linkbtn {
     padding: 0; border: 0; background: none; cursor: pointer;
     font: inherit; font-size: 12px; color: var(--accent);

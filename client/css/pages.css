@@ -1120,6 +1120,25 @@ input[type="file"]::file-selector-button:hover {
   color:var(--green,#30a46c); background:var(--green-bg,color-mix(in srgb, #30a46c 12%, transparent));
   border:none; border-radius:999px; padding:5px 12px; }
 .offer-used-btn:hover { filter:brightness(0.97); }
+
+/* Rewards/offers links volunteered per card (mirrors the subscriptions panel). */
+.rw-link-row { padding:8px 0; border-top:1px solid var(--border); }
+.rw-link-row:first-of-type { border-top:none; }
+.rw-link-name { font-size:14px; font-weight:600; }
+.rw-link-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:4px; }
+.rw-link-out { font-size:12px; color:var(--accent); text-decoration:none; }
+.rw-link-out:hover { text-decoration:underline; }
+.rw-linkbtn { padding:0; border:0; background:none; cursor:pointer; font:inherit; font-size:12px; color:var(--accent); }
+.rw-linkbtn:hover { text-decoration:underline; }
+.rw-linkform { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+.rw-linkform input { flex:1 1 220px; min-width:0; font-size:13px; padding:6px 10px;
+  border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); }
+.rw-linkmsg { font-size:12px; color:var(--muted); }
+.rw-linkhint { flex-basis:100%; font-size:11px; line-height:1.5; color:var(--muted); }
+.rw-disclosure { margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
+  font-size:11px; line-height:1.6; color:var(--muted); }
+.rw-disclosure a { color:var(--accent); }
+
 /* "Looks like you used this" suggestions (Plaid/manual transaction match) */
 .offer-suggest-panel { border-left:4px solid var(--green,#30a46c); }
 .offer-suggest-row .offer-meta { color:var(--green,#30a46c); }
