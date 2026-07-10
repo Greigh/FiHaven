@@ -78,6 +78,9 @@ val JsonObject.offerReminders: Boolean get() = prim("offerReminders")?.booleanOr
 /// Opt-in: let a synced bank balance update a matching card. Off by default —
 /// FiHaven never overrides a typed balance unless this is on.
 val JsonObject.plaidUpdateBalances: Boolean get() = prim("plaidUpdateBalances")?.booleanOrNull ?: false
+/// Opt-in: add bank-sourced outflows to Spending. Off by default — spending
+/// stays manual-entry, and imported rows never overwrite a typed one.
+val JsonObject.plaidUpdatePurchases: Boolean get() = prim("plaidUpdatePurchases")?.booleanOrNull ?: false
 
 /** When true (default), fully paid items are hidden from the dashboard upcoming list. */
 val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true

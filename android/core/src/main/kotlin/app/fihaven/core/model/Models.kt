@@ -67,6 +67,7 @@ data class Card(
     val annualFee: Double? = null,            // annual fee — powers the "is it worth it?" check
     val feeMonth: Int? = null,                // month (1–12) the fee renews; null if unknown
     val offers: List<CardOffer> = emptyList(), // card-linked offers (manual tracker)
+    val rewardsUrl: String? = null,           // User-saved rewards/offers link (rewards panel)
     val archived: Boolean = false,            // Soft delete — hidden from lists/totals, restorable
 )
 

@@ -15,6 +15,7 @@ import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 import { initHousehold } from './household.js';
+import { plaidExitError, PLAID_OAUTH_RESULT } from './plaidLink.js';
 import { webPushSupported, webPushStatus, enableWebPush, disableWebPush } from './webpush.js';
 import {
   BILL_CATEGORIES, SPENDING_CATEGORIES, BUDGET_BUCKETS,
@@ -2000,7 +2001,9 @@ import {
           },
           onExit: function (err) {
             clearOauth();
-            if (err) showMessage('plaid', 'Linking was cancelled.', false);
+            var failure = plaidExitError(err);
+            if (failure) showMessage('plaid', failure, true);
+            else showMessage('plaid', 'Linking was cancelled.', false);
           },
         });
         handler.open();
@@ -2038,7 +2041,12 @@ import {
               else showMessage('plaid', adding ? 'Could not finish updating accounts.' : 'Could not finish reconnecting.', true);
             }).catch(function () { showMessage('plaid', errorText('network'), true); });
           },
-          onExit: function (err) { clearOauth(); if (err) showMessage('plaid', 'Reconnect was cancelled.', false); },
+          onExit: function (err) {
+            clearOauth();
+            var failure = plaidExitError(err);
+            if (failure) showMessage('plaid', failure, true);
+            else showMessage('plaid', 'Reconnect was cancelled.', false);
+          },
         });
         handler.open();
       }).catch(function () {
@@ -2079,7 +2087,27 @@ import {
       if (window.openProDialog) window.openProDialog();
     });
 
+    // /plaid-oauth reports its outcome here, since that page has no UI to show
+    // it on. Read once and clear, so a reload doesn't re-show a stale result.
+    function showOauthOutcome() {
+      var raw = null;
+      try {
+        raw = sessionStorage.getItem(PLAID_OAUTH_RESULT);
+        sessionStorage.removeItem(PLAID_OAUTH_RESULT);
+      } catch (_) { return; }
+      if (!raw) return;
+      var res = null;
+      try { res = JSON.parse(raw); } catch (_) { return; }
+      if (!res) return;
+      if (res.outcome === 'linked') showMessage('plaid', 'Bank linked.', false);
+      else if (res.outcome === 'reconnected') showMessage('plaid', 'Bank reconnected.', false);
+      else if (res.outcome === 'error') {
+        showMessage('plaid', res.reason || 'Bank linking failed. Please try again.', true);
+      }
+    }
+
     refreshStatus();
+    showOauthOutcome();
   }
 
   if (document.readyState === 'loading') {
