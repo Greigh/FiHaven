@@ -199,8 +199,8 @@ private struct ManageLinkSheet: View {
                     Text("Manage or cancel link for \(item.name)")
                 } footer: {
                     Text(bill == nil
-                        ? "Sent to the FiHaven team so we can add it to the shared database."
-                        : "Saved on your bill, and sent to the FiHaven team so we can add it to the shared database.")
+                        ? "Emails the service name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy."
+                        : "Saved on your bill. Also emails the service name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.")
                 }
                 if let message {
                     Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
