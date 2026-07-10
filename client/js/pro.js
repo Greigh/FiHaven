@@ -12,7 +12,7 @@
 ═══════════════════════════════════════════════════════════ */
 
 var overlay = null;
-var lastBilling = { stripePortal: false };
+var lastBilling = { stripePortal: false, plans: null };
 
 function billingNote(ent) {
   if (!ent || !ent.pro) return '';
@@ -64,7 +64,12 @@ function toResult(r) {
     .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
 }
 
-var PLAN_LABELS = { trial: 'Trial', monthly: 'Monthly', three_month: '3 months', yearly: 'Yearly' };
+// `family` matters here: billing.js issues plan:'family' for both the Stripe
+// Family price and the app.fihaven.pro.family IAP, and without a label a Family
+// subscriber falls through to a bare "Pro".
+var PLAN_LABELS = {
+  trial: 'Trial', monthly: 'Monthly', three_month: '3 months', yearly: 'Yearly', family: 'Family',
+};
 
 function statusLabel(ent) {
   if (!ent || !ent.pro) return 'Free';
@@ -109,11 +114,13 @@ function build() {
           'background:none;border:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>' +
       '</div>' +
       '<p style="margin:8px 0 0;color:var(--muted);font-size:14px;">' +
-        'Pro unlocks payoff planning, family sharing, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.' +
+        'Pro unlocks payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android. The Family plan adds a shared household.' +
       '</p>' +
       '<ul class="pro-features" style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;">' +
+        // Family sharing is deliberately not a bullet here: creating a household
+        // needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO
+        // is 0), which appears as its own plan row below.
         proFeature('Debt payoff planner — snowball & avalanche projections') +
-        proFeature('Family sharing — share bills, cards & goals with your household') +
         proFeature('Due-date calendar + iCal subscription') +
         proFeature('Full payment history & CSV exports') +
         proFeature('Rewards optimizer — best card for each purchase') +
@@ -196,9 +203,9 @@ function render(ent, billingMeta) {
   var isPro = !!(ent && ent.pro);
   var canManageStripe = !!(isPro && lastBilling.stripePortal);
 
-  if (upgradeWrap) {
-    upgradeWrap.style.display = isPro ? 'none' : 'flex';
-  }
+  // renderPlans decides visibility now: hidden only for Family subscribers,
+  // who have nothing left to upgrade to. Solo Pro still gets the Family row.
+  if (upgradeWrap) renderPlans();
   if (manageWrap) {
     manageWrap.style.display = canManageStripe ? 'block' : 'none';
   }
@@ -283,33 +290,81 @@ function startCheckout(plan, btn) {
       window.location.assign(res.data.url);
     } else {
       btn.disabled = false;
-      setMsg('Could not start checkout. Please try again.', true);
+      setMsg(res.status === 409
+        ? 'You already have a subscription — use Manage subscription to change plans.'
+        : 'Could not start checkout. Please try again.', true);
     }
   }).catch(function () { btn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
 }
 
+// Changing an existing Stripe subscription's plan happens in the Billing
+// Portal — a Checkout Session would create a second subscription.
+function openStripePortal(btn) {
+  btn.disabled = true;
+  billingFetch('stripe/portal', 'POST').then(function (res) {
+    if (res.ok && res.data && res.data.url) {
+      window.location.assign(res.data.url);
+    } else {
+      btn.disabled = false;
+      setMsg(portalError(res.data && res.data.error, lastBilling.entitlement), true);
+    }
+  }).catch(function () { btn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
+}
+
+// `plans` is fetched once and cached; pass nothing to re-render against the
+// current entitlement. An existing solo-Pro subscriber sees only the Family
+// row (their upgrade path); a Family subscriber sees none.
 function renderPlans(plans) {
   var upgradeWrap = overlay.querySelector('[data-pro-upgrade]');
   if (!upgradeWrap) return;
+  if (plans !== undefined) lastBilling.plans = plans;
   upgradeWrap.style.flexDirection = 'column';
   upgradeWrap.innerHTML = '';
-  var list = plans || [];
+
+  var ent = lastBilling.entitlement;
+  var isPro = !!(ent && ent.pro);
+  var list = lastBilling.plans || [];
+  if (isPro) {
+    // Only Stripe subscribers can switch plans from here — an Apple/Google/promo
+    // Pro has to change it where they bought it, so offer them nothing.
+    list = (ent.plan === 'family' || !lastBilling.stripePortal)
+      ? []
+      : list.filter(function (p) { return p.plan === 'family'; });
+  }
   if (!list.length) {
-    upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
+    // Nothing to offer: for a subscriber that's expected (hide the block); for
+    // a free user it means the server has no prices configured.
+    if (isPro) {
+      upgradeWrap.style.display = 'none';
+    } else {
+      upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
+      upgradeWrap.style.display = 'flex';
+    }
     return;
   }
+  upgradeWrap.style.display = 'flex';
   list.forEach(function (p) {
     var isTrial = p.plan === 'trial';
     var isBest = p.plan === 'yearly';
+    // Family is a separate subscription, not a Pro interval — it's the only plan
+    // that unlocks a shared household, so say so on the row itself.
+    var isFamily = p.plan === 'family';
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pro-plan' + (isBest ? ' pro-plan-best' : '');
     btn.setAttribute('data-pro-plan', p.plan);
+    var cta = isTrial ? 'Try free' : (isPro ? 'Upgrade' : 'Choose');
     btn.innerHTML =
-      '<span class="pro-plan-name">' + (isTrial ? 'Start free trial' : (p.label || p.plan)) + '</span>' +
+      '<span class="pro-plan-name">' + (isTrial ? 'Start free trial' : (p.label || p.plan)) +
+        (isFamily ? '<small style="display:block;font-weight:400;color:var(--muted);">Everything in Pro + a household of up to 3</small>' : '') +
+      '</span>' +
       (isBest ? '<span class="pro-plan-badge">Best value</span>' : '') +
-      '<span class="pro-plan-cta">' + (isTrial ? 'Try free' : 'Choose') + ' ›</span>';
-    btn.addEventListener('click', function () { startCheckout(p.plan, btn); });
+      '<span class="pro-plan-cta">' + cta + ' ›</span>';
+    // An existing subscriber changes plan in the Billing Portal; checkout would
+    // open a second subscription (the server now rejects that with 409 too).
+    btn.addEventListener('click', function () {
+      if (isPro) openStripePortal(btn); else startCheckout(p.plan, btn);
+    });
     upgradeWrap.appendChild(btn);
   });
 }
@@ -317,18 +372,7 @@ function renderPlans(plans) {
 function wire() {
   var manageBtn = overlay.querySelector('[data-pro-manage]');
   if (manageBtn) {
-    manageBtn.addEventListener('click', function () {
-      manageBtn.disabled = true;
-      billingFetch('stripe/portal', 'POST').then(function (res) {
-        if (res.ok && res.data && res.data.url) {
-          window.location.assign(res.data.url);
-        } else {
-          manageBtn.disabled = false;
-          var ent = lastBilling.entitlement;
-          setMsg(portalError(res.data && res.data.error, ent), true);
-        }
-      }).catch(function () { manageBtn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
-    });
+    manageBtn.addEventListener('click', function () { openStripePortal(manageBtn); });
   }
 
   var promoForm = overlay.querySelector('[data-pro-promo]');

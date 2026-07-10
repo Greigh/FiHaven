@@ -92,15 +92,19 @@ fun ProGate(
     if (ent.pro) content() else ProLockedScreen(vm, feature, padding, onBack)
 }
 
+/** Plan pill — "PRO" or "FAMILY". Two tiers gate different things. */
 @Composable
-fun ProBadge() {
+fun PlanBadge(text: String) {
     Surface(shape = RoundedCornerShape(50), color = Ct.colors.accentBg) {
         Text(
-            "PRO", color = Ct.colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            text, color = Ct.colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
         )
     }
 }
+
+@Composable
+fun ProBadge() = PlanBadge("PRO")
 
 @Composable
 private fun ProLockedScreen(
@@ -134,9 +138,11 @@ private fun ProLockedScreen(
     if (showPaywall) PaywallDialog(vm) { showPaywall = false }
 }
 
+// Pro perks only. Family sharing is deliberately absent: creating a household
+// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
+// so it gets its own card below rather than a bullet here.
 private val perks = listOf(
     "Payoff planner — snowball & avalanche plans + your debt-free date",
-    "Family sharing — share bills, cards & goals with your household",
     "Due-date calendar — every bill and card on a monthly view",
     "Payment history — search and review everything you've paid",
     "Rewards optimizer — pick the best card for each purchase",
@@ -193,10 +199,22 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                         }
                     }
 
+                    // Family is a separate subscription, not a Pro tier — so it
+                    // gets its own card rather than sitting in the plan list.
+                    val familyProduct = products.firstOrNull { it.productId == BillingManager.FAMILY }
+                    val proProducts = products.filter { it.productId != BillingManager.FAMILY }
+                    val onFamily = ent.plan == "family"
+                    val buy = { p: ProductDetails -> activity?.let { billing?.launchPurchase(it, p) }; Unit }
+
                     if (ent.pro) {
                         ActiveCard(ent)
                         billingNote?.let {
                             Text(it, color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+                        }
+                        // An existing solo-Pro subscriber had no way to reach Family.
+                        // Play treats this as a plan change (see BillingManager).
+                        if (!onFamily && familyProduct != null) {
+                            FamilyOption(familyProduct, isUpgrade = true) { buy(familyProduct) }
                         }
                         manageLabel?.let { label ->
                             OutlinedButton(
@@ -210,9 +228,9 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                             color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
                         )
                     } else {
-                        products.forEach { product ->
+                        proProducts.forEach { product ->
                             OutlinedButton(
-                                onClick = { activity?.let { billing?.launchPurchase(it, product) } },
+                                onClick = { buy(product) },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(BillingManager.period(product) ?: product.name,
@@ -220,6 +238,9 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                                 Text(BillingManager.formattedPrice(product) ?: "",
                                     color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
                             }
+                        }
+                        familyProduct?.let { p ->
+                            FamilyOption(p, isUpgrade = false) { buy(p) }
                         }
                     }
 
@@ -248,7 +269,10 @@ private fun ActiveCard(ent: app.fihaven.core.model.Entitlement) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.CheckCircle, null, tint = Ct.colors.green, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(6.dp))
-            Text("You’re on FiHaven Pro", color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (ent.plan == "family") "You’re on FiHaven Family" else "You’re on FiHaven Pro",
+                color = Ct.colors.text, fontWeight = FontWeight.SemiBold,
+            )
             ent.source?.let { source ->
                 val label = when (source) {
                     "stripe" -> "Stripe"
@@ -323,6 +347,38 @@ fun RedeemCodeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 success?.let { Text(it, color = Ct.colors.green, fontSize = 14.sp) }
                 error?.let { Text(it, color = Ct.colors.red, fontSize = 14.sp) }
             }
+        }
+    }
+}
+
+/**
+ * The Family subscription, presented as its own option rather than a Pro perk.
+ * It is a separate SKU (`app.fihaven.pro.family`) and the only plan the server
+ * grants a shared household to — see `billing.js` `householdMaxFor`.
+ *
+ * [isUpgrade] is true when the user already has solo Pro, in which case Play
+ * runs a plan change (BillingManager passes the old purchase token).
+ */
+@Composable
+private fun FamilyOption(product: ProductDetails, isUpgrade: Boolean, onClick: () -> Unit) {
+    CtCard {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PlanBadge("FAMILY")
+                Spacer(Modifier.weight(1f))
+                Text(BillingManager.formattedPrice(product) ?: "",
+                    color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "Everything in Pro, plus a shared household — share bills, cards & goals " +
+                    "with up to 3 people. Joining a household is always free.",
+                color = Ct.colors.muted, fontSize = 13.sp,
+            )
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+            ) { Text(if (isUpgrade) "Upgrade to Family" else "Get the Family plan") }
         }
     }
 }

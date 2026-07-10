@@ -46,6 +46,7 @@ fun ProScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = 
         ent.plan == "yearly" -> "Pro · Yearly"
         ent.plan == "three_month" -> "Pro · 3 months"
         ent.plan == "trial" -> "Pro · Trial"
+        ent.plan == "family" -> "Pro · Family"
         else -> "Pro"
     }
 
