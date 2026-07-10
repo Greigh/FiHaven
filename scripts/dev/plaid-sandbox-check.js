@@ -27,6 +27,11 @@ if (!CLIENT_ID || !SECRET) {
   process.exit(1);
 }
 
+// Pin the server helpers to sandbox before requiring them — `.env` says
+// PLAID_ENV=production, and server/plaid.js builds its client lazily from it.
+process.env.PLAID_ENV = 'sandbox';
+const plaid = require('../../server/plaid');
+
 const client = new PlaidApi(new Configuration({
   basePath: PlaidEnvironments.sandbox,
   baseOptions: {
@@ -58,9 +63,13 @@ const client = new PlaidApi(new Configuration({
     const ex = await client.itemPublicTokenExchange({ public_token: pt.data.public_token });
     console.log('✓ exchange           → item_id', ex.data.item_id);
 
-    const acct = await client.accountsBalanceGet({ access_token: ex.data.access_token });
-    console.log('✓ accountsBalanceGet →', acct.data.accounts.length, 'accounts:');
-    acct.data.accounts.forEach((a) =>
+    // Go through the server helper, not the SDK directly. Calling
+    // accountsBalanceGet here while the server called it through getAccounts is
+    // how a production-only INVALID_PRODUCT (no paid Balance entitlement) passed
+    // this check: sandbox grants every product, so the direct call never failed.
+    const acct = await plaid.getAccounts(ex.data.access_token);
+    console.log('✓ getAccounts        →', acct.accounts.length, 'accounts:');
+    acct.accounts.forEach((a) =>
       console.log('    -', a.name, '(' + a.subtype + ')', 'bal', a.balances.current, a.balances.iso_currency_code));
 
     let cursor = null;

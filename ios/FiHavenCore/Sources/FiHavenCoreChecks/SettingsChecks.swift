@@ -41,6 +41,24 @@ func runSettingsChecks() {
         checkEqual(again.notifyHour, 19, "notifyHour survives save")
     }
 
+    section("Settings — Plaid opt-ins default off and persist") {
+        var s = Settings()
+        check(!s.plaidUpdateBalances, "plaidUpdateBalances defaults off")
+        check(!s.plaidUpdatePurchases, "plaidUpdatePurchases defaults off")
+
+        s.plaidUpdatePurchases = true
+        let again = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
+        check(again.plaidUpdatePurchases, "plaidUpdatePurchases survives save")
+        check(!again.plaidUpdateBalances, "balances stays off independently")
+
+        // A value only the web has written must not be dropped by a native save.
+        let fromWeb = try JSONDecoder().decode(
+            Settings.self, from: Data(#"{"plaidUpdatePurchases":true}"#.utf8))
+        check(fromWeb.plaidUpdatePurchases, "reads a web-written plaidUpdatePurchases")
+        let reencoded = String(data: try JSONEncoder().encode(fromWeb), encoding: .utf8) ?? ""
+        check(reencoded.contains("plaidUpdatePurchases"), "native re-encode keeps the flag")
+    }
+
     section("Settings — lead time and notify hour are clamped") {
         // On set.
         var s = Settings()

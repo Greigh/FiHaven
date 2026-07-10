@@ -152,9 +152,16 @@ async function getInstitution(institutionId) {
 
 /* ── Data pulls ──────────────────────────────────────────────── */
 
-// Accounts + live balances for an item.
+// Accounts + balances for an item.
+//
+// Uses `/accounts/get`, not `/accounts/balance/get`: the latter is Plaid's
+// paid Balance product, which our client ID is not entitled to (it returns
+// 400 INVALID_PRODUCT in production while sandbox grants every product).
+// `/accounts/get` is free and returns the balance as of the item's last
+// update — roughly daily for a transactions item, which is plenty given
+// Plaid is a safety net over manual entry rather than a source of truth.
 async function getAccounts(accessToken) {
-  const resp = await client().accountsBalanceGet({ access_token: accessToken });
+  const resp = await client().accountsGet({ access_token: accessToken });
   return { item: resp.data.item, accounts: resp.data.accounts || [] };
 }
 

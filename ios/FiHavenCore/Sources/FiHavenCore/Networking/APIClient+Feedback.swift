@@ -12,4 +12,15 @@ public extension APIClient {
         )
         _ = try await send(req)
     }
+
+    /// Offer a card's rewards/offers link to the shared database. Same
+    /// contract as `shareSubscriptionLink` — mailed, never stored.
+    func shareRewardsLink(name: String, url: String) async throws {
+        let req = try makeRequest(
+            path: "api/feedback/rewards-link",
+            method: .POST,
+            body: AnyEncodable(["name": name, "url": url])
+        )
+        _ = try await send(req)
+    }
 }
