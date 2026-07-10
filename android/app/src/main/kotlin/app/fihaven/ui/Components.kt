@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,7 +37,7 @@ fun CtCard(
     modifier: Modifier = Modifier,
     padding: Int = 16,
     branded: Boolean = false,
-    content: @Composable () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier
@@ -53,7 +54,11 @@ fun CtCard(
                     .background(Ct.colors.accent)
             )
         }
-        Box(Modifier.padding(padding.dp)) { content() }
+        // Column, not Box: a Box stacks every child at the same origin, so any
+        // caller emitting more than one composable rendered them on top of each
+        // other (the Cards payoff plan, Net Worth, Budget, and the household
+        // rollup all did). A card is a vertical stack — say so in the type.
+        Column(Modifier.padding(padding.dp)) { content() }
     }
 }
 

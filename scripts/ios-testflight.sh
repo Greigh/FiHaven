@@ -97,12 +97,99 @@ if $archive_only; then
   exit 0
 fi
 
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist")"
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist")"
+
+# Uploading needs an Apple identity. Two ways, in order of preference:
+#
+#   1. App Store Connect API key. The key id + issuer id + .p8 path. This is the
+#      only way that works headlessly (no GUI, no keychain prompt).
+#   2. A signed-in Xcode account (Xcode → Settings → Accounts).
+#
+# Without either, xcodebuild dies with the useless "exportArchive Failed to Use
+# Accounts". Detect that up front, and if we can't upload, still leave a signed
+# .ipa on disk so the build isn't wasted.
+KEY_ID="${APP_STORE_CONNECT_API_KEY_ID:-}"
+ISSUER_ID="${APP_STORE_CONNECT_API_ISSUER_ID:-}"
+KEY_PATH="${APP_STORE_CONNECT_API_KEY_PATH:-}"
+if [[ -n "$KEY_ID" && -z "$KEY_PATH" ]]; then
+  # Apple's conventional search location.
+  KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"
+fi
+
+auth_args=()
+if [[ -n "$KEY_ID" && -n "$ISSUER_ID" && -f "$KEY_PATH" ]]; then
+  echo "→ Authenticating with App Store Connect API key $KEY_ID"
+  auth_args=(-authenticationKeyID "$KEY_ID"
+             -authenticationKeyIssuerID "$ISSUER_ID"
+             -authenticationKeyPath "$KEY_PATH")
+elif [[ -n "$KEY_ID" || -n "$ISSUER_ID" ]]; then
+  echo "⚠ Partial API-key config — need KEY_ID + ISSUER_ID + a readable .p8" >&2
+  echo "  key_id=${KEY_ID:-<unset>} issuer=${ISSUER_ID:-<unset>} key_path=${KEY_PATH:-<unset>}" >&2
+fi
+
+if [[ ${#auth_args[@]} -eq 0 ]]; then
+  # No API key. Try the account path, but don't let a cryptic failure eat the build.
+  echo "→ Exporting and uploading to App Store Connect (Xcode account)"
+  if (cd "$APP_DIR" && xcodebuild -exportArchive \
+        -archivePath "$ARCHIVE" \
+        -exportPath "$EXPORT_DIR" \
+        -exportOptionsPlist "$EXPORT_PLIST" \
+        -allowProvisioningUpdates); then
+    echo "✓ Upload complete. Check App Store Connect → TestFlight for processing status."
+    echo "  Build: $VERSION ($BUILD)"
+    exit 0
+  fi
+
+  echo "" >&2
+  echo "✗ Upload failed — no usable Apple identity." >&2
+  echo "" >&2
+  echo "  Export a signed .ipa anyway so the archive isn't wasted…" >&2
+  LOCAL_PLIST="$(mktemp -t fihaven-export).plist"
+  /usr/libexec/PlistBuddy -c 'Add :teamID string 365KR8NF53' \
+                          -c 'Add :destination string export' \
+                          -c 'Add :method string app-store-connect' \
+                          -c 'Add :uploadSymbols bool true' \
+                          "$LOCAL_PLIST" >/dev/null
+  (cd "$APP_DIR" && xcodebuild -exportArchive \
+     -archivePath "$ARCHIVE" \
+     -exportPath "$EXPORT_DIR" \
+     -exportOptionsPlist "$LOCAL_PLIST") >/dev/null 2>&1 || true
+  rm -f "$LOCAL_PLIST"
+
+  echo "" >&2
+  if [[ -f "$EXPORT_DIR/FiHaven.ipa" ]]; then
+    echo "  ✓ Signed IPA: $EXPORT_DIR/FiHaven.ipa  ($VERSION build $BUILD)" >&2
+  fi
+  cat >&2 <<EOF
+
+  To upload, pick one:
+
+    a) App Store Connect API key (works headlessly — recommended):
+         App Store Connect → Users and Access → Integrations → App Store Connect API
+         Copy the Issuer ID (a UUID) and your Key ID, then:
+
+           export APP_STORE_CONNECT_API_KEY_ID=XXXXXXXXXX
+           export APP_STORE_CONNECT_API_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+           # .p8 at ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8
+           npm run deploy:ios
+
+    b) Sign in to Xcode: Xcode → Settings → Accounts → (+) Apple ID, then rerun.
+
+    c) Upload the .ipa by hand: Xcode → Window → Organizer → Distribute App,
+       or drag it into Transporter.app.
+
+EOF
+  exit 1
+fi
+
 echo "→ Exporting and uploading to App Store Connect"
 (cd "$APP_DIR" && xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportPath "$EXPORT_DIR" \
   -exportOptionsPlist "$EXPORT_PLIST" \
-  -allowProvisioningUpdates)
+  -allowProvisioningUpdates \
+  "${auth_args[@]}")
 
 echo "✓ Upload complete. Check App Store Connect → TestFlight for processing status."
-echo "  Build: $(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist") ($(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist"))"
+echo "  Build: $VERSION ($BUILD)"

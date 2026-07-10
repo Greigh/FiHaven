@@ -772,9 +772,15 @@ private fun PayoffRow(emoji: String, title: String, sub: String, amount: String,
             Text(title, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(sub, color = Ct.colors.muted, fontSize = 12.sp)
         }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(amount, color = amountColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            if (suffix != null) Text(suffix, color = Ct.colors.muted, fontSize = 12.sp)
+        // The subtitle wraps to two lines, so without a gutter the amount ends up
+        // butted against the last word of line one. Keep it on one line too — a
+        // wrapped "$1,290.62 /mo" reads as two figures.
+        Row(
+            modifier = Modifier.padding(start = 12.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(amount, color = amountColor, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            if (suffix != null) Text(suffix, color = Ct.colors.muted, fontSize = 12.sp, maxLines = 1)
         }
     }
 }
