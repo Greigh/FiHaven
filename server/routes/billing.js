@@ -117,6 +117,7 @@ router.post('/stripe/checkout', requireAuth, requireCsrf, async (req, res) => {
     const result = await billing.createStripeCheckout(req.user, plan, appBaseUrl(req));
     res.json(result);
   } catch (err) {
+    if (err.message === 'already-subscribed') return sendError(res, 409, 'already-subscribed');
     const known = ['unknown-plan', 'price-not-configured'];
     sendError(res, 400, known.includes(err.message) ? err.message : 'checkout-failed');
   }

@@ -113,11 +113,13 @@ private fun joinOrCreate(
             }
         }
     } else {
-        LabeledCard("FAMILY SHARING  ·  PRO") {
-            Text("Start a household and invite up to three people with FiHaven Pro. Already invited? You can join below for free.",
+        // Creating a household needs the Family plan, not solo Pro
+        // (billing.js: HOUSEHOLD_MAX_PRO is 0). Joining stays free.
+        LabeledCard("FAMILY SHARING  ·  FAMILY") {
+            Text("Start a household and invite up to three people with the Family plan. Already invited? You can join below for free.",
                 color = Ct.colors.muted, fontSize = 14.sp)
             Button(onClick = onUpgrade, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                Text("Upgrade to Pro")
+                Text("Get the Family plan")
             }
         }
     }
@@ -225,7 +227,7 @@ private fun applyDelta(list: List<SharedEntity>, e: SharedEntity): List<SharedEn
 
 private fun errMsg(e: Throwable): String = when {
     e is ApiError.Http && e.code != null -> when (e.code) {
-        "pro-required" -> "Household sharing is a Pro feature."
+        "pro-required" -> "Creating a household is part of the Family plan."
         "already-in-household" -> "You’re already in a household."
         "not-owner" -> "Only the household owner can do that."
         "invalid-email" -> "Enter a valid email address."
