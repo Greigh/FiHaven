@@ -101,7 +101,7 @@ final class HouseholdModel: ObservableObject {
 
     static func message(for code: String) -> String {
         switch code {
-        case "pro-required": return "Household sharing is a Pro feature."
+        case "pro-required": return "Creating a household is part of the Family plan."
         case "already-in-household": return "You’re already in a household."
         case "not-owner": return "Only the household owner can do that."
         case "invalid-email": return "Enter a valid email address."
@@ -168,12 +168,12 @@ struct HouseholdSettingsView: View {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
-                        ProBadge()
+                        FamilyBadge()
                         Text("Family sharing").font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
                     }
-                    Text("Start a household and invite up to three people with FiHaven Pro. Already invited? You can join below for free.")
+                    Text("Start a household and invite up to three people with the Family plan. Already invited? You can join below for free.")
                         .font(Theme.ui(14)).foregroundStyle(Theme.muted)
-                    Button("Unlock FiHaven Pro") { showPaywall = true }
+                    Button("Get the Family plan") { showPaywall = true }
                         .buttonStyle(PrimaryButtonStyle())
                 }
                 .padding(.vertical, 2)

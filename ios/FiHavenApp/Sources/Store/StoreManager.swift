@@ -23,9 +23,14 @@ final class StoreManager: ObservableObject {
 
     /// Product ids — must match App Store Connect and the server's product
     /// map (server/billing.js DEFAULT_PRODUCTS).
+    ///
+    /// `Product.products(for:)` returns only the ids that exist in App Store
+    /// Connect, so listing `familyID` before that product is approved simply
+    /// means it doesn't appear — no error, no crash.
     static let monthlyID = "app.fihaven.pro.monthly"
     static let yearlyID = "app.fihaven.pro.yearly"
-    static let productIDs = [monthlyID, yearlyID]
+    static let familyID = "app.fihaven.pro.family"
+    static let productIDs = [monthlyID, yearlyID, familyID]
 
     private let api: APIClient
     private var listener: Task<Void, Never>?
