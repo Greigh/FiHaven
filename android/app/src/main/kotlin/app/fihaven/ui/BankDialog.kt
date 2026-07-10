@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.core.model.plaidUpdateBalances
+import app.fihaven.core.model.plaidUpdatePurchases
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +37,7 @@ import com.plaid.link.OpenPlaidLink
 import com.plaid.link.Plaid
 import com.plaid.link.PlaidLinkSession
 import com.plaid.link.configuration.linkTokenConfiguration
+import com.plaid.link.result.LinkError
 import com.plaid.link.result.LinkExit
 import com.plaid.link.result.LinkSuccess
 import kotlinx.coroutines.launch
@@ -49,7 +51,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<PlaidStatus?>(null) }
-    var msg by remember { mutableStateOf<String?>(null) }
+    var msg by remember { mutableStateOf<BankMessage?>(null) }
     var busy by remember { mutableStateOf(false) }
     // Non-null while an update-mode (reconnect) Link session is open, so the
     // success callback marks the item repaired instead of exchanging a token.
@@ -69,18 +71,30 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                 pendingRepairItemId = null
                 scope.launch {
                     val ok = if (repairId != null) {
-                        msg = "Reconnecting…"
+                        msg = BankMessage.info("Reconnecting…")
                         runCatching { vm.api.plaidRepaired(repairId) }.isSuccess
                     } else {
-                        msg = "Linking…"
+                        msg = BankMessage.info("Linking…")
                         runCatching { vm.api.plaidExchange(result.publicToken) }.isSuccess
                     }
-                    msg = if (ok) (if (repairId != null) "Bank reconnected." else "Bank linked.")
-                          else "Could not finish. Please try again."
+                    msg = BankMessage.result(
+                        ok,
+                        if (repairId != null) "Bank reconnected." else "Bank linked.",
+                        "Could not finish. Please try again.",
+                    )
                     load()
                 }
             }
-            is LinkExit -> { pendingRepairItemId = null; msg = "Linking cancelled." }
+            is LinkExit -> {
+                val repairing = pendingRepairItemId != null
+                pendingRepairItemId = null
+                // `result.error` is set only when Link itself failed; a plain
+                // user close leaves it null. Don't report a failure as a cancel.
+                msg = plaidExitMessage(
+                    result.error,
+                    cancelled = if (repairing) "Reconnect cancelled." else "Linking cancelled.",
+                )
+            }
         }
     }
 
@@ -96,11 +110,14 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
 
     fun connect() {
         busy = true
-        msg = "Opening your bank…"
+        msg = BankMessage.info("Opening your bank…")
         scope.launch {
             val token = runCatching { vm.api.plaidLinkToken() }.getOrNull()
             busy = false
-            if (token == null) { msg = "Could not start linking. Please try again."; return@launch }
+            if (token == null) {
+                msg = BankMessage.error("Could not start linking. Please try again.")
+                return@launch
+            }
             msg = null
             openPlaidLink(token)
         }
@@ -110,11 +127,14 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     // add newly-available accounts after a NEW_ACCOUNTS_AVAILABLE webhook.
     fun reconnect(id: Int, accountSelection: Boolean = false) {
         busy = true
-        msg = if (accountSelection) "Opening your bank…" else "Reopening your bank…"
+        msg = BankMessage.info(if (accountSelection) "Opening your bank…" else "Reopening your bank…")
         scope.launch {
             val token = runCatching { vm.api.plaidLinkToken(id, accountSelection) }.getOrNull()
             busy = false
-            if (token == null) { msg = "Could not start reconnect. Please try again."; return@launch }
+            if (token == null) {
+                msg = BankMessage.error("Could not start reconnect. Please try again.")
+                return@launch
+            }
             msg = null
             pendingRepairItemId = id
             openPlaidLink(token)
@@ -155,11 +175,13 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                     )
                     if (s.items.isNotEmpty()) {
                         TextButton(onClick = {
-                            msg = "Refreshing balances…"
+                            msg = BankMessage.info("Refreshing balances…")
                             scope.launch {
                                 val items = runCatching { vm.api.plaidRefresh() }.getOrNull()
-                                if (items != null) { status = PlaidStatus(true, true, items); msg = "Balances updated." }
-                                else msg = "Could not refresh. Please try again."
+                                if (items != null) {
+                                    status = PlaidStatus(true, true, items)
+                                    msg = BankMessage.info("Balances updated.")
+                                } else msg = BankMessage.error("Could not refresh. Please try again.")
                             }
                         }) { Text("Refresh balances", color = Ct.colors.accent) }
 
@@ -172,11 +194,25 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                             }
                             Switch(checked = data.settings.plaidUpdateBalances, onCheckedChange = { vm.setPlaidUpdateBalances(it) })
                         }
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Let bank import my purchases", color = Ct.colors.text, fontSize = 14.sp)
+                                Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).",
+                                    color = Ct.colors.muted, fontSize = 11.sp)
+                            }
+                            Switch(checked = data.settings.plaidUpdatePurchases, onCheckedChange = { vm.setPlaidUpdatePurchases(it) })
+                        }
                     }
                 }
             }
         }
-        msg?.let { Text(it, color = Ct.colors.muted, fontSize = 13.sp) }
+        msg?.let {
+            Text(
+                it.text,
+                color = if (it.isError) Ct.colors.red else Ct.colors.muted,
+                fontSize = 13.sp,
+            )
+        }
     }
 }
 
@@ -212,4 +248,28 @@ private fun BankItemRow(item: PlaidItem, onDisconnect: () -> Unit, onReconnect: 
             }
         }
     }
+}
+
+/**
+ * Status line under the bank list. Failures read red so a real problem never
+ * looks like ordinary progress text.
+ */
+private data class BankMessage(val text: String, val isError: Boolean) {
+    companion object {
+        fun info(text: String) = BankMessage(text, isError = false)
+        fun error(text: String) = BankMessage(text, isError = true)
+        fun result(ok: Boolean, good: String, bad: String) = if (ok) info(good) else error(bad)
+    }
+}
+
+/**
+ * Plaid sets [LinkError] only when Link itself failed; a plain user close leaves
+ * it null. Reporting both as a cancellation hides real failures.
+ */
+private fun plaidExitMessage(error: LinkError?, cancelled: String): BankMessage {
+    if (error == null) return BankMessage.info(cancelled)
+    error.displayMessage?.takeIf { it.isNotBlank() }?.let { return BankMessage.error(it) }
+    return BankMessage.error(
+        error.errorMessage.takeIf { it.isNotBlank() } ?: "Bank linking failed (${error.errorCode}).",
+    )
 }

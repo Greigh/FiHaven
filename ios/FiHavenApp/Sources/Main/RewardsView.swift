@@ -8,6 +8,7 @@ struct RewardsView: View {
     @EnvironmentObject var store: AppStore
     @State private var category = "Dining"
     @State private var merchantQuery = ""
+    @State private var linkingCard: Card?
 
     private var creditCards: [Card] { store.activeCards.filter { ($0.type ?? "card") != "loan" } }
 
@@ -41,12 +42,50 @@ struct RewardsView: View {
                     if !offerSuggestions.isEmpty { offerSuggestionsPanel }
                     if !activeOffers.isEmpty { offersPanel }
                     if !feeCards.isEmpty { feePanel }
+                    if !creditCards.isEmpty { rewardsLinksPanel }
                 }
             }
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Rewards")
+        .sheet(item: $linkingCard) { card in
+            RewardsLinkSheet(card: card).environmentObject(store)
+        }
+    }
+
+    /// Per-card rewards/offers links. Mirrors the Subscriptions tab's
+    /// manage-link flow: saved on the user's own card, and optionally offered
+    /// to the shared database (which emails us — disclosed in the footer).
+    private var rewardsLinksPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Rewards & offers").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
+                Text("Where to find your offers").font(Theme.ui(17, weight: .semibold))
+            }
+            ForEach(creditCards) { card in
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("💳 \(card.name.isEmpty ? "Card" : card.name)").font(Theme.ui(14, weight: .semibold))
+                        if let raw = card.rewardsUrl, let link = URL(string: raw) {
+                            Link("Open offers ↗", destination: link)
+                                .font(Theme.ui(11)).foregroundStyle(Theme.accent)
+                        }
+                    }
+                    Spacer()
+                    Button(card.rewardsUrl == nil ? "Add rewards link" : "Change rewards link") {
+                        linkingCard = card
+                    }
+                    .font(Theme.ui(11)).foregroundStyle(Theme.accent)
+                }
+                .padding(.vertical, 4)
+            }
+            Text("Adding a rewards link emails the card name, the link, and your email address to FiHaven so we can share it with other users. Optional — see our Privacy Policy.")
+                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
     }
 
     private var empty: some View {
@@ -504,5 +543,74 @@ struct RewardsView: View {
     private func breakdown(_ e: Rewards.Ranked) -> String? {
         guard e.pointValue != 1 else { return nil }
         return "\(ratePct(e.rate).dropLast())× points · \(e.pointValue)¢/pt"
+    }
+}
+
+/// Add or change a card's rewards/offers link. Mirrors `ManageLinkSheet` on the
+/// Subscriptions tab: the URL is saved on the user's own card *and* offered to
+/// the shared database. The personal save is what matters, so a failed share is
+/// reported but never blocks it.
+private struct RewardsLinkSheet: View {
+    @EnvironmentObject var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+
+    let card: Card
+
+    @State private var url: String = ""
+    @State private var busy = false
+    @State private var message: String?
+
+    private var isValid: Bool {
+        guard let u = URL(string: url.trimmingCharacters(in: .whitespaces)),
+              let scheme = u.scheme?.lowercased(),
+              u.host?.isEmpty == false
+        else { return false }
+        return scheme == "http" || scheme == "https"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("https://…/rewards/offers", text: $url)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Rewards or offers link for \(card.name.isEmpty ? "this card" : card.name)")
+                } footer: {
+                    Text("Saved on your card. Also emails the card name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.")
+                }
+                if let message {
+                    Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
+                }
+            }
+            .navigationTitle("Rewards link")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(busy ? "Saving…" : "Save") { Task { await submit() } }
+                        .disabled(!isValid || busy)
+                }
+            }
+            .onAppear { url = card.rewardsUrl ?? "" }
+        }
+    }
+
+    private func submit() async {
+        let trimmed = url.trimmingCharacters(in: .whitespaces)
+        guard isValid else { return }
+        busy = true
+        message = nil
+
+        // 1) The user's own card — the part that must not be lost.
+        store.setCardRewardsUrl(cardId: card.id, url: trimmed)
+
+        // 2) Offer it to the shared database. Best effort.
+        let shared = await store.shareRewardsLink(name: card.name.isEmpty ? "Card" : card.name, url: trimmed)
+        busy = false
+        message = shared ? "Saved to your card and shared — thanks!" : "Saved to your card."
+        dismiss()
     }
 }
