@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -252,20 +253,32 @@ private fun CardRow(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isLoan) CTConstants.loanIcon else CTConstants.cardIcon, fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+                // Name owns the title line; issuer and the network/last-4 share the
+                // subtitle. Keeping the digits out of the title stops a long card
+                // name from squeezing them into a second wrapped line.
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(card.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        val lastDigits = card.lastDigits
-                        if (!lastDigits.isNullOrBlank()) {
-                            Text(
-                                listOfNotNull(card.network?.takeIf { it.isNotBlank() }, "•••• $lastDigits").joinToString(" "),
-                                color = Ct.colors.muted, fontSize = 11.sp, fontFamily = PlexMono,
-                            )
+                    Text(
+                        card.name, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    val issuer = card.issuer?.takeIf { it.isNotBlank() }
+                    val lastDigits = card.lastDigits?.takeIf { it.isNotBlank() }
+                    if (issuer != null || lastDigits != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (issuer != null) {
+                                Text(
+                                    issuer, color = Ct.colors.muted, fontSize = 12.sp,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                            }
+                            if (lastDigits != null) {
+                                Text(
+                                    listOfNotNull(card.network?.takeIf { it.isNotBlank() }, "•••• $lastDigits").joinToString(" "),
+                                    color = Ct.colors.muted, fontSize = 11.sp, fontFamily = PlexMono, maxLines = 1,
+                                )
+                            }
                         }
-                    }
-                    val issuer = card.issuer
-                    if (!issuer.isNullOrBlank()) {
-                        Text(issuer, color = Ct.colors.muted, fontSize = 12.sp)
                     }
                 }
                 Text(Money.fmt(card.balance), color = Ct.colors.text, fontSize = 16.sp,
@@ -439,7 +452,15 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
 
         OutlinedTextField(name, { name = it }, label = { Text(if (isLoan) "Loan Name" else "Card Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(issuer, { issuer = it }, label = { Text("Issuer / Bank") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(lastDigits, { lastDigits = it.filter(Char::isDigit).take(5) }, label = { Text("Ends in (last 4 or 5 digits)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        // Short label, detail in supportingText — "Ends in (last 4 or 5 digits)"
+        // is wider than the field and wrapped onto a second line.
+        OutlinedTextField(
+            lastDigits, { lastDigits = it.filter(Char::isDigit).take(5) },
+            label = { Text("Ends in") },
+            supportingText = { Text("Last 4 or 5 digits") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+        )
         DropdownField("Network", listOf("—", "Visa", "Mastercard", "Amex", "Discover", "Other"), network.ifBlank { "—" }) { network = if (it == "—") "" else it }
 
         money(balance, if (isLoan) "Remaining Principal" else "Statement Balance") { balance = it }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -63,20 +64,32 @@ private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String)
         ScreenHeader("More", branded = true)
         // Scrollable so a long overflow list never gets cut off, with bottom
         // padding so the footer clears the tab bar.
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+        // Grouped like iOS's MoreView: the overflow tabs are one card, and
+        // account-level destinations (Pro, Settings) are their own — a single
+        // flat list gave "Net Worth" and "Settings" the same weight.
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (overflow.isNotEmpty()) {
+                CtCard(padding = 0) {
+                    Column {
+                        overflow.forEachIndexed { i, t ->
+                            if (i > 0) HorizontalDivider(color = Ct.colors.border)
+                            item(t.label, t.icon) { onOpen(t.id) }
+                        }
+                    }
+                }
+            }
             CtCard(padding = 0) {
                 Column {
-                    overflow.forEach { t ->
-                        item(t.label, t.icon) { onOpen(t.id) }
-                        HorizontalDivider(color = Ct.colors.border)
-                    }
                     item("FiHaven Pro", Icons.Filled.WorkspacePremium) { onOpen("pro") }
                     HorizontalDivider(color = Ct.colors.border)
                     item("Settings", Icons.Filled.Settings) { onOpen("settings") }
                 }
             }
             MadeWithLove(
-                Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
+                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
             )
         }
     }
