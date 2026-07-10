@@ -62,6 +62,11 @@ export default defineConfig({
       },
       {
         extends: true,
+        // Resolve Svelte's *client* build so a `.client.integration` test can
+        // `mount()` a real component. Without this, `svelte` resolves to
+        // index-server.js and mount() throws lifecycle_function_unavailable.
+        // Harmless for the server files below: they never import svelte.
+        resolve: { conditions: ['browser'] },
         test: {
           name: 'integration',
           // jsdom by default (client.integration files import storage.svelte.js,

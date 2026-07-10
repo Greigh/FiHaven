@@ -65,6 +65,52 @@
     return `${daysLeft} days left`;
   };
 
+  /* ── Rewards-link submission ─────────────────────────────
+     Mirrors SubscriptionsPanel's manage-link flow: users can save a
+     rewards/offers URL onto their own card AND offer it to the shared
+     database (emailed to us, along with their address — disclosed below). */
+  let linkCards = $derived(cards.filter((c) => !c.archived && c.type !== 'loan'));
+  let openLink = $state(null);   // id of the card whose link form is open
+  let linkVal = $state('');
+  let linkBusy = $state(false);
+  let linkMsg = $state('');
+
+  function csrf() {
+    return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
+  }
+
+  function startLink(card) {
+    openLink = openLink === card.id ? null : card.id;
+    linkVal = card.rewardsUrl || '';
+    linkMsg = '';
+  }
+
+  async function submitLink(card) {
+    const url = linkVal.trim();
+    if (!/^https?:\/\/.+/i.test(url)) { linkMsg = 'Enter a full https:// link.'; return; }
+    linkBusy = true; linkMsg = '';
+
+    // 1) Save on the user's own card — the part that must not be lost.
+    const c = cards.find((x) => String(x.id) === String(card.id));
+    if (c) { c.rewardsUrl = url; save('fh_cards', cards); }
+
+    // 2) Offer it to the shared database (emails us; non-blocking on failure).
+    let shared = false;
+    try {
+      const r = await fetch('/api/feedback/rewards-link', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+        body: JSON.stringify({ name: card.name || 'Card', url }),
+      });
+      shared = r.ok;
+    } catch (_) { shared = false; }
+
+    linkBusy = false;
+    linkMsg = shared ? 'Saved to your card and shared — thanks!' : 'Saved to your card.';
+    setTimeout(() => { openLink = null; linkMsg = ''; }, 1600);
+  }
+
   // ── Annual-fee check ─────────────────────────────────────────────
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const VERDICT = {
@@ -317,5 +363,52 @@
         <span class="fee-verdict {VERDICT[a.verdict].cls}">{VERDICT[a.verdict].label}</span>
       </div>
     {/each}
+  </div>
+{/if}
+
+{#if linkCards.length > 0}
+  <div class="card rw-links-panel" style="overflow:hidden;margin-top:16px;">
+    <div class="rw-head">
+      <div>
+        <div class="rw-kicker">Rewards &amp; offers</div>
+        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Where to find your offers</h3>
+      </div>
+    </div>
+    {#each linkCards as c (c.id)}
+      <div class="rw-link-row">
+        <div class="rw-link-name">💳 {c.name || 'Card'}</div>
+        <div class="rw-link-actions">
+          {#if c.rewardsUrl}
+            <a class="rw-link-out" href={c.rewardsUrl} target="_blank" rel="noopener noreferrer">Open offers ↗</a>
+          {/if}
+          <button type="button" class="rw-linkbtn" onclick={() => startLink(c)}>
+            {c.rewardsUrl ? 'Change rewards link' : 'Add rewards link'}
+          </button>
+        </div>
+        {#if openLink === c.id}
+          <div class="rw-linkform">
+            <input
+              type="url"
+              placeholder="https://…/rewards/offers"
+              bind:value={linkVal}
+              onkeydown={(e) => { if (e.key === 'Enter') submitLink(c); }}
+            />
+            <button class="btn btn-primary btn-xs" disabled={linkBusy} onclick={() => submitLink(c)}>
+              {linkBusy ? 'Saving…' : 'Save & send'}
+            </button>
+            {#if linkMsg}<span class="rw-linkmsg">{linkMsg}</span>{/if}
+            <div class="rw-linkhint">
+              Saves to your card, then emails the card name, the link, and your email address to
+              FiHaven so we can add it for everyone.
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/each}
+    <p class="rw-disclosure">
+      Adding a rewards link emails the card name, the link, and your email address to FiHaven so we
+      can share it with other users. It is optional — see our
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+    </p>
   </div>
 {/if}
