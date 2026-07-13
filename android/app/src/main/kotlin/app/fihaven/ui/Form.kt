@@ -29,7 +29,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -132,7 +131,10 @@ fun FormDialog(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) { content() }
-                HorizontalDivider(color = Ct.colors.border)
+                // No divider here: it spanned the full dialog width while every
+                // field is inset 16dp, so on a short form it read as a stray
+                // full-bleed line floating above Save. The Surface + the action
+                // row's own padding already separate content from the actions.
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (onDelete != null) {
                         TextButton(

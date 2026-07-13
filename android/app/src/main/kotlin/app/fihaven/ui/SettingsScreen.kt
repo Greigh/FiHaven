@@ -308,7 +308,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         "On-device reminders work offline. Push needs the iOS or Android app — the web can't register a device token.",
                         color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                 }
             }
@@ -335,7 +335,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         "These apply to both on-device and email reminders, and fire in your time zone.",
                         color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                 }
             }
@@ -381,7 +381,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         "Bills and cards flagged Autopay are recorded paid on their due date — on this device and on the server at the chosen hour. If a real autopay fails, delete the auto-marked payment.",
                         color = Ct.colors.muted, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
                 }
             }

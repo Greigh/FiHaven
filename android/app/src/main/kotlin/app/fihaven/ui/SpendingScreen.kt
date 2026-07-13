@@ -43,6 +43,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val data by vm.data.collectAsStateWithLifecycle()
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     var addingTx by remember { mutableStateOf(false) }
+    var editingTx by remember { mutableStateOf<app.fihaven.core.model.SpendTransaction?>(null) }
     var editingBudgets by remember { mutableStateOf(false) }
     var dismissedDupes by remember { mutableStateOf(setOf<String>()) }
 
@@ -182,7 +183,10 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 }
             }
             items(recentTx, key = { "tx-${it.id}" }) { tx ->
-                CtCard(padding = 12) {
+                // Manual rows are tappable to edit; bank rows are managed via
+                // Settings, so they stay read-only (just a 🔗 marker).
+                val rowMod = if (!tx.isBank) Modifier.clickable { editingTx = tx } else Modifier
+                CtCard(padding = 12, modifier = rowMod) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
                         Column(Modifier.weight(1f)) {
@@ -198,6 +202,9 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                         Text(Money.fmt(tx.amount), color = Ct.colors.text, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, fontFamily = PlexMono)
                         if (!tx.isBank) {
+                            // Explicit edit affordance in addition to the tappable row.
+                            Text("Edit", color = Ct.colors.accent, fontSize = 13.sp,
+                                modifier = Modifier.padding(start = 12.dp).clickable { editingTx = tx })
                             Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
                                 modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
                         } else {
@@ -211,6 +218,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     }
 
     if (addingTx) TransactionEditorDialog(vm) { addingTx = false }
+    editingTx?.let { tx -> TransactionEditorDialog(vm, edit = tx) { editingTx = null } }
     if (editingBudgets) CategoryBudgetsDialog(vm, budgets) { editingBudgets = false }
 }
 
