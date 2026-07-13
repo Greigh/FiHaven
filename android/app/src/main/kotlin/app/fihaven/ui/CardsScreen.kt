@@ -132,7 +132,10 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!isLoanView && creditCards.isNotEmpty()) {
-                item { CardsSummaryCard(creditCards) }
+                // "Pay this month" = what's still owed this period across all cards,
+                // per the user's paid-goal policy (mirrors each card's Pay button).
+                val payThisMonth = creditCards.sumOf { vm.remainingFor("card", it.id.toString()) }
+                item { CardsSummaryCard(creditCards, payThisMonth) }
                 item { CardsPayoffCard(creditCards, zone) }
             }
             if (cards.isEmpty()) {
@@ -657,38 +660,34 @@ private fun accountIcon(t: String) = when (t) {
 }
 
 @Composable
-private fun CardsSummaryCard(cards: List<Card>) {
+private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
     val totalBalance = cards.sumOf { it.balance }
     val totalLimit = cards.sumOf { it.limit }
     val util = if (totalLimit > 0) min(1.0, totalBalance / totalLimit) else 0.0
+    val utilPct = (util * 100).toInt()
     CtCard(branded = true) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
-                    FieldLabel("Total balance")
-                    Text(
-                        Money.fmt(totalBalance),
-                        color = Ct.colors.text,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = PlexMono,
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Credit", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text(Money.fmt(totalLimit), color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Utilization", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text(
-                            "${(util * 100).toInt()}%",
-                            color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
-                            fontSize = 13.sp,
-                            fontFamily = PlexMono,
-                        )
-                    }
-                }
+            // Lead with the one number a user acts on: what to pay this month.
+            // Balance / utilization / count are the supporting context below.
+            FieldLabel(if (payThisMonth > Schedule.PAID_EPSILON) "Pay this month" else "All caught up")
+            Text(
+                if (payThisMonth > Schedule.PAID_EPSILON) Money.fmt(payThisMonth) else "$0.00",
+                color = if (payThisMonth > Schedule.PAID_EPSILON) Ct.colors.text else Ct.colors.green,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = PlexMono,
+            )
+            // Secondary context line: balance · utilization · card count.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Balance ${Money.fmt(totalBalance)}", color = Ct.colors.muted, fontSize = 12.sp)
+                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+                Text(
+                    "Util $utilPct%",
+                    color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
+                    fontSize = 12.sp,
+                )
+                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+                Text("${cards.size} card${if (cards.size == 1) "" else "s"}", color = Ct.colors.muted, fontSize = 12.sp)
             }
             if (totalLimit > 0) {
                 LinearProgressIndicator(

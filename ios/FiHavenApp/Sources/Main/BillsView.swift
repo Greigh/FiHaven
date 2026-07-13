@@ -55,8 +55,44 @@ struct BillsView: View {
         return list
     }
 
+    // ── Bills summary (due this period / left to pay) ────────────────
+    // Mirrors the Cards summary and the dashboard's "left to pay" framing.
+    private var billsSummaryHeader: some View {
+        let due = store.activeBills.reduce(0.0) { $0 + store.goalAmount(type: "bill", refId: String($1.id)) }
+        let left = store.activeBills.reduce(0.0) { $0 + store.remaining(type: "bill", refId: String($1.id)) }
+        let paid = max(0, due - left)
+        let progress = due > 0 ? min(1, paid / due) : 0
+        let caughtUp = left <= 0.005
+
+        return VStack(alignment: .leading, spacing: 10) {
+            FieldLabel(text: caughtUp ? "All caught up" : "Left to pay")
+            Text(caughtUp ? "$0.00" : Money.fmt(left))
+                .font(Theme.mono(30, weight: .bold))
+                .foregroundStyle(caughtUp ? Theme.green : Theme.text)
+                .minimumScaleFactor(0.6).lineLimit(1)
+            HStack(spacing: 6) {
+                Text("\(Money.fmt(due)) due this period").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("\(store.activeBills.count) bill\(store.activeBills.count == 1 ? "" : "s")")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+            }
+            if due > 0 {
+                ProgressView(value: progress)
+                    .tint(Theme.green)
+                    .accessibilityLabel("Bills paid this period")
+                    .accessibilityValue("\(Int(progress * 100)) percent")
+            }
+        }
+        .ctCard(branded: true)
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
+    }
+
     var body: some View {
         List {
+            if !store.activeBills.isEmpty {
+                billsSummaryHeader
+            }
             if store.sortedBills.isEmpty {
                 HStack {
                     Spacer()

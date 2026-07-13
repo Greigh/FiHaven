@@ -21,6 +21,12 @@
 
   const mk = currentPeriodKey();
 
+  /* ── Summary: due this period / left to pay (mirrors the dashboard) ── */
+  let activeBills   = $derived(bills.filter((b) => !b.archived));
+  let dueThisPeriod = $derived(activeBills.reduce((s, b) => s + goalAmountFor('bill', String(b.id), mk), 0));
+  let leftToPay     = $derived(activeBills.reduce((s, b) => s + remainingForItem('bill', String(b.id), mk), 0));
+  let billsProgress = $derived(dueThisPeriod > 0 ? Math.min(100, Math.round((Math.max(0, dueThisPeriod - leftToPay) / dueThisPeriod) * 100)) : 0);
+
   // Resolve the "charged to" card name for a bill, if it still exists.
   function cardNameFor(b) {
     if (b.cardId == null) return null;
@@ -99,6 +105,23 @@
     return arr;
   });
 </script>
+
+{#if activeBills.length > 0}
+  <div class="cards-summary">
+    <div class="cards-summary-tile cards-summary-tile-lead">
+      <div class="cards-summary-label">{leftToPay > 0.005 ? 'Left to pay' : 'All caught up'}</div>
+      <div class="cards-summary-value" style="color:{leftToPay > 0.005 ? 'var(--text)' : 'var(--green)'};">{fmt(leftToPay > 0.005 ? leftToPay : 0)}</div>
+      <div class="cards-summary-bar">
+        <div class="cards-summary-bar-fill" style="width:{billsProgress}%;background:var(--green);"></div>
+      </div>
+    </div>
+    <div class="cards-summary-tile">
+      <div class="cards-summary-label">Due this period</div>
+      <div class="cards-summary-value">{fmt(dueThisPeriod)}</div>
+      <div class="cards-summary-sub">across {activeBills.length} bill{activeBills.length === 1 ? '' : 's'}</div>
+    </div>
+  </div>
+{/if}
 
 {#if bills.length > 0}
   <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />

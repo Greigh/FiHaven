@@ -51,26 +51,49 @@
     return b > 0 && (spentByCat[c] || 0) > b;
   }
 
-  // ── Add-transaction form ───────────────────────────────────
+  // ── Add / edit transaction (the same inline form does both) ─
   let txAmount = $state('');
   let txCategory = $state('Groceries');
   let txMerchant = $state('');
   let txDate = $state(todayISO());
+  // Non-null while editing an existing manual transaction.
+  let editingId = $state(null);
 
-  function addTx() {
+  function saveTx() {
     const amt = parseFloat(txAmount) || 0;
     if (amt <= 0) return;
-    transactions.push({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      date: txDate || todayISO(), amount: amt, category: txCategory,
-      merchant: txMerchant.trim(), note: '',
-    });
+    if (editingId) {
+      const t = transactions.find((x) => x.id === editingId);
+      if (t) {
+        t.amount = amt; t.category = txCategory;
+        t.merchant = txMerchant.trim(); t.date = txDate || todayISO();
+      }
+      editingId = null;
+    } else {
+      transactions.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        date: txDate || todayISO(), amount: amt, category: txCategory,
+        merchant: txMerchant.trim(), note: '',
+      });
+    }
     save('fh_transactions', transactions);
-    txAmount = ''; txMerchant = '';
+    txAmount = ''; txMerchant = ''; txDate = todayISO();
+  }
+  function startEdit(t) {
+    editingId = t.id;
+    txAmount = String(t.amount);
+    txCategory = t.category;
+    txMerchant = t.merchant || '';
+    txDate = t.date || todayISO();
+  }
+  function cancelEdit() {
+    editingId = null;
+    txAmount = ''; txMerchant = ''; txDate = todayISO();
   }
   function removeTx(id) {
     const i = transactions.findIndex((t) => t.id === id);
     if (i >= 0) transactions.splice(i, 1);
+    if (editingId === id) cancelEdit();
     save('fh_transactions', transactions);
   }
 
@@ -103,18 +126,19 @@
     </div>
   </header>
 
-  <!-- Add a transaction -->
+  <!-- Add / edit a transaction (same form) -->
   <div class="spend-add">
     <div class="spend-add-amt"><span>$</span>
       <input type="number" step="1" placeholder="0.00" bind:value={txAmount}
-        onkeydown={(e) => { if (e.key === 'Enter') addTx(); }} />
+        onkeydown={(e) => { if (e.key === 'Enter') saveTx(); }} />
     </div>
     <select bind:value={txCategory}>
       {#each CATS as c (c)}<option value={c}>{ICON[c]} {c}</option>{/each}
     </select>
     <input class="spend-add-merchant" type="text" placeholder="Merchant (optional)" bind:value={txMerchant} />
     <input class="spend-add-date" type="date" bind:value={txDate} />
-    <button class="btn btn-primary btn-sm" onclick={addTx}>Add</button>
+    <button class="btn btn-primary btn-sm" onclick={saveTx}>{editingId ? 'Save' : 'Add'}</button>
+    {#if editingId}<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>Cancel</button>{/if}
   </div>
 
   <!-- Per-category budget vs actual (Pro) -->
@@ -207,6 +231,7 @@
           {#if t.source === 'plaid'}
             <span class="btn btn-ghost btn-xs" title="Managed by your bank link — remove the connection in Settings" style="opacity:.4;cursor:default;">🔗</span>
           {:else}
+            <button class="btn btn-ghost btn-xs" title="Edit" onclick={() => startEdit(t)}>Edit</button>
             <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
           {/if}
         </div>
