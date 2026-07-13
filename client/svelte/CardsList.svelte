@@ -15,7 +15,7 @@
     monthsUntil, daysUntilDate, promoNeeded,
     paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
-  import { askDelete, openPayModal, editCard } from '../js/modals.js';
+  import { askDelete, openPayModal, editCard, skipMonth, unskipMonth } from '../js/modals.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
 
@@ -335,7 +335,12 @@
           </div>
 
           <div class="card-row-actions">
-            {#if state === 'full'}
+            {#if state === 'skipped'}
+              <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
+              <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('card', String(c.id))}>
+                Undo skip
+              </button>
+            {:else if state === 'full'}
               <span class="badge badge-green">✓ Paid {fmt(paidAmount('card', String(c.id), mk))}</span>
             {:else if state === 'partial'}
               <span class="badge badge-orange" title="{fmt(remainingForItem('card', String(c.id), mk))} still due">
@@ -345,10 +350,20 @@
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 Pay {fmt(remainingForItem('card', String(c.id), mk))} more
               </button>
+              <button class="btn btn-ghost btn-sm"
+                title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
+                onclick={() => skipMonth('card', String(c.id), c.name)}>
+                Skip
+              </button>
             {:else}
               <button class="btn btn-green btn-sm"
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 ✓ Pay
+              </button>
+              <button class="btn btn-ghost btn-sm"
+                title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
+                onclick={() => skipMonth('card', String(c.id), c.name)}>
+                Skip
               </button>
             {/if}
             <button class="btn btn-ghost btn-sm" onclick={() => editCard(i)} title="Edit card">Edit</button>

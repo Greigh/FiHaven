@@ -676,7 +676,12 @@ private fun dueLabel(item: UpcomingItem, paid: Boolean): String {
         item.days == 1 -> "Due tomorrow"
         else -> "Due in ${item.days} days"
     }
-    return item.nextDue?.let { "$base · ${shortDate.format(it)}" } ?: base
+    // Derive the date from `days` rather than reusing `nextDue`. `nextDue` is the
+    // next *forward* occurrence, so an overdue item paired it with next period's
+    // date — a Jul 12 due date read as "Overdue · Aug 12".
+    if (item.nextDue == null) return base
+    val due = java.time.LocalDate.now().plusDays(item.days.toLong())
+    return "$base · ${shortDate.format(due)}"
 }
 
 // ── Monthly rollover ────────────────────────────────────────────────
