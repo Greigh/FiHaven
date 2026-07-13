@@ -87,6 +87,19 @@ extension AppStore {
         }
     }
 
+    /// Edit a manual transaction, preserving its id and provenance
+    /// (a bank row's source/plaidId/pending stay intact).
+    func updateTransaction(id: String, amount: Double, category: String, merchant: String, date: Date) {
+        let iso = isoDay(date)
+        mutate { data in
+            guard let i = data.transactions.firstIndex(where: { $0.id == id }) else { return }
+            data.transactions[i].amount = amount
+            data.transactions[i].category = category
+            data.transactions[i].merchant = merchant
+            data.transactions[i].date = iso
+        }
+    }
+
     func deleteTransaction(_ tx: SpendTransaction) {
         mutate { $0.transactions.removeAll { $0.id == tx.id } }
     }

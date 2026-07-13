@@ -1708,6 +1708,15 @@ main {
   flex-direction: column;
   gap: 4px;
 }
+/* The "Pay this month" tile leads the summary — accent border + a larger
+   value so the actionable number reads first. */
+.cards-summary-tile-lead {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.cards-summary-tile-lead .cards-summary-value {
+  font-size: clamp(1.7rem, 2.3vw, 2.1rem);
+}
 .cards-summary-label {
   font-size: 10px; font-weight: 800;
   letter-spacing: .12em; text-transform: uppercase;
