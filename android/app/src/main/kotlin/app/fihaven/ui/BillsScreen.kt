@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,6 +119,12 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (data.activeBills.isNotEmpty()) {
+                // Due this period / left to pay, mirroring the dashboard framing.
+                val due = data.activeBills.sumOf { vm.goalAmount("bill", it.id.toString()) }
+                val left = data.activeBills.sumOf { vm.remainingFor("bill", it.id.toString()) }
+                item { BillsSummaryCard(due = due, left = left, count = data.activeBills.size) }
+            }
             if (bills.isEmpty()) {
                 item { CtCard { Text("No bills yet. Tap + to add one.", color = Ct.colors.muted) } }
             }
@@ -408,3 +415,37 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     }
 }
 
+
+// Bills total for this period, mirroring the Cards summary and the dashboard's
+// "left to pay" framing: what's due, how much is still unpaid, and progress.
+@Composable
+private fun BillsSummaryCard(due: Double, left: Double, count: Int) {
+    val paid = (due - left).coerceAtLeast(0.0)
+    val progress = if (due > 0) (paid / due).coerceIn(0.0, 1.0) else 0.0
+    val allPaid = left <= app.fihaven.core.logic.Schedule.PAID_EPSILON
+    CtCard(branded = true) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FieldLabel(if (allPaid) "All caught up" else "Left to pay")
+            Text(
+                if (allPaid) "$0.00" else Money.fmt(left),
+                color = if (allPaid) Ct.colors.green else Ct.colors.text,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = PlexMono,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${Money.fmt(due)} due this period", color = Ct.colors.muted, fontSize = 12.sp)
+                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+                Text("$count bill${if (count == 1) "" else "s"}", color = Ct.colors.muted, fontSize = 12.sp)
+            }
+            if (due > 0) {
+                LinearProgressIndicator(
+                    progress = { progress.toFloat() },
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                    color = Ct.colors.green,
+                    trackColor = Ct.colors.border,
+                )
+            }
+        }
+    }
+}
