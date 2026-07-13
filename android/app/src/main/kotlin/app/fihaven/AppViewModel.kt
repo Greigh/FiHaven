@@ -727,6 +727,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun shareRewardsLink(name: String, url: String): Boolean =
         runCatching { api.shareRewardsLink(name, url) }.isSuccess
 
+    /** Correct one reward rate on a card. A null [category] means the base rate.
+     * A category set to 0 is removed so it falls back to the base rate rather
+     * than claiming a 0% bonus. */
+    fun setCardRewardRate(cardId: String, category: String?, rate: Double) = mutate { d ->
+        d.copy(cards = d.cards.map { c ->
+            if (c.id != cardId) c
+            else if (category == null) c.copy(rewardBase = rate)
+            else c.copy(
+                rewardCategories = c.rewardCategories.toMutableMap().apply {
+                    if (rate > 0) put(category, rate) else remove(category)
+                },
+            )
+        })
+    }
+
+    /** Report a wrong reward rate so we can fix the shared preset. Best effort —
+     * the user's own card is corrected regardless. */
+    suspend fun reportRewardRate(
+        card: String,
+        issuer: String,
+        category: String,
+        ourRate: Double?,
+        correctRate: Double,
+        note: String,
+    ): Boolean = runCatching {
+        api.reportRewardRate(card, issuer, category, ourRate, correctRate, note)
+    }.isSuccess
+
     // ── Archive (soft delete) ─────────────────────────────────────────
     fun archiveBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = true) else b }) }
     fun restoreBill(bill: Bill) = mutate { it.copy(bills = it.bills.map { b -> if (b.id == bill.id) b.copy(archived = false) else b }) }
