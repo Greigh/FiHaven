@@ -206,41 +206,27 @@ struct CardsView: View {
         let totalBalance = baseCards.reduce(0.0) { $0 + $1.balance }
         let totalLimit = baseCards.reduce(0.0) { $0 + $1.limit }
         let util = totalLimit > 0 ? totalBalance / totalLimit : 0.0
+        let utilPct = Int(util * 100)
+        let high = util > 0.3
+        // "Pay this month" = what's still owed this period across all cards, per
+        // the user's paid-goal policy (mirrors each card's Pay button).
+        let payThisMonth = baseCards.reduce(0.0) { $0 + store.remaining(type: "card", refId: $1.id) }
+        let caughtUp = payThisMonth <= 0.005
 
-        return VStack(spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    FieldLabel(text: "Total balance")
-                    Text(Money.fmt(totalBalance))
-                        .font(Theme.mono(26, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                        .minimumScaleFactor(0.6).lineLimit(1)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text("Credit").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        Text(Money.fmt(totalLimit)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.text)
-                    }
-                    HStack(spacing: 6) {
-                        Text("Utilization").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        let utilPct = Int(util * 100)
-                        let high = util > 0.3
-                        HStack(spacing: 4) {
-                            if high {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(Theme.red)
-                            }
-                            Text("\(utilPct)%")
-                                .font(Theme.mono(13, weight: .medium))
-                                .foregroundStyle(Theme.text)
-                            Text(high ? "High" : "OK")
-                                .font(Theme.ui(10, weight: .medium))
-                                .foregroundStyle(high ? Theme.red : Theme.muted)
-                        }
-                    }
-                }
+        return VStack(alignment: .leading, spacing: 10) {
+            // Lead with the one number a user acts on.
+            FieldLabel(text: caughtUp ? "All caught up" : "Pay this month")
+            Text(caughtUp ? "$0.00" : Money.fmt(payThisMonth))
+                .font(Theme.mono(30, weight: .bold))
+                .foregroundStyle(caughtUp ? Theme.green : Theme.text)
+                .minimumScaleFactor(0.6).lineLimit(1)
+            // Secondary context: balance · utilization · card count.
+            HStack(spacing: 6) {
+                Text("Balance \(Money.fmt(totalBalance))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("Util \(utilPct)%").font(Theme.ui(12)).foregroundStyle(high ? Theme.red : Theme.green)
+                Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text("\(baseCards.count) card\(baseCards.count == 1 ? "" : "s")").font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
             if totalLimit > 0 {
                 ProgressView(value: min(1, util))

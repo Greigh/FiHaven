@@ -130,6 +130,10 @@
   let totalBalance = $derived(baseCards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
   let totalLimit   = $derived(baseCards.reduce((s, c) => s + (c.type === 'loan' ? 0 : (parseFloat(c.limit) || 0)), 0));
   let totalMin     = $derived(baseCards.reduce((s, c) => s + (parseFloat(c.minPayment) || 0), 0));
+  // "Pay this month" = what's still owed this period across all cards, per the
+  // user's paid-goal policy (mirrors each card's Pay action). Directly answers
+  // "how much do I pay?".
+  let payThisMonth = $derived(baseCards.reduce((s, c) => s + remainingForItem('card', String(c.id), currentPeriodKey()), 0));
   let overallUtil  = $derived(totalLimit > 0 ? Math.round((baseCards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
   let promoCount   = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
 
@@ -206,6 +210,11 @@
     </div>
   {:else}
   <div class="cards-summary">
+    <div class="cards-summary-tile cards-summary-tile-lead">
+      <div class="cards-summary-label">{payThisMonth > 0.005 ? 'Pay this month' : 'All caught up'}</div>
+      <div class="cards-summary-value" style="color:{payThisMonth > 0.005 ? 'var(--text)' : 'var(--green)'};">{payThisMonth > 0.005 ? fmt(payThisMonth) : fmt(0)}</div>
+      <div class="cards-summary-sub">what you still owe this period</div>
+    </div>
     <div class="cards-summary-tile">
       <div class="cards-summary-label">Total balance</div>
       <div class="cards-summary-value" style="color:{totalBalance > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(totalBalance)}</div>

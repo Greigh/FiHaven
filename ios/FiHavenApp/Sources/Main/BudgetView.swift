@@ -538,6 +538,10 @@ struct GoalEditorView: View {
 struct TransactionEditorView: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
+
+    /// nil = add a new transaction; non-nil = edit that one.
+    var edit: SpendTransaction?
+
     @State private var amount: Double = 0
     @State private var category = "Groceries"
     @State private var merchant = ""
@@ -556,22 +560,49 @@ struct TransactionEditorView: View {
                 }
                 TextField("Merchant (optional)", text: $merchant)
                 DatePicker("Date", selection: $date, displayedComponents: .date)
+                if let edit {
+                    Section {
+                        Button(role: .destructive) {
+                            store.deleteTransaction(edit); dismiss()
+                        } label: { Text("Delete transaction") }
+                    }
+                }
             }
-            .navigationTitle("Add transaction")
+            .navigationTitle(edit == nil ? "Add transaction" : "Edit transaction")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        store.addTransaction(amount: amount, category: category,
-                                             merchant: merchant.trimmingCharacters(in: .whitespaces), date: date)
+                    Button(edit == nil ? "Add" : "Save") {
+                        let m = merchant.trimmingCharacters(in: .whitespaces)
+                        if let edit {
+                            store.updateTransaction(id: edit.id, amount: amount, category: category, merchant: m, date: date)
+                        } else {
+                            store.addTransaction(amount: amount, category: category, merchant: m, date: date)
+                        }
                         dismiss()
                     }
                     .disabled(amount <= 0)
-                    .accessibilityHint(amount <= 0 ? "Enter an amount greater than zero" : "Adds this transaction")
+                    .accessibilityHint(amount <= 0 ? "Enter an amount greater than zero" : "Saves this transaction")
+                }
+            }
+            .onAppear {
+                if let edit {
+                    amount = edit.amount
+                    category = edit.category
+                    merchant = edit.merchant
+                    date = Self.parseDay(edit.date) ?? Date()
                 }
             }
         }
+    }
+
+    /// Parse a "YYYY-MM-DD" day string to a Date (local noon avoids TZ drift).
+    private static func parseDay(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone.current
+        return f.date(from: s)
     }
 }
 

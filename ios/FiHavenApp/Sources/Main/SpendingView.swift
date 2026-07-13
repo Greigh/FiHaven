@@ -6,6 +6,7 @@ struct SpendingView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var billing: StoreManager
     @State private var addingTx = false
+    @State private var editingTx: SpendTransaction?
     @State private var editingBudgets = false
     @State private var dismissedDupes: Set<String> = []
 
@@ -125,6 +126,10 @@ struct SpendingView: View {
                                 Spacer()
                                 Text(Money.fmt(tx.amount)).font(Theme.mono(13)).foregroundStyle(Theme.text)
                                 if !tx.isBank {
+                                    Button("Edit") { editingTx = tx }
+                                        .font(Theme.ui(13)).foregroundStyle(Theme.accent)
+                                        .buttonStyle(.plain)
+                                        .accessibilityIconButton("Edit transaction")
                                     Button { store.deleteTransaction(tx) } label: {
                                         Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
                                     }
@@ -135,6 +140,8 @@ struct SpendingView: View {
                                         .accessibilityLabel("Linked bank transaction")
                                 }
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture { if !tx.isBank { editingTx = tx } }
                             .padding(.vertical, 7)
                         }
                     }
@@ -149,6 +156,7 @@ struct SpendingView: View {
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Spending")
         .sheet(isPresented: $addingTx) { TransactionEditorView() }
+        .sheet(item: $editingTx) { tx in TransactionEditorView(edit: tx) }
         .sheet(isPresented: $editingBudgets) { CategoryBudgetsView() }
     }
 
