@@ -398,10 +398,14 @@ private struct UpcomingRow: View {
         case 1: when = "Due tomorrow"
         default: when = "Due in \(item.days) days"
         }
-        if let next = item.nextDue {
-            return "\(when) · \(Self.short(next, tz: tz))"
-        }
-        return when
+        // Derive the date from `days` rather than reusing `nextDue`. `nextDue` is
+        // the next *forward* occurrence, so an overdue item paired it with next
+        // period's date — a Jul 12 due date read as "Overdue · Aug 12".
+        guard item.nextDue != nil,
+              let due = DateLogic.calendar(tz: tz)
+                  .date(byAdding: .day, value: item.days, to: DateLogic.today(tz: tz))
+        else { return when }
+        return "\(when) · \(Self.short(due, tz: tz))"
     }
 
     private static func short(_ date: Date, tz: TimeZone) -> String {

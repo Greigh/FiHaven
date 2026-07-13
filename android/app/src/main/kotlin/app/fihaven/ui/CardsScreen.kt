@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -79,6 +80,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     var editing by remember { mutableStateOf<Card?>(null) }
     var creating by remember { mutableStateOf(false) }
     var paying by remember { mutableStateOf<Card?>(null) }
+    var skipConfirm by remember { mutableStateOf<Pair<Card, String>?>(null) }
     var sortKey by remember { mutableStateOf("due") }
     var showFilters by remember { mutableStateOf(false) }
     var fBalance by remember { mutableStateOf(false) }
@@ -116,6 +118,14 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         }
     }
     val filterCount = listOf(fBalance, fPromo, fOverdue).count { it }
+
+    // Skipping a card you still owe the minimum on can mean a late fee or extra
+    // interest, so confirm first when there's a warning (mirrors the dashboard).
+    val requestSkip: (Card) -> Unit = { c ->
+        val warning = vm.cardSkipWarning(c.id.toString(), c.name)
+        if (warning != null) skipConfirm = c to warning
+        else vm.skipMonth("card", c.id.toString(), c.name)
+    }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true }, branded = true)
@@ -201,8 +211,11 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
                         state = vm.paidState("card", card.id.toString()),
                         paidSoFar = vm.paidAmountFor("card", card.id.toString()),
                         goal = vm.goalAmount("card", card.id.toString()),
+                        skipped = vm.isSkipped("card", card.id.toString()),
                         onPay = { paying = card },
                         onEdit = { editing = card },
+                        onSkip = { requestSkip(card) },
+                        onUnskip = { vm.unskip("card", card.id.toString()) },
                     )
                 }
             }
@@ -225,6 +238,24 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     editing?.let { CardEditorDialog(it, vm, onDismiss = { editing = null }) }
     paying?.let { PayDialog(vm, "card", it.id.toString(), it.name) { paying = null } }
 
+    skipConfirm?.let { (c, warning) ->
+        AlertDialog(
+            onDismissRequest = { skipConfirm = null },
+            title = { Text("Skip this month?") },
+            text = { Text(warning) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.skipMonth("card", c.id.toString(), c.name)
+                    skipConfirm = null
+                }) { Text("Skip anyway", color = Ct.colors.red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { skipConfirm = null }) { Text("Cancel", color = Ct.colors.muted) }
+            },
+            containerColor = Ct.colors.surface,
+        )
+    }
+
     if (showFilters) {
         FormDialog(if (isLoanView) "Filter loans" else "Filter cards", saveEnabled = true,
             onSave = { showFilters = false }, onDismiss = { showFilters = false }) {
@@ -246,8 +277,11 @@ private fun CardRow(
     state: PaidState,
     paidSoFar: Double,
     goal: Double,
+    skipped: Boolean = false,
     onPay: () -> Unit,
     onEdit: () -> Unit,
+    onSkip: () -> Unit = {},
+    onUnskip: () -> Unit = {},
 ) {
     val isLoan = card.type == "loan"
     val util = if (card.limit > 0) min(1.0, card.balance / card.limit) else 0.0
@@ -321,23 +355,52 @@ private fun CardRow(
                 }
             }
             HorizontalDivider(color = Ct.colors.border, modifier = Modifier.padding(vertical = 8.dp))
+            // Lead the footer with the actual date the payment lands on — the row
+            // used to say only "Not paid this month", which never told you *when*.
+            // The date is derived from the same countdown that picks the colour, so
+            // the two can't disagree; a settled card rolls to its next period.
+            val settled = skipped || state == PaidState.FULL
+            val daysLeft = card.dueDay?.takeIf { it > 0 }
+                ?.let { DateLogic.effectiveDaysUntilDue(it, settled, zone) }
+            val dueDate = daysLeft?.let { DateLogic.today(zone).plusDays(it.toLong()) }
+            val dueText = when {
+                daysLeft == null || dueDate == null -> "No due day set"
+                daysLeft < 0 -> "Overdue — was due ${friendlyDate(dueDate)}"
+                daysLeft == 0 -> "Due today · ${friendlyDate(dueDate)}"
+                daysLeft == 1 -> "Due tomorrow · ${friendlyDate(dueDate)}"
+                else -> "Due ${friendlyDate(dueDate)} · in $daysLeft days"
+            }
+            val dueColor = when {
+                daysLeft == null -> Ct.colors.muted
+                daysLeft < 0 -> Ct.colors.red
+                daysLeft <= 5 -> Ct.colors.orange
+                else -> Ct.colors.muted
+            }
+            val statusText = if (skipped) "⏭ Skipped this month" else when (state) {
+                PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
+                PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
+                PaidState.UNPAID -> if (isLoan) "Monthly payment: ${Money.fmt(card.minPayment)}" else "Not paid this month"
+            }
+            val statusColor = when {
+                skipped -> Ct.colors.muted
+                state == PaidState.FULL -> Ct.colors.green
+                state == PaidState.PARTIAL -> Ct.colors.orange
+                else -> Ct.colors.muted
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    when (state) {
-                        PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
-                        PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-                        PaidState.UNPAID -> if (isLoan) "Monthly payment: ${Money.fmt(card.minPayment)}" else "Not paid this month"
-                    },
-                    color = when (state) {
-                        PaidState.FULL -> Ct.colors.green
-                        PaidState.PARTIAL -> Ct.colors.orange
-                        PaidState.UNPAID -> Ct.colors.muted
-                    },
-                    fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
-                )
-                if (state != PaidState.FULL) {
-                    TextButton(onClick = onPay) {
-                        Text(if (state == PaidState.PARTIAL) "Pay more" else "Pay", color = Ct.colors.green)
+                Column(Modifier.weight(1f)) {
+                    Text(dueText, color = dueColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(statusText, color = statusColor, fontSize = 12.sp)
+                }
+                when {
+                    skipped -> TextButton(onClick = onUnskip) {
+                        Text("Undo skip", color = Ct.colors.accent)
+                    }
+                    state != PaidState.FULL -> {
+                        TextButton(onClick = onSkip) { Text("Skip", color = Ct.colors.muted) }
+                        TextButton(onClick = onPay) {
+                            Text(if (state == PaidState.PARTIAL) "Pay more" else "Pay", color = Ct.colors.green)
+                        }
                     }
                 }
             }
@@ -641,6 +704,12 @@ private fun AutopayPill(autopay: Boolean, autopayDay: Int?) {
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
+}
+
+/// A due date as a short "MMM d" label (adding the year only when it isn't this one).
+private fun friendlyDate(d: java.time.LocalDate): String {
+    val fmt = if (d.year == java.time.LocalDate.now().year) "MMM d" else "MMM d, yyyy"
+    return d.format(java.time.format.DateTimeFormatter.ofPattern(fmt, java.util.Locale.US))
 }
 
 @Composable
