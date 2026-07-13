@@ -119,4 +119,86 @@ describe('integration — volunteered links (/api/feedback)', () => {
     expect(mail.html).not.toContain('<img src=x');
     expect(mail.html).toContain('&lt;img src=x');
   });
+
+  // ── Wrong reward rate ─────────────────────────────────────────────
+  // A correction to a rate we ship in the presets (e.g. we claim 3% on Gas when
+  // the card really earns 1%). Carries no URL — it's a data fix, not a link.
+  const rateMail = () => ctx.sentMail().filter((m) => /Reward rate correction:/.test(m.subject || ''));
+
+  it('reward-rate mails the card, the category, both rates, and the sender', async () => {
+    const u = await makeUser('rate');
+    const before = rateMail().length;
+
+    const res = await post(u, '/api/feedback/reward-rate', {
+      card: 'Freedom Unlimited',
+      issuer: 'Chase',
+      category: 'Gas',
+      ourRate: 3,
+      correctRate: 1,
+      note: 'Dropped in June.',
+    });
+    expect(res.status).toBe(200);
+
+    const mail = rateMail()[before];
+    expect(mail).toBeTruthy();
+    expect(mail.subject).toBe('Reward rate correction: Chase Freedom Unlimited — Gas');
+    expect(mail.replyTo).toBe(u.email);
+    expect(mail.text).toContain('We show: 3%');
+    expect(mail.text).toContain('Should be: 1%');
+    expect(mail.text).toContain('Dropped in June.');
+    // Same disclosure as the link routes — the sender's address goes too.
+    expect(mail.text).toContain(u.email);
+    expect(mail.html).toContain(u.email);
+  });
+
+  it('reward-rate accepts a missing ourRate (we ship no rate for the category)', async () => {
+    const u = await makeUser('rate-none');
+    const before = rateMail().length;
+
+    const res = await post(u, '/api/feedback/reward-rate', {
+      card: 'Bilt', category: 'Groceries', ourRate: '', correctRate: 3,
+    });
+    expect(res.status).toBe(200);
+    expect(rateMail()[before].text).toContain('We show: (none set)');
+  });
+
+  it('reward-rate rejects an out-of-range rate and a missing category without mailing', async () => {
+    const u = await makeUser('rate-bad');
+    const before = rateMail().length;
+
+    const tooBig = await post(u, '/api/feedback/reward-rate', {
+      card: 'X', category: 'Gas', correctRate: 101,
+    });
+    expect(tooBig.status).toBe(400);
+    expect((await tooBig.json()).error).toBe('invalid-rate');
+
+    const negative = await post(u, '/api/feedback/reward-rate', {
+      card: 'X', category: 'Gas', correctRate: -1,
+    });
+    expect(negative.status).toBe(400);
+
+    const noCat = await post(u, '/api/feedback/reward-rate', {
+      card: 'X', category: '', correctRate: 1,
+    });
+    expect(noCat.status).toBe(400);
+    expect((await noCat.json()).error).toBe('missing-category');
+
+    expect(rateMail().length).toBe(before);
+  });
+
+  it('reward-rate escapes html in the card name and the note', async () => {
+    const u = await makeUser('rate-xss');
+    const before = rateMail().length;
+    await post(u, '/api/feedback/reward-rate', {
+      card: '<img src=x onerror=alert(1)>',
+      category: 'Gas',
+      correctRate: 1,
+      note: '<script>alert(2)</script>',
+    });
+    const mail = rateMail()[before];
+    expect(mail.html).not.toContain('<img src=x');
+    expect(mail.html).not.toContain('<script>');
+    expect(mail.html).toContain('&lt;img src=x');
+    expect(mail.html).toContain('&lt;script&gt;');
+  });
 });

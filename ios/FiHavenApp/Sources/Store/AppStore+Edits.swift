@@ -35,6 +35,24 @@ extension AppStore {
         }
     }
 
+    /// Correct one reward rate on a card. `category == nil` means the base rate.
+    /// A category set to 0 is removed so it falls back to the base rate rather
+    /// than claiming a 0% bonus.
+    func setCardRewardRate(cardId: String, category: String?, rate: Double) {
+        mutate { data in
+            guard let i = data.cards.firstIndex(where: { $0.id == cardId }) else { return }
+            guard let category else {
+                data.cards[i].rewardBase = rate
+                return
+            }
+            if rate > 0 {
+                data.cards[i].rewardCategories[category] = rate
+            } else {
+                data.cards[i].rewardCategories.removeValue(forKey: category)
+            }
+        }
+    }
+
     // ── Cards ────────────────────────────────────────────────────────
     func upsertCard(_ card: Card) {
         mutate { data in

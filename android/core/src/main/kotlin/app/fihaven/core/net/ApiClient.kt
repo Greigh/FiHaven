@@ -189,6 +189,28 @@ class ApiClient(
     suspend fun shareRewardsLink(name: String, url: String) =
         shareLink("api/feedback/rewards-link", name, url)
 
+    /** Report a reward rate we ship that's wrong (e.g. we claim 3% on Gas when
+     * the card really earns 1%). Mailed, never stored — same contract as the
+     * link routes. [ourRate] is null when we have no rate for the category. */
+    suspend fun reportRewardRate(
+        card: String,
+        issuer: String,
+        category: String,
+        ourRate: Double?,
+        correctRate: Double,
+        note: String,
+    ) {
+        val body = buildJsonObject {
+            put("card", card)
+            put("issuer", issuer)
+            put("category", category)
+            put("ourRate", ourRate?.toString() ?: "")
+            put("correctRate", correctRate.toString())
+            put("note", note)
+        }.toString()
+        send(makeRequest("api/feedback/reward-rate", HttpMethod.POST, body))
+    }
+
     private suspend fun shareLink(path: String, name: String, url: String) {
         val body = buildJsonObject {
             put("name", name)

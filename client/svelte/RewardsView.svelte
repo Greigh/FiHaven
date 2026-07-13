@@ -111,6 +111,87 @@
     setTimeout(() => { openLink = null; linkMsg = ''; }, 1600);
   }
 
+  /* ── Wrong reward rate ────────────────────────────────────────────
+     The rates we seed from the card presets go stale (an issuer drops a
+     category from 3% to 1%). Let people correct it: we fix it on their own
+     card straight away — so "which card should I use?" stops recommending on
+     bad data — and email the correction so the shared preset gets fixed too. */
+  const BASE_RATE = 'Base rate (everything)';
+  const RATE_CATEGORIES = [BASE_RATE, ...REWARD_CATEGORIES];
+
+  let openRate = $state(null);   // id of the card whose rate form is open
+  let rateCat = $state('');
+  let rateVal = $state('');
+  let rateNote = $state('');
+  let rateBusy = $state(false);
+  let rateMsg = $state('');
+
+  // What the app currently claims for this card+category — null when we have
+  // nothing, which is itself worth reporting ("you're missing this category").
+  function shownRate(card, cat) {
+    if (!cat) return null;
+    if (cat === BASE_RATE) {
+      const b = parseFloat(card.rewardBase);
+      return Number.isFinite(b) ? b : 0;
+    }
+    const v = parseFloat((card.rewardCategories || {})[cat]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function startRate(card) {
+    openRate = openRate === card.id ? null : card.id;
+    rateCat = ''; rateVal = ''; rateNote = ''; rateMsg = '';
+  }
+
+  async function submitRate(card) {
+    const correct = parseFloat(rateVal);
+    if (!rateCat) { rateMsg = 'Pick a category.'; return; }
+    if (!Number.isFinite(correct) || correct < 0 || correct > 100) {
+      rateMsg = 'Enter a rate between 0 and 100.';
+      return;
+    }
+    rateBusy = true; rateMsg = '';
+
+    const ours = shownRate(card, rateCat);
+
+    // 1) Fix the user's own card first — the part that must not be lost.
+    const c = cards.find((x) => String(x.id) === String(card.id));
+    if (c) {
+      if (rateCat === BASE_RATE) {
+        c.rewardBase = correct;
+      } else {
+        const next = { ...(c.rewardCategories || {}) };
+        if (correct > 0) next[rateCat] = correct;
+        else delete next[rateCat];        // 0 means "no bonus" — fall back to base
+        c.rewardCategories = next;
+      }
+      save('fh_cards', cards);
+    }
+
+    // 2) Report it so we can fix the preset for everyone (non-blocking).
+    let shared = false;
+    try {
+      const r = await fetch('/api/feedback/reward-rate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+        body: JSON.stringify({
+          card: card.name || 'Card',
+          issuer: card.issuer || '',
+          category: rateCat,
+          ourRate: ours == null ? '' : ours,
+          correctRate: correct,
+          note: rateNote.trim(),
+        }),
+      });
+      shared = r.ok;
+    } catch (_) { shared = false; }
+
+    rateBusy = false;
+    rateMsg = shared ? 'Fixed on your card and reported — thanks!' : 'Fixed on your card.';
+    setTimeout(() => { openRate = null; rateMsg = ''; }, 1800);
+  }
+
   // ── Annual-fee check ─────────────────────────────────────────────
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const VERDICT = {
@@ -384,6 +465,9 @@
           <button type="button" class="rw-linkbtn" onclick={() => startLink(c)}>
             {c.rewardsUrl ? 'Change rewards link' : 'Add rewards link'}
           </button>
+          <button type="button" class="rw-linkbtn" onclick={() => startRate(c)}>
+            Report a wrong rate
+          </button>
         </div>
         {#if openLink === c.id}
           <div class="rw-linkform">
@@ -400,6 +484,40 @@
             <div class="rw-linkhint">
               Saves to your card, then emails the card name, the link, and your email address to
               FiHaven so we can add it for everyone.
+            </div>
+          </div>
+        {/if}
+        {#if openRate === c.id}
+          <div class="rw-linkform">
+            <select bind:value={rateCat} aria-label="Category with the wrong rate">
+              <option value="">Which category is wrong?</option>
+              {#each RATE_CATEGORIES as cat}
+                <option value={cat}>{cat}</option>
+              {/each}
+            </select>
+            {#if rateCat}
+              {@const ours = shownRate(c, rateCat)}
+              <span class="rw-linkmsg">
+                We show {ours == null ? 'no rate' : ours + '%'} —
+              </span>
+            {/if}
+            <span class="reward-cat-amt">
+              <input
+                type="number" step="0.01" min="0" max="100"
+                placeholder="0" bind:value={rateVal}
+                aria-label="The correct rate"
+                onkeydown={(e) => { if (e.key === 'Enter') submitRate(c); }}
+              />
+              <span class="reward-cat-pct">%</span>
+            </span>
+            <input type="text" placeholder="Note (optional)" bind:value={rateNote} maxlength="500" />
+            <button class="btn btn-primary btn-xs" disabled={rateBusy} onclick={() => submitRate(c)}>
+              {rateBusy ? 'Sending…' : 'Fix & report'}
+            </button>
+            {#if rateMsg}<span class="rw-linkmsg">{rateMsg}</span>{/if}
+            <div class="rw-linkhint">
+              Corrects the rate on your card straight away, then emails the card, the category, and
+              your email address to FiHaven so we can fix it for everyone.
             </div>
           </div>
         {/if}
