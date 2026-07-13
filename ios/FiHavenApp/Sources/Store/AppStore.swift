@@ -240,6 +240,27 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Report a wrong reward rate so we can fix the shared preset. Best effort —
+    /// the user's own card is corrected regardless.
+    func reportRewardRate(
+        card: String,
+        issuer: String,
+        category: String,
+        ourRate: Double?,
+        correctRate: Double,
+        note: String
+    ) async -> Bool {
+        do {
+            try await api.reportRewardRate(
+                card: card, issuer: issuer, category: category,
+                ourRate: ourRate, correctRate: correctRate, note: note
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Re-sync on-device bill reminders to the current bills + settings.
     func refreshNotifications() {
         NotificationScheduler.reschedule(bills: data.bills, cards: data.cards, settings: data.settings, tz: tz)
