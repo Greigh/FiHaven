@@ -766,6 +766,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         d.copy(transactions = d.transactions + SpendTransaction(newPaymentId(), dateIso, amount, category, merchant, ""))
     }
 
+    /** Edit a manual transaction's amount/category/merchant/date, preserving id
+     *  and provenance (a bank row's source/plaidId/pending stay intact). */
+    fun updateTransaction(id: String, amount: Double, category: String, merchant: String, dateIso: String) =
+        mutate { d ->
+            d.copy(transactions = d.transactions.map { t ->
+                if (t.id == id) t.copy(amount = amount, category = category, merchant = merchant, date = dateIso)
+                else t
+            })
+        }
+
     fun deleteTransaction(tx: SpendTransaction) =
         mutate { it.copy(transactions = it.transactions.filterNot { t -> t.id == tx.id }) }
 
