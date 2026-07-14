@@ -216,6 +216,14 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["plaidUpdatePurchases"] = .bool(newValue) }
     }
 
+    /// Plaid transaction ids the user declined in Spending. The server merge
+    /// never re-imports these (by transaction id or pending_transaction_id), so
+    /// a decline survives Plaid's destructive cursor and a pending→posted swap.
+    public var plaidHidden: [String] {
+        get { raw["plaidHidden"]?.asArray?.compactMap { $0.asString } ?? [] }
+        set { raw["plaidHidden"] = .array(newValue.map { .string($0) }) }
+    }
+
     /// Budget rule lens: off | 50-30-20 | presets | custom | obligations-first | debt-focus | envelope.
     public var budgetRule: String {
         get { raw["budgetRule"]?.asString ?? "off" }

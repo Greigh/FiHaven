@@ -37,6 +37,7 @@ import app.fihaven.core.model.paidGoal
 import app.fihaven.core.model.timezoneSetting
 import app.fihaven.core.model.currency
 import app.fihaven.core.model.hidePaidOnDashboard
+import app.fihaven.core.model.plaidHidden
 import app.fihaven.core.model.withIncomeAdjustments
 import app.fihaven.core.model.withIncomes
 import app.fihaven.core.model.withPaidGoal
@@ -829,6 +830,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteTransaction(tx: SpendTransaction) =
         mutate { it.copy(transactions = it.transactions.filterNot { t -> t.id == tx.id }) }
+
+    /** Accept a pending bank transaction: clear its pending flag so it reads as
+     *  a settled bank row and stops nagging. */
+    fun acceptBankTransaction(tx: SpendTransaction) =
+        mutate { d ->
+            d.copy(transactions = d.transactions.map { if (it.id == tx.id) it.copy(pending = false) else it })
+        }
+
+    /** Decline a bank transaction: remove it and remember its Plaid id so a
+     *  future sync never re-imports it (the server suppresses both the id and a
+     *  pending charge's posted successor). */
+    fun declineBankTransaction(tx: SpendTransaction) =
+        mutate { d ->
+            val txs = d.transactions.filterNot { it.id == tx.id }
+            val pid = tx.plaidId ?: tx.id.removePrefix("plaid-").takeIf { it != tx.id }
+            if (pid == null) return@mutate d.copy(transactions = txs)
+            val hidden = (d.settings.plaidHidden + pid).distinct().takeLast(200)
+            d.copy(
+                transactions = txs,
+                settings = d.settings.withSetting("plaidHidden", buildJsonArray { hidden.forEach { add(it) } }),
+            )
+        }
 
     fun setCategoryBudget(category: String, amount: Double) =
         mutate { it.copy(settings = it.settings.withCategoryBudget(category, amount)) }
