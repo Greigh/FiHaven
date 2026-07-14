@@ -122,6 +122,30 @@ extension AppStore {
         mutate { $0.transactions.removeAll { $0.id == tx.id } }
     }
 
+    /// Accept a pending bank transaction: it's a real purchase, so clear the
+    /// pending flag (it reads as a settled bank row and stops nagging).
+    func acceptBankTransaction(_ tx: SpendTransaction) {
+        mutate { data in
+            guard let i = data.transactions.firstIndex(where: { $0.id == tx.id }) else { return }
+            data.transactions[i].pending = false
+        }
+    }
+
+    /// Decline a bank transaction: remove it and remember its Plaid id so a
+    /// future sync never re-imports it (the server suppresses both the id and a
+    /// pending charge's posted successor).
+    func declineBankTransaction(_ tx: SpendTransaction) {
+        let pid = tx.plaidId ?? (tx.id.hasPrefix("plaid-") ? String(tx.id.dropFirst(6)) : nil)
+        mutate { data in
+            data.transactions.removeAll { $0.id == tx.id }
+            guard let pid else { return }
+            var hidden = data.settings.plaidHidden
+            if !hidden.contains(pid) { hidden.append(pid) }
+            if hidden.count > 200 { hidden = Array(hidden.suffix(200)) }
+            data.settings.plaidHidden = hidden
+        }
+    }
+
     func setCategoryBudget(_ category: String, _ amount: Double) {
         mutate { data in
             var b = data.settings.categoryBudgets
