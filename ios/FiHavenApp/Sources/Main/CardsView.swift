@@ -505,6 +505,16 @@ private struct CardRow: View {
         return DateLogic.monthsUntil(card.promoEndDate, tz: tz) > 0
     }
 
+    // The one amount worth showing without tapping Pay: what to pay this period on
+    // a card with a distinct recommendation — a 0% promo's monthly payoff, or an
+    // explicit recommended payment. `isMonthly` tags the promo case for a "/mo".
+    private var suggestedPayment: (amount: Double, isMonthly: Bool)? {
+        if card.type == "loan" { return nil }
+        if promoActive { return (max(card.minPayment, Schedule.promoNeeded(card, tz: tz)), true) }
+        if let rec = card.recommendedPayment, rec > 0 { return (rec, false) }
+        return nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
@@ -669,9 +679,16 @@ private struct CardRow: View {
                     .font(Theme.ui(12, weight: .medium))
                     .foregroundStyle(Theme.text)
             case .unpaid:
-                Text(card.type == "loan" ? "Monthly payment: \(Money.fmt(card.minPayment))" : "Not paid this month")
-                    .font(Theme.ui(12))
-                    .foregroundStyle(Theme.muted)
+                if card.type == "loan" {
+                    Text("Monthly payment: \(Money.fmt(card.minPayment))")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                } else if let s = suggestedPayment {
+                    Text("Suggested \(Money.fmt(s.amount))\(s.isMonthly ? "/mo" : "")")
+                        .font(Theme.ui(12, weight: .semibold)).foregroundStyle(Theme.text)
+                } else {
+                    Text("Not paid this month")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
             }
         }
     }
