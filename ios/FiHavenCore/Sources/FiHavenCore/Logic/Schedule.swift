@@ -3,6 +3,9 @@ import Foundation
 /// One upcoming bill/card payment, as built by `buildUpcomingItems`.
 public struct UpcomingItem: Equatable, Sendable, Identifiable {
     public var name: String
+    /// Who it's actually paid to (a bill's business / a card's issuer). The name
+    /// is often a nickname ("Phone"), so this is what identifies the payee.
+    public var business: String = ""
     public var amount: Double
     public var days: Int
     public var nextDue: Date?
@@ -63,6 +66,7 @@ public enum Schedule {
             }
             items.append(UpcomingItem(
                 name: b.name,
+                business: b.business ?? "",
                 amount: b.amount,
                 days: days,
                 nextDue: BillSchedule.nextDueDate(b, tz: tz, from: now),
@@ -92,6 +96,7 @@ public enum Schedule {
             }
             items.append(UpcomingItem(
                 name: c.name + " (payment)",
+                business: c.issuer ?? "",
                 amount: needed,
                 days: days,
                 nextDue: DateLogic.nextDueDate(dueDay: dd, tz: tz, now: now),
