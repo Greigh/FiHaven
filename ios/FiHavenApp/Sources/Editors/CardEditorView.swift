@@ -8,6 +8,9 @@ struct CardEditorView: View {
 
     let card: Card?
     var defaultType: String = "card"
+    /// Fires only for a brand-new card, so the caller can ask whether this
+    /// period's payment has already been made.
+    var onCreated: (Card) -> Void = { _ in }
 
     @State private var type = "card"
     @State private var name = ""
@@ -381,7 +384,9 @@ struct CardEditorView: View {
             feeMonth: (isLoan || feeMonth == 0) ? nil : feeMonth,
             offers: isLoan ? [] : offers.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
         )
+        let isNew = card == nil
         store.upsertCard(saved)
         dismiss()
+        if isNew { onCreated(saved) }
     }
 }
