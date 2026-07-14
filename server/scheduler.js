@@ -236,6 +236,31 @@ function weeklyDigest(data, lp) {
   };
 }
 
+/* Send one notification email, reporting whether it actually landed.
+
+   This return value gates the "already sent" stamp, and that matters more than
+   it looks: the stamp is the ONLY thing that stops a re-send. Stamping after a
+   FAILED send marks a mail that never arrived as delivered, so it's dropped
+   rather than retried — one SMTP blip silently costs the user that day's
+   reminder, with nothing but a console line to show for it. Leaving the stamp
+   unset lets the next pass in this same hour (a restart fires the boot
+   catch-up) try again; nothing was sent, so there's nothing to double up on. */
+async function trySend(label, email, send) {
+  try {
+    await send();
+    return true;
+  } catch (e) {
+    console.error(`${label} send failed`, email, e && e.message);
+    return false;
+  }
+}
+
+// Push is best-effort and has its own delivery path. A push failure must NOT
+// gate the email stamp, or a dead push token would make us re-send the email.
+async function tryPush(label, email, send) {
+  try { await send(); } catch (e) { console.error(`${label} failed`, email, e && e.message); }
+}
+
 // One pass over all verified users. `deps` lets tests inject a fake
 // db / mailer; defaults to the real ones.
 async function runChecks(now = new Date(), deps = {}) {
@@ -270,10 +295,17 @@ async function runChecks(now = new Date(), deps = {}) {
       if (lp.hour === markHour && u.last_autopay_day !== lp.ymd) {
         try {
           if (markAutopay(u.data, lp)) {
+            // Write the WHOLE record back. upsertUserData replaces it, so a
+            // snapshot naming only some lists silently erases the rest — this
+            // dropped the user's transactions, net-worth accounts, and savings
+            // goals every time autopay auto-marked something.
             db.upsertUserData(u.id, {
               bills: u.data.bills || [],
               cards: u.data.cards || [],
               payments: u.data.payments || [],
+              accounts: u.data.accounts || [],
+              goals: u.data.goals || [],
+              transactions: u.data.transactions || [],
               settings: u.data.settings || {},
             });
           }
@@ -293,6 +325,7 @@ async function runChecks(now = new Date(), deps = {}) {
         const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
         const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
         const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        let delivered = true;
         for (const days of leads) {
           const due = (u.data.bills || []).filter(
             (b) => billActiveOn(b, lp.ymd) &&
@@ -300,33 +333,38 @@ async function runChecks(now = new Date(), deps = {}) {
               daysUntilBillDue(b, today) === days
           );
           if (due.length) {
-            try { await mailer.sendBillReminder(u.email, due, days, currency); }
-            catch (e) { console.error('reminder send failed', u.email, e && e.message); }
+            const ok = await trySend('reminder', u.email,
+              () => mailer.sendBillReminder(u.email, due, days, currency));
+            delivered = delivered && ok;
             if (s.pushNotifications) {
-              try { await push.sendBillReminderPush(u.id, due, days, currency); }
-              catch (e) { console.error('push reminder failed', u.email, e && e.message); }
+              await tryPush('push reminder', u.email,
+                () => push.sendBillReminderPush(u.id, due, days, currency));
             }
           }
         }
-        db.setReminderDay(u.id, lp.ymd); // stamp even with 0 due, so we don't rescan all day
+        // Stamp even with 0 due, so we don't rescan all day — but never stamp a
+        // send that failed, or it's silently dropped instead of retried.
+        if (delivered) db.setReminderDay(u.id, lp.ymd);
       }
 
       // Trial-ending reminders — same lead window as bill reminders.
       if (s.billReminders && u.last_trial_reminder_day !== lp.ymd) {
         const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
         const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        let delivered = true;
         for (const days of leads) {
           const ending = trialsEndingOn(u.data, lp, days);
           if (ending.length) {
-            try { await mailer.sendTrialReminder(u.email, ending, days, currency); }
-            catch (e) { console.error('trial reminder send failed', u.email, e && e.message); }
+            const ok = await trySend('trial reminder', u.email,
+              () => mailer.sendTrialReminder(u.email, ending, days, currency));
+            delivered = delivered && ok;
             if (s.pushNotifications) {
-              try { await push.sendTrialReminderPush(u.id, ending, days); }
-              catch (e) { console.error('push trial reminder failed', u.email, e && e.message); }
+              await tryPush('push trial reminder', u.email,
+                () => push.sendTrialReminderPush(u.id, ending, days));
             }
           }
         }
-        if (db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
+        if (delivered && db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
       }
 
       // Card-linked offer expiry reminders — Pro (offers are a Pro Rewards
@@ -335,55 +373,79 @@ async function runChecks(now = new Date(), deps = {}) {
       if (s.offerReminders && isPro && u.last_offer_reminder_day !== lp.ymd) {
         const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
         const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        let delivered = true;
         for (const days of leads) {
           const expiring = offersExpiringOn(u.data, lp, days);
           if (expiring.length) {
-            try { await mailer.sendOfferReminder(u.email, expiring, days, currency); }
-            catch (e) { console.error('offer reminder send failed', u.email, e && e.message); }
+            const ok = await trySend('offer reminder', u.email,
+              () => mailer.sendOfferReminder(u.email, expiring, days, currency));
+            delivered = delivered && ok;
             if (s.pushNotifications) {
-              try { await push.sendOfferReminderPush(u.id, expiring, days); }
-              catch (e) { console.error('push offer reminder failed', u.email, e && e.message); }
+              await tryPush('push offer reminder', u.email,
+                () => push.sendOfferReminderPush(u.id, expiring, days));
             }
           }
         }
-        if (db.setOfferReminderDay) db.setOfferReminderDay(u.id, lp.ymd);
+        if (delivered && db.setOfferReminderDay) db.setOfferReminderDay(u.id, lp.ymd);
       }
 
       // Weekly digest — once a week (Monday), upcoming bills + balances.
       const weekKey = isoWeekKey(lp);
       if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
         const digest = weeklyDigest(u.data, lp);
-        try { await mailer.sendWeeklyDigest(u.email, digest, currency); }
-        catch (e) { console.error('digest send failed', u.email, e && e.message); }
+        const ok = await trySend('digest', u.email,
+          () => mailer.sendWeeklyDigest(u.email, digest, currency));
         if (s.pushNotifications) {
-          try { await push.sendWeeklyDigestPush(u.id, digest, currency); }
-          catch (e) { console.error('push digest failed', u.email, e && e.message); }
+          await tryPush('push digest', u.email,
+            () => push.sendWeeklyDigestPush(u.id, digest, currency));
         }
-        if (db.setDigestWeek) db.setDigestWeek(u.id, weekKey);
+        if (ok && db.setDigestWeek) db.setDigestWeek(u.id, weekKey);
       }
 
       // Monthly summary — the 1st of the local month.
       if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
         const summary = summarize(u.data, lp);
-        try { await mailer.sendMonthlySummary(u.email, summary, currency); }
-        catch (e) { console.error('summary send failed', u.email, e && e.message); }
+        const ok = await trySend('summary', u.email,
+          () => mailer.sendMonthlySummary(u.email, summary, currency));
         if (s.pushNotifications) {
-          try { await push.sendMonthlySummaryPush(u.id, summary, currency); }
-          catch (e) { console.error('push summary failed', u.email, e && e.message); }
+          await tryPush('push summary', u.email,
+            () => push.sendMonthlySummaryPush(u.id, summary, currency));
         }
-        db.setSummaryMonth(u.id, lp.ym);
+        if (ok) db.setSummaryMonth(u.id, lp.ym);
       }
     }
   }
 }
 
 let timer = null;
+let started = false;
 function start() {
-  if (timer) return;
+  if (started) return;
+  started = true;
+
   const tick = () => module.exports.runChecks(new Date())
     .catch((e) => console.error('scheduler tick failed', e && e.message));
-  timer = setInterval(tick, 60 * 60 * 1000);
-  timer.unref();
+
+  /* Re-arm against the wall clock rather than setInterval(3_600_000) from boot.
+     Every send here fires on an exact hour match (`lp.hour === notifyHour`), and
+     Node re-arms an interval only AFTER its callback resolves — so each pass's
+     duration is added to the next delay. A pass that awaits SMTP for every user
+     is not fast, so the drift accumulates until a whole hour is stepped over,
+     and every user whose notifyHour lands in the skipped hour silently gets
+     nothing that day. Aligning to :00 keeps one tick per real hour however long
+     a pass takes. */
+  const armNext = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(now.getHours() + 1, 0, 30, 0);   // :00:30, safely inside the hour
+    timer = setTimeout(async () => {
+      await tick();
+      armNext();
+    }, Math.max(1000, next.getTime() - now.getTime()));
+    timer.unref();
+  };
+
+  armNext();
   // Also catch the current hour shortly after boot.
   setTimeout(tick, 5000).unref();
   console.log('scheduler started (reminders + monthly summary)');
