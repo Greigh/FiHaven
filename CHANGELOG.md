@@ -13,11 +13,11 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.0] — Last updated: 2026-07-13
+## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
 
 | | |
 |---|---|
-| **Status** | Released |
+| **Status** | Pre-release — testing build (TestFlight / internal) |
 | **iOS** | 1.6.0 (1) |
 | **Android** | 1.6.0 (build 20) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
