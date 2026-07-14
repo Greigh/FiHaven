@@ -58,10 +58,25 @@ final class AppStore: ObservableObject {
             refreshNotifications()
             PushRegistrar.shared.syncIfNeeded(settings: data.settings)
             checkNewMonth()
+            await syncBanks()
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline
         }
+    }
+
+    /// Pull anything new from a linked bank on app open. Without this a linked
+    /// bank only ever synced when the user went digging for the button in
+    /// Settings, so imported purchases never showed up on their own.
+    ///
+    /// The server throttles to once an hour per item, so this is usually a
+    /// no-op; it merges into the server's copy, so we re-read on success.
+    /// Best-effort — a bank that's down must never block the app.
+    private func syncBanks() async {
+        guard let items = try? await api.plaidRefresh(), !items.isEmpty else { return }
+        guard let fresh = try? await api.fetchData() else { return }
+        data = fresh
+        Money.setCurrency(data.settings.currency)
     }
 
     /// Opt-in: auto-mark autopay bills/cards paid once their due date in the

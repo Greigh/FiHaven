@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -59,6 +60,8 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     // Plaid 6.x preloads a single-use session before opening; held here so the
     // onLoad callback can launch it once it's ready, then retired on any result.
     var session by remember { mutableStateOf<PlaidLinkSession?>(null) }
+    // Shown once, right after a bank is linked (see the import-gate note below).
+    var showImportPrompt by remember { mutableStateOf(false) }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }
@@ -82,6 +85,10 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         if (repairId != null) "Bank reconnected." else "Bank linked.",
                         "Could not finish. Please try again.",
                     )
+                    // Linking on its own does nothing — both import gates are off
+                    // by default. Ask now rather than leaving the user with a
+                    // connected bank and an empty Spending tab.
+                    if (ok && repairId == null) showImportPrompt = true
                     load()
                 }
             }
@@ -175,15 +182,19 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                     )
                     if (s.items.isNotEmpty()) {
                         TextButton(onClick = {
-                            msg = BankMessage.info("Refreshing balances…")
+                            msg = BankMessage.info("Syncing…")
                             scope.launch {
-                                val items = runCatching { vm.api.plaidRefresh() }.getOrNull()
+                                // Explicit sync: force past the throttle that keeps
+                                // the automatic app-open sync cheap. Pulls purchases
+                                // too, not just balances.
+                                val items = runCatching { vm.api.plaidRefresh(force = true) }.getOrNull()
                                 if (items != null) {
                                     status = PlaidStatus(true, true, items)
-                                    msg = BankMessage.info("Balances updated.")
-                                } else msg = BankMessage.error("Could not refresh. Please try again.")
+                                    msg = BankMessage.info("Synced.")
+                                    vm.reload()   // pick up any newly imported purchases
+                                } else msg = BankMessage.error("Could not sync. Please try again.")
                             }
-                        }) { Text("Refresh balances", color = Ct.colors.accent) }
+                        }) { Text("Sync now", color = Ct.colors.accent) }
 
                         val data by vm.data.collectAsStateWithLifecycle()
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -213,6 +224,50 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                 fontSize = 13.sp,
             )
         }
+    }
+
+    // Turning a gate on makes the server backfill — the sync cursor is still
+    // unset while it's off, so it pulls the full history, not just what happens
+    // next. Give it a moment, then adopt the merged copy.
+    fun applyImportChoice(purchases: Boolean, balances: Boolean) {
+        vm.setPlaidUpdatePurchases(purchases)
+        vm.setPlaidUpdateBalances(balances)
+        showImportPrompt = false
+        if (!purchases && !balances) return
+        msg = BankMessage.info("Importing your history — check Spending in a moment.")
+        scope.launch {
+            kotlinx.coroutines.delay(2_500)
+            vm.reload()
+        }
+    }
+
+    if (showImportPrompt) {
+        AlertDialog(
+            onDismissRequest = { showImportPrompt = false },
+            title = { Text("Bank linked — what next?") },
+            text = {
+                Text(
+                    "Imported purchases are added to Spending tagged 🏦, and never overwrite " +
+                        "anything you typed. You can change this any time on this screen.",
+                )
+            },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = { applyImportChoice(purchases = true, balances = false) }) {
+                        Text("Import my purchases", color = Ct.colors.accent)
+                    }
+                    TextButton(onClick = { applyImportChoice(purchases = true, balances = true) }) {
+                        Text("Purchases + card balances", color = Ct.colors.accent)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportPrompt = false }) {
+                    Text("Not now", color = Ct.colors.muted)
+                }
+            },
+            containerColor = Ct.colors.surface,
+        )
     }
 }
 

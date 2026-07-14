@@ -1833,8 +1833,72 @@ import {
     var connectBtn = card.querySelector('[data-plaid-connect]');
     var refreshBtn = card.querySelector('[data-plaid-refresh]');
     var balancesToggle = card.querySelector('[data-plaid-balances-toggle]');
+    var optinPanel = card.querySelector('[data-plaid-optin]');
 
     function show(el, on) { if (el) el.hidden = !on; }
+
+    // Patch settings without dropping the rest of the record. PUT /api/data
+    // takes the whole dataset, so a snapshot that omits a list would ask the
+    // server to store an empty one.
+    function patchSettings(patch) {
+      return fetchData().then(function (server) {
+        return pushData({
+          bills: server.bills || [],
+          cards: server.cards || [],
+          payments: server.payments || [],
+          accounts: server.accounts || [],
+          goals: server.goals || [],
+          transactions: server.transactions || [],
+          settings: Object.assign({}, server.settings || {}, patch),
+        });
+      });
+    }
+
+    // Linking a bank does nothing on its own — both import gates are off by
+    // default. Ask straight after linking rather than leaving the user with a
+    // connected bank and an empty Spending tab. Saving the settings makes the
+    // server backfill (the sync cursor is still unset, so it pulls the history).
+    function offerBankImport() {
+      if (!optinPanel) return;
+      var purchases = optinPanel.querySelector('[data-plaid-optin-purchases]');
+      var balances = optinPanel.querySelector('[data-plaid-optin-balances]');
+      var saveBtn = optinPanel.querySelector('[data-plaid-optin-save]');
+      var skipBtn = optinPanel.querySelector('[data-plaid-optin-skip]');
+      if (purchases) purchases.checked = true;
+      if (balances) balances.checked = false;
+      show(optinPanel, true);
+
+      if (skipBtn) {
+        skipBtn.onclick = function () {
+          show(optinPanel, false);
+          showMessage('plaid', 'Bank linked. Turn on importing below whenever you want.', false);
+        };
+      }
+      if (saveBtn) {
+        saveBtn.onclick = function () {
+          saveBtn.disabled = true;
+          var wantPurchases = !!(purchases && purchases.checked);
+          var wantBalances = !!(balances && balances.checked);
+          showMessage('plaid', 'Saving…', false);
+          patchSettings({
+            plaidUpdatePurchases: wantPurchases,
+            plaidUpdateBalances: wantBalances,
+          }).then(function () {
+            saveBtn.disabled = false;
+            show(optinPanel, false);
+            if (purchasesToggle) purchasesToggle.checked = wantPurchases;
+            if (balancesToggle) balancesToggle.checked = wantBalances;
+            showMessage('plaid', wantPurchases || wantBalances
+              ? 'Bank linked. Importing your history now — check the Spending tab in a moment.'
+              : 'Bank linked.', false);
+            refreshStatus();
+          }).catch(function (err) {
+            saveBtn.disabled = false;
+            showMessage('plaid', (err && err.message) || errorText('network'), true);
+          });
+        };
+      }
+    }
 
     // Opt-in: let synced bank balances update matching cards. Off by default;
     // FiHaven never overrides a typed balance unless this is on.
@@ -1844,12 +1908,7 @@ import {
       }).catch(function () { /* leave unchecked */ });
       balancesToggle.addEventListener('change', function () {
         showMessage('plaid', 'Saving…', false);
-        fetchData().then(function (server) {
-          return pushData({
-            bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
-            settings: Object.assign({}, server.settings || {}, { plaidUpdateBalances: balancesToggle.checked }),
-          });
-        }).then(function () {
+        patchSettings({ plaidUpdateBalances: balancesToggle.checked }).then(function () {
           showMessage('plaid', 'Saved.', false);
         }).catch(function (err) {
           balancesToggle.checked = !balancesToggle.checked;
@@ -1867,13 +1926,12 @@ import {
       }).catch(function () { /* leave unchecked */ });
       purchasesToggle.addEventListener('change', function () {
         showMessage('plaid', 'Saving…', false);
-        fetchData().then(function (server) {
-          return pushData({
-            bills: server.bills || [], cards: server.cards || [], payments: server.payments || [],
-            settings: Object.assign({}, server.settings || {}, { plaidUpdatePurchases: purchasesToggle.checked }),
-          });
-        }).then(function () {
-          showMessage('plaid', 'Saved.', false);
+        patchSettings({ plaidUpdatePurchases: purchasesToggle.checked }).then(function () {
+          // Turning this on makes the server backfill; say so, or the Spending
+          // tab looks broken for the few seconds the import takes.
+          showMessage('plaid', purchasesToggle.checked
+            ? 'Saved. Importing your purchases now — check the Spending tab in a moment.'
+            : 'Saved.', false);
         }).catch(function (err) {
           purchasesToggle.checked = !purchasesToggle.checked;
           showMessage('plaid', (err && err.message) || errorText('network'), true);
@@ -1994,7 +2052,7 @@ import {
               public_token: publicToken,
               institution: metadata && metadata.institution,
             }).then(function (ex) {
-              if (ex.ok) { showMessage('plaid', 'Bank linked.', false); refreshStatus(); }
+              if (ex.ok) { refreshStatus(); offerBankImport(); }
               else if (ex.status === 409) { showMessage('plaid', 'That bank is already linked.', false); refreshStatus(); }
               else showMessage('plaid', 'Could not finish linking. Please try again.', true);
             }).catch(function () { showMessage('plaid', errorText('network'), true); });
@@ -2064,16 +2122,19 @@ import {
       }).catch(function () { btn.disabled = false; showMessage('plaid', errorText('network'), true); });
     }
 
+    // An explicit sync: `force` skips the freshness throttle that makes the
+    // automatic app-open sync cheap. It pulls purchases too, not just balances —
+    // the old "Refreshing balances…" wording hid that.
     function refreshBalances() {
       refreshBtn.disabled = true;
-      showMessage('plaid', 'Refreshing balances…', false);
-      plaidFetch('refresh', 'POST').then(function (res) {
+      showMessage('plaid', 'Syncing…', false);
+      plaidFetch('refresh', 'POST', { force: true }).then(function (res) {
         refreshBtn.disabled = false;
         if (res.ok) {
-          showMessage('plaid', 'Balances updated.', false);
+          showMessage('plaid', 'Synced.', false);
           render({ configured: true, pro: true, items: res.data.items });
         } else {
-          showMessage('plaid', 'Could not refresh. Please try again.', true);
+          showMessage('plaid', 'Could not sync. Please try again.', true);
         }
       }).catch(function () { refreshBtn.disabled = false; showMessage('plaid', errorText('network'), true); });
     }

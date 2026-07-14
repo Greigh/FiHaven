@@ -251,9 +251,16 @@ public final class APIClient: Sendable {
         _ = try await send(req)
     }
 
-    /// Re-pull balances for every linked item; returns the refreshed list.
-    public func plaidRefresh() async throws -> [PlaidItem] {
-        let req = try makeRequest(path: "api/plaid/refresh", method: .POST)
+    /// Pull balances + (opted-in) purchases for every linked item; returns the
+    /// refreshed list. The server throttles this to once an hour per item, so
+    /// calling it on app open is cheap. `force` skips that throttle — use it for
+    /// an explicit "Sync now", not for background syncs.
+    public func plaidRefresh(force: Bool = false) async throws -> [PlaidItem] {
+        let req = try makeRequest(
+            path: "api/plaid/refresh",
+            method: .POST,
+            body: AnyEncodable(["force": force])
+        )
         return try decode(PlaidItemsResponse.self, from: try await send(req)).items
     }
 

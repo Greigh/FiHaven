@@ -26,6 +26,7 @@ struct BankView: View {
     @State private var message: BankMessage?
     @State private var busy = false
     @State private var handler: Handler?
+    @State private var showImportPrompt = false
 
     var body: some View {
         List {
@@ -51,6 +52,21 @@ struct BankView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Bank connections")
         .task { await load() }
+        .confirmationDialog(
+            "Bank linked — what should FiHaven do with it?",
+            isPresented: $showImportPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Import my purchases") {
+                applyImportChoice(purchases: true, balances: false)
+            }
+            Button("Import purchases + update card balances") {
+                applyImportChoice(purchases: true, balances: true)
+            }
+            Button("Not now", role: .cancel) {}
+        } message: {
+            Text("Imported purchases are added to Spending tagged 🏦, and never overwrite anything you typed. You can change this any time on this screen.")
+        }
     }
 
     @ViewBuilder
@@ -96,7 +112,7 @@ struct BankView: View {
                 Button { connect() } label: { Text(busy ? "Opening…" : "Connect a bank") }
                     .disabled(busy)
                 if !s.items.isEmpty {
-                    Button("Refresh balances") { refresh() }
+                    Button("Sync now") { refresh() }
                 }
             } footer: {
                 Text("By connecting, you agree to Plaid's End User Privacy Policy. You authenticate with your bank inside Plaid; we never see your bank login.")
@@ -256,8 +272,28 @@ struct BankView: View {
             let ok = (try? await env.api.plaidExchange(publicToken: publicToken)) != nil
             await MainActor.run {
                 message = .result(ok: ok, "Bank linked.", "Could not finish linking. Please try again.")
+                // Linking on its own does nothing — both import gates are off by
+                // default. Ask now rather than leaving the user with a connected
+                // bank and an empty Spending tab.
+                if ok { showImportPrompt = true }
             }
             await load()
+        }
+    }
+
+    /// Turn on what the user picked. Saving the settings makes the server
+    /// backfill — the sync cursor is still unset while the gate is off, so it
+    /// pulls the full history rather than only future activity.
+    private func applyImportChoice(purchases: Bool, balances: Bool) {
+        guard let store = env.store else { return }
+        store.setPlaidUpdatePurchases(purchases)
+        store.setPlaidUpdateBalances(balances)
+        guard purchases || balances else { return }
+        message = .info("Importing your history — check Spending in a moment.")
+        Task {
+            // Give the server's backfill a moment, then adopt the merged copy.
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            await env.store?.load()
         }
     }
 
@@ -268,14 +304,17 @@ struct BankView: View {
         }
     }
 
+    // An explicit sync, so `force` skips the throttle that keeps the automatic
+    // app-open sync cheap. It pulls purchases too, not just balances.
     private func refresh() {
-        message = .info("Refreshing balances…")
+        message = .info("Syncing…")
         Task {
-            let ok = (try? await env.api.plaidRefresh()) != nil
+            let ok = (try? await env.api.plaidRefresh(force: true)) != nil
             await MainActor.run {
-                message = .result(ok: ok, "Balances updated.", "Could not refresh. Please try again.")
+                message = .result(ok: ok, "Synced.", "Could not sync. Please try again.")
             }
             await load()
+            await env.store?.load()   // pick up any newly imported purchases
         }
     }
 
