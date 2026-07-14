@@ -23,4 +23,30 @@ public extension APIClient {
         )
         _ = try await send(req)
     }
+
+    /// Report a reward rate we ship that's wrong (e.g. we claim 3% on Gas when
+    /// the card really earns 1%). Mailed, never stored — same contract as the
+    /// link routes. `ourRate` is empty when we have no rate for the category.
+    func reportRewardRate(
+        card: String,
+        issuer: String,
+        category: String,
+        ourRate: Double?,
+        correctRate: Double,
+        note: String
+    ) async throws {
+        let req = try makeRequest(
+            path: "api/feedback/reward-rate",
+            method: .POST,
+            body: AnyEncodable([
+                "card": card,
+                "issuer": issuer,
+                "category": category,
+                "ourRate": ourRate.map { String($0) } ?? "",
+                "correctRate": String(correctRate),
+                "note": note,
+            ])
+        )
+        _ = try await send(req)
+    }
 }

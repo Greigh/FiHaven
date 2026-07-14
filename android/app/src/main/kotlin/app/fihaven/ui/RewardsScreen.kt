@@ -19,7 +19,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +61,8 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     var merchantQuery by remember { mutableStateOf("") }
     // Non-null while the rewards-link dialog is open for that card.
     var linkingCard by remember { mutableStateOf<Card?>(null) }
+    // Non-null while the wrong-rate dialog is open for that card.
+    var ratingCard by remember { mutableStateOf<Card?>(null) }
     val uriHandler = LocalUriHandler.current
 
     // Annualized category spend from manual + bank-synced transactions; feeds
@@ -380,17 +384,23 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                                         )
                                     }
                                 }
-                                TextButton(onClick = { linkingCard = c }) {
-                                    Text(
-                                        if (c.rewardsUrl == null) "Add rewards link" else "Change rewards link",
-                                        color = Ct.colors.accent, fontSize = 12.sp,
-                                    )
+                                Column(horizontalAlignment = Alignment.End) {
+                                    TextButton(onClick = { linkingCard = c }) {
+                                        Text(
+                                            if (c.rewardsUrl == null) "Add rewards link" else "Change rewards link",
+                                            color = Ct.colors.accent, fontSize = 12.sp,
+                                        )
+                                    }
+                                    TextButton(onClick = { ratingCard = c }) {
+                                        Text("Report a wrong rate", color = Ct.colors.accent, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
                         Text(
-                            "Adding a rewards link emails the card name, the link, and your email address " +
-                                "to FiHaven so we can share it with other users. Optional — see our Privacy Policy.",
+                            "Adding a rewards link, or reporting a wrong rate, emails the card name, your " +
+                                "email address, and what you sent to FiHaven so we can fix it for everyone. " +
+                                "Optional — see our Privacy Policy.",
                             color = Ct.colors.muted, fontSize = 11.sp,
                         )
                     }
@@ -400,6 +410,93 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     }
 
     linkingCard?.let { RewardsLinkDialog(it, vm, onDismiss = { linkingCard = null }) }
+    ratingCard?.let { RewardRateDialog(it, vm, onDismiss = { ratingCard = null }) }
+}
+
+/// Report a reward rate we ship that's wrong — e.g. we seed a card at 3% on Gas
+/// when the issuer has since cut it to 1%. Corrects the user's own card straight
+/// away (so "which card should I use?" stops recommending on bad data) *and*
+/// reports it so the shared preset gets fixed. The personal fix is what matters,
+/// so a failed report never blocks it.
+@Composable
+private fun RewardRateDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val baseRate = "Base rate (everything)"
+    val options = listOf(baseRate) + Rewards.CATEGORIES
+
+    var category by remember { mutableStateOf("") }
+    var rate by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+
+    // What the app currently claims. null = we have no rate for this category,
+    // which is itself worth reporting ("you're missing this one").
+    val ourRate: Double? = when {
+        category.isEmpty() -> null
+        category == baseRate -> card.rewardBase
+        else -> card.rewardCategories[category]
+    }
+    val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
+
+    FormDialog(
+        title = "Wrong rate",
+        saveEnabled = category.isNotEmpty() && correct != null && !busy,
+        saveLabel = if (busy) "Sending…" else "Fix & report",
+        onDismiss = onDismiss,
+        onSave = {
+            val v = correct ?: return@FormDialog
+            busy = true
+            // 1) The user's own card — the part that must not be lost.
+            vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
+            // 2) Report it so we can fix the preset for everyone. Best effort.
+            scope.launch {
+                vm.reportRewardRate(
+                    card = card.name.ifEmpty { "Card" },
+                    issuer = card.issuer ?: "",
+                    category = category,
+                    ourRate = ourRate,
+                    correctRate = v,
+                    note = note.trim(),
+                )
+                busy = false
+                onDismiss()
+            }
+        },
+    ) {
+        Text(
+            "Wrong rate on ${card.name.ifEmpty { "this card" }}",
+            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+        )
+        DropdownField(
+            label = "Which category is wrong?",
+            options = options,
+            selected = category.ifEmpty { "Which is wrong?" },
+        ) { category = it }
+        if (category.isNotEmpty()) {
+            Text(
+                "We show ${ourRate?.let { "$it%" } ?: "no rate"} for $category.",
+                color = Ct.colors.muted, fontSize = 12.sp,
+            )
+        }
+        androidx.compose.material3.OutlinedTextField(
+            rate, { rate = it },
+            label = { Text("Should be") },
+            suffix = { Text("%") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            note, { note = it },
+            label = { Text("Note (optional)") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Corrects the rate on your card straight away, then emails the card, the category, and " +
+                "your email address to FiHaven so we can fix it for everyone.",
+            color = Ct.colors.muted, fontSize = 11.sp,
+        )
+    }
 }
 
 /// Add or change a card's rewards/offers link. Mirrors `ManageLinkDialog` on the
