@@ -293,6 +293,12 @@
       {@const neededPayment = hasPromo
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0)}
+      <!-- What to pay this period when the card has a distinct recommendation —
+           a 0% promo's monthly payoff, or an explicit recommended payment — so
+           it's readable without opening Pay. null = nothing beyond the min. -->
+      {@const suggested = hasPromo
+        ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
+        : (parseFloat(c.recommendedPayment || 0) > 0 ? parseFloat(c.recommendedPayment) : null)}
       {@const isPromoOpen = !!openPromos[c.id]}
 
       <article class="card-row fade-up" style="animation-delay:{viewIdx * 0.05}s">
@@ -394,6 +400,12 @@
             <div class="card-row-stat-label">{c.type === 'loan' ? 'Monthly payment' : 'Min payment'}</div>
             <div class="card-row-stat-value">{fmt(c.minPayment || 0)}</div>
           </div>
+          {#if c.type !== 'loan' && suggested != null}
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">Suggested{hasPromo ? '/mo' : ''}</div>
+              <div class="card-row-stat-value" style="color:var(--accent);">{fmt(suggested)}</div>
+            </div>
+          {/if}
           {#if c.type !== 'loan'}
             <div class="card-row-stat">
               <div class="card-row-stat-label">Utilization</div>
