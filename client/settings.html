@@ -553,11 +553,39 @@
             <a href="#" data-plaid-upsell-link>Upgrade to Pro</a> to connect an account.
           </div>
 
+          <!-- Shown once, right after a bank is linked. Linking on its own does
+               nothing until one of these is on, so ask instead of leaving the
+               user with a connected bank and an empty Spending tab. -->
+          <div data-plaid-optin hidden style="margin-top:14px;padding:14px;border:1px solid var(--accent);border-radius:12px;background:var(--accent-bg,transparent);">
+            <div style="font-weight:600;margin-bottom:4px;">Bank linked — what should FiHaven do with it?</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+              You can change either of these any time below.
+            </div>
+            <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
+              <input type="checkbox" data-plaid-optin-purchases checked />
+              <span>
+                <strong>Import my purchases</strong>
+                <span style="display:block;font-size:12px;color:var(--muted);">Adds bank outflows to Spending, tagged 🏦. Never overwrites anything you typed.</span>
+              </span>
+            </label>
+            <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;">
+              <input type="checkbox" data-plaid-optin-balances />
+              <span>
+                <strong>Update my card balances</strong>
+                <span style="display:block;font-size:12px;color:var(--muted);">Only updates a card that clearly matches by its last 4 digits.</span>
+              </span>
+            </label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-primary" type="button" data-plaid-optin-save>Save</button>
+              <button class="btn btn-ghost" type="button" data-plaid-optin-skip>Not now</button>
+            </div>
+          </div>
+
           <div data-plaid-connected hidden style="margin-top:14px;">
             <div data-plaid-list style="display:flex;flex-direction:column;gap:10px;"></div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
               <button class="btn btn-primary" type="button" data-plaid-connect>+ Connect a bank</button>
-              <button class="btn btn-ghost" type="button" data-plaid-refresh hidden>Refresh balances</button>
+              <button class="btn btn-ghost" type="button" data-plaid-refresh hidden>Sync now</button>
             </div>
             <div class="settings-toggle-row" style="margin-top:14px;">
               <div class="settings-toggle-copy">
