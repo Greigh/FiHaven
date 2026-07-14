@@ -82,6 +82,12 @@ val JsonObject.plaidUpdateBalances: Boolean get() = prim("plaidUpdateBalances")?
 /// stays manual-entry, and imported rows never overwrite a typed one.
 val JsonObject.plaidUpdatePurchases: Boolean get() = prim("plaidUpdatePurchases")?.booleanOrNull ?: false
 
+/// Plaid transaction ids the user declined in Spending. The server merge never
+/// re-imports these (by transaction id or pending_transaction_id), so a decline
+/// survives Plaid's destructive cursor and a pending→posted swap.
+val JsonObject.plaidHidden: List<String>
+    get() = (this["plaidHidden"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
+
 /** When true (default), fully paid items are hidden from the dashboard upcoming list. */
 val JsonObject.hidePaidOnDashboard: Boolean get() = prim("hidePaidOnDashboard")?.booleanOrNull ?: true
 
