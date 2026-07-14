@@ -157,8 +157,15 @@ class ApiClient(
         send(makeRequest("api/plaid/item/$itemId/remove", HttpMethod.POST))
     }
 
-    suspend fun plaidRefresh(): List<PlaidItem> =
-        decode<PlaidItemsResponse>(send(makeRequest("api/plaid/refresh", HttpMethod.POST))).items
+    /** Pull balances + (opted-in) purchases for every linked item. The server
+     * throttles this to once an hour per item, so calling it on app open is
+     * cheap. [force] skips that throttle — for an explicit "Sync now" only. */
+    suspend fun plaidRefresh(force: Boolean = false): List<PlaidItem> {
+        val body = buildJsonObject { put("force", force) }.toString()
+        return decode<PlaidItemsResponse>(
+            send(makeRequest("api/plaid/refresh", HttpMethod.POST, body))
+        ).items
+    }
 
     suspend fun logout() {
         runCatching { send(makeRequest("api/auth/logout", HttpMethod.POST)) }

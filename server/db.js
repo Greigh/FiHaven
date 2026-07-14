@@ -334,6 +334,14 @@ db.exec(`
   if (!cols.includes('last_offer_reminder_day')) db.exec(`ALTER TABLE users ADD COLUMN last_offer_reminder_day TEXT`);
 })();
 
+(function migratePlaidItemColumns() {
+  const cols = db.prepare(`PRAGMA table_info(plaid_items)`).all().map((c) => c.name);
+  // When we last actually pulled from Plaid for this item. Drives the sync
+  // throttle so an app-open sync can't hammer Plaid on every launch.
+  // `updated_at` can't stand in — a status/cursor write bumps it too.
+  if (!cols.includes('last_sync_at')) db.exec(`ALTER TABLE plaid_items ADD COLUMN last_sync_at INTEGER`);
+})();
+
 // Encrypt-at-rest for Plaid account data: add the `enc` blob column to
 // databases created before it existed. Account names/masks/balances are now
 // stored only as an AES-256-GCM ciphertext blob (see routes/plaid.js); the
@@ -578,7 +586,8 @@ const stmt = {
      VALUES (@user_id, @item_id, @access_token_enc, @institution_id, @institution_name, @status, @cursor, @error, @created_at, @updated_at)`
   ),
   listPlaidItems: db.prepare(
-    `SELECT id, user_id, item_id, institution_id, institution_name, status, error, created_at, updated_at
+    `SELECT id, user_id, item_id, institution_id, institution_name, status, error,
+            created_at, updated_at, last_sync_at
        FROM plaid_items WHERE user_id = ? ORDER BY created_at DESC`
   ),
   findPlaidItemById: db.prepare(
@@ -589,6 +598,9 @@ const stmt = {
   ),
   setPlaidItemCursor: db.prepare(
     `UPDATE plaid_items SET cursor = ?, updated_at = ? WHERE id = ?`
+  ),
+  setPlaidItemSynced: db.prepare(
+    `UPDATE plaid_items SET last_sync_at = ?, updated_at = ? WHERE id = ?`
   ),
   setPlaidItemStatus: db.prepare(
     `UPDATE plaid_items SET status = ?, error = ?, updated_at = ? WHERE id = ?`
@@ -992,6 +1004,7 @@ function listPlaidItems(userId)              { return stmt.listPlaidItems.all(us
 function findPlaidItemById(id, userId)       { return stmt.findPlaidItemById.get(id, userId); }
 function findPlaidItemByItemId(itemId)       { return stmt.findPlaidItemByItemId.get(itemId); }
 function setPlaidItemCursor(id, cursor)      { stmt.setPlaidItemCursor.run(cursor, Date.now(), id); }
+function setPlaidItemSynced(id, at)          { stmt.setPlaidItemSynced.run(at || Date.now(), Date.now(), id); }
 function setPlaidItemStatus(id, status, error) {
   stmt.setPlaidItemStatus.run(status, error || null, Date.now(), id);
 }
@@ -1139,6 +1152,7 @@ module.exports = {
   findPlaidItemById,
   findPlaidItemByItemId,
   setPlaidItemCursor,
+  setPlaidItemSynced,
   setPlaidItemStatus,
   deletePlaidItem,
   upsertPlaidAccount,

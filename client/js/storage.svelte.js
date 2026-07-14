@@ -261,6 +261,24 @@ function applyData(d) {
   setSettings(d.settings);
 }
 
+// Re-read the server copy and adopt it. Used after a bank sync, which merges
+// new transactions server-side — without this the freshly imported rows sit in
+// the database, invisible, until the next full page load.
+//
+// Only safe when there are no unsaved local edits (i.e. right after boot, or
+// straight after a sync the user explicitly asked for): the server copy wins.
+export function pullFromServer() {
+  return fetch('/api/data', { credentials: 'same-origin' })
+    .then((r) => (r.ok ? r.json() : Promise.reject('http')))
+    .then((server) => {
+      applyEntitlement(server);
+      applyData(server);
+      cacheLocally();
+      return server;
+    })
+    .catch(() => null);
+}
+
 // Push the full dataset to the server. `keepalive` is used when
 // the page is unloading so a pending change still reaches the
 // server.

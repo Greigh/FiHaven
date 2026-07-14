@@ -39,23 +39,56 @@ router.get('/', requireAuth, (req, res) => {
 
 /* ── PUT /api/data ───────────────────────────────────────────── */
 
+const LISTS = ['bills', 'cards', 'payments', 'accounts', 'goals', 'transactions'];
+
 router.put('/', requireAuth, requireCsrf, (req, res) => {
   const body = req.body || {};
+  const current = dbApi.getUserData(req.user.id) || {};
+
   // Store a canonical shape — never trust the client's structure.
-  const clean = {
-    bills: Array.isArray(body.bills) ? body.bills : [],
-    cards: Array.isArray(body.cards) ? body.cards : [],
-    payments: Array.isArray(body.payments) ? body.payments : [],
-    accounts: Array.isArray(body.accounts) ? body.accounts : [],
-    goals: Array.isArray(body.goals) ? body.goals : [],
-    transactions: Array.isArray(body.transactions) ? body.transactions : [],
-    settings:
-      body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
-        ? body.settings
-        : {},
-  };
+  //
+  // An ABSENT key means "leave this list alone"; only a key the client actually
+  // sent is written. Coercing a missing key to [] silently destroyed data: the
+  // Settings page saves a partial snapshot (bills/cards/payments/settings) when
+  // you change the currency, the timezone, or a bank-import toggle, which wiped
+  // transactions, net-worth accounts, and savings goals.
+  //
+  // An explicitly-sent [] still clears the list, so deleting everything works.
+  const clean = {};
+  for (const key of LISTS) {
+    if (Array.isArray(body[key])) clean[key] = body[key];
+    else if (Array.isArray(current[key])) clean[key] = current[key];
+    else clean[key] = [];
+  }
+  clean.settings =
+    body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
+      ? body.settings
+      : (current.settings || {});
+
+  const before = current.settings || {};
   dbApi.upsertUserData(req.user.id, clean);
   res.json({ ok: true });
+
+  // Opting into bank import is what makes a linked bank actually *do* something.
+  // Backfill right here rather than making every client remember to — the sync
+  // cursor is still null while the gate is off, so this pulls the full history.
+  // Fire-and-forget: the save above already succeeded and must not depend on it.
+  backfillOnOptIn(req.user.id, before, clean.settings);
 });
+
+const OPT_IN_KEYS = ['plaidUpdatePurchases', 'plaidUpdateBalances'];
+
+function backfillOnOptIn(userId, before, after) {
+  const turnedOn = OPT_IN_KEYS.some((k) => !before[k] && after[k]);
+  if (!turnedOn) return;
+  try {
+    const plaidRoutes = require('./plaid');
+    if (typeof plaidRoutes.syncAllItems !== 'function') return;
+    Promise.resolve(plaidRoutes.syncAllItems(userId, { force: true }))
+      .catch((err) => console.error('plaid opt-in backfill failed:', err && err.message));
+  } catch (err) {
+    console.error('plaid opt-in backfill unavailable:', err && err.message);
+  }
+}
 
 module.exports = router;
