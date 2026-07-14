@@ -301,6 +301,9 @@
             </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>
+              <!-- Who it's actually paid to. A bill's name is often a nickname
+                   ("Phone"), so the business is what tells you who's taking it. -->
+              {#if u.business}<div class="upcoming-business">{u.business}</div>{/if}
               <div class="upcoming-meta">
                 {#if u.autopay}<span style="color:var(--green);">✓ Autopay</span>{:else}<span style="color:var(--orange);">Manual</span>{/if}
                 {#if dueDateFor(u)} · {shortDate(dueDateFor(u))}{/if}

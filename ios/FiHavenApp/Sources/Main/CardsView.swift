@@ -12,6 +12,9 @@ struct CardsView: View {
     @State private var creating = false
     @State private var paying: PayTarget?
     @State private var skipConfirm: SkipTarget?
+    /// Non-null right after a card is created, while we ask whether this
+    /// period's payment has already been made.
+    @State private var justAdded: Card?
     @State private var sortKey = "due"
     @State private var showFilters = false
     @State private var fBalance = false
@@ -205,7 +208,28 @@ struct CardsView: View {
                     .accessibilityIconButton(isLoanView ? "Add loan" : "Add card")
             }
         }
-        .sheet(isPresented: $creating) { CardEditorView(card: nil, defaultType: kind) }
+        .sheet(isPresented: $creating) {
+            CardEditorView(card: nil, defaultType: kind) { made in
+                if (made.type ?? "card") != "loan" { justAdded = made }
+            }
+        }
+        // A brand-new card starts life looking unpaid, which is wrong about half
+        // the time: add a card on the 20th whose due day was the 3rd and it reads
+        // as overdue, and its 0% payoff plan counts a payment you already made.
+        // Ask once, up front. "Yes" opens the ordinary Pay sheet, prefilled — it
+        // already handles paid-in-full vs. partial and feeds the promo math.
+        .alert("Already paid this month?", isPresented: Binding(
+            get: { justAdded != nil },
+            set: { if !$0 { justAdded = nil } }
+        ), presenting: justAdded) { card in
+            Button("Yes, record it") {
+                paying = PayTarget(type: "card", refId: String(card.id), name: card.name)
+                justAdded = nil
+            }
+            Button("Not yet", role: .cancel) { justAdded = nil }
+        } message: { card in
+            Text("Have you already made this month's payment on \(card.name.isEmpty ? "this card" : card.name)? Saying yes lets FiHaven start from the right point — otherwise the card shows as unpaid, and its 0% payoff plan counts a payment you already made.")
+        }
         .sheet(item: $editing) { card in CardEditorView(card: card) }
         .alert("Skip this month?", isPresented: Binding(
             get: { skipConfirm != nil },

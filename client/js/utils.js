@@ -476,6 +476,9 @@ export function buildUpcomingItems() {
     if (!nextBillDueDate(b)) return;
     items.push({
       name:    b.name,
+      // Who it's actually paid to. The name is often a nickname ("Phone"), so
+      // without this the dashboard can't tell you who is taking the money.
+      business: b.business || '',
       amount:  parseFloat(b.amount || 0),
       days:    daysUntilBillDue(b),
       nextDue: nextBillDueDate(b),
@@ -496,6 +499,8 @@ export function buildUpcomingItems() {
       : parseFloat(c.minPayment || 0);
     items.push({
       name:    c.name + ' (payment)',
+      // The card's issuer plays the same role a bill's business does.
+      business: c.issuer || '',
       amount:  needed,
       days:    effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id)),
       nextDue: nextDueDate(c.dueDay),

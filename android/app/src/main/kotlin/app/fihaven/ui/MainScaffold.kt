@@ -647,6 +647,10 @@ private fun UpcomingRow(
         Text(item.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            // Who it's actually paid to — the name above is often a nickname.
+            if (item.business.isNotBlank()) {
+                Text(item.business, color = c.muted, fontSize = 12.sp, maxLines = 1)
+            }
             Text(label, color = dueTint, fontSize = 12.sp)
         }
         Column(horizontalAlignment = Alignment.End) {
