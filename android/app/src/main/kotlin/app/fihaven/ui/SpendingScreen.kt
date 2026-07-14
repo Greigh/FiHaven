@@ -208,8 +208,14 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                             Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
                                 modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
                         } else {
-                            Text("🔗", color = Ct.colors.muted, fontSize = 12.sp,
-                                modifier = Modifier.padding(start = 12.dp))
+                            // Bank rows: accept a pending charge (clear the flag) or decline
+                            // it (remove + never re-import).
+                            if (tx.pending) {
+                                Text("Keep", color = Ct.colors.accent, fontSize = 13.sp,
+                                    modifier = Modifier.padding(start = 12.dp).clickable { vm.acceptBankTransaction(tx) })
+                            }
+                            Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
+                                modifier = Modifier.padding(start = 12.dp).clickable { vm.declineBankTransaction(tx) })
                         }
                     }
                 }

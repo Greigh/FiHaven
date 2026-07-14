@@ -136,8 +136,17 @@ struct SpendingView: View {
                                     .buttonStyle(.plain)
                                     .accessibilityIconButton("Delete transaction")
                                 } else {
-                                    Image(systemName: "link").font(.caption2).foregroundStyle(Theme.muted.opacity(0.5))
-                                        .accessibilityLabel("Linked bank transaction")
+                                    if tx.pending {
+                                        Button("Keep") { store.acceptBankTransaction(tx) }
+                                            .font(Theme.ui(13)).foregroundStyle(Theme.accent)
+                                            .buttonStyle(.plain)
+                                            .accessibilityLabel("Keep pending bank transaction")
+                                    }
+                                    Button { store.declineBankTransaction(tx) } label: {
+                                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Not mine — remove and don’t import again")
                                 }
                             }
                             .contentShape(Rectangle())

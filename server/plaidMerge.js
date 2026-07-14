@@ -75,16 +75,31 @@ function mergeTransactions(settings, existing, sync) {
     return { transactions: null, merged: false };
   }
 
+  // Bank rows the user explicitly declined. The cursor is destructive, but a
+  // declined charge can still come back: a pending transaction re-posts under a
+  // NEW transaction_id that points at the old one via pending_transaction_id. So
+  // we suppress by both ids and never re-add either — a decline is permanent.
+  const hidden = new Set(
+    (settings && Array.isArray(settings.plaidHidden) ? settings.plaidHidden : []).map(String),
+  );
+  const isHidden = (t) =>
+    hidden.has(String(t.transaction_id)) ||
+    (t.pending_transaction_id != null && hidden.has(String(t.pending_transaction_id)));
+
   const all = Array.isArray(existing) ? existing.slice() : [];
   const manual = all.filter((t) => t.source !== 'plaid');
   const bank = new Map();
-  all.filter((t) => t.source === 'plaid').forEach((t) => bank.set(t.plaidId || t.id, t));
+  // Drop any already-stored bank row the user has since declined (e.g. declined
+  // on another device) as we fold in the diff.
+  all.filter((t) => t.source === 'plaid' && !hidden.has(String(t.plaidId || t.id)))
+    .forEach((t) => bank.set(t.plaidId || t.id, t));
 
   removed.forEach((r) => { const id = r.transaction_id || r; bank.delete(id); });
   [...added, ...modified].forEach((t) => {
     // Plaid signs outflows positive; anything <= 0 is money coming IN, which
     // isn't spending, so it never belongs in Spending.
     if ((t.amount || 0) <= 0) { bank.delete(t.transaction_id); return; }
+    if (isHidden(t)) { bank.delete(t.transaction_id); return; }
     bank.set(t.transaction_id, toLocalTx(t));
   });
 
