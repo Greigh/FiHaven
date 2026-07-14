@@ -11,6 +11,9 @@ import kotlin.math.max
 
 data class UpcomingItem(
     val name: String,
+    /// Who it's actually paid to (a bill's business / a card's issuer). The name
+    /// is often a nickname ("Phone"), so this is what identifies the payee.
+    val business: String = "",
     val amount: Double,
     val days: Int,
     val nextDue: LocalDate?,
@@ -55,6 +58,7 @@ object Schedule {
             items.add(
                 UpcomingItem(
                     name = b.name,
+                    business = b.business.orEmpty(),
                     amount = b.amount,
                     days = days,
                     nextDue = BillSchedule.nextDueDate(b, zone, DateLogic.today(zone, now)),
@@ -81,6 +85,7 @@ object Schedule {
             items.add(
                 UpcomingItem(
                     name = c.name + " (payment)",
+                    business = c.issuer.orEmpty(),
                     amount = needed,
                     days = days,
                     nextDue = DateLogic.nextDueDate(dd, zone, now),

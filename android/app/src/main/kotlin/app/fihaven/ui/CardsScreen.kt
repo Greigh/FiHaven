@@ -81,6 +81,9 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     var creating by remember { mutableStateOf(false) }
     var paying by remember { mutableStateOf<Card?>(null) }
     var skipConfirm by remember { mutableStateOf<Pair<Card, String>?>(null) }
+    // Non-null right after a card is created, while we ask whether it's already
+    // been paid this period.
+    var justAdded by remember { mutableStateOf<Card?>(null) }
     var sortKey by remember { mutableStateOf("due") }
     var showFilters by remember { mutableStateOf(false) }
     var fBalance by remember { mutableStateOf(false) }
@@ -234,7 +237,47 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
         }
     }
 
-    if (creating) CardEditorDialog(null, vm, onDismiss = { creating = false }, defaultType = kind)
+    if (creating) CardEditorDialog(
+        null, vm,
+        onDismiss = { creating = false },
+        defaultType = kind,
+        onCreated = { justAdded = it },
+    )
+
+    // A brand-new card starts life looking unpaid, which is wrong about half the
+    // time: add a card on the 20th whose due day was the 3rd and it reads as
+    // overdue, and its 0% payoff plan counts a payment you already made. Ask once,
+    // up front. "Yes" opens the ordinary Pay dialog, prefilled with the suggested
+    // amount — it already handles paid-in-full vs. partial and feeds the promo math.
+    justAdded?.let { c ->
+        if (c.type != "loan") {
+            AlertDialog(
+                onDismissRequest = { justAdded = null },
+                title = { Text("Already paid this month?") },
+                text = {
+                    Text(
+                        "Have you already made this month's payment on ${c.name.ifEmpty { "this card" }}? " +
+                            "Saying yes lets FiHaven start from the right point — otherwise the card shows " +
+                            "as unpaid, and its 0% payoff plan counts a payment you already made.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        paying = c
+                        justAdded = null
+                    }) { Text("Yes, record it", color = Ct.colors.green) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { justAdded = null }) {
+                        Text("Not yet", color = Ct.colors.muted)
+                    }
+                },
+                containerColor = Ct.colors.surface,
+            )
+        } else {
+            justAdded = null
+        }
+    }
     editing?.let { CardEditorDialog(it, vm, onDismiss = { editing = null }) }
     paying?.let { PayDialog(vm, "card", it.id.toString(), it.name) { paying = null } }
 
@@ -409,7 +452,13 @@ private fun CardRow(
 }
 
 @Composable
-fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defaultType: String = "card") {
+fun CardEditorDialog(
+    card: Card?,
+    vm: AppViewModel,
+    onDismiss: () -> Unit,
+    defaultType: String = "card",
+    onCreated: (Card) -> Unit = {},
+) {
     var name by remember { mutableStateOf(card?.name ?: "") }
     var type by remember { mutableStateOf(card?.type ?: defaultType) }
     var issuer by remember { mutableStateOf(card?.issuer ?: "") }
@@ -463,8 +512,7 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
         },
         saveEnabled = name.isNotBlank(),
         onSave = {
-            vm.upsertCard(
-                Card(
+            val saved = Card(
                     id = card?.id ?: genId(),
                     name = name.trim(),
                     type = type,
@@ -501,9 +549,10 @@ fun CardEditorDialog(card: Card?, vm: AppViewModel, onDismiss: () -> Unit, defau
                     offers = if (isLoan) emptyList() else offers.mapNotNull { o ->
                         if (o.merchant.isNotBlank()) CardOffer(o.id, o.merchant.trim(), o.detail.trim(), o.expires, o.used) else null
                     },
-                )
             )
+            vm.upsertCard(saved)
             onDismiss()
+            if (card == null) onCreated(saved)
         },
         onDismiss = onDismiss,
         onDelete = card?.let { { vm.deleteCard(it); onDismiss() } },

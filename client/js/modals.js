@@ -569,11 +569,35 @@ export function saveCard() {
     rotatingRate:      (isLoan || !editRotatingPool.length) ? null : (editRotatingRate || 5),
   };
 
-  if (editCardId !== null) cards[editCardId] = obj; else cards.push(obj);
+  const isNew = editCardId === null;
+  if (!isNew) cards[editCardId] = obj; else cards.push(obj);
   save('fh_cards', cards);
   closeCardModal();
   renderCards();
-  toast(editCardId !== null ? 'Updated "' + name + '"' : 'Added "' + name + '"');
+  toast(!isNew ? 'Updated "' + name + '"' : 'Added "' + name + '"');
+
+  // A brand-new card starts life looking unpaid, which is wrong roughly half the
+  // time: add a card on the 20th whose due day was the 3rd and it reads as
+  // overdue, and the 0% payoff plan starts counting from a payment you already
+  // made. Ask once, up front, so the starting point is right.
+  if (isNew) askIfPaidThisPeriod(obj);
+}
+
+/* Ask whether this period's payment is already made on a freshly-added card.
+   "Yes" opens the ordinary Pay modal, prefilled with the suggested amount — that
+   already handles paid-in-full vs. partial and feeds the promo payoff math, so
+   there's no second way to record a payment to keep in step. */
+function askIfPaidThisPeriod(card) {
+  if (!card || card.type === 'loan') return;
+  const refId = String(card.id);
+  const suggested = goalAmountFor('card', refId, currentPeriodKey());
+  const label = card.name || 'this card';
+  const ok = confirm(
+    'Have you already made this month’s payment on “' + label + '”?\n\n' +
+    'Saying yes lets FiHaven start from the right point — otherwise the card ' +
+    'shows as unpaid, and its 0% payoff plan counts a payment you already made.'
+  );
+  if (ok) openPayModal('card', refId, label, suggested);
 }
 
 export function editCard(i) { openCardModal(i); }
