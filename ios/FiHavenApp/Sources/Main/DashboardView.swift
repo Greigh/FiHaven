@@ -347,6 +347,13 @@ private struct UpcomingRow: View {
                 Text(item.name)
                     .font(Theme.ui(15, weight: .medium))
                     .foregroundStyle(Theme.text)
+                // Who it's actually paid to — the name above is often a nickname.
+                if !item.business.isEmpty {
+                    Text(item.business)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
                 Text(dueLabel)
                     .font(Theme.ui(12))
                     .foregroundStyle(labelColor)
