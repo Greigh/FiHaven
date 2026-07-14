@@ -160,6 +160,15 @@
     if (days <= 5) return 'due-soon';
     return 'due-ok';
   }
+  // Derive the shown date from `days` rather than reusing `nextDue`. `nextDue` is
+  // the next *forward* occurrence, so an overdue item paired it with next
+  // period's date — a Jul 12 due date read as "1d overdue · Aug 12".
+  function dueDateFor(u) {
+    if (!u.nextDue) return null;
+    const d = new Date();
+    d.setDate(d.getDate() + u.days);
+    return d;
+  }
   function editItem(u) {
     if (u.type === 'card') editCardById(u.refId);
     else                   editBillById(u.refId);
@@ -294,7 +303,7 @@
               <div class="upcoming-name">{u.name}</div>
               <div class="upcoming-meta">
                 {#if u.autopay}<span style="color:var(--green);">✓ Autopay</span>{:else}<span style="color:var(--orange);">Manual</span>{/if}
-                {#if u.nextDue} · {shortDate(u.nextDue)}{/if}
+                {#if dueDateFor(u)} · {shortDate(dueDateFor(u))}{/if}
                 {#if paidSoFar > 0.005}<span style="color:var(--orange);"> · Paid {fmt(paidSoFar)} of {fmt(goal)}</span>{/if}
               </div>
             </div>

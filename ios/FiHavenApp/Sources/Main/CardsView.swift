@@ -11,11 +11,30 @@ struct CardsView: View {
     @State private var editing: Card?
     @State private var creating = false
     @State private var paying: PayTarget?
+    @State private var skipConfirm: SkipTarget?
     @State private var sortKey = "due"
     @State private var showFilters = false
     @State private var fBalance = false
     @State private var fPromo = false
     @State private var fOverdue = false
+
+    /// A pending skip that needs confirming — skipping a card you still owe the
+    /// minimum on can mean a late fee, so `cardSkipWarning` gates it.
+    private struct SkipTarget: Identifiable {
+        let id = UUID()
+        let refId: String
+        let name: String
+        let warning: String
+    }
+
+    private func requestSkip(_ card: Card) {
+        let refId = String(card.id)
+        if let warning = store.cardSkipWarning(refId: refId, name: card.name) {
+            skipConfirm = SkipTarget(refId: refId, name: card.name, warning: warning)
+        } else {
+            store.skipMonth(type: "card", refId: refId, name: card.name)
+        }
+    }
 
     private var isLoanView: Bool { kind == "loan" }
     private func inKind(_ c: Card) -> Bool { (((c.type ?? "card") == "loan")) == isLoanView }
@@ -90,8 +109,11 @@ struct CardsView: View {
                         state: store.paidState(type: "card", refId: String(card.id)),
                         paidSoFar: store.paidAmount(type: "card", refId: String(card.id)),
                         goal: store.goalAmount(type: "card", refId: String(card.id)),
+                        skipped: store.isSkipped(type: "card", refId: String(card.id)),
                         onPay: { paying = PayTarget(type: "card", refId: String(card.id), name: card.name) },
-                        onEdit: { editing = card }
+                        onEdit: { editing = card },
+                        onSkip: { requestSkip(card) },
+                        onUnskip: { store.unskip(type: "card", refId: String(card.id)) }
                     )
                     .swipeActions(edge: .leading) {
                         Button {
@@ -109,6 +131,15 @@ struct CardsView: View {
                                   systemImage: isFull ? "arrow.uturn.backward" : "checkmark.seal.fill")
                         }
                         .tint(isFull ? Theme.muted : Theme.accent)
+                        let isSkipped = store.isSkipped(type: "card", refId: String(card.id))
+                        Button {
+                            if isSkipped { store.unskip(type: "card", refId: String(card.id)) }
+                            else { requestSkip(card) }
+                        } label: {
+                            Label(isSkipped ? "Un-skip" : "Skip month",
+                                  systemImage: isSkipped ? "arrow.uturn.backward" : "forward.end.circle.fill")
+                        }
+                        .tint(Theme.muted)
                     }
                     .swipeActions(edge: .trailing) {
                         if useArchive {
@@ -176,6 +207,18 @@ struct CardsView: View {
         }
         .sheet(isPresented: $creating) { CardEditorView(card: nil, defaultType: kind) }
         .sheet(item: $editing) { card in CardEditorView(card: card) }
+        .alert("Skip this month?", isPresented: Binding(
+            get: { skipConfirm != nil },
+            set: { if !$0 { skipConfirm = nil } }
+        ), presenting: skipConfirm) { target in
+            Button("Skip anyway", role: .destructive) {
+                store.skipMonth(type: "card", refId: target.refId, name: target.name)
+                skipConfirm = nil
+            }
+            Button("Cancel", role: .cancel) { skipConfirm = nil }
+        } message: { target in
+            Text(target.warning)
+        }
         .sheet(item: $paying) { target in PayView(target: target) }
         .sheet(isPresented: $showFilters) {
             NavigationStack {
@@ -379,11 +422,58 @@ private struct CardRow: View {
     let state: PaidState
     let paidSoFar: Double
     let goal: Double
+    var skipped: Bool = false
     let onPay: () -> Void
     let onEdit: () -> Void
+    var onSkip: () -> Void = {}
+    var onUnskip: () -> Void = {}
 
     private var utilization: Double {
         card.limit > 0 ? min(1, card.balance / card.limit) : 0
+    }
+
+    // Days until the payment lands. A settled card (paid or skipped) rolls to its
+    // next period rather than reading as overdue.
+    private var daysLeft: Int? {
+        guard let dd = card.dueDay, dd > 0 else { return nil }
+        return DateLogic.effectiveDaysUntilDue(
+            dueDay: dd,
+            whenFullyPaid: skipped || state == .full,
+            tz: tz
+        )
+    }
+
+    // Derived from `daysLeft` (not looked up separately) so the date shown and the
+    // urgency it's coloured with can never disagree.
+    private var dueDate: Date? {
+        guard let d = daysLeft else { return nil }
+        return DateLogic.calendar(tz: tz).date(byAdding: .day, value: d, to: DateLogic.today(tz: tz))
+    }
+
+    private var dueText: String {
+        guard let d = daysLeft, let date = dueDate else { return "No due day set" }
+        let label = Self.friendlyDate(date, tz: tz)
+        if d < 0 { return "Overdue — was due \(label)" }
+        if d == 0 { return "Due today · \(label)" }
+        if d == 1 { return "Due tomorrow · \(label)" }
+        return "Due \(label) · in \(d) days"
+    }
+
+    private var dueColor: Color {
+        guard let d = daysLeft else { return Theme.muted }
+        if d < 0 { return Theme.red }
+        if d <= 5 { return Theme.orange }
+        return Theme.muted
+    }
+
+    private static func friendlyDate(_ date: Date, tz: TimeZone) -> String {
+        let f = DateFormatter()
+        f.timeZone = tz
+        f.locale = Locale(identifier: "en_US")
+        let cal = DateLogic.calendar(tz: tz)
+        let sameYear = cal.component(.year, from: date) == cal.component(.year, from: Date())
+        f.dateFormat = sameYear ? "MMM d" : "MMM d, yyyy"
+        return f.string(from: date)
     }
 
     private var promoActive: Bool {
@@ -471,9 +561,35 @@ private struct CardRow: View {
             Divider().overlay(Theme.border)
 
             HStack {
-                paymentStatusView
+                // Lead with the date the payment actually lands on — the row used to
+                // say only "Not paid this month", which never told you *when*.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dueText)
+                        .font(Theme.ui(12, weight: .semibold))
+                        .foregroundStyle(dueColor)
+                    paymentStatusView
+                }
                 Spacer()
-                if state != .full {
+                if skipped {
+                    Button(action: onUnskip) {
+                        Text("Undo skip")
+                            .font(Theme.ui(13, weight: .semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.surface2).foregroundStyle(Theme.accent)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Un-skip \(card.name) this month")
+                } else if state != .full {
+                    Button(action: onSkip) {
+                        Text("Skip")
+                            .font(Theme.ui(13, weight: .semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.surface2).foregroundStyle(Theme.muted)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Skip this month's payment on \(card.name)")
                     Button(action: onPay) {
                         Text(state == .partial ? "Pay more" : "Pay")
                             .font(Theme.ui(13, weight: .semibold))
@@ -514,19 +630,25 @@ private struct CardRow: View {
 
     @ViewBuilder
     private var paymentStatusView: some View {
-        switch state {
-        case .full:
-            Label("Paid \(Money.fmt(paidSoFar)) this month", systemImage: "checkmark.circle.fill")
-                .font(Theme.ui(12, weight: .medium))
-                .foregroundStyle(Theme.text)
-        case .partial:
-            Label("Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))", systemImage: "circle.lefthalf.filled")
-                .font(Theme.ui(12, weight: .medium))
-                .foregroundStyle(Theme.text)
-        case .unpaid:
-            Text(card.type == "loan" ? "Monthly payment: \(Money.fmt(card.minPayment))" : "Not paid this month")
+        if skipped {
+            Label("Skipped this month", systemImage: "forward.end.circle.fill")
                 .font(Theme.ui(12))
                 .foregroundStyle(Theme.muted)
+        } else {
+            switch state {
+            case .full:
+                Label("Paid \(Money.fmt(paidSoFar)) this month", systemImage: "checkmark.circle.fill")
+                    .font(Theme.ui(12, weight: .medium))
+                    .foregroundStyle(Theme.text)
+            case .partial:
+                Label("Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))", systemImage: "circle.lefthalf.filled")
+                    .font(Theme.ui(12, weight: .medium))
+                    .foregroundStyle(Theme.text)
+            case .unpaid:
+                Text(card.type == "loan" ? "Monthly payment: \(Money.fmt(card.minPayment))" : "Not paid this month")
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+            }
         }
     }
 
@@ -534,6 +656,7 @@ private struct CardRow: View {
         var parts = [
             card.name,
             "balance \(Money.fmt(card.balance))",
+            dueText,
             paymentStatusText,
         ]
         if card.type != "loan", card.limit > 0 {
@@ -544,6 +667,7 @@ private struct CardRow: View {
     }
 
     private var paymentStatusText: String {
+        if skipped { return "skipped this month" }
         switch state {
         case .full: return "paid \(Money.fmt(paidSoFar)) this month"
         case .partial: return "partially paid, \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))"
