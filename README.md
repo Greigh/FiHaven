@@ -522,12 +522,26 @@ free `/accounts/get` (cached as of the item's last update), never the paid
 returns `400 INVALID_PRODUCT` in production. Sandbox grants every product,
 so this class of failure cannot be reproduced there.
 
+**When a sync happens.** Linking alone imports nothing: both gates
+(`plaidUpdatePurchases`, `plaidUpdateBalances`) are off by default, so the
+clients ask right after a bank is linked. A sync then runs on **link**, on
+**app open** (throttled server-side to once an hour per item — clients just
+call `refresh` and let the server decide), on an explicit **"Sync now"**
+(`{force:true}`), on a **webhook**, and immediately when a user **opts in**
+(`PUT /api/data` notices the gate flip and backfills).
+
+**The cursor is only advanced when the merge actually ran.** Plaid's sync
+cursor is destructive — advancing it past transactions we chose not to import
+would consume them for good, and a user who enabled the toggle later would find
+Spending empty forever. `plaidMerge.mergeTransactions` returns `merged:false`
+when the gate is off, and every caller leaves the cursor alone.
+
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/plaid/status` | Linked items + last-sync state |
 | `POST` | `/api/plaid/link/token` | Create a Link token (pass `{itemId}` for update-mode reconnect) |
 | `POST` | `/api/plaid/link/exchange` | Exchange the public token; dedupes against already-linked banks (`409 already-linked`) |
-| `POST` | `/api/plaid/refresh` | `transactionsSync` → additively merge new outflows |
+| `POST` | `/api/plaid/refresh` | `transactionsSync` → additively merge new outflows. Throttled to 1/hour per item so clients can call it on app open; `{force:true}` overrides |
 | `POST` | `/api/plaid/item/:id/repaired` | Mark a reconnected (update-mode) item healthy |
 | `POST` | `/api/plaid/item/:id/remove` | Unlink a bank (manual data untouched) |
 | `POST` | `/api/plaid/webhook` | Plaid webhooks (ES256 JWT-verified in production) |

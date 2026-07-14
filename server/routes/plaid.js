@@ -22,6 +22,7 @@ const dbApi = require('../db');
 const plaid = require('../plaid');
 const billing = require('../billing');
 const { balanceUpdates, applyBalanceUpdates } = require('../plaidBalances');
+const { mergeTransactions } = require('../plaidMerge');
 const { requireAuth, requireCsrf } = require('../session');
 
 const router = express.Router();
@@ -169,6 +170,7 @@ function serializeItem(item) {
     status: item.status,
     error: item.error || null,
     updatedAt: item.updated_at,
+    lastSyncAt: item.last_sync_at || null,
     accounts: dbApi.listPlaidAccountsByItem(item.id).map((a) => {
       let d = null;
       if (a.enc) { try { d = JSON.parse(plaid.decryptToken(a.enc)); } catch (_) { d = null; } }
@@ -205,75 +207,70 @@ function serializeItem(item) {
    `source: 'plaid'` so they're additive and never collide with or
    overwrite manual rows. Only outflows (spending) are kept. */
 
-// Map a Plaid personal_finance_category onto FiHaven's spend categories.
-function mapPlaidCategory(pfc) {
-  const primary = (pfc && pfc.primary) || '';
-  const detailed = (pfc && pfc.detailed) || '';
-  if (detailed.includes('GROCERIES')) return 'Groceries';
-  switch (primary) {
-    case 'FOOD_AND_DRINK': return 'Dining';
-    case 'GENERAL_MERCHANDISE': return 'Shopping';
-    case 'TRANSPORTATION': return 'Transport';
-    case 'TRAVEL': return 'Transport';
-    case 'ENTERTAINMENT': return 'Entertainment';
-    case 'MEDICAL':
-    case 'PERSONAL_CARE': return 'Health';
-    case 'RENT_AND_UTILITIES':
-    case 'LOAN_PAYMENTS':
-    case 'BANK_FEES': return 'Bills';
-    default: return 'Other';
-  }
-}
+/* Merge a transactionsSync diff into the user's data blob. The merge itself is
+   pure and lives in ../plaidMerge; this just wraps it in the database I/O.
 
-// Shape a Plaid transaction like a FiHaven SpendTransaction (+ bank tags).
-function toLocalTx(t) {
-  return {
-    id: 'plaid-' + t.transaction_id,
-    date: t.date || '',
-    amount: Math.abs(t.amount) || 0,
-    category: mapPlaidCategory(t.personal_finance_category),
-    merchant: t.merchant_name || t.name || 'Bank transaction',
-    note: '',
-    source: 'plaid',
-    plaidId: t.transaction_id,
-    pending: !!t.pending,
-  };
-}
-
-const MAX_PLAID_TX = 500; // bound stored bank rows; manual rows are never capped
-
-// Merge a transactionsSync diff into the user's data blob. Additive: manual
-// rows (no source:'plaid') are left untouched; bank rows are keyed by plaidId.
+   Returns false when nothing was imported because the user hasn't opted in —
+   the caller must then leave the sync cursor alone. See plaidMerge.js. */
 function mergePlaidTransactions(userId, sync) {
-  if (!sync) return;
-  const added = sync.added || [];
-  const modified = sync.modified || [];
-  const removed = sync.removed || [];
-  if (!added.length && !modified.length && !removed.length) return;
-
   const data = dbApi.getUserData(userId);
-  // Opt-in: import bank outflows into Spending only when the user turns it on.
-  // FiHaven is manual-entry-first; off by default (parallel to plaidUpdateBalances).
-  if (!(data.settings && data.settings.plaidUpdatePurchases)) return;
-  const all = Array.isArray(data.transactions) ? data.transactions.slice() : [];
+  const { transactions, merged } = mergeTransactions(data.settings, data.transactions, sync);
+  if (transactions) {
+    data.transactions = transactions;
+    dbApi.upsertUserData(userId, data);
+  }
+  return merged;
+}
 
-  // Index bank rows by plaidId; keep manual rows aside untouched.
-  const manual = all.filter((t) => t.source !== 'plaid');
-  const bank = new Map();
-  all.filter((t) => t.source === 'plaid').forEach((t) => bank.set(t.plaidId || t.id, t));
+// How long a synced item stays "fresh". An app-open sync inside this window is a
+// no-op, so launching the app repeatedly can't hammer Plaid (or our bill).
+const SYNC_TTL_MS = 60 * 60 * 1000;   // 1 hour
 
-  removed.forEach((r) => { const id = r.transaction_id || r; bank.delete(id); });
-  [...added, ...modified].forEach((t) => {
-    if ((t.amount || 0) <= 0) { bank.delete(t.transaction_id); return; } // outflows only
-    bank.set(t.transaction_id, toLocalTx(t));
-  });
+/* Pull one item from Plaid: accounts/balances always, transactions only when
+   the user has opted in. Shared by link/exchange, refresh, and the webhook so
+   all three behave identically.
 
-  // Cap bank rows to the most recent MAX_PLAID_TX by date.
-  let bankRows = Array.from(bank.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (bankRows.length > MAX_PLAID_TX) bankRows = bankRows.slice(0, MAX_PLAID_TX);
+   The cursor is advanced ONLY when the merge actually happened. Plaid's sync
+   cursor is destructive — advancing it past transactions we chose not to import
+   would lose them for good, leaving a later opt-in with an empty Spending tab. */
+async function syncItem(item, userId) {
+  const accessToken = plaid.decryptToken(item.access_token_enc);
+  const { accounts } = await plaid.getAccounts(accessToken);
+  saveAccounts(item.id, accounts);
+  applyPlaidBalances(userId, accounts);
 
-  data.transactions = manual.concat(bankRows);
-  dbApi.upsertUserData(userId, data);
+  try {
+    const sync = await plaid.syncTransactions(accessToken, item.cursor);
+    const merged = mergePlaidTransactions(userId, sync);
+    if (merged && sync.cursor && sync.cursor !== item.cursor) {
+      dbApi.setPlaidItemCursor(item.id, sync.cursor);
+    }
+  } catch (_) {
+    // Transactions product may be unavailable; balances are still refreshed.
+  }
+
+  dbApi.setPlaidItemStatus(item.id, 'active', null);
+  dbApi.setPlaidItemSynced(item.id, Date.now());
+}
+
+/* Sync every linked item for a user. `force` skips the freshness throttle
+   (the Settings "Refresh" button, and the backfill right after opting in).
+   Per-item failures are recorded but never fail the whole call. */
+async function syncAllItems(userId, { force = false } = {}) {
+  const items = dbApi.listPlaidItems(userId);
+  const now = Date.now();
+  for (const summary of items) {
+    if (!force && summary.last_sync_at && now - summary.last_sync_at < SYNC_TTL_MS) continue;
+    const item = dbApi.findPlaidItemById(summary.id, userId);
+    if (!item) continue;
+    try {
+      await syncItem(item, userId);
+    } catch (err) {
+      const code = err?.response?.data?.error_code || err.message;
+      dbApi.setPlaidItemStatus(item.id, 'error', String(code));
+      logPlaidErr('sync-item', err);
+    }
+  }
 }
 
 /* ── GET /api/plaid/status ───────────────────────────────────── */
@@ -390,6 +387,18 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
     saveAccounts(itemPk, accounts);
     applyPlaidBalances(req.user.id, accounts);
 
+    // Backfill straight away, so a bank that's linked while the user has
+    // already opted in shows its history immediately instead of sitting empty
+    // until something else happens to trigger a sync. If they haven't opted in
+    // yet, this is a no-op that leaves the cursor null — the opt-in prompt's
+    // backfill then pulls the full history rather than nothing.
+    const fresh = dbApi.findPlaidItemById(itemPk, req.user.id);
+    try {
+      await syncItem(fresh, req.user.id);
+    } catch (err) {
+      logPlaidErr('link/exchange:initial-sync', err);   // never fail the link
+    }
+
     const stored = dbApi.findPlaidItemById(itemPk, req.user.id);
     logPlaid('item-linked', { userId: req.user.id, itemPk, institutionId, accounts: accounts.length });
     res.status(201).json({ item: serializeItem(stored) });
@@ -401,33 +410,14 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
 });
 
 /* ── POST /api/plaid/refresh ─────────────────────────────────── */
-// Re-pull balances (and advance the transactions cursor) for every
-// linked item. Per-item failures are recorded but don't fail the call.
+// Pull balances + (opted-in) transactions for every linked item.
+//
+// Clients call this on app open, so it's throttled: an item synced within the
+// last hour is skipped. `{force:true}` overrides — used by the Settings
+// "Refresh" button and the backfill right after a user opts in.
 router.post('/refresh', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
-  const items = dbApi.listPlaidItems(req.user.id);
-  for (const summary of items) {
-    const item = dbApi.findPlaidItemById(summary.id, req.user.id);
-    if (!item) continue;
-    try {
-      const accessToken = plaid.decryptToken(item.access_token_enc);
-      const { accounts } = await plaid.getAccounts(accessToken);
-      saveAccounts(item.id, accounts);
-      applyPlaidBalances(req.user.id, accounts);
-      // Sync transactions and merge them (additively) into the user's data.
-      try {
-        const sync = await plaid.syncTransactions(accessToken, item.cursor);
-        mergePlaidTransactions(req.user.id, sync);
-        if (sync.cursor && sync.cursor !== item.cursor) {
-          dbApi.setPlaidItemCursor(item.id, sync.cursor);
-        }
-      } catch (_) { /* transactions product may be unavailable; balances still refreshed */ }
-      dbApi.setPlaidItemStatus(item.id, 'active', null);
-    } catch (err) {
-      const code = err?.response?.data?.error_code || err.message;
-      dbApi.setPlaidItemStatus(item.id, 'error', String(code));
-      logPlaidErr('refresh-item', err);
-    }
-  }
+  const force = !!(req.body || {}).force;
+  await syncAllItems(req.user.id, { force });
   res.json({ items: dbApi.listPlaidItems(req.user.id).map(serializeItem) });
 });
 
@@ -485,16 +475,7 @@ router.post('/webhook', async (req, res) => {
       } else if (type === 'TRANSACTIONS' || code === 'DEFAULT_UPDATE' || code === 'SYNC_UPDATES_AVAILABLE') {
         // Fresh data available — refresh balances and merge new transactions.
         try {
-          const accessToken = plaid.decryptToken(item.access_token_enc);
-          const { accounts } = await plaid.getAccounts(accessToken);
-          saveAccounts(item.id, accounts);
-          applyPlaidBalances(item.user_id, accounts);
-          try {
-            const sync = await plaid.syncTransactions(accessToken, item.cursor);
-            mergePlaidTransactions(item.user_id, sync);
-            if (sync.cursor && sync.cursor !== item.cursor) dbApi.setPlaidItemCursor(item.id, sync.cursor);
-          } catch (_) { /* transactions product may be unavailable */ }
-          dbApi.setPlaidItemStatus(item.id, 'active', null);
+          await syncItem(item, item.user_id);
         } catch (_) { /* leave status as-is on transient failure */ }
       }
     }
@@ -505,3 +486,10 @@ router.post('/webhook', async (req, res) => {
 });
 
 module.exports = router;
+// Exposed so PUT /api/data can backfill the moment a user opts into bank
+// import — the cursor is still null at that point, so this pulls their whole
+// history rather than leaving Spending empty until new activity arrives.
+module.exports.syncAllItems = syncAllItems;
+// Exposed for tests: its return value is what stops the sync cursor advancing
+// past transactions we chose not to import.
+module.exports.mergePlaidTransactions = mergePlaidTransactions;

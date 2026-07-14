@@ -224,4 +224,14 @@ Object.assign(window, {
   openRolloverReview, saveRolloverReview, closeRolloverReview,
 });
 
-bootstrapData().then(startApp);
+bootstrapData().then(() => {
+  startApp();
+  // Pull anything new from a linked bank now that the app is up. Server-side
+  // throttled, so this is a no-op if we already synced within the hour. Runs
+  // after startApp so a slow bank never delays first paint; refreshAll() picks
+  // up whatever landed.
+  import('./bankSync.js')
+    .then((m) => m.syncBanks())
+    .then((pulled) => { if (pulled) refreshAll(); })
+    .catch(() => {});
+});

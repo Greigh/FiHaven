@@ -366,11 +366,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             refreshNotifications()
             refreshPush()
             checkNewMonth()
+            syncBanks()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
             _dataError.value = e.message ?: "Couldn't load your data."
         }
+    }
+
+    /** Pull anything new from a linked bank on app open. Without this a linked
+     * bank only ever synced when the user went digging for the button in
+     * Settings, so imported purchases never showed up on their own.
+     *
+     * The server throttles to once an hour per item, so this is usually a no-op;
+     * it merges into the server's copy, so we re-read on success. Best-effort —
+     * a bank that's down must never block the app. */
+    private suspend fun syncBanks() {
+        val items = runCatching { api.plaidRefresh() }.getOrNull() ?: return
+        if (items.isEmpty()) return
+        val fresh = runCatching { api.fetchData() }.getOrNull() ?: return
+        _data.value = fresh
+        Money.setCurrency(fresh.settings.currency)
+    }
+
+    /** Re-read the server copy (e.g. after a bank sync merged new purchases). */
+    fun reload() = viewModelScope.launch {
+        val fresh = runCatching { api.fetchData() }.getOrNull() ?: return@launch
+        _data.value = fresh
+        Money.setCurrency(fresh.settings.currency)
     }
 
     fun retryDataLoad() = viewModelScope.launch {
