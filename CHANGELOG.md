@@ -53,6 +53,10 @@ Each release below uses two layers:
 - **Your history is no longer thrown away.** Syncing while importing was off used
   to consume transactions permanently, so turning the switch on later gave you an
   empty Spending tab forever.
+- **Accept or decline a pending bank charge.** A pending import used to be stuck
+  on the Spending tab with no way to act on it. You can now **Keep** it (it's a
+  real purchase) or remove it — and a declined charge never comes back, even
+  after it settles under a new id.
 
 **Notification emails**
 
@@ -338,6 +342,17 @@ result; this table is only for tracing when something landed.
 - **"Already paid this month?"** on card creation — `onCreated` callback on the
   card editor; "yes" opens the existing Pay flow prefilled, so partial vs. full
   and the promo math stay on one code path. (#152)
+- **Accept / decline a pending bank transaction.** Bank rows in Spending used to
+  be read-only (a dead 🔗), so a pending import couldn't be actioned. A pending
+  row now offers **Keep** (clears the `pending` flag) and every bank row a decline
+  (✕). Decline records the Plaid id in new `settings.plaidHidden`; the pure
+  `plaidMerge.js` never re-imports a hidden id — matched by `transaction_id` *or*
+  a posted successor's `pending_transaction_id` — so a decline survives Plaid's
+  destructive cursor and the pending→posted id swap. Web `SpendingPanel.svelte`;
+  iOS `AppStore.acceptBankTransaction`/`declineBankTransaction` + `Settings.plaidHidden`;
+  Android `AppViewModel` + `Settings.plaidHidden`. `settings` is raw-JSON-backed
+  on native, so the new key round-trips without a model change. Three new
+  `plaidMerge.test.js` cases pin the contract.
 
 #### Fixed
 
