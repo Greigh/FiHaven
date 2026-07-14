@@ -13,6 +13,81 @@ Each release below uses two layers:
 
 ---
 
+## [1.6.0] — Last updated: 2026-07-13
+
+| | |
+|---|---|
+| **Status** | Released |
+| **iOS** | 1.6.0 (11) |
+| **Android** | 1.6.0 (build 19) |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+
+### Summary
+
+> Bank linking now actually does something, cards tell you *when* they're due
+> and let you skip a payment, and your dashboard shows who's really taking the
+> money. Under the hood this release fixes **two data-loss bugs** and the reason
+> notification emails were quietly going missing.
+> [Jump to technical changelog ↓](#160-technical-changelog)
+
+**⚠️ Data loss — fixed**
+
+- **Changing a setting could erase your data.** Changing your currency,
+  timezone, or default view — or toggling a bank-import switch — saved only part
+  of your account, and the server treated everything missing as deleted. That
+  wiped your **Spending transactions, net-worth accounts, and savings goals**.
+  Fixed, and covered by a test that reproduces the old behaviour.
+- **Autopay auto-marking could erase the same data**, by the same mechanism, on
+  a different code path. Also fixed.
+
+**Bank sync (Plaid) — it works now**
+
+- **Linking a bank actually imports something.** Previously linking connected
+  the bank and stopped: nothing was ever pulled in unless you found a button
+  buried in Settings, and even then two off-by-default switches meant it
+  silently imported nothing.
+- **We ask what you want** right after linking — import purchases, update card
+  balances, or neither. Linking a bank isn't consent to either.
+- **Syncs on its own** — when you link, when you open the app, on a webhook, and
+  the moment you turn importing on (which backfills your history).
+- **Your history is no longer thrown away.** Syncing while importing was off used
+  to consume transactions permanently, so turning the switch on later gave you an
+  empty Spending tab forever.
+
+**Notification emails**
+
+- **A failed email is retried instead of silently dropped.** Every reminder,
+  digest, and summary marked itself as "sent" even when the send *failed*, so a
+  single hiccup lost that email for good.
+- **The hourly scheduler no longer drifts** past the hour it was supposed to send
+  in, which intermittently skipped a whole day's reminders.
+
+**Cards**
+
+- **See when a card is due.** Each card now shows the actual date — *"Due Jul 28
+  · in 15 days"*, *"Due today"*, *"Overdue — was due Jul 12"* — instead of only
+  telling you it wasn't paid.
+- **Skip a payment.** Cards get the Skip action bills have had. Skipping one you
+  still owe the minimum on warns you first.
+- **"Already paid this month?"** Adding a card now asks. A card added on the 20th
+  with a due day of the 3rd used to look overdue, and its 0% payoff plan counted
+  a payment you'd already made.
+- **Fixed a misleading date** on the dashboard: an overdue item showed *next*
+  month's date next to the word "Overdue".
+
+**Rewards**
+
+- **Report a wrong reward rate.** If we say a card earns 3% on gas and it really
+  earns 1%, you can now correct it. It fixes your card immediately and tells us,
+  so the shared card presets get fixed for everyone.
+
+**Dashboard**
+
+- **Who's actually taking the money.** Upcoming rows now show the business (or a
+  card's issuer) under the name, so a bill called "Phone" tells you who bills it.
+
+---
+
 ## [1.5.0] (Pre-Release) — Last updated: 2026-07-09
 
 | | |
@@ -200,6 +275,81 @@ result; this table is only for tracing when something landed.
 > Builds 6 and 7 were announced with iOS build numbers that `project.yml` never
 > actually carried — `CURRENT_PROJECT_VERSION` sat at `5`. Corrected to `9` in
 > build 9; the dashes above are honest about what shipped.
+
+---
+
+<a id="160-technical-changelog"></a>
+
+### Technical changelog (1.6.0)
+
+#### Fixed — data loss
+
+- **`PUT /api/data` erased omitted lists.** The route coerced any absent key to
+  `[]`, but the web Settings page saves a *partial* snapshot
+  (`bills/cards/payments/settings`) for the currency, timezone, landing view, and
+  both bank toggles — so each of those saves wiped `transactions`, `accounts`,
+  and `goals`. An absent key now means "leave it alone"; an explicit `[]` still
+  clears, so deleting everything still works. Reproduced by
+  `tests/integration/dataPartialSave.server.integration.test.js`. (#150)
+- **The scheduler's autopay auto-mark wiped the same three lists**, calling
+  `db.upsertUserData` directly with a 4-key snapshot and bypassing the route
+  entirely. (#151)
+- **Plaid's sync cursor was advanced even when the merge was skipped.** The
+  cursor is destructive, so syncing with `plaidUpdatePurchases` off consumed the
+  user's history permanently — enabling the toggle later yielded an empty
+  Spending tab forever. Merge logic extracted to a pure `server/plaidMerge.js`
+  which returns `merged:false` when the gate is off; no caller advances the
+  cursor unless it ran. (#150)
+
+#### Fixed — notifications
+
+- **A failed send was stamped as delivered.** All five notification types
+  (bill, trial, offer, digest, summary) caught the send error and then stamped
+  the day/week/month anyway — and that stamp is the only thing preventing a
+  re-send. New `trySend`/`tryPush` helpers gate the stamp on the send actually
+  landing; push failures deliberately don't gate it. Two existing tests asserted
+  the old behaviour by name and were rewritten. (#151)
+- **`setInterval(tick, 3_600_000)` drifted.** Node re-arms an interval only after
+  its callback resolves, so each pass's duration was added to the next delay;
+  since every send fires on an exact `lp.hour === notifyHour` match, accumulated
+  drift eventually stepped over a whole hour. Now re-arms against the wall clock
+  at `:00:30`. (#151)
+
+#### Added
+
+- **Plaid actually syncs.** `link/exchange` now runs an initial sync; a shared
+  `syncItem`/`syncAllItems` backs exchange, refresh, and the webhook.
+  `POST /api/plaid/refresh` is throttled to 1/hour per item (new
+  `plaid_items.last_sync_at`) so clients can call it on app open, with
+  `{force:true}` for an explicit "Sync now". `PUT /api/data` detects the
+  opt-in gate flipping on and backfills. New post-link opt-in prompt +
+  `client/js/bankSync.js` + `pullFromServer()`; `AppStore.syncBanks()` and
+  `AppViewModel.syncBanks()` on native. (#150)
+- **`POST /api/feedback/reward-rate`** — report a wrong reward rate. Mailed, never
+  stored, sender disclosed (same contract as the link routes); no URL. Corrects
+  the user's own card first via `setCardRewardRate`. UI in `RewardsView.svelte`,
+  `RewardsView.swift`, `RewardsScreen.kt`. (#149)
+- **Card due date + skip.** Card rows lead with the real date, derived from the
+  same countdown that picks the urgency colour so the two can't disagree.
+  `skipped`/`onSkip`/`onUnskip` on the card row, reusing the existing
+  `skipMonth`/`unskip`/`cardSkipWarning`. (#148)
+- **`UpcomingItem.business`** — a bill's business / a card's issuer, rendered as
+  the second line on Dashboard rows across all three clients. (#152)
+- **"Already paid this month?"** on card creation — `onCreated` callback on the
+  card editor; "yes" opens the existing Pay flow prefilled, so partial vs. full
+  and the promo math stay on one code path. (#152)
+
+#### Fixed
+
+- **`nextDueDate` is forward-looking**, so overdue dashboard items were labelled
+  with *next* period's date ("Overdue · Aug 12" for a Jul 12 due date). The date
+  is now derived from `days`. Present on all three clients. (#148)
+
+#### Chore
+
+- Adopt bun (`bun.lock`); Node engine floor → 24.18.0. `package-lock.json` and
+  the `npm ci` CI are intentionally untouched. (#153)
+- firebase-bom 34.16.0 (#146), junit-jupiter 6.1.2 (#145).
 
 ---
 
