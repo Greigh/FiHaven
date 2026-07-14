@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Released |
-| **iOS** | 1.6.0 (11) |
-| **Android** | 1.6.0 (build 19) |
+| **iOS** | 1.6.0 (1) |
+| **Android** | 1.6.0 (build 20) |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 
 ### Summary
@@ -257,25 +257,6 @@ Each release below uses two layers:
 - Closing a bill/card editor no longer jumps to the GitHub page.
 - Refreshed the marketing homepage, pricing page, and FAQ (including dark mode).
 
-#### Build history
-
-Builds within this pre-release, newest first. Everything above is the combined
-result; this table is only for tracing when something landed.
-
-| Build | iOS / Android | Date | Theme |
-|-------|---------------|------|-------|
-| **10** | 10 / 18 | 2026-07-09 | Plaid `INVALID_PRODUCT` fix, rewards links + email disclosure, Pro vs Family split, Android layout fixes |
-| 9 | 9 / 17 | 2026-07-08 | Plaid production fix, admin gate, archive, Net Worth tab, touch targets |
-| 7 | — / 16 | 2026-07-06 | Brand logos, native Bills redesign, Android app lock |
-| 6 | — / 15 | 2026-07-06 | Monthly rollover, dashboard editing, browser push |
-| 5 | 5 / 14 | 2026-07-05 | Launch candidate: Tier 3 parity, remote push, passkeys |
-| 4 | — / 13 | 2026-07-02 | Email-change gate, Android passkeys, Play verification |
-| 3 | — / — | — | Overdue fix, Stripe portal, More menu, string record ids |
-
-> Builds 6 and 7 were announced with iOS build numbers that `project.yml` never
-> actually carried — `CURRENT_PROJECT_VERSION` sat at `5`. Corrected to `9` in
-> build 9; the dashes above are honest about what shipped.
-
 ---
 
 <a id="160-technical-changelog"></a>
@@ -347,6 +328,12 @@ result; this table is only for tracing when something landed.
 
 #### Chore
 
+- **1.6.0 build numbers corrected.** A hardcoded `CFBundleShortVersionString:
+  "1.5.0"` in the iOS Info.plist overrode `MARKETING_VERSION` and shipped 1.6.0's
+  build to TestFlight labelled **1.5.0 (11)**. `CFBundleShortVersionString` now
+  tracks `$(MARKETING_VERSION)` so it can't drift again, and 1.6.0 starts a fresh
+  build train: **iOS 1.6.0 (1)**, **Android versionCode 20** (Play requires a
+  monotonic versionCode, so it steps forward rather than resetting to 1).
 - Adopt bun (`bun.lock`); Node engine floor → 24.18.0. `package-lock.json` and
   the `npm ci` CI are intentionally untouched. (#153)
 - firebase-bom 34.16.0 (#146), junit-jupiter 6.1.2 (#145).
@@ -357,7 +344,7 @@ result; this table is only for tracing when something landed.
 
 ### Technical changelog
 
-Collapsed across builds 3–10. Each entry carries its PR number. Build 8 was skipped due to an App Store Connect issue. 
+Every change in 1.5.0, grouped by kind. Each entry carries its PR number.
 
 #### Added
 
@@ -500,10 +487,6 @@ Collapsed across builds 3–10. Each entry carries its PR number. Build 8 was sk
 
 #### Changed
 
-- **iOS build 8 / Android build 17** — `CURRENT_PROJECT_VERSION` 8; `versionCode` 17.
-  The iOS value had drifted: `project.yml` still read `5` while builds 6 and 7 were
-  announced as 6 and 7, because #123 bumped only `build.gradle.kts`. Nothing in
-  `ci_post_clone.sh` or the workflows auto-bumps it.
 - **Family plan is a shared household of up to 3; Pro is a single account** —
   `HOUSEHOLD_MAX_PRO` defaults to `0` and `HOUSEHOLD_MAX_FAMILY` to `3`;
   `householdMaxFor(pro, plan)` returns the family cap only for `plan === 'family'`.
