@@ -91,6 +91,36 @@ describe('plaidMerge — additive, outflows only', () => {
     expect(second.transactions.filter((t) => t.id === 'mine')).toHaveLength(1);
   });
 
+  it('never re-adds a bank transaction the user declined (plaidHidden)', () => {
+    const settings = { plaidUpdatePurchases: true, plaidHidden: ['p1'] };
+    const out = mergeTransactions(settings, [{ id: 'mine' }], { added: [tx('p1'), tx('p2')] });
+
+    const bank = out.transactions.filter((t) => t.source === 'plaid');
+    expect(bank.map((t) => t.plaidId)).toEqual(['p2']);   // p1 stays declined
+    expect(out.merged).toBe(true);
+  });
+
+  it('keeps a declined pending charge hidden after it posts under a new id', () => {
+    // Decline pending "pend1"; it later posts as "post1" pointing back at it.
+    const settings = { plaidUpdatePurchases: true, plaidHidden: ['pend1'] };
+    const out = mergeTransactions(settings, [], {
+      added: [tx('post1', 10, { pending_transaction_id: 'pend1' })],
+    });
+    expect(out.transactions.filter((t) => t.source === 'plaid')).toHaveLength(0);
+  });
+
+  it('prunes an already-stored bank row once it is declined', () => {
+    const stored = mergeTransactions(on, [], { added: [tx('p1')] }).transactions;
+    // User declines p1 (settings now list it) and a later sync brings a new row.
+    const out = mergeTransactions(
+      { plaidUpdatePurchases: true, plaidHidden: ['p1'] },
+      stored,
+      { added: [tx('p2')] },
+    );
+    const bank = out.transactions.filter((t) => t.source === 'plaid');
+    expect(bank.map((t) => t.plaidId)).toEqual(['p2']);
+  });
+
   it('maps Plaid categories onto FiHaven ones', () => {
     const out = mergeTransactions(on, [], {
       added: [
