@@ -213,6 +213,43 @@ describe('scheduler — runChecks', () => {
     expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
   });
 
+  /* The "already sent" stamp is the only thing that stops a re-send, so a FAILED
+     send must not be stamped. Stamping a mail that never arrived marks it
+     delivered and drops it — which is exactly what "notifications never send"
+     looks like from the outside. */
+  it('does not stamp the day when the reminder email fails', async () => {
+    sendBillReminder.mockRejectedValue(new Error('ECONNREFUSED 127.0.0.1:25'));
+    db.allUsersWithData.mockReturnValue([
+      makeUser({ bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }] }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), {
+      db,
+      emails: { sendBillReminder, sendMonthlySummary },
+    });
+
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(setReminderDay).not.toHaveBeenCalled();
+  });
+
+  it('retries on a later pass after a failure, then stamps once it lands', async () => {
+    db.allUsersWithData.mockReturnValue([
+      makeUser({ bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }] }),
+    ]);
+    const at = new Date('2026-06-17T12:00:00.000Z');
+
+    sendBillReminder.mockRejectedValueOnce(new Error('SMTP down'));
+    await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+    expect(setReminderDay).not.toHaveBeenCalled();      // not marked delivered
+
+    // Still unstamped, so the user is still eligible on the next pass.
+    sendBillReminder.mockResolvedValueOnce({});
+    await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+    expect(sendBillReminder).toHaveBeenCalledTimes(2);
+    expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
   it('does not send reminders outside the local send hour', async () => {
     db.allUsersWithData.mockReturnValue([
       makeUser({
@@ -349,7 +386,9 @@ describe('scheduler — runChecks', () => {
     errSpy.mockRestore();
   });
 
-  it('stamps reminder day even when sendBillReminder throws', async () => {
+  // Was: "stamps reminder day even when sendBillReminder throws" — which marked
+  // a mail that never arrived as delivered, so it was dropped, not retried.
+  it('logs and leaves the day unstamped when sendBillReminder throws', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     sendBillReminder.mockRejectedValueOnce(new Error('smtp down'));
     db.allUsersWithData.mockReturnValue([
@@ -363,12 +402,14 @@ describe('scheduler — runChecks', () => {
       emails: { sendBillReminder, sendMonthlySummary },
     });
 
-    expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+    expect(setReminderDay).not.toHaveBeenCalled();
     expect(errSpy).toHaveBeenCalledWith('reminder send failed', 'user@example.com', 'smtp down');
     errSpy.mockRestore();
   });
 
-  it('stamps summary month even when sendMonthlySummary throws', async () => {
+  // Was: "stamps summary month even when sendMonthlySummary throws" — same bug,
+  // but costing a whole month's summary rather than a day's reminder.
+  it('logs and leaves the month unstamped when sendMonthlySummary throws', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     sendMonthlySummary.mockRejectedValueOnce(new Error('smtp down'));
     db.allUsersWithData.mockReturnValue([
@@ -383,7 +424,7 @@ describe('scheduler — runChecks', () => {
       emails: { sendBillReminder, sendMonthlySummary },
     });
 
-    expect(setSummaryMonth).toHaveBeenCalledWith(1, '2026-06');
+    expect(setSummaryMonth).not.toHaveBeenCalled();
     expect(errSpy).toHaveBeenCalledWith('summary send failed', 'user@example.com', 'smtp down');
     errSpy.mockRestore();
   });
@@ -763,22 +804,29 @@ describe('scheduler — start', () => {
     vi.useRealTimers();
   });
 
-  it('registers an hourly timer and a boot catch-up, only once', () => {
-    const intervalSpy = vi.spyOn(global, 'setInterval');
+  /* Was: asserts setInterval(3_600_000). Node re-arms an interval only after its
+     callback resolves, so each pass's duration was added to the next delay — a
+     pass that awaits SMTP for every user drifts until it steps over a whole
+     hour, and since every send fires on an exact `hour === notifyHour` match,
+     the users in the skipped hour silently get nothing. Now hour-aligned. */
+  it('arms the next tick on the top of the hour, plus a boot catch-up, only once', () => {
+    vi.setSystemTime(new Date('2026-06-17T12:20:00.000Z'));
     const timeoutSpy = vi.spyOn(global, 'setTimeout');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const { start } = loadScheduler();
 
     start();
-    start();
+    start();   // idempotent
 
-    expect(intervalSpy).toHaveBeenCalledOnce();
-    expect(intervalSpy.mock.calls[0][1]).toBe(60 * 60 * 1000);
-    expect(timeoutSpy).toHaveBeenCalledOnce();
-    expect(timeoutSpy.mock.calls[0][1]).toBe(5000);
+    // Two timers: the hour-aligned tick and the 5s boot catch-up.
+    expect(timeoutSpy).toHaveBeenCalledTimes(2);
+    const delays = timeoutSpy.mock.calls.map((c) => c[1]);
+    expect(delays).toContain(5000);
+
+    // The other lands at the next :00:30 — 40m30s after :20.
+    expect(delays.find((d) => d !== 5000)).toBe((40 * 60 + 30) * 1000);
     expect(logSpy).toHaveBeenCalledWith('scheduler started (reminders + monthly summary)');
 
-    intervalSpy.mockRestore();
     timeoutSpy.mockRestore();
     logSpy.mockRestore();
   });
@@ -794,27 +842,28 @@ describe('scheduler — start', () => {
     runChecksSpy.mockRestore();
   });
 
-  it('logs when an hourly tick rejects', async () => {
+  it('logs when an hourly tick rejects, and keeps ticking', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const fakeHandle = { unref: vi.fn() };
-    let intervalCb;
-    const intervalSpy = vi.spyOn(global, 'setInterval').mockImplementation((cb) => {
-      intervalCb = cb;
+    // The hour-aligned tick is armed with setTimeout now, not setInterval.
+    const cbs = [];
+    vi.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cbs.push(cb);
       return fakeHandle;
     });
-    vi.spyOn(global, 'setTimeout').mockImplementation(() => fakeHandle);
     const sched = loadScheduler();
     const runChecksSpy = vi.spyOn(sched, 'runChecks').mockRejectedValue(new Error('tick fail'));
 
     sched.start();
-    await intervalCb();
+    await cbs[0]();
 
     expect(runChecksSpy).toHaveBeenCalled();
     expect(errSpy).toHaveBeenCalledWith('scheduler tick failed', 'tick fail');
+    // A rejected pass must not kill the loop — it re-arms for the next hour.
+    expect(cbs.length).toBeGreaterThan(2);
 
     errSpy.mockRestore();
     runChecksSpy.mockRestore();
-    intervalSpy.mockRestore();
     vi.mocked(setTimeout).mockRestore();
   });
 });
