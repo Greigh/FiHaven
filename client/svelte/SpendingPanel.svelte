@@ -97,6 +97,28 @@
     save('fh_transactions', transactions);
   }
 
+  // ── Bank (Plaid) transaction review ─────────────────────────
+  const HIDDEN_CAP = 200; // bound the declined-id list
+  // Accept a pending bank transaction: it's a real purchase — clear the
+  // "pending" flag so it reads as a settled bank row and stops nagging.
+  function acceptBankTx(t) {
+    const row = transactions.find((x) => x.id === t.id);
+    if (row) { row.pending = false; save('fh_transactions', transactions); }
+  }
+  // Decline a bank transaction: remove it AND remember its Plaid id so a future
+  // sync never re-imports it. A pending charge re-posts under a new id that
+  // points back via pending_transaction_id, so the server suppresses both.
+  function declineBankTx(t) {
+    const pid = t.plaidId || (typeof t.id === 'string' && t.id.startsWith('plaid-') ? t.id.slice(6) : null);
+    if (pid) {
+      const list = Array.isArray(settings.plaidHidden) ? settings.plaidHidden.slice() : [];
+      if (!list.includes(pid)) list.push(pid);
+      settings.plaidHidden = list.slice(-HIDDEN_CAP);
+      save('fh_settings', settings);
+    }
+    removeTx(t.id);
+  }
+
   // ── Bank-sync reconciliation (only when a bank is linked) ───
   let hasBankTx = $derived(transactions.some((t) => t.source === 'plaid'));
   // Bank↔manual duplicates the user can audit. "Keep both" dismisses for the
@@ -229,7 +251,10 @@
           </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
           {#if t.source === 'plaid'}
-            <span class="btn btn-ghost btn-xs" title="Managed by your bank link — remove the connection in Settings" style="opacity:.4;cursor:default;">🔗</span>
+            {#if t.pending}
+              <button class="btn btn-ghost btn-xs" title="Keep — this is a real purchase" onclick={() => acceptBankTx(t)}>Keep</button>
+            {/if}
+            <button class="btn btn-ghost btn-xs" title="Not mine — remove it and don’t import it again" onclick={() => declineBankTx(t)}>✕</button>
           {:else}
             <button class="btn btn-ghost btn-xs" title="Edit" onclick={() => startEdit(t)}>Edit</button>
             <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
