@@ -419,21 +419,38 @@ private fun CardRow(
                 daysLeft <= 5 -> Ct.colors.orange
                 else -> Ct.colors.muted
             }
+            // The one amount the user wants without tapping Pay: what to pay this
+            // period on a card that has a distinct recommendation — a 0% promo's
+            // monthly payoff, or an explicit recommended payment. Plain cards just
+            // show "not paid" (their balance/minimum are already on the row).
+            val suggested: Pair<Double, Boolean>? = when {
+                isLoan -> null
+                promoActive -> maxOf(card.minPayment, Schedule.promoNeeded(card, zone)) to true
+                (card.recommendedPayment ?: 0.0) > 0.0 -> card.recommendedPayment!! to false
+                else -> null
+            }
             val statusText = if (skipped) "⏭ Skipped this month" else when (state) {
                 PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
                 PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-                PaidState.UNPAID -> if (isLoan) "Monthly payment: ${Money.fmt(card.minPayment)}" else "Not paid this month"
+                PaidState.UNPAID -> when {
+                    isLoan -> "Monthly payment: ${Money.fmt(card.minPayment)}"
+                    suggested != null -> "Suggested ${Money.fmt(suggested.first)}${if (suggested.second) "/mo" else ""}"
+                    else -> "Not paid this month"
+                }
             }
+            val emphasizeStatus = state == PaidState.UNPAID && !skipped && suggested != null
             val statusColor = when {
                 skipped -> Ct.colors.muted
                 state == PaidState.FULL -> Ct.colors.green
                 state == PaidState.PARTIAL -> Ct.colors.orange
+                emphasizeStatus -> Ct.colors.text
                 else -> Ct.colors.muted
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(dueText, color = dueColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(statusText, color = statusColor, fontSize = 12.sp)
+                    Text(statusText, color = statusColor, fontSize = 12.sp,
+                        fontWeight = if (emphasizeStatus) FontWeight.SemiBold else FontWeight.Normal)
                 }
                 when {
                     skipped -> TextButton(onClick = onUnskip) {
