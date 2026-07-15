@@ -840,8 +840,10 @@ The template handles local build → remote backup → rsync →
    `better-sqlite3` + `bcrypt` can compile), ensures a swapfile exists
    to absorb the compile's memory peak, and retries `npm ci` a few
    times to ride out transient registry hiccups.
-7. Verifies PM2 is online and `PUBLIC_ORIGIN` responds (HTTP, up to
-   five retries), then prints a summary (build date, backup path, URL).
+7. Verifies PM2 is online and `PUBLIC_ORIGIN/health` returns
+   `{"ok":true}` (HTTP, up to five retries), then prints a summary
+   (build date, backup path, URL). Point any uptime monitor at
+   `https://fihaven.app/health` — no auth, DB ping included.
 
 ### Rollback
 

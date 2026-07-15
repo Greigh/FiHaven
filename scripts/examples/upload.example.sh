@@ -332,17 +332,18 @@ verify_deployment() {
     return 0
   fi
 
+  local health_url="${PUBLIC_ORIGIN%/}/health"
   local i
   for i in 1 2 3 4 5; do
-    if curl -sf "$PUBLIC_ORIGIN" >/dev/null; then
-      log_ok "HTTP check: $PUBLIC_ORIGIN"
+    if curl -sf "$health_url" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
+      log_ok "Health check: $health_url"
       return 0
     fi
-    log_warn "Site not responding yet ($i/5)…"
+    log_warn "Health not ready yet ($i/5)…"
     sleep 2
   done
 
-  log_fail "HTTP check failed after 5 attempts: $PUBLIC_ORIGIN"
+  log_fail "Health check failed after 5 attempts: $health_url"
   return 1
 }
 
