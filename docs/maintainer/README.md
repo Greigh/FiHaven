@@ -1,12 +1,14 @@
 # Maintainer docs
 
-Files in this folder are **tracked** and safe to share in the repo. Personal or generated copies belong elsewhere.
+
 
 ## Layout
 
 | Path | Tracked? | Purpose |
 |------|----------|---------|
 | `docs/maintainer/` | Yes | Shared maintainer notes (this file). |
+| [`store-launch-checklist.md`](store-launch-checklist.md) | Yes | Public App Store + Play launch: demo account, review notes, Data safety, go-live flip, ops. |
+| [`store-listing-copy.md`](store-listing-copy.md) | Yes | Paste-ready App Store Connect + Play listing, keywords, Data safety, IAP product IDs. |
 | `docs/local/` | **No** (gitignored) | Your App Store Connect copy-paste notes, draft listing text, API key paths. Start with `docs/local/app-store-connect.md`. |
 | `docs/testflight-license-agreement.txt` | Yes | Plain-text Terms for TestFlight external testers. Keep in sync with `client/terms.html` + beta notice at top. |
 | `docs/*.md` (policy markdown) | Yes | Source for compliance policies. |
