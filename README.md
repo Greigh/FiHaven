@@ -333,7 +333,9 @@ fihaven/
 | `npm run build` | `build:css` + `vite build` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
 | `npm start` | `NODE_ENV=production node server/index.js` — serves `dist/` + the API. |
-| `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies HTTP. |
+| `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies `/health`. |
+| `npm run deploy:ios` | Archive Release iOS + upload to App Store Connect / TestFlight (`scripts/ios-testflight.sh`). |
+| `npm run deploy:android` | `bundleRelease` + upload AAB (and mapping/native symbols) to Play; default track `alpha` (Closed testing). |
 | `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
 | `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
