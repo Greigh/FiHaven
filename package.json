@@ -37,7 +37,7 @@
     "preview": "vite preview",
     "deploy": "bash upload.sh",
     "deploy:ios": "bash scripts/ios-testflight.sh",
-    "deploy:android": "bash scripts/play-upload.js",
+    "deploy:android": "node scripts/play-upload.js --build",
     "promo": "node scripts/promo.js",
     "indexnow": "node scripts/submit-indexnow.js"
   },
