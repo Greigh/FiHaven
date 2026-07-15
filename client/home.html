@@ -447,6 +447,10 @@
               if (!root || root.getAttribute('data-store-live') !== 'true') return;
               var ios = root.getAttribute('data-ios-href') || '';
               var android = root.getAttribute('data-android-href') || '';
+              // Only accept an absolute https URL for a store link — a
+              // data-*-href holding a javascript: URI must never reach an href
+              // (CodeQL js/xss-through-dom).
+              function httpsUrl(u) { return /^https:\/\/[^\s]+$/i.test(u) ? u : ''; }
               function show(sel) {
                 var el = root.querySelector('[data-store-badge="' + sel + '"]');
                 if (el) el.hidden = false;
@@ -459,8 +463,10 @@
               hide('android-beta');
               var iosLive = root.querySelector('[data-store-badge="ios-live"]');
               var androidLive = root.querySelector('[data-store-badge="android-live"]');
-              if (iosLive && ios) { iosLive.href = ios; show('ios-live'); }
-              if (androidLive && android) { androidLive.href = android; show('android-live'); }
+              var iosHref = httpsUrl(ios);
+              var androidHref = httpsUrl(android);
+              if (iosLive && iosHref) { iosLive.href = iosHref; show('ios-live'); }
+              if (androidLive && androidHref) { androidLive.href = androidHref; show('android-live'); }
               var betaNote = document.querySelector('[data-store-footnote="beta"]');
               var liveNote = document.querySelector('[data-store-footnote="live"]');
               if (betaNote) betaNote.hidden = true;
