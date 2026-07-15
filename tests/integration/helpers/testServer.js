@@ -56,10 +56,14 @@ function createTestServer() {
   const billingRouter = require(path.join(SERVER_DIR, 'routes/billing'));
   const feedbackRouter = require(path.join(SERVER_DIR, 'routes/feedback'));
 
+  const dbApi = require(path.join(SERVER_DIR, 'db'));
+  const { healthHandler } = require(path.join(SERVER_DIR, 'health'));
+
   const app = express();
   app.set('trust proxy', 1);
   app.use(express.json());
   app.use(cookieParser());
+  app.get('/health', healthHandler(dbApi));
   app.use(loadSession);
   app.use('/api/auth', authRouter);
   app.use('/api/data', requireVerified, dataRouter);
