@@ -717,6 +717,14 @@ function highlightActiveChip() {
   });
 }
 
+// Escape user-controlled text before it is interpolated into innerHTML —
+// bill/card names are user-named. Mirrors escHtml in rollover.js.
+function escHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = String(s == null ? '' : s);
+  return d.innerHTML;
+}
+
 // Explain how this payment lands against the fully-paid goal.
 function updateGoalHint() {
   var hint = document.getElementById('pay-goal-hint');
@@ -744,7 +752,7 @@ function updateGoalHint() {
 
   if (projected >= goal - 0.005) {
     hint.classList.add('is-full');
-    hint.innerHTML = '✓ This marks <strong>' + pendingPayName + '</strong> fully paid (goal ' + fmt(goal) + ' · ' + policyLabel + ').' + soFar;
+    hint.innerHTML = '✓ This marks <strong>' + escHtml(pendingPayName) + '</strong> fully paid (goal ' + fmt(goal) + ' · ' + policyLabel + ').' + soFar;
   } else {
     hint.innerHTML = 'Goal is <strong>' + fmt(goal) + '</strong> (' + policyLabel + '). <strong>' +
       fmt(goal - projected) + '</strong> will remain after this.' + soFar;
