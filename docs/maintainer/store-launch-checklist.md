@@ -45,11 +45,24 @@ Confirm on App ID **`app.fihaven`** (team `365KR8NF53`):
 
 ```sh
 # iOS → App Store Connect / TestFlight
-npm run deploy:ios
+bun run deploy:ios   # or: npm run deploy:ios
 
-# Android → Play (internal/closed/production track per Console)
-npm run deploy:android
+# Android → build signed AAB + upload (default track: alpha = Closed testing)
+bun run deploy:android
+# Internal testing instead:
+GOOGLE_PLAY_TRACK=internal bun run deploy:android
+# Production:
+GOOGLE_PLAY_TRACK=production bun run deploy:android
 ```
+
+`deploy:android` runs `./gradlew :app:bundleRelease` then uploads the AAB, R8
+`mapping.txt`, and `native-debug-symbols.zip` when present. Requires
+`GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
+
+If commit fails with **The caller does not have permission**: Play Console →
+**Users and permissions** → add the JSON `client_email` → grant **Manage
+testing track releases** (and production releases if needed) on `app.fihaven`.
+Link the Cloud project under Setup → API access if you have not already.
 
 ### Symbols (required for crash reports)
 
