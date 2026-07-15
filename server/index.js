@@ -262,8 +262,10 @@ sub.use((err, req, res, next) => {
 });
 
 // Liveness probe — mounted on the root app so deploy/uptime checks are
-// not subject to the /api rate-limit tiers on `sub`.
-app.get('/health', healthHandler(dbApi));
+// not subject to the /api rate-limit tiers on `sub`. It still carries its own
+// lenient per-IP limiter so the DB ping can't be turned into a DoS flood
+// (CodeQL js/missing-rate-limiting); 120/min is ample for monitors + deploys.
+app.get('/health', ipLimiter({ windowMs: 60 * 1000, limit: 120, name: 'health' }), healthHandler(dbApi));
 
 app.use(BASE || '/', sub);
 
