@@ -341,6 +341,15 @@ Each release below uses two layers:
   with *next* period's date ("Overdue · Aug 12" for a Jul 12 due date). The date
   is now derived from `days`. Present on all three clients. (#148)
 
+#### Security
+
+- **DOM XSS in the pay-goal hint (CodeQL #37).** `updateGoalHint()` in
+  `client/js/modals.js` interpolated `pendingPayName` — the user-named bill/card,
+  traced from a DOM read — into `hint.innerHTML` unescaped, so a name with HTML
+  meta-characters was reinterpreted as markup (`js/xss-through-dom`, High). The
+  name is now escaped through the same `textContent`-encode helper used in
+  `rollover.js`. (#160)
+
 #### Chore
 
 - **1.6.0 build numbers corrected.** A hardcoded `CFBundleShortVersionString:
