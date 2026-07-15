@@ -46,6 +46,7 @@ const pushRouter = require('./routes/push');
 const feedbackRouter = require('./routes/feedback');
 const scheduler = require('./scheduler');
 const mail = require('./mail');
+const { healthHandler } = require('./health');
 
 /* ── config validation ──────────────────────────────────────── */
 
@@ -259,6 +260,10 @@ sub.use((err, req, res, next) => {
   }
   res.status(500).sendFile(path.join(CLIENT_DIR, '500.html'));
 });
+
+// Liveness probe — mounted on the root app so deploy/uptime checks are
+// not subject to the /api rate-limit tiers on `sub`.
+app.get('/health', healthHandler(dbApi));
 
 app.use(BASE || '/', sub);
 
