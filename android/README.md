@@ -53,7 +53,7 @@ cross-platform parity.
 
    | File | Path | When |
    |------|------|------|
-   | Native debug symbols | `app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip` | Always (Plaid/Billing ship `.so` libs) |
+   | Native debug symbols | `app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip` | When AGP can extract them (`ndk.debugSymbolLevel`). Many deps ship pre-stripped `.so` files — then this zip is absent and Play’s “upload debug symbols” warning is **safe to ignore**. `bun run deploy:android` uploads the zip automatically when it exists. |
    | Deobfuscation (R8) | `app/build/outputs/mapping/release/mapping.txt` | Only when `isMinifyEnabled = true` |
 
    In Play Console: **Release** → **App bundle explorer** → select the
@@ -62,6 +62,19 @@ cross-platform parity.
    there is no mapping file to upload.
 
 Bump `versionCode` in `app/build.gradle.kts` before each Play upload.
+
+**One-shot upload** (from repo root; builds then uploads):
+
+```sh
+# Closed testing (“alpha” track) — default
+bun run deploy:android
+
+# Internal testing
+GOOGLE_PLAY_TRACK=internal bun run deploy:android
+```
+
+Needs `keystore.properties` + `GOOGLE_PLAY_SA_LOCAL` in `.env`. Track names:
+`internal` | `alpha` (Closed testing) | `beta` (Open testing) | `production`.
 
 - **API:** debug and release builds both point at `https://fihaven.app`.
   For local server work, change `API_BASE` in `app/build.gradle.kts` or

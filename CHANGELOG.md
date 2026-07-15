@@ -1281,6 +1281,7 @@ Every change in 1.5.0, grouped by kind. Each entry carries its PR number.
   `/api/data` model.
 - Project setup — FiHaven rename, GitHub docs, workflows, metadata.
 
+[1.6.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.5.0
 [1.4.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.2
 [1.4.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.1

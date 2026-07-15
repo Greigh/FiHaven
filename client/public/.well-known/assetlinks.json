@@ -8,6 +8,8 @@
       "namespace": "android_app",
       "package_name": "app.fihaven",
       "sha256_cert_fingerprints": [
+        "B3:45:72:79:EF:EF:BA:9C:ED:60:D8:20:E9:32:FC:69:99:32:67:E9:9E:74:41:6E:EF:72:2D:AE:0F:91:8F:AB",
+        "81:A3:E5:39:09:7D:BA:4D:15:EB:F2:28:41:35:6A:A8:63:F7:60:EE:E1:9B:6A:03:94:B6:CE:64:49:45:D1:F0",
         "E6:EE:E9:96:B3:E6:34:C5:C8:DF:E4:2F:52:C2:64:66:44:03:93:9F:DF:FC:BC:7F:6D:51:14:C1:B9:27:93:0A"
       ]
     }
