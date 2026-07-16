@@ -13,7 +13,7 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] — 2026-07-15
+## [1.6.1] — 2026-07-16
 
 | | |
 |---|---|
@@ -25,8 +25,9 @@ Each release below uses two layers:
 ### Summary
 
 > Admin tools you can actually run a product with, a Rewards page that helps you
-> pick a card, report wrong rates against what FiHaven ships, bank balances that
-> update credit limits, and a pile of store-launch + security hardening.
+> pick a card, report wrong rates against what FiHaven ships, **manual-first**
+> bank balance suggestions and subscription confirms, and a pile of store-launch
+> + security hardening.
 
 ### Changes
 
@@ -57,12 +58,36 @@ Each release below uses two layers:
   boundary.
 - Integration test aligned to shipped-preset semantics (#171).
 
+**Cards & payments**
+
+- Recording a payment now lowers **Current Balance** as well as Statement Balance
+  and promo balance (web / iOS / Android), so the Cards tab no longer shows a
+  stale live figure after you pay.
+- Paying a **0% promo** card down to zero asks once whether to remove the promo
+  flags; declining remembers that choice until you change the promo in the editor.
+- Zero-balance promo cards drop out of dashboard / Cards promo alerts and payoff
+  monthly totals.
+
 **Bank sync (Plaid)**
 
-- Balance + credit-limit sync via unambiguous last-digits match (`plaidBalances.js`);
-  typed limits are never cleared when the bank omits a limit; Amex 4↔5-digit masks.
+- Balance suggestions are **manual-first**: sync proposes **Current Balance**
+  (never overwrites Statement Balance). Accept or Decline each suggestion;
+  declined/accepted fingerprints do not reappear until the bank figure changes.
+- Settings → Bank: choose **Review queue** (Cards) or **Ask after each sync**.
+- Credit-limit suggestions still require an unambiguous last-digits match
+  (`plaidBalances.js`); Amex 4↔5-digit masks; typed limits never cleared when
+  the bank omits a limit.
 - Accept / decline pending bank transactions; declines persist across pending→posted
   id swaps via `settings.plaidHidden`.
+
+**Subscriptions**
+
+- Merchants detected from spending stay **Suggested** until you Accept, Decline,
+  or Add (prefilled subscription bill). Declined merchants stay hidden.
+- Monthly total counts **tracked** subscription bills only.
+- Settings → Bank: **Suggested inbox** vs **Inline with actions**.
+- Tighter detection: similar amounts across ≥2 months, or ≥3 distinct months
+  (cuts grocery/gas false positives).
 
 **Spending / UI polish**
 
@@ -110,7 +135,15 @@ Each release below uses two layers:
 - **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids.
 - **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
   FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients.
-- **Plaid**: `plaidBalances.js`, `plaidHidden` merge rules, pending Keep/decline UI.
+- **Payments**: `applyCardPaymentDelta` also decrements `currentBalance`; paid-off
+  promo clear prompt (`promoPayoffPrompted`); iOS payoff sim prefers `currentBalance`.
+- **Plaid balances**: proposals → Accept writes `currentBalance` only
+  (`plaidBalances.js`, `plaidBalanceReview.js`); settings `plaidBalanceMode`,
+  `plaidBalanceProposals`, `plaidBalanceResolved`; Cards review UI + sync prompt.
+- **Subscriptions**: tracked vs candidates; `subscriptionDeclined` /
+  `subscriptionDetectMode`; Accept / Decline / Add on web + native;
+  tightened `subscriptionsFinder` heuristics + tests.
+- **Plaid purchases**: `plaidHidden` merge rules, pending Keep/decline UI.
 - **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
 - **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
   `play-upload.js --version-code`; `upload.example.sh` requires
@@ -120,8 +153,9 @@ Each release below uses two layers:
 - **Verification gates**: `requireVerified` on Plaid auth routes and account
   export endpoints.
 - **Tests**: reward-rate report client integration; health server integration;
-  removed obsolete rewards-link panel test.
-
+  removed obsolete rewards-link panel test; `plaidBalances` / subscriptionsFinder
+  unit coverage for proposals + decline filtering.
+- **Docs**: `docs/native-contract.md` balance field meanings + approval settings.
 ---
 
 ## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
@@ -1401,6 +1435,7 @@ Every change in 1.5.0, grouped by kind. Each entry carries its PR number.
   `/api/data` model.
 - Project setup — FiHaven rename, GitHub docs, workflows, metadata.
 
+[1.6.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.1
 [1.6.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.5.0
 [1.4.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.4.2
