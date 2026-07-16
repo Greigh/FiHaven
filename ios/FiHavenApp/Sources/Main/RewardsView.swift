@@ -82,13 +82,13 @@ struct RewardsView: View {
                             linkingCard = card
                         }
                         .font(Theme.ui(11)).foregroundStyle(Theme.accent)
-                        Button("Report a wrong rate") { ratingCard = card }
+                        Button("Wrong rewards rates") { ratingCard = card }
                             .font(Theme.ui(11)).foregroundStyle(Theme.accent)
                     }
                 }
                 .padding(.vertical, 4)
             }
-            Text("Adding a rewards link, or reporting a wrong rate, emails the card name, your email address, and what you sent to FiHaven so we can fix it for everyone. Optional — see our Privacy Policy.")
+            Text("Adding a rewards link emails what you send (and your email) to FiHaven. Correcting a wrong rate updates your card locally; sharing that correction with FiHaven is optional. See our Privacy Policy.")
                 .font(Theme.ui(11)).foregroundStyle(Theme.muted)
         }
         .padding(14)
@@ -640,6 +640,7 @@ private struct RewardRateSheet: View {
     @State private var category = ""
     @State private var rate = ""
     @State private var note = ""
+    @State private var shareWithFiHaven = false
     @State private var busy = false
 
     /// What the app currently claims. `nil` means we have no rate for this
@@ -684,19 +685,24 @@ private struct RewardRateSheet: View {
                         Text("%").foregroundStyle(Theme.muted)
                     }
                     TextField("Note (optional)", text: $note, axis: .vertical)
+                    Toggle("Also send to FiHaven so we can fix shared presets", isOn: $shareWithFiHaven)
                 } header: {
                     Text("Wrong rate on \(card.name.isEmpty ? "this card" : card.name)")
                 } footer: {
-                    Text("Corrects the rate on your card straight away, then emails the card, the category, and your email address to FiHaven so we can fix it for everyone. Optional — see our Privacy Policy.")
+                    Text(shareWithFiHaven
+                           ? "Corrects the rate on your card, then emails the card, the category, and your email address to FiHaven."
+                           : "Corrects the rate on your card only. Turn on sharing if you want FiHaven to fix the shared preset.")
                 }
             }
-            .navigationTitle("Wrong rate")
+            .navigationTitle("Wrong rewards rates")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Sending…" : "Fix & report") { Task { await submit() } }
-                        .disabled(!isValid || busy)
+                    Button(busy ? "Saving…" : (shareWithFiHaven ? "Fix & report" : "Fix on my card")) {
+                        Task { await submit() }
+                    }
+                    .disabled(!isValid || busy)
                 }
             }
         }
@@ -712,15 +718,17 @@ private struct RewardRateSheet: View {
         // 1) The user's own card — the part that must not be lost.
         store.setCardRewardRate(cardId: card.id, category: isBase ? nil : category, rate: correct)
 
-        // 2) Report it so we can fix the preset for everyone. Best effort.
-        _ = await store.reportRewardRate(
-            card: card.name.isEmpty ? "Card" : card.name,
-            issuer: card.issuer ?? "",
-            category: category,
-            ourRate: ours,
-            correctRate: correct,
-            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+        // 2) Optionally report it so we can fix the preset (off by default).
+        if shareWithFiHaven {
+            _ = await store.reportRewardRate(
+                card: card.name.isEmpty ? "Card" : card.name,
+                issuer: card.issuer ?? "",
+                category: category,
+                ourRate: ours,
+                correctRate: correct,
+                note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
         busy = false
         dismiss()
     }

@@ -392,15 +392,15 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                                         )
                                     }
                                     TextButton(onClick = { ratingCard = c }) {
-                                        Text("Report a wrong rate", color = Ct.colors.accent, fontSize = 12.sp)
+                                        Text("Wrong rewards rates", color = Ct.colors.accent, fontSize = 12.sp)
                                     }
                                 }
                             }
                         }
                         Text(
-                            "Adding a rewards link, or reporting a wrong rate, emails the card name, your " +
-                                "email address, and what you sent to FiHaven so we can fix it for everyone. " +
-                                "Optional — see our Privacy Policy.",
+                            "Adding a rewards link emails what you send (and your email) to FiHaven. " +
+                                "Correcting a wrong rate updates your card locally; sharing that correction " +
+                                "with FiHaven is optional. See our Privacy Policy.",
                             color = Ct.colors.muted, fontSize = 11.sp,
                         )
                     }
@@ -427,6 +427,7 @@ private fun RewardRateDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit
     var category by remember { mutableStateOf("") }
     var rate by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var shareWithFiHaven by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
 
     // What the app currently claims. null = we have no rate for this category,
@@ -439,25 +440,32 @@ private fun RewardRateDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit
     val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
 
     FormDialog(
-        title = "Wrong rate",
+        title = "Wrong rewards rates",
         saveEnabled = category.isNotEmpty() && correct != null && !busy,
-        saveLabel = if (busy) "Sending…" else "Fix & report",
+        saveLabel = when {
+            busy && shareWithFiHaven -> "Sending…"
+            busy -> "Saving…"
+            shareWithFiHaven -> "Fix & report"
+            else -> "Fix on my card"
+        },
         onDismiss = onDismiss,
         onSave = {
             val v = correct ?: return@FormDialog
             busy = true
             // 1) The user's own card — the part that must not be lost.
             vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
-            // 2) Report it so we can fix the preset for everyone. Best effort.
+            // 2) Optionally report it (off by default).
             scope.launch {
-                vm.reportRewardRate(
-                    card = card.name.ifEmpty { "Card" },
-                    issuer = card.issuer ?: "",
-                    category = category,
-                    ourRate = ourRate,
-                    correctRate = v,
-                    note = note.trim(),
-                )
+                if (shareWithFiHaven) {
+                    vm.reportRewardRate(
+                        card = card.name.ifEmpty { "Card" },
+                        issuer = card.issuer ?: "",
+                        category = category,
+                        ourRate = ourRate,
+                        correctRate = v,
+                        note = note.trim(),
+                    )
+                }
                 busy = false
                 onDismiss()
             }
@@ -491,13 +499,20 @@ private fun RewardRateDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit
             label = { Text("Note (optional)") },
             modifier = Modifier.fillMaxWidth(),
         )
+        FilterSwitch(
+            "Also send to FiHaven so we can fix shared presets",
+            shareWithFiHaven,
+        ) { shareWithFiHaven = it }
         Text(
-            "Corrects the rate on your card straight away, then emails the card, the category, and " +
-                "your email address to FiHaven so we can fix it for everyone.",
+            if (shareWithFiHaven)
+                "Corrects the rate on your card, then emails the card, the category, and your email address to FiHaven."
+            else
+                "Corrects the rate on your card only. Turn on sharing if you want FiHaven to fix the shared preset.",
             color = Ct.colors.muted, fontSize = 11.sp,
         )
     }
 }
+
 
 /// Add or change a card's rewards/offers link. Mirrors `ManageLinkDialog` on the
 /// Subscriptions screen: saved on the user's own card *and* offered to the shared

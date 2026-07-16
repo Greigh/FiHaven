@@ -187,8 +187,10 @@ struct CardsView: View {
                         Text("Due date").tag("due")
                         Text("Largest balance").tag("balance")
                         Text("Highest APR").tag("apr")
-                        Text("Highest utilization").tag("util")
-                        Text("0% promo first").tag("promo")
+                        if !isLoanView {
+                            Text("Highest utilization").tag("util")
+                            Text("0% promo first").tag("promo")
+                        }
                         Text("Name (A–Z)").tag("name")
                     }
                 } label: { Image(systemName: "arrow.up.arrow.down") }
@@ -200,7 +202,9 @@ struct CardsView: View {
                                                        : "line.3.horizontal.decrease.circle")
                 }
                 .accessibilityIconButton(
-                    filterCount > 0 ? "Filter cards, \(filterCount) active" : "Filter cards"
+                    filterCount > 0
+                        ? "Filter \(isLoanView ? "loans" : "cards"), \(filterCount) active"
+                        : "Filter \(isLoanView ? "loans" : "cards")"
                 )
             }
             ToolbarItem(placement: .primaryAction) {
