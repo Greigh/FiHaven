@@ -233,8 +233,11 @@ Badge markup is already flip-ready in [`client/home.html`](../../client/home.htm
 
 1. On `#app-store-badges`:
    - `data-store-live="true"`
-   - `data-ios-href="https://apps.apple.com/app/id…"` *(fill Apple ID)*
-   - `data-android-href="https://play.google.com/store/apps/details?id=app.fihaven"`
+   - Set the real App Store URL on `[data-store-badge="ios-live"]`’s `href`
+   - Confirm `[data-store-badge="android-live"]`’s `href` is the Play listing
+     (`https://play.google.com/store/apps/details?id=app.fihaven`)
+   - Do **not** copy store URLs through `data-*-href` attributes into `.href`
+     (that pattern re-triggers CodeQL `js/xss-through-dom`).
 2. FAQ — set JSON-LD + body answers to: *Available on the App Store and Google Play; same account as the web.*
 3. README Roadmap & gaps store table:
 
