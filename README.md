@@ -375,7 +375,7 @@ get a shot — but `.env.development` is skipped.
 | `SMTP_PORT` | for email-MFA | `25` | `465`/`587` enable TLS automatically |
 | `SMTP_USER` / `SMTP_PASS` | optional | — | Only if your relay requires auth |
 | `MAIL_FROM` | for email-MFA | `FiHaven <no-reply@fihaven.app>` | RFC 5322 `From:` header for outbound mail |
-| `MFA_ENCRYPTION_KEY` | no | auto | 32-byte hex; if unset a key is generated and persisted to `data/mfa.key` |
+| `MFA_ENCRYPTION_KEY` | **yes (prod)** | auto via `data/mfa.key` | 32-byte hex for AES-256-GCM of TOTP, Plaid tokens, and `user_data`. Generate with `openssl rand -hex 32`. Production deploy requires it; if migrating from a file-backed key, copy `data/mfa.key` into `.env`. |
 | `DEV_USER_EMAIL` | no | `demo@fihaven.app` | Seeded on first dev start (skipped in prod) |
 | `DEV_USER_PASSWORD` | no | `demopassword11` | Same as above |
 
@@ -680,7 +680,8 @@ cookie + CSRF token. The `mfaToken` is a short-lived
 challenge-bound id stored in SQLite (`mfa_challenges`), not a real
 session — it can't be used to fetch data.
 
-TOTP secrets are encrypted with AES-256-GCM before insert; the key
+TOTP secrets, Plaid access tokens, and each user's `user_data` JSON
+blob are encrypted with AES-256-GCM before insert; the key
 lives in `MFA_ENCRYPTION_KEY` or, if unset, in `data/mfa.key` (mode
 `600`, gitignored). Backup codes are bcrypt-hashed and single-use.
 

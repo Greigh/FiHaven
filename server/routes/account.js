@@ -238,7 +238,7 @@ router.post('/clear-data', requireAuth, requireCsrf, async (req, res) => {
 
 /* ── GET /api/account/export ─────────────────────────────────── */
 
-router.get('/export', requireAuth, (req, res) => {
+router.get('/export', requireAuth, requireVerified, (req, res) => {
   const data = dbApi.getUserData(req.user.id);
   const payload = {
     account: { email: req.user.email },
@@ -274,7 +274,7 @@ function sendCsv(res, filename, rows) {
   res.send(toCsv(rows));
 }
 
-router.get('/export/bills.csv', requireAuth, (req, res) => {
+router.get('/export/bills.csv', requireAuth, requireVerified, (req, res) => {
   const { bills } = dbApi.getUserData(req.user.id);
   const rows = [['Name', 'Category', 'Amount', 'Due Day', 'Frequency', 'Autopay', 'Autopay Day', 'Notes']];
   bills.forEach((b) => rows.push([
@@ -290,7 +290,7 @@ router.get('/export/bills.csv', requireAuth, (req, res) => {
   sendCsv(res, 'fihaven-bills.csv', rows);
 });
 
-router.get('/export/cards.csv', requireAuth, (req, res) => {
+router.get('/export/cards.csv', requireAuth, requireVerified, (req, res) => {
   const { cards } = dbApi.getUserData(req.user.id);
   const rows = [[
     'Name', 'Balance', 'Credit Limit', 'Min Payment', 'Regular APR',
@@ -315,7 +315,7 @@ router.get('/export/cards.csv', requireAuth, (req, res) => {
   sendCsv(res, 'fihaven-cards.csv', rows);
 });
 
-router.get('/export/history.csv', requireAuth, (req, res) => {
+router.get('/export/history.csv', requireAuth, requireVerified, (req, res) => {
   const { payments } = dbApi.getUserData(req.user.id);
   const rows = [['Date', 'Month', 'Type', 'Name', 'Amount', 'Note']];
   payments
