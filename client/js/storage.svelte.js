@@ -355,6 +355,17 @@ export function bootstrapData() {
         window.location.replace('/login');
         return Promise.reject('unauth');
       }
+      if (r.status === 403) {
+        return r.json().catch(() => ({})).then((d) => {
+          if (d && d.error === 'account-suspended') {
+            if (window.AppAuth && window.AppAuth.showSuspendedLock) {
+              window.AppAuth.showSuspendedLock(d.reason || null);
+            }
+            return Promise.reject('suspended');
+          }
+          return Promise.reject('http');
+        });
+      }
       if (!r.ok) return Promise.reject('http');
       return r.json();
     })
@@ -401,7 +412,7 @@ export function bootstrapData() {
       import('./householdMerge.js').then((m) => m.initHouseholdMerge()).catch(() => {});
     })
     .catch((err) => {
-      if (err === 'unauth') return Promise.reject(err);
+      if (err === 'unauth' || err === 'suspended') return Promise.reject(err);
       // Offline or server error — fall back to this device's cache.
       applyData({
         bills: load('fh_bills', []),

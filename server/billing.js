@@ -42,11 +42,33 @@ function products() {
   return DEFAULT_PRODUCTS;
 }
 
+// Default length when an admin comps Pro without specifying days.
+const COMP_DEFAULT_DAYS = {
+  trial: 14,
+  monthly: 31,
+  three_month: 92,
+  yearly: 366,
+  family: 366,
+  lifetime: null,
+};
+
 function planFor(productId) {
+  const id = String(productId || '');
+  // Admin "comp" grants use product_id `comp:<plan>` (e.g. comp:family).
+  if (id.startsWith('comp:')) {
+    const plan = id.slice(5);
+    if (Object.prototype.hasOwnProperty.call(COMP_DEFAULT_DAYS, plan)) return plan;
+  }
   const p = products()[productId];
   if (p) return p.plan;
   // Stripe uses price ids rather than the store product ids.
   return stripePlanForPrice(productId);
+}
+
+function compDefaultDays(plan) {
+  return Object.prototype.hasOwnProperty.call(COMP_DEFAULT_DAYS, plan)
+    ? COMP_DEFAULT_DAYS[plan]
+    : 31;
 }
 
 // Web (Stripe) plans, driven entirely by which STRIPE_PRICE_* vars are
@@ -667,6 +689,8 @@ function devChangeSubscription(userId, plan) {
 module.exports = {
   products,
   planFor,
+  COMP_DEFAULT_DAYS,
+  compDefaultDays,
   verifyMode,
   computeEntitlement,
   householdMaxFor,

@@ -38,6 +38,7 @@ public enum APIError: Error, Equatable, Sendable {
             case "rate-limited": return "Too many attempts. Please wait and try again."
             case "mfa-token-invalid": return "Your verification session expired. Please sign in again."
             case "invalid-totp-code": return "That code wasn't valid."
+            case "account-suspended": return "This account has been suspended. Contact support if you think that's a mistake."
             default: return code ?? "Request failed (\(status))."
             }
         }
