@@ -15,6 +15,13 @@ var PLAN_LABELS = {
   family: 'Family',
   lifetime: 'Lifetime',
 };
+var SOURCE_LABELS = {
+  apple: 'App Store',
+  google: 'Play Store',
+  stripe: 'Web',
+  comp: 'Admin',
+  promo: 'Promo',
+};
 var PLAN_DEFAULT_DAYS = {
   trial: 14,
   monthly: 31,
@@ -78,6 +85,26 @@ function fmtWhen(ms) {
   } catch (_) { return ''; }
 }
 
+function fmtLastLogin(ms) {
+  if (!ms) return 'Never logged in';
+  var diff = Date.now() - ms;
+  if (diff < 0) return fmtWhen(ms);
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  var days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 14) return days + 'd ago';
+  try {
+    return new Date(ms).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+  } catch (_) { return fmtWhen(ms); }
+}
+
 function initials(u) {
   var src = (u.name || u.email || '?').trim();
   var parts = src.split(/\s+/).filter(Boolean);
@@ -88,11 +115,28 @@ function initials(u) {
 function closeMenus() {
   if (openMenu) {
     openMenu.hidden = true;
+    openMenu.classList.remove('is-up');
     openMenu = null;
   }
   document.querySelectorAll('.admin-more[aria-expanded="true"]').forEach(function (b) {
     b.setAttribute('aria-expanded', 'false');
   });
+}
+
+function openUserMenu(more, menu) {
+  var wasOpen = openMenu === menu;
+  closeMenus();
+  if (wasOpen) return;
+  menu.classList.remove('is-up');
+  menu.hidden = false;
+  more.setAttribute('aria-expanded', 'true');
+  openMenu = menu;
+  // Flip upward when the menu would run off the bottom of the viewport
+  // (common for users near the promo section).
+  var rect = menu.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight - 12) {
+    menu.classList.add('is-up');
+  }
 }
 
 /* ── Overlay shell ────────────────────────────────────────── */
@@ -111,7 +155,7 @@ function build() {
       '<div class="admin-body">' +
         '<section class="admin-section">' +
           '<div class="admin-section-head">' +
-            '<h3>Users</h3>' +
+            '<h3 data-admin-users-title>Users</h3>' +
             '<span class="admin-hint">Search, then open ··· for more actions</span>' +
           '</div>' +
           '<input type="search" class="admin-search" data-admin-search placeholder="Search by email or name…" autocomplete="off"/>' +
@@ -141,6 +185,8 @@ function build() {
             '</div>' +
           '</div>' +
           '<div class="admin-promo-msg" data-promo-msg></div>' +
+          '<div class="admin-promo-list-head">Active codes</div>' +
+          '<div class="admin-promo-list" data-promo-list></div>' +
         '</section>' +
       '</div>' +
       // Grant Pro sheet
@@ -316,6 +362,8 @@ function menuSep() {
 
 function render(users, search) {
   closeMenus();
+  var title = overlay.querySelector('[data-admin-users-title]');
+  if (title) title.textContent = 'Users (' + users.length + ')';
   var listEl = overlay.querySelector('[data-admin-users]');
   listEl.innerHTML = '';
   if (!users.length) {
@@ -333,12 +381,16 @@ function render(users, search) {
     if (u.pro) {
       var plan = PLAN_LABELS[u.proPlan] || u.proPlan || 'Pro';
       pills += pill(plan + (u.proExpiresAt ? ' · ' + fmtWhen(u.proExpiresAt) : ''), 'pro');
+      var src = SOURCE_LABELS[u.proSource] || (u.proSource ? String(u.proSource) : '');
+      if (src) pills += pill(src, 'source');
     } else {
       pills += pill('Free', 'free');
     }
 
-    var meta = '';
-    if (u.suspendedReason) meta = '<div class="admin-user-reason">' + esc(u.suspendedReason) + '</div>';
+    var meta = '<div class="admin-user-login">Last login · ' + esc(fmtLastLogin(u.lastLoginAt)) + '</div>';
+    if (u.suspendedReason) {
+      meta += '<div class="admin-user-reason">' + esc(u.suspendedReason) + '</div>';
+    }
 
     row.innerHTML =
       '<div class="admin-avatar" aria-hidden="true">' + esc(initials(u)) + '</div>' +
@@ -376,12 +428,7 @@ function render(users, search) {
 
     more.addEventListener('click', function (e) {
       e.stopPropagation();
-      var wasOpen = openMenu === menu;
-      closeMenus();
-      if (wasOpen) return;
-      menu.hidden = false;
-      more.setAttribute('aria-expanded', 'true');
-      openMenu = menu;
+      openUserMenu(more, menu);
     });
 
     if (u.pro && u.proSource === 'comp') {
@@ -425,6 +472,97 @@ function reload(search) {
   }).catch(function () { setMsg('Network error loading users.'); });
 }
 
+function promoMeta(p) {
+  var bits = [];
+  if (p.grantDays != null) bits.push(p.grantDays + 'd Pro');
+  else if (p.kind === 'free_sub') bits.push('Lifetime Pro');
+  else bits.push(p.kind || 'promo');
+  bits.push((p.redeemedCount || 0) + (p.maxRedemptions != null ? '/' + p.maxRedemptions : '') + ' used');
+  if (p.expiresAt) bits.push('expires ' + fmtWhen(p.expiresAt));
+  return bits.join(' · ');
+}
+
+function renderPromos(promos) {
+  var listEl = overlay.querySelector('[data-promo-list]');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!promos.length) {
+    listEl.innerHTML = '<div class="admin-empty">No active promo codes.</div>';
+    return;
+  }
+  promos.forEach(function (p) {
+    var row = document.createElement('div');
+    row.className = 'admin-promo-row' + (p.redeemable ? '' : ' is-stale');
+
+    var status = p.redeemable
+      ? pill('Redeemable', 'pro')
+      : (p.exhausted ? pill('Exhausted', 'free') : pill('Expired', 'warn'));
+
+    row.innerHTML =
+      '<div class="admin-promo-main">' +
+        '<div class="admin-promo-code">' + esc(p.code) + '</div>' +
+        '<div class="admin-promo-meta">' + esc(promoMeta(p)) +
+          (p.note ? ' · ' + esc(p.note) : '') +
+        '</div>' +
+        '<div class="admin-pills">' + status + '</div>' +
+      '</div>' +
+      '<div class="admin-promo-row-actions"></div>';
+
+    var actions = row.querySelector('.admin-promo-row-actions');
+
+    var copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn btn-ghost btn-sm';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', function () {
+      var done = function () {
+        copyBtn.textContent = 'Copied';
+        setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(p.code).then(done).catch(function () {
+          window.prompt('Copy code:', p.code);
+        });
+      } else {
+        window.prompt('Copy code:', p.code);
+      }
+    });
+    actions.appendChild(copyBtn);
+
+    var offBtn = document.createElement('button');
+    offBtn.type = 'button';
+    offBtn.className = 'btn btn-ghost btn-sm';
+    offBtn.textContent = 'Deactivate';
+    offBtn.addEventListener('click', function () {
+      if (!window.confirm('Deactivate ' + p.code + '? It won’t redeem anymore.')) return;
+      adminFetch('promo/' + encodeURIComponent(p.code) + '/deactivate', 'POST', {}).then(function (res) {
+        if (res.ok) reloadPromos();
+        else {
+          var msgEl = overlay.querySelector('[data-promo-msg]');
+          msgEl.className = 'admin-promo-msg is-err';
+          msgEl.textContent = errText(res.data && res.data.error);
+        }
+      });
+    });
+    actions.appendChild(offBtn);
+
+    listEl.appendChild(row);
+  });
+}
+
+function reloadPromos() {
+  adminFetch('promo').then(function (res) {
+    if (res.ok) renderPromos(res.data.promos || []);
+    else {
+      var listEl = overlay.querySelector('[data-promo-list]');
+      if (listEl) listEl.innerHTML = '<div class="admin-empty">Could not load promo codes.</div>';
+    }
+  }).catch(function () {
+    var listEl = overlay.querySelector('[data-promo-list]');
+    if (listEl) listEl.innerHTML = '<div class="admin-empty">Could not load promo codes.</div>';
+  });
+}
+
 function createPromo() {
   var codeEl = overlay.querySelector('[data-promo-code]');
   var daysEl = overlay.querySelector('[data-promo-days]');
@@ -446,6 +584,7 @@ function createPromo() {
       msgEl.className = 'admin-promo-msg is-ok';
       msgEl.textContent = 'Created · ' + (res.data.promo && res.data.promo.code);
       codeEl.value = '';
+      reloadPromos();
     } else {
       msgEl.className = 'admin-promo-msg is-err';
       msgEl.textContent = errText(res.data && res.data.error);
@@ -463,6 +602,9 @@ export function openAdminTools() {
   var search = overlay.querySelector('[data-admin-search]');
   search.value = '';
   setMsg('');
+  var promoMsg = overlay.querySelector('[data-promo-msg]');
+  if (promoMsg) { promoMsg.textContent = ''; promoMsg.className = 'admin-promo-msg'; }
   reload('');
+  reloadPromos();
   search.focus();
 }
