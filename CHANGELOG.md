@@ -353,11 +353,11 @@ Each release below uses two layers:
   the root app to bypass the `/api` tiers, which also left its DB ping
   (`SELECT 1`) unthrottled (`js/missing-rate-limiting`). It now carries its own
   lenient per-IP limiter (120/min — ample for monitors and deploy retries).
-- **Store go-live links assigned from a DOM attribute (CodeQL #38, #39).** The
-  home-page go-live script read `data-ios-href`/`data-android-href` and assigned
-  them straight to `.href` (`js/xss-through-dom`), so a `javascript:` value would
-  have executed. Links are now validated against an absolute-`https://` allowlist
-  before assignment.
+- **Store go-live links assigned from a DOM attribute (CodeQL #38, #39, #41, #42).**
+  The home-page go-live script read `data-ios-href`/`data-android-href` and
+  assigned them to `.href` (`js/xss-through-dom`), so a `javascript:` value
+  would have executed. Store URLs now live on the badge `<a href>` attributes
+  in markup; the script only toggles visibility when `data-store-live="true"`.
 
 #### Chore
 
