@@ -21,7 +21,7 @@ const express = require('express');
 const dbApi = require('../db');
 const plaid = require('../plaid');
 const billing = require('../billing');
-const { balanceUpdates, applyBalanceUpdates } = require('../plaidBalances');
+const { balanceProposals } = require('../plaidBalances');
 const { mergeTransactions } = require('../plaidMerge');
 const { requireAuth, requireVerified, requireCsrf } = require('../session');
 
@@ -137,26 +137,36 @@ function saveAccounts(itemPk, accounts) {
   }
 }
 
-// Opt-in, non-destructive balance sync. By default FiHaven NEVER changes the
-// balances the user typed — Plaid balances live only in the bank panel. When
-// the user enables `settings.plaidUpdateBalances`, update a card's owed
-// balance (and credit limit when Plaid reports one) from a freshly-pulled
-// Plaid account, but only on an unambiguous last-digits match via
-// card.lastDigits (name as fallback — see plaidBalances.js). No-op
-// otherwise, so a linked bank assists, never overrides.
+// Opt-in balance *suggestions*. By default FiHaven NEVER changes the balances
+// the user typed — Plaid balances live only in the bank panel. When the user
+// enables `settings.plaidUpdateBalances`, sync stores proposals for Current
+// Balance (never Statement Balance). The client Accepts/Declines; resolved
+// fingerprints are not re-proposed until the bank figure changes.
 function applyPlaidBalances(userId, accounts) {
   try {
     const data = dbApi.getUserData(userId);
-    if (!data || !(data.settings && data.settings.plaidUpdateBalances)) return;
-    const updates = balanceUpdates(data.cards || [], accounts || []);
-    if (!updates.length) return;
-    const { cards, changed } = applyBalanceUpdates(data.cards || [], updates);
-    if (!changed) return;
-    data.cards = cards;
+    if (!data) return;
+    if (!(data.settings && data.settings.plaidUpdateBalances)) {
+      if (data.settings && Array.isArray(data.settings.plaidBalanceProposals)
+          && data.settings.plaidBalanceProposals.length) {
+        data.settings.plaidBalanceProposals = [];
+        dbApi.upsertUserData(userId, data);
+      }
+      return;
+    }
+    if (!data.settings || typeof data.settings !== 'object') data.settings = {};
+    const resolved = Array.isArray(data.settings.plaidBalanceResolved)
+      ? data.settings.plaidBalanceResolved.map((r) => (r && r.fingerprint) || r).filter(Boolean)
+      : [];
+    const proposals = balanceProposals(data.cards || [], accounts || [], resolved);
+    const prev = JSON.stringify(data.settings.plaidBalanceProposals || []);
+    const next = JSON.stringify(proposals);
+    if (prev === next) return;
+    data.settings.plaidBalanceProposals = proposals;
     dbApi.upsertUserData(userId, data);
-    logPlaid('balances-applied', { userId, updated: updates.length });
+    logPlaid('balances-proposed', { userId, proposed: proposals.length });
   } catch (e) {
-    logPlaid('balances-apply:error', { userId, message: e && e.message });
+    logPlaid('balances-propose:error', { userId, message: e && e.message });
   }
 }
 

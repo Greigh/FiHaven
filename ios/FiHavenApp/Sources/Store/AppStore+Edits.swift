@@ -222,15 +222,43 @@ extension AppStore {
         }
     }
 
+    /// True when a card's statement + promo balances are paid off and we haven't
+    /// asked about clearing the 0% promo yet.
+    func cardNeedsPromoClearPrompt(refId: String) -> Bool {
+        guard let c = data.cards.first(where: { String($0.id) == refId }) else { return false }
+        guard c.hasPromo, !c.promoPayoffPrompted else { return false }
+        if c.balance > 0.005 { return false }
+        if let pb = c.promoBalance, pb > 0.005 { return false }
+        return true
+    }
+
+    /// Yes clears promo fields; No only marks the prompt as answered.
+    func resolvePromoClearPrompt(refId: String, clear: Bool) {
+        mutate { data in
+            guard let i = data.cards.firstIndex(where: { String($0.id) == refId }) else { return }
+            data.cards[i].promoPayoffPrompted = true
+            if clear {
+                data.cards[i].hasPromo = false
+                data.cards[i].promoAPR = nil
+                data.cards[i].promoEndDate = nil
+                data.cards[i].promoBalance = nil
+            }
+        }
+    }
+
     /// Recording a card payment decrements its balance (and promo
     /// balance); reversing one adds it back. Mirrors applyCardPaymentDelta
     /// in modals.js. `delta` is positive for a new payment, negative to undo.
+    /// When Current Balance is set, it moves in lockstep with statement balance.
     static func applyCardPaymentDelta(_ refId: String, _ delta: Double, in data: inout AppData) {
         guard delta != 0,
               let i = data.cards.firstIndex(where: { String($0.id) == refId }) else { return }
         data.cards[i].balance = max(0, data.cards[i].balance - delta)
         if let pb = data.cards[i].promoBalance {
             data.cards[i].promoBalance = max(0, pb - delta)
+        }
+        if let cur = data.cards[i].currentBalance {
+            data.cards[i].currentBalance = max(0, cur - delta)
         }
     }
 
@@ -374,9 +402,102 @@ extension AppStore {
         refreshNotifications()
     }
 
-    /// Opt-in: let synced bank balances update matching cards (server-applied).
+    /// Opt-in: bank suggests Current Balance (Accept/Decline). Never auto-writes.
     func setPlaidUpdateBalances(_ on: Bool) {
         mutate { $0.settings.plaidUpdateBalances = on }
+    }
+
+    func setPlaidBalanceMode(_ mode: String) {
+        mutate { $0.settings.plaidBalanceMode = mode }
+    }
+
+    func setSubscriptionDetectMode(_ mode: String) {
+        mutate { $0.settings.subscriptionDetectMode = mode }
+    }
+
+    struct BalanceProposal: Identifiable {
+        var id: String { fingerprint }
+        let cardId: String
+        let name: String
+        let proposedCurrent: Double
+        let limit: Double?
+        let fingerprint: String
+    }
+
+    func pendingBalanceProposals() -> [BalanceProposal] {
+        let resolved = Set(data.settings.plaidBalanceResolved.compactMap { $0["fingerprint"]?.asString })
+        return data.settings.plaidBalanceProposals.compactMap { raw in
+            guard let fp = raw["fingerprint"]?.asString, !resolved.contains(fp) else { return nil }
+            let cardId: String = {
+                if let s = raw["id"]?.asString { return s }
+                if let n = raw["id"]?.asDouble { return String(Int(n)) }
+                return ""
+            }()
+            guard !cardId.isEmpty else { return nil }
+            let proposed = raw["proposedCurrent"]?.asDouble ?? raw["balance"]?.asDouble ?? 0
+            let limit = raw["limit"]?.asDouble
+            let name = data.cards.first(where: { String($0.id) == cardId })?.name ?? "Card \(cardId)"
+            return BalanceProposal(cardId: cardId, name: name, proposedCurrent: proposed, limit: limit, fingerprint: fp)
+        }
+    }
+
+    func acceptBalanceProposal(_ p: BalanceProposal) {
+        mutate { data in
+            if let i = data.cards.firstIndex(where: { String($0.id) == p.cardId }) {
+                data.cards[i].currentBalance = p.proposedCurrent
+                if let lim = p.limit { data.cards[i].limit = lim }
+            }
+            var resolved = data.settings.plaidBalanceResolved
+            resolved.append([
+                "fingerprint": .string(p.fingerprint),
+                "decision": .string("accept"),
+                "at": .string(ISO8601DateFormatter().string(from: Date())),
+            ])
+            if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
+            data.settings.plaidBalanceResolved = resolved
+            data.settings.plaidBalanceProposals = data.settings.plaidBalanceProposals.filter {
+                $0["fingerprint"]?.asString != p.fingerprint
+            }
+        }
+    }
+
+    func declineBalanceProposal(_ p: BalanceProposal) {
+        mutate { data in
+            var resolved = data.settings.plaidBalanceResolved
+            resolved.append([
+                "fingerprint": .string(p.fingerprint),
+                "decision": .string("decline"),
+                "at": .string(ISO8601DateFormatter().string(from: Date())),
+            ])
+            if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
+            data.settings.plaidBalanceResolved = resolved
+            data.settings.plaidBalanceProposals = data.settings.plaidBalanceProposals.filter {
+                $0["fingerprint"]?.asString != p.fingerprint
+            }
+        }
+    }
+
+    func declineSubscriptionMerchant(_ key: String) {
+        guard !key.isEmpty else { return }
+        mutate { data in
+            var list = data.settings.subscriptionDeclined
+            if !list.contains(key) { list.append(key) }
+            data.settings.subscriptionDeclined = Array(list.suffix(200))
+        }
+    }
+
+    func acceptSubscriptionCandidate(name: String, amount: Double, lastDate: String?) {
+        let day = lastDate.flatMap { Int($0.suffix(2)) }
+        let bill = Bill(
+            id: UUID().uuidString,
+            name: name.isEmpty ? "Subscription" : name,
+            category: "Subscriptions",
+            amount: amount,
+            dueDay: day,
+            frequency: "Monthly",
+            business: name.isEmpty ? nil : name
+        )
+        upsertBill(bill)
     }
 
     /// Opt-in: import bank outflows into Spending (server-applied, additive).

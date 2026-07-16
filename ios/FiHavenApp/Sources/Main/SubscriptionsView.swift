@@ -1,12 +1,12 @@
 import SwiftUI
 import FiHavenCore
 
-/// Subscription finder (Rocket-Money style): bills flagged as Subscriptions,
-/// plus merchants that recur across ≥2 months. Flags price increases, stale
-/// subs, duplicates, trials, and cancel/manage links.
+/// Subscription finder: tracked Subscription bills plus suggested recurring
+/// merchants (Accept / Decline / Add). Totals count tracked only.
 struct SubscriptionsView: View {
     @EnvironmentObject var store: AppStore
     @State private var editingBill: Bill?
+    @State private var creatingFrom: SubscriptionsFinder.Item?
     @State private var linking: SubscriptionsFinder.Item?
 
     private struct SubStatus {
@@ -15,61 +15,60 @@ struct SubscriptionsView: View {
         let tone: A11y.MoneyTone
     }
 
-    /// The tracked bill behind a detected subscription, if there is one.
     private func bill(for item: SubscriptionsFinder.Item) -> Bill? {
         guard let id = item.billId else { return nil }
         return store.data.bills.first { $0.id == id }
     }
 
-    private var subscriptions: [SubscriptionsFinder.Item] {
+    private var allItems: [SubscriptionsFinder.Item] {
         SubscriptionsFinder.build(
             bills: store.data.bills,
             transactions: store.data.transactions,
-            tz: store.tz
+            tz: store.tz,
+            declined: store.data.settings.subscriptionDeclined
         )
     }
 
-    private var totalMonthly: Double { subscriptions.reduce(0) { $0 + $1.monthly } }
+    private var tracked: [SubscriptionsFinder.Item] { allItems.filter { $0.source == "bill" } }
+    private var candidates: [SubscriptionsFinder.Item] { allItems.filter { $0.source == "tx" } }
+    private var inboxMode: Bool { store.data.settings.subscriptionDetectMode != "inline" }
+    private var totalMonthly: Double { tracked.reduce(0) { $0 + $1.monthly } }
 
     var body: some View {
         List {
-            if subscriptions.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 36))
-                        .foregroundStyle(Theme.accent)
-                        .accessibilityHidden(true)
-                    Text("No subscriptions detected yet")
-                        .font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text("Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here.")
-                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .ctCard()
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+            if tracked.isEmpty && candidates.isEmpty {
+                emptyState
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        FieldLabel(text: "Subscriptions")
-                        Spacer()
-                        Text("\(Money.fmt(totalMonthly))/mo · \(subscriptions.count)")
-                            .font(Theme.mono(12)).foregroundStyle(Theme.muted)
+                header
+                if inboxMode {
+                    ForEach(tracked) { s in
+                        subscriptionRow(s, candidate: false)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Total \(Money.fmt(totalMonthly)) per month across \(subscriptions.count) subscriptions")
-                    VStack(spacing: 0) {
-                        ForEach(Array(subscriptions.enumerated()), id: \.element.id) { i, s in
-                            if i > 0 { Divider().overlay(Theme.border) }
-                            subscriptionRow(s)
+                    if !candidates.isEmpty {
+                        Section {
+                            ForEach(candidates) { s in
+                                subscriptionRow(s, candidate: true)
+                            }
+                        } header: {
+                            Text("Suggested from spending")
+                        } footer: {
+                            Text("Accept to track, Decline to hide, or Add to edit before saving.")
                         }
                     }
-                    .ctCard()
+                } else {
+                    ForEach(tracked) { s in
+                        subscriptionRow(s, candidate: false)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    }
+                    ForEach(candidates) { s in
+                        subscriptionRow(s, candidate: true)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    }
                 }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 4, trailing: 16))
             }
         }
         .listStyle(.plain)
@@ -77,13 +76,56 @@ struct SubscriptionsView: View {
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Subscriptions")
         .sheet(item: $editingBill) { bill in BillEditorView(bill: bill) }
+        .sheet(item: $creatingFrom) { item in
+            BillEditorView(bill: Bill(
+                id: UUID().uuidString,
+                name: item.name,
+                category: "Subscriptions",
+                amount: item.amount,
+                dueDay: item.lastDate.flatMap { Int($0.suffix(2)) },
+                frequency: "Monthly",
+                business: item.name
+            ))
+        }
         .sheet(item: $linking) { item in
             ManageLinkSheet(item: item, bill: bill(for: item))
                 .environmentObject(store)
         }
     }
 
-    private func subscriptionRow(_ s: SubscriptionsFinder.Item) -> some View {
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 36))
+                .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
+            Text("No subscriptions yet")
+                .font(Theme.ui(17, weight: .semibold)).foregroundStyle(Theme.text)
+            Text("Flag a bill as a Subscription, or Accept a suggestion from recurring merchants.")
+                .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .ctCard()
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                FieldLabel(text: "Subscriptions")
+                Spacer()
+                Text("\(Money.fmt(totalMonthly))/mo · \(tracked.count) tracked")
+                    .font(Theme.mono(12)).foregroundStyle(Theme.muted)
+            }
+        }
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 4, trailing: 16))
+    }
+
+    private func subscriptionRow(_ s: SubscriptionsFinder.Item, candidate: Bool) -> some View {
         let status = subStatus(s)
         return HStack(alignment: .top, spacing: 10) {
             Text(SubscriptionIcons.emoji(s.name, category: "Subscriptions"))
@@ -91,43 +133,57 @@ struct SubscriptionsView: View {
                 .frame(width: 22)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
-                SubscriptionStatusBadge(icon: status.icon, text: status.text, tone: status.tone)
-                if let url = s.manageUrl, let link = URL(string: url) {
-                    Link("Manage or cancel", destination: link)
-                        .font(Theme.ui(11))
+                HStack(spacing: 6) {
+                    Text(s.name).font(Theme.ui(14, weight: .medium)).foregroundStyle(Theme.text)
+                    if candidate {
+                        Text("Suggested")
+                            .font(Theme.ui(10, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
-                HStack(spacing: 14) {
-                    if let b = bill(for: s) {
-                        Button("Edit bill") { editingBill = b }
+                SubscriptionStatusBadge(icon: status.icon, text: status.text, tone: status.tone)
+                if candidate {
+                    HStack(spacing: 12) {
+                        Button("Accept") {
+                            store.acceptSubscriptionCandidate(name: s.name, amount: s.amount, lastDate: s.lastDate)
+                        }
+                        .font(Theme.ui(11, weight: .semibold))
+                        Button("Decline") {
+                            store.declineSubscriptionMerchant(s.merchantKey.isEmpty
+                                ? SubscriptionLinks.normalizeKey(s.name) : s.merchantKey)
+                        }
+                        .font(Theme.ui(11))
+                        Button("Add") { creatingFrom = s }
+                            .font(Theme.ui(11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .padding(.top, 2)
+                } else {
+                    if let url = s.manageUrl, let link = URL(string: url) {
+                        Link("Manage or cancel", destination: link)
+                            .font(Theme.ui(11))
+                    }
+                    HStack(spacing: 14) {
+                        if let b = bill(for: s) {
+                            Button("Edit bill") { editingBill = b }
+                                .font(Theme.ui(11))
+                                .buttonStyle(.plain)
+                                .foregroundStyle(Theme.accent)
+                        }
+                        Button(s.manageUrl == nil ? "Add manage link" : "Change manage link") { linking = s }
                             .font(Theme.ui(11))
                             .buttonStyle(.plain)
                             .foregroundStyle(Theme.accent)
                     }
-                    Button(s.manageUrl == nil ? "Add manage link" : "Change manage link") { linking = s }
-                        .font(Theme.ui(11))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.accent)
+                    .padding(.top, 2)
                 }
-                .padding(.top, 2)
             }
             Spacer()
             Text("\(Money.fmt(s.monthly))/mo").font(Theme.mono(13)).foregroundStyle(Theme.text)
         }
         .padding(.vertical, 6)
-        // The row carries its own buttons, so it must not collapse into a
-        // single accessibility element — that would hide them from VoiceOver.
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(rowAccessibilityLabel(s, status: status))
-        .accessibilityHint(s.manageUrl != nil ? "Includes a manage or cancel link" : "")
-    }
-
-    private func rowAccessibilityLabel(_ s: SubscriptionsFinder.Item, status: SubStatus) -> String {
-        var parts = ["\(s.name), \(Money.fmt(s.monthly)) per month", status.text]
-        if let next = s.nextDue, status.text.hasPrefix("Next:") == false && !s.duplicate && s.priceUp == nil && !s.stale && !s.trialSoon {
-            parts.append("Next due \(subFriendlyDate(next))")
-        }
-        return parts.joined(separator: ". ")
     }
 
     private func subStatus(_ s: SubscriptionsFinder.Item) -> SubStatus {
@@ -165,9 +221,7 @@ struct SubscriptionsView: View {
 }
 
 /// Add or change a subscription's manage/cancel link. Mirrors the web's
-/// `SubscriptionsPanel` link form: the URL is saved on the user's own bill
-/// *and* offered to the shared database. The personal save is what matters,
-/// so a failed share is reported but never blocks it.
+/// `SubscriptionsPanel` link form.
 private struct ManageLinkSheet: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
@@ -179,67 +233,39 @@ private struct ManageLinkSheet: View {
     @State private var busy = false
     @State private var message: String?
 
-    private var isValid: Bool {
-        guard let u = URL(string: url.trimmingCharacters(in: .whitespaces)),
-              let scheme = u.scheme?.lowercased(),
-              u.host?.isEmpty == false
-        else { return false }
-        return scheme == "http" || scheme == "https"
-    }
-
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     TextField("https://…/account/subscriptions", text: $url)
-                        .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
                         .autocorrectionDisabled()
-                } header: {
-                    Text("Manage or cancel link for \(item.name)")
                 } footer: {
-                    Text(bill == nil
-                        ? "Emails the service name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy."
-                        : "Saved on your bill. Also emails the service name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.")
-                }
-                if let message {
-                    Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
+                    Text(message ?? "Saves to your bill when linked, and can be shared with FiHaven.")
                 }
             }
-            .navigationTitle("Manage link")
+            .navigationTitle(item.manageUrl == nil ? "Add manage link" : "Change manage link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Saving…" : "Save") { Task { await submit() } }
-                        .disabled(!isValid || busy)
+                    Button("Save") { save() }.disabled(busy || url.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear { url = item.manageUrl ?? "" }
         }
     }
 
-    private func submit() async {
-        let trimmed = url.trimmingCharacters(in: .whitespaces)
-        guard isValid else { return }
-        busy = true
-        message = nil
-
-        // 1) The user's own bill — the part that must not be lost.
-        if let bill { store.setBillManageUrl(billId: bill.id, url: trimmed) }
-
-        // 2) Offer it to the shared database. Best effort.
-        let shared = await store.shareSubscriptionLink(name: item.name, url: trimmed)
-        busy = false
-
-        if bill != nil {
-            message = shared ? "Saved to your bill and shared — thanks!" : "Saved to your bill."
-            dismiss()
-        } else if shared {
-            message = "Shared — thanks!"
-            dismiss()
-        } else {
-            message = "Couldn’t send that just now. Please try again."
+    private func save() {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().hasPrefix("http") else {
+            message = "Enter a full https:// link."
+            return
         }
+        busy = true
+        if let bill { store.setBillManageUrl(billId: bill.id, url: trimmed) }
+        busy = false
+        dismiss()
     }
 }

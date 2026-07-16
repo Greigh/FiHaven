@@ -8,9 +8,12 @@ public enum SubscriptionsFinder {
     public struct Item: Identifiable, Equatable, Sendable {
         public var id: String
         public var billId: String?
+        public var merchantKey: String
         public var name: String
         public var monthly: Double
+        public var amount: Double
         public var source: String
+        public var lastDate: String?
         public var priceUp: Double?
         public var stale: Bool
         public var nextDue: Date?
@@ -20,6 +23,8 @@ public enum SubscriptionsFinder {
         public var trialSoon: Bool
         public var duplicate: Bool
     }
+
+    public static let amountSimilarity = 0.15
 
     public static func monthlyOfBill(_ b: Bill) -> Double {
         switch b.frequency {
@@ -31,16 +36,37 @@ public enum SubscriptionsFinder {
         }
     }
 
-    public static func build(bills: [Bill], transactions: [SpendTransaction], tz: TimeZone) -> [Item] {
+    public static func amountsSimilar(_ amts: [Double]) -> Bool {
+        guard amts.count >= 2 else { return true }
+        let minA = amts.map { abs($0) }.min() ?? 0
+        let maxA = amts.map { abs($0) }.max() ?? 0
+        if maxA < 0.005 { return true }
+        return (maxA - minA) / maxA <= amountSimilarity
+    }
+
+    public static func build(
+        bills: [Bill],
+        transactions: [SpendTransaction],
+        tz: TimeZone,
+        declined: [String] = []
+    ) -> [Item] {
+        let declinedSet = Set(declined.map { $0.lowercased() }.filter { !$0.isEmpty })
+        var trackedKeys = Set<String>()
         var out: [Item] = []
         for b in bills where b.category == "Subscriptions" && !b.archived && !DateLogic.billEnded(b, tz: tz) {
             let left = trialDaysLeft(b.trialEnds, tz: tz)
+            let name = b.name.isEmpty ? "Subscription" : b.name
+            let mk = SubscriptionLinks.normalizeKey(name)
+            if !mk.isEmpty { trackedKeys.insert(mk) }
             out.append(Item(
                 id: "bill-\(b.id)",
                 billId: b.id,
-                name: b.name.isEmpty ? "Subscription" : b.name,
+                merchantKey: mk,
+                name: name,
                 monthly: monthlyOfBill(b),
+                amount: b.amount,
                 source: "bill",
+                lastDate: nil,
                 priceUp: nil,
                 stale: false,
                 nextDue: BillSchedule.nextDueDate(b, tz: tz),
@@ -54,17 +80,24 @@ public enum SubscriptionsFinder {
         let withMerchant = transactions.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
         let byMerchant = Dictionary(grouping: withMerchant) { $0.merchant.trimmingCharacters(in: .whitespaces).lowercased() }
         for (_, list) in byMerchant {
-            if Set(list.map { String($0.date.prefix(7)) }).count < 2 { continue }
+            let months = Set(list.map { String($0.date.prefix(7)) })
+            if months.count < 2 || list.count < 2 { continue }
+            if months.count < 3 && !amountsSimilar(list.map(\.amount)) { continue }
             let sorted = list.sorted { $0.date < $1.date }
             guard let latest = sorted.last else { continue }
             let minAmt = list.map(\.amount).min() ?? 0
             let days = daysSince(latest.date, tz: tz) ?? 0
+            let mk = SubscriptionLinks.normalizeKey(latest.merchant)
+            if !mk.isEmpty && (declinedSet.contains(mk) || trackedKeys.contains(mk)) { continue }
             out.append(Item(
                 id: "tx-\(latest.merchant)",
                 billId: nil,
+                merchantKey: mk,
                 name: latest.merchant,
                 monthly: latest.amount,
+                amount: latest.amount,
                 source: "tx",
+                lastDate: latest.date,
                 priceUp: latest.amount > minAmt + 0.005 ? minAmt : nil,
                 stale: days > staleDays,
                 nextDue: nil,

@@ -73,6 +73,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var promoAPR: Double?
     public var promoEndDate: String?   // "YYYY-MM-DD"
     public var promoBalance: Double?
+    /// Set after the paid-off promo clear prompt so we don't ask again.
+    public var promoPayoffPrompted: Bool
     public var dueDay: Int?
     public var autopay: Bool
     public var autopayDay: Int?        // "Autopay day" — day money is pulled; nil falls back to dueDay
@@ -106,6 +108,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         promoAPR: Double? = nil,
         promoEndDate: String? = nil,
         promoBalance: Double? = nil,
+        promoPayoffPrompted: Bool = false,
         dueDay: Int? = nil,
         autopay: Bool = false,
         autopayDay: Int? = nil,
@@ -138,6 +141,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.promoAPR = promoAPR
         self.promoEndDate = promoEndDate
         self.promoBalance = promoBalance
+        self.promoPayoffPrompted = promoPayoffPrompted
         self.dueDay = dueDay
         self.autopay = autopay
         self.autopayDay = autopayDay
@@ -162,7 +166,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, balance, limit, minPayment, recommendedPayment, regularAPR
-        case hasPromo, promoAPR, promoEndDate, promoBalance
+        case hasPromo, promoAPR, promoEndDate, promoBalance, promoPayoffPrompted
         case dueDay, autopay, autopayDay, notes
         case type, issuer, currentBalance, lastDigits, network
         case rewardBase, rewardCategories, rotatingPool, rotatingRate, pointValue, perks
@@ -182,6 +186,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         promoAPR = c.flexibleDouble(.promoAPR)
         promoEndDate = c.flexibleString(.promoEndDate)
         promoBalance = c.flexibleDouble(.promoBalance)
+        promoPayoffPrompted = c.flexibleBool(.promoPayoffPrompted) ?? false
         dueDay = c.flexibleInt(.dueDay)
         autopay = c.flexibleBool(.autopay) ?? false
         autopayDay = c.flexibleInt(.autopayDay)
