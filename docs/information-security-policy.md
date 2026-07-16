@@ -53,7 +53,7 @@ A risk that cannot be immediately remediated is documented with a compensating c
 | Class | Examples | Handling |
 |---|---|---|
 | **Restricted** | Plaid access tokens, MFA secrets/TOTP seeds, password hashes, encryption keys | Encrypted at rest (AES-256-GCM) or one-way hashed; never logged; never returned to clients; never committed to version control |
-| **Confidential** | User financial data, connected-account balances, email addresses | Access-controlled per user; transmitted only over TLS; retained only while the account exists |
+| **Confidential** | User financial data (`user_data` bills/cards/payments/etc.), connected-account balances, email addresses | Field-encrypted at rest (AES-256-GCM) for `user_data`; access-controlled per user; transmitted only over TLS; retained only while the account exists |
 | **Internal** | Application logs, operational metrics | Access limited to operators; no Restricted data permitted in logs |
 | **Public** | Marketing pages, published source code (source available) | No protection beyond integrity |
 
@@ -74,8 +74,8 @@ Restricted and Confidential data are only ever transmitted over encrypted channe
 ## 6. Encryption & key management
 
 - **In transit.** All client–server traffic is served over **HTTPS/TLS**; the reverse proxy terminates TLS and the application sets the `Secure` flag on session cookies. Plaintext HTTP is not used for authenticated traffic.
-- **At rest.** Secrets classified as Restricted — **Plaid access tokens** and **MFA/TOTP secrets** — are encrypted with **AES-256-GCM** using a unique random 12-byte IV per record and an authentication tag, via a single vetted encryption helper shared across the codebase.
-- **Key management.** The 256-bit at-rest encryption key is supplied via an environment variable (`MFA_ENCRYPTION_KEY`) or, if absent, generated once and persisted to a key file with restrictive (`0600`) permissions outside the web root. Keys and all other secrets live only in environment configuration (`.env`), which is excluded from version control and stripped/sanitized during deployment. Plaid client secrets, Stripe keys, and SMTP credentials are handled the same way.
+- **At rest.** Secrets classified as Restricted — **Plaid access tokens** and **MFA/TOTP secrets** — and Confidential **user financial payloads** stored in `user_data` are encrypted with **AES-256-GCM** using a unique random 12-byte IV per record and an authentication tag, via a single vetted encryption helper shared across the codebase.
+- **Key management.** The 256-bit at-rest encryption key is supplied via an environment variable (`MFA_ENCRYPTION_KEY`). Production deployments must set this explicitly so the key is not stored beside the database; if absent in non-production, a key is generated once and persisted to a key file with restrictive (`0600`) permissions outside the web root. Keys and all other secrets live only in environment configuration (`.env`), which is excluded from version control and stripped/sanitized during deployment. Plaid client secrets, Stripe keys, and SMTP credentials are handled the same way.
 - **No secrets in code.** Source control is scanned for secrets; credentials, tokens, and keys are never committed.
 
 ---

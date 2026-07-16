@@ -23,7 +23,7 @@ const plaid = require('../plaid');
 const billing = require('../billing');
 const { balanceUpdates, applyBalanceUpdates } = require('../plaidBalances');
 const { mergeTransactions } = require('../plaidMerge');
-const { requireAuth, requireCsrf } = require('../session');
+const { requireAuth, requireVerified, requireCsrf } = require('../session');
 
 const router = express.Router();
 
@@ -277,7 +277,7 @@ async function syncAllItems(userId, { force = false } = {}) {
 /* ── GET /api/plaid/status ───────────────────────────────────── */
 // Not Pro-gated: the client needs to know whether to show the
 // "Connect a bank" action or the upgrade prompt.
-router.get('/status', requireAuth, (req, res) => {
+router.get('/status', requireAuth, requireVerified, (req, res) => {
   const pro = billing.computeEntitlement(req.user.id).pro;
   const configured = plaid.plaidConfigured();
   const items = configured && pro
@@ -287,7 +287,7 @@ router.get('/status', requireAuth, (req, res) => {
 });
 
 /* ── POST /api/plaid/link/token ──────────────────────────────── */
-router.post('/link/token', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+router.post('/link/token', requireAuth, requireVerified, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   try {
     // Optional itemId → update-mode token to re-auth an existing item.
     let accessToken = null;
@@ -311,7 +311,7 @@ router.post('/link/token', requireAuth, requireCsrf, requirePlaid, requirePro, a
 /* ── POST /api/plaid/item/:id/repaired ───────────────────────── */
 // After a successful update-mode Link, mark the item active again (no
 // public-token exchange happens in update mode) and refresh its data.
-router.post('/item/:id/repaired', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+router.post('/item/:id/repaired', requireAuth, requireVerified, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const item = dbApi.findPlaidItemById(id, req.user.id);
   if (!item) return sendError(res, 404, 'not-found');
@@ -333,7 +333,7 @@ router.post('/item/:id/repaired', requireAuth, requireCsrf, requirePlaid, requir
 });
 
 /* ── POST /api/plaid/link/exchange ───────────────────────────── */
-router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+router.post('/link/exchange', requireAuth, requireVerified, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   const publicToken = (req.body || {}).public_token;
   if (!publicToken) return sendError(res, 400, 'missing-public-token');
   // Institution metadata Link hands back (best-effort; refined below).
@@ -416,14 +416,14 @@ router.post('/link/exchange', requireAuth, requireCsrf, requirePlaid, requirePro
 // Clients call this on app open, so it's throttled: an item synced within the
 // last hour is skipped. `{force:true}` overrides — used by the Settings
 // "Refresh" button and the backfill right after a user opts in.
-router.post('/refresh', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+router.post('/refresh', requireAuth, requireVerified, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   const force = !!(req.body || {}).force;
   await syncAllItems(req.user.id, { force });
   res.json({ items: dbApi.listPlaidItems(req.user.id).map(serializeItem) });
 });
 
 /* ── POST /api/plaid/item/:id/remove ─────────────────────────── */
-router.post('/item/:id/remove', requireAuth, requireCsrf, requirePlaid, requirePro, async (req, res) => {
+router.post('/item/:id/remove', requireAuth, requireVerified, requireCsrf, requirePlaid, requirePro, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const item = dbApi.findPlaidItemById(id, req.user.id);
   if (!item) return sendError(res, 404, 'not-found');

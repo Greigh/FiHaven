@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    mfa.js — TOTP, WebAuthn (passkey), backup-code helpers, plus
    the AES-256-GCM at-rest encryption used to protect the TOTP
-   shared secret in the database.
+   shared secret, Plaid tokens, and user_data JSON in the database.
 
    The encryption key comes from MFA_ENCRYPTION_KEY (.env). When
    absent we generate one once and persist it to data/mfa.key so
@@ -29,26 +29,49 @@ const KEY_FILE = path.join(__dirname, '..', 'data', 'mfa.key');
 
 /* ── Encryption helpers ─────────────────────────────────────── */
 
+let KEY = null;
+/** True when the key was loaded from data/mfa.key (not MFA_ENCRYPTION_KEY). */
+let KEY_FROM_FILE = false;
+
 function loadKey() {
   if (process.env.MFA_ENCRYPTION_KEY) {
     const k = Buffer.from(process.env.MFA_ENCRYPTION_KEY, 'hex');
     if (k.length !== 32) {
       throw new Error('MFA_ENCRYPTION_KEY must be 32 bytes (64 hex chars)');
     }
+    KEY_FROM_FILE = false;
     return k;
   }
   // Fallback: persist a random key alongside the database.
   if (!fs.existsSync(KEY_FILE)) {
+    fs.mkdirSync(path.dirname(KEY_FILE), { recursive: true });
     fs.writeFileSync(KEY_FILE, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
   }
   const hex = fs.readFileSync(KEY_FILE, 'utf-8').trim();
+  KEY_FROM_FILE = true;
   return Buffer.from(hex, 'hex');
 }
 
-let KEY = null;
 function key() {
   if (!KEY) KEY = loadKey();
   return KEY;
+}
+
+/** Whether at-rest crypto is using data/mfa.key instead of the env var. */
+function usingFileKey() {
+  key(); // ensure loaded
+  return KEY_FROM_FILE;
+}
+
+function warnIfProductionFileKey() {
+  if (process.env.NODE_ENV !== 'production') return;
+  if (!usingFileKey()) return;
+  console.warn(
+    '[security] MFA_ENCRYPTION_KEY is unset — using data/mfa.key next to the DB. ' +
+      'Set MFA_ENCRYPTION_KEY in production .env (openssl rand -hex 32, or copy the ' +
+      'existing data/mfa.key hex) so a stolen database alone cannot decrypt TOTP, ' +
+      'Plaid tokens, or user_data.',
+  );
 }
 
 function encrypt(plain) {
@@ -312,6 +335,8 @@ module.exports = {
   // crypto
   encrypt,
   decrypt,
+  usingFileKey,
+  warnIfProductionFileKey,
   // TOTP
   newTotpSecretBase32,
   totpUri,

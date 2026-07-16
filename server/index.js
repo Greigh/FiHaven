@@ -32,6 +32,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const dbApi = require('./db');
+const mfa = require('./mfa');
 const { loadSession, requireVerified } = require('./session');
 const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
@@ -324,6 +325,7 @@ if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === '1
 app.listen(PORT, () => {
   console.log(`FiHaven server listening on http://localhost:${PORT}`);
   console.log(`database: ${dbApi.DB_PATH}`);
+  mfa.warnIfProductionFileKey();
   // Non-fatal SMTP health probe so "emails aren't working" is visible in the
   // boot logs instead of only surfacing as swallowed per-send errors.
   mail.verify()
