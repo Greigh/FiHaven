@@ -551,11 +551,14 @@ private struct RewardRateReportSheet: View {
 
     private var card: Card? { cards.first { $0.id == cardId } }
 
-    private var shownRate: Double? {
-        guard let card, !category.isEmpty else { return nil }
-        if category == Self.baseRate { return card.rewardBase }
-        return card.rewardCategories[category]
+    private var shipped: Rewards.ShippedRate {
+        guard let card, !category.isEmpty else {
+            return Rewards.ShippedRate(rate: nil, preset: nil)
+        }
+        return Rewards.shippedRewardRate(for: card, category: category, baseLabel: Self.baseRate)
     }
+
+    private var shownRate: Double? { shipped.rate }
 
     private var correctRate: Double? {
         guard let v = Double(rate.trimmingCharacters(in: .whitespaces)),
@@ -586,9 +589,9 @@ private struct RewardRateReportSheet: View {
 
                 Section {
                     HStack {
-                        Text("We show").foregroundStyle(Theme.muted)
+                        Text("Our preset").foregroundStyle(Theme.muted)
                         Spacer()
-                        Text(category.isEmpty ? "—" : (shownRate.map { "\($0)%" } ?? "none set"))
+                        Text(shownLabel)
                             .font(Theme.mono(13))
                     }
                     HStack {
@@ -632,10 +635,18 @@ private struct RewardRateReportSheet: View {
         }
     }
 
+    private var shownLabel: String {
+        if category.isEmpty { return "—" }
+        if shipped.preset == nil { return "no match" }
+        if let shownRate { return "\(shownRate)%" }
+        return "none set"
+    }
+
     private func submit() async {
         guard let card, let correct = correctRate else { return }
         busy = true
-        let ours = shownRate
+        let shipped = Rewards.shippedRewardRate(for: card, category: category, baseLabel: Self.baseRate)
+        let ours = shipped.rate
         if alsoFix {
             store.setCardRewardRate(
                 cardId: card.id,
@@ -644,8 +655,8 @@ private struct RewardRateReportSheet: View {
             )
         }
         let ok = await store.reportRewardRate(
-            card: card.name.isEmpty ? "Card" : card.name,
-            issuer: card.issuer ?? "",
+            card: shipped.preset?.name ?? (card.name.isEmpty ? "Card" : card.name),
+            issuer: shipped.preset?.issuer ?? card.issuer ?? "",
             category: category,
             ourRate: ours,
             correctRate: correct,

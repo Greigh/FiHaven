@@ -99,3 +99,35 @@ export function suggestCardPreset(name, issuer) {
   }
   return bestScore >= 4 ? best : null;
 }
+
+const BASE_RATE_LABEL = 'Base rate (everything)';
+
+/** Rate FiHaven ships for a preset + category (not the user's edited card). */
+export function presetRateForCategory(preset, category, baseLabel = BASE_RATE_LABEL) {
+  if (!preset || !category) return null;
+  if (category === baseLabel) {
+    const b = parseFloat(preset.rewardBase);
+    return Number.isFinite(b) ? b : null;
+  }
+  const cats = preset.rewardCategories || {};
+  if (Object.prototype.hasOwnProperty.call(cats, category)) {
+    const v = parseFloat(cats[category]);
+    return Number.isFinite(v) ? v : null;
+  }
+  // Rotating / choose-your-category cards advertise this elevated rate for the pool.
+  if (Array.isArray(preset.rotatingPool) && preset.rotatingPool.includes(category)) {
+    const r = parseFloat(preset.rotatingRate);
+    return Number.isFinite(r) ? r : null;
+  }
+  return null;
+}
+
+/**
+ * What the shared preset catalog claims for this card+category.
+ * Returns { rate, preset } — rate is null when we ship no rate (or no preset match).
+ */
+export function shippedRewardRate(card, category, baseLabel = BASE_RATE_LABEL) {
+  const preset = suggestCardPreset(card && card.name, card && card.issuer);
+  if (!preset) return { rate: null, preset: null };
+  return { rate: presetRateForCategory(preset, category, baseLabel), preset };
+}
