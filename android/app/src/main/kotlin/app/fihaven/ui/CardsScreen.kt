@@ -144,6 +144,42 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
             filterCount = filterCount, onFilters = { showFilters = true },
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!isLoanView) {
+                val proposals = vm.pendingBalanceProposals()
+                if (proposals.isNotEmpty()) {
+                    item {
+                        CtCard {
+                            Text("🏦 Bank balance review", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Ct.colors.text)
+                            Text(
+                                "Suggestions update Current Balance only. Decline remembers this figure until the bank changes.",
+                                color = Ct.colors.muted, fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+                            )
+                            proposals.forEach { p ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(p.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ct.colors.text)
+                                        Text(
+                                            "Current → ${Money.fmt(p.proposedCurrent)}" +
+                                                (p.limit?.let { " · limit ${Money.fmt(it)}" } ?: ""),
+                                            color = Ct.colors.muted, fontSize = 12.sp,
+                                        )
+                                    }
+                                    TextButton(onClick = { vm.acceptBalanceProposal(p) }) {
+                                        Text("Accept", color = Ct.colors.accent)
+                                    }
+                                    TextButton(onClick = { vm.declineBalanceProposal(p) }) {
+                                        Text("Decline", color = Ct.colors.muted)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if (!isLoanView && creditCards.isNotEmpty()) {
                 // "Pay this month" = what's still owed this period across all cards,
                 // per the user's paid-goal policy (mirrors each card's Pay button).
@@ -874,7 +910,9 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
 @Composable
 private fun CardsPayoffCard(cards: List<Card>, zone: java.time.ZoneId) {
     val nonPromo = cards.filter { !(it.hasPromo && !it.promoEndDate.isNullOrEmpty()) && it.balance > 0 }
-    val promo = cards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }
+    val promo = cards.filter {
+        it.hasPromo && !it.promoEndDate.isNullOrEmpty() && (it.promoBalance ?: it.balance) > 0
+    }
     if (nonPromo.isEmpty() && promo.isEmpty()) return
     val nonPromoTotal = nonPromo.sumOf { it.balance }
     val promoMonthly = promo.sumOf { Schedule.promoNeeded(it, zone) }

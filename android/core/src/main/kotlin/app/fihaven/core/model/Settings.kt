@@ -75,9 +75,23 @@ val JsonObject.localNotifications: Boolean get() = prim("localNotifications")?.b
 val JsonObject.pushNotifications: Boolean get() = prim("pushNotifications")?.booleanOrNull ?: false
 /// Opt-in (Pro): remind before an activated card-linked offer expires.
 val JsonObject.offerReminders: Boolean get() = prim("offerReminders")?.booleanOrNull ?: false
-/// Opt-in: let a synced bank balance update a matching card. Off by default —
-/// FiHaven never overrides a typed balance unless this is on.
+/// Opt-in: let a synced bank balance *suggest* Current Balance updates.
 val JsonObject.plaidUpdateBalances: Boolean get() = prim("plaidUpdateBalances")?.booleanOrNull ?: false
+/** "review" (queue on Cards) or "prompt" (after sync). */
+val JsonObject.plaidBalanceMode: String
+    get() = if (prim("plaidBalanceMode")?.contentOrNull == "prompt") "prompt" else "review"
+/** Pending Current Balance proposals from bank sync. */
+val JsonObject.plaidBalanceProposals: List<JsonObject>
+    get() = (this["plaidBalanceProposals"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
+/** Accepted/declined fingerprints. */
+val JsonObject.plaidBalanceResolved: List<JsonObject>
+    get() = (this["plaidBalanceResolved"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
+/** Subscription candidates: "inbox" or "inline". */
+val JsonObject.subscriptionDetectMode: String
+    get() = if (prim("subscriptionDetectMode")?.contentOrNull == "inline") "inline" else "inbox"
+/** Normalized merchant keys declined as subscriptions. */
+val JsonObject.subscriptionDeclined: List<String>
+    get() = (this["subscriptionDeclined"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()
 /// Opt-in: add bank-sourced outflows to Spending. Off by default — spending
 /// stays manual-entry, and imported rows never overwrite a typed one.
 val JsonObject.plaidUpdatePurchases: Boolean get() = prim("plaidUpdatePurchases")?.booleanOrNull ?: false

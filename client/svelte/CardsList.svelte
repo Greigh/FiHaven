@@ -16,6 +16,11 @@
     paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
   import { askDelete, openPayModal, editCard, skipMonth, unskipMonth } from '../js/modals.js';
+  import {
+    pendingBalanceProposals,
+    acceptBalanceProposal,
+    declineBalanceProposal,
+  } from '../js/plaidBalanceReview.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
 
@@ -28,6 +33,23 @@
   let isLoanView = $derived(kind === 'loan');
   const inView = (c) => (isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan');
   let baseCards = $derived(cards.filter((c) => !c.archived && inView(c)));
+
+  let balanceProposals = $derived.by(() => {
+    void settings.plaidBalanceProposals;
+    void settings.plaidBalanceResolved;
+    if (isLoanView) return [];
+    return pendingBalanceProposals().map((p) => {
+      const c = cards.find((x) => String(x.id) === String(p.id));
+      return { ...p, name: (c && c.name) || ('Card ' + p.id) };
+    });
+  });
+
+  function acceptProposal(p) {
+    acceptBalanceProposal(p);
+  }
+  function declineProposal(p) {
+    declineBalanceProposal(p);
+  }
 
   /* ── Archive (soft delete) ──────────────────────────────── */
   let useArchive = $derived(archiveInsteadOfDelete(settings));
@@ -135,7 +157,10 @@
   // "how much do I pay?".
   let payThisMonth = $derived(baseCards.reduce((s, c) => s + remainingForItem('card', String(c.id), currentPeriodKey()), 0));
   let overallUtil  = $derived(totalLimit > 0 ? Math.round((baseCards.filter(c => c.type !== 'loan').reduce((s, c) => s + (parseFloat(c.balance) || 0), 0) / totalLimit) * 100) : 0);
-  let promoCount   = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate).length);
+  let promoCount   = $derived(baseCards.filter((c) => {
+    if (!(c.type !== 'loan' && c.hasPromo && c.promoEndDate)) return false;
+    return (parseFloat(c.promoBalance) || parseFloat(c.balance) || 0) > 0;
+  }).length);
 
   /* ── Payoff snapshot (cards view only) ──────────────────
      Cards without a 0% promo accrue interest now, so their balance is a
@@ -143,7 +168,10 @@
      amount that clears the promo balance before it expires. */
   let nonPromoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && !(c.hasPromo && c.promoEndDate) && (parseFloat(c.balance) || 0) > 0));
   let nonPromoPayoff = $derived(nonPromoCards.reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
-  let promoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && c.hasPromo && c.promoEndDate));
+  let promoCards = $derived(baseCards.filter((c) => {
+    if (!(c.type !== 'loan' && c.hasPromo && c.promoEndDate)) return false;
+    return (parseFloat(c.promoBalance) || parseFloat(c.balance) || 0) > 0;
+  }));
   let promoMonthly = $derived(promoCards.reduce((s, c) => s + promoNeeded(c), 0));
   let promoLongestMonths = $derived(promoCards.reduce((m, c) => Math.max(m, monthsUntil(c.promoEndDate)), 0));
 
@@ -181,6 +209,28 @@
     return cards.findIndex((c) => c.id === card.id);
   }
 </script>
+
+{#if !isLoanView && balanceProposals.length > 0}
+  <div class="recon-card" style="margin-bottom:16px;">
+    <div class="recon-head">🏦 Bank balance review</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">
+      Suggestions update <strong>Current Balance</strong> only. Statement Balance stays manual. Decline remembers this figure so it won’t reappear until the bank changes.
+    </p>
+    {#each balanceProposals as p (p.fingerprint)}
+      <div class="recon-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border);">
+        <div style="flex:1;min-width:140px;">
+          <div style="font-weight:600;font-size:14px;">{p.name}</div>
+          <div style="font-size:12px;color:var(--muted);">
+            Current → {fmt(p.proposedCurrent)}
+            {#if p.limit != null}<span> · limit {fmt(p.limit)}</span>{/if}
+          </div>
+        </div>
+        <button class="btn btn-primary btn-xs" type="button" onclick={() => acceptProposal(p)}>Accept</button>
+        <button class="btn btn-ghost btn-xs" type="button" onclick={() => declineProposal(p)} title="Not now — don’t suggest this figure again">Decline</button>
+      </div>
+    {/each}
+  </div>
+{/if}
 
 {#if baseCards.length === 0}
   <div class="empty">

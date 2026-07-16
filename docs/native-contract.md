@@ -237,7 +237,8 @@ today's `YYYY-MM-DD` in the user's tz.
 {
   "id": 10,
   "name": "Chase Freedom Flex",
-  "balance": 2340,          // number
+  "balance": 2340,          // number — Statement Balance (manual; payments decrement this)
+  "currentBalance": null,   // optional number — live/Current Balance (payments decrement when set; Plaid Accept writes here only)
   "limit": 8000,            // number (credit limit)
   "minPayment": 35,         // number
   "regularAPR": 24.99,      // number, percent
@@ -245,6 +246,7 @@ today's `YYYY-MM-DD` in the user's tz.
   "promoAPR": 0,            // number|null, percent (usually 0)
   "promoEndDate": "2026-10-01", // "YYYY-MM-DD"|null
   "promoBalance": 2340,     // number|null (balance under the promo)
+  "promoPayoffPrompted": false, // optional — after paid-off promo clear prompt, don't ask again
   "dueDay": 18,             // number 1–31
   "autopay": false,         // bool
   "autopayDay": null,       // optional number 1–31 — day autopay pulls; null falls back to dueDay
@@ -302,8 +304,10 @@ for the user to audit on the Spending screen: `duplicatePairs` (a manual + a ban
 row that look like the same purchase — same amount to the cent, similar merchant,
 date within ±1 day), `unmatchedBank` (bank rows with no manual twin), and
 `unconfirmedManual` (recent manual rows the bank hasn't corroborated). Resolution
-is manual — "remove my copy" / "keep both". Balances are never overwritten unless
-`plaidUpdateBalances` is opted into (server-side, last-4 mask match only).
+is manual — "remove my copy" / "keep both". Bank balances become **Current Balance
+proposals** when `plaidUpdateBalances` is on (never Statement Balance). The client
+Accepts or Declines each proposal; declined/accepted fingerprints are not
+re-prompted until the bank figure changes.
 
 ### Payment
 ```jsonc
@@ -338,7 +342,12 @@ The server stores `settings` verbatim as an object. Known keys:
 | `offerReminders` | boolean | Pro: remind before an activated card-linked offer expires — email + local notif, same lead window as bill reminders (default `false`) |
 | `localNotifications` | boolean | native opt-in to schedule local bill reminders (default `false`) |
 | `pushNotifications` | boolean | native opt-in to register for server push (APNs / FCM); uses the same reminder/digest settings as email (default `false`) |
-| `plaidUpdateBalances` | boolean | opt-in: let a synced bank balance update a matching card. Off by default — a linked bank NEVER overrides typed balances; when on, the server updates a card only on an unambiguous last-4 mask match (default `false`) |
+| `plaidUpdateBalances` | boolean | opt-in: bank suggests Current Balance updates (Accept/Decline). Off by default — never writes Statement Balance; proposals use unambiguous last-4 mask match (default `false`) |
+| `plaidBalanceMode` | `"review"` \| `"prompt"` | how balance suggestions appear: review queue on Cards, or ask after Sync now (default `review`) |
+| `plaidBalanceProposals` | array | pending `{ id, proposedCurrent, limit?, fingerprint }` from bank sync |
+| `plaidBalanceResolved` | array | `{ fingerprint, decision, at }` — Accept/Decline memory (sticky) |
+| `subscriptionDetectMode` | `"inbox"` \| `"inline"` | how tx-detected subscription candidates appear (default `inbox`) |
+| `subscriptionDeclined` | `string[]` | normalized merchant keys declined as subscriptions (sticky) |
 | `dashboardLayout` | `"classic"|"widgets"` | dashboard mode (default `classic`) |
 | `dashboardWidgets` | `string[]` | enabled widget ids, in display order (`widgets` mode) |
 | `budgetRule` | `"off"` \| `"50-30-20"` \| `"80-20"` \| `"60-20-20"` \| `"70-20-10"` \| `"custom"` \| `"obligations-first"` \| `"debt-focus"` \| `"envelope"` | optional Budget lens (default `off`) |
@@ -473,9 +482,10 @@ prompt for free users.
   loans recommend the scheduled payment, not the whole principal.
 - Budget: income sources editor, monthly totals, period switcher, and
   (Pro) spending-category budgets.
-- Subscriptions *(Pro)*: recurring-charge finder — bills flagged
-  `Subscriptions` plus merchants recurring across ≥2 months, with
-  price-increase and stale flags; ended bills drop off.
+- Subscriptions *(Pro)*: tracked bills flagged `Subscriptions`, plus
+  transaction candidates (similar amounts across ≥2 months, or ≥3 months)
+  shown as Suggested until Accept / Decline / Add. Declined merchants stay
+  hidden; monthly total counts tracked only.
 - Calendar *(Pro)*: due-date calendar ([`CalendarView.svelte`](../client/svelte/CalendarView.svelte)) + iCal feed.
 - History *(Pro)*: payment log with edit/delete.
 - Payoff *(Pro)*: strategy + extra-payment simulator (§7.5).

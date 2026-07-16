@@ -44,7 +44,11 @@
   /* ── Top stat tiles ──────────────────────────────────── */
   let activeCards = $derived(cards.filter((c) => !c.archived));
   let totalDebt = $derived(activeCards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
-  let promoCards = $derived(activeCards.filter((c) => c.hasPromo && c.promoEndDate));
+  let promoCards = $derived(activeCards.filter((c) => {
+    if (!(c.hasPromo && c.promoEndDate)) return false;
+    const bal = parseFloat(c.promoBalance) || parseFloat(c.balance) || 0;
+    return bal > 0;
+  }));
   let urgentPromo = $derived(promoCards.filter((c) => monthsUntil(c.promoEndDate) <= 3).length);
 
   let allItems   = $derived(buildUpcomingItems());
@@ -111,9 +115,9 @@
       const endStr = new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       if (mo <= 0 && bal > 0) {
         out.push({ type: 'danger', html: `🚨 <strong>${c.name}</strong> — 0% promo expired. ${fmt(bal)} is accruing ${c.regularAPR}% APR.` });
-      } else if (mo <= 2) {
+      } else if (mo <= 2 && bal > 0) {
         out.push({ type: 'danger', html: `🔥 <strong>${c.name}</strong> — 0% promo ends in <strong>${days} days</strong> (${endStr}). Pay <strong>${payAmt}/mo</strong> to avoid interest.` });
-      } else if (mo <= 4) {
+      } else if (mo <= 4 && bal > 0) {
         out.push({ type: 'warn', html: `⚠️ <strong>${c.name}</strong> — 0% promo ends in <strong>${mo} months</strong>. Need <strong>${payAmt}/mo</strong> to clear ${fmt(bal)}.` });
       }
     });

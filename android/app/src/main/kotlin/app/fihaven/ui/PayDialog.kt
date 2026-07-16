@@ -91,8 +91,19 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
     }
     var note by remember { mutableStateOf("") }
     var showDuplicateAlert by remember { mutableStateOf(false) }
+    var showPromoClearAlert by remember { mutableStateOf(false) }
 
     val amountVal = amount.toDoubleOrNull() ?: 0.0
+
+    fun savePaymentAndMaybePromoPrompt() {
+        val date = DateLogic.parseDate(dateStr) ?: today
+        vm.recordPayment(type, refId, name, amountVal, date, note.trim())
+        if (type == "card" && vm.cardNeedsPromoClearPrompt(refId)) {
+            showPromoClearAlert = true
+        } else {
+            onDismiss()
+        }
+    }
 
     val policyLabel =
             if (type == "bill") "full amount"
@@ -130,14 +141,39 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                     TextButton(
                             onClick = {
                                 showDuplicateAlert = false
-                                val date = DateLogic.parseDate(dateStr) ?: today
-                                vm.recordPayment(type, refId, name, amountVal, date, note.trim())
-                                onDismiss()
+                                savePaymentAndMaybePromoPrompt()
                             }
                     ) { Text("Save Payment") }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDuplicateAlert = false }) { Text("Cancel") }
+                }
+        )
+    }
+
+    if (showPromoClearAlert) {
+        androidx.compose.material3.AlertDialog(
+                onDismissRequest = {
+                    vm.resolvePromoClearPrompt(refId, clear = false)
+                    onDismiss()
+                },
+                title = { Text("Remove 0% promo?") },
+                text = { Text("This card is paid off. Remove the 0% promo?") },
+                confirmButton = {
+                    TextButton(
+                            onClick = {
+                                vm.resolvePromoClearPrompt(refId, clear = true)
+                                onDismiss()
+                            }
+                    ) { Text("Remove promo") }
+                },
+                dismissButton = {
+                    TextButton(
+                            onClick = {
+                                vm.resolvePromoClearPrompt(refId, clear = false)
+                                onDismiss()
+                            }
+                    ) { Text("Keep promo") }
                 }
         )
     }
@@ -151,8 +187,7 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                 if (type == "card" && day >= 15 && alreadyPaid > Schedule.PAID_EPSILON) {
                     showDuplicateAlert = true
                 } else {
-                    vm.recordPayment(type, refId, name, amountVal, date, note.trim())
-                    onDismiss()
+                    savePaymentAndMaybePromoPrompt()
                 }
             },
             onDismiss = onDismiss,
