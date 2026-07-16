@@ -10,6 +10,7 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const mfa = require('./mfa');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = process.env.FIHAVEN_TEST_DB_PATH
@@ -877,8 +878,7 @@ function setOnboarded(userId) { stmt.setOnboarded.run(userId); }
 // summary scheduler. Small user counts make a full scan fine.
 function allUsersWithData() {
   return stmt.allUsersWithData.all().map((r) => {
-    let data;
-    try { data = JSON.parse(r.data); } catch (e) { data = {}; }
+    const data = decodeUserDataBlob(r.data);
     return {
       id: r.id,
       email: r.email,
@@ -890,10 +890,10 @@ function allUsersWithData() {
       last_trial_reminder_day: r.last_trial_reminder_day,
       last_offer_reminder_day: r.last_offer_reminder_day,
       data: {
-        bills: Array.isArray(data.bills) ? data.bills : [],
-        cards: Array.isArray(data.cards) ? data.cards : [],
-        payments: Array.isArray(data.payments) ? data.payments : [],
-        settings: (data.settings && typeof data.settings === 'object') ? data.settings : {},
+        bills: data.bills,
+        cards: data.cards,
+        payments: data.payments,
+        settings: data.settings,
       },
     };
   });
@@ -927,12 +927,16 @@ function deleteExpiredSessions() {
 
 const EMPTY_DATA = { bills: [], cards: [], payments: [], accounts: [], goals: [], transactions: [], settings: {} };
 
-// Returns the user's saved app data, or empty defaults when none exists.
-function getUserData(userId) {
-  const row = stmt.getUserData.get(userId);
-  if (!row) return { ...EMPTY_DATA };
+/**
+ * Decode a user_data.data TEXT cell.
+ * Legacy rows are plaintext JSON (`{…}`); new rows are AES-256-GCM (mfa.encrypt).
+ */
+function decodeUserDataBlob(raw) {
+  if (raw == null || raw === '') return { ...EMPTY_DATA };
+  const s = String(raw).trim();
   try {
-    const parsed = JSON.parse(row.data);
+    const json = s.startsWith('{') ? s : mfa.decrypt(s);
+    const parsed = JSON.parse(json);
     return {
       bills: Array.isArray(parsed.bills) ? parsed.bills : [],
       cards: Array.isArray(parsed.cards) ? parsed.cards : [],
@@ -945,13 +949,25 @@ function getUserData(userId) {
           ? parsed.settings
           : {},
     };
-  } catch (err) {
+  } catch (_) {
     return { ...EMPTY_DATA };
   }
 }
 
+/** Encrypt a user_data object for storage (AES-256-GCM via mfa.encrypt). */
+function encodeUserDataBlob(data) {
+  return mfa.encrypt(JSON.stringify(data));
+}
+
+// Returns the user's saved app data, or empty defaults when none exists.
+function getUserData(userId) {
+  const row = stmt.getUserData.get(userId);
+  if (!row) return { ...EMPTY_DATA };
+  return decodeUserDataBlob(row.data);
+}
+
 function upsertUserData(userId, data) {
-  stmt.upsertUserData.run(userId, JSON.stringify(data), Date.now());
+  stmt.upsertUserData.run(userId, encodeUserDataBlob(data), Date.now());
 }
 
 // True when the account has any second factor enrolled (TOTP, a passkey,
@@ -1150,6 +1166,8 @@ module.exports = {
   setOfferReminderDay,
   getUserData,
   upsertUserData,
+  decodeUserDataBlob,
+  encodeUserDataBlob,
   userHasMfa,
   recover2faWipe,
   // TOTP

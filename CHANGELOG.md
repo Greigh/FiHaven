@@ -85,6 +85,12 @@ Each release below uses two layers:
 
 **Security**
 
+- Encrypt `user_data` at rest (AES-256-GCM, same key as TOTP/Plaid); legacy
+  plaintext rows read until the next write migrates them.
+- Require verified email for Plaid linking (webhook stays open) and account
+  export (JSON + CSV).
+- Production deploy must set `MFA_ENCRYPTION_KEY`; boot warns if the key still
+  lives beside the DB; deploy script locks down `data/` permissions.
 - Escape user-named bill/card in pay-goal hint (CodeQL #37).
 - Rate-limit `/health`; validate go-live store hrefs (CodeQL #38–#40).
 - Remove DOM-attr→`.href` flow on go-live badges entirely (CodeQL #41, #42) —
@@ -107,7 +113,12 @@ Each release below uses two layers:
 - **Plaid**: `plaidBalances.js`, `plaidHidden` merge rules, pending Keep/decline UI.
 - **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
 - **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
-  `play-upload.js --version-code`.
+  `play-upload.js --version-code`; `upload.example.sh` requires
+  `MFA_ENCRYPTION_KEY` and `chmod 700/600` on remote `data/`.
+- **Data at rest**: `decodeUserDataBlob` / `encodeUserDataBlob` in `db.js`;
+  `mfa.warnIfProductionFileKey()` on boot; `server/userDataCrypto.test.js`.
+- **Verification gates**: `requireVerified` on Plaid auth routes and account
+  export endpoints.
 - **Tests**: reward-rate report client integration; health server integration;
   removed obsolete rewards-link panel test.
 
