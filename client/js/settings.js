@@ -1889,7 +1889,11 @@ import {
             if (purchasesToggle) purchasesToggle.checked = wantPurchases;
             if (balancesToggle) balancesToggle.checked = wantBalances;
             showMessage('plaid', wantPurchases || wantBalances
-              ? 'Bank linked. Importing your history now — check the Spending tab in a moment.'
+              ? (wantPurchases && wantBalances
+                ? 'Bank linked. Importing purchases and updating matching card balances…'
+                : wantPurchases
+                  ? 'Bank linked. Importing your history now — check the Spending tab in a moment.'
+                  : 'Bank linked. Updating matching card balances…')
               : 'Bank linked.', false);
             refreshStatus();
           }).catch(function (err) {
@@ -1909,7 +1913,9 @@ import {
       balancesToggle.addEventListener('change', function () {
         showMessage('plaid', 'Saving…', false);
         patchSettings({ plaidUpdateBalances: balancesToggle.checked }).then(function () {
-          showMessage('plaid', 'Saved.', false);
+          showMessage('plaid', balancesToggle.checked
+            ? 'Saved. Updating matching card balances…'
+            : 'Saved.', false);
         }).catch(function (err) {
           balancesToggle.checked = !balancesToggle.checked;
           showMessage('plaid', (err && err.message) || errorText('network'), true);
