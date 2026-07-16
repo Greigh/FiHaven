@@ -2701,18 +2701,6 @@ main {
   font-size: 11px;
   color: var(--muted);
 }
-.admin-release-note {
-  margin: 10px 0 0;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-.admin-release-note code {
-  font-size: 10.5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--border) 45%, transparent);
-}
 .admin-promo-list-head {
   margin: 16px 0 8px;
   font-size: 11px;
