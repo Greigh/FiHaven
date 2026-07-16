@@ -234,4 +234,7 @@ bootstrapData().then(() => {
     .then((m) => m.syncBanks())
     .then((pulled) => { if (pulled) refreshAll(); })
     .catch(() => {});
+}).catch((err) => {
+  // Suspended accounts already got the lock overlay; don't boot the app.
+  if (err === 'suspended' || err === 'unauth') return;
 });

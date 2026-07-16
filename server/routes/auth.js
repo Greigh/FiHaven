@@ -298,6 +298,10 @@ router.post('/login', async (req, res) => {
     return sendError(res, 401, 'invalid-credentials');
   }
 
+  if (account.suspended) {
+    return sendError(res, 403, 'account-suspended');
+  }
+
   rateLimit.reset(req.ip, email);
 
   // If the account has any second factor enrolled, do NOT mint a
@@ -355,6 +359,7 @@ function consumeMfaToken(tokenId, expectedUserId) {
 }
 
 function finishLogin(res, req, account) {
+  if (account.suspended) return sendError(res, 403, 'account-suspended');
   dbApi.touchLastLogin(account.id);
   const mode = authMode(req);
   const session = createSession(res, account, req, { mode });
@@ -627,6 +632,8 @@ router.get('/me', (req, res) => {
       emailVerified: !!req.user.emailVerified,
       onboarded: !!req.user.onboarded,
       createdAt: row ? row.created_at : null,
+      suspended: !!(row && row.suspended),
+      suspendedReason: (row && row.suspended_reason) || null,
     },
     csrfToken: req.session.csrf_token,
   });
