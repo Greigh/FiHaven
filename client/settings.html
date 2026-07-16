@@ -572,7 +572,7 @@
               <input type="checkbox" data-plaid-optin-balances />
               <span>
                 <strong>Update my card balances</strong>
-                <span style="display:block;font-size:12px;color:var(--muted);">Only updates a card that clearly matches by its last 4 digits.</span>
+                <span style="display:block;font-size:12px;color:var(--muted);">Only updates a card whose Ends in digits uniquely match — balance and credit limit when the bank reports them.</span>
               </span>
             </label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -590,7 +590,7 @@
             <div class="settings-toggle-row" style="margin-top:14px;">
               <div class="settings-toggle-copy">
                 <div class="settings-toggle-title">Let bank balances update my cards</div>
-                <div class="settings-toggle-desc">Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only when it clearly matches by its last 4 digits (include them in the card name).</div>
+                <div class="settings-toggle-desc">Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.</div>
               </div>
               <label class="fh-switch">
                 <input type="checkbox" data-plaid-balances-toggle aria-label="Let bank balances update my cards"/>

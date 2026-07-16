@@ -139,10 +139,11 @@ function saveAccounts(itemPk, accounts) {
 
 // Opt-in, non-destructive balance sync. By default FiHaven NEVER changes the
 // balances the user typed — Plaid balances live only in the bank panel. When
-// the user enables `settings.plaidUpdateBalances`, update a card's owed balance
-// from a freshly-pulled Plaid account, but only on an unambiguous last-4 match
-// (see plaidBalances.js). No-op otherwise, so a linked bank assists, never
-// overrides.
+// the user enables `settings.plaidUpdateBalances`, update a card's owed
+// balance (and credit limit when Plaid reports one) from a freshly-pulled
+// Plaid account, but only on an unambiguous last-digits match via
+// card.lastDigits (name as fallback — see plaidBalances.js). No-op
+// otherwise, so a linked bank assists, never overrides.
 function applyPlaidBalances(userId, accounts) {
   try {
     const data = dbApi.getUserData(userId);
