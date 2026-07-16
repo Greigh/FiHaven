@@ -236,7 +236,6 @@
     border-radius: 22px;
   }
 
-  #tab-bills .card,
   #tab-payoff .card {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

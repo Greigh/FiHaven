@@ -616,6 +616,13 @@ main {
 
 .paid-row td { opacity: .55; }
 .paid-row td:first-child { text-decoration: line-through; }
+.card-row.paid-row {
+  opacity: .72;
+}
+.card-row.paid-row .card-row-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
 
 /* ── Progress Bar ───────────────────────────────────────── */
 .pbar { height: 6px; background: var(--surface2); border-radius: 999px; overflow: hidden; }
@@ -1458,6 +1465,71 @@ main {
 }
 .dash-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Bills header: label | centered amount | actions */
+.bills-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px 20px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+}
+.bills-head-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+.bills-head-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  min-width: 0;
+}
+.bills-head-amount {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(1.7rem, 2.6vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -.04em;
+  line-height: 1.05;
+}
+.bills-head-amount-muted { color: var(--muted); font-weight: 700; }
+.bills-head-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.bills-head-bar {
+  margin-top: 6px;
+  width: min(220px, 100%);
+  height: 6px;
+  background: color-mix(in srgb, var(--surface2) 92%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bills-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  justify-self: end;
+}
+@media (max-width: 720px) {
+  .bills-head {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "label actions"
+      "center center";
+  }
+  .bills-head-label { grid-area: label; }
+  .bills-head-actions { grid-area: actions; }
+  .bills-head-center { grid-area: center; align-items: flex-start; text-align: left; }
+  .bills-head-bar { margin-left: 0; }
+}
+
 /* ── Stat tiles ─────────────────────────────────────────── */
 .stat-strip {
   display: grid;
@@ -1703,6 +1775,24 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
+}
+/* Two-metric tabs (Bills): hug content instead of stretching into
+   empty half-width cards on wide viewports. */
+.cards-summary--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.cards-summary--compact .cards-summary-tile {
+  flex: 0 1 auto;
+  min-width: 148px;
+  max-width: 220px;
+  padding: 11px 14px 10px;
+}
+.cards-summary--compact .cards-summary-tile-lead .cards-summary-value {
+  font-size: clamp(1.35rem, 1.7vw, 1.65rem);
 }
 .cards-summary-tile {
   padding: 14px 16px 13px;
@@ -1978,13 +2068,15 @@ main {
 }
 
 /* ── Refined detail card ───────────────────────────────── */
-/* Cards + Loans list: two columns when there's room, one when narrow.
-   auto-fit lets a lone or odd-last card stretch to full width. */
+/* Cards, Loans, and Bills: two columns when there's room, one when narrow.
+   auto-fit lets a lone or odd-last card stretch to full width. Adjacent
+   cards stretch to equal height so a promo footer on one doesn't leave
+   its neighbor looking stubby. */
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .card-row {
@@ -1996,12 +2088,14 @@ main {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  min-width: 0;
   transition: border-color .18s, box-shadow .18s;
   container-type: inline-size;
 }
 
-/* When a card sits in a narrow column, stack its header so the identity,
-   due badge, and action buttons don't cram into one cramped row. */
+/* When a card sits in a narrow column, stack its header so the identity
+   and action buttons don't cram into one cramped row. */
 @container (max-width: 520px) {
   .card-row-head {
     grid-template-columns: 1fr;
@@ -2020,10 +2114,22 @@ main {
   align-items: center;
   gap: 16px;
 }
+/* Bills + Cards/Loans: identity + actions only — due lives in the meta
+   pills so the name column isn't squeezed beside a third grid track. */
+.card-row-head.is-bill-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 16px;
+}
+.card-row-head.is-bill-head .card-row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
 
 .card-row-identity {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   min-width: 0;
 }
@@ -2038,25 +2144,38 @@ main {
   flex-shrink: 0;
   color: white;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+  margin-top: 2px;
 }
-.card-row-naming { min-width: 0; }
+.card-row-naming {
+  min-width: 0;
+  flex: 1;
+}
 .card-row-name {
   font-family: 'Manrope', sans-serif;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Prefer wrapping over early ellipsis — half-width bill cards
+     were clipping names like "Peacock Premium" to "Peacock P…". */
+  overflow-wrap: break-word;
+  line-height: 1.25;
+}
+.card-row-business {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.3;
 }
 .card-row-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 6px 8px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.45;
 }
 .card-row-pill {
   display: inline-flex;
@@ -2099,7 +2218,9 @@ main {
 /* ── Stats grid ────────────────────────────────────────── */
 .card-row-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* auto-fit so 4-stat and 5-stat cards (Suggested/Mo) share a calm row
+     instead of forcing a lonely wrap cell under Statement Balance. */
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
   gap: 14px;
   padding: 14px 16px;
   border-radius: 14px;
@@ -2110,6 +2231,11 @@ main {
 .card-row-stats.is-loan {
   grid-template-columns: repeat(2, 1fr);
   max-width: 520px;
+}
+/* Bills show amount / frequency / left-this-period. */
+.card-row-stats.is-bill {
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 640px;
 }
 .card-row-stat-label {
   font-size: 10px; font-weight: 700;
@@ -2154,6 +2280,9 @@ main {
 .card-promo-wrap {
   display: flex;
   flex-direction: column;
+  /* Pin the promo footer to the bottom of equal-height grid cells so
+     a card without a promo doesn't look stubbier than its neighbor. */
+  margin-top: auto;
 }
 .card-promo-toggle {
   display: flex;
@@ -2220,6 +2349,9 @@ main {
     grid-template-columns: 1fr;
     gap: 12px;
   }
+  .card-row-head.is-bill-head {
+    grid-template-columns: 1fr;
+  }
   .card-row-due { flex-direction: row; align-items: center; }
   .card-row-actions { justify-content: flex-end; flex-wrap: wrap; }
   .card-row-stats { grid-template-columns: 1fr 1fr; }
@@ -2228,5 +2360,390 @@ main {
   .card-row { padding: 16px 16px; }
   .cards-toolbar { flex-direction: column; align-items: stretch; }
   .cards-toolbar-sort { justify-content: space-between; }
+}
+
+/* ── Admin tools overlay ─────────────────────────────────── */
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 36px 16px;
+  overflow: auto;
+  background: rgba(0, 0, 0, .48);
+  backdrop-filter: blur(3px);
+}
+.admin-panel {
+  position: relative;
+  width: min(720px, 100%);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, .35));
+  overflow: hidden;
+}
+.admin-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+.admin-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+.admin-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.admin-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.admin-close:hover { background: var(--surface2); color: var(--text); }
+
+.admin-body {
+  padding: 18px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.admin-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.admin-section-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.admin-hint {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+.admin-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface2, var(--surface));
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.admin-search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.admin-msg {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  margin-bottom: 8px;
+}
+.admin-msg.is-err { background: var(--red-bg); color: var(--red); }
+.admin-msg.is-ok { background: var(--green-bg); color: var(--green); }
+.admin-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 4px;
+  text-align: center;
+}
+
+.admin-users {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-user {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface2) 40%, var(--surface));
+  transition: border-color .15s, background .15s;
+}
+.admin-user:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: var(--surface);
+}
+.admin-user.is-suspended {
+  border-color: color-mix(in srgb, var(--orange) 35%, var(--border));
+  background: color-mix(in srgb, var(--orange-bg, #fff4e5) 55%, var(--surface));
+}
+.admin-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface2));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  flex-shrink: 0;
+}
+.admin-user-main { min-width: 0; }
+.admin-user-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-user-email {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-user-reason {
+  font-size: 12px;
+  color: var(--orange);
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.admin-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+.admin-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.admin-pill-admin { background: color-mix(in srgb, #7B3CC0 16%, var(--surface)); color: #7B3CC0; }
+.admin-pill-pro { background: var(--accent-bg); color: var(--accent); }
+.admin-pill-free { background: var(--surface2); color: var(--muted); }
+.admin-pill-warn { background: var(--orange-bg, #fff4e5); color: var(--orange); }
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admin-more-wrap { position: relative; }
+.admin-more {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  transition: background .14s, border-color .14s;
+}
+.admin-more span {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--muted);
+  display: block;
+}
+.admin-more:hover,
+.admin-more[aria-expanded="true"] {
+  background: var(--surface2);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.admin-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg, 0 16px 40px rgba(0, 0, 0, .18));
+  padding: 5px;
+  z-index: 20;
+  animation: admin-menu-in .14s cubic-bezier(.2, .7, .3, 1);
+}
+@keyframes admin-menu-in {
+  from { opacity: 0; transform: translateY(-3px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.admin-menu-item {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.admin-menu-item:hover { background: var(--surface2); }
+.admin-menu-item.is-danger { color: var(--red); }
+.admin-menu-item.is-danger:hover { background: var(--red-bg); }
+.admin-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.admin-section-promo {
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+.admin-promo-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 0.8fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.admin-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.admin-field > span em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: .8;
+}
+.admin-field input,
+.admin-field select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.admin-field input:focus,
+.admin-field select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.admin-promo-actions { padding-bottom: 1px; }
+.admin-promo-msg {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  min-height: 1em;
+}
+.admin-promo-msg.is-ok { color: var(--green); }
+.admin-promo-msg.is-err { color: var(--red); }
+
+.admin-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--text) 28%, transparent);
+  backdrop-filter: blur(2px);
+}
+.admin-sheet[hidden] { display: none; }
+.admin-sheet-card {
+  width: min(360px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-lg, 0 20px 50px rgba(0, 0, 0, .25));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-sheet-head h3 {
+  margin: 0;
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.admin-sheet-email {
+  margin: -4px 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.admin-sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+  .admin-overlay { padding: 12px; }
+  .admin-user {
+    grid-template-columns: 36px 1fr;
+  }
+  .admin-user-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .admin-promo-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-promo-actions {
+    grid-column: 1 / -1;
+  }
+  .admin-hint { display: none; }
 }
 

@@ -45,15 +45,7 @@
 
   <!-- ── BILLS ──────────────────────────────────────────── -->
   <div id="tab-bills" class="section-panel space-y-6 rounded-[28px] border border-(--border) bg-(--surface)/92 p-5 shadow-[0_20px_50px_rgba(15,15,20,.05)]" style="display:none;">
-    <div class="section-header">
-      <span class="section-title">Bills</span>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV('bills')">⬇ CSV</button>
-        <button class="btn btn-primary" onclick="openBillModal()">+ Add Bill</button>
-      </div>
-    </div>
-    <!-- Bills tab is rendered by the Svelte component in
-         client/svelte/BillsList.svelte, mounted by bills.js. -->
+    <!-- Header + list rendered by client/svelte/BillsList.svelte. -->
     <div id="bills-mount"></div>
   </div>
 
