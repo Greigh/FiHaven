@@ -314,6 +314,10 @@ db.exec(`
   if (!cols.includes('role'))               db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
   if (!cols.includes('email_verified'))     db.exec(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`);
   if (!cols.includes('email_verified_at'))  db.exec(`ALTER TABLE users ADD COLUMN email_verified_at INTEGER`);
+  // Admin soft-suspend: blocks login + API without deleting data.
+  if (!cols.includes('suspended'))          db.exec(`ALTER TABLE users ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0`);
+  if (!cols.includes('suspended_at'))       db.exec(`ALTER TABLE users ADD COLUMN suspended_at INTEGER`);
+  if (!cols.includes('suspended_reason'))   db.exec(`ALTER TABLE users ADD COLUMN suspended_reason TEXT`);
   if (!cols.includes('onboarded')) {
     db.exec(`ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0`);
     // Grandfather every existing account so only NEW signups get the
@@ -377,10 +381,10 @@ const stmt = {
     `SELECT provider, subject, created_at FROM oauth_identities WHERE user_id = ?`
   ),
   findUserByEmail: db.prepare(
-    `SELECT id, email, password_hash, name, email_mfa_enabled, email_verified, onboarded FROM users WHERE email = ?`
+    `SELECT id, email, password_hash, name, email_mfa_enabled, email_verified, onboarded, suspended, suspended_at, suspended_reason FROM users WHERE email = ?`
   ),
   findUserById: db.prepare(
-    `SELECT id, email, password_hash, name, ical_token, email_mfa_enabled, role, email_verified, onboarded FROM users WHERE id = ?`
+    `SELECT id, email, password_hash, name, ical_token, email_mfa_enabled, role, email_verified, onboarded, created_at, suspended, suspended_at, suspended_reason FROM users WHERE id = ?`
   ),
   setEmailMfa: db.prepare(`UPDATE users SET email_mfa_enabled = ? WHERE id = ?`),
   findUserByIcalToken: db.prepare(
@@ -404,11 +408,14 @@ const stmt = {
     `UPDATE users SET email_verified = 1, email_verified_at = ? WHERE email = ? AND email_verified = 0`
   ),
   listUsers: db.prepare(
-    `SELECT id, email, name, role, created_at, last_login_at
+    `SELECT id, email, name, role, created_at, last_login_at, suspended, suspended_at, suspended_reason
        FROM users
       WHERE email LIKE ? OR COALESCE(name, '') LIKE ?
       ORDER BY created_at DESC
       LIMIT ?`
+  ),
+  setUserSuspended: db.prepare(
+    `UPDATE users SET suspended = ?, suspended_at = ?, suspended_reason = ? WHERE id = ?`
   ),
   deleteCompSubscription: db.prepare(
     `DELETE FROM subscriptions WHERE platform = 'comp' AND user_id = ?`
@@ -418,7 +425,8 @@ const stmt = {
      VALUES (@id, @user_id, @csrf_token, @created_at, @expires_at, @user_agent, @ip)`
   ),
   findSession: db.prepare(
-    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.email, u.name, u.role, u.email_verified, u.onboarded
+    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.email, u.name, u.role, u.email_verified, u.onboarded,
+            u.suspended, u.suspended_at, u.suspended_reason
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ?`
   ),
@@ -792,6 +800,16 @@ function deleteUser(userId) {
 /* ── Roles / admin ──────────────────────────────────────────── */
 function setUserRole(userId, role) { stmt.setUserRole.run(role, userId); }
 
+function setUserSuspended(userId, suspended, reason) {
+  const on = !!suspended;
+  stmt.setUserSuspended.run(
+    on ? 1 : 0,
+    on ? Date.now() : null,
+    on ? (reason || null) : null,
+    userId,
+  );
+}
+
 // Promote the configured ADMIN_EMAILS to 'admin' on boot (bootstrap path
 // so there's always a way back in even if roles get edited).
 function seedAdminEmails(emails) {
@@ -1083,6 +1101,7 @@ module.exports = {
   updateUserIcalToken,
   deleteUser,
   setUserRole,
+  setUserSuspended,
   seedAdminEmails,
   seedVerifiedEmails,
   listUsers,

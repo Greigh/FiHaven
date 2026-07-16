@@ -153,9 +153,38 @@
       case 'passkey-verify-failed':
       case 'passkey-unknown':
         return 'Passkey didn’t verify. Try a different method.';
+      case 'account-suspended':
+        return 'This account has been suspended. Contact support if you think that’s a mistake.';
       default:
         return 'Something went wrong. Please try again.';
     }
+  }
+
+  function showSuspendedLock(reason) {
+    if (document.getElementById('fh-suspended-lock')) return;
+    var el = document.createElement('div');
+    el.id = 'fh-suspended-lock';
+    el.setAttribute('role', 'alertdialog');
+    el.setAttribute('aria-modal', 'true');
+    el.style.cssText =
+      'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;' +
+      'padding:24px;background:rgba(0,0,0,.55);';
+    var reasonHtml = reason
+      ? '<p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.45;">' +
+          String(reason).replace(/</g, '&lt;') + '</p>'
+      : '<p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.45;">' +
+          'Your account can’t use FiHaven right now. Contact support if you need help.</p>';
+    el.innerHTML =
+      '<div style="width:min(420px,100%);background:var(--surface);color:var(--text);border:1px solid var(--border);' +
+        'border-radius:16px;padding:28px 24px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:left;">' +
+        '<h2 style="margin:0 0 10px;font-size:20px;letter-spacing:-.02em;">Account suspended</h2>' +
+        reasonHtml +
+        '<button type="button" class="btn btn-secondary" data-suspended-logout style="width:100%;">Sign out</button>' +
+      '</div>';
+    document.body.appendChild(el);
+    el.querySelector('[data-suspended-logout]').addEventListener('click', function () {
+      logout();
+    });
   }
 
   function updatePublicCtas(user) {
@@ -538,6 +567,10 @@
       // accounts are sent to confirm their email before the dashboard.
       if (!user) { go('/'); return; }
       if (!user.emailVerified) go('/verify-email');
+      // Soft-suspended accounts can still call /me; data APIs return 403.
+      if (user.suspended && user.role !== 'admin') {
+        showSuspendedLock(user.suspendedReason);
+      }
     });
   }
 
@@ -568,6 +601,7 @@
     window.AppAuth = {
       me: me,
       logout: logout,
+      showSuspendedLock: showSuspendedLock,
       // Post-auth navigation (verify-email / welcome / dashboard), reused by
       // the federated sign-in module after a Google/Apple session is minted.
       routeAfterAuth: routeAfterAuth,
