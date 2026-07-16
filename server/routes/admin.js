@@ -8,7 +8,9 @@
      POST   /users/:id/reset-password — email a password-reset link
      POST   /users/:id/logout         — kill all sessions
      POST   /users/:id/delete         — permanently delete (confirm email)
+     GET    /promo                    — list active promo codes
      POST   /promo                    — create a free_sub promo code
+     POST   /promo/:code/deactivate   — soft-disable a promo code
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -182,6 +184,35 @@ router.post('/users/:id/delete', requireCsrf, async (req, res) => {
   res.json({ ok: true, deleted: id });
 });
 
+/* ── GET /api/admin/promo ─────────────────────────────────────── */
+function serializePromo(p) {
+  const now = Date.now();
+  const expired = !!(p.expires_at && p.expires_at < now);
+  const exhausted = p.max_redemptions != null && p.redeemed_count >= p.max_redemptions;
+  return {
+    code: p.code,
+    kind: p.kind,
+    grantDays: p.grant_days,
+    maxRedemptions: p.max_redemptions,
+    redeemedCount: p.redeemed_count || 0,
+    expiresAt: p.expires_at || null,
+    note: p.note || null,
+    createdAt: p.created_at,
+    active: !!p.active,
+    redeemable: !!p.active && !expired && !exhausted,
+    expired,
+    exhausted,
+  };
+}
+
+router.get('/promo', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const rows = (dbApi.listPromoCodes(limit) || []).map(serializePromo);
+  // Prefer still-redeemable codes first; keep exhausted/expired visible until deactivated.
+  rows.sort((a, b) => Number(b.redeemable) - Number(a.redeemable) || (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ promos: rows });
+});
+
 /* ── POST /api/admin/promo  { code?, grantDays, note?, maxRedemptions? } ─ */
 // Thin wrapper around billing.createPromoCode so admins can mint free_sub
 // codes from the overlay without hitting /api/billing/promo directly.
@@ -200,10 +231,20 @@ router.post('/promo', requireCsrf, (req, res) => {
       maxRedemptions: body.maxRedemptions != null ? Number(body.maxRedemptions) : null,
       expiresAt: body.expiresAt || null,
     });
-    res.status(201).json({ ok: true, promo: { code: promo.code, kind: promo.kind, grantDays } });
+    res.status(201).json({ ok: true, promo: serializePromo(dbApi.findPromoCode(promo.code) || promo) });
   } catch (err) {
     sendError(res, 400, (err && err.message) || 'promo-failed');
   }
+});
+
+/* ── POST /api/admin/promo/:code/deactivate ───────────────────── */
+router.post('/promo/:code/deactivate', requireCsrf, (req, res) => {
+  const code = String(req.params.code || '').trim();
+  if (!code) return sendError(res, 400, 'missing-code');
+  const row = dbApi.findPromoCode(code);
+  if (!row) return sendError(res, 404, 'not-found');
+  dbApi.setPromoActive(code, false);
+  res.json({ ok: true, code });
 });
 
 module.exports = router;

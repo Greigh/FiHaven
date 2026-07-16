@@ -2383,7 +2383,8 @@ main {
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, .35));
-  overflow: hidden;
+  /* Keep visible so ··· menus aren't clipped by the panel. */
+  overflow: visible;
 }
 .admin-head {
   display: flex;
@@ -2391,6 +2392,8 @@ main {
   gap: 12px;
   padding: 20px 22px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
 }
 .admin-title {
   margin: 0;
@@ -2551,6 +2554,7 @@ main {
 }
 .admin-pill-admin { background: color-mix(in srgb, #7B3CC0 16%, var(--surface)); color: #7B3CC0; }
 .admin-pill-pro { background: var(--accent-bg); color: var(--accent); }
+.admin-pill-source { background: var(--surface2); color: var(--text); border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); }
 .admin-pill-free { background: var(--surface2); color: var(--muted); }
 .admin-pill-warn { background: var(--orange-bg, #fff4e5); color: var(--orange); }
 
@@ -2560,7 +2564,8 @@ main {
   gap: 6px;
   flex-shrink: 0;
 }
-.admin-more-wrap { position: relative; }
+.admin-more-wrap { position: relative; z-index: 1; }
+.admin-more-wrap:has(.admin-menu:not([hidden])) { z-index: 50; }
 .admin-more {
   width: 34px;
   height: 34px;
@@ -2598,11 +2603,20 @@ main {
   border-radius: 12px;
   box-shadow: var(--shadow-lg, 0 16px 40px rgba(0, 0, 0, .18));
   padding: 5px;
-  z-index: 20;
+  z-index: 40;
   animation: admin-menu-in .14s cubic-bezier(.2, .7, .3, 1);
+}
+.admin-menu.is-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: admin-menu-in-up;
 }
 @keyframes admin-menu-in {
   from { opacity: 0; transform: translateY(-3px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes admin-menu-in-up {
+  from { opacity: 0; transform: translateY(3px) scale(.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .admin-menu-item {
@@ -2681,6 +2695,54 @@ main {
 }
 .admin-promo-msg.is-ok { color: var(--green); }
 .admin-promo-msg.is-err { color: var(--red); }
+
+.admin-user-login {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.admin-promo-list-head {
+  margin: 16px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-promo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-promo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.admin-promo-row.is-stale { opacity: .72; }
+.admin-promo-main { min-width: 0; flex: 1; }
+.admin-promo-code {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.admin-promo-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.admin-promo-row-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
 
 .admin-sheet {
   position: absolute;
