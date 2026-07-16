@@ -43,8 +43,6 @@ Each release below uses two layers:
 - **Last used** — relative time from last synced app-data write (`user_data.updated_at`).
 - Promo-code panel: mint `free_sub` codes, list active/exhausted/expired, copy,
   deactivate.
-- Store-builds panel (local repo): set iOS build / Android versionCode with
-  current values shown.
 
 **Rewards**
 
@@ -101,8 +99,8 @@ Each release below uses two layers:
 ### Technical changelog
 
 - **Admin API** (`server/routes/admin.js`): suspend, reset-password, logout, delete,
-  expanded `/pro`, `GET|POST /promo`, `POST /promo/:code/deactivate`,
-  `GET|POST /releases`; `users.suspended*` + `listUsers` join `user_data.updated_at`.
+  expanded `/pro`, `GET|POST /promo`, `POST /promo/:code/deactivate`;
+  `users.suspended*` + `listUsers` join `user_data.updated_at`.
 - **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids.
 - **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
   FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients.
