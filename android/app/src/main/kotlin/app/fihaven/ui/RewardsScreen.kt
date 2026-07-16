@@ -410,11 +410,12 @@ private fun RewardRateReportDialog(
     var message by remember { mutableStateOf<String?>(null) }
 
     val card = cards.firstOrNull { label(it) == cardLabel } ?: cards.first()
-    val ourRate: Double? = when {
-        category.isEmpty() -> null
-        category == baseRate -> card.rewardBase
-        else -> card.rewardCategories[category]
+    val shipped = if (category.isEmpty()) {
+        Rewards.ShippedRate(null, null)
+    } else {
+        Rewards.shippedRewardRate(card, category, baseRate)
     }
+    val ourRate = shipped.rate
     val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
 
     FormDialog(
@@ -430,11 +431,12 @@ private fun RewardRateReportDialog(
                 vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
             }
             scope.launch {
+                val s = Rewards.shippedRewardRate(card, category, baseRate)
                 val ok = vm.reportRewardRate(
-                    card = card.name.ifEmpty { "Card" },
-                    issuer = card.issuer ?: "",
+                    card = s.preset?.name ?: card.name.ifEmpty { "Card" },
+                    issuer = s.preset?.issuer ?: card.issuer ?: "",
                     category = category,
-                    ourRate = ourRate,
+                    ourRate = s.rate,
                     correctRate = v,
                     note = note.trim(),
                 )
@@ -455,8 +457,13 @@ private fun RewardRateReportDialog(
             if (category.isEmpty()) "Which is wrong?" else category,
         ) { picked -> category = if (picked == "Which is wrong?") "" else picked }
         if (category.isNotEmpty()) {
+            val shown = when {
+                shipped.preset == null -> "no match"
+                ourRate != null -> "$ourRate%"
+                else -> "none set"
+            }
             Text(
-                "We show ${ourRate?.let { "$it%" } ?: "none set"}",
+                "Our preset $shown",
                 color = Ct.colors.muted, fontSize = 12.sp,
             )
         }

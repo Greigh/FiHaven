@@ -126,6 +126,27 @@ object Rewards {
         return if (bestScore >= 4) best else null
     }
 
+    data class ShippedRate(val rate: Double?, val preset: CardPreset?)
+
+    /**
+     * Rate FiHaven ships for a card+category (shared preset catalog — not the
+     * user's possibly-edited local card).
+     */
+    fun shippedRewardRate(
+        card: Card,
+        category: String,
+        baseLabel: String = "Base rate (everything)",
+    ): ShippedRate {
+        val preset = suggestCardPreset(card.name, card.issuer ?: "")
+            ?: return ShippedRate(null, null)
+        if (category == baseLabel) return ShippedRate(preset.rewardBase, preset)
+        preset.rewardCategories[category]?.let { return ShippedRate(it, preset) }
+        if (preset.rotatingPool?.contains(category) == true && preset.rotatingRate != null) {
+            return ShippedRate(preset.rotatingRate, preset)
+        }
+        return ShippedRate(null, preset)
+    }
+
     /** Per-category multiplier when set (> 0), otherwise the flat base rate. */
     fun effectiveRate(card: Card, category: String): Double {
         val v = card.rewardCategories[category]

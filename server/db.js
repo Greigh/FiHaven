@@ -408,10 +408,13 @@ const stmt = {
     `UPDATE users SET email_verified = 1, email_verified_at = ? WHERE email = ? AND email_verified = 0`
   ),
   listUsers: db.prepare(
-    `SELECT id, email, name, role, created_at, last_login_at, suspended, suspended_at, suspended_reason
-       FROM users
-      WHERE email LIKE ? OR COALESCE(name, '') LIKE ?
-      ORDER BY created_at DESC
+    `SELECT u.id, u.email, u.name, u.role, u.created_at, u.last_login_at,
+            u.suspended, u.suspended_at, u.suspended_reason,
+            ud.updated_at AS data_updated_at
+       FROM users u
+       LEFT JOIN user_data ud ON ud.user_id = u.id
+      WHERE u.email LIKE ? OR COALESCE(u.name, '') LIKE ?
+      ORDER BY u.created_at DESC
       LIMIT ?`
   ),
   setUserSuspended: db.prepare(

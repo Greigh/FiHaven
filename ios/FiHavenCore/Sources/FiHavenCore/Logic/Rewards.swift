@@ -124,6 +124,37 @@ public enum Rewards {
         return bestScore >= 4 ? best : nil
     }
 
+    public struct ShippedRate {
+        public let rate: Double?
+        public let preset: CardPreset?
+        public init(rate: Double?, preset: CardPreset?) {
+            self.rate = rate
+            self.preset = preset
+        }
+    }
+
+    /// Rate FiHaven ships for a card+category (shared preset catalog — not the
+    /// user's possibly-edited local card).
+    public static func shippedRewardRate(
+        for card: Card,
+        category: String,
+        baseLabel: String = "Base rate (everything)"
+    ) -> ShippedRate {
+        guard let preset = suggestCardPreset(name: card.name, issuer: card.issuer ?? "") else {
+            return ShippedRate(rate: nil, preset: nil)
+        }
+        if category == baseLabel {
+            return ShippedRate(rate: preset.rewardBase, preset: preset)
+        }
+        if let v = preset.rewardCategories[category] {
+            return ShippedRate(rate: v, preset: preset)
+        }
+        if let pool = preset.rotatingPool, pool.contains(category), let r = preset.rotatingRate {
+            return ShippedRate(rate: r, preset: preset)
+        }
+        return ShippedRate(rate: nil, preset: preset)
+    }
+
     /// A card's reward rate for a category: the per-category multiplier when
     /// set (> 0), otherwise the flat base rate.
     public static func effectiveRate(_ card: Card, category: String) -> Double {

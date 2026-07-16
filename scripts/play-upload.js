@@ -5,8 +5,10 @@
  * Build (optional) + upload a release AAB to Google Play.
  *
  * Usage:
- *   node scripts/play-upload.js                  # upload existing AAB
- *   node scripts/play-upload.js --build          # ./gradlew :app:bundleRelease then upload
+ *   node scripts/play-upload.js --build
+ *     → prompts for marketing version; versionCode always bumps +1
+ *   node scripts/play-upload.js --version-code 22 --build   # override the +1
+ *   node scripts/play-upload.js --version-code +1 --build
  *   node scripts/play-upload.js path/to.aab
  *
  * Env:
@@ -21,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { google } = require('googleapis');
+const nativeVersions = require('./native-versions');
 
 const ROOT = path.join(__dirname, '..');
 const ANDROID = path.join(ROOT, 'android');
@@ -37,17 +40,27 @@ const DEFAULT_NATIVE = path.join(
 function parseArgs(argv) {
   let build = false;
   let aab = null;
-  for (const arg of argv) {
+  let versionCode = null;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
     if (arg === '--build' || arg === '-b') build = true;
-    else if (arg === '-h' || arg === '--help') {
-      console.log(`Usage: node scripts/play-upload.js [--build] [path/to/app-release.aab]
+    else if (arg === '--version-code' || arg === '--build-number') {
+      versionCode = argv[++i];
+      if (versionCode == null) throw new Error('--version-code requires a value (N or +1)');
+    } else if (arg.startsWith('--version-code=')) {
+      versionCode = arg.slice('--version-code='.length);
+    } else if (arg === '-h' || arg === '--help') {
+      console.log(`Usage: node scripts/play-upload.js [--build] [--version-code N|+1] [path/to/app-release.aab]
 
 Uploads to the Play track in GOOGLE_PLAY_TRACK (default: alpha = Closed testing).
-Also uploads R8 mapping.txt and native-debug-symbols.zip when present.`);
+Also uploads R8 mapping.txt and native-debug-symbols.zip when present.
+
+With --build and a TTY, prompts for marketing version; versionCode always bumps +1
+(override with --version-code N).`);
       process.exit(0);
     } else if (!arg.startsWith('-')) aab = arg;
   }
-  return { build, aab: aab || DEFAULT_AAB };
+  return { build, aab: aab || DEFAULT_AAB, versionCode };
 }
 
 function loadEnvFile() {
@@ -88,9 +101,23 @@ async function main() {
   loadEnvFile();
   const keyFile = process.env.GOOGLE_PLAY_SA_LOCAL || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
   const track = process.env.GOOGLE_PLAY_TRACK || TRACK;
-  const { build, aab } = parseArgs(process.argv.slice(2));
+  const { build, aab, versionCode: versionCodeArg } = parseArgs(process.argv.slice(2));
   const mapping = process.env.GOOGLE_PLAY_MAPPING || DEFAULT_MAPPING;
   const nativeSymbols = process.env.GOOGLE_PLAY_NATIVE_SYMBOLS || DEFAULT_NATIVE;
+
+  if (versionCodeArg != null) {
+    const current = nativeVersions.readAndroid().versionCode;
+    console.log(`→ Android versionCode (currently ${current}) → setting to ${versionCodeArg}`);
+    nativeVersions.setAndroidVersionCode(versionCodeArg);
+  } else if (build && process.stdin.isTTY) {
+    await nativeVersions.promptAndroidVersionCode();
+  } else if (build) {
+    // Non-interactive: still bump +1 (Play requires monotonic versionCode).
+    const current = nativeVersions.readAndroid().versionCode;
+    const next = current + 1;
+    console.log(`→ Non-interactive: Android versionCode ${current} → ${next} (+1)`);
+    nativeVersions.setAndroidVersionCode(next);
+  }
 
   if (!keyFile) {
     console.error(

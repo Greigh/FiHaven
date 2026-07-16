@@ -17,6 +17,7 @@
     categorySpendAnnual, cardRewardsEstimateAnnual,
   } from '../js/rewards.js';
   import { merchantCategory } from '../js/merchants.js';
+  import { shippedRewardRate } from '../js/cardPresets.js';
   import {
     perkUsed, perkRemaining, perkExpiresInDays, unrealizedCreditTotal, setPerkUsage,
     cardFeeAssessment,
@@ -81,17 +82,15 @@
 
   let reportCard = $derived(creditCards.find((c) => String(c.id) === String(reportCardId)) || null);
 
-  function shownRate(card, cat) {
-    if (!card || !cat) return null;
-    if (cat === BASE_RATE) {
-      const b = parseFloat(card.rewardBase);
-      return Number.isFinite(b) ? b : 0;
-    }
-    const v = parseFloat((card.rewardCategories || {})[cat]);
-    return Number.isFinite(v) ? v : null;
-  }
-
-  let reportOurs = $derived(shownRate(reportCard, reportCat));
+  // "We show" must be the shared preset catalog — not the user's possibly
+  // already-edited local card — so reports compare against what FiHaven ships.
+  let reportShipped = $derived(
+    reportCard && reportCat ? shippedRewardRate(reportCard, reportCat, BASE_RATE) : { rate: null, preset: null },
+  );
+  let reportOurs = $derived(reportShipped.rate);
+  let reportPresetName = $derived(
+    reportShipped.preset ? `${reportShipped.preset.issuer} ${reportShipped.preset.name}` : '',
+  );
 
   function csrf() {
     return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
@@ -139,7 +138,9 @@
     }
 
     reportBusy = true;
-    const ours = shownRate(card, reportCat);
+    const shipped = shippedRewardRate(card, reportCat, BASE_RATE);
+    const ours = shipped.rate;
+    const issuer = (shipped.preset && shipped.preset.issuer) || card.issuer || '';
 
     // Local fix first when opted in — rankings update even if mail fails.
     if (reportAlsoFix) applyLocalFix(card, reportCat, correct);
@@ -151,8 +152,8 @@
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
         body: JSON.stringify({
-          card: card.name || 'Card',
-          issuer: card.issuer || '',
+          card: (shipped.preset && shipped.preset.name) || card.name || 'Card',
+          issuer,
           category: reportCat,
           ourRate: ours == null ? '' : ours,
           correctRate: correct,
@@ -484,10 +485,13 @@
 
       <div class="rw-report-compare">
         <div class="rw-report-compare-cell">
-          <span class="rw-report-compare-label">We show</span>
+          <span class="rw-report-compare-label">Our preset</span>
           <span class="rw-report-compare-value">
-            {#if !reportCat}—{:else if reportOurs == null}none set{:else}{reportOurs}%{/if}
+            {#if !reportCat}—{:else if !reportShipped.preset}no match{:else if reportOurs == null}none set{:else}{reportOurs}%{/if}
           </span>
+          {#if reportCat && reportPresetName}
+            <span class="rw-report-compare-sub">{reportPresetName}</span>
+          {/if}
         </div>
         <div class="rw-report-compare-arrow" aria-hidden="true">→</div>
         <label class="rw-report-compare-cell is-input">
