@@ -360,8 +360,6 @@ struct BankView: View {
         }
     }
 
-    @State private var pendingPromptCount = 0
-
     // An explicit sync, so `force` skips the throttle that keeps the automatic
     // app-open sync cheap. It pulls purchases too, not just balances.
     private func refresh() {
