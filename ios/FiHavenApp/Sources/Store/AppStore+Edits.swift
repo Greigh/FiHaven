@@ -95,25 +95,26 @@ extension AppStore {
     }
 
     // ── Spending transactions + category budgets ────────────────────
-    func addTransaction(amount: Double, category: String, merchant: String, date: Date) {
+    func addTransaction(amount: Double, category: String, merchant: String, note: String = "", date: Date) {
         let iso = isoDay(date)
         mutate { data in
             data.transactions.append(SpendTransaction(
                 id: Self.newPaymentID(), date: iso, amount: amount,
-                category: category, merchant: merchant, note: ""
+                category: category, merchant: merchant, note: note
             ))
         }
     }
 
-    /// Edit a manual transaction, preserving its id and provenance
+    /// Edit a transaction, preserving its id and provenance
     /// (a bank row's source/plaidId/pending stay intact).
-    func updateTransaction(id: String, amount: Double, category: String, merchant: String, date: Date) {
+    func updateTransaction(id: String, amount: Double, category: String, merchant: String, note: String = "", date: Date) {
         let iso = isoDay(date)
         mutate { data in
             guard let i = data.transactions.firstIndex(where: { $0.id == id }) else { return }
             data.transactions[i].amount = amount
             data.transactions[i].category = category
             data.transactions[i].merchant = merchant
+            data.transactions[i].note = note
             data.transactions[i].date = iso
         }
     }

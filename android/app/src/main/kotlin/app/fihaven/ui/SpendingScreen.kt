@@ -61,7 +61,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val spentByCat = periodTx.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }
     val totalSpent = periodTx.sumOf { it.amount }
     val budgets = data.settings.categoryBudgets
-    val recentTx = data.transactions.sortedByDescending { it.date }.take(8)
+    val recentTx = periodTx.sortedByDescending { it.date }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Spending", onBack = onBack, branded = true)
@@ -183,13 +183,10 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 }
             }
             items(recentTx, key = { "tx-${it.id}" }) { tx ->
-                // Manual rows are tappable to edit; bank rows are managed via
-                // Settings, so they stay read-only (just a 🔗 marker).
-                val rowMod = if (!tx.isBank) Modifier.clickable { editingTx = tx } else Modifier
-                CtCard(padding = 12, modifier = rowMod) {
+                CtCard(padding = 12, modifier = Modifier.clickable { editingTx = tx }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
-                        Column(Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(tx.merchant.ifBlank { tx.category }, color = Ct.colors.text, fontSize = 14.sp)
                                 if (tx.isBank) {
@@ -198,18 +195,18 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                 }
                             }
                             Text(tx.date, color = Ct.colors.muted, fontSize = 11.sp)
+                            if (tx.note.isNotBlank()) {
+                                Text(tx.note, color = Ct.colors.muted, fontSize = 11.sp)
+                            }
                         }
                         Text(Money.fmt(tx.amount), color = Ct.colors.text, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                        Text("Edit", color = Ct.colors.accent, fontSize = 13.sp,
+                            modifier = Modifier.padding(start = 12.dp).clickable { editingTx = tx })
                         if (!tx.isBank) {
-                            // Explicit edit affordance in addition to the tappable row.
-                            Text("Edit", color = Ct.colors.accent, fontSize = 13.sp,
-                                modifier = Modifier.padding(start = 12.dp).clickable { editingTx = tx })
                             Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
                                 modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
                         } else {
-                            // Bank rows: accept a pending charge (clear the flag) or decline
-                            // it (remove + never re-import).
                             if (tx.pending) {
                                 Text("Keep", color = Ct.colors.accent, fontSize = 13.sp,
                                     modifier = Modifier.padding(start = 12.dp).clickable { vm.acceptBankTransaction(tx) })

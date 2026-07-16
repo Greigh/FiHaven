@@ -55,9 +55,11 @@
   let txAmount = $state('');
   let txCategory = $state('Groceries');
   let txMerchant = $state('');
+  let txNote = $state('');
   let txDate = $state(todayISO());
-  // Non-null while editing an existing manual transaction.
+  // Non-null while editing an existing transaction (manual or bank).
   let editingId = $state(null);
+  let spendFormEl = $state(null);
 
   function saveTx() {
     const amt = parseFloat(txAmount) || 0;
@@ -65,30 +67,39 @@
     if (editingId) {
       const t = transactions.find((x) => x.id === editingId);
       if (t) {
-        t.amount = amt; t.category = txCategory;
-        t.merchant = txMerchant.trim(); t.date = txDate || todayISO();
+        t.amount = amt;
+        t.category = txCategory;
+        t.merchant = txMerchant.trim();
+        t.note = txNote.trim();
+        t.date = txDate || todayISO();
+        // Leave source / plaidId / pending alone so bank provenance survives.
       }
       editingId = null;
     } else {
       transactions.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         date: txDate || todayISO(), amount: amt, category: txCategory,
-        merchant: txMerchant.trim(), note: '',
+        merchant: txMerchant.trim(), note: txNote.trim(),
       });
     }
     save('fh_transactions', transactions);
-    txAmount = ''; txMerchant = ''; txDate = todayISO();
+    txAmount = ''; txMerchant = ''; txNote = ''; txDate = todayISO();
   }
   function startEdit(t) {
     editingId = t.id;
     txAmount = String(t.amount);
-    txCategory = t.category;
+    txCategory = t.category || 'Other';
     txMerchant = t.merchant || '';
+    txNote = t.note || '';
     txDate = t.date || todayISO();
+    // Bring the shared form into view — Edit lives far down the Recent list.
+    queueMicrotask(() => {
+      try { spendFormEl && spendFormEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { /* ignore */ }
+    });
   }
   function cancelEdit() {
     editingId = null;
-    txAmount = ''; txMerchant = ''; txDate = todayISO();
+    txAmount = ''; txMerchant = ''; txNote = ''; txDate = todayISO();
   }
   function removeTx(id) {
     const i = transactions.findIndex((t) => t.id === id);
@@ -131,7 +142,9 @@
   function removeManualDup(pair) { removeTx(pair.manual.id); }
   function keepBoth(pair) { dismissed = new Set(dismissed).add(pair.bank.id); }
 
-  let recent = $derived(transactions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8));
+  let recent = $derived(
+    periodTx.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  );
   function shortDay(d) {
     if (!d) return '';
     const [y, m, dd] = d.split('-').map(Number);
@@ -149,7 +162,10 @@
   </header>
 
   <!-- Add / edit a transaction (same form) -->
-  <div class="spend-add">
+  <div class="spend-add" class:is-editing={!!editingId} bind:this={spendFormEl}>
+    {#if editingId}
+      <div class="spend-add-banner">Editing purchase — change amount, category, date, or note, then Save.</div>
+    {/if}
     <div class="spend-add-amt"><span>$</span>
       <input type="number" step="1" placeholder="0.00" bind:value={txAmount}
         onkeydown={(e) => { if (e.key === 'Enter') saveTx(); }} />
@@ -159,6 +175,7 @@
     </select>
     <input class="spend-add-merchant" type="text" placeholder="Merchant (optional)" bind:value={txMerchant} />
     <input class="spend-add-date" type="date" bind:value={txDate} />
+    <input class="spend-add-note" type="text" placeholder="Note (optional)" bind:value={txNote} />
     <button class="btn btn-primary btn-sm" onclick={saveTx}>{editingId ? 'Save' : 'Add'}</button>
     {#if editingId}<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>Cancel</button>{/if}
   </div>
@@ -237,26 +254,27 @@
     </div>
   {/if}
 
-  <!-- Recent transactions -->
+  <!-- This period's transactions -->
   {#if recent.length > 0}
-    <div class="spend-recent-head">Recent</div>
+    <div class="spend-recent-head">This period ({recent.length})</div>
     <div class="spend-recent">
       {#each recent as t (t.id)}
-        <div class="spend-tx">
+        <div class="spend-tx" class:is-editing={editingId === t.id}>
           <span class="spend-tx-icon">{ICON[t.category] || '📦'}</span>
           <span class="spend-tx-main">
             {t.merchant || t.category}
             {#if t.source === 'plaid'}<span class="spend-tx-bank" title="Imported from your linked bank{t.pending ? ' (pending)' : ''}">🏦{t.pending ? ' pending' : ''}</span>{/if}
             <span class="spend-tx-sub"> · {shortDay(t.date)}</span>
+            {#if t.note}<span class="spend-tx-sub"> · {t.note}</span>{/if}
           </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
+          <button class="btn btn-ghost btn-xs" title="Edit" onclick={() => startEdit(t)}>Edit</button>
           {#if t.source === 'plaid'}
             {#if t.pending}
               <button class="btn btn-ghost btn-xs" title="Keep — this is a real purchase" onclick={() => acceptBankTx(t)}>Keep</button>
             {/if}
             <button class="btn btn-ghost btn-xs" title="Not mine — remove it and don’t import it again" onclick={() => declineBankTx(t)}>✕</button>
           {:else}
-            <button class="btn btn-ghost btn-xs" title="Edit" onclick={() => startEdit(t)}>Edit</button>
             <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
           {/if}
         </div>
@@ -270,6 +288,23 @@
   .spend-insights-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
   .spend-insight-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
   .spend-insight-pct { font-size: 11px; color: var(--muted); }
+  .spend-add-banner {
+    flex-basis: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+  .spend-add.is-editing {
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: 12px;
+    padding: 10px;
+    background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  }
+  .spend-tx.is-editing {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-radius: 8px;
+  }
   .recon { margin: 14px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--accent-bg); }
   .recon-head { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
   .recon-sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }

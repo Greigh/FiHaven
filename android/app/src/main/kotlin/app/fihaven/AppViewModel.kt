@@ -814,16 +814,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteGoal(goal: SavingsGoal) =
         mutate { it.copy(goals = it.goals.filterNot { g -> g.id == goal.id }) }
 
-    fun addTransaction(amount: Double, category: String, merchant: String, dateIso: String) = mutate { d ->
-        d.copy(transactions = d.transactions + SpendTransaction(newPaymentId(), dateIso, amount, category, merchant, ""))
+    fun addTransaction(amount: Double, category: String, merchant: String, dateIso: String, note: String = "") = mutate { d ->
+        d.copy(transactions = d.transactions + SpendTransaction(newPaymentId(), dateIso, amount, category, merchant, note))
     }
 
-    /** Edit a manual transaction's amount/category/merchant/date, preserving id
+    /** Edit a transaction's amount/category/merchant/date/note, preserving id
      *  and provenance (a bank row's source/plaidId/pending stay intact). */
-    fun updateTransaction(id: String, amount: Double, category: String, merchant: String, dateIso: String) =
+    fun updateTransaction(id: String, amount: Double, category: String, merchant: String, dateIso: String, note: String = "") =
         mutate { d ->
             d.copy(transactions = d.transactions.map { t ->
-                if (t.id == id) t.copy(amount = amount, category = category, merchant = merchant, date = dateIso)
+                if (t.id == id) t.copy(amount = amount, category = category, merchant = merchant, date = dateIso, note = note)
                 else t
             })
         }
