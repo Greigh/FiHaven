@@ -32,6 +32,7 @@ sealed class ApiError : Exception() {
                 "rate-limited" -> "Too many attempts. Please wait and try again."
                 "mfa-token-invalid" -> "Your verification session expired. Please sign in again."
                 "invalid-totp-code" -> "That code wasn't valid."
+                "account-suspended" -> "This account has been suspended. Contact support if you think that's a mistake."
                 "wrong-password" -> "That password is incorrect."
                 "passkey-verify-failed" -> "Passkey verification failed. Try again."
                 "bad-challenge", "challenge-expired" -> "That setup session expired. Please try again."
