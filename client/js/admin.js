@@ -72,10 +72,6 @@ function errText(code) {
   if (code === 'confirm-email-mismatch') return 'Type the exact account email to confirm delete.';
   if (code === 'bad-plan') return 'Pick a valid Pro plan.';
   if (code === 'bad-days') return 'Enter a positive number of days.';
-  if (code === 'bad-build') return 'Enter a positive build / versionCode.';
-  if (code === 'nothing-to-set') return 'Enter an iOS build or Android versionCode.';
-  if (code === 'releases-read-failed') return 'Could not read native version files.';
-  if (code === 'releases-write-failed') return 'Could not write native version files.';
   if (code === 'mail-send-failed') return 'Could not send the email. Check mail config.';
   if (code === 'forbidden') return 'Admins only.';
   if (code === 'unauthenticated') return 'Your session expired — reload and sign in.';
@@ -160,7 +156,7 @@ function build() {
       '<header class="admin-head">' +
         '<div>' +
           '<h2 class="admin-title">Admin</h2>' +
-          '<p class="admin-sub">Manage accounts, Pro grants, promo codes, and store builds.</p>' +
+          '<p class="admin-sub">Manage accounts, Pro grants, and promo codes.</p>' +
         '</div>' +
         '<button type="button" class="admin-close" data-admin-close aria-label="Close">×</button>' +
       '</header>' +
@@ -173,27 +169,6 @@ function build() {
           '<input type="search" class="admin-search" data-admin-search placeholder="Search by email or name…" autocomplete="off"/>' +
           '<div class="admin-msg" data-admin-msg hidden></div>' +
           '<div class="admin-users" data-admin-users></div>' +
-        '</section>' +
-        '<section class="admin-section admin-section-releases">' +
-          '<div class="admin-section-head">' +
-            '<h3>Store builds</h3>' +
-            '<span class="admin-hint">Set the next build, then deploy from your Mac</span>' +
-          '</div>' +
-          '<div class="admin-promo-grid">' +
-            '<label class="admin-field">' +
-              '<span>iOS build <em data-rel-ios-current></em></span>' +
-              '<input data-rel-ios type="number" min="1" placeholder="—"/>' +
-            '</label>' +
-            '<label class="admin-field">' +
-              '<span>Android versionCode <em data-rel-android-current></em></span>' +
-              '<input data-rel-android type="number" min="1" placeholder="—"/>' +
-            '</label>' +
-            '<div class="admin-promo-actions">' +
-              '<button type="button" class="btn btn-primary btn-sm" data-rel-save>Save builds</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="admin-promo-msg" data-rel-msg></div>' +
-          '<p class="admin-release-note">iOS → TestFlight via <code>bun run deploy:ios</code>. Android → Play via <code>bun run deploy:android</code>. Saving here only updates the repo version files.</p>' +
         '</section>' +
         '<section class="admin-section admin-section-promo">' +
           '<div class="admin-section-head">' +
@@ -270,7 +245,6 @@ function build() {
   });
 
   overlay.querySelector('[data-promo-create]').addEventListener('click', createPromo);
-  overlay.querySelector('[data-rel-save]').addEventListener('click', saveReleases);
 
   overlay.querySelectorAll('[data-grant-cancel]').forEach(function (b) {
     b.addEventListener('click', hideGrant);
@@ -630,81 +604,6 @@ function createPromo() {
   });
 }
 
-/* ── Store builds (iOS / Android) ─────────────────────────── */
-function applyReleases(data) {
-  var iosCur = overlay.querySelector('[data-rel-ios-current]');
-  var andCur = overlay.querySelector('[data-rel-android-current]');
-  var iosIn = overlay.querySelector('[data-rel-ios]');
-  var andIn = overlay.querySelector('[data-rel-android]');
-  if (!iosIn || !andIn) return;
-  var iosBuild = data && data.ios && data.ios.build;
-  var andCode = data && data.android && data.android.versionCode;
-  iosCur.textContent = iosBuild != null ? '(currently ' + iosBuild + ')' : '';
-  andCur.textContent = andCode != null ? '(currently ' + andCode + ')' : '';
-  // Prefill next suggested build only when the field is empty.
-  if (!iosIn.value && iosBuild != null) iosIn.value = String(iosBuild + 1);
-  if (!andIn.value && andCode != null) andIn.value = String(andCode + 1);
-  iosIn.placeholder = iosBuild != null ? String(iosBuild) : '—';
-  andIn.placeholder = andCode != null ? String(andCode) : '—';
-}
-
-function reloadReleases() {
-  var msgEl = overlay.querySelector('[data-rel-msg]');
-  adminFetch('releases').then(function (res) {
-    if (res.ok) applyReleases(res.data);
-    else if (msgEl) {
-      msgEl.className = 'admin-promo-msg is-err';
-      msgEl.textContent = errText(res.data && res.data.error);
-    }
-  }).catch(function () {
-    if (msgEl) {
-      msgEl.className = 'admin-promo-msg is-err';
-      msgEl.textContent = 'Could not load store builds.';
-    }
-  });
-}
-
-function saveReleases() {
-  var iosIn = overlay.querySelector('[data-rel-ios]');
-  var andIn = overlay.querySelector('[data-rel-android]');
-  var msgEl = overlay.querySelector('[data-rel-msg]');
-  var body = {};
-  if (String(iosIn.value || '').trim()) body.iosBuild = parseInt(iosIn.value, 10);
-  if (String(andIn.value || '').trim()) body.androidVersionCode = parseInt(andIn.value, 10);
-  if (body.iosBuild != null && (!body.iosBuild || body.iosBuild < 1)) {
-    msgEl.className = 'admin-promo-msg is-err';
-    msgEl.textContent = 'Enter a positive iOS build.';
-    return;
-  }
-  if (body.androidVersionCode != null && (!body.androidVersionCode || body.androidVersionCode < 1)) {
-    msgEl.className = 'admin-promo-msg is-err';
-    msgEl.textContent = 'Enter a positive Android versionCode.';
-    return;
-  }
-  if (!body.iosBuild && !body.androidVersionCode) {
-    msgEl.className = 'admin-promo-msg is-err';
-    msgEl.textContent = 'Enter an iOS build or Android versionCode.';
-    return;
-  }
-  msgEl.className = 'admin-promo-msg';
-  msgEl.textContent = 'Saving…';
-  adminFetch('releases', 'POST', body).then(function (res) {
-    if (res.ok) {
-      msgEl.className = 'admin-promo-msg is-ok';
-      msgEl.textContent = 'Saved. Run bun run deploy:ios / deploy:android to upload.';
-      iosIn.value = '';
-      andIn.value = '';
-      applyReleases(res.data.current);
-    } else {
-      msgEl.className = 'admin-promo-msg is-err';
-      msgEl.textContent = errText(res.data && res.data.error);
-    }
-  }).catch(function () {
-    msgEl.className = 'admin-promo-msg is-err';
-    msgEl.textContent = 'Network error.';
-  });
-}
-
 /* ── Public entry (wired from the appbar menu) ────────────── */
 export function openAdminTools() {
   if (!overlay) build();
@@ -714,14 +613,7 @@ export function openAdminTools() {
   setMsg('');
   var promoMsg = overlay.querySelector('[data-promo-msg]');
   if (promoMsg) { promoMsg.textContent = ''; promoMsg.className = 'admin-promo-msg'; }
-  var relMsg = overlay.querySelector('[data-rel-msg]');
-  if (relMsg) { relMsg.textContent = ''; relMsg.className = 'admin-promo-msg'; }
-  var iosIn = overlay.querySelector('[data-rel-ios]');
-  var andIn = overlay.querySelector('[data-rel-android]');
-  if (iosIn) iosIn.value = '';
-  if (andIn) andIn.value = '';
   reload('');
   reloadPromos();
-  reloadReleases();
   search.focus();
 }
