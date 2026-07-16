@@ -15,7 +15,20 @@
 #
 # Usage (from repo root):
 #   ./scripts/ios-testflight.sh
+#   ./scripts/ios-testflight.sh --build 3        # set CURRENT_PROJECT_VERSION then archive
+#   ./scripts/ios-testflight.sh --build +1       # bump build by 1, then archive
 #   ./scripts/ios-testflight.sh --archive-only   # skip upload; IPA in ios/FiHavenApp/build/export/
+#
+# Interactive (default when run in a terminal): prompts like npm init —
+#   Version sources:
+#     package.json          1.6.0
+#     iOS MARKETING_VERSION 1.6.0
+#     Android versionName   1.6.0
+#   Version (currently 1.6.0): (1.6.1)
+#   Are you sure? You haven't updated package.json (still 1.6.0). (y/N)
+#   Do you want me to update them (package.json + iOS + Android) to 1.6.1? (Y/n)
+#   iOS build (currently 2): (1)
+# Enter accepts the suggested default.
 
 set -euo pipefail
 
@@ -27,16 +40,41 @@ EXPORT_PLIST="$APP_DIR/ExportOptions.plist"
 SCHEME="FiHaven"
 
 archive_only=false
-for arg in "$@"; do
-  case "$arg" in
-    --archive-only) archive_only=true ;;
+build_arg=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --archive-only) archive_only=true; shift ;;
+    --build)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "❌ --build requires a value (e.g. --build 3 or --build +1)" >&2
+        exit 1
+      fi
+      build_arg="$1"
+      shift
+      ;;
+    --build=*)
+      build_arg="${1#--build=}"
+      shift
+      ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,24p' "$0"
       exit 0
       ;;
-    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [[ -n "$build_arg" ]]; then
+  current="$(node -e "console.log(require('$ROOT/scripts/native-versions').readIos().build)")"
+  echo "→ iOS build (currently $current) → setting to $build_arg"
+  node "$ROOT/scripts/native-versions.js" --ios "$build_arg" >/dev/null
+elif [[ -t 0 ]]; then
+  node "$ROOT/scripts/native-versions.js" --prompt-ios
+else
+  current="$(node -e "console.log(require('$ROOT/scripts/native-versions').readIos().build)")"
+  echo "→ Non-interactive: keeping iOS build $current from project.yml"
+fi
 
 if ! xcodebuild -version >/dev/null 2>&1; then
   echo "❌ Full Xcode required (xcodebuild not found)." >&2

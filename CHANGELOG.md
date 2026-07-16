@@ -13,6 +13,108 @@ Each release below uses two layers:
 
 ---
 
+## [1.6.1] — 2026-07-15
+
+| | |
+|---|---|
+| **Status** | Pre-release — testing build (TestFlight / Play) |
+| **iOS** | 1.6.1 (1) |
+| **Android** | 1.6.1 (versionCode 22) |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+
+### Summary
+
+> Admin tools you can actually run a product with, a Rewards page that helps you
+> pick a card, report wrong rates against what FiHaven ships, bank balances that
+> update credit limits, and a pile of store-launch + security hardening.
+
+### Changes
+
+**Admin console**
+
+- User-management overlay for admins: search users, Grant/Manage Pro with plan
+  picker (trial / monthly / 3-month / yearly / family / lifetime) and custom day
+  counts, revoke comp Pro, suspend / unsuspend (optional reason), send password
+  reset, force logout, delete account (type email to confirm).
+- Soft account suspension blocks new logins; suspended clients see a lock state
+  via `/me` without wiping open sessions until Force logout.
+- Pro source pills (App Store / Play / Web / Admin / Promo) and last-login relative
+  timestamps on each user row.
+- **Last used** — relative time from last synced app-data write (`user_data.updated_at`).
+- Promo-code panel: mint `free_sub` codes, list active/exhausted/expired, copy,
+  deactivate.
+- Store-builds panel (local repo): set iOS build / Android versionCode with
+  current values shown.
+
+**Rewards**
+
+- Full Rewards redesign across web, iOS, and Android: “Which card should I use?”,
+  wallet at a glance, credits & perks, offer-use suggestions, card-linked offers,
+  annual-fee check.
+- Rate/link editing moved to the Cards editor; Rewards is for picking and tracking.
+- **Report a wrong rate** sheet (web / iOS / Android) → `POST /api/feedback/reward-rate`.
+- “Our preset” / reported `ourRate` comes from the **shared preset catalog**
+  (`shippedRewardRate` / `Rewards.shippedRewardRate`), not the user’s edited card;
+  optional “also correct on my card”; public `ShippedRate` init for iOS module
+  boundary.
+- Integration test aligned to shipped-preset semantics (#171).
+
+**Bank sync (Plaid)**
+
+- Balance + credit-limit sync via unambiguous last-digits match (`plaidBalances.js`);
+  typed limits are never cleared when the bank omits a limit; Amex 4↔5-digit masks.
+- Accept / decline pending bank transactions; declines persist across pending→posted
+  id swaps via `settings.plaidHidden`.
+
+**Spending / UI polish**
+
+- Optional per-transaction **Note**; period-scoped spending list; bank rows editable.
+- Budget view refresh (iOS / Android).
+- Bills / Cards layout polish; suggested payment amount shown on card rows when
+  distinct from a bare “not paid” state (promo monthly / recommended payment).
+
+**Store launch & ops**
+
+- Unauthenticated `GET /health` liveness probe (DB `SELECT 1`) with per-IP rate limit.
+- Android Play upload automation (`scripts/play-upload.js`): `--build`, track via
+  `GOOGLE_PLAY_TRACK`, mapping + native-debug-symbols upload, clearer permission
+  errors.
+- App Links fingerprints + maintainer store-launch docs.
+- Marketing/legal copy: native apps rolling out (TestFlight / Play internal).
+- Interactive deploy version prompts (`scripts/native-versions.js`): npm-init style
+  Version + iOS build; Android versionCode always previous+1; iOS deploy does not
+  rewrite Android `versionName`; confirms when package.json / CHANGELOG look stale.
+
+**Security**
+
+- Escape user-named bill/card in pay-goal hint (CodeQL #37).
+- Rate-limit `/health`; validate go-live store hrefs (CodeQL #38–#40).
+- Remove DOM-attr→`.href` flow on go-live badges entirely (CodeQL #41, #42) —
+  store URLs live on markup `<a href>`; script only toggles visibility.
+
+**Build / packaging**
+
+- Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
+  `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
+- Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
+
+### Technical changelog
+
+- **Admin API** (`server/routes/admin.js`): suspend, reset-password, logout, delete,
+  expanded `/pro`, `GET|POST /promo`, `POST /promo/:code/deactivate`,
+  `GET|POST /releases`; `users.suspended*` + `listUsers` join `user_data.updated_at`.
+- **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids.
+- **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
+  FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients.
+- **Plaid**: `plaidBalances.js`, `plaidHidden` merge rules, pending Keep/decline UI.
+- **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
+- **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
+  `play-upload.js --version-code`.
+- **Tests**: reward-rate report client integration; health server integration;
+  removed obsolete rewards-link panel test.
+
+---
+
 ## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
 
 | | |
