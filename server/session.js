@@ -103,6 +103,9 @@ function loadSession(req, res, next) {
         role: row.role || 'user',
         emailVerified: !!row.email_verified,
         onboarded: !!row.onboarded,
+        suspended: !!row.suspended,
+        suspendedAt: row.suspended_at || null,
+        suspendedReason: row.suspended_reason || null,
       };
     } else if (row) {
       dbApi.deleteSession(found.id);
@@ -115,6 +118,14 @@ function loadSession(req, res, next) {
 // on protected data endpoints.
 function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'unauthenticated' });
+  // Soft-suspended accounts keep their session cookie but cannot use the app.
+  // Admins stay through so they can unsuspend themselves if needed.
+  if (req.user.suspended && req.user.role !== 'admin') {
+    return res.status(403).json({
+      error: 'account-suspended',
+      reason: req.user.suspendedReason || null,
+    });
+  }
   next();
 }
 

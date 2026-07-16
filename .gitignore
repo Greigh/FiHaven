@@ -53,3 +53,6 @@ android/styles.css
 android/.run/
 android/play-store/
 ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-512.png
+
+# ── Firecrawl scrape cache (research artifacts, not part of the app) ──────────
+.firecrawl/
