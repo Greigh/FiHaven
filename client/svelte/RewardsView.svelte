@@ -5,8 +5,9 @@
   logic lives in client/js/rewards.js (rankCardsForCategory),
   mirrored by the native cores.
 
-  Rate / rewards-link editing lives on the card editor (Cards tab),
-  not here — this page is for picking a card and tracking perks/offers.
+  Rate editing lives on the card editor (Cards tab). This page can
+  still *report* a wrong preset rate via /api/feedback/reward-rate so
+  shared data gets fixed.
 -->
 <script>
   import { cards, transactions, save } from '../js/storage.svelte.js';
@@ -60,6 +61,126 @@
     return `${daysLeft} days left`;
   };
 
+  let creditCards = $derived(cards.filter((c) => !c.archived && (c.type || 'card') !== 'loan'));
+  let anyRewards = $derived(creditCards.some((c) => (parseFloat(c.rewardBase) || 0) > 0 ||
+    Object.values(c.rewardCategories || {}).some((v) => (parseFloat(v) || 0) > 0)));
+
+  /* ── Report a wrong rate (shared preset feedback) ───────────── */
+  const BASE_RATE = 'Base rate (everything)';
+  const RATE_CATEGORIES = [BASE_RATE, ...REWARD_CATEGORIES];
+
+  let reportOpen = $state(false);
+  let reportCardId = $state('');
+  let reportCat = $state('');
+  let reportVal = $state('');
+  let reportNote = $state('');
+  let reportAlsoFix = $state(true);
+  let reportBusy = $state(false);
+  let reportMsg = $state('');
+  let reportErr = $state('');
+
+  let reportCard = $derived(creditCards.find((c) => String(c.id) === String(reportCardId)) || null);
+
+  function shownRate(card, cat) {
+    if (!card || !cat) return null;
+    if (cat === BASE_RATE) {
+      const b = parseFloat(card.rewardBase);
+      return Number.isFinite(b) ? b : 0;
+    }
+    const v = parseFloat((card.rewardCategories || {})[cat]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  let reportOurs = $derived(shownRate(reportCard, reportCat));
+
+  function csrf() {
+    return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
+  }
+
+  function openReport(prefillCard) {
+    reportOpen = true;
+    reportCardId = prefillCard ? String(prefillCard.id) : (creditCards[0] ? String(creditCards[0].id) : '');
+    reportCat = category && RATE_CATEGORIES.includes(category) ? category : '';
+    reportVal = '';
+    reportNote = '';
+    reportAlsoFix = true;
+    reportBusy = false;
+    reportMsg = '';
+    reportErr = '';
+  }
+
+  function closeReport() {
+    reportOpen = false;
+  }
+
+  function applyLocalFix(card, cat, correct) {
+    const c = cards.find((x) => String(x.id) === String(card.id));
+    if (!c) return;
+    if (cat === BASE_RATE) {
+      c.rewardBase = correct;
+    } else {
+      const next = { ...(c.rewardCategories || {}) };
+      if (correct > 0) next[cat] = correct;
+      else delete next[cat];
+      c.rewardCategories = next;
+    }
+    save('fh_cards', cards);
+  }
+
+  async function submitReport() {
+    const card = reportCard;
+    const correct = parseFloat(reportVal);
+    reportErr = '';
+    if (!card) { reportErr = 'Pick a card.'; return; }
+    if (!reportCat) { reportErr = 'Pick a category.'; return; }
+    if (!Number.isFinite(correct) || correct < 0 || correct > 100) {
+      reportErr = 'Enter a rate between 0 and 100.';
+      return;
+    }
+
+    reportBusy = true;
+    const ours = shownRate(card, reportCat);
+
+    // Local fix first when opted in — rankings update even if mail fails.
+    if (reportAlsoFix) applyLocalFix(card, reportCat, correct);
+
+    let shared = false;
+    try {
+      const r = await fetch('/api/feedback/reward-rate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+        body: JSON.stringify({
+          card: card.name || 'Card',
+          issuer: card.issuer || '',
+          category: reportCat,
+          ourRate: ours == null ? '' : ours,
+          correctRate: correct,
+          note: reportNote.trim(),
+        }),
+      });
+      shared = r.ok;
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        if (d.error === 'mail-failed') reportErr = 'Couldn’t send the report — try again in a moment.';
+        else if (!reportAlsoFix) reportErr = 'Couldn’t send the report.';
+      }
+    } catch (_) {
+      if (!reportAlsoFix) reportErr = 'Network error — try again.';
+    }
+
+    reportBusy = false;
+    if (shared) {
+      reportMsg = reportAlsoFix
+        ? 'Thanks — reported, and updated on your card.'
+        : 'Thanks — report sent.';
+      setTimeout(closeReport, 1400);
+    } else if (reportAlsoFix && !reportErr) {
+      reportMsg = 'Updated on your card. Report couldn’t be sent right now.';
+      setTimeout(closeReport, 1800);
+    }
+  }
+
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const VERDICT = {
     keep:     { label: 'Pays for itself', cls: 'fee-keep' },
@@ -73,10 +194,6 @@
       .filter((x) => x.a),
   );
   let hasSpendData = $derived(Object.keys(spendByCategory).length > 0);
-
-  let creditCards = $derived(cards.filter((c) => !c.archived && (c.type || 'card') !== 'loan'));
-  let anyRewards = $derived(creditCards.some((c) => (parseFloat(c.rewardBase) || 0) > 0 ||
-    Object.values(c.rewardCategories || {}).some((v) => (parseFloat(v) || 0) > 0)));
 
   let ranked = $derived.by(() => rankCardsForCategory(category, cards));
   let best = $derived(ranked.eligible[0] || null);
@@ -195,6 +312,13 @@
           {/each}
         </div>
       {/if}
+
+      <div class="rw-report-cta">
+        <button type="button" class="rw-report-link" onclick={() => openReport(best && best.card)}>
+          Spot a wrong rate? Report it
+        </button>
+        <span class="rw-report-cta-hint">Helps us fix shared presets · edit your own rates on Cards</span>
+      </div>
     {/if}
   </section>
 
@@ -321,3 +445,85 @@
     </section>
   {/if}
 </div>
+
+{#if reportOpen}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="rw-report-overlay"
+    role="presentation"
+    onclick={(e) => { if (e.target === e.currentTarget) closeReport(); }}
+    onkeydown={(e) => { if (e.key === 'Escape') closeReport(); }}
+  >
+    <div class="rw-report-sheet" role="dialog" aria-modal="true" aria-labelledby="rw-report-title">
+      <header class="rw-report-head">
+        <div>
+          <h3 id="rw-report-title">Report a wrong rate</h3>
+          <p>Tell us what a preset got wrong so we can fix it for everyone.</p>
+        </div>
+        <button type="button" class="rw-report-close" aria-label="Close" onclick={closeReport}>×</button>
+      </header>
+
+      <label class="rw-report-field">
+        <span>Card</span>
+        <select bind:value={reportCardId}>
+          {#each creditCards as c (c.id)}
+            <option value={c.id}>{c.name || 'Card'}</option>
+          {/each}
+        </select>
+      </label>
+
+      <label class="rw-report-field">
+        <span>Category</span>
+        <select bind:value={reportCat}>
+          <option value="">Which rate is wrong?</option>
+          {#each RATE_CATEGORIES as cat}
+            <option value={cat}>{cat}</option>
+          {/each}
+        </select>
+      </label>
+
+      <div class="rw-report-compare">
+        <div class="rw-report-compare-cell">
+          <span class="rw-report-compare-label">We show</span>
+          <span class="rw-report-compare-value">
+            {#if !reportCat}—{:else if reportOurs == null}none set{:else}{reportOurs}%{/if}
+          </span>
+        </div>
+        <div class="rw-report-compare-arrow" aria-hidden="true">→</div>
+        <label class="rw-report-compare-cell is-input">
+          <span class="rw-report-compare-label">Should be</span>
+          <span class="rw-report-compare-input">
+            <input type="number" step="0.01" min="0" max="100" placeholder="0" bind:value={reportVal}
+              onkeydown={(e) => { if (e.key === 'Enter') submitReport(); }} />
+            <span>%</span>
+          </span>
+        </label>
+      </div>
+
+      <label class="rw-report-field">
+        <span>Note <em>(optional)</em></span>
+        <input type="text" maxlength="500" placeholder="e.g. issuer cut Gas to 1% in 2026" bind:value={reportNote} />
+      </label>
+
+      <label class="rw-report-check">
+        <input type="checkbox" bind:checked={reportAlsoFix} />
+        <span>Also correct this rate on my card</span>
+      </label>
+
+      {#if reportErr}<div class="rw-report-status is-err">{reportErr}</div>{/if}
+      {#if reportMsg}<div class="rw-report-status is-ok">{reportMsg}</div>{/if}
+
+      <div class="rw-report-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick={closeReport}>Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" disabled={reportBusy} onclick={submitReport}>
+          {reportBusy ? 'Sending…' : 'Send report'}
+        </button>
+      </div>
+
+      <p class="rw-report-disclosure">
+        Sends the card, category, rates, and your email address to FiHaven.
+        See our <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+      </p>
+    </div>
+  </div>
+{/if}
