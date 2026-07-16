@@ -1020,54 +1020,140 @@ input[type="file"]::file-selector-button:hover {
 .subs-item-mo { font-size:11px; color:var(--muted); font-weight:500; }
 
 /* ── Rewards optimizer (Rewards tab) ───────────────────────── */
-.rw-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
-.rw-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
-.rw-cats { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-.rw-cat { border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; transition:all .15s; }
-.rw-cat:hover { border-color:var(--accent); }
-.rw-cat.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
-.rw-merchant { display:flex; align-items:center; gap:10px; margin:-6px 0 16px; }
-.rw-merchant-input { flex:1; min-width:0; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:10px; padding:8px 12px; font:inherit; font-size:13px; }
-.rw-merchant-input:focus { outline:none; border-color:var(--accent); }
-.rw-merchant-hint { font-size:13px; font-weight:700; color:var(--accent); white-space:nowrap; }
-.rw-merchant-hint.rw-merchant-miss { color:var(--muted); font-weight:500; }
-.rw-winner { border:1px solid var(--rw-accent,var(--accent)); border-left:4px solid var(--rw-accent,var(--accent)); border-radius:14px; padding:14px 16px; background:color-mix(in srgb, var(--rw-accent,var(--accent)) 7%, var(--surface)); }
-.rw-winner-label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
-.rw-winner-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:4px; }
-.rw-winner-name { font-weight:700; font-size:18px; letter-spacing:-.02em; }
-.rw-winner-rate { font-family:'Manrope',sans-serif; font-weight:800; font-size:24px; letter-spacing:-.03em; color:var(--rw-accent,var(--accent)); }
-.rw-list { display:flex; flex-direction:column; gap:2px; margin-top:10px; }
-.rw-item { display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); }
-.rw-item:last-child { border-bottom:none; }
-.rw-dot { width:10px; height:10px; border-radius:3px; flex:none; }
-.rw-item-name { flex:1; min-width:0; }
-.rw-rot { margin-left:7px; padding:1px 7px; border-radius:999px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; vertical-align:middle; background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent); }
-.rw-bd { display:block; font-size:11px; color:var(--muted); margin-top:1px; }
-.rw-winner-bd { font-size:12px; color:var(--muted); margin-top:2px; }
-.rw-item-rate { font-family:'Manrope',sans-serif; font-weight:700; color:var(--muted); }
-.rw-excluded { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
-.rw-excluded-head { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:8px; }
-.rw-ex-item { padding:8px 0; }
-.rw-ex-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.rw-ex-top .rw-item-name { opacity:.6; }
-.rw-ex-rate { font-size:12px; color:var(--muted); font-weight:600; }
-.rw-ex-reason { font-size:11px; color:var(--orange,var(--muted)); margin-top:2px; line-height:1.4; }
+.rw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.rw-section {
+  padding: 18px 18px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface2) 35%, var(--surface));
+}
+.rw-section-suggest {
+  border-color: color-mix(in srgb, var(--green, #30a46c) 35%, var(--border));
+  background: color-mix(in srgb, var(--green-bg, #e8f7ef) 55%, var(--surface));
+}
+.rw-section-head { margin-bottom: 14px; }
+.rw-section-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.rw-section-title {
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.25;
+}
+.rw-section-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.rw-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.rw-open-offers {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.rw-open-offers:hover { text-decoration: underline; }
 
-/* Rank cards — card-row-ish winner + runners */
-.rw-rank-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
-.rw-rank-excluded { display:flex; flex-direction:column; gap:8px; margin-top:16px; padding-top:12px; border-top:1px solid var(--border); }
+.rw-cats { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+.rw-cat {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.rw-cat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.rw-cat.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.rw-merchant { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rw-merchant-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 11px;
+  padding: 10px 13px;
+  font: inherit;
+  font-size: 13px;
+}
+.rw-merchant-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.rw-merchant-hint { font-size: 13px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.rw-merchant-hint.rw-merchant-miss { color: var(--muted); font-weight: 500; }
+
+.rw-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; margin-top: 5px; }
+.rw-rot {
+  margin-left: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.rw-rank-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.rw-rank-excluded {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+.rw-excluded-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .rw-rank-card {
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: 16px;
-  padding: 14px 16px;
-  background: color-mix(in srgb, var(--surface) 97%, white);
+  border-radius: 14px;
+  padding: 13px 15px;
+  background: var(--surface);
 }
 .rw-rank-card.is-winner {
   border-color: color-mix(in srgb, var(--rw-accent, var(--accent)) 45%, var(--border));
   border-left: 4px solid var(--rw-accent, var(--accent));
   background: color-mix(in srgb, var(--rw-accent, var(--accent)) 7%, var(--surface));
 }
-.rw-rank-card.is-skipped { opacity: .72; }
+.rw-rank-card.is-skipped { opacity: .7; }
 .rw-rank-kicker {
   font-size: 11px;
   font-weight: 700;
@@ -1115,6 +1201,7 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 700;
   color: var(--muted);
 }
+
 /* Per-category reward inputs in the card editor. */
 .reward-cats-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px 12px; }
 .reward-cat-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -1141,15 +1228,15 @@ input[type="file"]::file-selector-button:hover {
 .perk-edit-del:hover { color:var(--red,#e5484d); background:color-mix(in srgb, var(--red,#e5484d) 12%, transparent); }
 
 /* Credits & perks — Rewards-tab panel */
-.perk-total { text-align:right; line-height:1.1; }
+.perk-total { text-align:right; line-height:1.1; flex-shrink: 0; }
 .perk-total-amt { display:block; font-family:'Manrope',sans-serif; font-weight:800; letter-spacing:-.03em; font-size:22px; color:var(--accent); }
 .perk-total.zero .perk-total-amt { color:var(--green,#30a46c); }
 .perk-total-sub { font-size:11px; color:var(--muted); }
-.perk-card { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
+.perk-card { border-top:1px solid color-mix(in srgb, var(--border) 80%, transparent); padding-top:12px; margin-top:12px; }
 .perk-card:first-of-type { border-top:none; padding-top:0; margin-top:0; }
-.perk-card-name { font-weight:600; font-size:13px; margin-bottom:6px; }
-.perk-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; }
-.perk-row.done { opacity:.6; }
+.perk-card-name { font-weight:700; font-size:13px; margin-bottom:6px; }
+.perk-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 0; }
+.perk-row.done { opacity:.55; }
 .perk-info { display:flex; flex-direction:column; min-width:0; }
 .perk-label { font-size:14px; color:var(--text); }
 .perk-meta { font-size:11px; color:var(--muted); }
@@ -1161,10 +1248,16 @@ input[type="file"]::file-selector-button:hover {
 
 /* Wallet at a glance — best card per category */
 .wallet-grid { display:grid; gap:2px; }
-.wallet-row { display:grid; grid-template-columns:minmax(90px,1fr) 2fr auto; align-items:center; gap:10px;
-  width:100%; text-align:left; background:transparent; border:none; cursor:pointer;
-  padding:9px 6px; border-radius:8px; color:var(--text); font:inherit; }
-.wallet-row:hover { background:var(--surface2,var(--border)); }
+.wallet-row {
+  display:grid; grid-template-columns:minmax(90px,1fr) 2fr auto; align-items:center; gap:10px;
+  width:100%; text-align:left; background:transparent; border:1px solid transparent; cursor:pointer;
+  padding:9px 10px; border-radius:10px; color:var(--text); font:inherit;
+}
+.wallet-row:hover { background:var(--surface); }
+.wallet-row.is-active {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
 .wallet-cat { font-size:13px; color:var(--muted); }
 .wallet-card { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; min-width:0; }
 .wallet-dot { width:9px; height:9px; border-radius:50%; flex:none; }
@@ -1173,8 +1266,8 @@ input[type="file"]::file-selector-button:hover {
 /* Card-linked offers — Rewards-tab panel */
 .offers-soon { font-size:11px; font-weight:700; color:var(--orange,#f5a524);
   background:var(--orange-bg,color-mix(in srgb, #f5a524 14%, transparent)); border-radius:999px; padding:3px 10px; white-space:nowrap; }
-.offer-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
-.offer-row:first-of-type { border-top:none; }
+.offer-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.offer-row:first-of-type { border-top:none; padding-top: 0; }
 .offer-info { min-width:0; }
 .offer-merchant { font-size:14px; font-weight:600; }
 .offer-detail { font-weight:400; color:var(--muted); }
@@ -1185,66 +1278,11 @@ input[type="file"]::file-selector-button:hover {
   border:none; border-radius:999px; padding:5px 12px; }
 .offer-used-btn:hover { filter:brightness(0.97); }
 
-/* Rewards/offers links volunteered per card (mirrors the subscriptions panel). */
-.rw-link-row { padding:8px 0; border-top:1px solid var(--border); }
-.rw-link-row:first-of-type { border-top:none; }
-.rw-link-name { font-size:14px; font-weight:600; }
-.rw-link-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:4px; }
-.rw-link-out { font-size:12px; color:var(--accent); text-decoration:none; }
-.rw-link-out:hover { text-decoration:underline; }
-.rw-linkbtn { padding:0; border:0; background:none; cursor:pointer; font:inherit; font-size:12px; color:var(--accent); }
-.rw-linkbtn:hover { text-decoration:underline; }
-.rw-panel.card-row { gap: 14px; }
-.rw-panel .card-row-name { font-size: 18px; }
-.rw-share {
-  flex-basis: 100%;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.4;
-  cursor: pointer;
-}
-.rw-share input { margin-top: 2px; accent-color: var(--accent); }
-.rw-linkform { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
-.rw-linkform input, .rw-linkform select {
-  flex:1 1 220px; min-width:0; font-size:13px; padding:7px 10px;
-  border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text);
-  font: inherit;
-}
-.rw-linkform select {
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px);
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  padding-right: 28px;
-}
-.rw-linkform select:focus, .rw-linkform input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.rw-linkform select option, .rw-linkform select optgroup {
-  background: var(--surface);
-  color: var(--text);
-}
-.rw-linkmsg { font-size:12px; color:var(--muted); }
-.rw-linkhint { flex-basis:100%; font-size:11px; line-height:1.5; color:var(--muted); }
-.rw-disclosure { margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
-  font-size:11px; line-height:1.6; color:var(--muted); }
-.rw-disclosure a { color:var(--accent); }
-
-/* "Looks like you used this" suggestions (Plaid/manual transaction match) */
-.offer-suggest-panel { border-left:4px solid var(--green,#30a46c); }
 .offer-suggest-row .offer-meta { color:var(--green,#30a46c); }
 
 /* Annual-fee check — Rewards-tab panel */
-.fee-note { font-size:12px; color:var(--muted); margin:0 0 10px; }
-.fee-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
-.fee-row:first-of-type { border-top:none; }
+.fee-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.fee-row:first-of-type { border-top:none; padding-top: 0; }
 .fee-row-main { min-width:0; }
 .fee-name { font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; }
 .fee-renews { font-size:11px; font-weight:500; color:var(--muted); background:var(--surface2,var(--border)); border-radius:6px; padding:1px 6px; }

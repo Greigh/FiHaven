@@ -8,8 +8,6 @@ struct RewardsView: View {
     @EnvironmentObject var store: AppStore
     @State private var category = "Dining"
     @State private var merchantQuery = ""
-    @State private var linkingCard: Card?
-    @State private var ratingCard: Card?
 
     private var creditCards: [Card] { store.activeCards.filter { ($0.type ?? "card") != "loan" } }
 
@@ -43,57 +41,12 @@ struct RewardsView: View {
                     if !offerSuggestions.isEmpty { offerSuggestionsPanel }
                     if !activeOffers.isEmpty { offersPanel }
                     if !feeCards.isEmpty { feePanel }
-                    if !creditCards.isEmpty { rewardsLinksPanel }
                 }
             }
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Rewards")
-        .sheet(item: $linkingCard) { card in
-            RewardsLinkSheet(card: card).environmentObject(store)
-        }
-        .sheet(item: $ratingCard) { card in
-            RewardRateSheet(card: card).environmentObject(store)
-        }
-    }
-
-    /// Per-card rewards/offers links. Mirrors the Subscriptions tab's
-    /// manage-link flow: saved on the user's own card, and optionally offered
-    /// to the shared database (which emails us — disclosed in the footer).
-    private var rewardsLinksPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Rewards & offers").font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
-                Text("Where to find your offers").font(Theme.ui(17, weight: .semibold))
-            }
-            ForEach(creditCards) { card in
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("💳 \(card.name.isEmpty ? "Card" : card.name)").font(Theme.ui(14, weight: .semibold))
-                        if let raw = card.rewardsUrl, let link = URL(string: raw) {
-                            Link("Open offers ↗", destination: link)
-                                .font(Theme.ui(11)).foregroundStyle(Theme.accent)
-                        }
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 6) {
-                        Button(card.rewardsUrl == nil ? "Add rewards link" : "Change rewards link") {
-                            linkingCard = card
-                        }
-                        .font(Theme.ui(11)).foregroundStyle(Theme.accent)
-                        Button("Wrong rewards rates") { ratingCard = card }
-                            .font(Theme.ui(11)).foregroundStyle(Theme.accent)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            Text("Adding a rewards link emails what you send (and your email) to FiHaven. Correcting a wrong rate updates your card locally; sharing that correction with FiHaven is optional. See our Privacy Policy.")
-                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
-        }
-        .padding(14)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
     }
 
     private var empty: some View {
@@ -551,185 +504,5 @@ struct RewardsView: View {
     private func breakdown(_ e: Rewards.Ranked) -> String? {
         guard e.pointValue != 1 else { return nil }
         return "\(ratePct(e.rate).dropLast())× points · \(e.pointValue)¢/pt"
-    }
-}
-
-/// Add or change a card's rewards/offers link. Mirrors `ManageLinkSheet` on the
-/// Subscriptions tab: the URL is saved on the user's own card *and* offered to
-/// the shared database. The personal save is what matters, so a failed share is
-/// reported but never blocks it.
-private struct RewardsLinkSheet: View {
-    @EnvironmentObject var store: AppStore
-    @Environment(\.dismiss) private var dismiss
-
-    let card: Card
-
-    @State private var url: String = ""
-    @State private var busy = false
-    @State private var message: String?
-
-    private var isValid: Bool {
-        guard let u = URL(string: url.trimmingCharacters(in: .whitespaces)),
-              let scheme = u.scheme?.lowercased(),
-              u.host?.isEmpty == false
-        else { return false }
-        return scheme == "http" || scheme == "https"
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("https://…/rewards/offers", text: $url)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Rewards or offers link for \(card.name.isEmpty ? "this card" : card.name)")
-                } footer: {
-                    Text("Saved on your card. Also emails the card name, the link, and your email address to FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.")
-                }
-                if let message {
-                    Section { Text(message).font(Theme.ui(13)).foregroundStyle(Theme.muted) }
-                }
-            }
-            .navigationTitle("Rewards link")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Saving…" : "Save") { Task { await submit() } }
-                        .disabled(!isValid || busy)
-                }
-            }
-            .onAppear { url = card.rewardsUrl ?? "" }
-        }
-    }
-
-    private func submit() async {
-        let trimmed = url.trimmingCharacters(in: .whitespaces)
-        guard isValid else { return }
-        busy = true
-        message = nil
-
-        // 1) The user's own card — the part that must not be lost.
-        store.setCardRewardsUrl(cardId: card.id, url: trimmed)
-
-        // 2) Offer it to the shared database. Best effort.
-        let shared = await store.shareRewardsLink(name: card.name.isEmpty ? "Card" : card.name, url: trimmed)
-        busy = false
-        message = shared ? "Saved to your card and shared — thanks!" : "Saved to your card."
-        dismiss()
-    }
-}
-
-/// Report a reward rate we ship that's wrong — e.g. we seed a card at 3% on Gas
-/// when the issuer has since cut it to 1%. Corrects the user's own card straight
-/// away (so "which card should I use?" stops recommending on bad data) *and*
-/// reports it so the shared preset gets fixed. The personal fix is what matters,
-/// so a failed report never blocks it.
-private struct RewardRateSheet: View {
-    @EnvironmentObject var store: AppStore
-    @Environment(\.dismiss) private var dismiss
-
-    let card: Card
-
-    private static let baseRate = "Base rate (everything)"
-    private var categories: [String] { [Self.baseRate] + Rewards.categories }
-
-    @State private var category = ""
-    @State private var rate = ""
-    @State private var note = ""
-    @State private var shareWithFiHaven = false
-    @State private var busy = false
-
-    /// What the app currently claims. `nil` means we have no rate for this
-    /// category — itself worth reporting ("you're missing this one").
-    private var shownRate: Double? {
-        guard !category.isEmpty else { return nil }
-        if category == Self.baseRate { return card.rewardBase }
-        return card.rewardCategories[category]
-    }
-
-    private var correctRate: Double? {
-        guard let v = Double(rate.trimmingCharacters(in: .whitespaces)),
-              v >= 0, v <= 100 else { return nil }
-        return v
-    }
-
-    private var isValid: Bool { !category.isEmpty && correctRate != nil }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("Category", selection: $category) {
-                        Text("Which is wrong?").tag("")
-                        ForEach(categories, id: \.self) { Text($0).tag($0) }
-                    }
-                    if !category.isEmpty {
-                        HStack {
-                            Text("We show").foregroundStyle(Theme.muted)
-                            Spacer()
-                            Text(shownRate.map { "\($0)%" } ?? "no rate")
-                                .font(Theme.mono(13))
-                        }
-                    }
-                    HStack {
-                        Text("Should be")
-                        Spacer()
-                        TextField("0", text: $rate)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 70)
-                        Text("%").foregroundStyle(Theme.muted)
-                    }
-                    TextField("Note (optional)", text: $note, axis: .vertical)
-                    Toggle("Also send to FiHaven so we can fix shared presets", isOn: $shareWithFiHaven)
-                } header: {
-                    Text("Wrong rate on \(card.name.isEmpty ? "this card" : card.name)")
-                } footer: {
-                    Text(shareWithFiHaven
-                           ? "Corrects the rate on your card, then emails the card, the category, and your email address to FiHaven."
-                           : "Corrects the rate on your card only. Turn on sharing if you want FiHaven to fix the shared preset.")
-                }
-            }
-            .navigationTitle("Wrong rewards rates")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Saving…" : (shareWithFiHaven ? "Fix & report" : "Fix on my card")) {
-                        Task { await submit() }
-                    }
-                    .disabled(!isValid || busy)
-                }
-            }
-        }
-    }
-
-    private func submit() async {
-        guard let correct = correctRate, !category.isEmpty else { return }
-        busy = true
-
-        let ours = shownRate
-        let isBase = category == Self.baseRate
-
-        // 1) The user's own card — the part that must not be lost.
-        store.setCardRewardRate(cardId: card.id, category: isBase ? nil : category, rate: correct)
-
-        // 2) Optionally report it so we can fix the preset (off by default).
-        if shareWithFiHaven {
-            _ = await store.reportRewardRate(
-                card: card.name.isEmpty ? "Card" : card.name,
-                issuer: card.issuer ?? "",
-                category: category,
-                ourRate: ours,
-                correctRate: correct,
-                note: note.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-        }
-        busy = false
-        dismiss()
     }
 }
