@@ -165,9 +165,16 @@ fun DropdownField(label: String, options: List<String>, selected: String, onSele
                 Text(selected.ifEmpty { "Select" }, color = Ct.colors.text, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Ct.colors.muted)
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                containerColor = Ct.colors.surface,
+            ) {
                 options.forEach { opt ->
-                    DropdownMenuItem(text = { Text(opt) }, onClick = { onSelect(opt); expanded = false })
+                    DropdownMenuItem(
+                        text = { Text(opt, color = Ct.colors.text) },
+                        onClick = { onSelect(opt); expanded = false },
+                    )
                 }
             }
         }

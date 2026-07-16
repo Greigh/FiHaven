@@ -125,11 +125,11 @@ struct SpendingView: View {
                                 }
                                 Spacer()
                                 Text(Money.fmt(tx.amount)).font(Theme.mono(13)).foregroundStyle(Theme.text)
+                                Button("Edit") { editingTx = tx }
+                                    .font(Theme.ui(13)).foregroundStyle(Theme.accent)
+                                    .buttonStyle(.plain)
+                                    .accessibilityIconButton("Edit transaction")
                                 if !tx.isBank {
-                                    Button("Edit") { editingTx = tx }
-                                        .font(Theme.ui(13)).foregroundStyle(Theme.accent)
-                                        .buttonStyle(.plain)
-                                        .accessibilityIconButton("Edit transaction")
                                     Button { store.deleteTransaction(tx) } label: {
                                         Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
                                     }
@@ -150,7 +150,7 @@ struct SpendingView: View {
                                 }
                             }
                             .contentShape(Rectangle())
-                            .onTapGesture { if !tx.isBank { editingTx = tx } }
+                            .onTapGesture { editingTx = tx }
                             .padding(.vertical, 7)
                         }
                     }
@@ -170,7 +170,7 @@ struct SpendingView: View {
     }
 
     private var recentTx: [SpendTransaction] {
-        store.data.transactions.sorted { $0.date > $1.date }.prefix(8).map { $0 }
+        store.periodTransactions.sorted { $0.date > $1.date }
     }
 
     // ── Bank-sync reconciliation (only when a bank is linked) ─────────

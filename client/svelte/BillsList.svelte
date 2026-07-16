@@ -1,12 +1,13 @@
 <!--
-  BillsList.svelte — Bills tab table. Reads the `bills` $state
-  proxy directly; mutations elsewhere (modals, server sync,
-  import) automatically re-render this list.
+  BillsList.svelte — Bills tab. One detail panel per bill, matching
+  the Cards/Loans card-row layout. Reads the `bills` $state proxy
+  directly; mutations elsewhere (modals, server sync, import)
+  automatically re-render this list.
 -->
 <script>
   import { bills, cards, save, settings } from '../js/storage.svelte.js';
   import {
-    ICONS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilBillDue, nextDueDate, shortDate,
+    ICONS, CARD_COLORS, fmt, currentPeriodKey, effectiveDaysUntilBillDue, shortDate,
     paidState, paidAmount, goalAmountFor, remainingForItem,
     paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
     nextBillDueDate, daysUntilBillDue, archiveInsteadOfDelete,
@@ -26,6 +27,9 @@
   let dueThisPeriod = $derived(activeBills.reduce((s, b) => s + goalAmountFor('bill', String(b.id), mk), 0));
   let leftToPay     = $derived(activeBills.reduce((s, b) => s + remainingForItem('bill', String(b.id), mk), 0));
   let billsProgress = $derived(dueThisPeriod > 0 ? Math.min(100, Math.round((Math.max(0, dueThisPeriod - leftToPay) / dueThisPeriod) * 100)) : 0);
+  // When nothing is paid yet, left-to-pay === due — don't restate the same $
+  // in the subtitle. Only show "of $X due" after some payments land.
+  let dueDiffers = $derived(Math.abs(dueThisPeriod - leftToPay) > 0.005);
 
   // Resolve the "charged to" card name for a bill, if it still exists.
   function cardNameFor(b) {
@@ -106,198 +110,208 @@
   });
 </script>
 
-{#if activeBills.length > 0}
-  <div class="cards-summary">
-    <div class="cards-summary-tile cards-summary-tile-lead">
-      <div class="cards-summary-label">{leftToPay > 0.005 ? 'Left to pay' : 'All caught up'}</div>
-      <div class="cards-summary-value" style="color:{leftToPay > 0.005 ? 'var(--text)' : 'var(--green)'};">{fmt(leftToPay > 0.005 ? leftToPay : 0)}</div>
-      <div class="cards-summary-bar">
-        <div class="cards-summary-bar-fill" style="width:{billsProgress}%;background:var(--green);"></div>
-      </div>
-    </div>
-    <div class="cards-summary-tile">
-      <div class="cards-summary-label">Due this period</div>
-      <div class="cards-summary-value">{fmt(dueThisPeriod)}</div>
-      <div class="cards-summary-sub">across {activeBills.length} bill{activeBills.length === 1 ? '' : 's'}</div>
-    </div>
+<div class="bills-head">
+  <div class="bills-head-label">Bills</div>
+  <div class="bills-head-center">
+    {#if activeBills.length > 0}
+      {#if leftToPay > 0.005}
+        <div class="bills-head-amount">{fmt(leftToPay)}</div>
+        <p class="bills-head-sub">
+          left to pay
+          {#if dueDiffers}
+            · of {fmt(dueThisPeriod)} due
+          {/if}
+          · {activeBills.length} bill{activeBills.length === 1 ? '' : 's'}
+        </p>
+        {#if dueThisPeriod > 0 && dueDiffers}
+          <div class="bills-head-bar" aria-hidden="true">
+            <div class="cards-summary-bar-fill" style="width:{billsProgress}%;background:var(--green);"></div>
+          </div>
+        {/if}
+      {:else}
+        <div class="bills-head-amount" style="color:var(--green);">All caught up</div>
+        <p class="bills-head-sub">
+          {fmt(dueThisPeriod)} due this period · {activeBills.length} bill{activeBills.length === 1 ? '' : 's'}
+        </p>
+      {/if}
+    {:else}
+      <div class="bills-head-amount bills-head-amount-muted">No bills yet</div>
+      <p class="bills-head-sub">Add rent, utilities, subscriptions, and other recurring costs.</p>
+    {/if}
   </div>
-{/if}
+  <div class="bills-head-actions">
+    {#if bills.length > 0}
+      <button class="btn btn-ghost btn-sm" type="button" onclick={() => window.exportCSV('bills')}>⬇ CSV</button>
+    {/if}
+    <button class="btn btn-primary btn-sm" type="button" onclick={() => window.openBillModal()}>+ Add Bill</button>
+  </div>
+</div>
 
 {#if bills.length > 0}
   <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
-{/if}
 
-<div class="card" style="overflow:hidden;">
-  {#if bills.length === 0}
-    <div class="empty">
-      <div class="empty-icon">📋</div>
-      <h3>No bills yet</h3>
-      <p>Add rent, utilities, subscriptions, loans, and other recurring costs.</p>
-    </div>
-  {:else if visibleBills.length === 0}
+  {#if visibleBills.length === 0}
     <div class="empty">
       <div class="empty-icon">🔍</div>
       <h3>No bills match</h3>
       <p>No bills match the current filters. Adjust or clear them above.</p>
     </div>
   {:else}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Name</th><th>Category</th><th>Amount</th><th>Recent</th><th>Due</th>
-          <th>Frequency</th><th>Autopay</th><th>This Month</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each visibleBills as b (b.id)}
-          {@const state = paidState('bill', String(b.id), mk)}
-          {@const notStarted = billNotStarted(b)}
-          {@const ended = billEnded(b)}
-          {@const days  = b.dueDay || b.startDate ? effectiveDaysUntilBillDue(b, mk) : null}
-          {@const next  = nextBillDueDate(b)}
-          {@const stats = paymentStats('bill', String(b.id), 6)}
-          {@const sinceLast = daysSinceLastPayment('bill', String(b.id))}
-          {@const stale = sinceLast !== null && sinceLast > STALE_DAYS}
-          <tr class:paid-row={state === 'full'}>
-            <td data-cell="name">
-              <strong>{b.name}</strong>
-              {#if b.business}
-                <span style="font-weight:400;color:var(--muted);margin-left:4px;">· {b.business}</span>
-              {/if}
-              {#if stale}
-                <span class="badge badge-orange" style="margin-left:6px;" title="No payment recorded in {sinceLast} days">
-                  ⚠ stale {sinceLast}d
-                </span>
-              {/if}
-              {#if cardNameFor(b)}
-                <div style="font-size:11px;color:var(--muted);margin-top:2px;"
-                     title="Paid with this card — it lands on the card statement, not a direct bank withdrawal.">
-                  💳 Charged to {cardNameFor(b)} · not a bank debit
-                </div>
-              {/if}
-              {#if b.notes}
-                <div style="font-size:11px;color:var(--muted);margin-top:1px;">{b.notes}</div>
-              {/if}
-              <!-- Mobile-only: folds Category / Frequency / Autopay (hidden as
-                   separate rows on phones) into one compact meta line. -->
-              <div class="bill-meta-mobile">
-                <span>{ICONS[b.category] || '📌'} {b.category}</span>
-                <span>· {b.frequency}</span>
-                {#if b.autopay}<span class="badge badge-green">✓ Auto</span>{/if}
-              </div>
-            </td>
-            <td data-label="Category">{ICONS[b.category] || '📌'} {b.category}</td>
-            <td data-label="Amount">
-              <span style="font-family:'Manrope',sans-serif;font-weight:700;letter-spacing:-.03em;">
-                {fmt(b.amount)}
-              </span>
-            </td>
-            <td data-label="Recent" style="min-width:120px;">
-              {#if stats}
-                <Sparkline values={stats.amounts} />
-                <div style="font-size:11px;color:var(--muted);line-height:1.3;">
-                  avg {fmt(stats.avg)}
-                  {#if stats.min !== stats.max}
-                    · {fmt(stats.min)}–{fmt(stats.max)}
+    <div class="cards-grid">
+      {#each visibleBills as b, viewIdx (b.id)}
+        {@const state = paidState('bill', String(b.id), mk)}
+        {@const notStarted = billNotStarted(b)}
+        {@const ended = billEnded(b)}
+        {@const days  = b.dueDay || b.startDate ? effectiveDaysUntilBillDue(b, mk) : null}
+        {@const next  = nextBillDueDate(b)}
+        {@const stats = paymentStats('bill', String(b.id), 6)}
+        {@const sinceLast = daysSinceLastPayment('bill', String(b.id))}
+        {@const stale = sinceLast !== null && sinceLast > STALE_DAYS}
+        {@const color = CARD_COLORS[viewIdx % CARD_COLORS.length]}
+        {@const chargedTo = cardNameFor(b)}
+
+        <article class="card-row fade-up" class:paid-row={state === 'full'} style="animation-delay:{viewIdx * 0.05}s">
+          <header class="card-row-head is-bill-head">
+            <div class="card-row-identity">
+              <div class="card-row-chip" style="background:{color};">{ICONS[b.category] || '📌'}</div>
+              <div class="card-row-naming">
+                <div class="card-row-name">{b.name}</div>
+                {#if b.business}
+                  <div class="card-row-business">{b.business}</div>
+                {/if}
+                <div class="card-row-meta">
+                  {#if ended}
+                    <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended</span>
+                    {#if b.endDate}<span class="card-row-next">on {shortDate(parseYmd(b.endDate))}</span>{/if}
+                  {:else if notStarted}
+                    <span class="badge badge-gray" title="Hasn't started yet — not due or counted until then">Starts {shortDate(parseYmd(b.startDate))}</span>
+                  {:else if days !== null}
+                    {#if days < 0}
+                      <span class="badge badge-red">{Math.abs(days)}d overdue</span>
+                    {:else if days === 0}
+                      <span class="badge badge-orange">Due today</span>
+                    {:else if days <= 5}
+                      <span class="badge badge-orange">Due {days}d</span>
+                    {:else}
+                      <span class="badge badge-gray">Day {b.dueDay}</span>
+                    {/if}
+                    {#if next}
+                      <span class="card-row-next">Next: {shortDate(next)}</span>
+                    {/if}
                   {/if}
+                  <span class="card-row-pill is-muted">{b.category || 'Other'}</span>
+                  {#if b.autopay}
+                    <span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay{#if b.autopayDay} · day {b.autopayDay}{/if}</span>
+                  {:else}
+                    <span class="card-row-pill is-muted">Manual</span>
+                  {/if}
+                  {#if chargedTo}
+                    <span class="card-row-pill is-muted" title="Paid with this card — it lands on the card statement, not a direct bank withdrawal.">
+                      💳 {chargedTo}
+                    </span>
+                  {/if}
+                  {#if stale}
+                    <span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);" title="No payment recorded in {sinceLast} days">
+                      ⚠ Stale {sinceLast}d
+                    </span>
+                  {/if}
+                  {#if b.notes}<span class="card-row-notes">{b.notes}</span>{/if}
                 </div>
-                <div style="font-size:10px;color:var(--muted);">last {stats.count} paid</div>
-              {:else}
-                <span style="font-size:11px;color:var(--muted);">no history</span>
-              {/if}
-            </td>
-            <td data-label="Due">
-              {#if ended}
-                <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended</span>
-                <div style="font-size:11px;color:var(--muted);margin-top:3px;">on {shortDate(parseYmd(b.endDate))}</div>
-              {:else if notStarted}
-                <span class="badge badge-gray" title="Hasn't started yet — not due or counted until then">Starts {shortDate(parseYmd(b.startDate))}</span>
-              {:else if days === null}
-                {''}
-              {:else}
-                {#if days < 0}
-                  <span class="badge badge-red">{Math.abs(days)}d overdue</span>
-                {:else if days <= 5}
-                  <span class="badge badge-orange">Due {days}d</span>
-                {:else}
-                  <span class="badge badge-gray">Day {b.dueDay}</span>
-                {/if}
-                {#if next}
-                  <div style="font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;">Next: {shortDate(next)}</div>
-                {/if}
-              {/if}
-            </td>
-            <td data-label="Frequency"><span class="badge badge-gray">{b.frequency}</span></td>
-            <td data-label="Autopay">
-              {#if b.autopay}
-                <span class="badge badge-green">✓ Auto</span>
-                {#if b.autopayDay}
-                  <div style="font-size:11px;color:var(--muted);margin-top:3px;">Pays day {b.autopayDay}</div>
-                {/if}
-              {:else}
-                <span class="badge badge-gray">Manual</span>
-              {/if}
-            </td>
-            <td data-label="This month">
-              {#if ended || notStarted}
-                <span style="color:var(--muted);">—</span>
-              {:else if state === 'skipped'}
-                <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+              </div>
+            </div>
+
+            <div class="card-row-actions">
+              {#if !ended && !notStarted}
+                {#if state === 'skipped'}
                   <span class="badge badge-gray" title="No payment expected this {billPeriodNoun(b.frequency)}">⏭ Skipped</span>
-                  <button class="btn btn-ghost btn-xs" onclick={() => unskipMonth('bill', String(b.id))}>
+                  <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('bill', String(b.id))}>
                     Undo skip
                   </button>
-                </div>
-              {:else if state === 'full'}
-                <span class="badge badge-green">
-                  ✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}
-                </span>
-              {:else if state === 'partial'}
-                <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+                {:else if state === 'full'}
+                  <span class="badge badge-green">✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}</span>
+                {:else if state === 'partial'}
                   <span class="badge badge-orange" title="{fmt(remainingForItem('bill', String(b.id), mk))} still due">
                     Paid {fmt(paidAmount('bill', String(b.id), mk))} of {fmt(goalAmountFor('bill', String(b.id)))}
                   </span>
                   <button
-                    class="btn btn-green btn-xs"
+                    class="btn btn-green btn-sm"
                     onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
                   >
                     Pay {fmt(remainingForItem('bill', String(b.id), mk))} more
                   </button>
-                </div>
-              {:else}
-                <div style="display:flex;align-items:center;gap:4px;">
                   <button
-                    class="btn btn-green btn-xs"
-                    onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
-                  >
-                    ✓ Pay
-                  </button>
-                  <button
-                    class="btn btn-ghost btn-xs"
+                    class="btn btn-ghost btn-sm"
                     title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
                     onclick={() => skipMonth('bill', String(b.id), b.name)}
                   >
                     Skip
                   </button>
-                </div>
-              {/if}
-            </td>
-            <td data-cell="actions">
-              <div class="action-btns">
-                <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
-                {#if useArchive}
-                  <button class="btn btn-ghost btn-sm" onclick={() => archiveBill(b)} title="Archive — hides it but keeps a restorable copy">Archive</button>
                 {:else}
-                  <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+                  <button
+                    class="btn btn-green btn-sm"
+                    onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
+                  >
+                    ✓ Pay
+                  </button>
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
+                    onclick={() => skipMonth('bill', String(b.id), b.name)}
+                  >
+                    Skip
+                  </button>
+                {/if}
+              {/if}
+              <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
+              {#if useArchive}
+                <button class="btn btn-ghost btn-sm" onclick={() => archiveBill(b)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+              {:else}
+                <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+              {/if}
+            </div>
+          </header>
+
+          <div class="card-row-stats is-bill">
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">Amount</div>
+              <div class="card-row-stat-value">{fmt(b.amount)}</div>
+            </div>
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">Frequency</div>
+              <div class="card-row-stat-value" style="font-size:15px;">{b.frequency || '—'}</div>
+            </div>
+            <div class="card-row-stat">
+              <div class="card-row-stat-label">This period</div>
+              {#if ended || notStarted}
+                <div class="card-row-stat-value" style="color:var(--muted);">—</div>
+              {:else if state === 'skipped'}
+                <div class="card-row-stat-value" style="color:var(--muted);">Skipped</div>
+              {:else if state === 'full'}
+                <div class="card-row-stat-value" style="color:var(--green);">{fmt(0)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">all paid</div>
+              {:else}
+                <div class="card-row-stat-value">{fmt(remainingForItem('bill', String(b.id), mk))}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">left to pay</div>
+              {/if}
+            </div>
+          </div>
+
+          {#if stats}
+            <div class="card-row-stats-footer">
+              <Sparkline values={stats.amounts} color="var(--accent)" />
+              <div>
+                <strong>{fmt(stats.avg)}</strong> avg · last {stats.count} payment{stats.count !== 1 ? 's' : ''}
+                {#if stats.min !== stats.max}
+                  · range {fmt(stats.min)}–{fmt(stats.max)}
                 {/if}
               </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+            </div>
+          {/if}
+        </article>
+      {/each}
+    </div>
   {/if}
-</div>
+{/if}
 
 {#if archivedBills.length > 0}
   <div class="archived-block">

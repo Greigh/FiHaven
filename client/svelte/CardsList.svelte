@@ -302,8 +302,10 @@
       {@const isPromoOpen = !!openPromos[c.id]}
 
       <article class="card-row fade-up" style="animation-delay:{viewIdx * 0.05}s">
-        <!-- Header: identity + due + action -->
-        <header class="card-row-head">
+        <!-- Header: identity (name + meta + due) | actions — same 2-col
+             pattern as Bills so the name column isn't squeezed beside a
+             third due track. -->
+        <header class="card-row-head is-bill-head">
           <div class="card-row-identity">
             <div class="card-row-chip" style="background:{color};">{c.type === 'loan' ? '🏦' : '💳'}</div>
             <div class="card-row-naming">
@@ -312,6 +314,22 @@
                 {c.name}
               </div>
               <div class="card-row-meta">
+                {#if days !== null}
+                  {#if days < 0}
+                    <span class="badge badge-red">{Math.abs(days)}d overdue</span>
+                  {:else if days === 0}
+                    <span class="badge badge-orange">Due today</span>
+                  {:else if days <= 5}
+                    <span class="badge badge-orange">Due {days}d</span>
+                  {:else}
+                    <span class="badge badge-gray">Day {c.dueDay}</span>
+                  {/if}
+                  {#if next}
+                    <span class="card-row-next">Next: {shortDate(next)}</span>
+                  {/if}
+                {:else}
+                  <span class="card-row-next">No due day</span>
+                {/if}
                 <span style="color:{aprColor(c.regularAPR)};font-weight:600;">{c.regularAPR}% APR</span>
                 {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
                 {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
@@ -319,25 +337,6 @@
                 {#if c.notes}<span class="card-row-notes">{c.notes}</span>{/if}
               </div>
             </div>
-          </div>
-
-          <div class="card-row-due">
-            {#if days !== null}
-              {#if days < 0}
-                <span class="badge badge-red">{Math.abs(days)}d overdue</span>
-              {:else if days === 0}
-                <span class="badge badge-orange">Due today</span>
-              {:else if days <= 5}
-                <span class="badge badge-orange">Due {days}d</span>
-              {:else}
-                <span class="badge badge-gray">Day {c.dueDay}</span>
-              {/if}
-              {#if next}
-                <span class="card-row-next">Next: {shortDate(next)}</span>
-              {/if}
-            {:else}
-              <span class="card-row-next">No due day</span>
-            {/if}
           </div>
 
           <div class="card-row-actions">
