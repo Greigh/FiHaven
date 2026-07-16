@@ -545,6 +545,7 @@ struct TransactionEditorView: View {
     @State private var amount: Double = 0
     @State private var category = "Groceries"
     @State private var merchant = ""
+    @State private var note = ""
     @State private var date = Date()
 
     var body: some View {
@@ -559,12 +560,20 @@ struct TransactionEditorView: View {
                     }
                 }
                 TextField("Merchant (optional)", text: $merchant)
+                TextField("Note (optional)", text: $note, axis: .vertical)
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 if let edit {
                     Section {
                         Button(role: .destructive) {
-                            store.deleteTransaction(edit); dismiss()
-                        } label: { Text("Delete transaction") }
+                            if edit.isBank {
+                                store.declineBankTransaction(edit)
+                            } else {
+                                store.deleteTransaction(edit)
+                            }
+                            dismiss()
+                        } label: {
+                            Text(edit.isBank ? "Remove bank purchase" : "Delete transaction")
+                        }
                     }
                 }
             }
@@ -575,10 +584,11 @@ struct TransactionEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(edit == nil ? "Add" : "Save") {
                         let m = merchant.trimmingCharacters(in: .whitespaces)
+                        let n = note.trimmingCharacters(in: .whitespacesAndNewlines)
                         if let edit {
-                            store.updateTransaction(id: edit.id, amount: amount, category: category, merchant: m, date: date)
+                            store.updateTransaction(id: edit.id, amount: amount, category: category, merchant: m, note: n, date: date)
                         } else {
-                            store.addTransaction(amount: amount, category: category, merchant: m, date: date)
+                            store.addTransaction(amount: amount, category: category, merchant: m, note: n, date: date)
                         }
                         dismiss()
                     }
@@ -591,6 +601,7 @@ struct TransactionEditorView: View {
                     amount = edit.amount
                     category = edit.category
                     merchant = edit.merchant
+                    note = edit.note
                     date = Self.parseDay(edit.date) ?? Date()
                 }
             }

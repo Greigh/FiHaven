@@ -123,6 +123,8 @@
   let rateCat = $state('');
   let rateVal = $state('');
   let rateNote = $state('');
+  // Off by default — correcting your card is the main action; sharing is opt-in.
+  let rateShare = $state(false);
   let rateBusy = $state(false);
   let rateMsg = $state('');
 
@@ -140,7 +142,7 @@
 
   function startRate(card) {
     openRate = openRate === card.id ? null : card.id;
-    rateCat = ''; rateVal = ''; rateNote = ''; rateMsg = '';
+    rateCat = ''; rateVal = ''; rateNote = ''; rateShare = false; rateMsg = '';
   }
 
   async function submitRate(card) {
@@ -168,27 +170,31 @@
       save('fh_cards', cards);
     }
 
-    // 2) Report it so we can fix the preset for everyone (non-blocking).
+    // 2) Optionally report it so we can fix the shared preset (off by default).
     let shared = false;
-    try {
-      const r = await fetch('/api/feedback/reward-rate', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
-        body: JSON.stringify({
-          card: card.name || 'Card',
-          issuer: card.issuer || '',
-          category: rateCat,
-          ourRate: ours == null ? '' : ours,
-          correctRate: correct,
-          note: rateNote.trim(),
-        }),
-      });
-      shared = r.ok;
-    } catch (_) { shared = false; }
+    if (rateShare) {
+      try {
+        const r = await fetch('/api/feedback/reward-rate', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+          body: JSON.stringify({
+            card: card.name || 'Card',
+            issuer: card.issuer || '',
+            category: rateCat,
+            ourRate: ours == null ? '' : ours,
+            correctRate: correct,
+            note: rateNote.trim(),
+          }),
+        });
+        shared = r.ok;
+      } catch (_) { shared = false; }
+    }
 
     rateBusy = false;
-    rateMsg = shared ? 'Fixed on your card and reported — thanks!' : 'Fixed on your card.';
+    rateMsg = rateShare
+      ? (shared ? 'Fixed on your card and reported — thanks!' : 'Fixed on your card.')
+      : 'Fixed on your card.';
     setTimeout(() => { openRate = null; rateMsg = ''; }, 1800);
   }
 
@@ -233,13 +239,15 @@
     ? `${e.rate}× points · ${e.pointValue}¢/pt` : '';
 </script>
 
-<div class="card" style="overflow:hidden;">
-  <div class="rw-head">
-    <div>
-      <div class="rw-kicker">Maximize rewards</div>
-      <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Which card should I use?</h3>
+<div class="card-row rw-panel">
+  <header class="card-row-head is-bill-head">
+    <div class="card-row-identity">
+      <div class="card-row-naming">
+        <div class="card-row-business">Maximize rewards</div>
+        <div class="card-row-name">Which card should I use?</div>
+      </div>
     </div>
-  </div>
+  </header>
 
   {#if creditCards.length === 0}
     <div class="empty">
@@ -277,39 +285,61 @@
     {/if}
 
     {#if best}
-      <div class="rw-winner" style="--rw-accent:{color(best.card)};">
-        <div class="rw-winner-label">Best for {category.toLowerCase()}</div>
-        <div class="rw-winner-row">
-          <span class="rw-winner-name">💳 {best.card.name || 'Card'}{#if rotating(best.card)}<span class="rw-rot" title="Rotating category — confirm it's active this quarter">rotating</span>{/if}</span>
-          <span class="rw-winner-rate">{pct(best.value)}</span>
+      <article class="rw-rank-card is-winner" style="--rw-accent:{color(best.card)};">
+        <div class="rw-rank-kicker">Best for {category.toLowerCase()}</div>
+        <div class="rw-rank-main">
+          <div class="rw-rank-identity">
+            <span class="rw-dot" style="background:{color(best.card)};"></span>
+            <div class="rw-rank-naming">
+              <div class="rw-rank-name">
+                {best.card.name || 'Card'}
+                {#if rotating(best.card)}<span class="rw-rot" title="Rotating category — confirm it's active this quarter">rotating</span>{/if}
+              </div>
+              <div class="rw-rank-meta">{rewardExplanation(best.card, category)}{#if rotating(best.card)} · activate this quarter{/if}</div>
+            </div>
+          </div>
+          <div class="rw-rank-rate">{pct(best.value)}</div>
         </div>
-        <div class="rw-winner-bd">{rewardExplanation(best.card, category)}{#if rotating(best.card)} · activate this quarter{/if}</div>
-      </div>
+      </article>
     {/if}
 
     {#if ranked.eligible.length > 1}
-      <div class="rw-list">
+      <div class="rw-rank-list">
         {#each ranked.eligible.slice(1) as e (e.card.id)}
-          <div class="rw-item">
-            <span class="rw-dot" style="background:{color(e.card)};"></span>
-            <span class="rw-item-name">{e.card.name || 'Card'}{#if rotating(e.card)}<span class="rw-rot">rotating</span>{/if}{#if breakdown(e)}<span class="rw-bd">{breakdown(e)}</span>{/if}</span>
-            <span class="rw-item-rate">{pct(e.value)}</span>
-          </div>
+          <article class="rw-rank-card">
+            <div class="rw-rank-main">
+              <div class="rw-rank-identity">
+                <span class="rw-dot" style="background:{color(e.card)};"></span>
+                <div class="rw-rank-naming">
+                  <div class="rw-rank-name">
+                    {e.card.name || 'Card'}
+                    {#if rotating(e.card)}<span class="rw-rot">rotating</span>{/if}
+                  </div>
+                  {#if breakdown(e)}<div class="rw-rank-meta">{breakdown(e)}</div>{/if}
+                </div>
+              </div>
+              <div class="rw-rank-rate is-muted">{pct(e.value)}</div>
+            </div>
+          </article>
         {/each}
       </div>
     {/if}
 
     {#if ranked.excluded.length > 0}
-      <div class="rw-excluded">
+      <div class="rw-rank-excluded">
         <div class="rw-excluded-head">Skipped (0% promo)</div>
         {#each ranked.excluded as e (e.card.id)}
-          <div class="rw-ex-item">
-            <div class="rw-ex-top">
-              <span class="rw-item-name">{e.card.name || 'Card'}</span>
-              <span class="rw-ex-rate">{pct(e.value)} · skipped</span>
+          <article class="rw-rank-card is-skipped">
+            <div class="rw-rank-main">
+              <div class="rw-rank-identity">
+                <div class="rw-rank-naming">
+                  <div class="rw-rank-name">{e.card.name || 'Card'}</div>
+                  <div class="rw-rank-meta">⚠ {e.reason.replace(/^Skipped:\s*/, '')}</div>
+                </div>
+              </div>
+              <div class="rw-rank-rate is-muted">{pct(e.value)} · skipped</div>
             </div>
-            <div class="rw-ex-reason">⚠ {e.reason.replace(/^Skipped:\s*/, '')}</div>
-          </div>
+          </article>
         {/each}
       </div>
     {/if}
@@ -317,13 +347,15 @@
 </div>
 
 {#if wallet.length > 0}
-  <div class="card wallet-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Your wallet at a glance</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Best card for every category</h3>
+  <div class="card-row rw-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Your wallet at a glance</div>
+          <div class="card-row-name">Best card for every category</div>
+        </div>
       </div>
-    </div>
+    </header>
     <div class="wallet-grid">
       {#each wallet as w (w.category)}
         <button class="wallet-row" onclick={() => (category = w.category)} title="Show {w.category} details">
@@ -340,17 +372,19 @@
 {/if}
 
 {#if cardsWithPerks.length > 0}
-  <div class="card perk-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Credits &amp; perks</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Don’t leave money on the table</h3>
+  <div class="card-row rw-panel perk-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Credits &amp; perks</div>
+          <div class="card-row-name">Don’t leave money on the table</div>
+        </div>
       </div>
       <div class="perk-total" class:zero={unrealized < 0.005}>
         <span class="perk-total-amt">{fmt(unrealized)}</span>
         <span class="perk-total-sub">left this cycle</span>
       </div>
-    </div>
+    </header>
 
     {#each cardsWithPerks as c (c.id)}
       <div class="perk-card">
@@ -377,13 +411,15 @@
 {/if}
 
 {#if offerSuggestions.length > 0}
-  <div class="card offers-panel offer-suggest-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Looks like you used these</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Mark them used?</h3>
+  <div class="card-row rw-panel offers-panel offer-suggest-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Looks like you used these</div>
+          <div class="card-row-name">Mark them used?</div>
+        </div>
       </div>
-    </div>
+    </header>
     <p class="fee-note">We spotted a charge at these offers’ merchants in your transactions. Confirm if the offer terms were met — FiHaven never marks an offer used on its own.</p>
     {#each offerSuggestions as { card, offer, tx } (offer.id)}
       <div class="offer-row offer-suggest-row">
@@ -398,16 +434,18 @@
 {/if}
 
 {#if offers.length > 0}
-  <div class="card offers-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Card-linked offers</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Use them before they expire</h3>
+  <div class="card-row rw-panel offers-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Card-linked offers</div>
+          <div class="card-row-name">Use them before they expire</div>
+        </div>
       </div>
       {#if offersSoon > 0}
         <span class="offers-soon">{offersSoon} expiring soon</span>
       {/if}
-    </div>
+    </header>
     {#each offers as { card, offer, daysLeft } (offer.id)}
       <div class="offer-row" class:offer-urgent={daysLeft != null && daysLeft <= 3}>
         <div class="offer-info">
@@ -421,13 +459,15 @@
 {/if}
 
 {#if feeCards.length > 0}
-  <div class="card fee-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Annual fee check</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Is the fee worth it?</h3>
+  <div class="card-row rw-panel fee-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Annual fee check</div>
+          <div class="card-row-name">Is the fee worth it?</div>
+        </div>
       </div>
-    </div>
+    </header>
     <p class="fee-note">
       Compares each card’s annual fee against the value it returns — the perks you’re capturing{#if hasSpendData} plus an estimate of rewards earned from your category spend{/if}.
       {#if !hasSpendData}Add or sync some transactions to factor in rewards earned from spending.{/if}
@@ -448,13 +488,15 @@
 {/if}
 
 {#if linkCards.length > 0}
-  <div class="card rw-links-panel" style="overflow:hidden;margin-top:16px;">
-    <div class="rw-head">
-      <div>
-        <div class="rw-kicker">Rewards &amp; offers</div>
-        <h3 style="margin:2px 0 0;letter-spacing:-.03em;">Where to find your offers</h3>
+  <div class="card-row rw-panel rw-links-panel" style="margin-top:14px;">
+    <header class="card-row-head is-bill-head">
+      <div class="card-row-identity">
+        <div class="card-row-naming">
+          <div class="card-row-business">Rewards &amp; offers</div>
+          <div class="card-row-name">Where to find your offers</div>
+        </div>
       </div>
-    </div>
+    </header>
     {#each linkCards as c (c.id)}
       <div class="rw-link-row">
         <div class="rw-link-name">💳 {c.name || 'Card'}</div>
@@ -466,7 +508,7 @@
             {c.rewardsUrl ? 'Change rewards link' : 'Add rewards link'}
           </button>
           <button type="button" class="rw-linkbtn" onclick={() => startRate(c)}>
-            Report a wrong rate
+            Wrong rewards rates
           </button>
         </div>
         {#if openLink === c.id}
@@ -511,13 +553,17 @@
               <span class="reward-cat-pct">%</span>
             </span>
             <input type="text" placeholder="Note (optional)" bind:value={rateNote} maxlength="500" />
+            <label class="rw-share">
+              <input type="checkbox" bind:checked={rateShare} />
+              Also send to FiHaven so we can fix shared presets
+            </label>
             <button class="btn btn-primary btn-xs" disabled={rateBusy} onclick={() => submitRate(c)}>
-              {rateBusy ? 'Sending…' : 'Fix & report'}
+              {rateBusy ? (rateShare ? 'Sending…' : 'Saving…') : (rateShare ? 'Fix & report' : 'Fix on my card')}
             </button>
             {#if rateMsg}<span class="rw-linkmsg">{rateMsg}</span>{/if}
             <div class="rw-linkhint">
-              Corrects the rate on your card straight away, then emails the card, the category, and
-              your email address to FiHaven so we can fix it for everyone.
+              Always corrects the rate on your card. Sharing (off by default) emails the card, the
+              category, and your email address to FiHaven.
             </div>
           </div>
         {/if}

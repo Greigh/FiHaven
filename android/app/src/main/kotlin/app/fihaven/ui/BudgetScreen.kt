@@ -371,6 +371,7 @@ fun TransactionEditorDialog(
     var amount by remember { mutableStateOf(edit?.amount?.takeIf { it != 0.0 }?.toString() ?: "") }
     var category by remember { mutableStateOf(edit?.category ?: "Groceries") }
     var merchant by remember { mutableStateOf(edit?.merchant ?: "") }
+    var note by remember { mutableStateOf(edit?.note ?: "") }
     val today = java.time.LocalDate.now()
     var dateIso by remember {
         mutableStateOf(edit?.date?.ifBlank { null }
@@ -381,18 +382,25 @@ fun TransactionEditorDialog(
         saveEnabled = (amount.toDoubleOrNull() ?: 0.0) > 0,
         onSave = {
             val amt = amount.toDoubleOrNull() ?: 0.0
-            if (edit == null) vm.addTransaction(amt, category, merchant.trim(), dateIso.trim())
-            else vm.updateTransaction(edit.id, amt, category, merchant.trim(), dateIso.trim())
+            if (edit == null) vm.addTransaction(amt, category, merchant.trim(), dateIso.trim(), note.trim())
+            else vm.updateTransaction(edit.id, amt, category, merchant.trim(), dateIso.trim(), note.trim())
             onDismiss()
         },
         onDismiss = onDismiss,
-        onDelete = edit?.let { { vm.deleteTransaction(it); onDismiss() } },
+        onDelete = edit?.let { tx ->
+            {
+                if (tx.isBank) vm.declineBankTransaction(tx) else vm.deleteTransaction(tx)
+                onDismiss()
+            }
+        },
     ) {
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, prefix = { Text("$") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
             modifier = Modifier.fillMaxWidth())
         DropdownField("Category", SPENDING_CATEGORIES, category) { category = it }
         OutlinedTextField(merchant, { merchant = it }, label = { Text("Merchant (optional)") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") },
             modifier = Modifier.fillMaxWidth())
         DateField("Date", dateIso, { dateIso = it }, clearable = false)
     }
