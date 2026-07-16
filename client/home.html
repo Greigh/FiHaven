@@ -403,15 +403,14 @@
           </div>
           <!--
             Go-live flip (Phase 4): set data-store-live="true" on #app-store-badges
-            and fill data-ios-href / data-android-href with the public store URLs.
-            A small script below swaps badges + footnote when live.
+            and put the public store URLs on the ios-live / android-live <a href>
+            attributes below. The script only toggles visibility — it never copies
+            attribute text into .href (CodeQL js/xss-through-dom).
           -->
           <div
             class="app-badges"
             id="app-store-badges"
             data-store-live="false"
-            data-ios-href=""
-            data-android-href=""
           >
             <a class="app-badge" href="/login" style="text-decoration:none;" aria-label="Use FiHaven on the web">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm2 0v14h12V5H6zm3 15h6v2H9v-2z"/></svg>
@@ -421,7 +420,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.36 12.78c.02 2.7 2.37 3.6 2.4 3.61-.02.07-.37 1.28-1.23 2.53-.74 1.08-1.51 2.16-2.73 2.18-1.2.02-1.58-.71-2.95-.71-1.37 0-1.79.69-2.92.73-1.18.04-2.07-1.17-2.82-2.25-1.53-2.2-2.7-6.23-1.13-8.95.78-1.35 2.17-2.2 3.68-2.23 1.15-.02 2.24.79 2.95.79.7 0 2.02-.97 3.41-.83.58.02 2.21.24 3.26 1.78-.08.05-1.95 1.14-1.93 3.4M14.13 5.6c.63-.76 1.05-1.82.93-2.88-.9.04-2 .6-2.65 1.36-.58.67-1.09 1.75-.95 2.78 1.01.08 2.04-.51 2.67-1.26"/></svg>
               <span class="app-badge-text"><small>iPhone &amp; iPad</small><strong>TestFlight</strong></span>
             </span>
-            <a class="app-badge" data-store-badge="ios-live" hidden href="#" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Download FiHaven on the App Store">
+            <a class="app-badge" data-store-badge="ios-live" hidden href="https://apps.apple.com/app/id0" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Download FiHaven on the App Store">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.36 12.78c.02 2.7 2.37 3.6 2.4 3.61-.02.07-.37 1.28-1.23 2.53-.74 1.08-1.51 2.16-2.73 2.18-1.2.02-1.58-.71-2.95-.71-1.37 0-1.79.69-2.92.73-1.18.04-2.07-1.17-2.82-2.25-1.53-2.2-2.7-6.23-1.13-8.95.78-1.35 2.17-2.2 3.68-2.23 1.15-.02 2.24.79 2.95.79.7 0 2.02-.97 3.41-.83.58.02 2.21.24 3.26 1.78-.08.05-1.95 1.14-1.93 3.4M14.13 5.6c.63-.76 1.05-1.82.93-2.88-.9.04-2 .6-2.65 1.36-.58.67-1.09 1.75-.95 2.78 1.01.08 2.04-.51 2.67-1.26"/></svg>
               <span class="app-badge-text"><small>Download on the</small><strong>App Store</strong></span>
             </a>
@@ -429,7 +428,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3.5v17a1 1 0 0 0 1.5.86l14.5-8.5a1 1 0 0 0 0-1.72L5.5 2.64A1 1 0 0 0 4 3.5z"/></svg>
               <span class="app-badge-text"><small>Android app</small><strong>Play Store soon</strong></span>
             </span>
-            <a class="app-badge" data-store-badge="android-live" hidden href="#" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Get FiHaven on Google Play">
+            <a class="app-badge" data-store-badge="android-live" hidden href="https://play.google.com/store/apps/details?id=app.fihaven" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Get FiHaven on Google Play">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3.5v17a1 1 0 0 0 1.5.86l14.5-8.5a1 1 0 0 0 0-1.72L5.5 2.64A1 1 0 0 0 4 3.5z"/></svg>
               <span class="app-badge-text"><small>Get it on</small><strong>Google Play</strong></span>
             </a>
@@ -445,28 +444,17 @@
             (function () {
               var root = document.getElementById('app-store-badges');
               if (!root || root.getAttribute('data-store-live') !== 'true') return;
-              var ios = root.getAttribute('data-ios-href') || '';
-              var android = root.getAttribute('data-android-href') || '';
-              // Only accept an absolute https URL for a store link — a
-              // data-*-href holding a javascript: URI must never reach an href
-              // (CodeQL js/xss-through-dom).
-              function httpsUrl(u) { return /^https:\/\/[^\s]+$/i.test(u) ? u : ''; }
-              function show(sel) {
+              // Visibility only — store URLs live on the <a href> attributes in
+              // markup. Never read an attribute and write it back to .href
+              // (CodeQL js/xss-through-dom / alerts #41–#42).
+              function setHidden(sel, hidden) {
                 var el = root.querySelector('[data-store-badge="' + sel + '"]');
-                if (el) el.hidden = false;
+                if (el) el.hidden = hidden;
               }
-              function hide(sel) {
-                var el = root.querySelector('[data-store-badge="' + sel + '"]');
-                if (el) el.hidden = true;
-              }
-              hide('ios-beta');
-              hide('android-beta');
-              var iosLive = root.querySelector('[data-store-badge="ios-live"]');
-              var androidLive = root.querySelector('[data-store-badge="android-live"]');
-              var iosHref = httpsUrl(ios);
-              var androidHref = httpsUrl(android);
-              if (iosLive && iosHref) { iosLive.href = iosHref; show('ios-live'); }
-              if (androidLive && androidHref) { androidLive.href = androidHref; show('android-live'); }
+              setHidden('ios-beta', true);
+              setHidden('android-beta', true);
+              setHidden('ios-live', false);
+              setHidden('android-live', false);
               var betaNote = document.querySelector('[data-store-footnote="beta"]');
               var liveNote = document.querySelector('[data-store-footnote="live"]');
               if (betaNote) betaNote.hidden = true;
