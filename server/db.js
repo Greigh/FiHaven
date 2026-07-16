@@ -568,6 +568,18 @@ const stmt = {
      VALUES (@code, @kind, @grant_days, @product_id, @offer_id, @platform, @max_redemptions, @expires_at, @note, 1, @created_at)`
   ),
   findPromoCode: db.prepare(`SELECT * FROM promo_codes WHERE code = ?`),
+  // Redeemable (or still marked active) codes for the admin overlay.
+  listPromoCodes: db.prepare(
+    `SELECT code, kind, grant_days, product_id, offer_id, platform,
+            max_redemptions, redeemed_count, expires_at, note, active, created_at
+       FROM promo_codes
+      WHERE active = 1
+      ORDER BY created_at DESC
+      LIMIT ?`
+  ),
+  setPromoActive: db.prepare(
+    `UPDATE promo_codes SET active = ? WHERE code = ?`
+  ),
   bumpPromoRedeemed: db.prepare(
     `UPDATE promo_codes SET redeemed_count = redeemed_count + 1 WHERE code = ?`
   ),
@@ -1006,6 +1018,13 @@ function activeSubscriptions(userId)    { return stmt.activeSubscriptions.all(us
 /* ── Promo wrappers ─────────────────────────────────────────── */
 function insertPromoCode(row)           { stmt.insertPromoCode.run(row); }
 function findPromoCode(code)            { return stmt.findPromoCode.get(code); }
+function listPromoCodes(limit) {
+  const n = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  return stmt.listPromoCodes.all(n);
+}
+function setPromoActive(code, active) {
+  return stmt.setPromoActive.run(active ? 1 : 0, code).changes;
+}
 function bumpPromoRedeemed(code)        { stmt.bumpPromoRedeemed.run(code); }
 function insertPromoRedemption(row)     { stmt.insertPromoRedemption.run(row); }
 function findPromoRedemption(code, userId) {
@@ -1161,6 +1180,8 @@ module.exports = {
   // Promo codes
   insertPromoCode,
   findPromoCode,
+  listPromoCodes,
+  setPromoActive,
   bumpPromoRedeemed,
   insertPromoRedemption,
   findPromoRedemption,
