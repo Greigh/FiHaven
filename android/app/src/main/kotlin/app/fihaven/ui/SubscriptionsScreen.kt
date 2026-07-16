@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,9 +40,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.Money
+import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.SubscriptionIcons
+import app.fihaven.core.logic.SubscriptionLinks
 import app.fihaven.core.logic.SubscriptionsFinder
 import app.fihaven.core.model.Bill
+import app.fihaven.core.model.subscriptionDeclined
+import app.fihaven.core.model.subscriptionDetectMode
 import app.fihaven.ui.theme.Ct
 import kotlinx.coroutines.launch
 
@@ -48,12 +54,19 @@ import kotlinx.coroutines.launch
 fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     val zone = vm.zone()
-    val subs = SubscriptionsFinder.build(data.bills, data.transactions, zone)
+    val detectMode = if (data.settings.subscriptionDetectMode == "inline") "inline" else "inbox"
+    val allItems = SubscriptionsFinder.build(
+        data.bills,
+        data.transactions,
+        zone,
+        data.settings.subscriptionDeclined,
+    )
+    val tracked = allItems.filter { it.source == "bill" }
+    val candidates = allItems.filter { it.source == "tx" }
 
     var editing by remember { mutableStateOf<Bill?>(null) }
     var linking by remember { mutableStateOf<SubscriptionsFinder.Item?>(null) }
 
-    // The tracked bill behind a detected subscription, if there is one.
     fun billFor(item: SubscriptionsFinder.Item): Bill? =
         item.billId?.let { id -> data.bills.firstOrNull { it.id == id } }
 
@@ -63,7 +76,7 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (subs.isEmpty()) {
+            if (tracked.isEmpty() && candidates.isEmpty()) {
                 item {
                     CtCard(padding = 24) {
                         Column(
@@ -72,10 +85,10 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text("🔁", fontSize = 40.sp)
-                            Text("No subscriptions detected yet", color = Ct.colors.text,
+                            Text("No subscriptions yet", color = Ct.colors.text,
                                 fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Flag a bill as a Subscription, or log transactions — any merchant that recurs across 2+ months shows up here.",
+                                "Flag a bill as a Subscription, or Accept a suggestion from recurring merchants in your transactions.",
                                 color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
                             )
                         }
@@ -84,10 +97,28 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
             } else {
                 item {
                     SubscriptionsCard(
-                        subs,
+                        tracked = tracked,
+                        candidates = candidates,
+                        detectMode = detectMode,
                         billFor = ::billFor,
                         onEditBill = { editing = it },
                         onManageLink = { linking = it },
+                        onAccept = { vm.acceptSubscriptionCandidate(it.name, it.amount, it.lastDate) },
+                        onDecline = { item ->
+                            val key = item.merchantKey.ifBlank { SubscriptionLinks.normalizeKey(item.name) }
+                            if (key.isNotBlank()) vm.declineSubscriptionMerchant(key)
+                        },
+                        onAdd = { item ->
+                            val day = item.lastDate?.let { DateLogic.parseDate(it)?.dayOfMonth }
+                            editing = Bill(
+                                name = item.name,
+                                business = item.name,
+                                category = "Subscriptions",
+                                amount = item.amount,
+                                dueDay = day,
+                                frequency = "Monthly",
+                            )
+                        },
                     )
                 }
             }
@@ -102,52 +133,168 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
 
 @Composable
 private fun SubscriptionsCard(
-    subs: List<SubscriptionsFinder.Item>,
+    tracked: List<SubscriptionsFinder.Item>,
+    candidates: List<SubscriptionsFinder.Item>,
+    detectMode: String,
     billFor: (SubscriptionsFinder.Item) -> Bill?,
     onEditBill: (Bill) -> Unit,
     onManageLink: (SubscriptionsFinder.Item) -> Unit,
+    onAccept: (SubscriptionsFinder.Item) -> Unit,
+    onDecline: (SubscriptionsFinder.Item) -> Unit,
+    onAdd: (SubscriptionsFinder.Item) -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
-    val total = subs.sumOf { it.monthly }
+    val total = tracked.sumOf { it.monthly }
     CtCard(padding = 14) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("SUBSCRIPTIONS", color = Ct.colors.muted, fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("${Money.fmt(total)}/mo · ${subs.size}", color = Ct.colors.muted,
+                Text("${Money.fmt(total)}/mo · ${tracked.size} tracked", color = Ct.colors.muted,
                     fontSize = 12.sp, fontFamily = PlexMono)
             }
             Column(Modifier.padding(top = 6.dp)) {
-                subs.forEach { s ->
-                    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 5.dp)) {
-                        Text(SubscriptionIcons.emoji(s.name, "Subscriptions"), fontSize = 16.sp,
-                            modifier = Modifier.padding(end = 10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(s.name, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text(subDetailLine(s), color = subDetailColor(s), fontSize = 11.sp)
-                            s.manageUrl?.let { url ->
-                                Text(
-                                    "Manage / cancel ↗",
-                                    color = Ct.colors.accent,
-                                    fontSize = 11.sp,
-                                    textDecoration = TextDecoration.Underline,
-                                    modifier = Modifier.padding(top = 2.dp).clickable { uriHandler.openUri(url) },
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                billFor(s)?.let { b ->
-                                    SubAction("Edit bill") { onEditBill(b) }
-                                }
-                                SubAction(if (s.manageUrl == null) "Add manage link" else "Change manage link") {
-                                    onManageLink(s)
-                                }
-                            }
+                if (detectMode == "inbox") {
+                    tracked.forEach { s ->
+                        SubscriptionRow(
+                            s,
+                            isCandidate = false,
+                            billFor = billFor,
+                            onEditBill = onEditBill,
+                            onManageLink = onManageLink,
+                            onAccept = onAccept,
+                            onDecline = onDecline,
+                            onAdd = onAdd,
+                        )
+                    }
+                    if (candidates.isNotEmpty()) {
+                        Text(
+                            "Suggested from spending",
+                            color = Ct.colors.muted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = if (tracked.isNotEmpty()) 12.dp else 0.dp, bottom = 4.dp),
+                        )
+                        Text(
+                            "Accept to track, Decline to hide permanently, or Add to edit before saving.",
+                            color = Ct.colors.muted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
+                        candidates.forEach { s ->
+                            SubscriptionRow(
+                                s,
+                                isCandidate = true,
+                                billFor = billFor,
+                                onEditBill = onEditBill,
+                                onManageLink = onManageLink,
+                                onAccept = onAccept,
+                                onDecline = onDecline,
+                                onAdd = onAdd,
+                            )
                         }
-                        Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
+                    }
+                } else {
+                    tracked.forEach { s ->
+                        SubscriptionRow(
+                            s,
+                            isCandidate = false,
+                            billFor = billFor,
+                            onEditBill = onEditBill,
+                            onManageLink = onManageLink,
+                            onAccept = onAccept,
+                            onDecline = onDecline,
+                            onAdd = onAdd,
+                        )
+                    }
+                    candidates.forEach { s ->
+                        SubscriptionRow(
+                            s,
+                            isCandidate = true,
+                            billFor = billFor,
+                            onEditBill = onEditBill,
+                            onManageLink = onManageLink,
+                            onAccept = onAccept,
+                            onDecline = onDecline,
+                            onAdd = onAdd,
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SubscriptionRow(
+    s: SubscriptionsFinder.Item,
+    isCandidate: Boolean,
+    billFor: (SubscriptionsFinder.Item) -> Bill?,
+    onEditBill: (Bill) -> Unit,
+    onManageLink: (SubscriptionsFinder.Item) -> Unit,
+    onAccept: (SubscriptionsFinder.Item) -> Unit,
+    onDecline: (SubscriptionsFinder.Item) -> Unit,
+    onAdd: (SubscriptionsFinder.Item) -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 5.dp)) {
+        if (isCandidate) {
+            Box(
+                Modifier
+                    .padding(end = 8.dp)
+                    .width(3.dp)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Ct.colors.accent.copy(alpha = 0.85f)),
+            )
+        }
+        Text(SubscriptionIcons.emoji(s.name, "Subscriptions"), fontSize = 16.sp,
+            modifier = Modifier.padding(end = 10.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.name, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                if (isCandidate) {
+                    Text(
+                        "Suggested",
+                        color = Ct.colors.accent,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Ct.colors.accent.copy(alpha = 0.12f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            Text(subDetailLine(s), color = subDetailColor(s), fontSize = 11.sp)
+            if (!isCandidate) {
+                s.manageUrl?.let { url ->
+                    Text(
+                        "Manage / cancel ↗",
+                        color = Ct.colors.accent,
+                        fontSize = 11.sp,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.padding(top = 2.dp).clickable { uriHandler.openUri(url) },
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (isCandidate) {
+                    SubAction("Accept") { onAccept(s) }
+                    SubAction("Decline") { onDecline(s) }
+                    SubAction("Add") { onAdd(s) }
+                } else {
+                    billFor(s)?.let { b ->
+                        SubAction("Edit bill") { onEditBill(b) }
+                    }
+                    SubAction(if (s.manageUrl == null) "Add manage link" else "Change manage link") {
+                        onManageLink(s)
+                    }
+                }
+            }
+        }
+        Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
     }
 }
 
@@ -179,8 +326,6 @@ private fun subDetailColor(s: SubscriptionsFinder.Item) = when {
 private fun subFriendlyDate(d: java.time.LocalDate): String =
     d.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3) + " ${d.dayOfMonth}"
 
-/// A compact text action on a subscription row, sized to Material's 48dp
-/// minimum touch target (the padding sits inside the clickable).
 @Composable
 private fun SubAction(label: String, onClick: () -> Unit) {
     Box(
@@ -195,10 +340,6 @@ private fun SubAction(label: String, onClick: () -> Unit) {
     }
 }
 
-/// Add or change a subscription's manage/cancel link. Mirrors the web's
-/// `SubscriptionsPanel` link form: the URL is saved on the user's own bill
-/// *and* offered to the shared database. The personal save is what matters,
-/// so a failed share is reported but never blocks it.
 @Composable
 private fun ManageLinkDialog(
     item: SubscriptionsFinder.Item,
@@ -222,9 +363,7 @@ private fun ManageLinkDialog(
         onSave = {
             busy = true
             message = null
-            // 1) The user's own bill — the part that must not be lost.
             bill?.let { vm.setBillManageUrl(it.id, trimmed) }
-            // 2) Offer it to the shared database. Best effort.
             scope.launch {
                 val shared = vm.shareSubscriptionLink(item.name, trimmed)
                 busy = false

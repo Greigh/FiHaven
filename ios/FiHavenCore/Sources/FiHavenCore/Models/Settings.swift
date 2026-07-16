@@ -202,11 +202,54 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["offerReminders"] = .bool(newValue) }
     }
 
-    /// Opt-in: let a synced bank balance update a matching card. Off by default —
-    /// FiHaven never overrides a typed balance unless this is on.
+    /// Opt-in: let a synced bank balance *suggest* Current Balance updates.
+    /// Off by default — FiHaven never overrides a typed balance unless this is
+    /// on, and even then the user must Accept each proposal.
     public var plaidUpdateBalances: Bool {
         get { raw["plaidUpdateBalances"]?.asBool ?? false }
         set { raw["plaidUpdateBalances"] = .bool(newValue) }
+    }
+
+    /// How balance suggestions appear: "review" (queue on Cards) or "prompt" (after sync).
+    public var plaidBalanceMode: String {
+        get {
+            let m = raw["plaidBalanceMode"]?.asString ?? "review"
+            return m == "prompt" ? "prompt" : "review"
+        }
+        set { raw["plaidBalanceMode"] = .string(newValue == "prompt" ? "prompt" : "review") }
+    }
+
+    /// Pending Current Balance proposals from bank sync.
+    public var plaidBalanceProposals: [[String: JSONValue]] {
+        get {
+            guard let arr = raw["plaidBalanceProposals"]?.asArray else { return [] }
+            return arr.compactMap { $0.asObject }
+        }
+        set { raw["plaidBalanceProposals"] = .array(newValue.map { .object($0) }) }
+    }
+
+    /// Accepted/declined fingerprints so the same bank figure is never re-prompted.
+    public var plaidBalanceResolved: [[String: JSONValue]] {
+        get {
+            guard let arr = raw["plaidBalanceResolved"]?.asArray else { return [] }
+            return arr.compactMap { $0.asObject }
+        }
+        set { raw["plaidBalanceResolved"] = .array(newValue.map { .object($0) }) }
+    }
+
+    /// Subscription candidates display: "inbox" or "inline".
+    public var subscriptionDetectMode: String {
+        get {
+            let m = raw["subscriptionDetectMode"]?.asString ?? "inbox"
+            return m == "inline" ? "inline" : "inbox"
+        }
+        set { raw["subscriptionDetectMode"] = .string(newValue == "inline" ? "inline" : "inbox") }
+    }
+
+    /// Normalized merchant keys the user declined as subscriptions.
+    public var subscriptionDeclined: [String] {
+        get { raw["subscriptionDeclined"]?.asArray?.compactMap { $0.asString } ?? [] }
+        set { raw["subscriptionDeclined"] = .array(newValue.map { .string($0) }) }
     }
 
     /// Opt-in: add bank-sourced outflows to Spending. Off by default — spending

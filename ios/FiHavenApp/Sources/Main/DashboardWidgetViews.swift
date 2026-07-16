@@ -60,8 +60,9 @@ struct AlertsWidget: View {
         for c in store.activeCards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
             let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
             let bal = c.promoBalance ?? c.balance
+            guard bal > 0 else { continue }
             let need = max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz))
-            if mo <= 0 && bal > 0 {
+            if mo <= 0 {
                 out.append("🚨 \(c.name) — 0% promo expired. \(Money.fmt(bal)) is accruing \(Int(c.regularAPR))% APR.")
             } else if mo <= 2 {
                 out.append("🔥 \(c.name) — 0% promo ends in ~\(mo) mo. Pay \(Money.fmt(need))/mo to avoid interest.")

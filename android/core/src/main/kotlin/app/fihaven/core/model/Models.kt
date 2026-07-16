@@ -54,6 +54,7 @@ data class Card(
     val promoAPR: Double? = null,
     val promoEndDate: String? = null,   // "YYYY-MM-DD"
     val promoBalance: Double? = null,
+    val promoPayoffPrompted: Boolean = false,
     val dueDay: Int? = null,
     val autopay: Boolean = false,
     val autopayDay: Int? = null,        // "Autopay day" — day money is pulled; null falls back to dueDay

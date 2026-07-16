@@ -291,9 +291,10 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     val promoAlerts = data.activeCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
+        if (bal <= 0) return@mapNotNull null
         val need = maxOf(c.minPayment, Schedule.promoNeeded(c, zone))
         when {
-            mo <= 0 && bal > 0 -> "🚨 ${c.name} — 0% promo expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
+            mo <= 0 -> "🚨 ${c.name} — 0% promo expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
             mo <= 2 -> "🔥 ${c.name} — 0% promo ends in ~$mo mo. Pay ${Money.fmt(need)}/mo to avoid interest."
             mo <= 4 -> "⚠️ ${c.name} — 0% promo ends in ~$mo mo. Need ${Money.fmt(need)}/mo to clear ${Money.fmt(bal)}."
             else -> null

@@ -86,6 +86,32 @@ struct CardsView: View {
 
     var body: some View {
         List {
+            if !isLoanView {
+                let proposals = store.pendingBalanceProposals()
+                if !proposals.isEmpty {
+                    Section {
+                        ForEach(proposals) { p in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(p.name).font(Theme.ui(14, weight: .semibold))
+                                Text("Current → \(Money.fmt(p.proposedCurrent))"
+                                     + (p.limit.map { " · limit \(Money.fmt($0))" } ?? ""))
+                                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                                HStack {
+                                    Button("Accept") { store.acceptBalanceProposal(p) }
+                                        .buttonStyle(.borderedProminent)
+                                    Button("Decline") { store.declineBalanceProposal(p) }
+                                        .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        Text("Bank balance review")
+                    } footer: {
+                        Text("Suggestions update Current Balance only. Decline remembers this figure until the bank changes.")
+                    }
+                }
+            }
             if !isLoanView && !baseCards.isEmpty {
                 cardsSummaryHeader
                 cardsPayoffPanel
@@ -315,7 +341,10 @@ struct CardsView: View {
     @ViewBuilder
     private var cardsPayoffPanel: some View {
         let nonPromo = baseCards.filter { $0.type != "loan" && !($0.hasPromo && !($0.promoEndDate ?? "").isEmpty) && $0.balance > 0 }
-        let promo = baseCards.filter { $0.type != "loan" && $0.hasPromo && !($0.promoEndDate ?? "").isEmpty }
+        let promo = baseCards.filter {
+            $0.type != "loan" && $0.hasPromo && !($0.promoEndDate ?? "").isEmpty
+                && ($0.promoBalance ?? $0.balance) > 0
+        }
         if !nonPromo.isEmpty || !promo.isEmpty {
             let nonPromoTotal = nonPromo.reduce(0.0) { $0 + $1.balance }
             let promoMonthly = promo.reduce(0.0) { $0 + Schedule.promoNeeded($1, tz: store.tz) }

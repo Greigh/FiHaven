@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.core.model.plaidUpdateBalances
 import app.fihaven.core.model.plaidUpdatePurchases
+import app.fihaven.core.model.plaidBalanceMode
+import app.fihaven.core.model.subscriptionDetectMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -62,6 +64,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     var session by remember { mutableStateOf<PlaidLinkSession?>(null) }
     // Shown once, right after a bank is linked (see the import-gate note below).
     var showImportPrompt by remember { mutableStateOf(false) }
+    var showBalancePrompt by remember { mutableStateOf(false) }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }
@@ -191,7 +194,13 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                                 if (items != null) {
                                     status = PlaidStatus(true, true, items)
                                     msg = BankMessage.info("Synced.")
-                                    vm.reload()   // pick up any newly imported purchases
+                                    vm.reload()   // pick up purchases + balance proposals
+                                    if (vm.data.value.settings.plaidBalanceMode == "prompt") {
+                                        val pending = vm.pendingBalanceProposals()
+                                        if (pending.isNotEmpty()) {
+                                            showBalancePrompt = true
+                                        }
+                                    }
                                 } else msg = BankMessage.error("Could not sync. Please try again.")
                             }
                         }) { Text("Sync now", color = Ct.colors.accent) }
@@ -199,20 +208,38 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         val data by vm.data.collectAsStateWithLifecycle()
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("Let bank balances update my cards", color = Ct.colors.text, fontSize = 14.sp)
-                                Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.",
+                                Text("Let bank suggest card balances", color = Ct.colors.text, fontSize = 14.sp)
+                                Text("Off by default — suggestions update Current Balance only after you Accept. Statement Balance stays manual.",
                                     color = Ct.colors.muted, fontSize = 11.sp)
                             }
                             Switch(checked = data.settings.plaidUpdateBalances, onCheckedChange = { on ->
                                 vm.setPlaidUpdateBalances(on)
                                 if (on) {
-                                    msg = BankMessage.info("Updating matching card balances…")
+                                    msg = BankMessage.info("New balance suggestions will appear for you to Accept or Decline.")
                                     scope.launch {
                                         kotlinx.coroutines.delay(2_500)
                                         vm.reload()
                                     }
                                 }
                             })
+                        }
+                        if (data.settings.plaidUpdateBalances) {
+                            Text("How should balance suggestions appear?", color = Ct.colors.text, fontSize = 13.sp,
+                                modifier = Modifier.padding(top = 10.dp))
+                            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = data.settings.plaidBalanceMode != "prompt",
+                                    onClick = { vm.setPlaidBalanceMode("review") },
+                                )
+                                Text("Review queue", fontSize = 13.sp, color = Ct.colors.text)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = data.settings.plaidBalanceMode == "prompt",
+                                    onClick = { vm.setPlaidBalanceMode("prompt") },
+                                )
+                                Text("Ask after each sync", fontSize = 13.sp, color = Ct.colors.text)
+                            }
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
@@ -230,6 +257,24 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                                     }
                                 }
                             })
+                        }
+                        Text("Subscriptions from spending", color = Ct.colors.text, fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 12.dp))
+                        Text("Recurring merchants stay as suggestions until you Accept, Decline, or add them.",
+                            color = Ct.colors.muted, fontSize = 11.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(
+                                selected = data.settings.subscriptionDetectMode != "inline",
+                                onClick = { vm.setSubscriptionDetectMode("inbox") },
+                            )
+                            Text("Suggested inbox", fontSize = 13.sp, color = Ct.colors.text)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(
+                                selected = data.settings.subscriptionDetectMode == "inline",
+                                onClick = { vm.setSubscriptionDetectMode("inline") },
+                            )
+                            Text("Inline with actions", fontSize = 13.sp, color = Ct.colors.text)
                         }
                     }
                 }
@@ -278,12 +323,40 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         Text("Import my purchases", color = Ct.colors.accent)
                     }
                     TextButton(onClick = { applyImportChoice(purchases = true, balances = true) }) {
-                        Text("Purchases + card balances", color = Ct.colors.accent)
+                        Text("Purchases + suggest balances", color = Ct.colors.accent)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showImportPrompt = false }) {
+                    Text("Not now", color = Ct.colors.muted)
+                }
+            },
+            containerColor = Ct.colors.surface,
+        )
+    }
+
+    if (showBalancePrompt) {
+        val pending = vm.pendingBalanceProposals()
+        AlertDialog(
+            onDismissRequest = { showBalancePrompt = false },
+            title = { Text("Accept Current Balance suggestions?") },
+            text = {
+                Text(
+                    "Bank suggested Current Balance updates for ${pending.size} card" +
+                        if (pending.size == 1) "" else "s" +
+                        ". Statement Balance stays manual. Decline individual items from Cards.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pending.forEach { vm.acceptBalanceProposal(it) }
+                    showBalancePrompt = false
+                    msg = BankMessage.info("Accepted Current Balance suggestions.")
+                }) { Text("Accept all", color = Ct.colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBalancePrompt = false }) {
                     Text("Not now", color = Ct.colors.muted)
                 }
             },

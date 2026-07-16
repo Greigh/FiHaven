@@ -50,15 +50,21 @@ public enum Payoff {
         tz: TimeZone,
         now: Date = Date()
     ) -> PayoffResult? {
-        let debtCards = cards.filter { $0.balance > 0 }
+        // Prefer live Current Balance when set (matches web/Android payoff.js).
+        func debtOf(_ c: Card) -> Double {
+            if let cur = c.currentBalance, cur > 0 { return cur }
+            return c.balance
+        }
+        let debtCards = cards.filter { debtOf($0) > 0 }
         guard !debtCards.isEmpty else { return nil }
 
         var sim = debtCards.map { c in
-            Sim(
+            let starting = debtOf(c)
+            return Sim(
                 id: c.id,
                 name: c.name,
-                balance: c.balance,
-                origBalance: c.balance,
+                balance: starting,
+                origBalance: starting,
                 minPayment: max(c.minPayment, 1),
                 apr: c.regularAPR,
                 monthlyRate: c.regularAPR / 100 / 12,

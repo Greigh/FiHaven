@@ -13,6 +13,8 @@ import {
 
 export const STALE_DAYS = 60;
 export const TRIAL_REMINDER_DAYS = 3;
+/** Amounts within this relative band count as “similar” for recurrence. */
+export const AMOUNT_SIMILARITY = 0.15;
 
 export function monthlyOfBill(b) {
   const a = parseFloat(b.amount) || 0;
@@ -32,6 +34,16 @@ export function daysSince(iso, now = Date.now()) {
   return Math.floor((now - new Date(y, m - 1, d)) / 864e5);
 }
 
+/** True when amounts are within AMOUNT_SIMILARITY of each other (relative to max). */
+export function amountsSimilar(amts) {
+  const nums = (amts || []).map((a) => Math.abs(parseFloat(a) || 0));
+  if (nums.length < 2) return true;
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  if (max < 0.005) return true;
+  return (max - min) / max <= AMOUNT_SIMILARITY;
+}
+
 /** Group subscription items that look like the same service. */
 export function findDuplicateGroups(items) {
   const byKey = {};
@@ -49,18 +61,34 @@ export function duplicateKeys(items) {
   return dupes;
 }
 
-export function buildSubscriptionItems(bills, transactions, now = Date.now()) {
+/**
+ * @param {object[]} bills
+ * @param {object[]} transactions
+ * @param {number} [now]
+ * @param {{ declined?: string[] }} [opts] — normalized merchant keys to hide
+ */
+export function buildSubscriptionItems(bills, transactions, now = Date.now(), opts = {}) {
+  const declined = new Set(
+    (opts.declined || [])
+      .map((k) => normalizeMerchantKey(k) || String(k || '').toLowerCase())
+      .filter(Boolean)
+  );
   const out = [];
+  const trackedMerchantKeys = new Set();
 
   bills.forEach((b) => {
     if (b.archived) return;
     if (billEnded(b)) return;
     if (b.category === 'Subscriptions') {
       const trialEnds = b.trialEnds || null;
+      const name = b.name || 'Subscription';
+      const mk = normalizeMerchantKey(name);
+      if (mk) trackedMerchantKeys.add(mk);
       out.push({
         key: 'bill-' + b.id,
         billId: b.id,
-        name: b.name || 'Subscription',
+        merchantKey: mk,
+        name,
         monthly: monthlyOfBill(b),
         amount: parseFloat(b.amount) || 0,
         source: 'bill',
@@ -85,7 +113,11 @@ export function buildSubscriptionItems(bills, transactions, now = Date.now()) {
 
   Object.values(byMerchant).forEach((list) => {
     const months = new Set(list.map((t) => (t.date || '').slice(0, 7)));
+    // Tighten false positives: ≥3 months, OR ≥2 months with similar amounts
+    // and at least 2 charges.
     if (months.size < 2) return;
+    if (list.length < 2) return;
+    if (months.size < 3 && !amountsSimilar(list.map((t) => t.amount))) return;
 
     const sorted = list.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const latest = sorted[sorted.length - 1];
@@ -94,10 +126,14 @@ export function buildSubscriptionItems(bills, transactions, now = Date.now()) {
     const minAmt = Math.min(...amts);
     const since = daysSince(latest.date, now);
     const name = latest.merchant;
+    const mk = normalizeMerchantKey(name);
+    if (mk && declined.has(mk)) return;
+    if (mk && trackedMerchantKeys.has(mk)) return;
 
     out.push({
       key: 'tx-' + name,
       billId: null,
+      merchantKey: mk,
       name,
       monthly: latestAmt,
       amount: latestAmt,
@@ -118,6 +154,14 @@ export function buildSubscriptionItems(bills, transactions, now = Date.now()) {
 
   out.sort((a, b) => b.monthly - a.monthly);
   return out;
+}
+
+export function trackedSubs(items) {
+  return (items || []).filter((i) => i.source === 'bill');
+}
+
+export function candidateSubs(items) {
+  return (items || []).filter((i) => i.source === 'tx');
 }
 
 export function totalMonthlySubs(items) {

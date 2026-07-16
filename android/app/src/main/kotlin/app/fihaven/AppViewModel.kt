@@ -38,6 +38,10 @@ import app.fihaven.core.model.timezoneSetting
 import app.fihaven.core.model.currency
 import app.fihaven.core.model.hidePaidOnDashboard
 import app.fihaven.core.model.plaidHidden
+import app.fihaven.core.model.plaidBalanceProposals
+import app.fihaven.core.model.plaidBalanceResolved
+import app.fihaven.core.model.genId
+import app.fihaven.core.model.subscriptionDeclined
 import app.fihaven.core.model.withIncomeAdjustments
 import app.fihaven.core.model.withIncomes
 import app.fihaven.core.model.withPaidGoal
@@ -46,9 +50,14 @@ import app.fihaven.core.model.rolloverPrefill
 import app.fihaven.core.model.lastVisitKey
 import app.fihaven.core.model.withTimezone
 import app.fihaven.core.Money
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.put
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
@@ -1041,6 +1050,120 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Opt-in: let synced bank balances update matching cards (server-applied). */
     fun setPlaidUpdateBalances(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("plaidUpdateBalances", JsonPrimitive(on))) }
+
+    fun setPlaidBalanceMode(mode: String) =
+        mutate {
+            it.copy(
+                settings = it.settings.withSetting(
+                    "plaidBalanceMode",
+                    JsonPrimitive(if (mode == "prompt") "prompt" else "review"),
+                ),
+            )
+        }
+
+    fun setSubscriptionDetectMode(mode: String) =
+        mutate {
+            it.copy(
+                settings = it.settings.withSetting(
+                    "subscriptionDetectMode",
+                    JsonPrimitive(if (mode == "inline") "inline" else "inbox"),
+                ),
+            )
+        }
+
+    data class BalanceProposal(
+        val cardId: String,
+        val name: String,
+        val proposedCurrent: Double,
+        val limit: Double?,
+        val fingerprint: String,
+    )
+
+    fun pendingBalanceProposals(): List<BalanceProposal> {
+        val d = _data.value
+        val resolved = d.settings.plaidBalanceResolved
+            .mapNotNull { it["fingerprint"]?.let { v -> (v as? JsonPrimitive)?.contentOrNull } }
+            .toSet()
+        return d.settings.plaidBalanceProposals.mapNotNull { raw ->
+            val fp = (raw["fingerprint"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            if (fp in resolved) return@mapNotNull null
+            val idEl = raw["id"] ?: return@mapNotNull null
+            val cardId = when (idEl) {
+                is JsonPrimitive -> idEl.contentOrNull ?: idEl.doubleOrNull?.toInt()?.toString()
+                else -> null
+            } ?: return@mapNotNull null
+            val proposed = (raw["proposedCurrent"] as? JsonPrimitive)?.doubleOrNull
+                ?: (raw["balance"] as? JsonPrimitive)?.doubleOrNull
+                ?: return@mapNotNull null
+            val limit = (raw["limit"] as? JsonPrimitive)?.doubleOrNull
+            val name = d.cards.firstOrNull { it.id.toString() == cardId }?.name ?: "Card $cardId"
+            BalanceProposal(cardId, name, proposed, limit, fp)
+        }
+    }
+
+    fun acceptBalanceProposal(p: BalanceProposal) = mutate { d ->
+        val cards = d.cards.map { c ->
+            if (c.id.toString() != p.cardId) c
+            else c.copy(currentBalance = p.proposedCurrent, limit = p.limit ?: c.limit)
+        }
+        val resolved = (d.settings.plaidBalanceResolved + buildJsonObject {
+            put("fingerprint", p.fingerprint)
+            put("decision", "accept")
+        }).takeLast(200)
+        val proposals = d.settings.plaidBalanceProposals.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != p.fingerprint
+        }
+        d.copy(
+            cards = cards,
+            settings = d.settings
+                .withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
+                .withSetting("plaidBalanceProposals", buildJsonArray { proposals.forEach { add(it) } }),
+        )
+    }
+
+    fun declineBalanceProposal(p: BalanceProposal) = mutate { d ->
+        val resolved = (d.settings.plaidBalanceResolved + buildJsonObject {
+            put("fingerprint", p.fingerprint)
+            put("decision", "decline")
+        }).takeLast(200)
+        val proposals = d.settings.plaidBalanceProposals.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != p.fingerprint
+        }
+        d.copy(
+            settings = d.settings
+                .withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
+                .withSetting("plaidBalanceProposals", buildJsonArray { proposals.forEach { add(it) } }),
+        )
+    }
+
+    fun declineSubscriptionMerchant(key: String) {
+        if (key.isBlank()) return
+        mutate { d ->
+            val list = (d.settings.subscriptionDeclined + key).distinct().takeLast(200)
+            d.copy(
+                settings = d.settings.withSetting(
+                    "subscriptionDeclined",
+                    buildJsonArray { list.forEach { add(it) } },
+                ),
+            )
+        }
+    }
+
+    /** Accept a suggested recurring merchant as a tracked Subscription bill. */
+    fun acceptSubscriptionCandidate(name: String, amount: Double, lastDate: String?) {
+        val day = lastDate?.let { DateLogic.parseDate(it)?.dayOfMonth }
+        upsertBill(
+            Bill(
+                id = genId(),
+                name = name.ifBlank { "Subscription" },
+                business = name.takeIf { it.isNotBlank() },
+                category = "Subscriptions",
+                amount = amount,
+                dueDay = day,
+                frequency = "Monthly",
+            ),
+        )
+    }
     /** Opt-in: import bank outflows into Spending (server-applied, additive). */
     fun setPlaidUpdatePurchases(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("plaidUpdatePurchases", JsonPrimitive(on))) }
@@ -1105,6 +1228,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             d.copy(payments = payments, cards = cards)
         }
 
+    /** True when statement + promo balances are paid off and we haven't asked yet. */
+    fun cardNeedsPromoClearPrompt(refId: String): Boolean {
+        val c = _data.value.cards.firstOrNull { it.id.toString() == refId } ?: return false
+        if (!c.hasPromo || c.promoPayoffPrompted) return false
+        if (c.balance > 0.005) return false
+        if (c.promoBalance != null && c.promoBalance!! > 0.005) return false
+        return true
+    }
+
+    fun resolvePromoClearPrompt(refId: String, clear: Boolean) = mutate { d ->
+        d.copy(cards = d.cards.map { c ->
+            if (c.id.toString() != refId) c
+            else if (clear) c.copy(
+                promoPayoffPrompted = true,
+                hasPromo = false,
+                promoAPR = null,
+                promoEndDate = null,
+                promoBalance = null,
+            ) else c.copy(promoPayoffPrompted = true)
+        })
+    }
+
     /** Mark/unmark paid for the current period (row toggles). */
     fun setPaid(type: String, refId: String, name: String, amount: Double, paid: Boolean) = mutate { d ->
         val mk = DateLogic.currentMonthKey(zone())
@@ -1130,7 +1275,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return System.currentTimeMillis().toString(36) + rand
     }
 
-    /** Decrement a card's balance (and promo balance) by [delta]; negative reverses. */
+    /** Decrement statement + promo + current balance by [delta]; negative reverses. */
     private fun applyCardPaymentDelta(cards: List<Card>, refId: String, delta: Double): List<Card> {
         if (delta == 0.0) return cards
         return cards.map { c ->
@@ -1138,6 +1283,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             else c.copy(
                 balance = (c.balance - delta).coerceAtLeast(0.0),
                 promoBalance = c.promoBalance?.let { (it - delta).coerceAtLeast(0.0) },
+                currentBalance = c.currentBalance?.let { (it - delta).coerceAtLeast(0.0) },
             )
         }
     }

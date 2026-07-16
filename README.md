@@ -526,7 +526,9 @@ so this class of failure cannot be reproduced there.
 
 **When a sync happens.** Linking alone imports nothing: both gates
 (`plaidUpdatePurchases`, `plaidUpdateBalances`) are off by default, so the
-clients ask right after a bank is linked. A sync then runs on **link**, on
+clients ask right after a bank is linked. When balances are opted in, sync
+stores **Current Balance proposals** (Accept/Decline) — never silently
+overwrites Statement Balance. A sync then runs on **link**, on
 **app open** (throttled server-side to once an hour per item — clients just
 call `refresh` and let the server decide), on an explicit **"Sync now"**
 (`{force:true}`), on a **webhook**, and immediately when a user **opts in**
@@ -734,9 +736,11 @@ when the server-side date doesn't match the user's wall clock.
 ### Card balances on payments
 
 Marking a card payment as paid (`confirmPay`) decrements
-`card.balance` (and `card.promoBalance` if present). Edit-payment
-applies the delta. Delete-payment from the History tab adds the
-amount back. Balances never go negative.
+`card.balance` (Statement), `card.promoBalance` if present, and
+`card.currentBalance` when set. Edit-payment applies the delta.
+Delete-payment from the History tab adds the amount back. Balances
+never go negative. Paying a 0% promo card to zero prompts once to
+clear the promo flags.
 
 ### Rewards optimizer
 
