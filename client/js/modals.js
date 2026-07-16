@@ -52,7 +52,45 @@ export function applyCardPaymentDelta(refId, delta) {
       (parseFloat(card.promoBalance) || 0) - delta
     );
   }
+  // Current Balance is optional; when set, payments move it in lockstep
+  // with statement balance so the Cards tab doesn't show a stale live figure.
+  if (card.currentBalance != null && card.currentBalance !== '') {
+    card.currentBalance = Math.max(
+      0,
+      (parseFloat(card.currentBalance) || 0) - delta
+    );
+  }
   return true;
+}
+
+/** True when statement + promo balances are effectively paid off. */
+export function cardPromoFullyPaid(card) {
+  if (!card || !card.hasPromo) return false;
+  const bal = parseFloat(card.balance) || 0;
+  if (bal > 0.005) return false;
+  if (card.promoBalance != null && (parseFloat(card.promoBalance) || 0) > 0.005) return false;
+  return true;
+}
+
+/**
+ * After a payment zeros a 0% promo card, ask once whether to clear the promo
+ * flags. Yes clears them; No leaves them but won't ask again until the user
+ * re-enables the promo in the card editor (`promoPayoffPrompted`).
+ */
+export function maybePromptClearPaidPromo(refId) {
+  const card = cards.find((c) => String(c.id) === String(refId));
+  if (!card || !cardPromoFullyPaid(card) || card.promoPayoffPrompted) return;
+  const clear = typeof window !== 'undefined' && window.confirm
+    ? window.confirm('This card is paid off. Remove the 0% promo?')
+    : false;
+  card.promoPayoffPrompted = true;
+  if (clear) {
+    card.hasPromo = false;
+    card.promoAPR = null;
+    card.promoEndDate = null;
+    card.promoBalance = null;
+  }
+  save('fh_cards', cards);
 }
 
 /* ── Close on backdrop click ────────────────────────────── */
@@ -119,6 +157,23 @@ export function openBillModal(idx) {
   populateBillCardOptions(b.cardId);
 
   document.getElementById('bill-modal').classList.add('open');
+}
+
+/** Prefill Add Bill as a Subscription from a detected merchant candidate. */
+export function openBillAsSubscription(prefill) {
+  openBillModal();
+  if (!prefill) return;
+  document.getElementById('bill-modal-title').textContent = 'Add Subscription';
+  document.getElementById('b-name').value = prefill.name || '';
+  document.getElementById('b-business').value = prefill.name || '';
+  document.getElementById('b-category').value = 'Subscriptions';
+  document.getElementById('b-amount').value = prefill.amount != null ? prefill.amount : '';
+  document.getElementById('b-frequency').value = 'Monthly';
+  if (prefill.lastDate) {
+    const day = parseInt(String(prefill.lastDate).slice(8, 10), 10);
+    if (day) document.getElementById('b-dueday').value = day;
+  }
+  syncBillTrialField();
 }
 
 export function closeBillModal() {
@@ -524,6 +579,11 @@ export function saveCard() {
   var isLoan = type === 'loan';
   var hasPromo = !isLoan && document.getElementById('c-haspromo').checked;
   var currentBalance = isLoan ? null : (parseFloat(document.getElementById('c-current-balance').value) || null);
+  var prev = editCardId !== null ? cards[editCardId] : null;
+  var promoEnd = hasPromo ? document.getElementById('c-promoend').value : null;
+  // Re-ask after payoff only when the promo is freshly enabled or its end date changes.
+  var promoPayoffPrompted = !!(hasPromo && prev && prev.hasPromo
+    && prev.promoEndDate === promoEnd && prev.promoPayoffPrompted);
 
   var obj = {
     id:           (editCardId !== null) ? cards[editCardId].id : genId(),
@@ -544,8 +604,9 @@ export function saveCard() {
     feeMonth:     isLoan ? null : (parseInt(document.getElementById('c-feemonth').value, 10) || null),
     hasPromo:     hasPromo,
     promoAPR:     hasPromo ? parseFloat(document.getElementById('c-promoapr').value) || 0 : null,
-    promoEndDate: hasPromo ? document.getElementById('c-promoend').value : null,
+    promoEndDate: promoEnd,
     promoBalance: hasPromo ? (parseFloat(document.getElementById('c-promobal').value) || null) : null,
+    promoPayoffPrompted: promoPayoffPrompted,
     dueDay:       parseInt(document.getElementById('c-dueday').value) || null,
     autopay:      document.getElementById('c-autopay').checked,
     // Day money is actually pulled; blank → falls back to the due day.
@@ -891,6 +952,7 @@ export function confirmPay() {
         // balance should drop further; negative restores some debt.
         if (applyCardPaymentDelta(existing.refId, amt - oldAmt)) {
           save('fh_cards', cards);
+          maybePromptClearPaidPromo(existing.refId);
         }
       }
       save('fh_payments', payments);
@@ -924,6 +986,7 @@ export function confirmPay() {
     if (record.type === 'card') {
       if (applyCardPaymentDelta(record.refId, amt)) {
         save('fh_cards', cards);
+        maybePromptClearPaidPromo(record.refId);
       }
     }
     save('fh_payments', payments);
@@ -971,7 +1034,7 @@ export function askDelete(fn) {
 
 /* ── Expose for inline onclick handlers ───────────────────── */
 Object.assign(window, {
-  openBillModal, closeBillModal, saveBill, editBill, editBillById,
+  openBillModal, closeBillModal, saveBill, editBill, editBillById, openBillAsSubscription,
   openCardModal, closeCardModal, saveCard, editCard, editCardById, togglePromoFields, toggleCardTypeFields,
   addPerkRow, addOfferRow,
   openPayModal, openEditPayment, closePayModal, confirmPay,

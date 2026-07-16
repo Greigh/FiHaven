@@ -27,6 +27,8 @@ struct BankView: View {
     @State private var busy = false
     @State private var handler: Handler?
     @State private var showImportPrompt = false
+    @State private var promptAcceptAll = false
+    @State private var pendingPromptCount = 0
 
     var body: some View {
         List {
@@ -52,6 +54,16 @@ struct BankView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Bank connections")
         .task { await load() }
+        .alert("Accept Current Balance suggestions?", isPresented: $promptAcceptAll) {
+            Button("Accept all") {
+                guard let store = env.store else { return }
+                for p in store.pendingBalanceProposals() { store.acceptBalanceProposal(p) }
+                message = .info("Accepted Current Balance suggestions.")
+            }
+            Button("Not now", role: .cancel) {}
+        } message: {
+            Text("Bank suggested Current Balance updates for \(pendingPromptCount) card\(pendingPromptCount == 1 ? "" : "s"). Statement Balance stays manual. Decline individual items from the Cards tab.")
+        }
         .confirmationDialog(
             "Bank linked — what should FiHaven do with it?",
             isPresented: $showImportPrompt,
@@ -60,7 +72,7 @@ struct BankView: View {
             Button("Import my purchases") {
                 applyImportChoice(purchases: true, balances: false)
             }
-            Button("Import purchases + update card balances") {
+            Button("Import purchases + suggest card balances") {
                 applyImportChoice(purchases: true, balances: true)
             }
             Button("Not now", role: .cancel) {}
@@ -90,12 +102,12 @@ struct BankView: View {
             }
             if let store = env.store {
                 Section {
-                    Toggle("Let bank balances update my cards", isOn: Binding(
+                    Toggle("Let bank suggest card balances", isOn: Binding(
                         get: { store.data.settings.plaidUpdateBalances },
                         set: { on in
                             store.setPlaidUpdateBalances(on)
                             guard on else { return }
-                            message = .info("Updating matching card balances…")
+                            message = .info("New balance suggestions will appear for you to Accept or Decline.")
                             Task {
                                 try? await Task.sleep(nanoseconds: 2_500_000_000)
                                 await env.store?.load()
@@ -103,8 +115,22 @@ struct BankView: View {
                         }
                     )).tint(Theme.accent)
                 } footer: {
-                    Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.")
+                    Text("Off by default — FiHaven never changes the balances you typed. When on, synced figures become Current Balance suggestions (Statement Balance stays manual).")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
+                if store.data.settings.plaidUpdateBalances {
+                    Section {
+                        Picker("Balance suggestions", selection: Binding(
+                            get: { store.data.settings.plaidBalanceMode },
+                            set: { store.setPlaidBalanceMode($0) }
+                        )) {
+                            Text("Review queue").tag("review")
+                            Text("Ask after each sync").tag("prompt")
+                        }
+                    } footer: {
+                        Text("Review queue shows Accept/Decline on Cards. Ask after sync shows a dialog after Sync now.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                    }
                 }
                 Section {
                     Toggle("Let bank import my purchases", isOn: Binding(
@@ -121,6 +147,18 @@ struct BankView: View {
                     )).tint(Theme.accent)
                 } footer: {
                     Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
+                Section {
+                    Picker("Subscriptions from spending", selection: Binding(
+                        get: { store.data.settings.subscriptionDetectMode },
+                        set: { store.setSubscriptionDetectMode($0) }
+                    )) {
+                        Text("Suggested inbox").tag("inbox")
+                        Text("Inline with actions").tag("inline")
+                    }
+                } footer: {
+                    Text("Recurring merchants stay as suggestions until you Accept, Decline, or add them as a Subscription.")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
             }
@@ -322,6 +360,8 @@ struct BankView: View {
         }
     }
 
+    @State private var pendingPromptCount = 0
+
     // An explicit sync, so `force` skips the throttle that keeps the automatic
     // app-open sync cheap. It pulls purchases too, not just balances.
     private func refresh() {
@@ -332,7 +372,15 @@ struct BankView: View {
                 message = .result(ok: ok, "Synced.", "Could not sync. Please try again.")
             }
             await load()
-            await env.store?.load()   // pick up any newly imported purchases
+            await env.store?.load()   // pick up purchases + balance proposals
+            await MainActor.run {
+                guard let store = env.store,
+                      store.data.settings.plaidBalanceMode == "prompt" else { return }
+                let pending = store.pendingBalanceProposals()
+                guard !pending.isEmpty else { return }
+                pendingPromptCount = pending.count
+                promptAcceptAll = true
+            }
         }
     }
 

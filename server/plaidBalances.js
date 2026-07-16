@@ -1,13 +1,13 @@
 /* ═══════════════════════════════════════════════════════════
-   plaidBalances.js — opt-in, conservative balance sync.
+   plaidBalances.js — opt-in, manual-first balance suggestions.
 
    FiHaven is manual-first: by default a linked bank NEVER changes
    the balances you typed (Plaid balances live only in the bank panel).
-   When the user opts in (`settings.plaidUpdateBalances`), we may update
-   a card's owed balance (and credit limit, when Plaid reports one) from
-   the bank — but only when we can identify the card UNAMBIGUOUSLY by its
-   last-digits mask. A mask that matches zero or several cards is skipped,
-   so we never overwrite the wrong card.
+   When the user opts in (`settings.plaidUpdateBalances`), sync builds
+   *proposals* for Current Balance (and credit limit when Plaid reports
+   one) — never Statement Balance. The client Accepts or Declines each
+   proposal; declined/accepted fingerprints are never re-prompted until
+   the bank figure changes.
 
    Matching prefers `card.lastDigits` (the "Ends in" field); the card
    name is a fallback for older entries that baked the mask into the name.
@@ -48,13 +48,21 @@ function cardMatchesMask(card, mask) {
   return String((card && card.name) || '').includes(m4);
 }
 
-// Updates to apply: [{ id, balance, limit? }] for each Plaid credit/loan
-// account that maps to EXACTLY ONE card by mask. `balance` is the positive
-// amount owed (FiHaven stores card balances as a positive debt). `limit` is
-// included only when Plaid reports a finite credit limit — never clear a
-// typed limit when the bank omits one. Depository accounts are ignored.
-function balanceUpdates(cards, accounts) {
+/** Stable id for Accept/Decline memory: card + rounded current + limit. */
+function balanceFingerprint(cardId, proposedCurrent, limit) {
+  const lim = limit != null && Number.isFinite(Number(limit)) ? String(Number(limit)) : '';
+  return String(cardId) + ':' + Number(proposedCurrent).toFixed(2) + ':' + lim;
+}
+
+/**
+ * Proposals: [{ id, proposedCurrent, limit?, fingerprint }] for each Plaid
+ * credit/loan account that maps to EXACTLY ONE card. Skips fingerprints the
+ * user already accepted or declined. Skips when the card's currentBalance
+ * (and limit, when proposed) already match.
+ */
+function balanceProposals(cards, accounts, resolvedFingerprints) {
   const list = cards || [];
+  const resolved = new Set((resolvedFingerprints || []).map(String));
   const out = [];
   (accounts || []).forEach((a) => {
     if (!a) return;
@@ -67,26 +75,50 @@ function balanceUpdates(cards, accounts) {
     if (!m4) return;
     const hits = list.filter((c) => cardMatchesMask(c, a.mask));
     if (hits.length !== 1) return;
-    const update = { id: hits[0].id, balance: Math.abs(owed) };
-    const limit = Number(bal.limit);
-    if (Number.isFinite(limit) && limit > 0) update.limit = limit;
+    const card = hits[0];
+    const proposedCurrent = Math.abs(owed);
+    const limitNum = Number(bal.limit);
+    const limit = Number.isFinite(limitNum) && limitNum > 0 ? limitNum : undefined;
+    const fingerprint = balanceFingerprint(card.id, proposedCurrent, limit);
+    if (resolved.has(fingerprint)) return;
+
+    const cur = Number(card.currentBalance);
+    const curMatches = Number.isFinite(cur) && Math.abs(cur - proposedCurrent) < 0.005;
+    const limitMatches = limit == null || Number(card.limit) === limit;
+    if (curMatches && limitMatches) return;
+
+    const update = { id: card.id, proposedCurrent, fingerprint };
+    if (limit != null) update.limit = limit;
     out.push(update);
   });
   return out;
 }
 
-// Apply the updates to a cards array, returning a NEW array (and whether
-// anything changed). Only balance (and limit when present) are touched.
-function applyBalanceUpdates(cards, updates) {
-  const byId = new Map((updates || []).map((u) => [String(u.id), u]));
+/** @deprecated Use balanceProposals — kept for callers that still expect `balance`. */
+function balanceUpdates(cards, accounts) {
+  return balanceProposals(cards, accounts, []).map((p) => {
+    const u = { id: p.id, balance: p.proposedCurrent, fingerprint: p.fingerprint };
+    if (p.limit != null) u.limit = p.limit;
+    return u;
+  });
+}
+
+/**
+ * Apply accepted proposals to cards: writes currentBalance (never statement
+ * balance) and optional limit. Returns a NEW array + whether anything changed.
+ */
+function applyAcceptedCurrentBalance(cards, proposals) {
+  const byId = new Map((proposals || []).map((u) => [String(u.id), u]));
   let changed = false;
   const next = (cards || []).map((c) => {
     const u = byId.get(String(c.id));
     if (!u) return c;
+    const proposed = u.proposedCurrent != null ? u.proposedCurrent : u.balance;
+    if (proposed == null || !Number.isFinite(Number(proposed))) return c;
     let nextCard = c;
-    if (Number(c.balance) !== u.balance) {
+    if (Number(c.currentBalance) !== Number(proposed)) {
       changed = true;
-      nextCard = { ...nextCard, balance: u.balance };
+      nextCard = { ...nextCard, currentBalance: Number(proposed) };
     }
     if (u.limit != null && Number(c.limit) !== u.limit) {
       changed = true;
@@ -97,4 +129,22 @@ function applyBalanceUpdates(cards, updates) {
   return { cards: next, changed };
 }
 
-module.exports = { last4, cardMatchesMask, balanceUpdates, applyBalanceUpdates };
+/** @deprecated Use applyAcceptedCurrentBalance */
+function applyBalanceUpdates(cards, updates) {
+  const proposals = (updates || []).map((u) => ({
+    id: u.id,
+    proposedCurrent: u.proposedCurrent != null ? u.proposedCurrent : u.balance,
+    limit: u.limit,
+  }));
+  return applyAcceptedCurrentBalance(cards, proposals);
+}
+
+module.exports = {
+  last4,
+  cardMatchesMask,
+  balanceFingerprint,
+  balanceProposals,
+  balanceUpdates,
+  applyAcceptedCurrentBalance,
+  applyBalanceUpdates,
+};
