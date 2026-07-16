@@ -200,10 +200,19 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Let bank balances update my cards", color = Ct.colors.text, fontSize = 14.sp)
-                                Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only on a clear last-4 match (include them in the card name).",
+                                Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.",
                                     color = Ct.colors.muted, fontSize = 11.sp)
                             }
-                            Switch(checked = data.settings.plaidUpdateBalances, onCheckedChange = { vm.setPlaidUpdateBalances(it) })
+                            Switch(checked = data.settings.plaidUpdateBalances, onCheckedChange = { on ->
+                                vm.setPlaidUpdateBalances(on)
+                                if (on) {
+                                    msg = BankMessage.info("Updating matching card balances…")
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(2_500)
+                                        vm.reload()
+                                    }
+                                }
+                            })
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
@@ -211,7 +220,16 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                                 Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).",
                                     color = Ct.colors.muted, fontSize = 11.sp)
                             }
-                            Switch(checked = data.settings.plaidUpdatePurchases, onCheckedChange = { vm.setPlaidUpdatePurchases(it) })
+                            Switch(checked = data.settings.plaidUpdatePurchases, onCheckedChange = { on ->
+                                vm.setPlaidUpdatePurchases(on)
+                                if (on) {
+                                    msg = BankMessage.info("Importing your purchases — check Spending in a moment.")
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(2_500)
+                                        vm.reload()
+                                    }
+                                }
+                            })
                         }
                     }
                 }
@@ -234,7 +252,10 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         vm.setPlaidUpdateBalances(balances)
         showImportPrompt = false
         if (!purchases && !balances) return
-        msg = BankMessage.info("Importing your history — check Spending in a moment.")
+        msg = BankMessage.info(
+            if (purchases) "Importing your history — check Spending in a moment."
+            else "Updating matching card balances…"
+        )
         scope.launch {
             kotlinx.coroutines.delay(2_500)
             vm.reload()
