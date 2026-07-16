@@ -92,16 +92,32 @@ struct BankView: View {
                 Section {
                     Toggle("Let bank balances update my cards", isOn: Binding(
                         get: { store.data.settings.plaidUpdateBalances },
-                        set: { store.setPlaidUpdateBalances($0) }
+                        set: { on in
+                            store.setPlaidUpdateBalances(on)
+                            guard on else { return }
+                            message = .info("Updating matching card balances…")
+                            Task {
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                await env.store?.load()
+                            }
+                        }
                     )).tint(Theme.accent)
                 } footer: {
-                    Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance updates a card only when it clearly matches by its last 4 digits (include them in the card name).")
+                    Text("Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
                 Section {
                     Toggle("Let bank import my purchases", isOn: Binding(
                         get: { store.data.settings.plaidUpdatePurchases },
-                        set: { store.setPlaidUpdatePurchases($0) }
+                        set: { on in
+                            store.setPlaidUpdatePurchases(on)
+                            guard on else { return }
+                            message = .info("Importing your purchases — check Spending in a moment.")
+                            Task {
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                await env.store?.load()
+                            }
+                        }
                     )).tint(Theme.accent)
                 } footer: {
                     Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).")
@@ -289,7 +305,9 @@ struct BankView: View {
         store.setPlaidUpdatePurchases(purchases)
         store.setPlaidUpdateBalances(balances)
         guard purchases || balances else { return }
-        message = .info("Importing your history — check Spending in a moment.")
+        message = .info(purchases
+            ? "Importing your history — check Spending in a moment."
+            : "Updating matching card balances…")
         Task {
             // Give the server's backfill a moment, then adopt the merged copy.
             try? await Task.sleep(nanoseconds: 2_500_000_000)
