@@ -11,8 +11,6 @@
      GET    /promo                    — list active promo codes
      POST   /promo                    — create a free_sub promo code
      POST   /promo/:code/deactivate   — soft-disable a promo code
-     GET    /releases                 — current iOS/Android store build numbers
-     POST   /releases                 — set iOS build / Android versionCode in repo
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -24,7 +22,6 @@ const billing = require('../billing');
 const plaid = require('../plaid');
 const tokens = require('../tokens');
 const emails = require('../emails');
-const nativeVersions = require('../../scripts/native-versions');
 const { requireAuth, requireAdmin, requireCsrf } = require('../session');
 
 const router = express.Router();
@@ -56,14 +53,6 @@ function serializeUser(u) {
     suspended: !!u.suspended,
     suspendedAt: u.suspended_at || null,
     suspendedReason: u.suspended_reason || null,
-  };
-}
-
-function serializeReleases() {
-  const v = nativeVersions.readVersions();
-  return {
-    ios: { version: v.ios.version, build: v.ios.build },
-    android: { versionName: v.android.versionName, versionCode: v.android.versionCode },
   };
 }
 
@@ -258,41 +247,6 @@ router.post('/promo/:code/deactivate', requireCsrf, (req, res) => {
   if (!row) return sendError(res, 404, 'not-found');
   dbApi.setPromoActive(code, false);
   res.json({ ok: true, code });
-});
-
-/* ── GET /api/admin/releases ────────────────────────────────────
-   Current iOS CFBundleVersion / Android versionCode from the repo
-   source-of-truth files (project.yml / build.gradle.kts). */
-router.get('/releases', (req, res) => {
-  try {
-    res.json(serializeReleases());
-  } catch (err) {
-    console.error('admin releases read failed:', err && err.message);
-    sendError(res, 500, 'releases-read-failed');
-  }
-});
-
-/* ── POST /api/admin/releases  { iosBuild?, androidVersionCode? } ─
-   Writes the chosen build numbers into the repo. Does not upload to
-   TestFlight / Play — run bun run deploy:ios / deploy:android after. */
-router.post('/releases', requireCsrf, (req, res) => {
-  const body = req.body || {};
-  const out = {};
-  try {
-    if (body.iosBuild != null && body.iosBuild !== '') {
-      out.ios = nativeVersions.setIosBuild(body.iosBuild);
-    }
-    if (body.androidVersionCode != null && body.androidVersionCode !== '') {
-      out.android = nativeVersions.setAndroidVersionCode(body.androidVersionCode);
-    }
-    if (!out.ios && !out.android) return sendError(res, 400, 'nothing-to-set');
-    res.json({ ok: true, updated: out, current: serializeReleases() });
-  } catch (err) {
-    const msg = (err && err.message) || '';
-    if (msg.startsWith('bad-build')) return sendError(res, 400, 'bad-build');
-    console.error('admin releases write failed:', err && err.message);
-    sendError(res, 500, 'releases-write-failed');
-  }
 });
 
 module.exports = router;
