@@ -305,6 +305,11 @@
   .cards-summary {
     grid-template-columns: 1fr 1fr;
   }
+  .cards-summary--compact .cards-summary-tile {
+    flex: 1 1 calc(50% - 5px);
+    max-width: none;
+    min-width: 0;
+  }
   .cards-toolbar-filters {
     flex-wrap: wrap;
   }
@@ -324,14 +329,16 @@
 /* ─────────────────────────────────────────────────────────────
    Data tables → stacked cards.
 
-   The Bills (9 col), Budget (5 col) and Payoff (6 col) tables are
-   far too wide for a phone. Below 768px each <tr> becomes a card
-   and each <td> a "Label … value" row, with the label pulled from
-   the cell's `data-label` attribute. The first cell (`data-cell=
-   "name"`) becomes the card header and the Bills action cell
-   (`data-cell="actions"`) becomes a right-aligned button row.
+   Budget and Payoff tables are far too wide for a phone. Below
+   768px each <tr> becomes a card and each <td> a "Label … value"
+   row, with the label pulled from the cell's `data-label`
+   attribute. The first cell (`data-cell="name"`) becomes the
+   card header.
 
-   Selectors are id-scoped (`#tab-bills` …) so they override the
+   Bills uses the same card-row panels as Cards/Loans, so it
+   doesn't need table stacking.
+
+   Selectors are id-scoped (`#tab-budget` …) so they override the
    unscoped `.data-table { min-width:720px }` that theme-dark.css
    sets at ≤900px without needing !important.
 
@@ -342,12 +349,7 @@
    rules for the same purpose that this supersedes.)
    ───────────────────────────────────────────────────────────── */
 
-/* The compact bills meta line only appears in the mobile stacked
-   card (re-shown in the ≤768px block); hide it on desktop. */
-.bill-meta-mobile { display: none; }
-
 @media (max-width: 900px) {
-  #tab-bills .card,
   #tab-budget .card,
   .payoff-table-card {
     overflow-x: auto !important;
@@ -357,7 +359,6 @@
 
 @media (max-width: 768px) {
   /* Wrapping cards: drop the scroll/clip, let the stack flow. */
-  #tab-bills .card,
   #tab-budget .card,
   .payoff-table-card {
     overflow: visible !important;
@@ -365,21 +366,18 @@
   }
 
   /* Table → block stack. */
-  #tab-bills .data-table,
   #tab-budget .data-table,
   .payoff-table-card .data-table {
     display: block;
     min-width: 0;
     padding: 12px;
   }
-  #tab-bills .data-table tbody,
   #tab-budget .data-table tbody,
   .payoff-table-card .data-table tbody {
     display: block;
   }
 
   /* Header row: visually hidden, still read by screen readers. */
-  #tab-bills .data-table thead,
   #tab-budget .data-table thead,
   .payoff-table-card .data-table thead {
     position: absolute;
@@ -392,7 +390,6 @@
   }
 
   /* Each row → a bordered card. */
-  #tab-bills .data-table tr,
   #tab-budget .data-table tr,
   .payoff-table-card .data-table tr {
     display: block;
@@ -402,7 +399,6 @@
     overflow: hidden;
     background: var(--surface);
   }
-  #tab-bills .data-table tr:last-child,
   #tab-budget .data-table tr:last-child,
   .payoff-table-card .data-table tr:last-child {
     margin-bottom: 0;
@@ -410,7 +406,6 @@
 
   /* Each cell → a "label … value" row. Neutralise zebra/hover
      backgrounds (set per-td in components.css + theme-dark.css). */
-  #tab-bills .data-table td,
   #tab-budget .data-table td,
   .payoff-table-card .data-table td {
     display: flex;
@@ -423,14 +418,12 @@
     font-size: 14px;
     background: transparent;
   }
-  #tab-bills .data-table tr td:last-child,
   #tab-budget .data-table tr td:last-child,
   .payoff-table-card .data-table tr td:last-child {
     border-bottom: none;
   }
 
   /* The label, drawn from data-label. */
-  #tab-bills .data-table td[data-label]::before,
   #tab-budget .data-table td[data-label]::before,
   .payoff-table-card .data-table td[data-label]::before {
     content: attr(data-label);
@@ -444,41 +437,8 @@
     color: var(--muted);
   }
 
-  /* Cells whose value spans multiple lines (due + next date) stack
-     the label above the value instead. */
-  #tab-bills .data-table td[data-label="Due"] {
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
-  }
-
-  /* Compact bills card: the sparkline reads poorly at phone width and
-     Category/Frequency/Autopay each as a full row makes the card tall
-     and noisy. Hide them and fold the latter three into one meta line
-     inside the header (see .bill-meta-mobile). */
-  #tab-bills .data-table td[data-label="Recent"],
-  #tab-bills .data-table td[data-label="Category"],
-  #tab-bills .data-table td[data-label="Frequency"],
-  #tab-bills .data-table td[data-label="Autopay"] {
-    display: none;
-  }
-  #tab-bills .bill-meta-mobile {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  /* Amounts shouldn't wrap; let the name column breathe. */
-  #tab-bills .data-table td[data-label="Amount"] {
-    white-space: nowrap;
-  }
-
   /* First cell → card header. `display:block` lets its inner
      name + notes flow naturally with no label prefix. */
-  #tab-bills .data-table td[data-cell="name"],
   #tab-budget .data-table td[data-cell="name"],
   .payoff-table-card .data-table td[data-cell="name"] {
     display: block;
@@ -487,17 +447,6 @@
     font-size: 15px;
     background: color-mix(in srgb, var(--surface2) 55%, transparent);
     border-bottom: 1px solid var(--border);
-  }
-
-  /* Bills action cell → right-aligned button row. The hover-reveal
-     on .action-btns never fires on touch, so force it visible. */
-  #tab-bills .data-table td[data-cell="actions"] {
-    justify-content: flex-end;
-    padding: 12px 14px;
-  }
-  #tab-bills .data-table td[data-cell="actions"] .action-btns {
-    opacity: 1;
-    gap: 8px;
   }
 }
 
