@@ -204,6 +204,10 @@ build_production_env() {
     log_fail "Local .env missing TURNSTILE_SECRET and/or TURNSTILE_SITEKEY"
     exit 1
   fi
+  if ! grep -qE '^MFA_ENCRYPTION_KEY=[0-9a-fA-F]{64}$' "$TMP_ENV"; then
+    log_fail "Local .env must set MFA_ENCRYPTION_KEY (64 hex chars). Generate with: openssl rand -hex 32 — or copy data/mfa.key if migrating an existing server."
+    exit 1
+  fi
   log_ok "Production .env ready"
 }
 
@@ -281,6 +285,20 @@ upload_artifacts() {
   "${RSYNC_BASE[@]}" "$TMP_ENV" "$dest/.env"
   remote_exec "chmod 600 '$DEPLOY_PATH/.env'"
   log_ok ".env uploaded (remote data/ untouched)"
+
+  log_step "Lock down remote data/ permissions"
+  remote_exec bash -s <<EOF
+set -euo pipefail
+DATA='$DEPLOY_PATH/data'
+mkdir -p "\$DATA"
+chmod 700 "\$DATA"
+# DB + key files if present (ignore missing)
+shopt -s nullglob 2>/dev/null || true
+for f in "\$DATA"/*.db "\$DATA"/*.db-* "\$DATA"/mfa.key; do
+  [ -e "\$f" ] && chmod 600 "\$f"
+done
+EOF
+  log_ok "data/ is 700; DB/key files are 600"
 }
 
 remote_install_restart() {
