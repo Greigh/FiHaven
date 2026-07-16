@@ -36,8 +36,12 @@ describe('integration — wrong-rate report flow', () => {
   });
 
   // Best card for the default category (Dining) so the report trigger renders.
+  // Deliberately NOT a shipped preset (made-up name/issuer), so "We show"
+  // resolves to "no match" and the reported ourRate is empty — deterministic,
+  // independent of the preset catalog. "We show" compares against the shipped
+  // preset, not the card's own edited rate.
   const CARD = {
-    id: 'c1', name: 'Amex Gold', issuer: 'Amex', type: 'card', balance: 100, limit: 1000,
+    id: 'c1', name: 'My Test Card', issuer: 'TestBank', type: 'card', balance: 100, limit: 1000,
     rewardBase: 1, rewardCategories: { Dining: 4 }, perks: [], offers: [],
   };
 
@@ -65,14 +69,17 @@ describe('integration — wrong-rate report flow', () => {
     return input;
   }
 
-  it('opens the report sheet prefilled with the card and its current rate', async () => {
+  it('opens the report sheet prefilled with the card and category', async () => {
     await render([CARD]);
     target.querySelector('.rw-report-link').click();
     flushSync();
 
     expect(text()).toContain('Report a wrong rate');
-    // "We show" reflects the card's current Dining rate.
-    expect(target.querySelector('.rw-report-compare-value').textContent).toContain('4%');
+    // Card + category are prefilled from the ranked "best" card. (The "We show"
+    // value is preset-catalog-derived and intentionally not asserted here.)
+    const selects = target.querySelectorAll('.rw-report-field select');
+    expect(selects[0].value).toBe('c1');       // Card
+    expect(selects[1].value).toBe('Dining');   // Category (active category)
   });
 
   it('reports a corrected rate and fixes the card locally', async () => {
@@ -86,11 +93,11 @@ describe('integration — wrong-rate report flow', () => {
     expect(url).toBe('/api/feedback/reward-rate');
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-CSRF-Token']).toBe('csrf-token');
+    // Assert only the user-entered half of the contract — `card`/`issuer`/
+    // `ourRate` are derived from the shipped preset catalog and belong to
+    // cardPresets' own tests.
     expect(JSON.parse(opts.body)).toMatchObject({
-      card: 'Amex Gold',
-      issuer: 'Amex',
       category: 'Dining',
-      ourRate: 4,
       correctRate: 1,
     });
 
