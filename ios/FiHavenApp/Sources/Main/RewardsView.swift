@@ -8,6 +8,7 @@ struct RewardsView: View {
     @EnvironmentObject var store: AppStore
     @State private var category = "Dining"
     @State private var merchantQuery = ""
+    @State private var showRateReport = false
 
     private var creditCards: [Card] { store.activeCards.filter { ($0.type ?? "card") != "loan" } }
 
@@ -36,6 +37,7 @@ struct RewardsView: View {
                     if let best = r.eligible.first { winner(best) }
                     if r.eligible.count > 1 { runnersUp(Array(r.eligible.dropFirst())) }
                     if !r.excluded.isEmpty { excludedSection(r.excluded) }
+                    reportRateLink
                     if !walletPicks.isEmpty { walletPanel }
                     if !cardsWithPerks.isEmpty { perksPanel }
                     if !offerSuggestions.isEmpty { offerSuggestionsPanel }
@@ -47,6 +49,26 @@ struct RewardsView: View {
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Rewards")
+        .sheet(isPresented: $showRateReport) {
+            RewardRateReportSheet(
+                cards: creditCards,
+                preferredCategory: category,
+                preferredCardId: ranking.eligible.first?.card.id
+            )
+            .environmentObject(store)
+        }
+    }
+
+    private var reportRateLink: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button("Spot a wrong rate? Report it") { showRateReport = true }
+                .font(Theme.ui(13, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            Text("Helps us fix shared presets · edit your own rates on Cards")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+        }
+        .padding(.top, 4)
     }
 
     private var empty: some View {
@@ -504,5 +526,142 @@ struct RewardsView: View {
     private func breakdown(_ e: Rewards.Ranked) -> String? {
         guard e.pointValue != 1 else { return nil }
         return "\(ratePct(e.rate).dropLast())× points · \(e.pointValue)¢/pt"
+    }
+}
+
+/// Report a wrong preset rate to FiHaven (and optionally fix the local card).
+private struct RewardRateReportSheet: View {
+    @EnvironmentObject var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+
+    let cards: [Card]
+    let preferredCategory: String
+    let preferredCardId: String?
+
+    private static let baseRate = "Base rate (everything)"
+    private var categories: [String] { [Self.baseRate] + Rewards.categories }
+
+    @State private var cardId: String = ""
+    @State private var category = ""
+    @State private var rate = ""
+    @State private var note = ""
+    @State private var alsoFix = true
+    @State private var busy = false
+    @State private var message: String?
+
+    private var card: Card? { cards.first { $0.id == cardId } }
+
+    private var shownRate: Double? {
+        guard let card, !category.isEmpty else { return nil }
+        if category == Self.baseRate { return card.rewardBase }
+        return card.rewardCategories[category]
+    }
+
+    private var correctRate: Double? {
+        guard let v = Double(rate.trimmingCharacters(in: .whitespaces)),
+              v >= 0, v <= 100 else { return nil }
+        return v
+    }
+
+    private var isValid: Bool { card != nil && !category.isEmpty && correctRate != nil }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Card", selection: $cardId) {
+                        ForEach(cards) { c in
+                            Text(c.name.isEmpty ? "Card" : c.name).tag(c.id)
+                        }
+                    }
+                    Picker("Category", selection: $category) {
+                        Text("Which is wrong?").tag("")
+                        ForEach(categories, id: \.self) { Text($0).tag($0) }
+                    }
+                } header: {
+                    Text("What should we fix?")
+                } footer: {
+                    Text("Tell us what a preset got wrong so we can fix it for everyone.")
+                }
+
+                Section {
+                    HStack {
+                        Text("We show").foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text(category.isEmpty ? "—" : (shownRate.map { "\($0)%" } ?? "none set"))
+                            .font(Theme.mono(13))
+                    }
+                    HStack {
+                        Text("Should be")
+                        Spacer()
+                        TextField("0", text: $rate)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 70)
+                        Text("%").foregroundStyle(Theme.muted)
+                    }
+                    TextField("Note (optional)", text: $note, axis: .vertical)
+                    Toggle("Also correct this rate on my card", isOn: $alsoFix)
+                }
+
+                if let message {
+                    Section { Text(message).foregroundStyle(Theme.muted).font(Theme.ui(13)) }
+                }
+
+                Section {
+                    Text("Sends the card, category, rates, and your email address to FiHaven.")
+                        .font(Theme.ui(11))
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            .navigationTitle("Report a wrong rate")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(busy ? "Sending…" : "Send") { Task { await submit() } }
+                        .disabled(!isValid || busy)
+                }
+            }
+            .onAppear {
+                cardId = preferredCardId ?? cards.first?.id ?? ""
+                if categories.contains(preferredCategory) { category = preferredCategory }
+            }
+        }
+    }
+
+    private func submit() async {
+        guard let card, let correct = correctRate else { return }
+        busy = true
+        let ours = shownRate
+        if alsoFix {
+            store.setCardRewardRate(
+                cardId: card.id,
+                category: category == Self.baseRate ? nil : category,
+                rate: correct
+            )
+        }
+        let ok = await store.reportRewardRate(
+            card: card.name.isEmpty ? "Card" : card.name,
+            issuer: card.issuer ?? "",
+            category: category,
+            ourRate: ours,
+            correctRate: correct,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        busy = false
+        if ok {
+            message = alsoFix ? "Thanks — reported, and updated on your card." : "Thanks — report sent."
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            dismiss()
+        } else if alsoFix {
+            message = "Updated on your card. Report couldn’t be sent right now."
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            dismiss()
+        } else {
+            message = "Couldn’t send the report — try again."
+        }
     }
 }
