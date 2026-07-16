@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ import app.fihaven.core.model.Card
 import app.fihaven.core.model.perkUsage
 import app.fihaven.ui.theme.Ct
 import app.fihaven.ui.theme.PlexMono
+import kotlinx.coroutines.launch
 
 /**
  * "Maximize rewards" tool: pick a spending category and see which card earns
@@ -54,6 +56,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
     var category by remember { mutableStateOf("Dining") }
     var merchantQuery by remember { mutableStateOf("") }
+    var showRateReport by remember { mutableStateOf(false) }
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.
@@ -186,6 +189,16 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                             }
                         }
                     }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { showRateReport = true }, contentPadding = PaddingValues(0.dp)) {
+                        Text("Spot a wrong rate? Report it", color = Ct.colors.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text(
+                        "Helps us fix shared presets · edit your own rates on Cards",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                    )
                 }
 
                 val wallet = Rewards.walletStrategy(data.activeCards, Rewards.CATEGORIES, vm.zone()).filter { it.best != null }
@@ -354,6 +367,120 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
 
             }
         }
+    }
+
+    if (showRateReport && creditCards.isNotEmpty()) {
+        RewardRateReportDialog(
+            cards = creditCards,
+            preferredCategory = category,
+            preferredCardId = ranking.eligible.firstOrNull()?.card?.id,
+            vm = vm,
+            onDismiss = { showRateReport = false },
+        )
+    }
+}
+
+@Composable
+private fun RewardRateReportDialog(
+    cards: List<Card>,
+    preferredCategory: String,
+    preferredCardId: String?,
+    vm: AppViewModel,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val baseRate = "Base rate (everything)"
+    val options = listOf(baseRate) + Rewards.CATEGORIES
+    fun label(c: Card): String {
+        val n = c.name.ifEmpty { "Card" }
+        return if (cards.count { it.name.ifEmpty { "Card" } == n } > 1) "$n (${c.id.takeLast(4)})" else n
+    }
+    val labels = cards.map { label(it) }
+
+    var cardLabel by remember {
+        mutableStateOf(label(cards.firstOrNull { it.id == preferredCardId } ?: cards.first()))
+    }
+    var category by remember {
+        mutableStateOf(if (preferredCategory in options) preferredCategory else "")
+    }
+    var rate by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var alsoFix by remember { mutableStateOf(true) }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val card = cards.firstOrNull { label(it) == cardLabel } ?: cards.first()
+    val ourRate: Double? = when {
+        category.isEmpty() -> null
+        category == baseRate -> card.rewardBase
+        else -> card.rewardCategories[category]
+    }
+    val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
+
+    FormDialog(
+        title = "Report a wrong rate",
+        saveEnabled = category.isNotEmpty() && correct != null && !busy,
+        saveLabel = if (busy) "Sending…" else "Send report",
+        onDismiss = onDismiss,
+        onSave = {
+            val v = correct ?: return@FormDialog
+            busy = true
+            message = null
+            if (alsoFix) {
+                vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
+            }
+            scope.launch {
+                val ok = vm.reportRewardRate(
+                    card = card.name.ifEmpty { "Card" },
+                    issuer = card.issuer ?: "",
+                    category = category,
+                    ourRate = ourRate,
+                    correctRate = v,
+                    note = note.trim(),
+                )
+                busy = false
+                if (ok || alsoFix) onDismiss()
+                else message = "Couldn’t send the report — try again."
+            }
+        },
+    ) {
+        Text(
+            "Tell us what a preset got wrong so we can fix it for everyone.",
+            color = Ct.colors.muted, fontSize = 13.sp,
+        )
+        DropdownField("Card", labels, cardLabel) { cardLabel = it }
+        DropdownField(
+            "Category",
+            listOf("Which is wrong?") + options,
+            if (category.isEmpty()) "Which is wrong?" else category,
+        ) { picked -> category = if (picked == "Which is wrong?") "" else picked }
+        if (category.isNotEmpty()) {
+            Text(
+                "We show ${ourRate?.let { "$it%" } ?: "none set"}",
+                color = Ct.colors.muted, fontSize = 12.sp,
+            )
+        }
+        androidx.compose.material3.OutlinedTextField(
+            rate, { rate = it },
+            label = { Text("Should be") },
+            suffix = { Text("%") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+            ),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            note, { note = it },
+            label = { Text("Note (optional)") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FilterSwitch("Also correct this rate on my card", alsoFix) { alsoFix = it }
+        message?.let { Text(it, color = Ct.colors.orange, fontSize = 12.sp) }
+        Text(
+            "Sends the card, category, rates, and your email address to FiHaven.",
+            color = Ct.colors.muted, fontSize = 11.sp,
+        )
     }
 }
 
