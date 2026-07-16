@@ -12,7 +12,13 @@ import './passwordToggle.js';
 import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
 import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
-import { getDevEntitlement, setDevEntitlement } from './storage.svelte.js';
+import { getDevEntitlement, setDevEntitlement, pullFromServer } from './storage.svelte.js';
+import {
+  acceptAllBalanceProposals,
+  pendingBalanceProposals,
+  plaidBalanceMode,
+} from './plaidBalanceReview.js';
+import { fmt } from './utils.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 import { initHousehold } from './household.js';
 import { plaidExitError, PLAID_OAUTH_RESULT } from './plaidLink.js';
@@ -1904,24 +1910,65 @@ import {
       }
     }
 
-    // Opt-in: let synced bank balances update matching cards. Off by default;
-    // FiHaven never overrides a typed balance unless this is on.
+    // Opt-in: bank suggests Current Balance (Accept/Decline). Off by default.
+    var balanceModeWrap = card.querySelector('[data-plaid-balance-mode-wrap]');
+    function syncBalanceModeVisibility() {
+      show(balanceModeWrap, !!(balancesToggle && balancesToggle.checked));
+    }
+    function loadBalanceMode(server) {
+      var mode = ((server && server.settings) || {}).plaidBalanceMode === 'prompt' ? 'prompt' : 'review';
+      card.querySelectorAll('[data-plaid-balance-mode]').forEach(function (r) {
+        r.checked = r.value === mode;
+      });
+    }
     if (balancesToggle) {
       fetchData().then(function (server) {
         balancesToggle.checked = !!((server && server.settings) || {}).plaidUpdateBalances;
+        loadBalanceMode(server);
+        syncBalanceModeVisibility();
       }).catch(function () { /* leave unchecked */ });
       balancesToggle.addEventListener('change', function () {
         showMessage('plaid', 'Saving…', false);
+        syncBalanceModeVisibility();
         patchSettings({ plaidUpdateBalances: balancesToggle.checked }).then(function () {
           showMessage('plaid', balancesToggle.checked
-            ? 'Saved. Updating matching card balances…'
+            ? 'Saved. New balance suggestions will appear for you to Accept or Decline.'
             : 'Saved.', false);
         }).catch(function (err) {
           balancesToggle.checked = !balancesToggle.checked;
+          syncBalanceModeVisibility();
           showMessage('plaid', (err && err.message) || errorText('network'), true);
         });
       });
     }
+    card.querySelectorAll('[data-plaid-balance-mode]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (!radio.checked) return;
+        patchSettings({ plaidBalanceMode: radio.value }).then(function () {
+          showMessage('plaid', 'Suggestion style saved.', false);
+        }).catch(function (err) {
+          showMessage('plaid', (err && err.message) || errorText('network'), true);
+        });
+      });
+    });
+
+    // Subscription detection display mode (inbox vs inline).
+    fetchData().then(function (server) {
+      var mode = ((server && server.settings) || {}).subscriptionDetectMode === 'inline' ? 'inline' : 'inbox';
+      card.querySelectorAll('[data-subscription-detect-mode]').forEach(function (r) {
+        r.checked = r.value === mode;
+      });
+    }).catch(function () { /* ignore */ });
+    card.querySelectorAll('[data-subscription-detect-mode]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (!radio.checked) return;
+        patchSettings({ subscriptionDetectMode: radio.value }).then(function () {
+          showMessage('plaid', 'Subscription suggestion style saved.', false);
+        }).catch(function (err) {
+          showMessage('plaid', (err && err.message) || errorText('network'), true);
+        });
+      });
+    });
 
     // Opt-in: import bank outflows into Spending. Off by default; FiHaven is
     // manual-entry-first, so nothing is imported unless this is on.
@@ -2131,6 +2178,29 @@ import {
     // An explicit sync: `force` skips the freshness throttle that makes the
     // automatic app-open sync cheap. It pulls purchases too, not just balances —
     // the old "Refreshing balances…" wording hid that.
+    function maybePromptBalanceProposals() {
+      return pullFromServer().then(function (server) {
+        if (plaidBalanceMode() !== 'prompt') return;
+        var list = pendingBalanceProposals();
+        if (!list.length) return;
+        var cardList = (server && server.cards) || [];
+        var lines = list.map(function (p) {
+          var c = cardList.find(function (x) { return String(x.id) === String(p.id); });
+          var name = (c && c.name) || ('Card ' + p.id);
+          return '• ' + name + ': Current → ' + fmt(p.proposedCurrent)
+            + (p.limit != null ? ' (limit ' + fmt(p.limit) + ')' : '');
+        }).join('\n');
+        var accept = window.confirm(
+          'Bank suggested Current Balance updates:\n\n' + lines
+          + '\n\nOK = Accept all. Cancel = leave them in the Cards review queue.'
+        );
+        if (accept) {
+          acceptAllBalanceProposals(list);
+          showMessage('plaid', 'Accepted Current Balance suggestions.', false);
+        }
+      });
+    }
+
     function refreshBalances() {
       refreshBtn.disabled = true;
       showMessage('plaid', 'Syncing…', false);
@@ -2139,6 +2209,7 @@ import {
         if (res.ok) {
           showMessage('plaid', 'Synced.', false);
           render({ configured: true, pro: true, items: res.data.items });
+          maybePromptBalanceProposals();
         } else {
           showMessage('plaid', 'Could not sync. Please try again.', true);
         }

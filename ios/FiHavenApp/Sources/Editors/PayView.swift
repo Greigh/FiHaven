@@ -35,6 +35,7 @@ struct PayView: View {
     @State private var note = ""
     @State private var started = false
     @State private var showDuplicateAlert = false
+    @State private var showPromoClearAlert = false
 
     private struct Preset: Identifiable {
         let id = UUID()
@@ -166,6 +167,18 @@ struct PayView: View {
             } message: {
                 Text("You have already recorded \(Money.fmt(alreadyPaid)) in payments for this card/loan this month. Is this an additional payment?")
             }
+            .alert("Remove 0% promo?", isPresented: $showPromoClearAlert) {
+                Button("Remove promo") {
+                    store.resolvePromoClearPrompt(refId: target.refId, clear: true)
+                    dismiss()
+                }
+                Button("Keep promo", role: .cancel) {
+                    store.resolvePromoClearPrompt(refId: target.refId, clear: false)
+                    dismiss()
+                }
+            } message: {
+                Text("This card is paid off. Remove the 0% promo?")
+            }
         }
     }
 
@@ -207,6 +220,10 @@ struct PayView: View {
             type: target.type, refId: target.refId, name: target.name,
             amount: amount, date: date, note: note
         )
-        dismiss()
+        if target.type == "card", store.cardNeedsPromoClearPrompt(refId: target.refId) {
+            showPromoClearAlert = true
+        } else {
+            dismiss()
+        }
     }
 }

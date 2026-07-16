@@ -571,8 +571,8 @@
             <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;">
               <input type="checkbox" data-plaid-optin-balances />
               <span>
-                <strong>Update my card balances</strong>
-                <span style="display:block;font-size:12px;color:var(--muted);">Only updates a card whose Ends in digits uniquely match — balance and credit limit when the bank reports them.</span>
+                <strong>Suggest card Current Balances</strong>
+                <span style="display:block;font-size:12px;color:var(--muted);">Proposals you Accept or Decline — never overwrites Statement Balance.</span>
               </span>
             </label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -589,12 +589,27 @@
             </div>
             <div class="settings-toggle-row" style="margin-top:14px;">
               <div class="settings-toggle-copy">
-                <div class="settings-toggle-title">Let bank balances update my cards</div>
-                <div class="settings-toggle-desc">Off by default — FiHaven never changes the balances you typed. When on, a synced bank balance (and credit limit, when available) updates a card only when its Ends in digits uniquely match the bank account.</div>
+                <div class="settings-toggle-title">Let bank suggest card balances</div>
+                <div class="settings-toggle-desc">Off by default — FiHaven never changes the balances you typed. When on, synced bank balances become <strong>Current Balance</strong> suggestions you Accept or Decline (Statement Balance stays manual). Only cards whose Ends in digits uniquely match.</div>
               </div>
               <label class="fh-switch">
-                <input type="checkbox" data-plaid-balances-toggle aria-label="Let bank balances update my cards"/>
+                <input type="checkbox" data-plaid-balances-toggle aria-label="Let bank suggest card balances"/>
                 <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div data-plaid-balance-mode-wrap hidden style="margin-top:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;">
+              <div style="font-weight:600;font-size:13px;margin-bottom:6px;">How should balance suggestions appear?</div>
+              <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;font-size:13px;">
+                <input type="radio" name="plaid-balance-mode" value="review" data-plaid-balance-mode />
+                <span><strong>Review queue</strong>
+                  <span style="display:block;font-size:12px;color:var(--muted);">Show pending suggestions on Cards — Accept or Decline each one.</span>
+                </span>
+              </label>
+              <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;">
+                <input type="radio" name="plaid-balance-mode" value="prompt" data-plaid-balance-mode />
+                <span><strong>Ask after each sync</strong>
+                  <span style="display:block;font-size:12px;color:var(--muted);">After Sync now, show a dialog listing proposed Current Balance changes.</span>
+                </span>
               </label>
             </div>
             <div class="settings-toggle-row" style="margin-top:14px;">
@@ -605,6 +620,22 @@
               <label class="fh-switch">
                 <input type="checkbox" data-plaid-purchases-toggle aria-label="Let bank import my purchases"/>
                 <span class="fh-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div data-plaid-sub-detect-wrap style="margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;">
+              <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Subscriptions from spending</div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Recurring merchants stay as suggestions until you Accept, Decline, or add them as a Subscription. Declines are remembered so they don’t reappear.</div>
+              <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;font-size:13px;">
+                <input type="radio" name="subscription-detect-mode" value="inbox" data-subscription-detect-mode />
+                <span><strong>Suggested inbox</strong>
+                  <span style="display:block;font-size:12px;color:var(--muted);">Candidates stay in a separate Suggested section until you confirm.</span>
+                </span>
+              </label>
+              <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;">
+                <input type="radio" name="subscription-detect-mode" value="inline" data-subscription-detect-mode />
+                <span><strong>Inline with actions</strong>
+                  <span style="display:block;font-size:12px;color:var(--muted);">Show candidates in the list with Accept / Decline / Add actions.</span>
+                </span>
               </label>
             </div>
             <p style="margin-top:10px;font-size:12px;color:var(--muted);">

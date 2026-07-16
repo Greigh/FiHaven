@@ -111,4 +111,21 @@ describe('subscriptionsFinder — buildSubscriptionItems', () => {
     expect(trial.manageUrl).toBeTruthy();
     expect(findDuplicateGroups(items)).toHaveLength(1);
   });
+
+  it('hides declined merchants and skips dissimilar two-month noise', () => {
+    const now = new Date(2026, 5, 15).getTime();
+    const items = buildSubscriptionItems(
+      [],
+      [
+        { merchant: 'Grocery', amount: 12, date: '2026-04-01' },
+        { merchant: 'Grocery', amount: 89, date: '2026-05-01' },
+        { merchant: 'Spotify', amount: 10.99, date: '2026-04-05' },
+        { merchant: 'Spotify', amount: 10.99, date: '2026-05-05' },
+      ],
+      now,
+      { declined: ['spotify'] },
+    );
+    expect(items.find((i) => i.name === 'Grocery')).toBeUndefined();
+    expect(items.find((i) => i.name === 'Spotify')).toBeUndefined();
+  });
 });
