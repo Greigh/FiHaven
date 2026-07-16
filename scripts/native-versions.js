@@ -235,12 +235,17 @@ function printVersionSources() {
   return v;
 }
 
+/** Escape a string for safe embedding in a RegExp source. */
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function changelogMentions(version) {
   try {
     const text = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
     // Headings like ## [1.6.1] or ## 1.6.1 —
     const re = new RegExp(
-      '(^|\\n)##\\s*\\[?' + version.replace(/\./g, '\\.') + '\\]?\\b',
+      '(^|\\n)##\\s*\\[?' + escapeRegExp(version) + '\\]?\\b',
     );
     return re.test(text);
   } catch (_) {
