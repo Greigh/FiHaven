@@ -19,19 +19,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +42,6 @@ import app.fihaven.core.logic.Rewards
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.perkUsage
 import app.fihaven.ui.theme.Ct
-import kotlinx.coroutines.launch
 import app.fihaven.ui.theme.PlexMono
 
 /**
@@ -59,11 +54,6 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
     val data by vm.data.collectAsStateWithLifecycle()
     var category by remember { mutableStateOf("Dining") }
     var merchantQuery by remember { mutableStateOf("") }
-    // Non-null while the rewards-link dialog is open for that card.
-    var linkingCard by remember { mutableStateOf<Card?>(null) }
-    // Non-null while the wrong-rate dialog is open for that card.
-    var ratingCard by remember { mutableStateOf<Card?>(null) }
-    val uriHandler = LocalUriHandler.current
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.
@@ -362,244 +352,9 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
                     }
                 }
 
-                // Per-card rewards/offers links. Mirrors the Subscriptions tab's
-                // manage-link flow: saved on the user's own card, and optionally
-                // offered to the shared database (which emails us — disclosed).
-                CtCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Column {
-                            FieldLabel("Rewards & offers")
-                            Text("Where to find your offers",
-                                fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Ct.colors.text)
-                        }
-                        creditCards.forEach { c ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("💳 ${c.name.ifEmpty { "Card" }}",
-                                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Ct.colors.text)
-                                    c.rewardsUrl?.let { url ->
-                                        Text(
-                                            "Open offers ↗", color = Ct.colors.accent, fontSize = 11.sp,
-                                            modifier = Modifier.clickable { uriHandler.openUri(url) },
-                                        )
-                                    }
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    TextButton(onClick = { linkingCard = c }) {
-                                        Text(
-                                            if (c.rewardsUrl == null) "Add rewards link" else "Change rewards link",
-                                            color = Ct.colors.accent, fontSize = 12.sp,
-                                        )
-                                    }
-                                    TextButton(onClick = { ratingCard = c }) {
-                                        Text("Wrong rewards rates", color = Ct.colors.accent, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
-                        Text(
-                            "Adding a rewards link emails what you send (and your email) to FiHaven. " +
-                                "Correcting a wrong rate updates your card locally; sharing that correction " +
-                                "with FiHaven is optional. See our Privacy Policy.",
-                            color = Ct.colors.muted, fontSize = 11.sp,
-                        )
-                    }
-                }
             }
         }
     }
-
-    linkingCard?.let { RewardsLinkDialog(it, vm, onDismiss = { linkingCard = null }) }
-    ratingCard?.let { RewardRateDialog(it, vm, onDismiss = { ratingCard = null }) }
-}
-
-/// Report a reward rate we ship that's wrong — e.g. we seed a card at 3% on Gas
-/// when the issuer has since cut it to 1%. Corrects the user's own card straight
-/// away (so "which card should I use?" stops recommending on bad data) *and*
-/// reports it so the shared preset gets fixed. The personal fix is what matters,
-/// so a failed report never blocks it.
-@Composable
-private fun RewardRateDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val baseRate = "Base rate (everything)"
-    val options = listOf(baseRate) + Rewards.CATEGORIES
-
-    var category by remember { mutableStateOf("") }
-    var rate by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var shareWithFiHaven by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-
-    // What the app currently claims. null = we have no rate for this category,
-    // which is itself worth reporting ("you're missing this one").
-    val ourRate: Double? = when {
-        category.isEmpty() -> null
-        category == baseRate -> card.rewardBase
-        else -> card.rewardCategories[category]
-    }
-    val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
-
-    FormDialog(
-        title = "Wrong rewards rates",
-        saveEnabled = category.isNotEmpty() && correct != null && !busy,
-        saveLabel = when {
-            busy && shareWithFiHaven -> "Sending…"
-            busy -> "Saving…"
-            shareWithFiHaven -> "Fix & report"
-            else -> "Fix on my card"
-        },
-        onDismiss = onDismiss,
-        onSave = {
-            val v = correct ?: return@FormDialog
-            busy = true
-            // 1) The user's own card — the part that must not be lost.
-            vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
-            // 2) Optionally report it (off by default).
-            scope.launch {
-                if (shareWithFiHaven) {
-                    vm.reportRewardRate(
-                        card = card.name.ifEmpty { "Card" },
-                        issuer = card.issuer ?: "",
-                        category = category,
-                        ourRate = ourRate,
-                        correctRate = v,
-                        note = note.trim(),
-                    )
-                }
-                busy = false
-                onDismiss()
-            }
-        },
-    ) {
-        Text(
-            "Wrong rate on ${card.name.ifEmpty { "this card" }}",
-            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-        )
-        DropdownField(
-            label = "Which category is wrong?",
-            options = options,
-            selected = category.ifEmpty { "Which is wrong?" },
-        ) { category = it }
-        if (category.isNotEmpty()) {
-            Text(
-                "We show ${ourRate?.let { "$it%" } ?: "no rate"} for $category.",
-                color = Ct.colors.muted, fontSize = 12.sp,
-            )
-        }
-        androidx.compose.material3.OutlinedTextField(
-            rate, { rate = it },
-            label = { Text("Should be") },
-            suffix = { Text("%") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        androidx.compose.material3.OutlinedTextField(
-            note, { note = it },
-            label = { Text("Note (optional)") },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        FilterSwitch(
-            "Also send to FiHaven so we can fix shared presets",
-            shareWithFiHaven,
-        ) { shareWithFiHaven = it }
-        Text(
-            if (shareWithFiHaven)
-                "Corrects the rate on your card, then emails the card, the category, and your email address to FiHaven."
-            else
-                "Corrects the rate on your card only. Turn on sharing if you want FiHaven to fix the shared preset.",
-            color = Ct.colors.muted, fontSize = 11.sp,
-        )
-    }
-}
-
-
-/// Add or change a card's rewards/offers link. Mirrors `ManageLinkDialog` on the
-/// Subscriptions screen: saved on the user's own card *and* offered to the shared
-/// database. The personal save is what matters, so a failed share never blocks it.
-@Composable
-private fun RewardsLinkDialog(card: Card, vm: AppViewModel, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var url by remember { mutableStateOf(card.rewardsUrl ?: "") }
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-
-    val trimmed = url.trim()
-    val valid = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
-
-    FormDialog(
-        title = "Rewards link",
-        saveEnabled = valid && !busy,
-        saveLabel = if (busy) "Saving…" else "Save",
-        onDismiss = onDismiss,
-        onSave = {
-            busy = true
-            message = null
-            // 1) The user's own card — the part that must not be lost.
-            vm.setCardRewardsUrl(card.id, trimmed)
-            // 2) Offer it to the shared database. Best effort.
-            scope.launch {
-                vm.shareRewardsLink(card.name.ifEmpty { "Card" }, trimmed)
-                busy = false
-                onDismiss()
-            }
-        },
-    ) {
-        Text(
-            "Rewards or offers link for ${card.name.ifEmpty { "this card" }}",
-            color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-        )
-        androidx.compose.material3.OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            placeholder = { Text("https://…/rewards/offers") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            "Saved on your card. Also emails the card name, the link, and your email address to " +
-                "FiHaven so we can add it to the shared database. Optional — see our Privacy Policy.",
-            color = Ct.colors.muted, fontSize = 12.sp,
-        )
-        message?.let { Text(it, color = Ct.colors.red, fontSize = 12.sp) }
-    }
-}
-
-private fun app.fihaven.core.model.Card.card_name() = name.ifEmpty { "Card" }
-
-private val PERK_FREQ_LABEL = mapOf(
-    "monthly" to "Monthly", "quarterly" to "Quarterly", "semiannual" to "Twice a year", "annual" to "Yearly",
-)
-
-private val MONTH_SHORT = listOf(
-    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-)
-
-@Composable
-private fun FeeVerdictPill(verdict: Perks.FeeVerdict) {
-    val (label, color) = when (verdict) {
-        Perks.FeeVerdict.KEEP -> "Pays for itself" to Ct.colors.green
-        Perks.FeeVerdict.OPTIMIZE -> "Use it more" to Ct.colors.accent
-        Perks.FeeVerdict.REVIEW -> "Review" to Ct.colors.orange
-    }
-    Text(
-        label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(color.copy(alpha = 0.15f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
-}
-
-private fun expiresLabel(frequency: String, today: java.time.LocalDate): String {
-    val d = Perks.expiresInDays(frequency, today)
-    return if (d == 0) "ends today" else "${d}d left"
-}
-
-private fun offerExpiry(daysLeft: Int?): String = when {
-    daysLeft == null -> "no expiry"
-    daysLeft <= 0 -> "ends today"
-    daysLeft == 1 -> "1 day left"
-    else -> "$daysLeft days left"
 }
 
 @Composable
@@ -653,4 +408,41 @@ private fun RotBadge() {
             .background(Ct.colors.accent.copy(alpha = 0.16f), RoundedCornerShape(999.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     )
+}
+
+private fun app.fihaven.core.model.Card.card_name() = name.ifEmpty { "Card" }
+
+private val PERK_FREQ_LABEL = mapOf(
+    "monthly" to "Monthly", "quarterly" to "Quarterly", "semiannual" to "Twice a year", "annual" to "Yearly",
+)
+
+private val MONTH_SHORT = listOf(
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+@Composable
+private fun FeeVerdictPill(verdict: Perks.FeeVerdict) {
+    val (label, color) = when (verdict) {
+        Perks.FeeVerdict.KEEP -> "Pays for itself" to Ct.colors.green
+        Perks.FeeVerdict.OPTIMIZE -> "Use it more" to Ct.colors.accent
+        Perks.FeeVerdict.REVIEW -> "Review" to Ct.colors.orange
+    }
+    Text(
+        label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.15f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+private fun expiresLabel(frequency: String, today: java.time.LocalDate): String {
+    val d = Perks.expiresInDays(frequency, today)
+    return if (d == 0) "ends today" else "${d}d left"
+}
+
+private fun offerExpiry(daysLeft: Int?): String = when {
+    daysLeft == null -> "no expiry"
+    daysLeft <= 0 -> "ends today"
+    daysLeft == 1 -> "1 day left"
+    else -> "$daysLeft days left"
 }
