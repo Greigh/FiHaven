@@ -10,11 +10,11 @@
   shared data gets fixed.
 -->
 <script>
-  import { cards, transactions, save } from '../js/storage.svelte.js';
+  import { cards, transactions, save, entitlement } from '../js/storage.svelte.js';
   import { REWARD_CATEGORIES, CARD_COLORS, fmt } from '../js/utils.js';
   import {
     rankCardsForCategory, rewardExplanation, walletStrategy,
-    categorySpendAnnual, cardRewardsEstimateAnnual,
+    categorySpendAnnual, cardRewardsEstimateAnnual, pointValue,
   } from '../js/rewards.js';
   import { merchantCategory } from '../js/merchants.js';
   import { shippedRewardRate } from '../js/cardPresets.js';
@@ -76,11 +76,15 @@
   let reportVal = $state('');
   let reportNote = $state('');
   let reportAlsoFix = $state(true);
+  /** @type {'percent'|'points'} */
+  let reportUnit = $state('percent');
   let reportBusy = $state(false);
   let reportMsg = $state('');
   let reportErr = $state('');
 
   let reportCard = $derived(creditCards.find((c) => String(c.id) === String(reportCardId)) || null);
+  let reportPv = $derived(reportCard ? pointValue(reportCard) : 1);
+  let reportUsesPoints = $derived(reportPv > 1);
 
   // "We show" must be the shared preset catalog — not the user's possibly
   // already-edited local card — so reports compare against what FiHaven ships.
@@ -91,6 +95,31 @@
   let reportPresetName = $derived(
     reportShipped.preset ? `${reportShipped.preset.issuer} ${reportShipped.preset.name}` : '',
   );
+
+  let reportCorrectNum = $derived.by(() => {
+    const v = parseFloat(reportVal);
+    return Number.isFinite(v) ? v : null;
+  });
+  let reportValueHint = $derived.by(() => {
+    const v = reportCorrectNum;
+    if (v == null || v < 0) return '';
+    if (reportUnit === 'points' || reportUsesPoints) {
+      const cents = v * reportPv;
+      return `≈ ${trimNum(cents)}¢ per $1 spent (${trimNum(v)}× · ${trimNum(reportPv)}¢/pt)`;
+    }
+    return `≈ ${trimNum(v)}% cash back`;
+  });
+
+  function trimNum(n) {
+    const s = String(Math.round(n * 100) / 100);
+    return s.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+  }
+
+  function formatShippedRate(rate) {
+    if (rate == null) return 'none set';
+    if (reportUsesPoints) return `${trimNum(rate)}×`;
+    return `${trimNum(rate)}%`;
+  }
 
   function csrf() {
     return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
@@ -103,6 +132,8 @@
     reportVal = '';
     reportNote = '';
     reportAlsoFix = true;
+    const card = prefillCard || creditCards[0];
+    reportUnit = card && pointValue(card) > 1 ? 'points' : 'percent';
     reportBusy = false;
     reportMsg = '';
     reportErr = '';
@@ -111,6 +142,12 @@
   function closeReport() {
     reportOpen = false;
   }
+
+  // Keep unit in sync when the selected card changes.
+  $effect(() => {
+    if (!reportOpen || !reportCard) return;
+    reportUnit = reportUsesPoints ? 'points' : 'percent';
+  });
 
   function applyLocalFix(card, cat, correct) {
     const c = cards.find((x) => String(x.id) === String(card.id));
@@ -126,13 +163,19 @@
     save('fh_cards', cards);
   }
 
+  function parseCorrectRate() {
+    const correct = parseFloat(reportVal);
+    if (!Number.isFinite(correct) || correct < 0 || correct > 100) return null;
+    return correct;
+  }
+
   async function submitReport() {
     const card = reportCard;
-    const correct = parseFloat(reportVal);
+    const correct = parseCorrectRate();
     reportErr = '';
     if (!card) { reportErr = 'Pick a card.'; return; }
     if (!reportCat) { reportErr = 'Pick a category.'; return; }
-    if (!Number.isFinite(correct) || correct < 0 || correct > 100) {
+    if (correct == null) {
       reportErr = 'Enter a rate between 0 and 100.';
       return;
     }
@@ -158,6 +201,8 @@
           ourRate: ours == null ? '' : ours,
           correctRate: correct,
           note: reportNote.trim(),
+          unit: reportUnit,
+          pointValue: reportPv,
         }),
       });
       shared = r.ok;
@@ -180,6 +225,25 @@
       reportMsg = 'Updated on your card. Report couldn’t be sent right now.';
       setTimeout(closeReport, 1800);
     }
+  }
+
+  function onlyCorrectMyCard() {
+    reportErr = '';
+    if (!entitlement.pro) {
+      reportErr = 'Pro is required to correct only your card without sending a report.';
+      return;
+    }
+    const card = reportCard;
+    const correct = parseCorrectRate();
+    if (!card) { reportErr = 'Pick a card.'; return; }
+    if (!reportCat) { reportErr = 'Pick a category.'; return; }
+    if (correct == null) {
+      reportErr = 'Enter a rate between 0 and 100.';
+      return;
+    }
+    applyLocalFix(card, reportCat, correct);
+    reportMsg = 'Updated on your card only — nothing sent to FiHaven.';
+    setTimeout(closeReport, 1400);
   }
 
   const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -487,7 +551,7 @@
         <div class="rw-report-compare-cell">
           <span class="rw-report-compare-label">Our preset</span>
           <span class="rw-report-compare-value">
-            {#if !reportCat}—{:else if !reportShipped.preset}no match{:else if reportOurs == null}none set{:else}{reportOurs}%{/if}
+            {#if !reportCat}—{:else if !reportShipped.preset}no match{:else if reportOurs == null}none set{:else}{formatShippedRate(reportOurs)}{/if}
           </span>
           {#if reportCat && reportPresetName}
             <span class="rw-report-compare-sub">{reportPresetName}</span>
@@ -499,8 +563,20 @@
           <span class="rw-report-compare-input">
             <input type="number" step="0.01" min="0" max="100" placeholder="0" bind:value={reportVal}
               onkeydown={(e) => { if (e.key === 'Enter') submitReport(); }} />
-            <span>%</span>
+            {#if reportUsesPoints}
+              <span class="rw-report-unit" role="group" aria-label="Rate unit">
+                <button type="button" class="rw-report-unit-btn" class:active={reportUnit === 'points'}
+                  onclick={() => reportUnit = 'points'}>×</button>
+                <button type="button" class="rw-report-unit-btn" class:active={reportUnit === 'percent'}
+                  onclick={() => reportUnit = 'percent'}>%</button>
+              </span>
+            {:else}
+              <span>%</span>
+            {/if}
           </span>
+          {#if reportValueHint}
+            <span class="rw-report-compare-sub">{reportValueHint}</span>
+          {/if}
         </label>
       </div>
 
@@ -519,6 +595,15 @@
 
       <div class="rw-report-actions">
         <button type="button" class="btn btn-ghost btn-sm" onclick={closeReport}>Cancel</button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          disabled={reportBusy}
+          title={entitlement.pro ? 'Update your card without emailing FiHaven' : 'Pro required'}
+          onclick={onlyCorrectMyCard}
+        >
+          {entitlement.pro ? 'Only correct my card' : 'Only correct my card · Pro'}
+        </button>
         <button type="button" class="btn btn-primary btn-sm" disabled={reportBusy} onclick={submitReport}>
           {reportBusy ? 'Sending…' : 'Send report'}
         </button>

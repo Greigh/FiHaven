@@ -41,6 +41,17 @@ public enum Payoff {
         var promoEnd: Date?
         var paidOffMonth: Int?
         var interestPaid: Double
+        var housing: Bool
+    }
+
+    /// Mortgage / home-equity style loans — PMI & escrow make sims approximate.
+    public static func isHousingLoan(_ c: Card) -> Bool {
+        guard (c.type ?? "card") == "loan" else { return false }
+        let hay = [c.name, c.issuer ?? ""]
+            .joined(separator: " ")
+            .lowercased()
+        let patterns = ["mortgage", "home equity", "heloc", "housing", "home loan", "refinance", "refi"]
+        return patterns.contains { hay.contains($0) }
     }
 
     public static func runPayoffSim(
@@ -48,18 +59,20 @@ public enum Payoff {
         strategy: PayoffStrategy,
         extra: Double,
         tz: TimeZone,
-        now: Date = Date()
+        now: Date = Date(),
+        includeMortgage: Bool = false
     ) -> PayoffResult? {
         // Prefer live Current Balance when set (matches web/Android payoff.js).
         func debtOf(_ c: Card) -> Double {
             if let cur = c.currentBalance, cur > 0 { return cur }
             return c.balance
         }
-        let debtCards = cards.filter { debtOf($0) > 0 }
+        let debtCards = cards.filter { debtOf($0) > 0 && (includeMortgage || !isHousingLoan($0)) }
         guard !debtCards.isEmpty else { return nil }
 
         var sim = debtCards.map { c in
             let starting = debtOf(c)
+            let isLoan = (c.type ?? "card") == "loan"
             return Sim(
                 id: c.id,
                 name: c.name,
@@ -68,10 +81,11 @@ public enum Payoff {
                 minPayment: max(c.minPayment, 1),
                 apr: c.regularAPR,
                 monthlyRate: c.regularAPR / 100 / 12,
-                hasPromo: c.hasPromo,
-                promoEnd: DateLogic.parseDate(c.promoEndDate, tz: tz),
+                hasPromo: isLoan ? false : c.hasPromo,
+                promoEnd: isLoan ? nil : DateLogic.parseDate(c.promoEndDate, tz: tz),
                 paidOffMonth: nil,
-                interestPaid: 0
+                interestPaid: 0,
+                housing: isHousingLoan(c)
             )
         }
 

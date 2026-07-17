@@ -22,22 +22,25 @@ struct MainTabView: View {
     private var moreItems: [TabItem] { Array(resolved.bottom.dropFirst(bottomCount)) + resolved.overflow }
 
     var body: some View {
-        TabView(selection: $selection) {
-            ForEach(shownBottom) { item in
-                NavigationStack { item.destination }
-                    .tag(item.rawValue)
-                    .tabItem { Label(item.title, systemImage: item.symbol) }
+        VStack(spacing: 0) {
+            SyncOfflineBanner()
+            TabView(selection: $selection) {
+                ForEach(shownBottom) { item in
+                    NavigationStack { item.destination }
+                        .tag(item.rawValue)
+                        .tabItem { Label(item.title, systemImage: item.symbol) }
+                }
+                if !billing.isPro {
+                    NavigationStack { ProView() }
+                        .tag("getpro")
+                        .tabItem { Label("Get Pro", systemImage: "crown.fill") }
+                }
+                MoreView(user: user, overflow: moreItems)
+                    .tag("more")
+                    .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
             }
-            if !billing.isPro {
-                NavigationStack { ProView() }
-                    .tag("getpro")
-                    .tabItem { Label("Get Pro", systemImage: "crown.fill") }
-            }
-            MoreView(user: user, overflow: moreItems)
-                .tag("more")
-                .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
+            .tint(Theme.accent)
         }
-        .tint(Theme.accent)
         .onAppear {
             #if DEBUG
             if ProcessInfo.processInfo.environment["FH_SCREEN"] == "paywall" {

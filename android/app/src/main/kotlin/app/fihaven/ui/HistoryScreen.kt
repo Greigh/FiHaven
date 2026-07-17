@@ -2,6 +2,7 @@ package app.fihaven.ui
 
 import app.fihaven.ui.theme.PlexMono
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -66,7 +67,7 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("History", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { IncomeHistoryCard(data.settings, vm.zone()) }
+            item { IncomeHistoryCard(data.settings, vm.zone(), vm.currentUser?.createdAt) }
             if (realPayments.isEmpty()) {
                 item { CtCard { Text("No payments recorded yet.", color = Ct.colors.muted) } }
             }
@@ -97,12 +98,27 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
     editing?.let { EditPaymentDialog(it, vm) { editing = null } }
 }
 
-/** Income history: last 12 months (base recurring + that month's adjustments)
- *  plus the average including bonuses. Mirrors the web IncomeHistory panel. */
+/** Income history: membership-bounded months (default ≤18) with a range control. */
 @Composable
-private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId) {
-    val months = remember(settings) {
-        (0 until 12).map { i ->
+private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId, createdAt: Double?) {
+    var range by remember { mutableStateOf("18") }
+    val membership = remember(createdAt, zone) { monthsSinceJoin(createdAt, zone) }
+    val options = remember(membership) {
+        buildList {
+            if (membership >= 6) add("6")
+            if (membership >= 12) add("12")
+            if (membership >= 18) add("18")
+            add("all")
+        }
+    }
+    val window = when (range) {
+        "6" -> minOf(6, membership)
+        "12" -> minOf(12, membership)
+        "18" -> minOf(18, membership)
+        else -> membership
+    }.coerceAtLeast(1)
+    val months = remember(settings, window, zone) {
+        (0 until window).map { i ->
             val mk = DateLogic.monthKey(LocalDate.now(zone).minusMonths(i.toLong()))
             val total = Income.monthlyIncome(settings, mk)
             val bonus = Income.adjustmentsFor(settings, mk).filter { it.amount > 0 }.sumOf { it.amount }
@@ -113,10 +129,35 @@ private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId) {
     if (base <= 0.0 && months.none { it.second > 0.0 }) return
     val avg = if (months.isEmpty()) 0.0 else months.sumOf { it.second } / months.size
     val maxTotal = (months.maxOfOrNull { it.second } ?: 1.0).coerceAtLeast(1.0)
+    val totalBonus = months.sumOf { it.third }
 
     Column {
-        Text("Income history", color = Ct.colors.muted, fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("Income history", color = Ct.colors.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (options.size > 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    options.forEach { opt ->
+                        val label = if (opt == "all") "All" else opt
+                        val selected = range == opt || (opt == "all" && range == "all")
+                        Text(
+                            label,
+                            color = if (range == opt) Ct.colors.accent else Ct.colors.muted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (range == opt) Ct.colors.accentBg else Ct.colors.surface2)
+                                .clickable { range = opt }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+            }
+        }
         CtCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -124,35 +165,62 @@ private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId) {
                         Text("Avg / mo (incl. bonuses)", color = Ct.colors.muted, fontSize = 11.sp)
                         Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                        Text("last ${months.size} mo", color = Ct.colors.muted, fontSize = 11.sp)
                     }
                     Column {
                         Text("Recurring / mo", color = Ct.colors.muted, fontSize = 11.sp)
                         Text(Money.fmt(base), color = Ct.colors.text, fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
                     }
+                    if (totalBonus > 0) {
+                        Column {
+                            Text("Bonuses", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(Money.fmt(totalBonus), color = Ct.colors.green, fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                        }
+                    }
                 }
-                months.forEach { (mk, total, _) ->
+                months.forEach { (mk, total, bonus) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(DateLogic.monthKeyLabel(mk), color = Ct.colors.muted, fontSize = 11.sp,
                             modifier = Modifier.width(64.dp))
                         Box(
-                            Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(4.dp))
+                            Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(999.dp))
                                 .background(Ct.colors.surface2),
                         ) {
                             Box(
-                                Modifier.fillMaxWidth((total / maxTotal).toFloat()).height(14.dp)
-                                    .clip(RoundedCornerShape(4.dp)).background(Ct.colors.accent),
+                                Modifier.fillMaxWidth((total / maxTotal).toFloat()).height(4.dp)
+                                    .clip(RoundedCornerShape(999.dp)).background(Ct.colors.accent.copy(alpha = 0.7f)),
                             )
                         }
                         Spacer(Modifier.width(8.dp))
                         Text(Money.fmt(total), color = Ct.colors.text, fontSize = 12.sp,
                             fontFamily = PlexMono, fontWeight = FontWeight.Medium,
                             modifier = Modifier.width(78.dp))
+                        Text(
+                            if (bonus > 0) "+${Money.fmt(bonus)}" else "",
+                            color = Ct.colors.green,
+                            fontSize = 11.sp,
+                            modifier = Modifier.width(64.dp),
+                        )
                     }
                 }
             }
         }
     }
+}
+
+private fun monthsSinceJoin(createdAt: Double?, zone: ZoneId): Int {
+    if (createdAt == null) return 18
+    val ms = if (createdAt > 1e12) createdAt else createdAt * 1000
+    val start = java.time.Instant.ofEpochMilli(ms.toLong()).atZone(zone).toLocalDate().withDayOfMonth(1)
+    var cur = LocalDate.now(zone).withDayOfMonth(1)
+    var n = 0
+    while (!cur.isBefore(start) && n < 240) {
+        n++
+        cur = cur.minusMonths(1)
+    }
+    return n.coerceAtLeast(1)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
