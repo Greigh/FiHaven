@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -389,6 +390,8 @@ private fun RewardRateReportDialog(
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val isPro = ent.pro
     val baseRate = "Base rate (everything)"
     val options = listOf(baseRate) + Rewards.CATEGORIES
     fun label(c: Card): String {
@@ -406,10 +409,14 @@ private fun RewardRateReportDialog(
     var rate by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var alsoFix by remember { mutableStateOf(true) }
+    var usePoints by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val card = cards.firstOrNull { label(it) == cardLabel } ?: cards.first()
+    val pv = Rewards.pointValue(card)
+    val usesPoints = pv > 1.0
+    LaunchedEffect(card.id) { usePoints = usesPoints }
     val shipped = if (category.isEmpty()) {
         Rewards.ShippedRate(null, null)
     } else {
@@ -417,6 +424,14 @@ private fun RewardRateReportDialog(
     }
     val ourRate = shipped.rate
     val correct = rate.trim().toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
+    val valueHint = correct?.let { v ->
+        if (usePoints || usesPoints) {
+            val cents = v * pv
+            "≈ ${trimNum(cents)}¢ per $1 (${trimNum(v)}× · ${trimNum(pv)}¢/pt)"
+        } else {
+            "≈ ${trimNum(v)}% cash back"
+        }
+    }
 
     FormDialog(
         title = "Report a wrong rate",
@@ -459,6 +474,7 @@ private fun RewardRateReportDialog(
         if (category.isNotEmpty()) {
             val shown = when {
                 shipped.preset == null -> "no match"
+                ourRate != null && usesPoints -> "${trimNum(ourRate)}×"
                 ourRate != null -> "$ourRate%"
                 else -> "none set"
             }
@@ -470,12 +486,38 @@ private fun RewardRateReportDialog(
         androidx.compose.material3.OutlinedTextField(
             rate, { rate = it },
             label = { Text("Should be") },
-            suffix = { Text("%") },
+            suffix = {
+                if (usesPoints) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "×",
+                            color = if (usePoints) Ct.colors.accent else Ct.colors.muted,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { usePoints = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                        Text(
+                            "%",
+                            color = if (!usePoints) Ct.colors.accent else Ct.colors.muted,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { usePoints = false }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                } else {
+                    Text("%")
+                }
+            },
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
             ),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            supportingText = valueHint?.let { { Text(it, color = Ct.colors.muted, fontSize = 12.sp) } },
         )
         androidx.compose.material3.OutlinedTextField(
             note, { note = it },
@@ -483,6 +525,29 @@ private fun RewardRateReportDialog(
             modifier = Modifier.fillMaxWidth(),
         )
         FilterSwitch("Also correct this rate on my card", alsoFix) { alsoFix = it }
+        TextButton(
+            onClick = {
+                if (!isPro) {
+                    message = "Pro is required to correct only your card without sending a report."
+                    return@TextButton
+                }
+                val v = correct
+                if (v == null || category.isEmpty()) {
+                    message = "Pick a card, category, and rate first."
+                    return@TextButton
+                }
+                vm.setCardRewardRate(card.id, if (category == baseRate) null else category, v)
+                onDismiss()
+            },
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text(
+                if (isPro) "Only correct my card" else "Only correct my card · Pro",
+                color = Ct.colors.accent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         message?.let { Text(it, color = Ct.colors.orange, fontSize = 12.sp) }
         Text(
             "Sends the card, category, rates, and your email address to FiHaven.",

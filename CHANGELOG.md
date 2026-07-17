@@ -13,23 +13,45 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] — 2026-07-16
+## [1.6.1] Current Pre-Release — 2026-07-16
 
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (1) |
-| **Android** | 1.6.1 (versionCode 22) |
-| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **iOS** | 1.6.1 (3) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 24) - On Closed Play Store Alpha Testing |
+| **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
+
+> If you would like access to anything in Pre-Release/Beta stage, 
+> send an email to daniel@fihaven.app
 
 ### Summary
 
 > Admin tools you can actually run a product with, a Rewards page that helps you
 > pick a card, report wrong rates against what FiHaven ships, **manual-first**
-> bank balance suggestions and subscription confirms, and a pile of store-launch
-> + security hardening.
+> bank balance suggestions and subscription confirms, a clearer debt-payoff
+> planner, and a pile of store-launch + security hardening.
 
 ### Changes
+
+**UX polish (web + native)**
+
+- Web Cards: long card titles no longer stack one character per line when action
+  buttons are wide.
+- Web app bar: primary tabs share the middle width; refreshed pill active state.
+- Admin user rows: **Last sign-in** vs **Last data sync** (not “app open”); null
+  login with activity shows “Unknown (pre-tracking)” instead of “Never logged in”.
+- iOS / Android: dismissible offline banner when cloud sync fails — changes stay
+  on this device.
+- Income history: membership-bounded months (default up to 18), 6/12/18/All range
+  control, subtler month list (not a dominant bar chart).
+- Report wrong rate: toggle **% / × points**, show cash-equivalent value; Pro
+  action **Only correct my card** (local fix without emailing FiHaven).
+- Debt payoff redesigned: hero debt-free date, Snowball vs Avalanche compare,
+  account list under the selected strategy; numeric calculator pad removed
+  (estimator + payment splitter kept).
+- Mortgages / housing loans excluded from payoff by default; optional
+  “Include mortgage (estimate only)” with PMI/escrow caveat.
 
 **Admin console**
 
@@ -39,9 +61,10 @@ Each release below uses two layers:
   reset, force logout, delete account (type email to confirm).
 - Soft account suspension blocks new logins; suspended clients see a lock state
   via `/me` without wiping open sessions until Force logout.
-- Pro source pills (App Store / Play / Web / Admin / Promo) and last-login relative
-  timestamps on each user row.
-- **Last used** — relative time from last synced app-data write (`user_data.updated_at`).
+- Pro source pills (App Store / Play / Web / Admin / Promo) and last-sign-in
+  relative timestamps on each user row.
+- **Last data sync** — relative time from last synced app-data write
+  (`user_data.updated_at`).
 - Promo-code panel: mint `free_sub` codes, list active/exhausted/expired, copy,
   deactivate.
 
@@ -134,7 +157,14 @@ Each release below uses two layers:
   `users.suspended*` + `listUsers` join `user_data.updated_at`.
 - **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids.
 - **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
-  FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients.
+  FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients;
+  report sheet supports %/× unit + Pro-only local-only correct.
+- **Payoff**: `isHousingLoan` + `includeMortgage` on web/iOS/Android engines;
+  redesigned Payoff UI (hero / compare / account list); calculator pad removed.
+- **Income history**: membership clamp + range picker (web / iOS / Android History).
+- **Chrome**: web appbar tab stretch; native `SyncOfflineBanner` / Scaffold topBar
+  on offline sync; Cards title ellipsis + container stack fix.
+- **Admin UI**: last sign-in / last data sync labels; pre-tracking null login copy.
 - **Payments**: `applyCardPaymentDelta` also decrements `currentBalance`; paid-off
   promo clear prompt (`promoPayoffPrompted`); iOS payoff sim prefers `currentBalance`.
 - **Plaid balances**: proposals → Accept writes `currentBalance` only

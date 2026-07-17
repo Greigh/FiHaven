@@ -76,7 +76,9 @@ import app.fihaven.core.model.dashboardWidgets
 import app.fihaven.core.model.landingView
 import app.fihaven.core.model.tabBar
 import app.fihaven.AppViewModel
+import app.fihaven.SyncState
 import app.fihaven.billing.BillingManager
+import androidx.compose.foundation.clickable
 import app.fihaven.core.Money
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.BudgetRules
@@ -160,8 +162,18 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
     }
 
     CompositionLocalProvider(LocalBilling provides billing) {
+        val sync by vm.syncState.collectAsStateWithLifecycle()
+        var offlineDismissed by remember { mutableStateOf(false) }
+        LaunchedEffect(sync) {
+            if (sync != SyncState.Offline) offlineDismissed = false
+        }
         Scaffold(
             containerColor = Ct.colors.bg,
+            topBar = {
+                if (sync == SyncState.Offline && !offlineDismissed) {
+                    SyncOfflineBanner(onDismiss = { offlineDismissed = true })
+                }
+            },
             bottomBar = {
                 NavigationBar(containerColor = Ct.colors.surface) {
                     shownBottom.forEach { t ->
@@ -184,6 +196,37 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SyncOfflineBanner(onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Ct.colors.surface)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("☁", fontSize = 14.sp)
+        Text(
+            "You're offline — changes save on this device, not the cloud.",
+            color = Ct.colors.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "Dismiss",
+            color = Ct.colors.muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onDismiss)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 

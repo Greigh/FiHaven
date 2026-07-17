@@ -96,16 +96,16 @@ nav {
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   overflow: visible;
   /* Centered across every page, matching the home page's layout. */
   width: 100%;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 9px 22px;
-  height: 60px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  padding: 10px 22px;
+  height: 64px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
   backdrop-filter: saturate(170%) blur(20px);
   -webkit-backdrop-filter: saturate(170%) blur(20px);
   transition: background .25s, border-color .25s;
@@ -176,7 +176,7 @@ nav {
 .appbar-nav-scroll {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -189,20 +189,24 @@ nav {
 .appbar-tab {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 11px;
-  border-radius: 9px;
-  border: none;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
   background: none;
   cursor: pointer;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--muted) 92%, var(--text));
   font-family: 'Manrope', sans-serif;
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition: background .15s, color .15s;
-  flex-shrink: 0;
+  transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+  /* Share leftover middle space so tabs aren't clustered left. */
+  flex: 1 1 0;
+  min-width: max-content;
+  scroll-snap-align: start;
 }
 .appbar-tab svg {
   width: 16px;
@@ -212,8 +216,18 @@ nav {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
-.appbar-tab:hover { background: var(--surface2); color: var(--text); }
-.appbar-tab.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+.appbar-tab:hover {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+.appbar-tab.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+}
 .appbar-tab:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
   outline-offset: 2px;
@@ -225,7 +239,10 @@ nav {
   flex-shrink: 0;
 }
 .appbar-more-trigger {
-  gap: 6px;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding-inline: 12px 10px;
+  min-width: 0;
 }
 .appbar-more-chevron {
   display: inline-flex;
@@ -269,6 +286,7 @@ nav {
   width: 100%;
   justify-content: flex-start;
   border-radius: 9px;
+  flex: none;
 }
 
 .appbar-right {
@@ -2095,12 +2113,18 @@ main {
 }
 
 /* When a card sits in a narrow column, stack its header so the identity
-   and action buttons don't cram into one cramped row. */
-@container (max-width: 520px) {
-  .card-row-head {
+   and action buttons don't cram into one cramped row. Wider threshold for
+   bill/card heads with many action buttons so the name never collapses to
+   ~1ch (which + overflow-wrap:break-word stacked glyphs vertically). */
+@container (max-width: 640px) {
+  .card-row-head,
+  .card-row-head.is-bill-head {
     grid-template-columns: 1fr;
     align-items: start;
     gap: 12px;
+  }
+  .card-row-head.is-bill-head .card-row-actions {
+    justify-content: flex-start;
   }
 }
 .card-row:hover {
@@ -2147,17 +2171,21 @@ main {
   margin-top: 2px;
 }
 .card-row-naming {
-  min-width: 0;
+  /* Keep enough room for a readable name even when actions are wide;
+     without this, minmax(0,1fr) can shrink to ~1ch and break-word
+     stacks one character per line. */
+  min-width: 10rem;
   flex: 1;
+  overflow: hidden;
 }
 .card-row-name {
   font-family: 'Manrope', sans-serif;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -.03em;
-  /* Prefer wrapping over early ellipsis — half-width bill cards
-     were clipping names like "Peacock Premium" to "Peacock P…". */
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.25;
 }
 .card-row-business {
