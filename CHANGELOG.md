@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (3) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 24) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (4) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 25) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
