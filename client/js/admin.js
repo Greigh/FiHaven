@@ -105,11 +105,17 @@ function fmtRelative(ms, neverLabel) {
   } catch (_) { return fmtWhen(ms); }
 }
 
-function fmtLastLogin(ms) {
-  return fmtRelative(ms, 'Never logged in');
+function fmtLastLogin(ms, opts) {
+  // last_login_at is only set on auth completion. Long-lived sessions and
+  // accounts created before tracking can leave it NULL even when the user
+  // has synced data — don't claim "Never logged in" in that case.
+  if (ms) return fmtRelative(ms, 'Never signed in');
+  if (opts && (opts.lastUsedAt || opts.createdAt)) return 'Unknown (pre-tracking)';
+  return 'Never signed in';
 }
 
 function fmtLastUsed(ms) {
+  // user_data.updated_at — last data sync write, not last app open.
   return fmtRelative(ms, 'No sync yet');
 }
 
@@ -395,8 +401,10 @@ function render(users, search) {
       pills += pill('Free', 'free');
     }
 
-    var meta = '<div class="admin-user-login">Last login · ' + esc(fmtLastLogin(u.lastLoginAt)) + '</div>' +
-      '<div class="admin-user-login">Last used · ' + esc(fmtLastUsed(u.lastUsedAt)) + '</div>';
+    // Last sign-in = users.last_login_at (auth only). Last data sync =
+    // user_data.updated_at (any PUT /api/data, Plaid, scheduler) — not app open.
+    var meta = '<div class="admin-user-login">Last sign-in · ' + esc(fmtLastLogin(u.lastLoginAt, u)) + '</div>' +
+      '<div class="admin-user-login">Last data sync · ' + esc(fmtLastUsed(u.lastUsedAt)) + '</div>';
     if (u.suspendedReason) {
       meta += '<div class="admin-user-reason">' + esc(u.suspendedReason) + '</div>';
     }

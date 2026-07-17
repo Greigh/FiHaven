@@ -42,7 +42,16 @@ object Payoff {
         val promoEnd: LocalDate?,
         var paidOffMonth: Int?,
         var interestPaid: Double,
+        val housing: Boolean,
     )
+
+    /** Mortgage / home-equity loans — PMI & escrow make sims approximate. */
+    fun isHousingLoan(c: Card): Boolean {
+        if (c.type != "loan") return false
+        val hay = listOfNotNull(c.name, c.issuer).joinToString(" ").lowercase()
+        return listOf("mortgage", "home equity", "heloc", "housing", "home loan", "refinance", "refi")
+            .any { hay.contains(it) }
+    }
 
     fun runPayoffSim(
         cards: List<Card>,
@@ -50,8 +59,11 @@ object Payoff {
         extra: Double,
         zone: ZoneId,
         now: Instant = Instant.now(),
+        includeMortgage: Boolean = false,
     ): PayoffResult? {
-        val debtCards = cards.filter { (it.currentBalance ?: it.balance) > 0 }
+        val debtCards = cards.filter {
+            (it.currentBalance ?: it.balance) > 0 && (includeMortgage || !isHousingLoan(it))
+        }
         if (debtCards.isEmpty()) return null
 
         val sim = debtCards.map { c ->
@@ -69,6 +81,7 @@ object Payoff {
                 promoEnd = if (isLoan) null else DateLogic.parseDate(c.promoEndDate),
                 paidOffMonth = null,
                 interestPaid = 0.0,
+                housing = isHousingLoan(c),
             )
         }.toMutableList()
 

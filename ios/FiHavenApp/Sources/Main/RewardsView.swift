@@ -6,6 +6,7 @@ import FiHavenCore
 /// explained). Ranking logic lives in FiHavenCore's Rewards.
 struct RewardsView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
     @State private var category = "Dining"
     @State private var merchantQuery = ""
     @State private var showRateReport = false
@@ -56,6 +57,7 @@ struct RewardsView: View {
                 preferredCardId: ranking.eligible.first?.card.id
             )
             .environmentObject(store)
+            .environmentObject(billing)
         }
     }
 
@@ -532,6 +534,7 @@ struct RewardsView: View {
 /// Report a wrong preset rate to FiHaven (and optionally fix the local card).
 private struct RewardRateReportSheet: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var billing: StoreManager
     @Environment(\.dismiss) private var dismiss
 
     let cards: [Card]
@@ -546,10 +549,13 @@ private struct RewardRateReportSheet: View {
     @State private var rate = ""
     @State private var note = ""
     @State private var alsoFix = true
+    @State private var usePoints = false
     @State private var busy = false
     @State private var message: String?
 
     private var card: Card? { cards.first { $0.id == cardId } }
+    private var pv: Double { card.map { Rewards.pointValue($0) } ?? 1 }
+    private var usesPoints: Bool { pv > 1 }
 
     private var shipped: Rewards.ShippedRate {
         guard let card, !category.isEmpty else {
@@ -564,6 +570,15 @@ private struct RewardRateReportSheet: View {
         guard let v = Double(rate.trimmingCharacters(in: .whitespaces)),
               v >= 0, v <= 100 else { return nil }
         return v
+    }
+
+    private var valueHint: String? {
+        guard let v = correctRate else { return nil }
+        if usePoints || usesPoints {
+            let cents = v * pv
+            return String(format: "≈ %.2g¢ per $1 (%.2g× · %.2g¢/pt)", cents, v, pv)
+        }
+        return String(format: "≈ %.2g%% cash back", v)
     }
 
     private var isValid: Bool { card != nil && !category.isEmpty && correctRate != nil }
@@ -601,10 +616,34 @@ private struct RewardRateReportSheet: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 70)
-                        Text("%").foregroundStyle(Theme.muted)
+                        if usesPoints {
+                            Picker("Unit", selection: $usePoints) {
+                                Text("×").tag(true)
+                                Text("%").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 90)
+                        } else {
+                            Text("%").foregroundStyle(Theme.muted)
+                        }
+                    }
+                    if let valueHint {
+                        Text(valueHint).font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
                     TextField("Note (optional)", text: $note, axis: .vertical)
                     Toggle("Also correct this rate on my card", isOn: $alsoFix)
+                    Button {
+                        onlyCorrectLocal()
+                    } label: {
+                        HStack {
+                            Text(billing.isPro ? "Only correct my card" : "Only correct my card · Pro")
+                            Spacer()
+                            if !billing.isPro {
+                                Image(systemName: "lock.fill").font(.caption).foregroundStyle(Theme.muted)
+                            }
+                        }
+                    }
+                    .disabled(busy)
                 }
 
                 if let message {
@@ -631,6 +670,10 @@ private struct RewardRateReportSheet: View {
             .onAppear {
                 cardId = preferredCardId ?? cards.first?.id ?? ""
                 if categories.contains(preferredCategory) { category = preferredCategory }
+                usePoints = usesPoints
+            }
+            .onChange(of: cardId) { _, _ in
+                usePoints = usesPoints
             }
         }
     }
@@ -638,8 +681,36 @@ private struct RewardRateReportSheet: View {
     private var shownLabel: String {
         if category.isEmpty { return "—" }
         if shipped.preset == nil { return "no match" }
-        if let shownRate { return "\(shownRate)%" }
+        if let shownRate {
+            return usesPoints ? "\(trimNum(shownRate))×" : "\(shownRate)%"
+        }
         return "none set"
+    }
+
+    private func trimNum(_ v: Double) -> String {
+        let s = String(format: "%.2f", v)
+        return s.replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
+    }
+
+    private func onlyCorrectLocal() {
+        guard billing.isPro else {
+            message = "Pro is required to correct only your card without sending a report."
+            return
+        }
+        guard let card, let correct = correctRate, !category.isEmpty else {
+            message = "Pick a card, category, and rate first."
+            return
+        }
+        store.setCardRewardRate(
+            cardId: card.id,
+            category: category == Self.baseRate ? nil : category,
+            rate: correct
+        )
+        message = "Updated on your card only — nothing sent to FiHaven."
+        Task {
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            dismiss()
+        }
     }
 
     private func submit() async {
