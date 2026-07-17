@@ -258,6 +258,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _authError.value = null
     }
 
+    /** Surface a client-side auth failure (e.g. Google Credential Manager). */
+    fun reportAuthError(message: String) {
+        _authError.value = message
+    }
+
+    fun clearAuthError() {
+        _authError.value = null
+    }
+
     private fun bootstrap() = viewModelScope.launch {
         if (tokens.get() != null) {
             try {

@@ -96,11 +96,15 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
 
 - **Google (built — Credential Manager):** wired in `app/build.gradle.kts`
   (`androidx.credentials*` + `googleid` deps, and `BuildConfig.GOOGLE_WEB_CLIENT_ID`).
-  The button in `AuthScreen` runs `GetGoogleIdOption(serverClientId = WEB_CLIENT_ID)`
-  → `vm.oauthSignIn("google", idToken)`. To make it work you must create the
-  **Android OAuth client** in Google Cloud (package `app.fihaven` + your signing
-  SHA-1) so Google authorizes the app — its id isn't referenced in code. For a
-  Play release, also add the Play App Signing SHA-1 to that client.
+  The auth button tries `GetGoogleIdOption` first (returning accounts), then falls
+  back to **`GetSignInWithGoogleOption`** — Google’s recommended path for a
+  labeled “Continue with Google” control. Failures surface on the auth screen
+  (cancellation stays silent). Flow ends in `vm.oauthSignIn("google", idToken)`.
+  **Required in Google Cloud:** create an **Android** OAuth client with package
+  `app.fihaven` and the signing SHA-1 for every keystore you use (debug for local
+  installs, upload/release key, and Play App Signing for Play builds). Its client
+  id is never referenced in code; without the matching SHA-1, Credential Manager
+  fails with a developer error and used to look like a dead tap.
 - **Apple on Android (built — Custom Tab web flow):** the "Continue with Apple"
   button (`AppleWebSignIn`) opens Apple's authorize page in a Custom Tab using
   `BuildConfig.APPLE_SERVICES_ID` (`app.fihaven.web`) and redirect
