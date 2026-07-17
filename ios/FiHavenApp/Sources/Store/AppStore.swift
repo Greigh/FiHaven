@@ -10,7 +10,7 @@ enum SyncState: Equatable {
         case .idle: return ""
         case .saving: return "Saving…"
         case .saved: return "All changes saved"
-        case .offline: return "Offline — changes pending"
+        case .offline: return "Offline — saved on this device"
         }
     }
 }

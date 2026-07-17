@@ -45,6 +45,8 @@ function serializeUser(u) {
     createdAt: u.created_at,
     lastLoginAt: u.last_login_at || null,
     // Last time their synced app data changed (bills/cards/settings save).
+    // Not the same as last app open — long-lived sessions can sync without
+    // bumping last_login_at.
     lastUsedAt: u.data_updated_at || null,
     pro: ent.pro,
     proSource: ent.source,

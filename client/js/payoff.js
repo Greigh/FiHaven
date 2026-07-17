@@ -9,15 +9,23 @@ import PayoffView from '../svelte/PayoffView.svelte';
 import { cards } from './storage.svelte.js';
 import { setRenderer } from './utils.js';
 
+/** Mortgage / home-equity loans — PMI & escrow make sims approximate. */
+export function isHousingLoan(c) {
+  if ((c.type || 'card') !== 'loan') return false;
+  const hay = [c.name, c.issuer, c.provider, c.category]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return /mortgage|home\s*equity|heloc|housing|home\s*loan|refinance|refi\b/.test(hay);
+}
+
 /**
  * Month-by-month simulation for all cards with a balance.
  *
  * @param {'none'|'snowball'|'avalanche'} strategy
- *   none      — pay minimums only, no extra, no sorting
- *   snowball  — extra applied to smallest balance first
- *   avalanche — extra applied to highest APR first
- *
  * @param {number} userExtra — extra dollars/month above all minimums
+ * @param {{ includeMortgage?: boolean }} [opts]
+ *   includeMortgage — when false (default), housing loans are excluded
  *
  * @returns {{
  *   months:        number,
@@ -26,10 +34,12 @@ import { setRenderer } from './utils.js';
  *   payoffDate:    Date,
  * } | null}
  */
-export function runPayoffSim(strategy, userExtra) {
+export function runPayoffSim(strategy, userExtra, opts = {}) {
+  const includeMortgage = !!opts.includeMortgage;
   const now       = new Date();
   const debtCards = cards.filter((c) => {
     if (c.archived) return false;
+    if (!includeMortgage && isHousingLoan(c)) return false;
     const bal = c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance);
     return bal > 0;
   });
@@ -41,6 +51,7 @@ export function runPayoffSim(strategy, userExtra) {
       id:           c.id,
       name:         c.name,
       type:         c.type || 'card',
+      housing:      isHousingLoan(c),
       balance:      bal || 0,
       origBalance:  bal || 0,
       minPayment:   Math.max(parseFloat(c.minPayment) || 0, 1),

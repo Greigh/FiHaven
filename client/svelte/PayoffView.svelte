@@ -1,42 +1,57 @@
 <!--
-  PayoffView.svelte — Debt Payoff calculator. Owns the extra
-  payment input and the three strategy comparisons. The
-  simulation engine itself stays in client/js/payoff.js as a
-  pure function (runPayoffSim).
+  PayoffView.svelte — Debt payoff planner.
+  Hero + strategy compare + account list under the selected strategy.
+  Mortgages excluded by default (PMI/escrow); opt-in estimate available.
+  Simulation engine: client/js/payoff.js (runPayoffSim).
 -->
 <script>
   import { cards } from '../js/storage.svelte.js';
   import { fmt } from '../js/utils.js';
-  import { runPayoffSim } from '../js/payoff.js';
+  import { runPayoffSim, isHousingLoan } from '../js/payoff.js';
 
   let extra = $state(0);
+  let includeMortgage = $state(false);
+  /** @type {'snowball'|'avalanche'} */
+  let selected = $state('avalanche');
+  let showCompare = $state(false);
 
-  let debtCards = $derived(cards.filter((c) => (c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance)) > 0));
-  let totalDebt = $derived(debtCards.reduce((s, c) => s + (c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance || 0)), 0));
-  let totalMin  = $derived(debtCards.reduce((s, c) => s + parseFloat(c.minPayment || 0), 0));
+  function balOf(c) {
+    return (c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance)) || 0;
+  }
 
-  // The sim engine reads from the live `cards` array; it filters by
-  // balance > 0 itself, so we just pass strategy + extra.
-  let simMin   = $derived.by(() => (debtCards.length ? runPayoffSim('none',      0)     : null));
-  let simSnow  = $derived.by(() => (debtCards.length ? runPayoffSim('snowball',  extra) : null));
-  let simAval  = $derived.by(() => (debtCards.length ? runPayoffSim('avalanche', extra) : null));
+  let housingLoans = $derived(cards.filter((c) => !c.archived && isHousingLoan(c) && balOf(c) > 0));
+  let debtCards = $derived(
+    cards.filter((c) => {
+      if (c.archived) return false;
+      if (!includeMortgage && isHousingLoan(c)) return false;
+      return balOf(c) > 0;
+    }),
+  );
+  let totalDebt = $derived(debtCards.reduce((s, c) => s + balOf(c), 0));
+  let totalMin = $derived(debtCards.reduce((s, c) => s + parseFloat(c.minPayment || 0), 0));
+
+  let simOpts = $derived({ includeMortgage });
+  let simMin = $derived.by(() => (debtCards.length ? runPayoffSim('none', 0, simOpts) : null));
+  let simSnow = $derived.by(() => (debtCards.length ? runPayoffSim('snowball', extra, simOpts) : null));
+  let simAval = $derived.by(() => (debtCards.length ? runPayoffSim('avalanche', extra, simOpts) : null));
 
   let snowSaves = $derived(simMin && simSnow ? Math.max(0, simMin.totalInterest - simSnow.totalInterest) : 0);
   let avalSaves = $derived(simMin && simAval ? Math.max(0, simMin.totalInterest - simAval.totalInterest) : 0);
   let avalIsBest = $derived(!!(simAval && simSnow && simAval.totalInterest <= simSnow.totalInterest));
 
-  let snowMap = $derived.by(() => {
+  let bestStrategy = $derived(avalIsBest ? 'avalanche' : 'snowball');
+  let heroSim = $derived(selected === 'avalanche' ? simAval : simSnow);
+  let heroSaves = $derived(selected === 'avalanche' ? avalSaves : snowSaves);
+
+  let selectedMap = $derived.by(() => {
     const m = {};
-    if (simSnow) simSnow.cards.forEach((c) => (m[c.id] = c));
-    return m;
-  });
-  let avalMap = $derived.by(() => {
-    const m = {};
-    if (simAval) simAval.cards.forEach((c) => (m[c.id] = c));
+    const sim = heroSim;
+    if (sim) sim.cards.forEach((c) => (m[c.id] = c));
     return m;
   });
 
   function dateStr(sim) {
+    if (!sim) return '—';
     return sim.payoffDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   }
 
@@ -47,8 +62,8 @@
     return 'var(--text)';
   }
 
-  function payoffCell(map, id) {
-    const c = map[id];
+  function payoffCell(id) {
+    const c = selectedMap[id];
     if (!c || c.paidOffMonth === null) return null;
     const now = new Date();
     const d = new Date(now.getFullYear(), now.getMonth() + c.paidOffMonth, 1);
@@ -58,10 +73,7 @@
     };
   }
 
-  /* ════════ Calculator tools ════════ */
-  const balOf = (c) => (c.type === 'card' && c.currentBalance > 0 ? parseFloat(c.currentBalance) : parseFloat(c.balance)) || 0;
-
-  // Tool: interest + time-to-payoff for an arbitrary balance/APR/payment.
+  /* ════════ Calculator tools (estimator + splitter) ════════ */
   let iBal = $state(0);
   let iApr = $state(0);
   let iPay = $state(0);
@@ -76,170 +88,210 @@
     return { months: m, interest };
   });
 
-  // Tool: split an available amount across debts — minimums first, then the
-  // remainder to the highest-APR balance (avalanche).
   let splitAvail = $state(0);
   let splitPlan = $derived.by(() => {
-    const avail = parseFloat(splitAvail) || 0;
     const list = cards
-      .filter((c) => c.type === 'card' || c.type === 'loan')
-      .map((c) => ({ id: c.id, name: c.name, apr: parseFloat(c.regularAPR) || 0, min: parseFloat(c.minPayment) || 0, bal: balOf(c), pay: 0 }))
+      .filter((c) => !c.archived && ((c.type || 'card') === 'card' || c.type === 'loan'))
+      .filter((c) => includeMortgage || !isHousingLoan(c))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        apr: parseFloat(c.regularAPR) || 0,
+        min: parseFloat(c.minPayment) || 0,
+        bal: balOf(c),
+        pay: 0,
+      }))
       .filter((c) => c.bal > 0)
       .sort((a, b) => b.apr - a.apr);
-    let remaining = avail;
+    let remaining = parseFloat(splitAvail) || 0;
     for (const c of list) { const m = Math.min(c.min, c.bal, remaining); c.pay += m; remaining -= m; }
-    for (const c of list) { if (remaining <= 0.005) break; const extra = Math.min(c.bal - c.pay, remaining); c.pay += extra; remaining -= extra; }
+    for (const c of list) { if (remaining <= 0.005) break; const extraAmt = Math.min(c.bal - c.pay, remaining); c.pay += extraAmt; remaining -= extraAmt; }
     return { plan: list, leftover: Math.max(0, remaining), shortfall: list.reduce((s, c) => s + Math.max(0, c.min - c.pay), 0) };
   });
 
-  // Tool: a plain calculator (whitelist-guarded, no eval of arbitrary code).
-  let calcExpr = $state('');
-  let calcResult = $state('');
-  function calcKey(k) {
-    if (k === 'C') { calcExpr = ''; calcResult = ''; return; }
-    if (k === '⌫') { calcExpr = calcExpr.slice(0, -1); return; }
-    if (k === '=') { calcResult = safeEval(calcExpr); return; }
-    calcExpr += k;
-  }
-  function safeEval(expr) {
-    if (!expr) return '';
-    if (!/^[0-9+\-*/.()%\s]*$/.test(expr)) return 'Err';
-    try {
-      // eslint-disable-next-line no-new-func
-      const v = Function('"use strict";return (' + expr.replace(/%/g, '/100') + ')')();
-      return Number.isFinite(v) ? String(Math.round(v * 1e6) / 1e6) : 'Err';
-    } catch (e) { return 'Err'; }
-  }
+  $effect(() => {
+    if (extra > 0 && selected !== bestStrategy) {
+      // Keep user choice; only seed once when they first add extra.
+    }
+  });
 </script>
 
-<div class="card flex flex-wrap items-center justify-between gap-5 rounded-[24px] p-6 shadow-sm">
-  <div>
-    <label for="payoff-extra" style="display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">
-      Extra Monthly Payment
-      <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(above all minimums)</span>
+{#if housingLoans.length}
+  <div class="card payoff-mortgage-bar">
+    <label class="payoff-mortgage-toggle">
+      <input type="checkbox" bind:checked={includeMortgage} />
+      <span>Include mortgage (estimate only)</span>
     </label>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:18px;font-weight:700;color:var(--muted);">$</span>
+    {#if includeMortgage}
+      <p class="payoff-mortgage-caveat">
+        Mortgage payoff here ignores PMI, escrow, taxes, and insurance. Treat dates as approximate.
+      </p>
+    {:else}
+      <p class="payoff-mortgage-caveat">
+        {housingLoans.length} housing loan{housingLoans.length === 1 ? '' : 's'} hidden — enable to include an estimate.
+      </p>
+    {/if}
+  </div>
+{/if}
+
+<div class="card payoff-extra-card">
+  <div>
+    <label for="payoff-extra" class="payoff-extra-label">
+      Extra monthly payment
+      <span class="payoff-extra-hint">(above all minimums)</span>
+    </label>
+    <div class="payoff-extra-row">
+      <span class="payoff-extra-dollar">$</span>
       <input
         type="number" id="payoff-extra" min="0" step="10"
         class="income-input"
         value={extra}
-        oninput={(e) => extra = parseFloat(e.currentTarget.value) || 0}
+        oninput={(e) => {
+          extra = parseFloat(e.currentTarget.value) || 0;
+          if (extra > 0) selected = bestStrategy;
+        }}
       />
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:5px;">
-      Total minimums/payments: {fmt(totalMin)}/mo across {debtCards.length} account{debtCards.length !== 1 ? 's' : ''}
-      {#if extra > 0} · Total payment: {fmt(totalMin + extra)}/mo{/if}
+    <div class="payoff-extra-meta">
+      Minimums: {fmt(totalMin)}/mo · {debtCards.length} account{debtCards.length !== 1 ? 's' : ''}
+      {#if extra > 0} · Total: {fmt(totalMin + extra)}/mo{/if}
     </div>
   </div>
-  <div style="text-align:right;">
-    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Total Outstanding Debt</div>
-    <div style="font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.05em;color:var(--red);">{fmt(totalDebt)}</div>
+  <div class="payoff-debt-total">
+    <div class="payoff-extra-label">Debt in this plan</div>
+    <div class="payoff-debt-amt">{fmt(totalDebt)}</div>
   </div>
 </div>
 
 {#if debtCards.length === 0}
   <div class="empty">
     <div class="empty-icon">🎉</div>
-    <h3>No debt to calculate!</h3>
-    <p>All your card and loan balances are $0. Add cards or loans with balances to use this calculator.</p>
+    <h3>No debt to plan</h3>
+    <p>Add card or loan balances to see a payoff plan{housingLoans.length && !includeMortgage ? ', or include your mortgage above' : ''}.</p>
   </div>
-{:else}
-  <!-- Strategy comparison -->
+{:else if heroSim}
+  <!-- Hero -->
+  <div class="card payoff-hero">
+    <div class="payoff-hero-eyebrow">
+      {selected === 'avalanche' ? 'Avalanche' : 'Snowball'} plan
+      {#if selected === bestStrategy && extra > 0}<span class="badge badge-green">Recommended</span>{/if}
+    </div>
+    <div class="payoff-hero-title">Debt-free by {dateStr(heroSim)}</div>
+    <div class="payoff-hero-sub">
+      {heroSim.months} month{heroSim.months === 1 ? '' : 's'}
+      · {fmt(heroSim.totalInterest)} interest
+      {#if heroSaves > 0 && extra > 0}
+        · save {fmt(heroSaves)} vs minimums only
+      {/if}
+    </div>
+    <div class="payoff-hero-pick" role="group" aria-label="Strategy">
+      <button type="button" class="payoff-hero-chip" class:active={selected === 'snowball'}
+        onclick={() => selected = 'snowball'}>Snowball</button>
+      <button type="button" class="payoff-hero-chip" class:active={selected === 'avalanche'}
+        onclick={() => selected = 'avalanche'}>Avalanche</button>
+    </div>
+  </div>
+
+  <!-- Strategy compare -->
   <div class="payoff-strat-grid">
     {#each [
-      { name: 'Minimums Only', icon: '⚠️', subtitle: 'No extra payment',         sim: simMin,  saves: 0,         isBest: false },
-      { name: 'Snowball',      icon: '❄️', subtitle: 'Smallest balance first',   sim: simSnow, saves: snowSaves, isBest: !avalIsBest },
-      { name: 'Avalanche',     icon: '🔥', subtitle: 'Highest APR first',        sim: simAval, saves: avalSaves, isBest: avalIsBest  },
-    ] as s (s.name)}
+      { key: 'snowball', name: 'Snowball', subtitle: 'Smallest balance first', sim: simSnow, saves: snowSaves, isBest: !avalIsBest },
+      { key: 'avalanche', name: 'Avalanche', subtitle: 'Highest APR first', sim: simAval, saves: avalSaves, isBest: avalIsBest },
+    ] as s (s.key)}
       {@const highlight = s.isBest && extra > 0}
-      <div class="card payoff-strat-card" class:is-best={highlight}>
+      <button
+        type="button"
+        class="card payoff-strat-card"
+        class:is-best={highlight}
+        class:is-selected={selected === s.key}
+        onclick={() => selected = s.key}
+      >
         {#if highlight}
-          <span class="badge badge-green payoff-strat-flag">★ Best Strategy</span>
+          <span class="badge badge-green payoff-strat-flag">Best for you</span>
         {/if}
-        <div class="payoff-strat-head">
-          <span class="payoff-strat-icon">{s.icon}</span>
-          <div>
-            <div class="payoff-strat-name">{s.name}</div>
-            <div class="payoff-strat-sub">{s.subtitle}</div>
-          </div>
-        </div>
+        <div class="payoff-strat-name">{s.name}</div>
+        <div class="payoff-strat-sub">{s.subtitle}</div>
         <div class="payoff-stat-row">
+          <div>
+            <div class="plabel">Debt-free</div>
+            <div class="payoff-stat-date">{dateStr(s.sim)}</div>
+          </div>
           <div>
             <div class="plabel">Months</div>
             <div class="payoff-stat-big">{s.sim.months}</div>
           </div>
-          <div>
-            <div class="plabel">Debt-Free</div>
-            <div class="payoff-stat-date">{dateStr(s.sim)}</div>
-          </div>
         </div>
         <div class="payoff-strat-foot">
-          <div class="plabel">Total Interest Paid</div>
+          <div class="plabel">Interest</div>
           <div class="payoff-strat-interest">{fmt(s.sim.totalInterest)}</div>
           {#if s.saves > 0 && extra > 0}
-            <div class="payoff-strat-saves">saves {fmt(s.saves)} in interest</div>
+            <div class="payoff-strat-saves">saves {fmt(s.saves)} vs mins</div>
           {/if}
         </div>
-      </div>
+      </button>
     {/each}
   </div>
 
-  <!-- Per-card table -->
-  <div class="card payoff-table-card" style="overflow:hidden;">
-    <div class="payoff-table-head">Account-by-Account Payoff Timeline</div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Account</th><th>Balance</th><th>APR</th><th>Min/Monthly Pay</th>
-          <th>❄️ Snowball Payoff</th><th>🔥 Avalanche Payoff</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each debtCards as c (c.id)}
-          {@const snow = payoffCell(snowMap, c.id)}
-          {@const aval = payoffCell(avalMap, c.id)}
-          {@const bal  = c.type === 'card' && c.currentBalance > 0 ? c.currentBalance : c.balance}
-          <tr>
-            <td data-cell="name">
-              <strong>{c.name}</strong>
-              {#if c.issuer}<span style="font-weight:400;color:var(--muted);"> ({c.issuer})</span>{/if}
-              {#if c.type === 'loan'}<span class="badge badge-gray" style="margin-left:4px;">Loan</span>{/if}
-              {#if c.type !== 'loan' && c.hasPromo && c.promoEndDate}
-                <br/>
-                <span style="font-size:11px;color:var(--orange);">
-                  0% promo → {new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                </span>
-              {/if}
-            </td>
-            <td data-label="Balance" style="font-family:'Manrope',sans-serif;font-weight:800;letter-spacing:-.03em;">{fmt(bal)}</td>
-            <td data-label="APR" style="color:{aprColor(c.regularAPR)};font-weight:600;">{c.regularAPR}%</td>
-            <td data-label="Min pay" class="mono" style="font-size:12px;">{fmt(c.minPayment)}</td>
-            <td data-label="❄️ Snowball" class="mono" style="font-size:12px;">
-              {#if snow}<span>{snow.label}</span> <span style="color:var(--muted);">({snow.months}mo)</span>{:else}<span style="color:var(--muted);">—</span>{/if}
-            </td>
-            <td data-label="🔥 Avalanche" class="mono" style="font-size:12px;">
-              {#if aval}<span>{aval.label}</span> <span style="color:var(--muted);">({aval.months}mo)</span>{:else}<span style="color:var(--muted);">—</span>{/if}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+  <!-- Accounts under selected strategy -->
+  <div class="card payoff-accounts">
+    <div class="payoff-accounts-head">
+      <span>Accounts · {selected === 'avalanche' ? 'Avalanche' : 'Snowball'}</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick={() => showCompare = !showCompare}>
+        {showCompare ? 'Hide compare' : 'Compare both'}
+      </button>
+    </div>
+    <ul class="payoff-account-list">
+      {#each debtCards as c (c.id)}
+        {@const cell = payoffCell(c.id)}
+        {@const bal = balOf(c)}
+        <li class="payoff-account-row">
+          <div class="payoff-account-main">
+            <strong>{c.name}</strong>
+            {#if c.issuer}<span class="payoff-account-issuer"> · {c.issuer}</span>{/if}
+            {#if c.type === 'loan'}<span class="badge badge-gray">Loan</span>{/if}
+            {#if isHousingLoan(c)}<span class="badge badge-gray">Estimate</span>{/if}
+            {#if c.type !== 'loan' && c.hasPromo && c.promoEndDate}
+              <div class="payoff-account-promo">
+                0% promo → {new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </div>
+            {/if}
+          </div>
+          <div class="payoff-account-meta">
+            <span>{fmt(bal)}</span>
+            <span style="color:{aprColor(c.regularAPR)};">{c.regularAPR}%</span>
+            <span class="mono">{fmt(c.minPayment)}/mo</span>
+          </div>
+          <div class="payoff-account-when">
+            {#if cell}
+              {cell.label} <span class="muted">({cell.months} mo)</span>
+            {:else}
+              <span class="muted">—</span>
+            {/if}
+          </div>
+          {#if showCompare && simSnow && simAval}
+            {@const snow = simSnow.cards.find((x) => x.id === c.id)}
+            {@const aval = simAval.cards.find((x) => x.id === c.id)}
+            <div class="payoff-account-compare">
+              Snowball: {snow?.paidOffMonth != null ? snow.paidOffMonth + ' mo' : '—'}
+              · Avalanche: {aval?.paidOffMonth != null ? aval.paidOffMonth + ' mo' : '—'}
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
   </div>
 
   <div class="alert info">
     <div>
-      <strong>❄️ Snowball</strong> — Targets the smallest balance first. Paid-off cards
-      build momentum and free up cash for the next. Great for staying motivated.<br/>
-      <strong>🔥 Avalanche</strong> — Targets the highest APR first. Minimizes total
-      interest paid over time. Usually the mathematically optimal strategy.
+      <strong>Snowball</strong> — smallest balance first for quick wins.
+      <strong> Avalanche</strong> — highest APR first to minimize interest.
     </div>
   </div>
 {/if}
 
-<!-- ════════ Calculator tools ════════ -->
-<div style="margin-top:18px;display:grid;gap:14px;">
-  <div class="section-title" style="font-size:12px;">Calculator tools</div>
+<!-- ════════ Tools ════════ -->
+<div class="payoff-tools">
+  <div class="section-title" style="font-size:12px;">Tools</div>
 
   <div class="card" style="padding:16px;border-radius:20px;">
     <strong style="font-size:15px;">Interest &amp; payoff estimator</strong>
@@ -282,32 +334,96 @@
       <p style="color:var(--muted);font-size:13px;margin-top:8px;">Add a credit card or loan to use the splitter.</p>
     {/if}
   </div>
-
-  <div class="card" style="padding:16px;border-radius:20px;max-width:300px;">
-    <strong style="font-size:15px;">Calculator</strong>
-    <div class="calc-display">
-      <div class="calc-expr">{calcExpr || '0'}</div>
-      {#if calcResult !== ''}<div class="calc-res">= {calcResult}</div>{/if}
-    </div>
-    <div class="calc-pad">
-      {#each ['C','(',')','⌫','7','8','9','/','4','5','6','*','1','2','3','-','0','.','=','+'] as k}
-        <button type="button" class="calc-btn" class:op={['/','*','-','+','='].includes(k)} onclick={() => calcKey(k)}>{k}</button>
-      {/each}
-    </div>
-  </div>
 </div>
 
 <style>
+  .payoff-mortgage-bar { padding: 14px 18px; margin-bottom: 12px; }
+  .payoff-mortgage-toggle {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .payoff-mortgage-caveat { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .payoff-extra-card {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 20px; border-radius: 24px; padding: 22px 24px; margin-bottom: 14px;
+  }
+  .payoff-extra-label {
+    display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .payoff-extra-hint { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .payoff-extra-row { display: flex; align-items: center; gap: 8px; }
+  .payoff-extra-dollar { font-size: 18px; font-weight: 700; color: var(--muted); }
+  .payoff-extra-meta { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .payoff-debt-total { text-align: right; }
+  .payoff-debt-amt {
+    font-family: 'Manrope', sans-serif; font-size: 28px; font-weight: 800;
+    letter-spacing: -.05em; color: var(--red);
+  }
+  .payoff-hero {
+    padding: 22px 24px; border-radius: 24px; margin-bottom: 14px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  }
+  .payoff-hero-eyebrow {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .payoff-hero-title {
+    font-family: 'Manrope', sans-serif; font-size: 28px; font-weight: 800;
+    letter-spacing: -.04em; line-height: 1.15;
+  }
+  .payoff-hero-sub { margin-top: 6px; font-size: 14px; color: var(--muted); }
+  .payoff-hero-pick { display: flex; gap: 8px; margin-top: 14px; }
+  .payoff-hero-chip {
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+    border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  .payoff-hero-chip.active {
+    background: var(--accent-bg); color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .payoff-strat-card {
+    text-align: left; cursor: pointer; width: 100%;
+    border: 1px solid var(--border);
+  }
+  .payoff-strat-card.is-selected {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .payoff-accounts { padding: 0; overflow: hidden; margin-top: 14px; }
+  .payoff-accounts-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 18px; font-size: 13px; font-weight: 700; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .payoff-account-list { list-style: none; margin: 0; padding: 0; }
+  .payoff-account-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 120px;
+    gap: 10px 16px; align-items: center;
+    padding: 14px 18px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  .payoff-account-row:first-child { border-top: none; }
+  .payoff-account-issuer { color: var(--muted); font-weight: 400; }
+  .payoff-account-promo { font-size: 11px; color: var(--orange); margin-top: 2px; }
+  .payoff-account-meta {
+    display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; font-weight: 600;
+  }
+  .payoff-account-when { text-align: right; font-size: 13px; font-weight: 600; }
+  .payoff-account-when .muted, .muted { color: var(--muted); font-weight: 400; }
+  .payoff-account-compare {
+    grid-column: 1 / -1; font-size: 12px; color: var(--muted);
+  }
+  .payoff-tools { margin-top: 18px; display: grid; gap: 14px; }
   .calc-field { display: grid; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .calc-field input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2, var(--surface)); color: var(--text); font-size: 14px; }
   .calc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .calc-table th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 4px 6px; }
   .calc-table td { padding: 6px; border-top: 1px solid var(--border); }
-  .calc-display { background: var(--surface2, var(--surface)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 10px 0; min-height: 48px; text-align: right; }
-  .calc-expr { font-family: 'Manrope', sans-serif; font-size: 18px; font-weight: 700; word-break: break-all; }
-  .calc-res { color: var(--accent); font-size: 14px; font-weight: 700; }
-  .calc-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .calc-btn { padding: 12px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 16px; font-weight: 600; cursor: pointer; }
-  .calc-btn:hover { border-color: var(--accent); }
-  .calc-btn.op { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
+  @media (max-width: 640px) {
+    .payoff-account-row { grid-template-columns: 1fr; }
+    .payoff-account-when { text-align: left; }
+  }
 </style>
