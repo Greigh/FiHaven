@@ -66,37 +66,49 @@ public enum Rewards {
         .init(id: "amex-bcp", issuer: "American Express", name: "Blue Cash Preferred", network: "Amex", rewardBase: 1, rewardCategories: ["Groceries": 6, "Streaming": 6, "Gas": 3, "Transit": 3]),
         .init(id: "amex-bce", issuer: "American Express", name: "Blue Cash Everyday", network: "Amex", rewardBase: 1, rewardCategories: ["Groceries": 3, "Online shopping": 3, "Gas": 3]),
         // Chase
-        .init(id: "chase-csp", issuer: "Chase", name: "Sapphire Preferred", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 2, "Streaming": 3, "Online shopping": 3], pointValue: 2),
-        .init(id: "chase-csr", issuer: "Chase", name: "Sapphire Reserve", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 3], pointValue: 2),
+        .init(id: "chase-csp", issuer: "Chase", name: "Sapphire Preferred", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 2, "Streaming": 3, "Gas": 3], pointValue: 2),
+        .init(id: "chase-csr", issuer: "Chase", name: "Sapphire Reserve", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 4], pointValue: 2),
         .init(id: "chase-cfu", issuer: "Chase", name: "Freedom Unlimited", network: "Visa", rewardBase: 1.5, rewardCategories: ["Dining": 3, "Drugstores": 3, "Travel": 5], pointValue: 1.5),
         .init(id: "chase-cff", issuer: "Chase", name: "Freedom Flex", network: "Mastercard", rewardBase: 1, rewardCategories: ["Dining": 3, "Drugstores": 3, "Travel": 5], rotatingRate: 5, rotatingPool: ["Gas", "Groceries", "Transit", "Online shopping", "Streaming"], pointValue: 1.5),
         .init(id: "chase-amazon", issuer: "Chase", name: "Amazon Prime Visa", network: "Visa", rewardBase: 1, rewardCategories: ["Online shopping": 5, "Dining": 2, "Gas": 2, "Transit": 2, "Drugstores": 2]),
+        .init(id: "chase-southwest-priority", issuer: "Chase", name: "Southwest Priority", network: "Visa", rewardBase: 1, rewardCategories: ["Travel": 4, "Dining": 2, "Gas": 2], pointValue: 1.3),
         // Citi
         .init(id: "citi-double", issuer: "Citi", name: "Double Cash", network: "Mastercard", rewardBase: 2, rewardCategories: [:]),
         .init(id: "citi-strata", issuer: "Citi", name: "Strata Premier", network: "Mastercard", rewardBase: 1, rewardCategories: ["Travel": 3, "Dining": 3, "Groceries": 3, "Gas": 3], pointValue: 1.8),
+        .init(id: "citi-strata-elite", issuer: "Citi", name: "Strata Elite", network: "Mastercard", rewardBase: 1.5, rewardCategories: ["Dining": 3, "Travel": 3], pointValue: 1.8),
         .init(id: "citi-custom-cash", issuer: "Citi", name: "Custom Cash", network: "Mastercard", rewardBase: 1, rewardCategories: [:], rotatingRate: 5, rotatingPool: ["Dining", "Groceries", "Gas", "Travel", "Transit", "Streaming", "Drugstores"]),
         .init(id: "citi-costco", issuer: "Citi", name: "Costco Anywhere Visa", network: "Visa", rewardBase: 1, rewardCategories: ["Gas": 4, "Dining": 3, "Travel": 3]),
         // Capital One
         .init(id: "capone-savorone", issuer: "Capital One", name: "SavorOne", network: "Mastercard", rewardBase: 1, rewardCategories: ["Dining": 3, "Streaming": 3, "Groceries": 3]),
         .init(id: "capone-savor", issuer: "Capital One", name: "Savor", network: "Mastercard", rewardBase: 1, rewardCategories: ["Dining": 3, "Streaming": 3, "Groceries": 3]),
         .init(id: "capone-quicksilver", issuer: "Capital One", name: "Quicksilver", network: "Mastercard", rewardBase: 1.5, rewardCategories: [:]),
+        .init(id: "capone-ventureone", issuer: "Capital One", name: "VentureOne", network: "Visa", rewardBase: 1.25, rewardCategories: ["Travel": 5], pointValue: 1.85),
         .init(id: "capone-venture", issuer: "Capital One", name: "Venture", network: "Visa", rewardBase: 2, rewardCategories: ["Travel": 5], pointValue: 1.85),
         .init(id: "capone-venturex", issuer: "Capital One", name: "Venture X", network: "Visa", rewardBase: 2, rewardCategories: ["Travel": 5], pointValue: 1.85),
         // Wells Fargo
         .init(id: "wf-active-cash", issuer: "Wells Fargo", name: "Active Cash", network: "Visa", rewardBase: 2, rewardCategories: [:]),
         .init(id: "wf-autograph", issuer: "Wells Fargo", name: "Autograph", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 3, "Gas": 3, "Transit": 3, "Streaming": 3], pointValue: 1.5),
+        .init(id: "wf-autograph-journey", issuer: "Wells Fargo", name: "Autograph Journey", network: "Visa", rewardBase: 1, rewardCategories: ["Travel": 4, "Dining": 3], pointValue: 1.5),
         // Bank of America
         .init(id: "boa-customized", issuer: "Bank of America", name: "Customized Cash", network: "Visa", rewardBase: 1, rewardCategories: ["Gas": 3, "Online shopping": 3]),
         .init(id: "boa-travel", issuer: "Bank of America", name: "Travel Rewards", network: "Visa", rewardBase: 1.5, rewardCategories: [:]),
         .init(id: "boa-premium", issuer: "Bank of America", name: "Premium Rewards", network: "Visa", rewardBase: 1.5, rewardCategories: ["Travel": 2, "Dining": 2]),
         // U.S. Bank
         .init(id: "usbank-altitude-go", issuer: "U.S. Bank", name: "Altitude Go", network: "Visa", rewardBase: 1, rewardCategories: ["Dining": 4, "Streaming": 3, "Groceries": 2, "Gas": 2]),
+        .init(id: "usbank-altitude-connect", issuer: "U.S. Bank", name: "Altitude Connect", network: "Visa", rewardBase: 1, rewardCategories: ["Travel": 4, "Gas": 4, "Dining": 2, "Streaming": 2, "Groceries": 2], pointValue: 1),
         .init(id: "usbank-cashplus", issuer: "U.S. Bank", name: "Cash+", network: "Visa", rewardBase: 1, rewardCategories: [:], rotatingRate: 5, rotatingPool: ["Gas", "Streaming", "Groceries", "Online shopping", "Transit", "Drugstores"]),
         // Discover
         .init(id: "discover-it", issuer: "Discover", name: "it Cash Back", network: "Discover", rewardBase: 1, rewardCategories: [:], rotatingRate: 5, rotatingPool: ["Gas", "Groceries", "Dining", "Online shopping", "Transit", "Drugstores"]),
-        // Other
+        .init(id: "discover-it-miles", issuer: "Discover", name: "it Miles", network: "Discover", rewardBase: 1.5, rewardCategories: [:], pointValue: 1),
+        // Bilt 2.0
+        .init(id: "bilt-blue", issuer: "Bilt", name: "Blue Card", network: "Mastercard", rewardBase: 1, rewardCategories: ["Travel": 2, "Transit": 3], pointValue: 2.2),
+        .init(id: "bilt-obsidian", issuer: "Bilt", name: "Obsidian Card", network: "Mastercard", rewardBase: 1, rewardCategories: ["Travel": 2], rotatingRate: 3, rotatingPool: ["Dining", "Groceries"], pointValue: 2.2),
+        .init(id: "bilt-palladium", issuer: "Bilt", name: "Palladium Card", network: "Mastercard", rewardBase: 2, rewardCategories: ["Travel": 3, "Transit": 4], pointValue: 2.2),
+        // Co-brand / other
         .init(id: "apple-card", issuer: "Apple", name: "Apple Card", network: "Mastercard", rewardBase: 2, rewardCategories: [:]),
-        .init(id: "bilt", issuer: "Bilt", name: "Bilt Mastercard", network: "Mastercard", rewardBase: 1, rewardCategories: ["Dining": 3, "Travel": 2], pointValue: 2.2),
+        .init(id: "amex-hilton-surpass", issuer: "American Express", name: "Hilton Honors Surpass", network: "Amex", rewardBase: 1, rewardCategories: ["Travel": 12, "Dining": 6, "Groceries": 6, "Gas": 6], pointValue: 0.6),
+        .init(id: "robinhood-gold", issuer: "Robinhood", name: "Gold Card", network: "Mastercard", rewardBase: 3, rewardCategories: [:]),
+        .init(id: "fidelity", issuer: "Fidelity", name: "Rewards Visa", network: "Visa", rewardBase: 2, rewardCategories: [:]),
         .init(id: "sofi", issuer: "SoFi", name: "SoFi Credit Card", network: "Mastercard", rewardBase: 2, rewardCategories: [:]),
         .init(id: "paypal", issuer: "PayPal", name: "Cashback Mastercard", network: "Mastercard", rewardBase: 1.5, rewardCategories: ["Online shopping": 3]),
         .init(id: "target-redcard", issuer: "Target", name: "RedCard", network: "Mastercard", rewardBase: 1, rewardCategories: ["Other": 5]),
