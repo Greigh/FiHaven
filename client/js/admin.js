@@ -7,15 +7,40 @@
 var overlay = null;
 var openMenu = null;
 var grantTarget = null;
-/** Page size for the users list (persisted for the overlay session). */
-var usersPageSize = 25;
+/** Page sizes shared by Users + Rewards (persisted per tab in localStorage). */
+var PAGE_SIZES = [5, 10, 25, 50, 100];
+var PAGE_SIZE_DEFAULT_USERS = 25;
+var PAGE_SIZE_DEFAULT_REWARDS = 50;
+var LS_USERS_PAGE = 'fihaven.admin.usersPageSize';
+var LS_REWARDS_PAGE = 'fihaven.admin.rewardsPageSize';
+var LS_ADMIN_TAB = 'fihaven.admin.activeTab';
+
+function readStoredPageSize(key, fallback) {
+  try {
+    var n = parseInt(localStorage.getItem(key), 10);
+    if (PAGE_SIZES.indexOf(n) !== -1) return n;
+  } catch (_) {}
+  return fallback;
+}
+
+function writeStoredPageSize(key, n) {
+  try { localStorage.setItem(key, String(n)); } catch (_) {}
+}
+
+function pageSizeOptionsHtml(selected) {
+  return PAGE_SIZES.map(function (n) {
+    return '<option value="' + n + '"' + (n === selected ? ' selected' : '') + '>' + n + '</option>';
+  }).join('');
+}
+
+/** Page size for the users list (persisted across visits). */
+var usersPageSize = readStoredPageSize(LS_USERS_PAGE, PAGE_SIZE_DEFAULT_USERS);
 var usersPage = 1;
 /** Rewards catalog pager / filters. */
-var rewardsPageSize = 50;
+var rewardsPageSize = readStoredPageSize(LS_REWARDS_PAGE, PAGE_SIZE_DEFAULT_REWARDS);
 var rewardsPage = 1;
 var rewardsIssuer = '';
 var cardEditId = null;
-var PAGE_SIZES = [10, 25, 50, 100];
 var PLAN_LABELS = {
   trial: 'Trial',
   monthly: 'Monthly',
@@ -182,9 +207,11 @@ function build() {
         '<button type="button" class="admin-close" data-admin-close aria-label="Close">×</button>' +
       '</header>' +
       '<nav class="admin-tabs" role="tablist" aria-label="Admin sections">' +
-        '<button type="button" class="tab-btn active" role="tab" aria-selected="true" data-admin-tab="users">Users</button>' +
-        '<button type="button" class="tab-btn" role="tab" aria-selected="false" data-admin-tab="rewards">Rewards</button>' +
-        '<button type="button" class="tab-btn" role="tab" aria-selected="false" data-admin-tab="promos">Promos</button>' +
+        '<div class="admin-tabs-track">' +
+          '<button type="button" class="admin-tab active" role="tab" aria-selected="true" data-admin-tab="users">Users</button>' +
+          '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="rewards">Rewards</button>' +
+          '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="promos">Promos</button>' +
+        '</div>' +
       '</nav>' +
       '<div class="admin-body">' +
         '<section class="admin-section" data-admin-tab-panel="users" role="tabpanel">' +
@@ -197,9 +224,7 @@ function build() {
             '<label class="admin-page-size">' +
               '<span>Show</span>' +
               '<select data-admin-page-size aria-label="Accounts per page">' +
-                PAGE_SIZES.map(function (n) {
-                  return '<option value="' + n + '"' + (n === usersPageSize ? ' selected' : '') + '>' + n + '</option>';
-                }).join('') +
+                pageSizeOptionsHtml(usersPageSize) +
               '</select>' +
             '</label>' +
           '</div>' +
@@ -218,6 +243,12 @@ function build() {
               '<span>Issuer</span>' +
               '<select data-rewards-issuer aria-label="Filter by issuer">' +
                 '<option value="">All</option>' +
+              '</select>' +
+            '</label>' +
+            '<label class="admin-page-size">' +
+              '<span>Show</span>' +
+              '<select data-rewards-page-size aria-label="Cards per page">' +
+                pageSizeOptionsHtml(rewardsPageSize) +
               '</select>' +
             '</label>' +
             '<button type="button" class="btn btn-primary btn-sm" data-rewards-add>Add card</button>' +
@@ -363,8 +394,9 @@ function build() {
 
   overlay.querySelector('[data-admin-page-size]').addEventListener('change', function (e) {
     var n = parseInt(e.target.value, 10);
-    if (!PAGE_SIZES.includes(n)) return;
+    if (PAGE_SIZES.indexOf(n) === -1) return;
     usersPageSize = n;
+    writeStoredPageSize(LS_USERS_PAGE, n);
     usersPage = 1;
     reload(search.value);
   });
@@ -380,6 +412,14 @@ function build() {
   });
   overlay.querySelector('[data-rewards-issuer]').addEventListener('change', function (e) {
     rewardsIssuer = String(e.target.value || '');
+    rewardsPage = 1;
+    reloadRewards();
+  });
+  overlay.querySelector('[data-rewards-page-size]').addEventListener('change', function (e) {
+    var n = parseInt(e.target.value, 10);
+    if (PAGE_SIZES.indexOf(n) === -1) return;
+    rewardsPageSize = n;
+    writeStoredPageSize(LS_REWARDS_PAGE, n);
     rewardsPage = 1;
     reloadRewards();
   });
@@ -403,6 +443,8 @@ function build() {
 
 function showAdminTab(name) {
   if (!overlay) return;
+  if (name !== 'users' && name !== 'rewards' && name !== 'promos') name = 'users';
+  try { localStorage.setItem(LS_ADMIN_TAB, name); } catch (_) {}
   overlay.querySelectorAll('[data-admin-tab]').forEach(function (btn) {
     var on = btn.getAttribute('data-admin-tab') === name;
     btn.classList.toggle('active', on);
@@ -1107,7 +1149,13 @@ function saveCardSheet() {
 export function openAdminTools() {
   if (!overlay) build();
   overlay.style.display = 'flex';
-  showAdminTab('users');
+  usersPageSize = readStoredPageSize(LS_USERS_PAGE, PAGE_SIZE_DEFAULT_USERS);
+  rewardsPageSize = readStoredPageSize(LS_REWARDS_PAGE, PAGE_SIZE_DEFAULT_REWARDS);
+  var usersSizeEl = overlay.querySelector('[data-admin-page-size]');
+  if (usersSizeEl) usersSizeEl.value = String(usersPageSize);
+  var rewardsSizeEl = overlay.querySelector('[data-rewards-page-size]');
+  if (rewardsSizeEl) rewardsSizeEl.value = String(rewardsPageSize);
+
   var search = overlay.querySelector('[data-admin-search]');
   search.value = '';
   usersPage = 1;
@@ -1119,7 +1167,12 @@ export function openAdminTools() {
   if (rewardsSearch) rewardsSearch.value = '';
   rewardsIssuer = '';
   rewardsPage = 1;
-  reload('');
-  reloadPromos();
-  search.focus();
+
+  var startTab = 'users';
+  try {
+    var saved = localStorage.getItem(LS_ADMIN_TAB);
+    if (saved === 'users' || saved === 'rewards' || saved === 'promos') startTab = saved;
+  } catch (_) {}
+  showAdminTab(startTab);
+  if (startTab === 'users') reload('');
 }
