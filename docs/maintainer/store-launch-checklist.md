@@ -58,6 +58,9 @@ GOOGLE_PLAY_TRACK=production bun run deploy:android
 `deploy:android` runs `./gradlew :app:bundleRelease` then uploads the AAB, R8
 `mapping.txt`, and `native-debug-symbols.zip` when present. Requires
 `GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
+It does **not** auto-bump `versionCode` — pass `--version-code +1` (or an
+absolute N) when you need a new code. Play release names are
+`versionName (versionCode)` (e.g. `1.6.1 (27)`).
 
 If commit fails with **The caller does not have permission**: Play Console →
 **Users and permissions** → add the JSON `client_email` → grant **Manage
@@ -71,7 +74,7 @@ Link the Cloud project under Setup → API access if you have not already.
 | iOS | dSYMs + LinkKit dSYM | `scripts/ios-testflight.sh` generates LinkKit dSYM before export; ASC symbol upload on |
 | Android | `native-debug-symbols.zip` + `mapping.txt` | Same Gradle build as the `.aab` — see `android/README.md` |
 
-Bump iOS `CURRENT_PROJECT_VERSION` and Android `versionCode` before every new upload of the same marketing version.
+Bump iOS `CURRENT_PROJECT_VERSION` and Android `versionCode` before every new upload of the same marketing version (Android: `bun run deploy:android -- --version-code +1`).
 
 ---
 
