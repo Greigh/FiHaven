@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,11 +41,16 @@ fun MoreScreen(
     padding: PaddingValues,
     initialRoute: String? = null,
     overflow: List<TabId> = emptyList(),
+    popToRoot: Int = 0,
 ) {
     var route by remember { mutableStateOf(initialRoute) }
     val back = { route = null }
-    // Any sub-route returns to the menu on system back — covers the primary
-    // tab screens (Dashboard/Bills/Cards/Payoff) that have no back arrow.
+    // Re-tapping More in the bottom bar clears any nested destination.
+    LaunchedEffect(popToRoot) {
+        if (popToRoot > 0) route = null
+    }
+    // Any sub-route returns to the menu on system back — covers screens that
+    // also show an in-header back arrow when opened from More.
     if (route != null) BackHandler(onBack = back)
     when (val r = route) {
         null -> Menu(padding, overflow) { route = it }
