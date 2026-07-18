@@ -1234,22 +1234,60 @@ function deleteCardPreset(id) {
 
 function ensureCardPresetsSeeded() {
   const n = db.prepare('SELECT COUNT(*) AS c FROM card_presets').get().c;
-  if (n > 0) return;
-  const seedPath = path.join(__dirname, 'cardPresets.seed.json');
-  if (!fs.existsSync(seedPath)) return;
-  let seed;
-  try {
-    seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
-  } catch (_) {
-    return;
-  }
-  if (!Array.isArray(seed) || !seed.length) return;
-  const tx = db.transaction((rows) => {
-    for (const p of rows) {
-      try { upsertCardPreset(p); } catch (_) { /* skip bad seed rows */ }
+  if (n === 0) {
+    const seedPath = path.join(__dirname, 'cardPresets.seed.json');
+    if (fs.existsSync(seedPath)) {
+      let seed;
+      try {
+        seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+      } catch (_) {
+        seed = null;
+      }
+      if (Array.isArray(seed) && seed.length) {
+        const tx = db.transaction((rows) => {
+          for (const p of rows) {
+            try { upsertCardPreset(p); } catch (_) { /* skip bad seed rows */ }
+          }
+        });
+        tx(seed);
+      }
     }
-  });
-  tx(seed);
+  }
+  refreshStaleCardPresetRates();
+}
+
+/**
+ * Idempotent catalog rate fixes for already-seeded DBs. Only rewrites rows that
+ * still match the known-stale shape so admin edits are preserved.
+ */
+function refreshStaleCardPresetRates() {
+  const csp = findCardPreset('chase-csp');
+  if (csp) {
+    const cats = csp.rewardCategories || {};
+    // Pre-June-2026 Preferred listed blanket "Online shopping" 3x; issuer is
+    // online grocery + gas/EV + streaming (we map gas; grocery stays ambiguous).
+    if (cats['Online shopping'] === 3 && cats.Dining === 3) {
+      const next = Object.assign({}, cats);
+      delete next['Online shopping'];
+      if (next.Gas == null) next.Gas = 3;
+      try {
+        upsertCardPreset(Object.assign({}, csp, { rewardCategories: next }));
+      } catch (_) { /* ignore */ }
+    }
+  }
+  const csr = findCardPreset('chase-csr');
+  if (csr) {
+    const cats = csr.rewardCategories || {};
+    const keys = Object.keys(cats);
+    // Pre-June-2025 Reserve was 3x all travel; now 4x flights/hotels booked direct.
+    if (cats.Travel === 3 && cats.Dining === 3 && keys.length <= 2) {
+      try {
+        upsertCardPreset(Object.assign({}, csr, {
+          rewardCategories: Object.assign({}, cats, { Travel: 4 }),
+        }));
+      } catch (_) { /* ignore */ }
+    }
+  }
 }
 
 ensureCardPresetsSeeded();

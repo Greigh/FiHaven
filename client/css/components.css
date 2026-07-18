@@ -2440,14 +2440,45 @@ main {
 .admin-close:hover { background: var(--surface2); color: var(--text); }
 
 .admin-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 0 22px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  padding: 12px 22px 0;
+  background: var(--surface);
 }
-.admin-tabs .tab-btn {
-  border-radius: 10px 10px 0 0;
-  margin-bottom: -1px;
+.admin-tabs-track {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface2, var(--border)) 70%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  max-width: 100%;
+}
+.admin-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  padding: 8px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.admin-tab:hover:not(.active) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.admin-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(15, 15, 20, .06), 0 4px 12px rgba(15, 15, 20, .06);
+}
+.admin-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .admin-body {
@@ -2891,9 +2922,10 @@ main {
 }
 
 .admin-sheet {
-  position: absolute;
+  /* Fixed to the viewport so tall scrolled panels don't park the modal mid-list. */
+  position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2904,6 +2936,8 @@ main {
 .admin-sheet[hidden] { display: none; }
 .admin-sheet-card {
   width: min(360px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
