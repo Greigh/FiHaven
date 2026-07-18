@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.fihaven.ui.AppleWebSignIn
 import app.fihaven.ui.BiometricAuth
+import app.fihaven.ui.GoogleWebSignIn
 import app.fihaven.ui.RootScreen
 import app.fihaven.ui.theme.FiHavenTheme
 import app.fihaven.ui.theme.LocalThemeController
@@ -21,7 +22,7 @@ import app.fihaven.ui.theme.ThemePref
 
 // FragmentActivity (not ComponentActivity) so androidx BiometricPrompt can attach.
 class MainActivity : FragmentActivity() {
-    // Latest fihaven://oauth/apple deep link (Sign in with Apple web flow),
+    // Latest fihaven://oauth/{apple|google} deep link (web OAuth flows),
     // observed in composition and handed to the view-model.
     private val oauthDeepLink = mutableStateOf<Uri?>(null)
 
@@ -48,13 +49,24 @@ class MainActivity : FragmentActivity() {
                 BiometricAuth.demoMode = true
                 LaunchedEffect(Unit) { if (bioLock) vm.demoLock() }
             }
-            // Sign in with Apple web flow returns via fihaven://oauth/apple.
+            // Web OAuth (Apple / Google Custom Tab) returns via fihaven://oauth/{provider}.
             val link = oauthDeepLink.value
             LaunchedEffect(link) {
                 if (link != null && link.scheme == "fihaven" && link.host == "oauth") {
+                    val provider = link.pathSegments.firstOrNull()
                     val idToken = link.getQueryParameter("idToken")
-                    if (!idToken.isNullOrBlank() && AppleWebSignIn.consumeState(link.getQueryParameter("state"))) {
-                        vm.oauthSignIn("apple", idToken, link.getQueryParameter("name")?.ifBlank { null })
+                    val state = link.getQueryParameter("state")
+                    val stateOk = when (provider) {
+                        "apple" -> AppleWebSignIn.consumeState(state)
+                        "google" -> GoogleWebSignIn.consumeState(state)
+                        else -> false
+                    }
+                    if (provider != null && !idToken.isNullOrBlank() && stateOk) {
+                        vm.oauthSignIn(
+                            provider,
+                            idToken,
+                            link.getQueryParameter("name")?.ifBlank { null },
+                        )
                     }
                     oauthDeepLink.value = null
                 }
