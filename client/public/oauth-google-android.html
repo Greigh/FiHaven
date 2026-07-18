@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Continue with Google — FiHaven</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      font-family: "Manrope", system-ui, sans-serif;
+      background: linear-gradient(160deg, #f7f3eb 0%, #ebe4d6 100%);
+      color: #1c1917; padding: 24px; box-sizing: border-box;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
+    #status { color: #57534e; font-size: 0.95rem; text-align: center; max-width: 22rem; }
+    #btn { min-height: 44px; }
+  </style>
+</head>
+<body>
+  <h1>FiHaven</h1>
+  <p id="status">Connecting to Google…</p>
+  <div id="btn"></div>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var state = params.get('state') || '';
+      var statusEl = document.getElementById('status');
+      var started = false;
+
+      function fail(msg) { statusEl.textContent = msg; }
+
+      function finish(idToken) {
+        statusEl.textContent = 'Returning to the app…';
+        location.replace(
+          'fihaven://oauth/google?idToken=' + encodeURIComponent(idToken) +
+          '&state=' + encodeURIComponent(state)
+        );
+      }
+
+      function ready(clientId) {
+        if (started || !window.google || !google.accounts || !google.accounts.id) return;
+        started = true;
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: function (resp) {
+            if (resp && resp.credential) finish(resp.credential);
+            else fail('Google did not return a sign-in token. Try again.');
+          },
+          auto_select: false,
+          cancel_on_tap_outside: false,
+        });
+        google.accounts.id.renderButton(document.getElementById('btn'), {
+          theme: 'outline',
+          size: 'large',
+          width: 320,
+          text: 'continue_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+        });
+        statusEl.textContent = 'Choose a Google account to continue.';
+        try { google.accounts.id.prompt(); } catch (_) { /* optional */ }
+      }
+
+      fetch('/api/auth/oauth/config', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) {
+          if (!cfg.google || !cfg.google.enabled || !cfg.google.clientId) {
+            fail('Google sign-in is not configured on the server.');
+            return;
+          }
+          var clientId = cfg.google.clientId;
+          if (window.google && google.accounts && google.accounts.id) ready(clientId);
+          else {
+            var n = 0;
+            var t = setInterval(function () {
+              n += 1;
+              if (window.google && google.accounts && google.accounts.id) {
+                clearInterval(t);
+                ready(clientId);
+              } else if (n > 100) {
+                clearInterval(t);
+                fail('Could not load Google sign-in. Check your connection and try again.');
+              }
+            }, 50);
+          }
+        })
+        .catch(function () { fail('Could not reach FiHaven. Try again.'); });
+    })();
+  </script>
+</body>
+</html>
