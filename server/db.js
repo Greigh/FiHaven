@@ -1258,7 +1258,8 @@ function ensureCardPresetsSeeded() {
 
 /**
  * Idempotent catalog rate fixes for already-seeded DBs. Only rewrites rows that
- * still match the known-stale shape so admin edits are preserved.
+ * still match the known-stale shape so admin edits are preserved. Also inserts
+ * any new seed ids that are missing (Bilt 2.0 lineup, etc.).
  */
 function refreshStaleCardPresetRates() {
   const csp = findCardPreset('chase-csp');
@@ -1287,6 +1288,45 @@ function refreshStaleCardPresetRates() {
         }));
       } catch (_) { /* ignore */ }
     }
+  }
+
+  // Legacy single Bilt Mastercard → Obsidian (closest everyday earn shape).
+  const legacyBilt = findCardPreset('bilt');
+  if (legacyBilt && String(legacyBilt.name || '').toLowerCase().includes('mastercard')) {
+    try {
+      upsertCardPreset({
+        id: 'bilt-obsidian',
+        issuer: 'Bilt',
+        name: 'Obsidian Card',
+        network: 'Mastercard',
+        rewardBase: 1,
+        rewardCategories: { Travel: 2 },
+        rotatingRate: 3,
+        rotatingPool: ['Dining', 'Groceries'],
+        pointValue: 2.2,
+      });
+      deleteCardPreset('bilt');
+    } catch (_) { /* ignore */ }
+  }
+
+  ensureMissingSeedPresets();
+}
+
+/** Insert seed presets that are not yet in the DB (never overwrites existing). */
+function ensureMissingSeedPresets() {
+  const seedPath = path.join(__dirname, 'cardPresets.seed.json');
+  if (!fs.existsSync(seedPath)) return;
+  let seed;
+  try {
+    seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+  } catch (_) {
+    return;
+  }
+  if (!Array.isArray(seed) || !seed.length) return;
+  for (const p of seed) {
+    if (!p || !p.id) continue;
+    if (findCardPreset(p.id)) continue;
+    try { upsertCardPreset(p); } catch (_) { /* skip */ }
   }
 }
 
