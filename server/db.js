@@ -302,6 +302,23 @@ db.exec(`
     PRIMARY KEY (user_id, token)
   );
   CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);
+
+  -- Global credit-card reward catalog (admin-editable). Seeded from
+  -- cardPresets.seed.json on first empty table; web ranking loads this
+  -- via GET /api/card-presets (falls back to bundled client presets).
+  CREATE TABLE IF NOT EXISTS card_presets (
+    id                 TEXT PRIMARY KEY,
+    issuer             TEXT NOT NULL,
+    name               TEXT NOT NULL,
+    network            TEXT NOT NULL,
+    reward_base        REAL NOT NULL DEFAULT 1,
+    reward_categories  TEXT NOT NULL DEFAULT '{}',
+    point_value        REAL,
+    rotating_rate      REAL,
+    rotating_pool      TEXT,
+    updated_at         INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_card_presets_issuer ON card_presets(issuer COLLATE NOCASE);
 `);
 
 // Idempotent column additions for older databases created before
@@ -416,7 +433,11 @@ const stmt = {
        LEFT JOIN user_data ud ON ud.user_id = u.id
       WHERE u.email LIKE ? OR COALESCE(u.name, '') LIKE ?
       ORDER BY u.created_at DESC
-      LIMIT ?`
+      LIMIT ? OFFSET ?`
+  ),
+  countUsers: db.prepare(
+    `SELECT COUNT(*) AS n FROM users u
+      WHERE u.email LIKE ? OR COALESCE(u.name, '') LIKE ?`
   ),
   setUserSuspended: db.prepare(
     `UPDATE users SET suspended = ?, suspended_at = ?, suspended_reason = ? WHERE id = ?`
@@ -844,9 +865,17 @@ function seedVerifiedEmails(emails) {
   }
 }
 
-function listUsers(query, limit = 50) {
+function listUsers(query, limit = 50, offset = 0) {
   const like = `%${query || ''}%`;
-  return stmt.listUsers.all(like, like, limit);
+  const lim = Math.max(1, Math.min(Number(limit) || 50, 200));
+  const off = Math.max(0, Number(offset) || 0);
+  return stmt.listUsers.all(like, like, lim, off);
+}
+
+function countUsers(query) {
+  const like = `%${query || ''}%`;
+  const row = stmt.countUsers.get(like, like);
+  return row && row.n != null ? row.n : 0;
 }
 
 // Admin "comp" entitlement: a non-store subscription row (platform
@@ -1049,6 +1078,181 @@ function insertPromoRedemption(row)     { stmt.insertPromoRedemption.run(row); }
 function findPromoRedemption(code, userId) {
   return stmt.findPromoRedemption.get(code, userId);
 }
+
+/* ── Card preset catalog (admin-editable rewards) ───────────── */
+function parseJsonObject(raw, fallback) {
+  if (raw == null || raw === '') return fallback;
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+function parseJsonArray(raw) {
+  if (raw == null || raw === '') return undefined;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function rowToCardPreset(row) {
+  if (!row) return null;
+  const out = {
+    id: row.id,
+    issuer: row.issuer,
+    name: row.name,
+    network: row.network,
+    rewardBase: row.reward_base,
+    rewardCategories: parseJsonObject(row.reward_categories, {}),
+  };
+  if (row.point_value != null) out.pointValue = row.point_value;
+  if (row.rotating_rate != null) out.rotatingRate = row.rotating_rate;
+  const pool = parseJsonArray(row.rotating_pool);
+  if (pool) out.rotatingPool = pool;
+  if (row.updated_at != null) out.updatedAt = row.updated_at;
+  return out;
+}
+
+function cardPresetFilterSql(q, issuer) {
+  const clauses = [];
+  const params = [];
+  const qq = String(q || '').trim().slice(0, 100);
+  if (qq) {
+    const like = '%' + qq.replace(/[%_]/g, '') + '%';
+    clauses.push('(id LIKE ? COLLATE NOCASE OR issuer LIKE ? COLLATE NOCASE OR name LIKE ? COLLATE NOCASE OR network LIKE ? COLLATE NOCASE)');
+    params.push(like, like, like, like);
+  }
+  const iss = String(issuer || '').trim().slice(0, 80);
+  if (iss) {
+    clauses.push('issuer = ? COLLATE NOCASE');
+    params.push(iss);
+  }
+  return {
+    where: clauses.length ? (' WHERE ' + clauses.join(' AND ')) : '',
+    params,
+  };
+}
+
+function countCardPresets(q, issuer) {
+  const f = cardPresetFilterSql(q, issuer);
+  return db.prepare('SELECT COUNT(*) AS c FROM card_presets' + f.where).get(...f.params).c;
+}
+
+function listCardPresets(q, issuer, limit, offset) {
+  const f = cardPresetFilterSql(q, issuer);
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+  return db.prepare(
+    'SELECT * FROM card_presets' + f.where +
+    ' ORDER BY issuer COLLATE NOCASE ASC, name COLLATE NOCASE ASC LIMIT ? OFFSET ?'
+  ).all(...f.params, lim, off).map(rowToCardPreset);
+}
+
+function allCardPresets() {
+  return db.prepare(
+    'SELECT * FROM card_presets ORDER BY issuer COLLATE NOCASE ASC, name COLLATE NOCASE ASC'
+  ).all().map(rowToCardPreset);
+}
+
+function listCardPresetIssuers() {
+  return db.prepare(
+    'SELECT DISTINCT issuer FROM card_presets ORDER BY issuer COLLATE NOCASE ASC'
+  ).all().map((r) => r.issuer);
+}
+
+function findCardPreset(id) {
+  return rowToCardPreset(db.prepare('SELECT * FROM card_presets WHERE id = ?').get(id));
+}
+
+function upsertCardPreset(preset) {
+  const id = String(preset.id || '').trim();
+  if (!id) throw new Error('missing-id');
+  const issuer = String(preset.issuer || '').trim();
+  const name = String(preset.name || '').trim();
+  const network = String(preset.network || '').trim();
+  if (!issuer || !name || !network) throw new Error('missing-fields');
+  const rewardBase = Number(preset.rewardBase);
+  if (!Number.isFinite(rewardBase) || rewardBase < 0) throw new Error('bad-reward-base');
+  const cats = preset.rewardCategories && typeof preset.rewardCategories === 'object' && !Array.isArray(preset.rewardCategories)
+    ? preset.rewardCategories
+    : {};
+  let pointValue = null;
+  if (preset.pointValue != null && preset.pointValue !== '') {
+    pointValue = Number(preset.pointValue);
+    if (!Number.isFinite(pointValue) || pointValue < 0) throw new Error('bad-point-value');
+  }
+  let rotatingRate = null;
+  if (preset.rotatingRate != null && preset.rotatingRate !== '') {
+    rotatingRate = Number(preset.rotatingRate);
+    if (!Number.isFinite(rotatingRate) || rotatingRate < 0) throw new Error('bad-rotating-rate');
+  }
+  let rotatingPool = null;
+  if (Array.isArray(preset.rotatingPool) && preset.rotatingPool.length) {
+    rotatingPool = JSON.stringify(preset.rotatingPool.map((x) => String(x)));
+  }
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO card_presets (
+      id, issuer, name, network, reward_base, reward_categories,
+      point_value, rotating_rate, rotating_pool, updated_at
+    ) VALUES (
+      @id, @issuer, @name, @network, @reward_base, @reward_categories,
+      @point_value, @rotating_rate, @rotating_pool, @updated_at
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      issuer = excluded.issuer,
+      name = excluded.name,
+      network = excluded.network,
+      reward_base = excluded.reward_base,
+      reward_categories = excluded.reward_categories,
+      point_value = excluded.point_value,
+      rotating_rate = excluded.rotating_rate,
+      rotating_pool = excluded.rotating_pool,
+      updated_at = excluded.updated_at
+  `).run({
+    id,
+    issuer,
+    name,
+    network,
+    reward_base: rewardBase,
+    reward_categories: JSON.stringify(cats),
+    point_value: pointValue,
+    rotating_rate: rotatingRate,
+    rotating_pool: rotatingPool,
+    updated_at: now,
+  });
+  return findCardPreset(id);
+}
+
+function deleteCardPreset(id) {
+  return db.prepare('DELETE FROM card_presets WHERE id = ?').run(id).changes;
+}
+
+function ensureCardPresetsSeeded() {
+  const n = db.prepare('SELECT COUNT(*) AS c FROM card_presets').get().c;
+  if (n > 0) return;
+  const seedPath = path.join(__dirname, 'cardPresets.seed.json');
+  if (!fs.existsSync(seedPath)) return;
+  let seed;
+  try {
+    seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+  } catch (_) {
+    return;
+  }
+  if (!Array.isArray(seed) || !seed.length) return;
+  const tx = db.transaction((rows) => {
+    for (const p of rows) {
+      try { upsertCardPreset(p); } catch (_) { /* skip bad seed rows */ }
+    }
+  });
+  tx(seed);
+}
+
+ensureCardPresetsSeeded();
 function activePromoGrants(userId)      { return stmt.activePromoGrants.all(userId, Date.now()); }
 
 /* ── Plaid wrappers ─────────────────────────────────────────── */
@@ -1143,6 +1347,7 @@ module.exports = {
   seedAdminEmails,
   seedVerifiedEmails,
   listUsers,
+  countUsers,
   deleteCompSubscription,
   insertSession,
   findSession,
@@ -1207,6 +1412,14 @@ module.exports = {
   insertPromoRedemption,
   findPromoRedemption,
   activePromoGrants,
+  // Card presets (rewards catalog)
+  allCardPresets,
+  listCardPresets,
+  countCardPresets,
+  listCardPresetIssuers,
+  findCardPreset,
+  upsertCardPreset,
+  deleteCardPreset,
   // Plaid
   insertPlaidItem,
   listPlaidItems,

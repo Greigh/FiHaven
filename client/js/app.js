@@ -226,6 +226,10 @@ Object.assign(window, {
 
 bootstrapData().then(() => {
   startApp();
+  // Prefer the admin-editable server catalog over the bundled defaults.
+  import('./cardPresets.js')
+    .then((m) => m.loadCardPresetsFromServer && m.loadCardPresetsFromServer())
+    .catch(() => {});
   // Pull anything new from a linked bank now that the app is up. Server-side
   // throttled, so this is a no-op if we already synced within the hour. Runs
   // after startApp so a slow bank never delays first paint; refreshAll() picks
