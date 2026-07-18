@@ -100,6 +100,25 @@ export function suggestCardPreset(name, issuer) {
   return bestScore >= 4 ? best : null;
 }
 
+/**
+ * Replace the in-memory catalog with the server copy (admin-editable).
+ * Keeps bundled presets if the request fails or returns empty.
+ */
+export async function loadCardPresetsFromServer() {
+  try {
+    const r = await fetch('/api/card-presets', { credentials: 'same-origin' });
+    if (!r.ok) return false;
+    const data = await r.json().catch(() => ({}));
+    const list = data && data.presets;
+    if (!Array.isArray(list) || !list.length) return false;
+    CARD_PRESETS.length = 0;
+    for (const p of list) CARD_PRESETS.push(p);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 const BASE_RATE_LABEL = 'Base rate (everything)';
 
 /** Rate FiHaven ships for a preset + category (not the user's edited card). */

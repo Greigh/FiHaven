@@ -142,6 +142,10 @@ sub.use('/api/account/mfa', requireVerified, mfaRouter);
 sub.use('/api/billing', billingRouter);
 sub.use('/api/plaid', plaidRouter);
 sub.use('/api/admin', adminRouter);
+// Public rewards catalog (used by web ranking; admin edits via /api/admin/card-presets).
+sub.get('/api/card-presets', (req, res) => {
+  res.json({ presets: dbApi.allCardPresets() });
+});
 // Public iCal subscription feed; auth is via the token in the URL.
 sub.use('/api/calendar', calendarRouter);
 
