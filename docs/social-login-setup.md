@@ -94,17 +94,22 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
 
 ## 5. Android app
 
-- **Google (built — Credential Manager):** wired in `app/build.gradle.kts`
-  (`androidx.credentials*` + `googleid` deps, and `BuildConfig.GOOGLE_WEB_CLIENT_ID`).
-  The auth button tries `GetGoogleIdOption` first (returning accounts), then falls
-  back to **`GetSignInWithGoogleOption`** — Google’s recommended path for a
-  labeled “Continue with Google” control. Failures surface on the auth screen
-  (cancellation stays silent). Flow ends in `vm.oauthSignIn("google", idToken)`.
-  **Required in Google Cloud:** create an **Android** OAuth client with package
-  `app.fihaven` and the signing SHA-1 for every keystore you use (debug for local
-  installs, upload/release key, and Play App Signing for Play builds). Its client
-  id is never referenced in code; without the matching SHA-1, Credential Manager
-  fails with a developer error and used to look like a dead tap.
+- **Google (built — Credential Manager + web fallback):** wired in
+  `app/build.gradle.kts` (`androidx.credentials*` + `googleid` deps, and
+  `BuildConfig.GOOGLE_WEB_CLIENT_ID`). The auth button tries
+  **`GetSignInWithGoogleOption`**, then One Tap (`GetGoogleIdOption`). If
+  Credential Manager still fails (typical `DEVELOPER_ERROR` on Play builds
+  missing the App Signing SHA-1), it opens a Custom Tab to
+  `/oauth-google-android.html` (Google Identity Services) and returns via
+  `fihaven://oauth/google` — same pattern as Apple. Cancellation stays silent.
+  **Optional but recommended in Google Cloud:** create an **Android** OAuth
+  client with package `app.fihaven` and every signing SHA-1 (debug, upload/
+  release, and **Play App Signing** from Play Console → App integrity). Its
+  client id is never referenced in code; without it, native CM fails and the
+  web fallback is used. Play App Signing SHA-256 for current releases:
+  `B3:45:72:79:EF:EF:BA:9C:ED:60:D8:20:E9:32:FC:69:99:32:67:E9:9E:74:41:6E:EF:72:2D:AE:0F:91:8F:AB`
+  (copy the matching SHA-1 from Play Console). Upload-key SHA-1:
+  `DB:2E:A1:76:F5:FB:A8:30:AC:7D:73:A6:44:BC:E6:3D:3B:04:05:12`.
 - **Apple on Android (built — Custom Tab web flow):** the "Continue with Apple"
   button (`AppleWebSignIn`) opens Apple's authorize page in a Custom Tab using
   `BuildConfig.APPLE_SERVICES_ID` (`app.fihaven.web`) and redirect
