@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] Current Pre-Release — 2026-07-16
+## [1.6.1] Current Pre-Release — 2026-07-18
 
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
 | **iOS** | 1.6.1 (4) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 25) - On Closed Play Store Alpha Testing |
+| **Android** | 1.6.1 (versionCode 26) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -33,6 +33,12 @@ Each release below uses two layers:
 > planner, and a pile of store-launch + security hardening.
 
 ### Changes
+
+**Auth (Android)**
+
+- Continue with Google: after Credential Manager fails (common on Play builds
+  without the App Signing SHA-1), open a Custom Tab Google Identity Services
+  page and return via `fihaven://oauth/google`.
 
 **UX polish (web + native)**
 

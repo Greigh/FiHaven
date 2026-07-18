@@ -58,7 +58,6 @@ import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -96,10 +95,10 @@ fun AuthScreen(vm: AppViewModel) {
         captchaReload++
     }
 
-    // Google Sign-In via Credential Manager. "Continue with Google" must use
-    // GetSignInWithGoogleOption (full account picker). GetGoogleIdOption alone
-    // often returns NoCredentialException with no UI — which used to look like
-    // a dead tap because every GetCredentialException was swallowed.
+    // Google Sign-In: try Credential Manager (native), then fall back to a
+    // Custom Tab + Google Identity Services page. Play builds often fail CM
+    // with DEVELOPER_ERROR until an Android OAuth client has the App Signing
+    // SHA-1; the web fallback does not need that client.
     fun signInWithGoogle() {
         scope.launch {
             vm.clearAuthError()
@@ -115,32 +114,30 @@ fun AuthScreen(vm: AppViewModel) {
             }
             val cm = CredentialManager.create(activity)
             try {
-                // Fast path: bottom sheet for accounts already used with this app.
+                // Labeled "Continue with Google" → Sign-In-with-Google first.
+                val siwg = GetSignInWithGoogleOption.Builder(clientId).build()
+                val siwgReq = GetCredentialRequest.Builder().addCredentialOption(siwg).build()
+                finishGoogleCredential(cm.getCredential(activity, siwgReq), vm)
+                return@launch
+            } catch (_: GetCredentialCancellationException) {
+                return@launch
+            } catch (e: GetCredentialException) {
+                Log.w(TAG_GOOGLE_AUTH, "Sign-In-with-Google failed; trying One Tap", e)
+            }
+            try {
                 val oneTap = GetGoogleIdOption.Builder()
                     .setServerClientId(clientId)
                     .setFilterByAuthorizedAccounts(false)
                     .build()
                 val oneTapReq = GetCredentialRequest.Builder().addCredentialOption(oneTap).build()
                 finishGoogleCredential(cm.getCredential(activity, oneTapReq), vm)
+                return@launch
             } catch (_: GetCredentialCancellationException) {
-                // User dismissed the sheet — leave the password form available.
-            } catch (_: NoCredentialException) {
-                // No saved Google ID credential — show the dedicated Sign-In-
-                // with-Google button UI (what this labeled control expects).
-                try {
-                    val siwg = GetSignInWithGoogleOption.Builder(clientId).build()
-                    val siwgReq = GetCredentialRequest.Builder().addCredentialOption(siwg).build()
-                    finishGoogleCredential(cm.getCredential(activity, siwgReq), vm)
-                } catch (_: GetCredentialCancellationException) {
-                    // Dismissed.
-                } catch (e: GetCredentialException) {
-                    Log.e(TAG_GOOGLE_AUTH, "Sign in with Google failed", e)
-                    vm.reportAuthError(googleSignInMessage(e))
-                }
+                return@launch
             } catch (e: GetCredentialException) {
-                Log.e(TAG_GOOGLE_AUTH, "Google ID credential failed", e)
-                vm.reportAuthError(googleSignInMessage(e))
+                Log.w(TAG_GOOGLE_AUTH, "Credential Manager failed; opening web Google sign-in", e)
             }
+            GoogleWebSignIn.launch(activity)
         }
     }
 
@@ -418,23 +415,4 @@ private fun finishGoogleCredential(result: GetCredentialResponse, vm: AppViewMod
         return
     }
     vm.reportAuthError("Google did not return a sign-in token. Try again.")
-}
-
-private fun googleSignInMessage(e: GetCredentialException): String {
-    val detail = sequenceOf(e.message, e.type)
-        .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
-        .firstOrNull()
-        .orEmpty()
-    val lower = detail.lowercase()
-    return when {
-        "developer_error" in lower ||
-            "10:" in lower ||
-            detail.contains("DEVELOPER_ERROR", ignoreCase = true) ->
-            "Google sign-in isn’t set up for this app build. Add this app’s SHA-1 in Google Cloud (Android OAuth client, package app.fihaven)."
-        e is NoCredentialException || "no credential" in lower ->
-            "No Google account is available on this device."
-        else ->
-            if (detail.isNotEmpty()) "Google sign-in failed: $detail"
-            else "Google sign-in failed. Check Play Services and try again."
-    }
 }
