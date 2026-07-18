@@ -39,6 +39,7 @@ export const CARD_PRESETS = [
   // ── Citi ──
   { id: 'citi-double',      issuer: 'Citi',             name: 'Double Cash',          network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
   { id: 'citi-strata',      issuer: 'Citi',             name: 'Strata Premier',       network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 3, Dining: 3, Groceries: 3, Gas: 3 }, pointValue: 1.8 },
+  { id: 'citi-strata-elite', issuer: 'Citi',            name: 'Strata Elite',         network: 'Mastercard', rewardBase: 1.5, rewardCategories: { Dining: 3, Travel: 3 }, pointValue: 1.8 },
   { id: 'citi-custom-cash', issuer: 'Citi',             name: 'Custom Cash',          network: 'Mastercard', rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Dining', 'Groceries', 'Gas', 'Travel', 'Transit', 'Streaming', 'Drugstores'] },
   { id: 'citi-costco',      issuer: 'Citi',             name: 'Costco Anywhere Visa', network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 4, Dining: 3, Travel: 3 } },
 
@@ -46,12 +47,14 @@ export const CARD_PRESETS = [
   { id: 'capone-savorone',  issuer: 'Capital One',      name: 'SavorOne',             network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
   { id: 'capone-savor',     issuer: 'Capital One',      name: 'Savor',                network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
   { id: 'capone-quicksilver', issuer: 'Capital One',    name: 'Quicksilver',          network: 'Mastercard', rewardBase: 1.5, rewardCategories: {} },
+  { id: 'capone-ventureone', issuer: 'Capital One',     name: 'VentureOne',           network: 'Visa',       rewardBase: 1.25, rewardCategories: { Travel: 5 }, pointValue: 1.85 },
   { id: 'capone-venture',   issuer: 'Capital One',      name: 'Venture',              network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
   { id: 'capone-venturex',  issuer: 'Capital One',      name: 'Venture X',            network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
 
   // ── Wells Fargo ──
   { id: 'wf-active-cash',   issuer: 'Wells Fargo',      name: 'Active Cash',          network: 'Visa',       rewardBase: 2,   rewardCategories: {} },
   { id: 'wf-autograph',     issuer: 'Wells Fargo',      name: 'Autograph',            network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3, Gas: 3, Transit: 3, Streaming: 3 }, pointValue: 1.5 },
+  { id: 'wf-autograph-journey', issuer: 'Wells Fargo',  name: 'Autograph Journey',    network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Dining: 3 }, pointValue: 1.5 },
 
   // ── Bank of America ──
   { id: 'boa-customized',   issuer: 'Bank of America',  name: 'Customized Cash',      network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 3, 'Online shopping': 3 } },
@@ -60,14 +63,26 @@ export const CARD_PRESETS = [
 
   // ── U.S. Bank ──
   { id: 'usbank-altitude-go', issuer: 'U.S. Bank',      name: 'Altitude Go',          network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 4, Streaming: 3, Groceries: 2, Gas: 2 } },
+  { id: 'usbank-altitude-connect', issuer: 'U.S. Bank', name: 'Altitude Connect',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Gas: 4, Dining: 2, Streaming: 2, Groceries: 2 }, pointValue: 1 },
   { id: 'usbank-cashplus',  issuer: 'U.S. Bank',        name: 'Cash+',                network: 'Visa',       rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Streaming', 'Groceries', 'Online shopping', 'Transit', 'Drugstores'] },
 
   // ── Discover ──
   { id: 'discover-it',      issuer: 'Discover',         name: 'it Cash Back',         network: 'Discover',   rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Dining', 'Online shopping', 'Transit', 'Drugstores'] },
+  { id: 'discover-it-miles', issuer: 'Discover',        name: 'it Miles',             network: 'Discover',   rewardBase: 1.5, rewardCategories: {}, pointValue: 1 },
 
-  // ── Other ──
+  // ── Bilt 2.0 (Column N.A. / Mastercard) ──
+  // Everyday earn from issuer pages; portal/partner bumps (Bilt Travel hotels,
+  // Neighborhood dining) are higher and editable after import.
+  { id: 'bilt-blue',        issuer: 'Bilt',             name: 'Blue Card',            network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 2, Transit: 3 }, pointValue: 2.2 },
+  { id: 'bilt-obsidian',    issuer: 'Bilt',             name: 'Obsidian Card',        network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 2 }, rotatingRate: 3, rotatingPool: ['Dining', 'Groceries'], pointValue: 2.2 },
+  { id: 'bilt-palladium',   issuer: 'Bilt',             name: 'Palladium Card',       network: 'Mastercard', rewardBase: 2,   rewardCategories: { Travel: 3, Transit: 4 }, pointValue: 2.2 },
+
+  // ── Co-brand / other ──
   { id: 'apple-card',       issuer: 'Apple',            name: 'Apple Card',           network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
-  { id: 'bilt',             issuer: 'Bilt',             name: 'Bilt Mastercard',      network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2 }, pointValue: 2.2 },
+  { id: 'amex-hilton-surpass', issuer: 'American Express', name: 'Hilton Honors Surpass', network: 'Amex',   rewardBase: 1,   rewardCategories: { Travel: 12, Dining: 6, Groceries: 6, Gas: 6 }, pointValue: 0.6 },
+  { id: 'chase-southwest-priority', issuer: 'Chase',    name: 'Southwest Priority',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Dining: 2, Gas: 2 }, pointValue: 1.3 },
+  { id: 'robinhood-gold',   issuer: 'Robinhood',        name: 'Gold Card',            network: 'Mastercard', rewardBase: 3,   rewardCategories: {} },
+  { id: 'fidelity',         issuer: 'Fidelity',         name: 'Rewards Visa',         network: 'Visa',       rewardBase: 2,   rewardCategories: {} },
   { id: 'sofi',             issuer: 'SoFi',             name: 'SoFi Credit Card',     network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
   { id: 'paypal',           issuer: 'PayPal',           name: 'Cashback Mastercard',  network: 'Mastercard', rewardBase: 1.5, rewardCategories: { 'Online shopping': 3 } },
   { id: 'target-redcard',   issuer: 'Target',           name: 'RedCard',              network: 'Mastercard', rewardBase: 1,   rewardCategories: { Other: 5 } },
