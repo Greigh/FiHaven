@@ -30,8 +30,8 @@ export const CARD_PRESETS = [
   { id: 'amex-bce',         issuer: 'American Express', name: 'Blue Cash Everyday',   network: 'Amex',       rewardBase: 1,   rewardCategories: { Groceries: 3, 'Online shopping': 3, Gas: 3 } },
 
   // ── Chase ──
-  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, 'Online shopping': 3 }, pointValue: 2 },
-  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3 }, pointValue: 2 },
+  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, Gas: 3 }, pointValue: 2 },
+  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 4 }, pointValue: 2 },
   { id: 'chase-cfu',        issuer: 'Chase',            name: 'Freedom Unlimited',    network: 'Visa',       rewardBase: 1.5, rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5 },
   { id: 'chase-cff',        issuer: 'Chase',            name: 'Freedom Flex',         network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Transit', 'Online shopping', 'Streaming'] },
   { id: 'chase-amazon',     issuer: 'Chase',            name: 'Amazon Prime Visa',    network: 'Visa',       rewardBase: 1,   rewardCategories: { 'Online shopping': 5, Dining: 2, Gas: 2, Transit: 2, Drugstores: 2 } },

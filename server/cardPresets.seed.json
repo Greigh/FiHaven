@@ -71,7 +71,7 @@
       "Dining": 3,
       "Travel": 2,
       "Streaming": 3,
-      "Online shopping": 3
+      "Gas": 3
     },
     "pointValue": 2
   },
@@ -83,7 +83,7 @@
     "rewardBase": 1,
     "rewardCategories": {
       "Dining": 3,
-      "Travel": 3
+      "Travel": 4
     },
     "pointValue": 2
   },
