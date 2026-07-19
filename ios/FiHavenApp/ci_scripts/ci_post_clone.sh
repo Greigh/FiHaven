@@ -20,9 +20,24 @@ install_xcodegen() {
   echo "==> Installing XcodeGen ${XCODEGEN_VERSION} from GitHub release"
   mkdir -p "$TOOLS_DIR"
   zip_path="$TOOLS_DIR/xcodegen.zip"
-  curl -fsSL \
-    "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip" \
-    -o "$zip_path"
+  # Xcode Cloud occasionally resets the GitHub connection mid-download
+  # (`curl: (35) Recv failure: Connection reset by peer`). Retry with backoff.
+  attempt=1
+  max_attempts=5
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if curl --retry 3 --retry-delay 2 --retry-connrefused -fsSL \
+      "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip" \
+      -o "$zip_path"; then
+      break
+    fi
+    echo "⚠ XcodeGen download failed (attempt ${attempt}/${max_attempts})"
+    if [ "$attempt" -eq "$max_attempts" ]; then
+      echo "✗ Could not download XcodeGen ${XCODEGEN_VERSION}"
+      exit 1
+    fi
+    sleep $((attempt * 3))
+    attempt=$((attempt + 1))
+  done
   rm -rf "$TOOLS_DIR/xcodegen"
   unzip -q "$zip_path" -d "$TOOLS_DIR"
   rm -f "$zip_path"
