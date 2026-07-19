@@ -35,10 +35,22 @@
 
       function finish(idToken) {
         statusEl.textContent = 'Returning to the app…';
-        location.replace(
-          'fihaven://oauth/google?idToken=' + encodeURIComponent(idToken) +
-          '&state=' + encodeURIComponent(state)
-        );
+        // Deposit the JWT server-side; App Link only carries a one-time code.
+        fetch('/api/auth/oauth/google/handoff', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ idToken: idToken, state: state }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.d || !res.d.returnUrl) {
+              fail((res.d && res.d.error) || 'Could not finish Google sign-in. Try again.');
+              return;
+            }
+            location.replace(res.d.returnUrl);
+          })
+          .catch(function () { fail('Could not reach FiHaven. Try again.'); });
       }
 
       function ready(clientId) {

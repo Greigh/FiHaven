@@ -10,6 +10,7 @@ const bcrypt = require('bcrypt');
 
 const dbApi = require('../db');
 const oauth = require('../oauth');
+const oauthHandoff = require('../oauthHandoff');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
 const { createSession, destroySession, requireAuth } = require('../session');
@@ -648,9 +649,10 @@ router.get('/oauth/config', (req, res) => {
 
 // Sign in with Apple on Android is a web flow: the app opens Apple's
 // authorize page in a Custom Tab with this URL as the redirect. Apple
-// form-posts the result here; we bounce it back into the app via the
-// `fihaven://` deep link, and the app posts the id_token to /oauth/apple.
-// (Native iOS uses ASAuthorization directly and never hits this.)
+// form-posts the result here; we store the id_token under a one-time
+// handoff code and 302 to an https App Link (`/oauth/apple?code=…`).
+// The app consumes the code via POST /oauth/apple. Native iOS uses
+// ASAuthorization and never hits this callback.
 const appleFormBody = express.urlencoded({ extended: false });
 function appleAndroidCallback(req, res) {
   const b = req.body || {};
@@ -661,23 +663,65 @@ function appleAndroidCallback(req, res) {
       name = [u.name && u.name.firstName, u.name && u.name.lastName].filter(Boolean).join(' ');
     }
   } catch (_) { /* name is best-effort */ }
-  // URLSearchParams percent-encodes everything, so no header/scheme injection.
-  const params = new URLSearchParams({
-    idToken: String(b.id_token || ''),
-    state: String(b.state || ''),
-    name,
-  });
-  return res.redirect(302, `fihaven://oauth/apple?${params.toString()}`);
+  const idToken = String(b.id_token || '');
+  const state = String(b.state || '');
+  if (!idToken) {
+    return res.status(400).type('html').send(
+      '<!doctype html><title>Sign-in failed</title><p>Apple did not return a token. Close this tab and try again in FiHaven.</p>'
+    );
+  }
+  let code;
+  try {
+    code = oauthHandoff.create({ provider: 'apple', idToken, name, state });
+  } catch (err) {
+    console.error('oauth apple handoff create failed:', err && err.message);
+    return res.status(500).type('html').send(
+      '<!doctype html><title>Sign-in failed</title><p>Could not finish Apple sign-in. Close this tab and try again in FiHaven.</p>'
+    );
+  }
+  return res.redirect(302, oauthHandoff.appReturnUrl('apple', { code, state }));
 }
 router.post('/oauth/apple/callback', appleFormBody, appleAndroidCallback);
 // GET fallback (e.g. user-error redirects from Apple).
 router.get('/oauth/apple/callback', appleAndroidCallback);
 
-// POST /api/auth/oauth/:provider — exchange a provider ID token for a
-// FiHaven session. Find the linked account; else auto-link by verified
-// email; else create a new (already-verified, no-password) account.
-// If the account has app-level MFA enrolled, require it before minting
-// a session (same challenge flow as password login).
+// POST /api/auth/oauth/:provider/handoff — Custom Tab Google page deposits
+// an id_token and receives a one-time code for the App Link return.
+router.post('/oauth/:provider/handoff', (req, res) => {
+  const provider = req.params.provider;
+  if (provider !== 'google' && provider !== 'apple') {
+    return sendError(res, 404, 'unknown-provider');
+  }
+  const body = req.body || {};
+  const idToken = String(body.idToken || '');
+  if (!idToken) return sendError(res, 400, 'missing-id-token');
+  let code;
+  try {
+    code = oauthHandoff.create({
+      provider,
+      idToken,
+      name: body.name || null,
+      state: body.state || null,
+    });
+  } catch (err) {
+    console.error(`oauth ${provider} handoff create failed:`, err && err.message);
+    return sendError(res, 500, 'server-error');
+  }
+  return res.json({
+    code,
+    returnUrl: oauthHandoff.appReturnUrl(provider, {
+      code,
+      state: body.state || null,
+    }),
+  });
+});
+
+// POST /api/auth/oauth/:provider — exchange a provider ID token (or a
+// one-time Android handoff code) for a FiHaven session. Find the linked
+// account; else auto-link by verified email; else create a new
+// (already-verified, no-password) account. If the account has app-level
+// MFA enrolled, require it before minting a session (same challenge flow
+// as password login).
 router.post('/oauth/:provider', async (req, res) => {
   const provider = req.params.provider;
   if (provider !== 'google' && provider !== 'apple') {
@@ -689,9 +733,27 @@ router.post('/oauth/:provider', async (req, res) => {
   if (!configured) return sendError(res, 400, 'provider-not-configured');
 
   const body = req.body || {};
+  let idToken = body.idToken;
+  let name = body.name;
+  if (body.handoffCode) {
+    try {
+      const handoff = oauthHandoff.consume({
+        provider,
+        code: body.handoffCode,
+        state: body.state,
+      });
+      idToken = handoff.idToken;
+      if (!name && handoff.name) name = handoff.name;
+    } catch (err) {
+      const code = (err && err.code) || 'handoff-invalid';
+      return sendError(res, 401, code);
+    }
+  }
+  if (!idToken) return sendError(res, 400, 'missing-id-token');
+
   let identity;
   try {
-    identity = await oauth.verifyProvider(provider, body.idToken, body.name);
+    identity = await oauth.verifyProvider(provider, idToken, name);
   } catch (err) {
     console.error(`oauth ${provider} verify failed:`, err && err.message);
     return sendError(res, 401, 'oauth-verify-failed');

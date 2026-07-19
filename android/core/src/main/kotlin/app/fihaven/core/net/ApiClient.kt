@@ -97,7 +97,17 @@ class ApiClient(
      *  May return MFA when the account has an app-level second factor. */
     suspend fun oauthSignIn(provider: String, idToken: String, name: String? = null): LoginOutcome {
         val body = encode(OAuthSignInBody(idToken, name))
-        val response = send(makeRequest("api/auth/oauth/$provider", HttpMethod.POST, body, tokenMode = true))
+        return parseOAuthLogin(send(makeRequest("api/auth/oauth/$provider", HttpMethod.POST, body, tokenMode = true)))
+    }
+
+    /** Exchange a one-time Android App Link handoff code for a session.
+     *  May return MFA when the account has an app-level second factor. */
+    suspend fun oauthSignInHandoff(provider: String, handoffCode: String, state: String? = null): LoginOutcome {
+        val body = encode(OAuthHandoffBody(handoffCode, state))
+        return parseOAuthLogin(send(makeRequest("api/auth/oauth/$provider", HttpMethod.POST, body, tokenMode = true)))
+    }
+
+    private fun parseOAuthLogin(response: String): LoginOutcome {
         val mfa = runCatching { decode<MfaResponse>(response) }.getOrNull()
         if (mfa?.mfaRequired == true) {
             return LoginOutcome.MfaRequired(MfaChallenge(mfa.mfaToken ?: "", mfa.methods ?: emptyList()))

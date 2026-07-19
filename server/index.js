@@ -188,6 +188,13 @@ sub.get('/.well-known/apple-app-site-association', (req, res) => {
   );
 });
 
+// Android OAuth App Link landing (`/oauth/apple|google?code=…`). When App
+// Links verification fails (or Custom Tab keeps the navigation), this page
+// package-locks an Intent into the Play-signed app. Must be before static.
+sub.get(['/oauth/apple', '/oauth/google'], (req, res) => {
+  res.type('html').sendFile(path.join(PUBLIC_ASSET_DIR, 'oauth-return.html'));
+});
+
 // RFC 9116 security.txt + assetlinks.json (Android passkeys) — express.static
 // ignores dot-directories by default.
 sub.use(
