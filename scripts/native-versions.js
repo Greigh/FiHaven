@@ -378,13 +378,14 @@ async function promptAndroidRelease() {
   const cur = readAndroid();
   // Android deploy updates package.json + Android only — leave iOS alone.
   const ver = await promptMarketingVersion({ package: true, ios: false, android: true });
-  // Play Store versionCode is always monotonic — never reset when the
-  // marketing version (versionName) changes. Always ship previous + 1.
-  const nextCode = cur.versionCode + 1;
-  console.log(
-    `→ Android versionCode ${cur.versionCode} → ${nextCode} (+1; Play requires a monotonic code)`,
+  // Play requires a new versionCode for each upload, but do not auto-bump:
+  // Enter keeps the current code; type +1 or an absolute N to change.
+  const codeRaw = await promptLine(
+    'Android versionCode (+1 to bump)',
+    cur.versionCode,
+    cur.versionCode,
   );
-  const code = setAndroidVersionCode(nextCode, { fallback: nextCode });
+  const code = setAndroidVersionCode(codeRaw, { fallback: cur.versionCode });
   console.log(
     `→ ${ver.previous.android} (${cur.versionCode}) → ${ver.version} (${code.versionCode})`,
   );

@@ -53,7 +53,7 @@ import kotlinx.coroutines.launch
  * Ranking logic lives in core's Rewards.
  */
 @Composable
-fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
+fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var category by remember { mutableStateOf("Dining") }
     var merchantQuery by remember { mutableStateOf("") }
@@ -71,7 +71,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues) {
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
             .verticalScroll(rememberScrollState()),
     ) {
-        ScreenHeader("Rewards", branded = true)
+        ScreenHeader("Rewards", onBack = onBack, branded = true)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (creditCards.isEmpty()) {
                 CtCard {
