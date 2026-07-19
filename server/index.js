@@ -34,6 +34,7 @@ const cookieParser = require('cookie-parser');
 const dbApi = require('./db');
 const mfa = require('./mfa');
 const { loadSession, requireVerified } = require('./session');
+const { assertProductionSafe } = require('./securityConfig');
 const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
 const accountRouter = require('./routes/account');
@@ -50,6 +51,13 @@ const mail = require('./mail');
 const { healthHandler } = require('./health');
 
 /* ── config validation ──────────────────────────────────────── */
+
+try {
+  assertProductionSafe();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
 
 for (const key of ['TURNSTILE_SECRET', 'TURNSTILE_SITEKEY']) {
   if (!process.env[key]) {

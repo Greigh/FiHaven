@@ -93,11 +93,16 @@ class ApiClient(
         return storeSession(send(makeRequest("api/auth/mfa/verify", HttpMethod.POST, body, tokenMode = true)))
     }
 
-    /** Exchange a provider OIDC ID token (apple|google) for a session. A
-     *  federated provider is the auth factor, so this never returns MFA. */
-    suspend fun oauthSignIn(provider: String, idToken: String, name: String? = null): AuthSession {
+    /** Exchange a provider OIDC ID token (apple|google) for a session.
+     *  May return MFA when the account has an app-level second factor. */
+    suspend fun oauthSignIn(provider: String, idToken: String, name: String? = null): LoginOutcome {
         val body = encode(OAuthSignInBody(idToken, name))
-        return storeSession(send(makeRequest("api/auth/oauth/$provider", HttpMethod.POST, body, tokenMode = true)))
+        val response = send(makeRequest("api/auth/oauth/$provider", HttpMethod.POST, body, tokenMode = true))
+        val mfa = runCatching { decode<MfaResponse>(response) }.getOrNull()
+        if (mfa?.mfaRequired == true) {
+            return LoginOutcome.MfaRequired(MfaChallenge(mfa.mfaToken ?: "", mfa.methods ?: emptyList()))
+        }
+        return LoginOutcome.Authenticated(storeSession(response))
     }
 
     suspend fun sendEmailCode(mfaToken: String) {

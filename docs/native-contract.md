@@ -561,9 +561,10 @@ codes). One redemption per user; `code-exhausted` / `code-expired` /
 `already-redeemed` / `invalid-code` errors are 409.
 
 **Verification modes** (`IAP_VERIFY_MODE`): `dev-trust` (default off-prod) decodes
-and trusts the client transaction so the flow is testable locally;
-`production` requires wiring the Apple JWS cert-chain / Play Developer API hooks
-(`APPLE_VERIFY_ENABLED` / `GOOGLE_VERIFY_ENABLED`). Admin promo creation is gated
+and trusts the client transaction so the flow is testable locally — refused at
+boot when `NODE_ENV=production`. `production` cryptographically verifies Apple
+StoreKit JWS (x5c → Apple Root CA - G3) when `APPLE_VERIFY_ENABLED=1`, and Google
+Play via the Developer API when `GOOGLE_VERIFY_ENABLED=1`. Admin promo creation is gated
 by `ADMIN_EMAILS`.
 
 **Pro gating** (free vs Pro): core manual tracking is free — **Bills, Cards,

@@ -139,8 +139,11 @@ final class AppEnvironment: ObservableObject {
     /// Sign in with a provider OIDC ID token (Apple / Google).
     func oauthSignIn(provider: String, idToken: String, name: String? = nil) async {
         await runAuth {
-            let s = try await self.api.oauthSignIn(provider: provider, idToken: idToken, name: name)
-            await self.enterSignedIn(s.user, fresh: true)
+            let outcome = try await self.api.oauthSignIn(provider: provider, idToken: idToken, name: name)
+            switch outcome {
+            case .authenticated(let s): await self.enterSignedIn(s.user, fresh: true)
+            case .mfaRequired(let challenge): self.session = .mfa(challenge)
+            }
         }
     }
 

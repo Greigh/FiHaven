@@ -308,7 +308,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Sign in with a provider OIDC ID token (apple|google). */
     fun oauthSignIn(provider: String, idToken: String, name: String? = null) =
         viewModelScope.launch {
-            runAuth { enterSignedIn(api.oauthSignIn(provider, idToken, name).user, fresh = true) }
+            runAuth {
+                when (val outcome = api.oauthSignIn(provider, idToken, name)) {
+                    is LoginOutcome.Authenticated -> enterSignedIn(outcome.session.user, fresh = true)
+                    is LoginOutcome.MfaRequired -> _session.value = Session.Mfa(outcome.challenge)
+                }
+            }
         }
 
     /** Finish a passwordless passkey login: the UI runs Credential Manager and

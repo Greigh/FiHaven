@@ -16,6 +16,7 @@ const express = require('express');
 
 const { requireAuth, requireAdmin, requireCsrf } = require('../session');
 const billing = require('../billing');
+const googlePubSubAuth = require('../googlePubSubAuth');
 
 const router = express.Router();
 
@@ -23,11 +24,15 @@ function sendError(res, code, error) {
   return res.status(code).json({ error });
 }
 
-// Public origin for Stripe redirect URLs. PUBLIC_ORIGIN overrides the
-// request-derived host (use it behind a proxy / in production).
+// Public origin for Stripe redirect URLs. Production requires
+// PUBLIC_ORIGIN (enforced at boot); never fall back to Host there.
 function appBaseUrl(req) {
-  const origin = process.env.PUBLIC_ORIGIN || `${req.protocol}://${req.get('host')}`;
-  return origin;
+  const configured = String(process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
+  if (configured) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('public-origin-required');
+  }
+  return `${req.protocol}://${req.get('host')}`;
 }
 
 /* ── GET /api/billing/status ─────────────────────────────────── */
@@ -144,7 +149,7 @@ router.post('/stripe/portal', requireAuth, requireCsrf, async (req, res) => {
 
 // POST /api/billing/stripe/portal/dev-cancel — (dev-only) cancel subscription
 router.post('/stripe/portal/dev-cancel', requireAuth, requireCsrf, (req, res) => {
-  if (process.env.NODE_ENV === 'production' && billing.stripeConfigured()) {
+  if (process.env.NODE_ENV === 'production') {
     return sendError(res, 403, 'forbidden');
   }
   try {
@@ -157,7 +162,7 @@ router.post('/stripe/portal/dev-cancel', requireAuth, requireCsrf, (req, res) =>
 
 // POST /api/billing/stripe/portal/dev-change — (dev-only) change plan
 router.post('/stripe/portal/dev-change', requireAuth, requireCsrf, (req, res) => {
-  if (process.env.NODE_ENV === 'production' && billing.stripeConfigured()) {
+  if (process.env.NODE_ENV === 'production') {
     return sendError(res, 403, 'forbidden');
   }
   const plan = (req.body || {}).plan;
@@ -192,15 +197,25 @@ router.post('/apple/notifications', (req, res) => {
     billing.handleAppleNotification(req.body || {});
   } catch (err) {
     console.error('apple notification error:', err.message);
+    // Cryptographic failure → 401 so Apple retries with a valid payload
+    // rather than us silently ignoring a forged body.
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'verify-failed' });
+    }
   }
   res.json({ ok: true });
 });
 
-router.post('/google/notifications', (req, res) => {
+router.post('/google/notifications', async (req, res) => {
   try {
+    await googlePubSubAuth.verifyPushRequest(req);
     billing.handleGoogleNotification(req.body || {});
   } catch (err) {
     console.error('google notification error:', err.message);
+    if (process.env.NODE_ENV === 'production' ||
+        process.env.GOOGLE_PUBSUB_REQUIRE_AUTH === '1') {
+      return res.status(401).json({ error: 'verify-failed' });
+    }
   }
   res.json({ ok: true });
 });

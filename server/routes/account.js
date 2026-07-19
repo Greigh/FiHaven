@@ -20,7 +20,7 @@ const emails = require('../emails');
 const mfa = require('../mfa');
 const plaid = require('../plaid');
 const tokens = require('../tokens');
-const { requireAuth, requireVerified, requireCsrf, destroySession } = require('../session');
+const { requireAuth, requireVerified, requireCsrf, requirePro, destroySession } = require('../session');
 const {
   normalizeEmail,
   isValidEmail,
@@ -343,7 +343,7 @@ router.get('/ical-token', requireAuth, (req, res) => {
   return res.json({ token: (u && u.ical_token) || null });
 });
 
-router.post('/ical-token', requireAuth, requireCsrf, (req, res) => {
+router.post('/ical-token', requireAuth, requireCsrf, requirePro, (req, res) => {
   const token = crypto.randomBytes(24).toString('base64url');
   dbApi.updateUserIcalToken(req.user.id, token);
   return res.json({ token });
