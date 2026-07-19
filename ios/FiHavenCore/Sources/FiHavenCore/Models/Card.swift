@@ -89,6 +89,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var rotatingPool: [String]?   // categories that can earn the elevated rotating rate
     public var rotatingRate: Double?     // elevated rate (e.g. 5) those categories earn when active
     public var pointValue: Double?       // cents per point/mile (nil → 1 = cash back)
+    public var presetId: String?         // catalog preset this card was started from
+    public var acceptedPresetUpdatedAt: Double?  // last catalog updatedAt the user accepted
+    public var declinedPresetUpdatedAt: Double?  // last catalog updatedAt the user declined
     public var perks: [CardPerk]         // recurring statement credits tracked per cycle
     public var annualFee: Double?        // annual fee — powers the "is it worth it?" check
     public var feeMonth: Int?            // month (1–12) the fee renews; nil if unknown
@@ -123,6 +126,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         rotatingPool: [String]? = nil,
         rotatingRate: Double? = nil,
         pointValue: Double? = nil,
+        presetId: String? = nil,
+        acceptedPresetUpdatedAt: Double? = nil,
+        declinedPresetUpdatedAt: Double? = nil,
         perks: [CardPerk] = [],
         annualFee: Double? = nil,
         feeMonth: Int? = nil,
@@ -156,6 +162,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.rotatingPool = rotatingPool
         self.rotatingRate = rotatingRate
         self.pointValue = pointValue
+        self.presetId = presetId
+        self.acceptedPresetUpdatedAt = acceptedPresetUpdatedAt
+        self.declinedPresetUpdatedAt = declinedPresetUpdatedAt
         self.perks = perks
         self.annualFee = annualFee
         self.feeMonth = feeMonth
@@ -170,6 +179,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         case dueDay, autopay, autopayDay, notes
         case type, issuer, currentBalance, lastDigits, network
         case rewardBase, rewardCategories, rotatingPool, rotatingRate, pointValue, perks
+        case presetId, acceptedPresetUpdatedAt, declinedPresetUpdatedAt
         case annualFee, feeMonth, offers, rewardsUrl, archived
     }
 
@@ -203,6 +213,9 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         rotatingPool = try? c.decode([String].self, forKey: .rotatingPool)
         rotatingRate = c.flexibleDouble(.rotatingRate)
         pointValue = c.flexibleDouble(.pointValue)
+        presetId = c.flexibleString(.presetId)
+        acceptedPresetUpdatedAt = c.flexibleDouble(.acceptedPresetUpdatedAt)
+        declinedPresetUpdatedAt = c.flexibleDouble(.declinedPresetUpdatedAt)
         // Tolerate a missing or malformed perks array by falling back to empty.
         perks = (try? c.decode([CardPerk].self, forKey: .perks)) ?? []
         annualFee = c.flexibleDouble(.annualFee)
