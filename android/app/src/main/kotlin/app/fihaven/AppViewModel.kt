@@ -66,6 +66,7 @@ import app.fihaven.core.logic.PaidState
 import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.PeriodBounds
 import app.fihaven.core.logic.PeriodConfig
+import app.fihaven.core.logic.Rewards
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.logic.UpcomingItem
 import app.fihaven.core.net.ApiClient
@@ -385,12 +386,63 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             refreshNotifications()
             refreshPush()
             checkNewMonth()
+            loadCardPresets()
+            checkPresetUpdates()
             syncBanks()
         } catch (e: ApiError) {
             _dataError.value = e.userMessage
         } catch (e: Exception) {
             _dataError.value = e.message ?: "Couldn't load your data."
         }
+    }
+
+    /** Pull the admin-editable rewards catalog. Best-effort — bundled presets remain if this fails. */
+    private suspend fun loadCardPresets() {
+        val list = runCatching { api.fetchCardPresets() }.getOrNull() ?: return
+        if (list.isNotEmpty()) Rewards.replaceActivePresets(list)
+    }
+
+    private val _presetUpdatePrompt = MutableStateFlow<Rewards.PendingPresetUpdate?>(null)
+    val presetUpdatePrompt: StateFlow<Rewards.PendingPresetUpdate?> = _presetUpdatePrompt.asStateFlow()
+
+    /** Offer Update / Keep mine when catalog rates diverge from a linked card. */
+    fun checkPresetUpdates() {
+        val (cards, pending) = Rewards.findPendingPresetUpdates(_data.value.cards)
+        if (cards != _data.value.cards) {
+            mutate { it.copy(cards = cards) }
+        }
+        _presetUpdatePrompt.value = pending.firstOrNull()
+    }
+
+    fun acceptPresetUpdate() {
+        val prompt = _presetUpdatePrompt.value ?: return
+        mutate { d ->
+            val i = d.cards.indexOfFirst { it.id == prompt.card.id }
+            if (i < 0) d else {
+                val next = d.cards.toMutableList()
+                next[i] = Rewards.applyPresetRates(next[i], prompt.preset)
+                d.copy(cards = next)
+            }
+        }
+        _presetUpdatePrompt.value = null
+        checkPresetUpdates()
+    }
+
+    fun declinePresetUpdate() {
+        val prompt = _presetUpdatePrompt.value ?: return
+        mutate { d ->
+            val i = d.cards.indexOfFirst { it.id == prompt.card.id }
+            if (i < 0) d else {
+                val next = d.cards.toMutableList()
+                next[i] = next[i].copy(
+                    declinedPresetUpdatedAt = prompt.preset.updatedAt ?: 0.0,
+                    presetId = next[i].presetId ?: prompt.preset.id,
+                )
+                d.copy(cards = next)
+            }
+        }
+        _presetUpdatePrompt.value = null
+        checkPresetUpdates()
     }
 
     /** Pull anything new from a linked bank on app open. Without this a linked

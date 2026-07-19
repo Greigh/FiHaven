@@ -172,3 +172,34 @@ data class PlaidStatus(
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
 @Serializable data class PlaidExchangeBody(@SerialName("public_token") val publicToken: String)
 @Serializable data class PlaidLinkTokenBody(val itemId: Int, val accountSelection: Boolean? = null)
+
+/** `GET /api/card-presets` — admin-editable rewards catalog. */
+@Serializable
+data class CardPresetsResponse(val presets: List<CardPresetDto> = emptyList())
+
+@Serializable
+data class CardPresetDto(
+    val id: String,
+    val issuer: String = "",
+    val name: String = "",
+    val network: String = "",
+    val rewardBase: Double = 0.0,
+    val rewardCategories: Map<String, Double> = emptyMap(),
+    val rotatingRate: Double? = null,
+    val rotatingPool: List<String>? = null,
+    val pointValue: Double? = null,
+    val updatedAt: Double? = null,
+) {
+    fun toDomain() = app.fihaven.core.logic.Rewards.CardPreset(
+        id = id,
+        issuer = issuer,
+        name = name,
+        network = network,
+        rewardBase = rewardBase,
+        rewardCategories = rewardCategories,
+        rotatingRate = rotatingRate,
+        rotatingPool = rotatingPool,
+        pointValue = pointValue,
+        updatedAt = updatedAt,
+    )
+}

@@ -134,6 +134,119 @@ export async function loadCardPresetsFromServer() {
   }
 }
 
+function numOr(v, fallback) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function catsEqual(a, b) {
+  const aa = a || {};
+  const bb = b || {};
+  const keys = new Set([...Object.keys(aa), ...Object.keys(bb)]);
+  for (const k of keys) {
+    if (numOr(aa[k], 0) !== numOr(bb[k], 0)) return false;
+  }
+  return true;
+}
+
+/** True when the card's earn rates match the catalog preset. */
+export function cardRatesMatchPreset(card, preset) {
+  if (!card || !preset) return false;
+  if (numOr(card.rewardBase, 0) !== numOr(preset.rewardBase, 0)) return false;
+  if (numOr(card.pointValue, 1) !== numOr(preset.pointValue, 1)) return false;
+  // Active category rates (including any currently-ticked rotating cats).
+  if (!catsEqual(card.rewardCategories, preset.rewardCategories)) return false;
+  const poolA = Array.isArray(card.rotatingPool) ? card.rotatingPool.slice().sort().join('|') : '';
+  const poolB = Array.isArray(preset.rotatingPool) ? preset.rotatingPool.slice().sort().join('|') : '';
+  if (poolA !== poolB) return false;
+  if (poolA && numOr(card.rotatingRate, 5) !== numOr(preset.rotatingRate, 5)) return false;
+  return true;
+}
+
+/** Copy catalog earn rates onto a card object (does not touch identity fields). */
+export function applyPresetRates(card, preset) {
+  if (!card || !preset) return card;
+  const next = Object.assign({}, card);
+  next.rewardBase = numOr(preset.rewardBase, 0);
+  next.rewardCategories = Object.assign({}, preset.rewardCategories || {});
+  next.pointValue = preset.pointValue != null ? numOr(preset.pointValue, null) : null;
+  next.rotatingPool = Array.isArray(preset.rotatingPool) ? preset.rotatingPool.slice() : null;
+  next.rotatingRate = Array.isArray(preset.rotatingPool) && preset.rotatingPool.length
+    ? numOr(preset.rotatingRate, 5)
+    : null;
+  next.presetId = preset.id;
+  if (preset.updatedAt != null) next.acceptedPresetUpdatedAt = preset.updatedAt;
+  // Accepting catalog rates clears any prior "Keep mine" for this (or older) stamp.
+  next.declinedPresetUpdatedAt = null;
+  return next;
+}
+
+/**
+ * Resolve the catalog preset for a user card: stored presetId first, else
+ * name/issuer suggest. Optionally attach presetId when rates already match.
+ */
+export function resolveCardPreset(card, { attachIfMatch } = {}) {
+  if (!card || card.type === 'loan') return null;
+  let preset = null;
+  if (card.presetId) preset = cardPresetById(card.presetId);
+  if (!preset) preset = suggestCardPreset(card.name, card.issuer);
+  if (attachIfMatch && preset && !card.presetId && cardRatesMatchPreset(card, preset)) {
+    card.presetId = preset.id;
+    if (preset.updatedAt != null) card.acceptedPresetUpdatedAt = preset.updatedAt;
+  }
+  return preset;
+}
+
+/**
+ * Cards whose linked catalog preset has newer rates the user hasn't
+ * accepted or declined yet.
+ */
+export function findPendingPresetUpdates(cards) {
+  const out = [];
+  if (!Array.isArray(cards)) return out;
+  for (const card of cards) {
+    if (!card || card.archived || card.type === 'loan') continue;
+    const preset = resolveCardPreset(card, { attachIfMatch: true });
+    if (!preset || !card.presetId) continue;
+    if (cardRatesMatchPreset(card, preset)) {
+      // Already on catalog rates — stamp acceptance quietly.
+      if (preset.updatedAt != null &&
+          (!card.acceptedPresetUpdatedAt || card.acceptedPresetUpdatedAt < preset.updatedAt)) {
+        card.acceptedPresetUpdatedAt = preset.updatedAt;
+      }
+      continue;
+    }
+    const updatedAt = preset.updatedAt || 0;
+    if (updatedAt && card.declinedPresetUpdatedAt && card.declinedPresetUpdatedAt >= updatedAt) continue;
+    if (updatedAt && card.acceptedPresetUpdatedAt && card.acceptedPresetUpdatedAt >= updatedAt) continue;
+    // No updatedAt (bundled catalog): still offer if rates diverge and not declined for "0".
+    if (!updatedAt && card.declinedPresetUpdatedAt === 0) continue;
+    out.push({ card, preset });
+  }
+  return out;
+}
+
+function formatRateDiff(card, preset) {
+  const lines = [];
+  const baseA = numOr(card.rewardBase, 0);
+  const baseB = numOr(preset.rewardBase, 0);
+  if (baseA !== baseB) lines.push('Base: ' + baseA + '% → ' + baseB + '%');
+  const catsA = card.rewardCategories || {};
+  const catsB = preset.rewardCategories || {};
+  const keys = new Set([...Object.keys(catsA), ...Object.keys(catsB)]);
+  keys.forEach(function (k) {
+    const a = numOr(catsA[k], 0);
+    const b = numOr(catsB[k], 0);
+    if (a !== b) lines.push(k + ': ' + (a || '—') + '% → ' + (b || '—') + '%');
+  });
+  const ptsA = card.pointValue != null ? numOr(card.pointValue, 1) : 1;
+  const ptsB = preset.pointValue != null ? numOr(preset.pointValue, 1) : 1;
+  if (ptsA !== ptsB) lines.push('Point value: ' + ptsA + '¢ → ' + ptsB + '¢');
+  return lines.slice(0, 8).join('\n') + (lines.length > 8 ? '\n…' : '');
+}
+
+export { formatRateDiff };
+
 const BASE_RATE_LABEL = 'Base rate (everything)';
 
 /** Rate FiHaven ships for a preset + category (not the user's edited card). */
@@ -161,7 +274,8 @@ export function presetRateForCategory(preset, category, baseLabel = BASE_RATE_LA
  * Returns { rate, preset } — rate is null when we ship no rate (or no preset match).
  */
 export function shippedRewardRate(card, category, baseLabel = BASE_RATE_LABEL) {
-  const preset = suggestCardPreset(card && card.name, card && card.issuer);
+  const preset = (card && card.presetId && cardPresetById(card.presetId))
+    || suggestCardPreset(card && card.name, card && card.issuer);
   if (!preset) return { rate: null, preset: null };
   return { rate: presetRateForCategory(preset, category, baseLabel), preset };
 }

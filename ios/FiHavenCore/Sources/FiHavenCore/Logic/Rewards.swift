@@ -36,7 +36,7 @@ public enum Rewards {
     /// A popular card the user can pick to auto-fill its reward profile.
     /// Rates are typical 2025 published defaults and stay editable after import.
     /// Mirrors CARD_PRESETS in client/js/cardPresets.js.
-    public struct CardPreset: Identifiable, Equatable, Sendable {
+    public struct CardPreset: Identifiable, Equatable, Sendable, Codable {
         public let id: String
         public let issuer: String
         public let name: String
@@ -46,18 +46,20 @@ public enum Rewards {
         public let rotatingRate: Double?     // elevated rate for rotating cards
         public let rotatingPool: [String]?   // categories that can earn it when active
         public let pointValue: Double?       // cents per point (nil → 1 = cash back)
+        public let updatedAt: Double?        // catalog stamp from server (ms)
         public var label: String { "\(issuer) \(name)" }
         public init(id: String, issuer: String, name: String, network: String,
                     rewardBase: Double, rewardCategories: [String: Double],
                     rotatingRate: Double? = nil, rotatingPool: [String]? = nil,
-                    pointValue: Double? = nil) {
+                    pointValue: Double? = nil, updatedAt: Double? = nil) {
             self.id = id; self.issuer = issuer; self.name = name; self.network = network
             self.rewardBase = rewardBase; self.rewardCategories = rewardCategories
             self.rotatingRate = rotatingRate; self.rotatingPool = rotatingPool
-            self.pointValue = pointValue
+            self.pointValue = pointValue; self.updatedAt = updatedAt
         }
     }
 
+    /// Bundled defaults. Runtime catalog is `activePresets` (may be replaced from the server).
     public static let cardPresets: [CardPreset] = [
         // American Express
         .init(id: "amex-gold", issuer: "American Express", name: "Gold Card", network: "Amex", rewardBase: 1, rewardCategories: ["Dining": 4, "Groceries": 4, "Travel": 3], pointValue: 2),
@@ -114,13 +116,31 @@ public enum Rewards {
         .init(id: "target-redcard", issuer: "Target", name: "RedCard", network: "Mastercard", rewardBase: 1, rewardCategories: ["Other": 5]),
     ]
 
+    /// Runtime catalog (server copy when available). Falls back to bundled defaults.
+    private static let presetLock = NSLock()
+    nonisolated(unsafe) private static var _activePresets: [CardPreset]?
+    public static var activePresets: [CardPreset] {
+        presetLock.lock(); defer { presetLock.unlock() }
+        return _activePresets ?? cardPresets
+    }
+
+    /// Replace the in-memory catalog with the server copy (admin-editable).
+    public static func replaceActivePresets(_ list: [CardPreset]) {
+        presetLock.lock(); defer { presetLock.unlock() }
+        _activePresets = list.isEmpty ? nil : list
+    }
+
+    public static func presetById(_ id: String) -> CardPreset? {
+        activePresets.first { $0.id == id }
+    }
+
     /// Best-effort preset match from a typed card name (and optional issuer).
     public static func suggestCardPreset(name: String, issuer: String = "") -> CardPreset? {
         let q = "\(name) \(issuer)".trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return nil }
         var best: CardPreset?
         var bestScore = 0
-        for p in cardPresets {
+        for p in activePresets {
             var score = 0
             let pn = p.name.lowercased()
             let pi = p.issuer.lowercased()
@@ -152,9 +172,13 @@ public enum Rewards {
         category: String,
         baseLabel: String = "Base rate (everything)"
     ) -> ShippedRate {
-        guard let preset = suggestCardPreset(name: card.name, issuer: card.issuer ?? "") else {
-            return ShippedRate(rate: nil, preset: nil)
+        let preset: CardPreset?
+        if let id = card.presetId, let byId = presetById(id) {
+            preset = byId
+        } else {
+            preset = suggestCardPreset(name: card.name, issuer: card.issuer ?? "")
         }
+        guard let preset else { return ShippedRate(rate: nil, preset: nil) }
         if category == baseLabel {
             return ShippedRate(rate: preset.rewardBase, preset: preset)
         }
@@ -165,6 +189,109 @@ public enum Rewards {
             return ShippedRate(rate: r, preset: preset)
         }
         return ShippedRate(rate: nil, preset: preset)
+    }
+
+    public struct PendingPresetUpdate: Identifiable, Equatable, Sendable {
+        public var id: String { card.id }
+        public let card: Card
+        public let preset: CardPreset
+        public init(card: Card, preset: CardPreset) {
+            self.card = card; self.preset = preset
+        }
+    }
+
+    private static func numOr(_ v: Double?, _ fallback: Double) -> Double { v ?? fallback }
+
+    private static func catsEqual(_ a: [String: Double], _ b: [String: Double]) -> Bool {
+        let keys = Set(a.keys).union(b.keys)
+        for k in keys {
+            if numOr(a[k], 0) != numOr(b[k], 0) { return false }
+        }
+        return true
+    }
+
+    /// True when the card's earn rates match the catalog preset.
+    public static func cardRatesMatchPreset(_ card: Card, _ preset: CardPreset) -> Bool {
+        if numOr(card.rewardBase, 0) != numOr(preset.rewardBase, 0) { return false }
+        if numOr(card.pointValue, 1) != numOr(preset.pointValue, 1) { return false }
+        if !catsEqual(card.rewardCategories, preset.rewardCategories) { return false }
+        let poolA = (card.rotatingPool ?? []).sorted().joined(separator: "|")
+        let poolB = (preset.rotatingPool ?? []).sorted().joined(separator: "|")
+        if poolA != poolB { return false }
+        if !poolA.isEmpty && numOr(card.rotatingRate, 5) != numOr(preset.rotatingRate, 5) { return false }
+        return true
+    }
+
+    /// Copy catalog earn rates onto a card (does not touch identity fields).
+    public static func applyPresetRates(_ card: Card, _ preset: CardPreset) -> Card {
+        var next = card
+        next.rewardBase = preset.rewardBase
+        next.rewardCategories = preset.rewardCategories
+        next.pointValue = preset.pointValue
+        next.rotatingPool = preset.rotatingPool
+        next.rotatingRate = (preset.rotatingPool?.isEmpty == false) ? (preset.rotatingRate ?? 5) : nil
+        next.presetId = preset.id
+        if let u = preset.updatedAt { next.acceptedPresetUpdatedAt = u }
+        // Accepting catalog rates clears any prior "Keep mine" for this (or older) stamp.
+        next.declinedPresetUpdatedAt = nil
+        return next
+    }
+
+    /// Resolve the catalog preset for a user card; optionally attach presetId when rates match.
+    public static func resolveCardPreset(_ card: inout Card, attachIfMatch: Bool = false) -> CardPreset? {
+        if (card.type ?? "card") == "loan" { return nil }
+        var preset: CardPreset?
+        if let id = card.presetId { preset = presetById(id) }
+        if preset == nil { preset = suggestCardPreset(name: card.name, issuer: card.issuer ?? "") }
+        if attachIfMatch, let preset, card.presetId == nil, cardRatesMatchPreset(card, preset) {
+            card.presetId = preset.id
+            if let u = preset.updatedAt { card.acceptedPresetUpdatedAt = u }
+        }
+        return preset
+    }
+
+    /// Cards whose linked catalog preset has newer rates the user hasn't accepted or declined.
+    /// Quietly stamps acceptance when rates already match; mutates `cards` for those stamps.
+    public static func findPendingPresetUpdates(_ cards: inout [Card]) -> [PendingPresetUpdate] {
+        var out: [PendingPresetUpdate] = []
+        for i in cards.indices {
+            if cards[i].archived || (cards[i].type ?? "card") == "loan" { continue }
+            guard let preset = resolveCardPreset(&cards[i], attachIfMatch: true),
+                  cards[i].presetId != nil else { continue }
+            if cardRatesMatchPreset(cards[i], preset) {
+                if let u = preset.updatedAt,
+                   cards[i].acceptedPresetUpdatedAt == nil || (cards[i].acceptedPresetUpdatedAt ?? 0) < u {
+                    cards[i].acceptedPresetUpdatedAt = u
+                }
+                continue
+            }
+            let updatedAt = preset.updatedAt ?? 0
+            if updatedAt > 0, let d = cards[i].declinedPresetUpdatedAt, d >= updatedAt { continue }
+            if updatedAt > 0, let a = cards[i].acceptedPresetUpdatedAt, a >= updatedAt { continue }
+            if updatedAt == 0, cards[i].declinedPresetUpdatedAt == 0 { continue }
+            out.append(PendingPresetUpdate(card: cards[i], preset: preset))
+        }
+        return out
+    }
+
+    public static func formatRateDiff(card: Card, preset: CardPreset) -> String {
+        var lines: [String] = []
+        let baseA = numOr(card.rewardBase, 0), baseB = numOr(preset.rewardBase, 0)
+        if baseA != baseB { lines.append("Base: \(baseA)% → \(baseB)%") }
+        let keys = Set(card.rewardCategories.keys).union(preset.rewardCategories.keys)
+        for k in keys.sorted() {
+            let a = numOr(card.rewardCategories[k], 0)
+            let b = numOr(preset.rewardCategories[k], 0)
+            if a != b {
+                let aLabel = a == 0 ? "—" : "\(a)"
+                let bLabel = b == 0 ? "—" : "\(b)"
+                lines.append("\(k): \(aLabel)% → \(bLabel)%")
+            }
+        }
+        let ptsA = numOr(card.pointValue, 1), ptsB = numOr(preset.pointValue, 1)
+        if ptsA != ptsB { lines.append("Point value: \(ptsA)¢ → \(ptsB)¢") }
+        let shown = Array(lines.prefix(8))
+        return shown.joined(separator: "\n") + (lines.count > 8 ? "\n…" : "")
     }
 
     /// A card's reward rate for a category: the per-category multiplier when

@@ -56,10 +56,12 @@ object Rewards {
         val rotatingRate: Double? = null,        // elevated rate for rotating cards
         val rotatingPool: List<String>? = null,  // categories that can earn it when active
         val pointValue: Double? = null,          // cents per point (null → 1 = cash back)
+        val updatedAt: Double? = null,           // catalog stamp from server (ms)
     ) {
         val label: String get() = "$issuer $name"
     }
 
+    /** Bundled defaults. Runtime catalog is [activePresets] (may be replaced from the server). */
     val CARD_PRESETS = listOf(
         // American Express
         CardPreset("amex-gold", "American Express", "Gold Card", "Amex", 1.0, mapOf("Dining" to 4.0, "Groceries" to 4.0, "Travel" to 3.0), pointValue = 2.0),
@@ -116,13 +118,26 @@ object Rewards {
         CardPreset("target-redcard", "Target", "RedCard", "Mastercard", 1.0, mapOf("Other" to 5.0)),
     )
 
+    @Volatile private var _activePresets: List<CardPreset>? = null
+
+    /** Runtime catalog (server copy when available). Falls back to bundled defaults. */
+    val activePresets: List<CardPreset>
+        get() = _activePresets ?: CARD_PRESETS
+
+    /** Replace the in-memory catalog with the server copy (admin-editable). */
+    fun replaceActivePresets(list: List<CardPreset>) {
+        _activePresets = list.takeIf { it.isNotEmpty() }
+    }
+
+    fun presetById(id: String): CardPreset? = activePresets.firstOrNull { it.id == id }
+
     /** Best-effort preset match from a typed card name (and optional issuer). */
     fun suggestCardPreset(name: String, issuer: String = ""): CardPreset? {
         val q = "$name $issuer".trim().lowercase()
         if (q.isEmpty()) return null
         var best: CardPreset? = null
         var bestScore = 0
-        for (p in CARD_PRESETS) {
+        for (p in activePresets) {
             var score = 0
             val pn = p.name.lowercase()
             val pi = p.issuer.lowercase()
@@ -149,7 +164,8 @@ object Rewards {
         category: String,
         baseLabel: String = "Base rate (everything)",
     ): ShippedRate {
-        val preset = suggestCardPreset(card.name, card.issuer ?: "")
+        val preset = card.presetId?.let { presetById(it) }
+            ?: suggestCardPreset(card.name, card.issuer ?: "")
             ?: return ShippedRate(null, null)
         if (category == baseLabel) return ShippedRate(preset.rewardBase, preset)
         preset.rewardCategories[category]?.let { return ShippedRate(it, preset) }
@@ -157,6 +173,112 @@ object Rewards {
             return ShippedRate(preset.rotatingRate, preset)
         }
         return ShippedRate(null, preset)
+    }
+
+    data class PendingPresetUpdate(val card: Card, val preset: CardPreset)
+
+    private fun numOr(v: Double?, fallback: Double): Double = v ?: fallback
+
+    private fun catsEqual(a: Map<String, Double>, b: Map<String, Double>): Boolean {
+        val keys = a.keys + b.keys
+        return keys.all { numOr(a[it], 0.0) == numOr(b[it], 0.0) }
+    }
+
+    /** True when the card's earn rates match the catalog preset. */
+    fun cardRatesMatchPreset(card: Card, preset: CardPreset): Boolean {
+        if (numOr(card.rewardBase, 0.0) != numOr(preset.rewardBase, 0.0)) return false
+        if (numOr(card.pointValue, 1.0) != numOr(preset.pointValue, 1.0)) return false
+        if (!catsEqual(card.rewardCategories, preset.rewardCategories)) return false
+        val poolA = (card.rotatingPool ?: emptyList()).sorted().joinToString("|")
+        val poolB = (preset.rotatingPool ?: emptyList()).sorted().joinToString("|")
+        if (poolA != poolB) return false
+        if (poolA.isNotEmpty() && numOr(card.rotatingRate, 5.0) != numOr(preset.rotatingRate, 5.0)) return false
+        return true
+    }
+
+    /** Copy catalog earn rates onto a card (does not touch identity fields). */
+    fun applyPresetRates(card: Card, preset: CardPreset): Card = card.copy(
+        rewardBase = preset.rewardBase,
+        rewardCategories = preset.rewardCategories,
+        pointValue = preset.pointValue,
+        rotatingPool = preset.rotatingPool,
+        rotatingRate = if (!preset.rotatingPool.isNullOrEmpty()) (preset.rotatingRate ?: 5.0) else null,
+        presetId = preset.id,
+        acceptedPresetUpdatedAt = preset.updatedAt ?: card.acceptedPresetUpdatedAt,
+        // Accepting catalog rates clears any prior "Keep mine" for this (or older) stamp.
+        declinedPresetUpdatedAt = null,
+    )
+
+    /**
+     * Resolve the catalog preset for a user card. When [attachIfMatch] is true and
+     * rates already match, returns a card with presetId stamped.
+     */
+    fun resolveCardPreset(card: Card, attachIfMatch: Boolean = false): Pair<Card, CardPreset?> {
+        if (card.type == "loan") return card to null
+        var preset = card.presetId?.let { presetById(it) }
+        if (preset == null) preset = suggestCardPreset(card.name, card.issuer ?: "")
+        var next = card
+        if (attachIfMatch && preset != null && card.presetId == null && cardRatesMatchPreset(card, preset)) {
+            next = card.copy(
+                presetId = preset.id,
+                acceptedPresetUpdatedAt = preset.updatedAt ?: card.acceptedPresetUpdatedAt,
+            )
+        }
+        return next to preset
+    }
+
+    /**
+     * Cards whose linked catalog preset has newer rates the user hasn't accepted
+     * or declined. Quietly stamps acceptance when rates already match.
+     * Returns (updatedCards, pending).
+     */
+    fun findPendingPresetUpdates(cards: List<Card>): Pair<List<Card>, List<PendingPresetUpdate>> {
+        val out = mutableListOf<PendingPresetUpdate>()
+        val updated = cards.toMutableList()
+        for (i in updated.indices) {
+            val card = updated[i]
+            if (card.archived || card.type == "loan") continue
+            val (resolved, preset) = resolveCardPreset(card, attachIfMatch = true)
+            updated[i] = resolved
+            if (preset == null || resolved.presetId == null) continue
+            if (cardRatesMatchPreset(resolved, preset)) {
+                val u = preset.updatedAt
+                if (u != null && (resolved.acceptedPresetUpdatedAt == null || resolved.acceptedPresetUpdatedAt!! < u)) {
+                    updated[i] = resolved.copy(acceptedPresetUpdatedAt = u)
+                }
+                continue
+            }
+            val updatedAt = preset.updatedAt ?: 0.0
+            val declined = resolved.declinedPresetUpdatedAt
+            val accepted = resolved.acceptedPresetUpdatedAt
+            if (updatedAt > 0 && declined != null && declined >= updatedAt) continue
+            if (updatedAt > 0 && accepted != null && accepted >= updatedAt) continue
+            if (updatedAt == 0.0 && declined == 0.0) continue
+            out.add(PendingPresetUpdate(updated[i], preset))
+        }
+        return updated to out
+    }
+
+    fun formatRateDiff(card: Card, preset: CardPreset): String {
+        val lines = mutableListOf<String>()
+        val baseA = numOr(card.rewardBase, 0.0)
+        val baseB = numOr(preset.rewardBase, 0.0)
+        if (baseA != baseB) lines.add("Base: $baseA% → $baseB%")
+        val keys = (card.rewardCategories.keys + preset.rewardCategories.keys).sorted()
+        for (k in keys) {
+            val a = numOr(card.rewardCategories[k], 0.0)
+            val b = numOr(preset.rewardCategories[k], 0.0)
+            if (a != b) {
+                val aLabel = if (a == 0.0) "—" else "$a"
+                val bLabel = if (b == 0.0) "—" else "$b"
+                lines.add("$k: $aLabel% → $bLabel%")
+            }
+        }
+        val ptsA = numOr(card.pointValue, 1.0)
+        val ptsB = numOr(preset.pointValue, 1.0)
+        if (ptsA != ptsB) lines.add("Point value: ${ptsA}¢ → ${ptsB}¢")
+        val shown = lines.take(8)
+        return shown.joinToString("\n") + if (lines.size > 8) "\n…" else ""
     }
 
     /** Per-category multiplier when set (> 0), otherwise the flat base rate. */

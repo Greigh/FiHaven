@@ -281,6 +281,19 @@ public final class APIClient: Sendable {
         return AuthSession(token: token, user: r.user)
     }
 
+    // ── Rewards catalog ───────────────────────────────────────────────
+
+    private struct CardPresetsResponse: Decodable {
+        let presets: [Rewards.CardPreset]
+    }
+
+    /// Public admin-editable rewards catalog (`GET /api/card-presets`).
+    public func fetchCardPresets() async throws -> [Rewards.CardPreset] {
+        let req = try makeRequest(path: "api/card-presets", method: .GET)
+        let data = try await send(req)
+        return try decode(CardPresetsResponse.self, from: data).presets
+    }
+
     // ── Data sync ─────────────────────────────────────────────────────
 
     public func fetchData() async throws -> AppData {

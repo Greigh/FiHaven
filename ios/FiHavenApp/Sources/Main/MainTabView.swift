@@ -55,6 +55,25 @@ struct MainTabView: View {
             selection = t
         }
         .sheet(isPresented: $debugPaywall) { PaywallView() }
+        .alert(
+            store.presetUpdatePrompt.map { prompt in
+                let label = [prompt.card.issuer, prompt.card.name].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+                return "Update rates for \"\(label.isEmpty ? "Card" : label)\"?"
+            } ?? "Update rates?",
+            isPresented: Binding(
+                get: { store.presetUpdatePrompt != nil },
+                set: { _ in }
+            )
+        ) {
+            Button("Update rates") { store.acceptPresetUpdate() }
+            Button("Keep mine", role: .cancel) { store.declinePresetUpdate() }
+        } message: {
+            if let prompt = store.presetUpdatePrompt {
+                let catalog = "\(prompt.preset.issuer) \(prompt.preset.name)"
+                let diff = Rewards.formatRateDiff(card: prompt.card, preset: prompt.preset)
+                Text("The FiHaven catalog for \(catalog) has newer rates.\n\n\(diff.isEmpty ? "Rates changed in the shared catalog." : diff)\n\nUpdate applies catalog rates to this card. Keep mine leaves your numbers alone.")
+            }
+        }
     }
 
     /// Map the synced `landingView` setting to a tab tag. If that tab isn't

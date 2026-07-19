@@ -148,4 +148,18 @@ class ApiClientTest {
         assertEquals("Dana", name)
         assertTrue(t.last!!.url.endsWith("/api/account/change-name"))
     }
+
+    @Test fun fetchCardPresets() = runTest {
+        val body = """
+            {"presets":[{"id":"amex-gold","issuer":"American Express","name":"Gold Card","network":"Amex",
+             "rewardBase":1,"rewardCategories":{"Dining":4},"pointValue":2,"updatedAt":123}]}
+        """.trimIndent()
+        val t = FakeTransport().apply { responder = { HttpResponse(200, body) } }
+        val presets = client(InMemoryTokenStore("t"), t).fetchCardPresets()
+        assertEquals(1, presets.size)
+        assertEquals("amex-gold", presets[0].id)
+        assertEquals(123.0, presets[0].updatedAt)
+        assertEquals(4.0, presets[0].rewardCategories["Dining"])
+        assertTrue(t.last!!.url.endsWith("/api/card-presets"))
+    }
 }

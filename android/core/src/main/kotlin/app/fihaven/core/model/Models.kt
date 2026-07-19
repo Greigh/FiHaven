@@ -64,6 +64,9 @@ data class Card(
     val rotatingPool: List<String>? = null,   // categories that can earn the elevated rotating rate
     val rotatingRate: Double? = null,         // elevated rate those categories earn when active
     val pointValue: Double? = null,           // cents per point/mile (null → 1 = cash back)
+    val presetId: String? = null,             // catalog preset this card was started from
+    val acceptedPresetUpdatedAt: Double? = null, // last catalog updatedAt the user accepted
+    val declinedPresetUpdatedAt: Double? = null, // last catalog updatedAt the user declined
     val perks: List<CardPerk> = emptyList(),  // recurring statement credits tracked per cycle
     val annualFee: Double? = null,            // annual fee — powers the "is it worth it?" check
     val feeMonth: Int? = null,                // month (1–12) the fee renews; null if unknown

@@ -544,6 +544,9 @@ fun CardEditorDialog(
         mutableStateListOf<String>().apply { card?.rotatingPool?.let { addAll(it) } }
     }
     var pointValue by remember { mutableStateOf(card?.pointValue?.takeIf { it != 1.0 }?.toString() ?: "") }
+    var presetId by remember { mutableStateOf(card?.presetId) }
+    var acceptedPresetUpdatedAt by remember { mutableStateOf(card?.acceptedPresetUpdatedAt) }
+    var declinedPresetUpdatedAt by remember { mutableStateOf(card?.declinedPresetUpdatedAt) }
     val perks = remember {
         mutableStateListOf<PerkEditState>().apply {
             card?.perks?.forEach { add(PerkEditState(it.id, it.label, if (it.amount == 0.0) "" else it.amount.toString(), it.frequency)) }
@@ -593,6 +596,9 @@ fun CardEditorDialog(
                     rotatingPool = if (isLoan || rotatingPool.isEmpty()) null else rotatingPool.toList(),
                     rotatingRate = if (isLoan || rotatingPool.isEmpty()) null else rotatingRate,
                     pointValue = if (isLoan) null else pointValue.toDoubleOrNull()?.takeIf { it > 0 && it != 1.0 },
+                    presetId = if (isLoan) null else presetId,
+                    acceptedPresetUpdatedAt = if (isLoan) null else acceptedPresetUpdatedAt,
+                    declinedPresetUpdatedAt = if (isLoan) null else declinedPresetUpdatedAt,
                     perks = if (isLoan) emptyList() else perks.mapNotNull { p ->
                         val amt = p.amount.toDoubleOrNull() ?: 0.0
                         if (p.label.isNotBlank() && amt > 0) CardPerk(p.id, p.label.trim(), amt, p.frequency) else null
@@ -668,8 +674,8 @@ fun CardEditorDialog(
             FieldLabel("Rewards")
             Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate.",
                 color = Ct.colors.muted, fontSize = 12.sp)
-            DropdownField("Start from a known card…", Rewards.CARD_PRESETS.map { it.label }, "Start from a known card…") { picked ->
-                Rewards.CARD_PRESETS.firstOrNull { it.label == picked }?.let { p ->
+            DropdownField("Start from a known card…", Rewards.activePresets.map { it.label }, "Start from a known card…") { picked ->
+                Rewards.activePresets.firstOrNull { it.label == picked }?.let { p ->
                     if (name.isBlank()) name = p.name
                     if (issuer.isBlank()) issuer = p.issuer
                     network = p.network
@@ -680,6 +686,9 @@ fun CardEditorDialog(
                     p.rotatingPool?.let { rotatingPool.addAll(it) }
                     rotatingRate = p.rotatingRate ?: 5.0
                     pointValue = p.pointValue?.takeIf { it != 1.0 }?.toString() ?: ""
+                    presetId = p.id
+                    acceptedPresetUpdatedAt = p.updatedAt
+                    declinedPresetUpdatedAt = null
                 }
             }
             OutlinedTextField(rewardBase, { rewardBase = it }, label = { Text("Base reward % (everything)") },

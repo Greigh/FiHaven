@@ -121,4 +121,23 @@ func runAPIChecks() async {
         try await client.logout()
         check(tokens.get() == nil, "token cleared after logout")
     }
+
+    await sectionAsync("APIClient — fetchCardPresets") {
+        MockURLProtocol.reset()
+        let client = APIClient(config: cfg, tokens: InMemoryTokenStore("t"),
+                               session: MockURLProtocol.session())
+        MockURLProtocol.handler = { _ in
+            (200, Data(#"""
+            {"presets":[{"id":"amex-gold","issuer":"American Express","name":"Gold Card","network":"Amex","rewardBase":1,"rewardCategories":{"Dining":4},"pointValue":2,"updatedAt":123}]}
+            """#.utf8))
+        }
+        let presets = try await client.fetchCardPresets()
+        checkEqual(presets.count, 1, "one preset")
+        checkEqual(presets[0].id, "amex-gold", "preset id")
+        checkClose(presets[0].updatedAt ?? -1, 123, "updatedAt")
+        checkClose(presets[0].rewardCategories["Dining"] ?? -1, 4, "Dining rate")
+        let req = MockURLProtocol.lastRequest
+        check(req?.url?.absoluteString == "http://localhost:5222/api/card-presets",
+              "GET /api/card-presets URL")
+    }
 }
