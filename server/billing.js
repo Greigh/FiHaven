@@ -12,16 +12,19 @@
 
    Receipt verification has two modes (IAP_VERIFY_MODE):
      'dev-trust'  — decode the client-supplied transaction and trust
-                    it. Default off-production. Lets the whole flow be
-                    exercised locally without store credentials.
-     'production' — must wire the real verification hooks below
-                    (Apple JWS cert-chain / Google Play Developer API),
-                    gated by APPLE_VERIFY_ENABLED / GOOGLE_VERIFY_ENABLED.
+                    it. Default off-production only; refused at boot in
+                    production (see securityConfig.js).
+     'production' — cryptographically verify Apple JWS (x5c → Apple Root
+                    CA) and Google Play Developer API. Apple path still
+                    requires APPLE_VERIFY_ENABLED=1 so ops can stage
+                    without accepting store posts; when enabled, decode-
+                    only is never used.
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
 
 const dbApi = require('./db');
+const appleJws = require('./appleJws');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -188,20 +191,22 @@ function computeEntitlement(userId) {
 /* ── store-receipt verification ──────────────────────────────── */
 
 function decodeJwsPayload(jws) {
-  const parts = String(jws || '').split('.');
-  if (parts.length !== 3) throw new Error('malformed-jws');
-  return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  return appleJws.decodePayloadUnsafe(jws);
 }
 
-// Apple StoreKit 2 sends a JWS-signed transaction. Returns a
-// normalized record. PRODUCTION: verify the x5c chain against Apple's
-// root CA + the JWS signature before trusting the payload (wire
-// @apple/app-store-server-library here, guarded by APPLE_VERIFY_ENABLED).
+// Apple StoreKit 2 sends a JWS-signed transaction. In production mode
+// with APPLE_VERIFY_ENABLED, the x5c chain + ES256 signature are verified
+// against Apple Root CA - G3 before any claims are trusted.
 async function verifyApple(signedTransaction) {
   if (verifyMode() === 'production' && !process.env.APPLE_VERIFY_ENABLED) {
     throw new Error('apple-verify-not-configured');
   }
-  const p = decodeJwsPayload(signedTransaction);
+  let p;
+  if (verifyMode() === 'production') {
+    p = appleJws.verifyAndDecode(signedTransaction);
+  } else {
+    p = decodeJwsPayload(signedTransaction);
+  }
   const productId = p.productId;
   const txnId = p.originalTransactionId || p.transactionId;
   if (!productId || !txnId) throw new Error('missing-fields');
@@ -369,14 +374,22 @@ function createPromoCode(input) {
 /* ── store server notifications (renewals/expiry/refunds) ────── */
 
 // Apple App Store Server Notifications V2: body is { signedPayload }.
-// PRODUCTION: verify the JWS before trusting it. Best-effort here:
-// decode, find the matching subscription by originalTransactionId,
-// and update its status/expiry.
+// Production verifies the outer JWS; nested signedTransactionInfo is
+// verified the same way before we mutate subscription rows.
 function handleAppleNotification(body) {
-  const payload = decodeJwsPayload((body && body.signedPayload) || '');
-  const info = payload.data && payload.data.signedTransactionInfo
-    ? decodeJwsPayload(payload.data.signedTransactionInfo)
-    : null;
+  const signedPayload = (body && body.signedPayload) || '';
+  if (!signedPayload) return { ok: true, ignored: 'no-signed-payload' };
+
+  const payload = verifyMode() === 'production'
+    ? appleJws.verifyAndDecode(signedPayload)
+    : decodeJwsPayload(signedPayload);
+
+  let info = null;
+  if (payload.data && payload.data.signedTransactionInfo) {
+    info = verifyMode() === 'production'
+      ? appleJws.verifyAndDecode(payload.data.signedTransactionInfo)
+      : decodeJwsPayload(payload.data.signedTransactionInfo);
+  }
   if (!info) return { ok: true, ignored: 'no-transaction-info' };
 
   const txnId = info.originalTransactionId || info.transactionId;
