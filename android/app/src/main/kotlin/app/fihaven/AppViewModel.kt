@@ -316,6 +316,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+    /** Finish Android web OAuth via a one-time App Link handoff code. */
+    fun oauthSignInHandoff(provider: String, handoffCode: String, state: String? = null) =
+        viewModelScope.launch {
+            runAuth {
+                when (val outcome = api.oauthSignInHandoff(provider, handoffCode, state)) {
+                    is LoginOutcome.Authenticated -> enterSignedIn(outcome.session.user, fresh = true)
+                    is LoginOutcome.MfaRequired -> _session.value = Session.Mfa(outcome.challenge)
+                }
+            }
+        }
+
     /** Finish a passwordless passkey login: the UI runs Credential Manager and
      *  hands back the challenge id + the authenticator's assertion JSON. */
     fun loginWithPasskey(challengeId: String, responseJson: String) =

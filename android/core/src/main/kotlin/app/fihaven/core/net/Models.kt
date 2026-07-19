@@ -121,6 +121,7 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
     val expiryTimeMillis: Long? = null,
 )
 @Serializable data class OAuthSignInBody(val idToken: String, val name: String? = null)
+@Serializable data class OAuthHandoffBody(val handoffCode: String, val state: String? = null)
 @Serializable data class ClearDataBody(val password: String, val code: String, val groups: List<String>)
 @Serializable data class PromoRedeemBody(val code: String)
 @Serializable data class NameResult(val name: String? = null)

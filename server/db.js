@@ -66,6 +66,21 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
 
+  -- One-time Android OAuth handoffs (Custom Tab → App Link). Stores the
+  -- provider id_token under a random code so JWTs are never put in a
+  -- hijackable custom-scheme URL. Codes are hashed at rest.
+  CREATE TABLE IF NOT EXISTS oauth_handoffs (
+    code_hash   TEXT PRIMARY KEY,
+    provider    TEXT NOT NULL,        -- 'apple' | 'google'
+    id_token    TEXT NOT NULL,
+    name        TEXT,
+    state       TEXT,
+    created_at  INTEGER NOT NULL,
+    expires_at  INTEGER NOT NULL,
+    used_at     INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_oauth_handoffs_expires ON oauth_handoffs(expires_at);
+
   CREATE TABLE IF NOT EXISTS user_data (
     user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     data       TEXT NOT NULL,
@@ -473,6 +488,21 @@ const stmt = {
   markEmailTokenUsed: db.prepare(`UPDATE email_tokens SET used_at = ? WHERE id = ?`),
   deleteEmailTokensByPurpose: db.prepare(
     `DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`
+  ),
+  insertOAuthHandoff: db.prepare(
+    `INSERT INTO oauth_handoffs
+       (code_hash, provider, id_token, name, state, created_at, expires_at)
+     VALUES (@code_hash, @provider, @id_token, @name, @state, @created_at, @expires_at)`
+  ),
+  findOAuthHandoffByHash: db.prepare(
+    `SELECT code_hash, provider, id_token, name, state, expires_at, used_at
+       FROM oauth_handoffs WHERE code_hash = ?`
+  ),
+  markOAuthHandoffUsed: db.prepare(
+    `UPDATE oauth_handoffs SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`
+  ),
+  deleteExpiredOAuthHandoffs: db.prepare(
+    `DELETE FROM oauth_handoffs WHERE expires_at < ? OR used_at IS NOT NULL`
   ),
   setEmailVerified: db.prepare(
     `UPDATE users SET email_verified = 1, email_verified_at = ? WHERE id = ?`
@@ -899,6 +929,17 @@ function markEmailTokenUsed(id, ts) { stmt.markEmailTokenUsed.run(ts, id); }
 function deleteEmailTokensByPurpose(userId, purpose) {
   stmt.deleteEmailTokensByPurpose.run(userId, purpose);
 }
+
+/* ── OAuth handoffs (Android App Link return) ───────────────── */
+function insertOAuthHandoff(row) { stmt.insertOAuthHandoff.run(row); }
+function findOAuthHandoffByHash(codeHash) { return stmt.findOAuthHandoffByHash.get(codeHash); }
+function markOAuthHandoffUsed(codeHash, ts) {
+  return stmt.markOAuthHandoffUsed.run(ts, codeHash).changes;
+}
+function deleteExpiredOAuthHandoffs(beforeTs) {
+  return stmt.deleteExpiredOAuthHandoffs.run(beforeTs).changes;
+}
+
 function setEmailVerified(userId, ts) { stmt.setEmailVerified.run(ts, userId); }
 function setOnboarded(userId) { stmt.setOnboarded.run(userId); }
 
@@ -1438,6 +1479,10 @@ module.exports = {
   findEmailTokenByHash,
   markEmailTokenUsed,
   deleteEmailTokensByPurpose,
+  insertOAuthHandoff,
+  findOAuthHandoffByHash,
+  markOAuthHandoffUsed,
+  deleteExpiredOAuthHandoffs,
   setEmailVerified,
   setOnboarded,
   allUsersWithData,
