@@ -207,11 +207,9 @@ function build() {
         '<button type="button" class="admin-close" data-admin-close aria-label="Close">×</button>' +
       '</header>' +
       '<nav class="admin-tabs" role="tablist" aria-label="Admin sections">' +
-        '<div class="admin-tabs-track">' +
-          '<button type="button" class="admin-tab active" role="tab" aria-selected="true" data-admin-tab="users">Users</button>' +
-          '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="rewards">Rewards</button>' +
-          '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="promos">Promos</button>' +
-        '</div>' +
+        '<button type="button" class="admin-tab active" role="tab" aria-selected="true" data-admin-tab="users">Users</button>' +
+        '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="rewards">Rewards</button>' +
+        '<button type="button" class="admin-tab" role="tab" aria-selected="false" data-admin-tab="promos">Promos</button>' +
       '</nav>' +
       '<div class="admin-body">' +
         '<section class="admin-section" data-admin-tab-panel="users" role="tabpanel">' +
