@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (4) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 27) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (5) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 28) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -28,36 +28,29 @@ Each release below uses two layers:
 ### Summary
 
 > Admin tools you can actually run a product with, a Rewards page that helps you
-> pick a card, report wrong rates against what FiHaven ships, **manual-first**
-> bank balance suggestions and subscription confirms, a clearer debt-payoff
-> planner, and a pile of store-launch + security hardening.
+> pick a card (and keeps your rates when the catalog updates), report wrong rates
+> against what FiHaven ships, **manual-first** bank balance suggestions and
+> subscription confirms, a clearer debt-payoff planner, safer production auth /
+> store webhooks, Android social sign-in that returns through App Links, and a
+> pile of store-launch + UX polish.
 
 ### Changes
 
-**Auth (Android)**
+**Auth & security (Jul 18)**
 
-- Continue with Google: after Credential Manager fails (common on Play builds
-  without the App Signing SHA-1), open a Custom Tab Google Identity Services
-  page and return via `fihaven://oauth/google`.
-
-**UX polish (web + native)**
-
-- Web Cards: long card titles no longer stack one character per line when action
-  buttons are wide.
-- Web app bar: primary tabs share the middle width; refreshed pill active state.
-- Admin user rows: **Last sign-in** vs **Last data sync** (not “app open”); null
-  login with activity shows “Unknown (pre-tracking)” instead of “Never logged in”.
-- iOS / Android: dismissible offline banner when cloud sync fails — changes stay
-  on this device.
-- Income history: membership-bounded months (default up to 18), 6/12/18/All range
-  control, subtler month list (not a dominant bar chart).
-- Report wrong rate: toggle **% / × points**, show cash-equivalent value; Pro
-  action **Only correct my card** (local fix without emailing FiHaven).
-- Debt payoff redesigned: hero debt-free date, Snowball vs Avalanche compare,
-  account list under the selected strategy; numeric calculator pad removed
-  (estimator + payment splitter kept).
-- Mortgages / housing loans excluded from payoff by default; optional
-  “Include mortgage (estimate only)” with PMI/escrow caveat.
+- Android Continue with Google: Credential Manager first; on failure open a
+  Custom Tab GIS page, deposit the token under a one-time handoff, and return via
+  `https://fihaven.app/oauth/google` (verified App Links) instead of putting a
+  JWT on `fihaven://` (#180, #186).
+- Apple on Android uses the same handoff + App Link path after the Services ID
+  callback (#186).
+- App-level MFA now runs after Google/Apple sign-in when the account has a second
+  factor (web + iOS + Android) (#185).
+- Production: cryptographically verify Apple StoreKit / App Store Server JWS;
+  authenticate Google Play RTDN Pub/Sub pushes; refuse `dev-trust` OAuth/IAP and
+  missing https `PUBLIC_ORIGIN` at boot; Stripe portal `dev-*` always blocked in
+  production; iCal token minting requires Pro; Android `allowBackup="false"`
+  (#185).
 
 **Admin console**
 
@@ -73,6 +66,35 @@ Each release below uses two layers:
   (`user_data.updated_at`).
 - Promo-code panel: mint `free_sub` codes, list active/exhausted/expired, copy,
   deactivate.
+- Expanded Rewards catalog (Bilt 2.0 + popular cards) editable in Admin → Rewards;
+  mirrored to iOS / Android (#183).
+- When admin catalog rates change for a card you already customized, offer
+  **Update** or **Keep mine** — never silently overwrite your rates (#183).
+- Admin modal tabs cleaned up to a compact underline control (no empty full-width
+  track) (#187).
+
+**UX polish (web + native)**
+
+- Web Cards: long card titles no longer stack one character per line when action
+  buttons are wide.
+- Web app bar: primary tabs share the middle width; refreshed pill active state.
+- Landing / dashboard spacing tightened for a denser first view (#184).
+- Android More tab: nested routes and system back behave more predictably (#182).
+- Play uploads: release name is `version (build)`; deploy no longer auto-bumps
+  `versionCode` (#181).
+- Admin user rows: **Last sign-in** vs **Last data sync** (not “app open”); null
+  login with activity shows “Unknown (pre-tracking)” instead of “Never logged in”.
+- iOS / Android: dismissible offline banner when cloud sync fails — changes stay
+  on this device.
+- Income history: membership-bounded months (default up to 18), 6/12/18/All range
+  control, subtler month list (not a dominant bar chart).
+- Report wrong rate: toggle **% / × points**, show cash-equivalent value; Pro
+  action **Only correct my card** (local fix without emailing FiHaven).
+- Debt payoff redesigned: hero debt-free date, Snowball vs Avalanche compare,
+  account list under the selected strategy; numeric calculator pad removed
+  (estimator + payment splitter kept).
+- Mortgages / housing loans excluded from payoff by default; optional
+  “Include mortgage (estimate only)” with PMI/escrow caveat.
 
 **Rewards**
 
@@ -130,8 +152,9 @@ Each release below uses two layers:
 - Unauthenticated `GET /health` liveness probe (DB `SELECT 1`) with per-IP rate limit.
 - Android Play upload automation (`scripts/play-upload.js`): `--build`, track via
   `GOOGLE_PLAY_TRACK`, mapping + native-debug-symbols upload, clearer permission
-  errors.
-- App Links fingerprints + maintainer store-launch docs.
+  errors; release title `versionName (versionCode)` without auto-increment (#181).
+- App Links fingerprints + maintainer store-launch docs; OAuth App Links + AASA
+  `applinks` for `/oauth/*` (#186).
 - Marketing/legal copy: native apps rolling out (TestFlight / Play internal).
 - Interactive deploy version prompts (`scripts/native-versions.js`): npm-init style
   Version + iOS build; Android versionCode always previous+1; iOS deploy does not
@@ -149,28 +172,41 @@ Each release below uses two layers:
 - Rate-limit `/health`; validate go-live store hrefs (CodeQL #38–#40).
 - Remove DOM-attr→`.href` flow on go-live badges entirely (CodeQL #41, #42) —
   store URLs live on markup `<a href>`; script only toggles visibility.
+- Apple IAP / notification JWS verification (`server/appleJws.js`); Google Play
+  notification OIDC / shared-token auth (`server/googlePubSubAuth.js`); production
+  boot guards (`server/securityConfig.js`) (#185).
 
 **Build / packaging**
 
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
+- Native builds for this notes pass: iOS **1.6.1 (5)**, Android **1.6.1 (28)**.
 
 ### Technical changelog
 
 - **Admin API** (`server/routes/admin.js`): suspend, reset-password, logout, delete,
   expanded `/pro`, `GET|POST /promo`, `POST /promo/:code/deactivate`;
   `users.suspended*` + `listUsers` join `user_data.updated_at`.
-- **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids.
+- **Billing**: `COMP_DEFAULT_DAYS` / `compDefaultDays()`; `comp:<plan>` product ids;
+  Apple JWS verify path; Google Pub/Sub push verify; `requirePro` for iCal token.
+- **OAuth**: `oauth_handoffs` table + `server/oauthHandoff.js`; App Link return
+  `/oauth/{apple|google}`; `POST /oauth/:provider/handoff`; MFA challenge after
+  federated login when enrolled.
 - **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
   FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients;
-  report sheet supports %/× unit + Pro-only local-only correct.
+  report sheet supports %/× unit + Pro-only local-only correct; catalog presets +
+  `presetId` / `acceptedPresetUpdatedAt` / `declinedPresetUpdatedAt` for Update /
+  Keep mine (#183).
 - **Payoff**: `isHousingLoan` + `includeMortgage` on web/iOS/Android engines;
   redesigned Payoff UI (hero / compare / account list); calculator pad removed.
 - **Income history**: membership clamp + range picker (web / iOS / Android History).
-- **Chrome**: web appbar tab stretch; native `SyncOfflineBanner` / Scaffold topBar
-  on offline sync; Cards title ellipsis + container stack fix.
-- **Admin UI**: last sign-in / last data sync labels; pre-tracking null login copy.
+- **Chrome**: web appbar tab stretch; landing/dashboard spacing (#184); admin
+  underline tabs (#187); Android More-tab nested back (#182); native
+  `SyncOfflineBanner` / Scaffold topBar on offline sync; Cards title ellipsis +
+  container stack fix.
+- **Admin UI**: last sign-in / last data sync labels; pre-tracking null login copy;
+  Rewards catalog editor + pager.
 - **Payments**: `applyCardPaymentDelta` also decrements `currentBalance`; paid-off
   promo clear prompt (`promoPayoffPrompted`); iOS payoff sim prefers `currentBalance`.
 - **Plaid balances**: proposals → Accept writes `currentBalance` only
@@ -182,16 +218,17 @@ Each release below uses two layers:
 - **Plaid purchases**: `plaidHidden` merge rules, pending Keep/decline UI.
 - **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
 - **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
-  `play-upload.js --version-code`; `upload.example.sh` requires
+  `play-upload.js --version-code` / release naming; `upload.example.sh` requires
   `MFA_ENCRYPTION_KEY` and `chmod 700/600` on remote `data/`.
 - **Data at rest**: `decodeUserDataBlob` / `encodeUserDataBlob` in `db.js`;
   `mfa.warnIfProductionFileKey()` on boot; `server/userDataCrypto.test.js`.
 - **Verification gates**: `requireVerified` on Plaid auth routes and account
   export endpoints.
 - **Tests**: reward-rate report client integration; health server integration;
-  removed obsolete rewards-link panel test; `plaidBalances` / subscriptionsFinder
-  unit coverage for proposals + decline filtering.
-- **Docs**: `docs/native-contract.md` balance field meanings + approval settings.
+  `appleJws` / `oauthHandoff` unit + handoff HTTP integration; removed obsolete
+  rewards-link panel test; `plaidBalances` / subscriptionsFinder unit coverage.
+- **Docs**: `docs/native-contract.md` balance field meanings + approval settings;
+  `docs/social-login-setup.md` App Links verification steps.
 ---
 
 ## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
