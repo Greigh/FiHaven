@@ -2408,8 +2408,7 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 20px 22px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  padding: 20px 22px 8px;
   border-radius: 18px 18px 0 0;
   background: var(--surface);
 }
@@ -2440,41 +2439,38 @@ main {
 .admin-close:hover { background: var(--surface2); color: var(--text); }
 
 .admin-tabs {
-  padding: 12px 22px 0;
-  background: var(--surface);
-}
-.admin-tabs-track {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 2px;
-  padding: 4px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface2, var(--border)) 70%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  max-width: 100%;
+  padding: 4px 18px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: var(--surface);
 }
 .admin-tab {
   appearance: none;
   border: none;
-  background: transparent;
+  background: none;
   color: var(--muted);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -.01em;
-  padding: 8px 14px;
-  border-radius: 9px;
+  padding: 10px 14px 11px;
+  border-radius: 8px 8px 0 0;
   cursor: pointer;
   line-height: 1.2;
-  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .14s ease, background .14s ease, border-color .14s ease;
 }
 .admin-tab:hover:not(.active) {
   color: var(--text);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  background: color-mix(in srgb, var(--surface2) 55%, transparent);
 }
 .admin-tab.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 20, .06), 0 4px 12px rgba(15, 15, 20, .06);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: transparent;
 }
 .admin-tab:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
