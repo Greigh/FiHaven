@@ -6,9 +6,10 @@
  *
  * Usage:
  *   node scripts/play-upload.js --build
- *     → prompts for marketing version; versionCode always bumps +1
- *   node scripts/play-upload.js --version-code 22 --build   # override the +1
- *   node scripts/play-upload.js --version-code +1 --build
+ *     → builds & uploads the versionCode already in build.gradle.kts
+ *       (TTY: may prompt for marketing version / optional code change)
+ *   node scripts/play-upload.js --version-code +1 --build   # bump then upload
+ *   node scripts/play-upload.js --version-code 28 --build   # set then upload
  *   node scripts/play-upload.js path/to.aab
  *
  * Env:
@@ -55,8 +56,10 @@ function parseArgs(argv) {
 Uploads to the Play track in GOOGLE_PLAY_TRACK (default: alpha = Closed testing).
 Also uploads R8 mapping.txt and native-debug-symbols.zip when present.
 
-With --build and a TTY, prompts for marketing version; versionCode always bumps +1
-(override with --version-code N).`);
+By default the versionCode already in android/app/build.gradle.kts is used.
+Pass --version-code +1 (or an absolute N) to bump before building.
+With --build and a TTY, you can also confirm marketing version interactively.
+Release name on Play is always "versionName (versionCode)", e.g. "1.6.1 (27)".`);
       process.exit(0);
     } else if (!arg.startsWith('-')) aab = arg;
   }
@@ -110,13 +113,14 @@ async function main() {
     console.log(`→ Android versionCode (currently ${current}) → setting to ${versionCodeArg}`);
     nativeVersions.setAndroidVersionCode(versionCodeArg);
   } else if (build && process.stdin.isTTY) {
+    // Interactive: confirm marketing version; versionCode defaults to current
+    // (Enter keeps it — pass +1 or N to change).
     await nativeVersions.promptAndroidVersionCode();
-  } else if (build) {
-    // Non-interactive: still bump +1 (Play requires monotonic versionCode).
+  } else {
     const current = nativeVersions.readAndroid().versionCode;
-    const next = current + 1;
-    console.log(`→ Non-interactive: Android versionCode ${current} → ${next} (+1)`);
-    nativeVersions.setAndroidVersionCode(next);
+    console.log(
+      `→ Android versionCode ${current} (unchanged; pass --version-code +1 to bump)`,
+    );
   }
 
   if (!keyFile) {
@@ -144,8 +148,9 @@ async function main() {
     process.exit(1);
   }
 
-  const versionCode = readVersionCode();
-  console.log(`Package ${PACKAGE}  versionCode ${versionCode}  track ${track}`);
+  const { versionName, versionCode } = nativeVersions.readAndroid();
+  const releaseName = `${versionName || 'unknown'} (${versionCode})`;
+  console.log(`Package ${PACKAGE}  ${releaseName}  track ${track}`);
   console.log('AAB:', aab);
 
   const auth = new google.auth.GoogleAuth({
@@ -203,13 +208,17 @@ async function main() {
     track,
     requestBody: {
       track,
-      releases: [{ status: 'completed', versionCodes: [String(versionCode)] }],
+      releases: [{
+        name: releaseName,
+        status: 'completed',
+        versionCodes: [String(versionCode)],
+      }],
     },
   });
 
   console.log('Committing edit…');
   await publisher.edits.commit({ packageName: PACKAGE, editId });
-  console.log(`✅ Uploaded versionCode ${versionCode} to Play track "${track}" (${PACKAGE})`);
+  console.log(`✅ Uploaded ${releaseName} to Play track "${track}" (${PACKAGE})`);
   if (track === 'alpha') {
     console.log('  → Play Console: Testing → Closed testing (alpha) → manage testers / copy link');
   } else if (track === 'internal') {
@@ -217,13 +226,6 @@ async function main() {
   } else if (track === 'production') {
     console.log('  → Play Console: Production — submit for review if required');
   }
-}
-
-function readVersionCode() {
-  const gradle = fs.readFileSync(path.join(ANDROID, 'app/build.gradle.kts'), 'utf8');
-  const m = gradle.match(/versionCode\s*=\s*(\d+)/);
-  if (!m) throw new Error('versionCode not found in build.gradle.kts');
-  return Number(m[1]);
 }
 
 main().catch((e) => {
