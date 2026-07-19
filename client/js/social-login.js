@@ -44,6 +44,15 @@
           showError(messageFor(res.data && res.data.error));
           return;
         }
+        // App-level MFA may still be required after a federated first factor.
+        if (res.data && res.data.mfaRequired) {
+          if (window.AppAuth && window.AppAuth.beginMfa) {
+            window.AppAuth.beginMfa(res.data);
+          } else {
+            showError('This account requires a second factor. Sign in with email to finish.');
+          }
+          return;
+        }
         if (window.AppAuth && window.AppAuth.routeAfterAuth) window.AppAuth.routeAfterAuth(res.data);
         else window.location.replace('/dashboard');
       })

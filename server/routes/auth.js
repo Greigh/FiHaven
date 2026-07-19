@@ -676,8 +676,8 @@ router.get('/oauth/apple/callback', appleAndroidCallback);
 // POST /api/auth/oauth/:provider — exchange a provider ID token for a
 // FiHaven session. Find the linked account; else auto-link by verified
 // email; else create a new (already-verified, no-password) account.
-// A federated provider is itself the authentication factor, so this
-// completes sign-in directly (it does not run app-level MFA).
+// If the account has app-level MFA enrolled, require it before minting
+// a session (same challenge flow as password login).
 router.post('/oauth/:provider', async (req, res) => {
   const provider = req.params.provider;
   if (provider !== 'google' && provider !== 'apple') {
@@ -723,6 +723,37 @@ router.post('/oauth/:provider', async (req, res) => {
         }
       }
     }
+  }
+
+  if (account.suspended) {
+    return sendError(res, 403, 'account-suspended');
+  }
+
+  // App-level MFA still applies after a federated first factor.
+  const totp = dbApi.getTotp(account.id);
+  const totpEnabled = !!(totp && totp.enabled_at);
+  const passkeyCount = dbApi.countPasskeys(account.id);
+  const emailEnabled = !!(account.email_mfa_enabled);
+  if (totpEnabled || passkeyCount > 0 || emailEnabled) {
+    const tokenId = mfa.newChallengeId();
+    const now = Date.now();
+    dbApi.insertChallenge({
+      id: tokenId,
+      user_id: account.id,
+      kind: 'mfa-login',
+      payload: null,
+      created_at: now,
+      expires_at: now + MFA_TOKEN_TTL_MS,
+    });
+    const methods = [];
+    if (passkeyCount > 0) methods.push('passkey');
+    if (totpEnabled) methods.push('totp');
+    if (emailEnabled) methods.push('email');
+    return res.status(200).json({
+      mfaRequired: true,
+      mfaToken: tokenId,
+      methods,
+    });
   }
 
   return finishLogin(res, req, account);
