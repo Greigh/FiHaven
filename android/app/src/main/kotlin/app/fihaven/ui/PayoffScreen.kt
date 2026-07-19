@@ -50,7 +50,7 @@ import app.fihaven.core.model.Card
 import app.fihaven.ui.theme.Ct
 
 @Composable
-fun PayoffScreen(vm: AppViewModel, padding: PaddingValues) {
+fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var strategy by remember { mutableStateOf(PayoffStrategy.AVALANCHE) }
     var extra by remember { mutableFloatStateOf(100f) }
@@ -71,7 +71,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues) {
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
             .verticalScroll(rememberScrollState()),
     ) {
-        ScreenHeader("Payoff", branded = true)
+        ScreenHeader("Payoff", onBack = onBack, branded = true)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (housing.isNotEmpty()) {
                 CtCard {
