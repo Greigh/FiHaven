@@ -1,4 +1,15 @@
 {
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["365KR8NF53.app.fihaven"],
+        "components": [
+          { "/": "/oauth/*" }
+        ]
+      }
+    ]
+  },
   "webcredentials": {
     "apps": ["365KR8NF53.app.fihaven"]
   }

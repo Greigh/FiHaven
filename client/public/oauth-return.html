@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Return to FiHaven</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      font-family: "Manrope", system-ui, sans-serif;
+      background: linear-gradient(160deg, #f7f3eb 0%, #ebe4d6 100%);
+      color: #1c1917; padding: 24px; box-sizing: border-box; text-align: center;
+    }
+    h1 { font-size: 1.35rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+    p { color: #57534e; font-size: 0.95rem; max-width: 22rem; margin: 0; line-height: 1.45; }
+    a.btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-top: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px;
+      background: #1c1917; color: #fafaf9; text-decoration: none; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>FiHaven</h1>
+  <p id="status">Opening the FiHaven app to finish sign-in…</p>
+  <p><a class="btn" id="open" href="#">Open FiHaven</a></p>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var parts = location.pathname.replace(/\/+$/, '').split('/');
+      var provider = parts[parts.length - 1] || '';
+      if (provider !== 'apple' && provider !== 'google') {
+        document.getElementById('status').textContent =
+          'This sign-in link is invalid. Return to the FiHaven app and try again.';
+        document.getElementById('open').style.display = 'none';
+        return;
+      }
+      var code = params.get('code') || '';
+      var state = params.get('state') || '';
+      var q = 'code=' + encodeURIComponent(code) +
+        (state ? '&state=' + encodeURIComponent(state) : '');
+      // Prefer a package-locked Intent so a random app claiming fihaven://
+      // cannot win. App Links handle the https form when verified.
+      var httpsPath = 'oauth/' + provider + '?' + q;
+      var intentUrl =
+        'intent://fihaven.app/' + httpsPath +
+        '#Intent;scheme=https;package=app.fihaven;' +
+        'S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end';
+      var customUrl = 'fihaven://oauth/' + provider + '?' + q;
+      var open = document.getElementById('open');
+      open.href = customUrl;
+
+      function tryOpen() {
+        // Custom Tab / browser: force the Play-signed package first.
+        location.replace(intentUrl);
+        setTimeout(function () {
+          location.href = customUrl;
+          document.getElementById('status').textContent =
+            'If FiHaven did not open, tap Open FiHaven below.';
+        }, 700);
+      }
+      tryOpen();
+    })();
+  </script>
+</body>
+</html>

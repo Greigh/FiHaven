@@ -22,8 +22,8 @@ import app.fihaven.ui.theme.ThemePref
 
 // FragmentActivity (not ComponentActivity) so androidx BiometricPrompt can attach.
 class MainActivity : FragmentActivity() {
-    // Latest fihaven://oauth/{apple|google} deep link (web OAuth flows),
-    // observed in composition and handed to the view-model.
+    // Latest OAuth App Link / deep link (web OAuth flows), observed in
+    // composition and handed to the view-model.
     private val oauthDeepLink = mutableStateOf<Uri?>(null)
 
     override fun onNewIntent(intent: Intent) {
@@ -49,23 +49,25 @@ class MainActivity : FragmentActivity() {
                 BiometricAuth.demoMode = true
                 LaunchedEffect(Unit) { if (bioLock) vm.demoLock() }
             }
-            // Web OAuth (Apple / Google Custom Tab) returns via fihaven://oauth/{provider}.
+            // Web OAuth returns via https://fihaven.app/oauth/{provider}?code=…
+            // (App Links) or legacy fihaven://oauth/{provider}?code=….
             val link = oauthDeepLink.value
             LaunchedEffect(link) {
-                if (link != null && link.scheme == "fihaven" && link.host == "oauth") {
-                    val provider = link.pathSegments.firstOrNull()
-                    val idToken = link.getQueryParameter("idToken")
-                    val state = link.getQueryParameter("state")
-                    val stateOk = when (provider) {
-                        "apple" -> AppleWebSignIn.consumeState(state)
-                        "google" -> GoogleWebSignIn.consumeState(state)
+                val parsed = link?.let { parseOauthReturn(it) }
+                if (parsed != null) {
+                    val stateOk = when (parsed.provider) {
+                        "apple" -> AppleWebSignIn.consumeState(parsed.state)
+                        "google" -> GoogleWebSignIn.consumeState(parsed.state)
                         else -> false
                     }
-                    if (provider != null && !idToken.isNullOrBlank() && stateOk) {
+                    if (stateOk && !parsed.handoffCode.isNullOrBlank()) {
+                        vm.oauthSignInHandoff(parsed.provider, parsed.handoffCode, parsed.state)
+                    } else if (stateOk && !parsed.idToken.isNullOrBlank()) {
+                        // Legacy Custom Tab returns that still embed idToken.
                         vm.oauthSignIn(
-                            provider,
-                            idToken,
-                            link.getQueryParameter("name")?.ifBlank { null },
+                            parsed.provider,
+                            parsed.idToken,
+                            parsed.name,
                         )
                     }
                     oauthDeepLink.value = null
@@ -84,5 +86,34 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    private data class OAuthReturn(
+        val provider: String,
+        val handoffCode: String?,
+        val idToken: String?,
+        val state: String?,
+        val name: String?,
+    )
+
+    /** Accept https://fihaven.app/oauth/{provider} and fihaven://oauth/{provider}. */
+    private fun parseOauthReturn(uri: Uri): OAuthReturn? {
+        val provider = when {
+            uri.scheme == "fihaven" && uri.host == "oauth" ->
+                uri.pathSegments.firstOrNull()
+            uri.scheme == "https" &&
+                (uri.host == "fihaven.app" || uri.host == "www.fihaven.app") &&
+                uri.pathSegments.getOrNull(0) == "oauth" ->
+                uri.pathSegments.getOrNull(1)
+            else -> null
+        } ?: return null
+        if (provider != "apple" && provider != "google") return null
+        return OAuthReturn(
+            provider = provider,
+            handoffCode = uri.getQueryParameter("code"),
+            idToken = uri.getQueryParameter("idToken"),
+            state = uri.getQueryParameter("state"),
+            name = uri.getQueryParameter("name")?.ifBlank { null },
+        )
     }
 }
