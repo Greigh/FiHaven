@@ -605,6 +605,11 @@
       // Post-auth navigation (verify-email / welcome / dashboard), reused by
       // the federated sign-in module after a Google/Apple session is minted.
       routeAfterAuth: routeAfterAuth,
+      // Kick the MFA step after OAuth when the account has a second factor.
+      beginMfa: function (data) {
+        var form = document.querySelector('[data-auth-form]') || document.querySelector('form');
+        if (form) beginMfaStep(form, data);
+      },
       // The current session's CSRF token (null until me() resolves).
       getCsrfToken: function () {
         return csrfToken;
