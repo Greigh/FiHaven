@@ -10,7 +10,8 @@ import java.util.UUID
  * Google sign-in via Custom Tab when Credential Manager can't mint a token
  * (common on Play builds until an Android OAuth client has the Play App
  * Signing SHA-1). Mirrors [AppleWebSignIn]: open a FiHaven page that runs
- * Google Identity Services, then bounce back through `fihaven://oauth/google`.
+ * Google Identity Services, deposits the JWT under a one-time handoff code,
+ * then returns via `https://fihaven.app/oauth/google?code=…` (App Link).
  */
 object GoogleWebSignIn {
     @Volatile var pendingState: String? = null

@@ -25,8 +25,19 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Web OAuth (Apple / Google Custom Tab) returns via
-                 fihaven://oauth/{apple|google}. -->
+            <!-- Verified https App Links for OAuth return
+                 (https://fihaven.app/oauth/{apple|google}). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="fihaven.app"
+                    android:pathPrefix="/oauth" />
+            </intent-filter>
+            <!-- Legacy custom-scheme fallback (local dev / pre-association).
+                 Prefer the https App Link above — do not put JWTs on this URL. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
