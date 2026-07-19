@@ -94,6 +94,34 @@ describe('oauthHandoff', () => {
       .toThrow(/handoff-mismatch/);
   });
 
+  it('rejects provider mismatch and expired / missing codes', () => {
+    const code = oauthHandoff.create({
+      provider: 'apple',
+      idToken: 'apple.jwt',
+      state: 's',
+    });
+    expect(() => oauthHandoff.consume({ provider: 'google', code, state: 's' }))
+      .toThrow(/handoff-mismatch/);
+
+    expect(() => oauthHandoff.consume({ provider: 'apple', code: 'deadbeef', state: 's' }))
+      .toThrow(/handoff-invalid/);
+
+    expect(() => oauthHandoff.create({ provider: 'apple', idToken: '' }))
+      .toThrow(/missing-id-token/);
+
+    // Expire by rewriting the stored row's expires_at.
+    const code3 = oauthHandoff.create({
+      provider: 'apple',
+      idToken: 'apple.jwt.3',
+      state: 's',
+    });
+    const row = [...store.values()].find((r) => r.id_token === 'apple.jwt.3');
+    expect(row).toBeTruthy();
+    row.expires_at = Date.now() - 1;
+    expect(() => oauthHandoff.consume({ provider: 'apple', code: code3, state: 's' }))
+      .toThrow(/handoff-expired/);
+  });
+
   it('falls back to custom scheme when PUBLIC_ORIGIN is unset', () => {
     delete process.env.PUBLIC_ORIGIN;
     const url = oauthHandoff.appReturnUrl('apple', { code: 'abc', state: 's' });
