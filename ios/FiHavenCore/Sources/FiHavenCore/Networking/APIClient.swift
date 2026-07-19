@@ -141,14 +141,21 @@ public final class APIClient: Sendable {
     }
 
     /// Exchange a provider OIDC ID token (Apple / Google) for a session.
-    /// A federated provider is the auth factor, so this never returns an MFA
-    /// challenge. `name` is only meaningful on Apple's first authorization.
-    public func oauthSignIn(provider: String, idToken: String, name: String? = nil) async throws -> AuthSession {
+    /// May return MFA when the account has an app-level second factor.
+    /// `name` is only meaningful on Apple's first authorization.
+    public func oauthSignIn(provider: String, idToken: String, name: String? = nil) async throws -> LoginOutcome {
         let body = OAuthSignInRequest(idToken: idToken, name: name)
         let req = try makeRequest(path: "api/auth/oauth/\(provider)", method: .POST,
                                   body: AnyEncodable(body), tokenMode: true)
         let data = try await send(req)
-        return try storeSession(from: data)
+        if let mfa = try? JSONDecoder().decode(MfaResponse.self, from: data),
+           mfa.mfaRequired == true {
+            return .mfaRequired(MfaChallenge(
+                mfaToken: mfa.mfaToken ?? "",
+                methods: mfa.methods ?? []
+            ))
+        }
+        return .authenticated(try storeSession(from: data))
     }
 
     // ── Passkey login (passwordless first factor) ────────────────────

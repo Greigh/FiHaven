@@ -147,6 +147,17 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Middleware: FiHaven Pro entitlement required. Lazy-requires billing
+// so this module stays free of a hard cycle at load time.
+function requirePro(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'unauthenticated' });
+  const billing = require('./billing');
+  const entitlement = billing.computeEntitlement(req.user.id);
+  if (!entitlement.pro) return res.status(403).json({ error: 'pro-required' });
+  req.entitlement = entitlement;
+  next();
+}
+
 // Middleware: double-submit CSRF check for state-changing requests.
 // The session's csrf_token must be echoed in the X-CSRF-Token header.
 // Bearer-token clients are exempt: a CSRF attack relies on the browser
@@ -171,5 +182,6 @@ module.exports = {
   requireAuth,
   requireVerified,
   requireAdmin,
+  requirePro,
   requireCsrf,
 };
