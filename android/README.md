@@ -61,13 +61,19 @@ cross-platform parity.
    R8 is on). If R8 is off, the deobfuscation warning is informational —
    there is no mapping file to upload.
 
-Bump `versionCode` in `app/build.gradle.kts` before each Play upload.
+Bump `versionCode` in `app/build.gradle.kts` before each Play upload (or pass
+`--version-code +1`). `deploy:android` does **not** auto-bump — it uploads
+whatever code is already in the Gradle file. The Play release is named
+`versionName (versionCode)` (e.g. `1.6.1 (27)`).
 
 **One-shot upload** (from repo root; builds then uploads):
 
 ```sh
-# Closed testing (“alpha” track) — default
+# Closed testing (“alpha” track) — default; uses current versionCode
 bun run deploy:android
+
+# Bump versionCode, then build + upload
+bun run deploy:android -- --version-code +1
 
 # Internal testing
 GOOGLE_PLAY_TRACK=internal bun run deploy:android
