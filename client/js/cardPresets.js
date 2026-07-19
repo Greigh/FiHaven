@@ -30,8 +30,8 @@ export const CARD_PRESETS = [
   { id: 'amex-bce',         issuer: 'American Express', name: 'Blue Cash Everyday',   network: 'Amex',       rewardBase: 1,   rewardCategories: { Groceries: 3, 'Online shopping': 3, Gas: 3 } },
 
   // ── Chase ──
-  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, 'Online shopping': 3 }, pointValue: 2 },
-  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3 }, pointValue: 2 },
+  { id: 'chase-csp',        issuer: 'Chase',            name: 'Sapphire Preferred',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2, Streaming: 3, Gas: 3 }, pointValue: 2 },
+  { id: 'chase-csr',        issuer: 'Chase',            name: 'Sapphire Reserve',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 4 }, pointValue: 2 },
   { id: 'chase-cfu',        issuer: 'Chase',            name: 'Freedom Unlimited',    network: 'Visa',       rewardBase: 1.5, rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5 },
   { id: 'chase-cff',        issuer: 'Chase',            name: 'Freedom Flex',         network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Drugstores: 3, Travel: 5 }, pointValue: 1.5, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Transit', 'Online shopping', 'Streaming'] },
   { id: 'chase-amazon',     issuer: 'Chase',            name: 'Amazon Prime Visa',    network: 'Visa',       rewardBase: 1,   rewardCategories: { 'Online shopping': 5, Dining: 2, Gas: 2, Transit: 2, Drugstores: 2 } },
@@ -39,6 +39,7 @@ export const CARD_PRESETS = [
   // ── Citi ──
   { id: 'citi-double',      issuer: 'Citi',             name: 'Double Cash',          network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
   { id: 'citi-strata',      issuer: 'Citi',             name: 'Strata Premier',       network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 3, Dining: 3, Groceries: 3, Gas: 3 }, pointValue: 1.8 },
+  { id: 'citi-strata-elite', issuer: 'Citi',            name: 'Strata Elite',         network: 'Mastercard', rewardBase: 1.5, rewardCategories: { Dining: 3, Travel: 3 }, pointValue: 1.8 },
   { id: 'citi-custom-cash', issuer: 'Citi',             name: 'Custom Cash',          network: 'Mastercard', rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Dining', 'Groceries', 'Gas', 'Travel', 'Transit', 'Streaming', 'Drugstores'] },
   { id: 'citi-costco',      issuer: 'Citi',             name: 'Costco Anywhere Visa', network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 4, Dining: 3, Travel: 3 } },
 
@@ -46,12 +47,14 @@ export const CARD_PRESETS = [
   { id: 'capone-savorone',  issuer: 'Capital One',      name: 'SavorOne',             network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
   { id: 'capone-savor',     issuer: 'Capital One',      name: 'Savor',                network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Streaming: 3, Groceries: 3 } },
   { id: 'capone-quicksilver', issuer: 'Capital One',    name: 'Quicksilver',          network: 'Mastercard', rewardBase: 1.5, rewardCategories: {} },
+  { id: 'capone-ventureone', issuer: 'Capital One',     name: 'VentureOne',           network: 'Visa',       rewardBase: 1.25, rewardCategories: { Travel: 5 }, pointValue: 1.85 },
   { id: 'capone-venture',   issuer: 'Capital One',      name: 'Venture',              network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
   { id: 'capone-venturex',  issuer: 'Capital One',      name: 'Venture X',            network: 'Visa',       rewardBase: 2,   rewardCategories: { Travel: 5 }, pointValue: 1.85 },
 
   // ── Wells Fargo ──
   { id: 'wf-active-cash',   issuer: 'Wells Fargo',      name: 'Active Cash',          network: 'Visa',       rewardBase: 2,   rewardCategories: {} },
   { id: 'wf-autograph',     issuer: 'Wells Fargo',      name: 'Autograph',            network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 3, Gas: 3, Transit: 3, Streaming: 3 }, pointValue: 1.5 },
+  { id: 'wf-autograph-journey', issuer: 'Wells Fargo',  name: 'Autograph Journey',    network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Dining: 3 }, pointValue: 1.5 },
 
   // ── Bank of America ──
   { id: 'boa-customized',   issuer: 'Bank of America',  name: 'Customized Cash',      network: 'Visa',       rewardBase: 1,   rewardCategories: { Gas: 3, 'Online shopping': 3 } },
@@ -60,14 +63,26 @@ export const CARD_PRESETS = [
 
   // ── U.S. Bank ──
   { id: 'usbank-altitude-go', issuer: 'U.S. Bank',      name: 'Altitude Go',          network: 'Visa',       rewardBase: 1,   rewardCategories: { Dining: 4, Streaming: 3, Groceries: 2, Gas: 2 } },
+  { id: 'usbank-altitude-connect', issuer: 'U.S. Bank', name: 'Altitude Connect',     network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Gas: 4, Dining: 2, Streaming: 2, Groceries: 2 }, pointValue: 1 },
   { id: 'usbank-cashplus',  issuer: 'U.S. Bank',        name: 'Cash+',                network: 'Visa',       rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Streaming', 'Groceries', 'Online shopping', 'Transit', 'Drugstores'] },
 
   // ── Discover ──
   { id: 'discover-it',      issuer: 'Discover',         name: 'it Cash Back',         network: 'Discover',   rewardBase: 1,   rewardCategories: {}, rotatingRate: 5, rotatingPool: ['Gas', 'Groceries', 'Dining', 'Online shopping', 'Transit', 'Drugstores'] },
+  { id: 'discover-it-miles', issuer: 'Discover',        name: 'it Miles',             network: 'Discover',   rewardBase: 1.5, rewardCategories: {}, pointValue: 1 },
 
-  // ── Other ──
+  // ── Bilt 2.0 (Column N.A. / Mastercard) ──
+  // Everyday earn from issuer pages; portal/partner bumps (Bilt Travel hotels,
+  // Neighborhood dining) are higher and editable after import.
+  { id: 'bilt-blue',        issuer: 'Bilt',             name: 'Blue Card',            network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 2, Transit: 3 }, pointValue: 2.2 },
+  { id: 'bilt-obsidian',    issuer: 'Bilt',             name: 'Obsidian Card',        network: 'Mastercard', rewardBase: 1,   rewardCategories: { Travel: 2 }, rotatingRate: 3, rotatingPool: ['Dining', 'Groceries'], pointValue: 2.2 },
+  { id: 'bilt-palladium',   issuer: 'Bilt',             name: 'Palladium Card',       network: 'Mastercard', rewardBase: 2,   rewardCategories: { Travel: 3, Transit: 4 }, pointValue: 2.2 },
+
+  // ── Co-brand / other ──
   { id: 'apple-card',       issuer: 'Apple',            name: 'Apple Card',           network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
-  { id: 'bilt',             issuer: 'Bilt',             name: 'Bilt Mastercard',      network: 'Mastercard', rewardBase: 1,   rewardCategories: { Dining: 3, Travel: 2 }, pointValue: 2.2 },
+  { id: 'amex-hilton-surpass', issuer: 'American Express', name: 'Hilton Honors Surpass', network: 'Amex',   rewardBase: 1,   rewardCategories: { Travel: 12, Dining: 6, Groceries: 6, Gas: 6 }, pointValue: 0.6 },
+  { id: 'chase-southwest-priority', issuer: 'Chase',    name: 'Southwest Priority',   network: 'Visa',       rewardBase: 1,   rewardCategories: { Travel: 4, Dining: 2, Gas: 2 }, pointValue: 1.3 },
+  { id: 'robinhood-gold',   issuer: 'Robinhood',        name: 'Gold Card',            network: 'Mastercard', rewardBase: 3,   rewardCategories: {} },
+  { id: 'fidelity',         issuer: 'Fidelity',         name: 'Rewards Visa',         network: 'Visa',       rewardBase: 2,   rewardCategories: {} },
   { id: 'sofi',             issuer: 'SoFi',             name: 'SoFi Credit Card',     network: 'Mastercard', rewardBase: 2,   rewardCategories: {} },
   { id: 'paypal',           issuer: 'PayPal',           name: 'Cashback Mastercard',  network: 'Mastercard', rewardBase: 1.5, rewardCategories: { 'Online shopping': 3 } },
   { id: 'target-redcard',   issuer: 'Target',           name: 'RedCard',              network: 'Mastercard', rewardBase: 1,   rewardCategories: { Other: 5 } },
@@ -100,6 +115,138 @@ export function suggestCardPreset(name, issuer) {
   return bestScore >= 4 ? best : null;
 }
 
+/**
+ * Replace the in-memory catalog with the server copy (admin-editable).
+ * Keeps bundled presets if the request fails or returns empty.
+ */
+export async function loadCardPresetsFromServer() {
+  try {
+    const r = await fetch('/api/card-presets', { credentials: 'same-origin' });
+    if (!r.ok) return false;
+    const data = await r.json().catch(() => ({}));
+    const list = data && data.presets;
+    if (!Array.isArray(list) || !list.length) return false;
+    CARD_PRESETS.length = 0;
+    for (const p of list) CARD_PRESETS.push(p);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function numOr(v, fallback) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function catsEqual(a, b) {
+  const aa = a || {};
+  const bb = b || {};
+  const keys = new Set([...Object.keys(aa), ...Object.keys(bb)]);
+  for (const k of keys) {
+    if (numOr(aa[k], 0) !== numOr(bb[k], 0)) return false;
+  }
+  return true;
+}
+
+/** True when the card's earn rates match the catalog preset. */
+export function cardRatesMatchPreset(card, preset) {
+  if (!card || !preset) return false;
+  if (numOr(card.rewardBase, 0) !== numOr(preset.rewardBase, 0)) return false;
+  if (numOr(card.pointValue, 1) !== numOr(preset.pointValue, 1)) return false;
+  // Active category rates (including any currently-ticked rotating cats).
+  if (!catsEqual(card.rewardCategories, preset.rewardCategories)) return false;
+  const poolA = Array.isArray(card.rotatingPool) ? card.rotatingPool.slice().sort().join('|') : '';
+  const poolB = Array.isArray(preset.rotatingPool) ? preset.rotatingPool.slice().sort().join('|') : '';
+  if (poolA !== poolB) return false;
+  if (poolA && numOr(card.rotatingRate, 5) !== numOr(preset.rotatingRate, 5)) return false;
+  return true;
+}
+
+/** Copy catalog earn rates onto a card object (does not touch identity fields). */
+export function applyPresetRates(card, preset) {
+  if (!card || !preset) return card;
+  const next = Object.assign({}, card);
+  next.rewardBase = numOr(preset.rewardBase, 0);
+  next.rewardCategories = Object.assign({}, preset.rewardCategories || {});
+  next.pointValue = preset.pointValue != null ? numOr(preset.pointValue, null) : null;
+  next.rotatingPool = Array.isArray(preset.rotatingPool) ? preset.rotatingPool.slice() : null;
+  next.rotatingRate = Array.isArray(preset.rotatingPool) && preset.rotatingPool.length
+    ? numOr(preset.rotatingRate, 5)
+    : null;
+  next.presetId = preset.id;
+  if (preset.updatedAt != null) next.acceptedPresetUpdatedAt = preset.updatedAt;
+  // Accepting catalog rates clears any prior "Keep mine" for this (or older) stamp.
+  next.declinedPresetUpdatedAt = null;
+  return next;
+}
+
+/**
+ * Resolve the catalog preset for a user card: stored presetId first, else
+ * name/issuer suggest. Optionally attach presetId when rates already match.
+ */
+export function resolveCardPreset(card, { attachIfMatch } = {}) {
+  if (!card || card.type === 'loan') return null;
+  let preset = null;
+  if (card.presetId) preset = cardPresetById(card.presetId);
+  if (!preset) preset = suggestCardPreset(card.name, card.issuer);
+  if (attachIfMatch && preset && !card.presetId && cardRatesMatchPreset(card, preset)) {
+    card.presetId = preset.id;
+    if (preset.updatedAt != null) card.acceptedPresetUpdatedAt = preset.updatedAt;
+  }
+  return preset;
+}
+
+/**
+ * Cards whose linked catalog preset has newer rates the user hasn't
+ * accepted or declined yet.
+ */
+export function findPendingPresetUpdates(cards) {
+  const out = [];
+  if (!Array.isArray(cards)) return out;
+  for (const card of cards) {
+    if (!card || card.archived || card.type === 'loan') continue;
+    const preset = resolveCardPreset(card, { attachIfMatch: true });
+    if (!preset || !card.presetId) continue;
+    if (cardRatesMatchPreset(card, preset)) {
+      // Already on catalog rates — stamp acceptance quietly.
+      if (preset.updatedAt != null &&
+          (!card.acceptedPresetUpdatedAt || card.acceptedPresetUpdatedAt < preset.updatedAt)) {
+        card.acceptedPresetUpdatedAt = preset.updatedAt;
+      }
+      continue;
+    }
+    const updatedAt = preset.updatedAt || 0;
+    if (updatedAt && card.declinedPresetUpdatedAt && card.declinedPresetUpdatedAt >= updatedAt) continue;
+    if (updatedAt && card.acceptedPresetUpdatedAt && card.acceptedPresetUpdatedAt >= updatedAt) continue;
+    // No updatedAt (bundled catalog): still offer if rates diverge and not declined for "0".
+    if (!updatedAt && card.declinedPresetUpdatedAt === 0) continue;
+    out.push({ card, preset });
+  }
+  return out;
+}
+
+function formatRateDiff(card, preset) {
+  const lines = [];
+  const baseA = numOr(card.rewardBase, 0);
+  const baseB = numOr(preset.rewardBase, 0);
+  if (baseA !== baseB) lines.push('Base: ' + baseA + '% → ' + baseB + '%');
+  const catsA = card.rewardCategories || {};
+  const catsB = preset.rewardCategories || {};
+  const keys = new Set([...Object.keys(catsA), ...Object.keys(catsB)]);
+  keys.forEach(function (k) {
+    const a = numOr(catsA[k], 0);
+    const b = numOr(catsB[k], 0);
+    if (a !== b) lines.push(k + ': ' + (a || '—') + '% → ' + (b || '—') + '%');
+  });
+  const ptsA = card.pointValue != null ? numOr(card.pointValue, 1) : 1;
+  const ptsB = preset.pointValue != null ? numOr(preset.pointValue, 1) : 1;
+  if (ptsA !== ptsB) lines.push('Point value: ' + ptsA + '¢ → ' + ptsB + '¢');
+  return lines.slice(0, 8).join('\n') + (lines.length > 8 ? '\n…' : '');
+}
+
+export { formatRateDiff };
+
 const BASE_RATE_LABEL = 'Base rate (everything)';
 
 /** Rate FiHaven ships for a preset + category (not the user's edited card). */
@@ -127,7 +274,8 @@ export function presetRateForCategory(preset, category, baseLabel = BASE_RATE_LA
  * Returns { rate, preset } — rate is null when we ship no rate (or no preset match).
  */
 export function shippedRewardRate(card, category, baseLabel = BASE_RATE_LABEL) {
-  const preset = suggestCardPreset(card && card.name, card && card.issuer);
+  const preset = (card && card.presetId && cardPresetById(card.presetId))
+    || suggestCardPreset(card && card.name, card && card.issuer);
   if (!preset) return { rate: null, preset: null };
   return { rate: presetRateForCategory(preset, category, baseLabel), preset };
 }

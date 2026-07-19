@@ -24,6 +24,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var syncState: SyncState = .idle
     @Published private(set) var loaded = false
     @Published private(set) var rolloverPrompt: RolloverPrompt?
+    /// Queue of catalog rate updates awaiting Update / Keep mine.
+    @Published private(set) var presetUpdatePrompt: Rewards.PendingPresetUpdate?
 
     /// Non-archived bills/cards — what every list, total, and calculation
     /// should read. Archived records stay in `data` (so they round-trip and
@@ -58,11 +60,50 @@ final class AppStore: ObservableObject {
             refreshNotifications()
             PushRegistrar.shared.syncIfNeeded(settings: data.settings)
             checkNewMonth()
+            await loadCardPresets()
+            checkPresetUpdates()
             await syncBanks()
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline
         }
+    }
+
+    /// Pull the admin-editable rewards catalog. Best-effort — bundled presets remain if this fails.
+    private func loadCardPresets() async {
+        guard let list = try? await api.fetchCardPresets(), !list.isEmpty else { return }
+        Rewards.replaceActivePresets(list)
+    }
+
+    /// Offer Update / Keep mine when catalog rates diverge from a linked card.
+    func checkPresetUpdates() {
+        var cards = data.cards
+        let pending = Rewards.findPendingPresetUpdates(&cards)
+        if cards != data.cards {
+            mutate { $0.cards = cards }
+        }
+        presetUpdatePrompt = pending.first
+    }
+
+    func acceptPresetUpdate() {
+        guard let prompt = presetUpdatePrompt else { return }
+        mutate { d in
+            guard let i = d.cards.firstIndex(where: { $0.id == prompt.card.id }) else { return }
+            d.cards[i] = Rewards.applyPresetRates(d.cards[i], prompt.preset)
+        }
+        presetUpdatePrompt = nil
+        checkPresetUpdates()
+    }
+
+    func declinePresetUpdate() {
+        guard let prompt = presetUpdatePrompt else { return }
+        mutate { d in
+            guard let i = d.cards.firstIndex(where: { $0.id == prompt.card.id }) else { return }
+            d.cards[i].declinedPresetUpdatedAt = prompt.preset.updatedAt ?? 0
+            if d.cards[i].presetId == nil { d.cards[i].presetId = prompt.preset.id }
+        }
+        presetUpdatePrompt = nil
+        checkPresetUpdates()
     }
 
     /// Pull anything new from a linked bank on app open. Without this a linked

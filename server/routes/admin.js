@@ -1,13 +1,17 @@
 /* ═══════════════════════════════════════════════════════════
    routes/admin.js — admin-only user & entitlement management.
    Mounted at /api/admin; every route requires an admin session.
-     GET    /users                    — list/search users (+ Pro / suspended)
+     GET    /users                    — list/search users (+ Pro / suspended; paginated)
      POST   /users/:id/role           — set 'admin' | 'user'
      POST   /users/:id/pro            — grant/revoke a comp Pro entitlement
      POST   /users/:id/suspend        — soft-suspend / unsuspend login
      POST   /users/:id/reset-password — email a password-reset link
      POST   /users/:id/logout         — kill all sessions
      POST   /users/:id/delete         — permanently delete (confirm email)
+     GET    /card-presets             — list/search reward card catalog
+     POST   /card-presets             — create a card preset
+     PUT    /card-presets/:id         — update rates / metadata
+     DELETE /card-presets/:id         — remove a preset
      GET    /promo                    — list active promo codes
      POST   /promo                    — create a free_sub promo code
      POST   /promo/:code/deactivate   — soft-disable a promo code
@@ -58,11 +62,24 @@ function serializeUser(u) {
   };
 }
 
-/* ── GET /api/admin/users?q=&limit= ──────────────────────────── */
+/* ── GET /api/admin/users?q=&limit=&page= ────────────────────── */
 router.get('/users', (req, res) => {
   const q = String(req.query.q || '').slice(0, 100);
-  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-  res.json({ users: dbApi.listUsers(q, limit).map(serializeUser), plans: COMP_PLANS });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 200);
+  const total = dbApi.countUsers(q);
+  const pages = Math.max(1, Math.ceil(total / limit));
+  let page = parseInt(req.query.page, 10) || 1;
+  if (page < 1) page = 1;
+  if (page > pages) page = pages;
+  const offset = (page - 1) * limit;
+  res.json({
+    users: dbApi.listUsers(q, limit, offset).map(serializeUser),
+    total,
+    limit,
+    page,
+    pages,
+    plans: COMP_PLANS,
+  });
 });
 
 /* ── POST /api/admin/users/:id/role  { role } ────────────────── */
@@ -208,6 +225,96 @@ function serializePromo(p) {
     exhausted,
   };
 }
+
+/* ── Card presets (rewards catalog) ───────────────────────── */
+function slugifyCardId(issuer, name) {
+  const base = `${issuer || ''}-${name || ''}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return base || ('card-' + Date.now().toString(36));
+}
+
+function normalizePresetBody(body, { requireId } = {}) {
+  const b = body || {};
+  let id = String(b.id || '').trim();
+  if (!id && !requireId) id = slugifyCardId(b.issuer, b.name);
+  if (!id) return { error: 'missing-id' };
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/i.test(id)) return { error: 'bad-id' };
+  return {
+    preset: {
+      id,
+      issuer: b.issuer,
+      name: b.name,
+      network: b.network,
+      rewardBase: b.rewardBase,
+      rewardCategories: b.rewardCategories,
+      pointValue: b.pointValue,
+      rotatingRate: b.rotatingRate,
+      rotatingPool: b.rotatingPool,
+    },
+  };
+}
+
+/* ── GET /api/admin/card-presets?q=&issuer=&limit=&page= ──── */
+router.get('/card-presets', (req, res) => {
+  const q = String(req.query.q || '').slice(0, 100);
+  const issuer = String(req.query.issuer || '').slice(0, 80);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  const total = dbApi.countCardPresets(q, issuer);
+  const pages = Math.max(1, Math.ceil(total / limit));
+  let page = parseInt(req.query.page, 10) || 1;
+  if (page < 1) page = 1;
+  if (page > pages) page = pages;
+  const offset = (page - 1) * limit;
+  res.json({
+    presets: dbApi.listCardPresets(q, issuer, limit, offset),
+    issuers: dbApi.listCardPresetIssuers(),
+    total,
+    limit,
+    page,
+    pages,
+  });
+});
+
+/* ── POST /api/admin/card-presets ─────────────────────────── */
+router.post('/card-presets', requireCsrf, (req, res) => {
+  const norm = normalizePresetBody(req.body, { requireId: false });
+  if (norm.error) return sendError(res, 400, norm.error);
+  if (dbApi.findCardPreset(norm.preset.id)) return sendError(res, 409, 'id-taken');
+  try {
+    const preset = dbApi.upsertCardPreset(norm.preset);
+    res.status(201).json({ ok: true, preset });
+  } catch (err) {
+    sendError(res, 400, (err && err.message) || 'save-failed');
+  }
+});
+
+/* ── PUT /api/admin/card-presets/:id ──────────────────────── */
+router.put('/card-presets/:id', requireCsrf, (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return sendError(res, 400, 'missing-id');
+  if (!dbApi.findCardPreset(id)) return sendError(res, 404, 'not-found');
+  const body = Object.assign({}, req.body || {}, { id });
+  const norm = normalizePresetBody(body, { requireId: true });
+  if (norm.error) return sendError(res, 400, norm.error);
+  try {
+    const preset = dbApi.upsertCardPreset(norm.preset);
+    res.json({ ok: true, preset });
+  } catch (err) {
+    sendError(res, 400, (err && err.message) || 'save-failed');
+  }
+});
+
+/* ── DELETE /api/admin/card-presets/:id ───────────────────── */
+router.delete('/card-presets/:id', requireCsrf, (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return sendError(res, 400, 'missing-id');
+  const n = dbApi.deleteCardPreset(id);
+  if (!n) return sendError(res, 404, 'not-found');
+  res.json({ ok: true, id });
+});
 
 router.get('/promo', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);

@@ -236,6 +236,13 @@ class ApiClient(
     // ── Data sync ─────────────────────────────────────────────────────
     suspend fun fetchData(): AppData = decodeAppData(send(makeRequest("api/data", HttpMethod.GET)))
 
+    /** Public admin-editable rewards catalog (`GET /api/card-presets`). */
+    suspend fun fetchCardPresets(): List<app.fihaven.core.logic.Rewards.CardPreset> {
+        val body = send(makeRequest("api/card-presets", HttpMethod.GET))
+        val resp = decode<CardPresetsResponse>(body)
+        return resp.presets.map { it.toDomain() }
+    }
+
     suspend fun saveData(data: AppData) {
         val body = encode(DataPutBody(
             data.bills, data.cards, data.payments,

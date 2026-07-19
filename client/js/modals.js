@@ -32,6 +32,9 @@ let pendingConfirmFn = null;
 let payPresets       = [];   // [{ key, label, sub, amount }] for the pay-modal chips
 let editRotatingPool = [];    // rotating-5% category pool for the card being edited
 let editRotatingRate = 5;     // the elevated rate those pool categories earn when active
+let editPresetId     = null;  // catalog preset id when user started from a known card
+let editAcceptedPresetUpdatedAt = null;
+let editDeclinedPresetUpdatedAt = null;
 let editPerks        = [];    // recurring credits/perks for the card being edited
 let editOffers       = [];    // card-linked offers for the card being edited
 
@@ -359,15 +362,16 @@ function renderRotatingToggles(cats) {
 function setupRewardPreset() {
   var sel = document.getElementById('c-reward-preset');
   if (!sel) return;
-  if (sel.options.length <= 1) {
-    CARD_PRESETS.forEach(function (p) {
-      var o = document.createElement('option');
-      o.value = p.id;
-      o.textContent = p.issuer + ' ' + p.name;
-      sel.appendChild(o);
-    });
-  }
-  sel.value = '';
+  // Rebuild options from the live catalog (admin may have edited rates/ids).
+  var prev = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  CARD_PRESETS.forEach(function (p) {
+    var o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.issuer + ' ' + p.name;
+    sel.appendChild(o);
+  });
+  sel.value = prev && CARD_PRESETS.some(function (p) { return p.id === prev; }) ? prev : '';
   sel.onchange = function () { applyCardPreset(sel.value); };
   var nameEl = document.getElementById('c-name');
   var issuerEl = document.getElementById('c-issuer');
@@ -391,6 +395,9 @@ function setupRewardPreset() {
 export function applyCardPreset(id) {
   var p = cardPresetById(id);
   if (!p) return;
+  editPresetId = p.id;
+  editAcceptedPresetUpdatedAt = p.updatedAt != null ? p.updatedAt : null;
+  editDeclinedPresetUpdatedAt = null;
   if (!document.getElementById('c-name').value.trim()) document.getElementById('c-name').value = p.name;
   if (!document.getElementById('c-issuer').value.trim()) document.getElementById('c-issuer').value = p.issuer;
   if (p.network) document.getElementById('c-network').value = p.network;
@@ -547,6 +554,9 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-reward-pointvalue').value = c.pointValue || '';
   editRotatingPool = Array.isArray(c.rotatingPool) ? c.rotatingPool.slice() : [];
   editRotatingRate = c.rotatingRate || 5;
+  editPresetId = c.presetId || null;
+  editAcceptedPresetUpdatedAt = c.acceptedPresetUpdatedAt != null ? c.acceptedPresetUpdatedAt : null;
+  editDeclinedPresetUpdatedAt = c.declinedPresetUpdatedAt != null ? c.declinedPresetUpdatedAt : null;
   renderRewardCatInputs(c.rewardCategories || {});
   renderRotatingToggles(c.rewardCategories || {});
   // Deep-copy the saved perks so edits stay local until Save.
@@ -559,6 +569,10 @@ export function openCardModal(idx, defaultType) {
     : [];
   renderOfferInputs();
   setupRewardPreset();
+  if (editPresetId) {
+    var sel = document.getElementById('c-reward-preset');
+    if (sel) sel.value = editPresetId;
+  }
 
   toggleCardTypeFields();
   document.getElementById('card-modal').classList.add('open');
@@ -628,7 +642,19 @@ export function saveCard() {
     // editor can re-show the quarterly toggles; null for ordinary cards.
     rotatingPool:      (isLoan || !editRotatingPool.length) ? null : editRotatingPool.slice(),
     rotatingRate:      (isLoan || !editRotatingPool.length) ? null : (editRotatingRate || 5),
+    // Catalog link — lets admin rate updates offer Update / Keep mine later.
+    presetId:          isLoan ? null : (editPresetId || null),
+    acceptedPresetUpdatedAt: isLoan ? null : editAcceptedPresetUpdatedAt,
+    declinedPresetUpdatedAt: isLoan ? null : editDeclinedPresetUpdatedAt,
   };
+
+  // Fresh preset pick → treat current catalog stamp as accepted.
+  if (!isLoan && editPresetId) {
+    var preset = cardPresetById(editPresetId);
+    if (preset && preset.updatedAt != null && obj.acceptedPresetUpdatedAt == null) {
+      obj.acceptedPresetUpdatedAt = preset.updatedAt;
+    }
+  }
 
   const isNew = editCardId === null;
   if (!isNew) cards[editCardId] = obj; else cards.push(obj);
@@ -1011,7 +1037,9 @@ export function openConfirm(title, msg, fn, okLabel, okClass) {
 
   pendingConfirmFn = fn;
   document.getElementById('confirm-title').textContent = title;
-  document.getElementById('confirm-msg').textContent   = msg;
+  var msgEl = document.getElementById('confirm-msg');
+  msgEl.textContent = msg;
+  msgEl.style.whiteSpace = /\n/.test(msg) ? 'pre-line' : '';
 
   var btn = document.getElementById('confirm-ok-btn');
   btn.textContent = okLabel;
