@@ -49,7 +49,7 @@ private fun typeLabel(t: String) = ACCOUNT_TYPES[t]?.first ?: "Other"
 private fun typeIcon(t: String) = ACCOUNT_TYPES[t]?.second ?: "📦"
 
 @Composable
-fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues) {
+fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Account?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -60,7 +60,7 @@ fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues) {
     val netWorth = assets - liabilities
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Net Worth", onAdd = { creating = true }, branded = true)
+        ScreenHeader("Net Worth", onAdd = { creating = true }, onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 CtCard {

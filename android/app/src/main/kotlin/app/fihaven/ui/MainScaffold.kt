@@ -56,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -138,6 +139,9 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
     val moreItems = bottomAll.drop(bottomCount) + overflowAll
 
     var selected by remember { mutableStateOf(initialTab ?: shownBottom.firstOrNull()?.id ?: "dashboard") }
+    // Incremented when the user re-taps More while already on More — pops any
+    // nested More route back to the More home menu.
+    var morePopToRoot by remember { mutableIntStateOf(0) }
 
     // Open to the user's saved default view, once the data has loaded.
     var appliedLanding by remember { mutableStateOf(false) }
@@ -182,17 +186,20 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
                     if (!isPro) {
                         NavBarItem(selected == "getpro", "Get Pro", Icons.Filled.WorkspacePremium) { selected = "getpro" }
                     }
-                    NavBarItem(selected == "more", "More", Icons.Filled.MoreHoriz) { selected = "more" }
+                    NavBarItem(selected == "more", "More", Icons.Filled.MoreHoriz) {
+                        if (selected == "more") morePopToRoot++
+                        selected = "more"
+                    }
                 }
             },
         ) { padding ->
             when (val sel = selected) {
                 "getpro" -> ProScreen(vm, padding)
-                "more" -> MoreScreen(vm, user, padding, initialRoute, moreItems)
+                "more" -> MoreScreen(vm, user, padding, initialRoute, moreItems, morePopToRoot)
                 else -> {
                     val tab = TabId.from(sel)
                     if (tab != null) TabContent(tab, vm, padding)
-                    else MoreScreen(vm, user, padding, initialRoute, moreItems)
+                    else MoreScreen(vm, user, padding, initialRoute, moreItems, morePopToRoot)
                 }
             }
         }
@@ -276,28 +283,27 @@ private fun RowScope.NavBarItem(selected: Boolean, label: String, icon: ImageVec
 }
 
 /// Render a tab's content. `onBack` is supplied when shown from "More"
-/// (overflow) so the back-aware screens show an arrow; the primary screens
-/// without one rely on the caller's BackHandler.
+/// so nested destinations show a back arrow; primary bottom-bar tabs leave it null.
 @Composable
 internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     when (tab) {
-        TabId.DASHBOARD -> DashboardScreen(vm, padding)
-        TabId.BILLS -> BillsScreen(vm, padding)
-        TabId.CARDS -> CardsScreen(vm, padding)
-        TabId.LOANS -> CardsScreen(vm, padding, kind = "loan")
-        TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding) }
-        TabId.REWARDS -> ProGate(vm, ProFeature.REWARDS, padding, onBack) { RewardsScreen(vm, padding) }
+        TabId.DASHBOARD -> DashboardScreen(vm, padding, onBack)
+        TabId.BILLS -> BillsScreen(vm, padding, onBack)
+        TabId.CARDS -> CardsScreen(vm, padding, kind = "card", onBack = onBack)
+        TabId.LOANS -> CardsScreen(vm, padding, kind = "loan", onBack = onBack)
+        TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding, onBack) }
+        TabId.REWARDS -> ProGate(vm, ProFeature.REWARDS, padding, onBack) { RewardsScreen(vm, padding, onBack) }
         TabId.BUDGET -> BudgetScreen(vm, padding, onBack)
         TabId.SPENDING -> SpendingScreen(vm, padding, onBack)
         TabId.SUBSCRIPTIONS -> ProGate(vm, ProFeature.SUBSCRIPTIONS, padding, onBack) { SubscriptionsScreen(vm, padding, onBack) }
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
-        TabId.NETWORTH -> NetWorthScreen(vm, padding)   // Free — net worth is not Pro-gated
+        TabId.NETWORTH -> NetWorthScreen(vm, padding, onBack)
     }
 }
 
 @Composable
-private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
+private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     val isPro = ent.pro
@@ -392,7 +398,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues) {
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         // Branded top bar (FiHaven mark + period label), matching iOS and the
         // other Android screens.
-        ScreenHeader(periodLabel, branded = true)
+        ScreenHeader(periodLabel, onBack = onBack, branded = true)
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

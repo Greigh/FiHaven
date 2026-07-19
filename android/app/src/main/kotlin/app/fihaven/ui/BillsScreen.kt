@@ -61,7 +61,7 @@ import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.ui.theme.Ct
 
 @Composable
-fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
+fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Bill?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -106,7 +106,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues) {
     val filterCount = listOf(fUnpaid, fOverdue, fAutopay, fOnCard).count { it } + if (fCategory != "All") 1 else 0
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Bills", onAdd = { creating = true }, branded = true)
+        ScreenHeader("Bills", onAdd = { creating = true }, onBack = onBack, branded = true)
         SortFilterBar(
             sortOptions = listOf(
                 "due" to "Due date", "amount-desc" to "Largest first", "amount-asc" to "Smallest first",

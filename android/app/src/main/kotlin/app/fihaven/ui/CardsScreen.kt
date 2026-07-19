@@ -72,7 +72,7 @@ import app.fihaven.ui.theme.Ct
 import kotlin.math.min
 
 @Composable
-fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card") {
+fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card", onBack: (() -> Unit)? = null) {
     // kind == "loan" renders the Loans tab; default "card" renders Credit Cards.
     // Cards and loans share this screen (and the editor) but live in separate tabs.
     val isLoanView = kind == "loan"
@@ -131,7 +131,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card")
     }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true }, branded = true)
+        ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true }, onBack = onBack, branded = true)
         SortFilterBar(
             sortOptions = if (isLoanView) listOf(
                 "due" to "Due date", "balance" to "Largest balance",
