@@ -60,14 +60,18 @@ async function verifyPushRequest(req) {
     }
   }
 
-  const auth = (req.get && req.get('authorization')) || '';
-  const m = /^Bearer\s+(.+)$/i.exec(auth);
-  if (!m) {
+  const auth = String((req.get && req.get('authorization')) || '');
+  // Cap length before parsing — Authorization is never multi-KB in practice,
+  // and avoids pathological header DoS before we touch the token.
+  if (auth.length > 8192) throw new Error('pubsub-auth-too-long');
+  const bearerPrefix = 'bearer ';
+  const lower = auth.slice(0, bearerPrefix.length).toLowerCase();
+  const token = lower === bearerPrefix ? auth.slice(bearerPrefix.length).trim() : '';
+  if (!token) {
     if (requireAuth && !expectedToken) throw new Error('pubsub-auth-missing');
     return { ok: true, skipped: true };
   }
 
-  const token = m[1];
   const parts = String(token).split('.');
   if (parts.length !== 3) throw new Error('pubsub-malformed-token');
   const header = JSON.parse(b64urlToBuffer(parts[0]).toString('utf8'));
