@@ -56,10 +56,12 @@ object Rewards {
         val rotatingRate: Double? = null,        // elevated rate for rotating cards
         val rotatingPool: List<String>? = null,  // categories that can earn it when active
         val pointValue: Double? = null,          // cents per point (null → 1 = cash back)
+        val updatedAt: Double? = null,           // catalog stamp from server (ms)
     ) {
         val label: String get() = "$issuer $name"
     }
 
+    /** Bundled defaults. Runtime catalog is [activePresets] (may be replaced from the server). */
     val CARD_PRESETS = listOf(
         // American Express
         CardPreset("amex-gold", "American Express", "Gold Card", "Amex", 1.0, mapOf("Dining" to 4.0, "Groceries" to 4.0, "Travel" to 3.0), pointValue = 2.0),
@@ -68,41 +70,66 @@ object Rewards {
         CardPreset("amex-bcp", "American Express", "Blue Cash Preferred", "Amex", 1.0, mapOf("Groceries" to 6.0, "Streaming" to 6.0, "Gas" to 3.0, "Transit" to 3.0)),
         CardPreset("amex-bce", "American Express", "Blue Cash Everyday", "Amex", 1.0, mapOf("Groceries" to 3.0, "Online shopping" to 3.0, "Gas" to 3.0)),
         // Chase
-        CardPreset("chase-csp", "Chase", "Sapphire Preferred", "Visa", 1.0, mapOf("Dining" to 3.0, "Travel" to 2.0, "Streaming" to 3.0, "Online shopping" to 3.0), pointValue = 2.0),
-        CardPreset("chase-csr", "Chase", "Sapphire Reserve", "Visa", 1.0, mapOf("Dining" to 3.0, "Travel" to 3.0), pointValue = 2.0),
+        CardPreset("chase-csp", "Chase", "Sapphire Preferred", "Visa", 1.0, mapOf("Dining" to 3.0, "Travel" to 2.0, "Streaming" to 3.0, "Gas" to 3.0), pointValue = 2.0),
+        CardPreset("chase-csr", "Chase", "Sapphire Reserve", "Visa", 1.0, mapOf("Dining" to 3.0, "Travel" to 4.0), pointValue = 2.0),
         CardPreset("chase-cfu", "Chase", "Freedom Unlimited", "Visa", 1.5, mapOf("Dining" to 3.0, "Drugstores" to 3.0, "Travel" to 5.0), pointValue = 1.5),
         CardPreset("chase-cff", "Chase", "Freedom Flex", "Mastercard", 1.0, mapOf("Dining" to 3.0, "Drugstores" to 3.0, "Travel" to 5.0), 5.0, listOf("Gas", "Groceries", "Transit", "Online shopping", "Streaming"), pointValue = 1.5),
         CardPreset("chase-amazon", "Chase", "Amazon Prime Visa", "Visa", 1.0, mapOf("Online shopping" to 5.0, "Dining" to 2.0, "Gas" to 2.0, "Transit" to 2.0, "Drugstores" to 2.0)),
+        CardPreset("chase-southwest-priority", "Chase", "Southwest Priority", "Visa", 1.0, mapOf("Travel" to 4.0, "Dining" to 2.0, "Gas" to 2.0), pointValue = 1.3),
         // Citi
         CardPreset("citi-double", "Citi", "Double Cash", "Mastercard", 2.0, emptyMap()),
         CardPreset("citi-strata", "Citi", "Strata Premier", "Mastercard", 1.0, mapOf("Travel" to 3.0, "Dining" to 3.0, "Groceries" to 3.0, "Gas" to 3.0), pointValue = 1.8),
+        CardPreset("citi-strata-elite", "Citi", "Strata Elite", "Mastercard", 1.5, mapOf("Dining" to 3.0, "Travel" to 3.0), pointValue = 1.8),
         CardPreset("citi-custom-cash", "Citi", "Custom Cash", "Mastercard", 1.0, emptyMap(), 5.0, listOf("Dining", "Groceries", "Gas", "Travel", "Transit", "Streaming", "Drugstores")),
         CardPreset("citi-costco", "Citi", "Costco Anywhere Visa", "Visa", 1.0, mapOf("Gas" to 4.0, "Dining" to 3.0, "Travel" to 3.0)),
         // Capital One
         CardPreset("capone-savorone", "Capital One", "SavorOne", "Mastercard", 1.0, mapOf("Dining" to 3.0, "Streaming" to 3.0, "Groceries" to 3.0)),
         CardPreset("capone-savor", "Capital One", "Savor", "Mastercard", 1.0, mapOf("Dining" to 3.0, "Streaming" to 3.0, "Groceries" to 3.0)),
         CardPreset("capone-quicksilver", "Capital One", "Quicksilver", "Mastercard", 1.5, emptyMap()),
+        CardPreset("capone-ventureone", "Capital One", "VentureOne", "Visa", 1.25, mapOf("Travel" to 5.0), pointValue = 1.85),
         CardPreset("capone-venture", "Capital One", "Venture", "Visa", 2.0, mapOf("Travel" to 5.0), pointValue = 1.85),
         CardPreset("capone-venturex", "Capital One", "Venture X", "Visa", 2.0, mapOf("Travel" to 5.0), pointValue = 1.85),
         // Wells Fargo
         CardPreset("wf-active-cash", "Wells Fargo", "Active Cash", "Visa", 2.0, emptyMap()),
         CardPreset("wf-autograph", "Wells Fargo", "Autograph", "Visa", 1.0, mapOf("Dining" to 3.0, "Travel" to 3.0, "Gas" to 3.0, "Transit" to 3.0, "Streaming" to 3.0), pointValue = 1.5),
+        CardPreset("wf-autograph-journey", "Wells Fargo", "Autograph Journey", "Visa", 1.0, mapOf("Travel" to 4.0, "Dining" to 3.0), pointValue = 1.5),
         // Bank of America
         CardPreset("boa-customized", "Bank of America", "Customized Cash", "Visa", 1.0, mapOf("Gas" to 3.0, "Online shopping" to 3.0)),
         CardPreset("boa-travel", "Bank of America", "Travel Rewards", "Visa", 1.5, emptyMap()),
         CardPreset("boa-premium", "Bank of America", "Premium Rewards", "Visa", 1.5, mapOf("Travel" to 2.0, "Dining" to 2.0)),
         // U.S. Bank
         CardPreset("usbank-altitude-go", "U.S. Bank", "Altitude Go", "Visa", 1.0, mapOf("Dining" to 4.0, "Streaming" to 3.0, "Groceries" to 2.0, "Gas" to 2.0)),
+        CardPreset("usbank-altitude-connect", "U.S. Bank", "Altitude Connect", "Visa", 1.0, mapOf("Travel" to 4.0, "Gas" to 4.0, "Dining" to 2.0, "Streaming" to 2.0, "Groceries" to 2.0), pointValue = 1.0),
         CardPreset("usbank-cashplus", "U.S. Bank", "Cash+", "Visa", 1.0, emptyMap(), 5.0, listOf("Gas", "Streaming", "Groceries", "Online shopping", "Transit", "Drugstores")),
         // Discover
         CardPreset("discover-it", "Discover", "it Cash Back", "Discover", 1.0, emptyMap(), 5.0, listOf("Gas", "Groceries", "Dining", "Online shopping", "Transit", "Drugstores")),
-        // Other
+        CardPreset("discover-it-miles", "Discover", "it Miles", "Discover", 1.5, emptyMap(), pointValue = 1.0),
+        // Bilt 2.0
+        CardPreset("bilt-blue", "Bilt", "Blue Card", "Mastercard", 1.0, mapOf("Travel" to 2.0, "Transit" to 3.0), pointValue = 2.2),
+        CardPreset("bilt-obsidian", "Bilt", "Obsidian Card", "Mastercard", 1.0, mapOf("Travel" to 2.0), 3.0, listOf("Dining", "Groceries"), pointValue = 2.2),
+        CardPreset("bilt-palladium", "Bilt", "Palladium Card", "Mastercard", 2.0, mapOf("Travel" to 3.0, "Transit" to 4.0), pointValue = 2.2),
+        // Co-brand / other
         CardPreset("apple-card", "Apple", "Apple Card", "Mastercard", 2.0, emptyMap()),
-        CardPreset("bilt", "Bilt", "Bilt Mastercard", "Mastercard", 1.0, mapOf("Dining" to 3.0, "Travel" to 2.0), pointValue = 2.2),
+        CardPreset("amex-hilton-surpass", "American Express", "Hilton Honors Surpass", "Amex", 1.0, mapOf("Travel" to 12.0, "Dining" to 6.0, "Groceries" to 6.0, "Gas" to 6.0), pointValue = 0.6),
+        CardPreset("robinhood-gold", "Robinhood", "Gold Card", "Mastercard", 3.0, emptyMap()),
+        CardPreset("fidelity", "Fidelity", "Rewards Visa", "Visa", 2.0, emptyMap()),
         CardPreset("sofi", "SoFi", "SoFi Credit Card", "Mastercard", 2.0, emptyMap()),
         CardPreset("paypal", "PayPal", "Cashback Mastercard", "Mastercard", 1.5, mapOf("Online shopping" to 3.0)),
         CardPreset("target-redcard", "Target", "RedCard", "Mastercard", 1.0, mapOf("Other" to 5.0)),
     )
+
+    @Volatile private var _activePresets: List<CardPreset>? = null
+
+    /** Runtime catalog (server copy when available). Falls back to bundled defaults. */
+    val activePresets: List<CardPreset>
+        get() = _activePresets ?: CARD_PRESETS
+
+    /** Replace the in-memory catalog with the server copy (admin-editable). */
+    fun replaceActivePresets(list: List<CardPreset>) {
+        _activePresets = list.takeIf { it.isNotEmpty() }
+    }
+
+    fun presetById(id: String): CardPreset? = activePresets.firstOrNull { it.id == id }
 
     /** Best-effort preset match from a typed card name (and optional issuer). */
     fun suggestCardPreset(name: String, issuer: String = ""): CardPreset? {
@@ -110,7 +137,7 @@ object Rewards {
         if (q.isEmpty()) return null
         var best: CardPreset? = null
         var bestScore = 0
-        for (p in CARD_PRESETS) {
+        for (p in activePresets) {
             var score = 0
             val pn = p.name.lowercase()
             val pi = p.issuer.lowercase()
@@ -137,7 +164,8 @@ object Rewards {
         category: String,
         baseLabel: String = "Base rate (everything)",
     ): ShippedRate {
-        val preset = suggestCardPreset(card.name, card.issuer ?: "")
+        val preset = card.presetId?.let { presetById(it) }
+            ?: suggestCardPreset(card.name, card.issuer ?: "")
             ?: return ShippedRate(null, null)
         if (category == baseLabel) return ShippedRate(preset.rewardBase, preset)
         preset.rewardCategories[category]?.let { return ShippedRate(it, preset) }
@@ -145,6 +173,112 @@ object Rewards {
             return ShippedRate(preset.rotatingRate, preset)
         }
         return ShippedRate(null, preset)
+    }
+
+    data class PendingPresetUpdate(val card: Card, val preset: CardPreset)
+
+    private fun numOr(v: Double?, fallback: Double): Double = v ?: fallback
+
+    private fun catsEqual(a: Map<String, Double>, b: Map<String, Double>): Boolean {
+        val keys = a.keys + b.keys
+        return keys.all { numOr(a[it], 0.0) == numOr(b[it], 0.0) }
+    }
+
+    /** True when the card's earn rates match the catalog preset. */
+    fun cardRatesMatchPreset(card: Card, preset: CardPreset): Boolean {
+        if (numOr(card.rewardBase, 0.0) != numOr(preset.rewardBase, 0.0)) return false
+        if (numOr(card.pointValue, 1.0) != numOr(preset.pointValue, 1.0)) return false
+        if (!catsEqual(card.rewardCategories, preset.rewardCategories)) return false
+        val poolA = (card.rotatingPool ?: emptyList()).sorted().joinToString("|")
+        val poolB = (preset.rotatingPool ?: emptyList()).sorted().joinToString("|")
+        if (poolA != poolB) return false
+        if (poolA.isNotEmpty() && numOr(card.rotatingRate, 5.0) != numOr(preset.rotatingRate, 5.0)) return false
+        return true
+    }
+
+    /** Copy catalog earn rates onto a card (does not touch identity fields). */
+    fun applyPresetRates(card: Card, preset: CardPreset): Card = card.copy(
+        rewardBase = preset.rewardBase,
+        rewardCategories = preset.rewardCategories,
+        pointValue = preset.pointValue,
+        rotatingPool = preset.rotatingPool,
+        rotatingRate = if (!preset.rotatingPool.isNullOrEmpty()) (preset.rotatingRate ?: 5.0) else null,
+        presetId = preset.id,
+        acceptedPresetUpdatedAt = preset.updatedAt ?: card.acceptedPresetUpdatedAt,
+        // Accepting catalog rates clears any prior "Keep mine" for this (or older) stamp.
+        declinedPresetUpdatedAt = null,
+    )
+
+    /**
+     * Resolve the catalog preset for a user card. When [attachIfMatch] is true and
+     * rates already match, returns a card with presetId stamped.
+     */
+    fun resolveCardPreset(card: Card, attachIfMatch: Boolean = false): Pair<Card, CardPreset?> {
+        if (card.type == "loan") return card to null
+        var preset = card.presetId?.let { presetById(it) }
+        if (preset == null) preset = suggestCardPreset(card.name, card.issuer ?: "")
+        var next = card
+        if (attachIfMatch && preset != null && card.presetId == null && cardRatesMatchPreset(card, preset)) {
+            next = card.copy(
+                presetId = preset.id,
+                acceptedPresetUpdatedAt = preset.updatedAt ?: card.acceptedPresetUpdatedAt,
+            )
+        }
+        return next to preset
+    }
+
+    /**
+     * Cards whose linked catalog preset has newer rates the user hasn't accepted
+     * or declined. Quietly stamps acceptance when rates already match.
+     * Returns (updatedCards, pending).
+     */
+    fun findPendingPresetUpdates(cards: List<Card>): Pair<List<Card>, List<PendingPresetUpdate>> {
+        val out = mutableListOf<PendingPresetUpdate>()
+        val updated = cards.toMutableList()
+        for (i in updated.indices) {
+            val card = updated[i]
+            if (card.archived || card.type == "loan") continue
+            val (resolved, preset) = resolveCardPreset(card, attachIfMatch = true)
+            updated[i] = resolved
+            if (preset == null || resolved.presetId == null) continue
+            if (cardRatesMatchPreset(resolved, preset)) {
+                val u = preset.updatedAt
+                if (u != null && (resolved.acceptedPresetUpdatedAt == null || resolved.acceptedPresetUpdatedAt!! < u)) {
+                    updated[i] = resolved.copy(acceptedPresetUpdatedAt = u)
+                }
+                continue
+            }
+            val updatedAt = preset.updatedAt ?: 0.0
+            val declined = resolved.declinedPresetUpdatedAt
+            val accepted = resolved.acceptedPresetUpdatedAt
+            if (updatedAt > 0 && declined != null && declined >= updatedAt) continue
+            if (updatedAt > 0 && accepted != null && accepted >= updatedAt) continue
+            if (updatedAt == 0.0 && declined == 0.0) continue
+            out.add(PendingPresetUpdate(updated[i], preset))
+        }
+        return updated to out
+    }
+
+    fun formatRateDiff(card: Card, preset: CardPreset): String {
+        val lines = mutableListOf<String>()
+        val baseA = numOr(card.rewardBase, 0.0)
+        val baseB = numOr(preset.rewardBase, 0.0)
+        if (baseA != baseB) lines.add("Base: $baseA% → $baseB%")
+        val keys = (card.rewardCategories.keys + preset.rewardCategories.keys).sorted()
+        for (k in keys) {
+            val a = numOr(card.rewardCategories[k], 0.0)
+            val b = numOr(preset.rewardCategories[k], 0.0)
+            if (a != b) {
+                val aLabel = if (a == 0.0) "—" else "$a"
+                val bLabel = if (b == 0.0) "—" else "$b"
+                lines.add("$k: $aLabel% → $bLabel%")
+            }
+        }
+        val ptsA = numOr(card.pointValue, 1.0)
+        val ptsB = numOr(preset.pointValue, 1.0)
+        if (ptsA != ptsB) lines.add("Point value: ${ptsA}¢ → ${ptsB}¢")
+        val shown = lines.take(8)
+        return shown.joinToString("\n") + if (lines.size > 8) "\n…" else ""
     }
 
     /** Per-category multiplier when set (> 0), otherwise the flat base rate. */

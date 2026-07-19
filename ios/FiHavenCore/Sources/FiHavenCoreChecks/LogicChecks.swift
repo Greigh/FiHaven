@@ -375,3 +375,111 @@ func runPayoffChecks() {
         check(small.paidOffMonth! <= big.paidOffMonth!, "snowball clears smallest first")
     }
 }
+
+func runPresetUpdateChecks() {
+    let gold = Rewards.CardPreset(
+        id: "amex-gold", issuer: "American Express", name: "Gold Card", network: "Amex",
+        rewardBase: 1, rewardCategories: ["Dining": 4, "Groceries": 4, "Travel": 3],
+        pointValue: 2, updatedAt: 100
+    )
+    let goldV2 = Rewards.CardPreset(
+        id: "amex-gold", issuer: "American Express", name: "Gold Card", network: "Amex",
+        rewardBase: 1, rewardCategories: ["Dining": 5, "Groceries": 4, "Travel": 3],
+        pointValue: 2, updatedAt: 200
+    )
+
+    defer { Rewards.replaceActivePresets([]) }
+
+    section("Rewards — applyPresetRates clears decline, keeps identity") {
+        Rewards.replaceActivePresets([gold])
+        var base = Card(id: "1", name: "My Gold", balance: 500, notes: "keep me", issuer: "American Express")
+        base.declinedPresetUpdatedAt = 50
+        let card = Rewards.applyPresetRates(base, gold)
+        checkEqual(card.id, "1", "id preserved")
+        checkEqual(card.name, "My Gold", "name preserved")
+        checkClose(card.balance, 500, "balance preserved")
+        checkEqual(card.notes, "keep me", "notes preserved")
+        checkEqual(card.presetId, "amex-gold", "presetId set")
+        checkClose(card.acceptedPresetUpdatedAt ?? -1, 100, "accepted stamped")
+        check(card.declinedPresetUpdatedAt == nil, "declined cleared on accept")
+        check(Rewards.cardRatesMatchPreset(card, gold), "rates match after apply")
+    }
+
+    section("Rewards — pending catalog updates (accept/decline)") {
+        Rewards.replaceActivePresets([gold])
+        var matching = Rewards.applyPresetRates(
+            Card(id: "a", name: "Gold Card", issuer: "American Express"), gold)
+        matching.acceptedPresetUpdatedAt = nil
+        var cards = [matching]
+        let quiet = Rewards.findPendingPresetUpdates(&cards)
+        check(quiet.isEmpty, "matching rates → no prompt")
+        checkClose(cards[0].acceptedPresetUpdatedAt ?? -1, 100, "quiet accept stamp")
+
+        Rewards.replaceActivePresets([goldV2])
+        let divergent = Card(
+            id: "b", name: "Gold Card", issuer: "American Express",
+            rewardBase: 1, rewardCategories: ["Dining": 4, "Groceries": 4, "Travel": 3],
+            pointValue: 2, presetId: "amex-gold", acceptedPresetUpdatedAt: 100
+        )
+        var dCards = [divergent]
+        let pending = Rewards.findPendingPresetUpdates(&dCards)
+        checkEqual(pending.count, 1, "newer catalog → prompt")
+        checkClose(pending[0].preset.updatedAt ?? -1, 200, "pending uses new stamp")
+
+        var declined = divergent
+        declined.rewardBase = 9
+        declined.rewardCategories = [:]
+        declined.declinedPresetUpdatedAt = 200
+        declined.acceptedPresetUpdatedAt = nil
+        var declinedCards = [declined]
+        check(Rewards.findPendingPresetUpdates(&declinedCards).isEmpty, "same-stamp decline suppresses")
+
+        declined.declinedPresetUpdatedAt = 100
+        declinedCards = [declined]
+        checkEqual(Rewards.findPendingPresetUpdates(&declinedCards).count, 1, "older decline re-prompts")
+
+        var customized = divergent
+        customized.rewardBase = 9
+        customized.rewardCategories = ["Dining": 9]
+        customized.acceptedPresetUpdatedAt = 100
+        var customCards = [customized]
+        Rewards.replaceActivePresets([gold])
+        check(Rewards.findPendingPresetUpdates(&customCards).isEmpty,
+              "accepted then customized → no prompt until catalog bumps")
+    }
+
+    section("Rewards — skips loan/archived/unlinked custom; attachIfMatch links") {
+        Rewards.replaceActivePresets([gold])
+        var loan = Card(id: "loan", name: "Gold Card", issuer: "American Express", rewardBase: 9)
+        loan.type = "loan"
+        var arch = Card(id: "arch", name: "Gold Card", issuer: "American Express",
+                        rewardBase: 9, presetId: "amex-gold")
+        arch.archived = true
+        let legacy = Card(id: "legacy", name: "Gold Card", issuer: "American Express", rewardBase: 9)
+        var cards = [loan, arch, legacy]
+        check(Rewards.findPendingPresetUpdates(&cards).isEmpty, "no prompts for loan/arch/unlinked")
+        check(cards[2].presetId == nil, "unlinked custom stays unlinked")
+
+        var matchLegacy = Card(
+            id: "m", name: "Gold Card", issuer: "American Express",
+            rewardBase: 1, rewardCategories: ["Dining": 4, "Groceries": 4, "Travel": 3], pointValue: 2
+        )
+        let preset = Rewards.resolveCardPreset(&matchLegacy, attachIfMatch: true)
+        checkEqual(preset?.id, "amex-gold", "suggest finds gold")
+        checkEqual(matchLegacy.presetId, "amex-gold", "attachIfMatch sets presetId")
+    }
+
+    section("Rewards — shippedRewardRate prefers presetId") {
+        Rewards.replaceActivePresets([
+            gold,
+            Rewards.CardPreset(
+                id: "other", issuer: "American Express", name: "Other Gold", network: "Amex",
+                rewardBase: 1, rewardCategories: ["Dining": 99], pointValue: 2, updatedAt: 100
+            ),
+        ])
+        let card = Card(id: "1", name: "Other Gold", issuer: "American Express", presetId: "amex-gold")
+        let shipped = Rewards.shippedRewardRate(for: card, category: "Dining")
+        checkEqual(shipped.preset?.id, "amex-gold", "presetId wins over name")
+        checkClose(shipped.rate ?? -1, 4, "gold dining rate")
+    }
+}

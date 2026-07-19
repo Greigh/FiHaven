@@ -133,6 +133,21 @@ func runModelChecks() {
         // And re-encoding a web card keeps the field present for the server.
         let reencoded = String(data: try JSONEncoder().encode(decoded), encoding: .utf8) ?? ""
         check(reencoded.contains("rewardsUrl"), "rewardsUrl present after native re-encode")
+
+        // Catalog sync stamps round-trip (web writes these on accept/decline).
+        let stamped = Card(
+            id: "13", name: "Gold", presetId: "amex-gold",
+            acceptedPresetUpdatedAt: 100, declinedPresetUpdatedAt: 50
+        )
+        let stampRT = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(stamped))
+        checkEqual(stampRT.presetId, "amex-gold", "presetId round-trip")
+        checkClose(stampRT.acceptedPresetUpdatedAt ?? -1, 100, "acceptedPresetUpdatedAt round-trip")
+        checkClose(stampRT.declinedPresetUpdatedAt ?? -1, 50, "declinedPresetUpdatedAt round-trip")
+
+        let fromWebStamps = #"{"id":"14","name":"Gold","presetId":"amex-gold","acceptedPresetUpdatedAt":100,"declinedPresetUpdatedAt":50}"#
+        let webStamps = try JSONDecoder().decode(Card.self, from: Data(fromWebStamps.utf8))
+        checkEqual(webStamps.presetId, "amex-gold", "presetId from web JSON")
+        checkClose(webStamps.acceptedPresetUpdatedAt ?? -1, 100, "accepted from web JSON")
     }
 
     section("Models — settings typed accessors") {
