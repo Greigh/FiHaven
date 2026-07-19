@@ -228,12 +228,23 @@ function serializePromo(p) {
 
 /* ── Card presets (rewards catalog) ───────────────────────── */
 function slugifyCardId(issuer, name) {
-  const base = `${issuer || ''}-${name || ''}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return base || ('card-' + Date.now().toString(36));
+  // Build the slug without ambiguous regexes (CodeQL js/polynomial-redos).
+  const raw = `${issuer || ''}-${name || ''}`.toLowerCase().slice(0, 200);
+  let out = '';
+  let pendingDash = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    const alnum = (c >= 48 && c <= 57) || (c >= 97 && c <= 122);
+    if (alnum) {
+      if (pendingDash && out.length) out += '-';
+      out += raw[i];
+      pendingDash = false;
+      if (out.length >= 80) break;
+    } else {
+      pendingDash = true;
+    }
+  }
+  return out || ('card-' + Date.now().toString(36));
 }
 
 function normalizePresetBody(body, { requireId } = {}) {
