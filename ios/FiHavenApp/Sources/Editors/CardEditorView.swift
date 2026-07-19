@@ -42,6 +42,9 @@ struct CardEditorView: View {
     @State private var rotatingPool: [String] = []
     @State private var rotatingRate: Double = 5
     @State private var pointValue: Double = 1
+    @State private var presetId: String? = nil
+    @State private var acceptedPresetUpdatedAt: Double? = nil
+    @State private var declinedPresetUpdatedAt: Double? = nil
 
     var body: some View {
         NavigationStack {
@@ -141,7 +144,7 @@ struct CardEditorView: View {
                 if type == "card" {
                     Section {
                         Menu {
-                            ForEach(Rewards.cardPresets) { p in
+                            ForEach(Rewards.activePresets) { p in
                                 Button(p.label) { applyPreset(p) }
                             }
                         } label: {
@@ -283,6 +286,9 @@ struct CardEditorView: View {
         rotatingPool = p.rotatingPool ?? []
         rotatingRate = p.rotatingRate ?? 5
         pointValue = p.pointValue ?? 1
+        presetId = p.id
+        acceptedPresetUpdatedAt = p.updatedAt
+        declinedPresetUpdatedAt = nil
     }
 
     private func trySuggestPreset() {
@@ -344,6 +350,9 @@ struct CardEditorView: View {
         rotatingPool = card.rotatingPool ?? []
         rotatingRate = card.rotatingRate ?? 5
         pointValue = card.pointValue ?? 1
+        presetId = card.presetId
+        acceptedPresetUpdatedAt = card.acceptedPresetUpdatedAt
+        declinedPresetUpdatedAt = card.declinedPresetUpdatedAt
     }
 
     private func save() {
@@ -379,6 +388,9 @@ struct CardEditorView: View {
             rotatingPool: (isLoan || rotatingPool.isEmpty) ? nil : rotatingPool,
             rotatingRate: (isLoan || rotatingPool.isEmpty) ? nil : rotatingRate,
             pointValue: (isLoan || pointValue == 1) ? nil : pointValue,
+            presetId: isLoan ? nil : presetId,
+            acceptedPresetUpdatedAt: isLoan ? nil : acceptedPresetUpdatedAt,
+            declinedPresetUpdatedAt: isLoan ? nil : declinedPresetUpdatedAt,
             perks: isLoan ? [] : perks.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty && $0.amount > 0 },
             annualFee: (isLoan || annualFee <= 0) ? nil : annualFee,
             feeMonth: (isLoan || feeMonth == 0) ? nil : feeMonth,

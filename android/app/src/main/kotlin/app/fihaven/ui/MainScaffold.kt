@@ -196,6 +196,34 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
                 }
             }
         }
+
+        val presetUpdate by vm.presetUpdatePrompt.collectAsStateWithLifecycle()
+        presetUpdate?.let { prompt ->
+            val label = listOfNotNull(prompt.card.issuer, prompt.card.name)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { "Card" }
+            val catalog = "${prompt.preset.issuer} ${prompt.preset.name}"
+            val diff = app.fihaven.core.logic.Rewards.formatRateDiff(prompt.card, prompt.preset)
+                .ifBlank { "Rates changed in the shared catalog." }
+            AlertDialog(
+                onDismissRequest = { vm.declinePresetUpdate() },
+                title = { Text("Update rates for \"$label\"?") },
+                text = {
+                    Text(
+                        "The FiHaven catalog for $catalog has newer rates.\n\n$diff\n\n" +
+                            "Update applies catalog rates to this card. Keep mine leaves your numbers alone.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { vm.acceptPresetUpdate() }) { Text("Update rates") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.declinePresetUpdate() }) { Text("Keep mine") }
+                },
+                containerColor = Ct.colors.surface,
+            )
+        }
     }
 }
 
