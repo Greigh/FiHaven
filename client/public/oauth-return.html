@@ -42,19 +42,16 @@
       var state = params.get('state') || '';
       var q = 'code=' + encodeURIComponent(code) +
         (state ? '&state=' + encodeURIComponent(state) : '');
-      // Prefer a package-locked Intent so a random app claiming fihaven://
-      // cannot win. App Links handle the https form when verified.
-      var httpsPath = 'oauth/' + provider + '?' + q;
-      var intentUrl =
-        'intent://fihaven.app/' + httpsPath +
-        '#Intent;scheme=https;package=app.fihaven;' +
-        'S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end';
       var customUrl = 'fihaven://oauth/' + provider + '?' + q;
+      // Package-locked custom scheme — Custom Tabs leave for this reliably.
+      // https App Links often stay in the tab when the page is already on fihaven.app.
+      var intentUrl =
+        'intent://oauth/' + provider + '?' + q +
+        '#Intent;scheme=fihaven;package=app.fihaven;end';
       var open = document.getElementById('open');
       open.href = customUrl;
 
       function tryOpen() {
-        // Custom Tab / browser: force the Play-signed package first.
         location.replace(intentUrl);
         setTimeout(function () {
           location.href = customUrl;

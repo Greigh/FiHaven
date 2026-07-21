@@ -763,11 +763,12 @@ source of truth. Synced transactions are persisted *additively* (tagged
 `source:'plaid'`, deduped by Plaid id, outflows only) and shown alongside
 your manual entries with a 🏦 marker; they're non-deletable from the row
 (manage the link in Settings) and a dropped connection never breaks the
-dashboard. OAuth banks on **web** redirect to `/plaid-oauth`, which resumes Link
-from a stashed token. **Native** Link uses platform-specific returns (Android
-`android_package_name`, iOS Universal Link `/plaid`) so bank OAuth does not dump
-users in the browser. Webhooks are ES256-JWT-verified in production, and re-auth
-("update mode") is a first-class Reconnect flow on web, iOS, and Android.
+dashboard. OAuth banks on **web** redirect to `/plaid-oauth`, which
+resumes Link from a stashed token. **Native** Link uses platform-specific
+returns instead: Android `android_package_name` (`app.fihaven`) and an iOS
+Universal Link at `/plaid` (so bank OAuth does not dump users in the browser).
+Webhooks are ES256-JWT-verified in production, and re-auth ("update mode") is a
+first-class Reconnect flow on web, iOS, and Android.
 
 ### Responsive / mobile layout
 

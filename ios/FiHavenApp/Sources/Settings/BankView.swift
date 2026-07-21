@@ -241,19 +241,23 @@ struct BankView: View {
     private func present(token: String) {
         busy = false
         var config = LinkTokenConfiguration(token: token, onSuccess: { success in
+            ActivePlaidLink.clear()
             let token = success.publicToken
             Task { @MainActor in self.exchange(token) }
         })
         config.onExit = { exit in
+            ActivePlaidLink.clear()
             let result = Self.exitMessage(exit, cancelled: "Linking cancelled.")
             Task { @MainActor in self.message = result }
         }
         switch Plaid.create(config) {
         case .success(let h):
             handler = h
+            ActivePlaidLink.handler = h
             if let vc = Self.topViewController() {
                 h.open(presentUsing: .viewController(vc))
             } else {
+                ActivePlaidLink.clear()
                 message = .error("Could not present Plaid Link.")
             }
         case .failure:
@@ -290,18 +294,22 @@ struct BankView: View {
     private func presentUpdate(token: String, itemId: Int) {
         busy = false
         var config = LinkTokenConfiguration(token: token, onSuccess: { _ in
+            ActivePlaidLink.clear()
             Task { @MainActor in self.repaired(itemId) }
         })
         config.onExit = { exit in
+            ActivePlaidLink.clear()
             let result = Self.exitMessage(exit, cancelled: "Reconnect cancelled.")
             Task { @MainActor in self.message = result }
         }
         switch Plaid.create(config) {
         case .success(let h):
             handler = h
+            ActivePlaidLink.handler = h
             if let vc = Self.topViewController() {
                 h.open(presentUsing: .viewController(vc))
             } else {
+                ActivePlaidLink.clear()
                 message = .error("Could not present Plaid Link.")
             }
         case .failure:

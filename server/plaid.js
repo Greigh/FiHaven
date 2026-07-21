@@ -105,18 +105,47 @@ function countryCodes() {
 
 /* ── Link / exchange ─────────────────────────────────────────── */
 
+// OAuth return fields for linkTokenCreate. Using the web /plaid-oauth URL for
+// native Link dumps users in Safari/Chrome after bank login. Per Plaid docs:
+//   Android → android_package_name only (no redirect_uri)
+//   iOS     → Universal Link redirect_uri (https://…/plaid)
+//   Web     → https://…/plaid-oauth
+function linkTokenPlatformFields(platform) {
+  const p = String(platform || 'web').toLowerCase();
+  if (p === 'android') {
+    return {
+      android_package_name: process.env.PLAID_ANDROID_PACKAGE || 'app.fihaven',
+    };
+  }
+  if (p === 'ios') {
+    const iosRedirect = String(
+      process.env.PLAID_IOS_REDIRECT_URI ||
+      (process.env.PUBLIC_ORIGIN
+        ? `${String(process.env.PUBLIC_ORIGIN).replace(/\/+$/, '')}/plaid`
+        : '')
+    ).trim();
+    return iosRedirect ? { redirect_uri: iosRedirect } : {};
+  }
+  if (process.env.PLAID_REDIRECT_URI) {
+    return { redirect_uri: process.env.PLAID_REDIRECT_URI };
+  }
+  return {};
+}
+
 // Create a short-lived Link token the browser hands to Plaid Link.
 // Pass `accessToken` to create an UPDATE-MODE token (re-auth an existing
 // item after ITEM_LOGIN_REQUIRED) — update mode omits `products`.
 // `opts.accountSelection` opens update mode with account selection enabled,
 // the flow for NEW_ACCOUNTS_AVAILABLE (let the user add newly-available
 // accounts to an existing Item).
+// `opts.platform` is 'web' | 'ios' | 'android' (default web).
 async function createLinkToken(user, accessToken, opts = {}) {
   const req = {
     user: { client_user_id: String(user.id) },
     client_name: 'FiHaven',
     language: 'en',
     country_codes: countryCodes(),
+    ...linkTokenPlatformFields(opts.platform),
   };
   if (accessToken) {
     req.access_token = accessToken; // update mode: re-link the existing item
@@ -125,7 +154,7 @@ async function createLinkToken(user, accessToken, opts = {}) {
     req.products = products();
   }
   if (process.env.PLAID_WEBHOOK_URL) req.webhook = process.env.PLAID_WEBHOOK_URL;
-  if (process.env.PLAID_REDIRECT_URI) req.redirect_uri = process.env.PLAID_REDIRECT_URI;
+
   const resp = await client().linkTokenCreate(req);
   return resp.data; // { link_token, expiration, request_id }
 }
@@ -247,6 +276,7 @@ module.exports = {
   plaidEnv,
   plaidClientId,
   plaidSecret,
+  linkTokenPlatformFields,
   createLinkToken,
   exchangePublicToken,
   verifyWebhook,

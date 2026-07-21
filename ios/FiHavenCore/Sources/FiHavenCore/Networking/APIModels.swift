@@ -218,6 +218,7 @@ struct PlaidExchangeBody: Encodable {
     enum CodingKeys: String, CodingKey { case publicToken = "public_token" }
 }
 struct PlaidLinkTokenBody: Encodable {
-    let itemId: Int
+    var itemId: Int? = nil
     var accountSelection: Bool? = nil   // update mode w/ account selection (NEW_ACCOUNTS_AVAILABLE)
+    var platform: String = "ios"
 }

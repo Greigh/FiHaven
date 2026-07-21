@@ -59,7 +59,7 @@ describe('oauthHandoff', () => {
     clearModule('./db');
   });
 
-  it('creates an App Link return URL with a one-time code (no idToken)', () => {
+  it('returns a Custom-Tab-safe fihaven:// URL with a one-time code (no idToken)', () => {
     const code = oauthHandoff.create({
       provider: 'apple',
       idToken: 'fake.jwt.token',
@@ -68,8 +68,10 @@ describe('oauthHandoff', () => {
     });
     expect(code).toMatch(/^[a-f0-9]{64}$/);
     const url = oauthHandoff.appReturnUrl('apple', { code, state: 's1' });
-    expect(url).toBe(`https://fihaven.app/oauth/apple?code=${code}&state=s1`);
+    expect(url).toBe(`fihaven://oauth/apple?code=${code}&state=s1`);
     expect(url).not.toContain('idToken');
+    expect(oauthHandoff.httpsReturnUrl('apple', { code, state: 's1' }))
+      .toBe(`https://fihaven.app/oauth/apple?code=${code}&state=s1`);
     expect(dbMock.insertOAuthHandoff).toHaveBeenCalledOnce();
   });
 
@@ -122,9 +124,10 @@ describe('oauthHandoff', () => {
       .toThrow(/handoff-expired/);
   });
 
-  it('falls back to custom scheme when PUBLIC_ORIGIN is unset', () => {
+  it('always uses the custom scheme for Custom Tab returns', () => {
     delete process.env.PUBLIC_ORIGIN;
     const url = oauthHandoff.appReturnUrl('apple', { code: 'abc', state: 's' });
     expect(url).toBe('fihaven://oauth/apple?code=abc&state=s');
+    expect(oauthHandoff.httpsReturnUrl('apple', { code: 'abc', state: 's' })).toBeNull();
   });
 });

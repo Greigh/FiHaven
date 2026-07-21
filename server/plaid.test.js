@@ -12,6 +12,10 @@ const PLAID_VARS = [
   'PLAID_CLIENT_ID',
   'PLAID_SANDBOX_CLIENT_ID',
   'PLAID_PRODUCTION_CLIENT_ID',
+  'PLAID_REDIRECT_URI',
+  'PLAID_IOS_REDIRECT_URI',
+  'PLAID_ANDROID_PACKAGE',
+  'PUBLIC_ORIGIN',
 ];
 
 let saved;
@@ -104,6 +108,39 @@ describe('plaidClientId', () => {
     delete process.env.PLAID_SANDBOX_CLIENT_ID;
     process.env.PLAID_PRODUCTION_CLIENT_ID = 'prod';
     expect(plaid.plaidClientId()).toBe('prod');
+  });
+});
+
+describe('linkTokenPlatformFields', () => {
+  it('uses android_package_name and skips redirect_uri on Android', () => {
+    process.env.PLAID_REDIRECT_URI = 'https://fihaven.app/plaid-oauth';
+    expect(plaid.linkTokenPlatformFields('android')).toEqual({
+      android_package_name: 'app.fihaven',
+    });
+    process.env.PLAID_ANDROID_PACKAGE = 'app.fihaven.debug';
+    expect(plaid.linkTokenPlatformFields('android').android_package_name)
+      .toBe('app.fihaven.debug');
+  });
+
+  it('uses an iOS Universal Link, not the web plaid-oauth URI', () => {
+    process.env.PLAID_REDIRECT_URI = 'https://fihaven.app/plaid-oauth';
+    process.env.PUBLIC_ORIGIN = 'https://fihaven.app';
+    expect(plaid.linkTokenPlatformFields('ios')).toEqual({
+      redirect_uri: 'https://fihaven.app/plaid',
+    });
+    process.env.PLAID_IOS_REDIRECT_URI = 'https://fihaven.app/plaid-ios';
+    expect(plaid.linkTokenPlatformFields('ios').redirect_uri)
+      .toBe('https://fihaven.app/plaid-ios');
+  });
+
+  it('keeps the web redirect for browser Link', () => {
+    process.env.PLAID_REDIRECT_URI = 'https://fihaven.app/plaid-oauth';
+    expect(plaid.linkTokenPlatformFields('web')).toEqual({
+      redirect_uri: 'https://fihaven.app/plaid-oauth',
+    });
+    expect(plaid.linkTokenPlatformFields()).toEqual({
+      redirect_uri: 'https://fihaven.app/plaid-oauth',
+    });
   });
 });
 
