@@ -61,17 +61,23 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
         zone,
         data.settings.subscriptionDeclined,
     )
-    val tracked = allItems.filter { it.source == "bill" }
-    val candidates = allItems.filter { it.source == "tx" }
-
     var editing by remember { mutableStateOf<Bill?>(null) }
     var linking by remember { mutableStateOf<SubscriptionsFinder.Item?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val tracked = allItems.filter { it.source == "bill" && matchesListSearch(searchQuery, it.name, it.merchantKey) }
+    val candidates = allItems.filter { it.source == "tx" && matchesListSearch(searchQuery, it.name, it.merchantKey) }
 
     fun billFor(item: SubscriptionsFinder.Item): Bill? =
         item.billId?.let { id -> data.bills.firstOrNull { it.id == id } }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Subscriptions", onBack = onBack, branded = true)
+        ListSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search subscriptions",
+        )
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

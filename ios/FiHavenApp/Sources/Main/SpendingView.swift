@@ -9,6 +9,7 @@ struct SpendingView: View {
     @State private var editingTx: SpendTransaction?
     @State private var editingBudgets = false
     @State private var dismissedDupes: Set<String> = []
+    @State private var searchText = ""
 
     private var prevBounds: PeriodBounds {
         Period.shift(store.currentBounds, by: -1, config: store.periodConfig, tz: store.tz)
@@ -128,6 +129,7 @@ struct SpendingView: View {
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
+        .searchable(text: $searchText, prompt: "Search spending")
         .brandedNavigationBar("Spending")
         .sheet(isPresented: $addingTx) { TransactionEditorView() }
         .sheet(item: $editingTx) { tx in TransactionEditorView(edit: tx) }
@@ -135,7 +137,14 @@ struct SpendingView: View {
     }
 
     private var recentTx: [SpendTransaction] {
-        store.periodTransactions.sorted { $0.date > $1.date }
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return store.periodTransactions
+            .filter { tx in
+                if q.isEmpty { return true }
+                let hay = [tx.merchant, tx.category, tx.note].joined(separator: " ")
+                return hay.localizedCaseInsensitiveContains(q)
+            }
+            .sorted { $0.date > $1.date }
     }
 
     // ── Bank-sync reconciliation (only when a bank is linked) ─────────

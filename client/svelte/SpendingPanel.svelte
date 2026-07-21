@@ -24,6 +24,7 @@
   let bounds   = $derived(boundsForKey(currentPeriodKey()));
   let prevBounds = $derived(shiftPeriod(bounds, -1));
   let periodTx = $derived(transactions.filter((t) => paymentInBounds(t, bounds)));
+  let search = $state('');
   let budgets  = $derived((settings && settings.categoryBudgets) || {});
 
   let spentByCat = $derived.by(() => {
@@ -143,7 +144,15 @@
   function keepBoth(pair) { dismissed = new Set(dismissed).add(pair.bank.id); }
 
   let recent = $derived(
-    periodTx.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    periodTx
+      .filter((t) => {
+        const q = (search || '').trim().toLowerCase();
+        if (!q) return true;
+        const hay = [t.merchant, t.category, t.note].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+      .slice()
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   );
   function shortDay(d) {
     if (!d) return '';
@@ -255,8 +264,21 @@
   {/if}
 
   <!-- This period's transactions -->
+  {#if periodTx.length > 0}
+    <div class="spend-recent-head">This period</div>
+    <div class="sf-search" style="margin:0 0 10px;">
+      <input
+        type="search"
+        class="sf-search-input"
+        placeholder="Search spending"
+        bind:value={search}
+        aria-label="Search spending"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface,#fff);color:var(--text);font:inherit;font-size:14px;"
+      />
+    </div>
+  {/if}
   {#if recent.length > 0}
-    <div class="spend-recent-head">This period ({recent.length})</div>
+    <div class="spend-recent-head" style="margin-top:0;">{recent.length} match{recent.length === 1 ? '' : 'es'}</div>
     <div class="spend-recent">
       {#each recent as t (t.id)}
         <div class="spend-tx" class:is-editing={editingId === t.id}>

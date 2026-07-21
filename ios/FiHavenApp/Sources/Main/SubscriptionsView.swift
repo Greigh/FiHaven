@@ -8,6 +8,7 @@ struct SubscriptionsView: View {
     @State private var editingBill: Bill?
     @State private var creatingFrom: SubscriptionsFinder.Item?
     @State private var linking: SubscriptionsFinder.Item?
+    @State private var searchText = ""
 
     private struct SubStatus {
         let icon: String
@@ -29,10 +30,21 @@ struct SubscriptionsView: View {
         )
     }
 
-    private var tracked: [SubscriptionsFinder.Item] { allItems.filter { $0.source == "bill" } }
-    private var candidates: [SubscriptionsFinder.Item] { allItems.filter { $0.source == "tx" } }
+    private var tracked: [SubscriptionsFinder.Item] {
+        allItems.filter { $0.source == "bill" && matchesSearch($0) }
+    }
+    private var candidates: [SubscriptionsFinder.Item] {
+        allItems.filter { $0.source == "tx" && matchesSearch($0) }
+    }
     private var inboxMode: Bool { store.data.settings.subscriptionDetectMode != "inline" }
     private var totalMonthly: Double { tracked.reduce(0) { $0 + $1.monthly } }
+
+    private func matchesSearch(_ item: SubscriptionsFinder.Item) -> Bool {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty { return true }
+        return [item.name, item.merchantKey].joined(separator: " ")
+            .localizedCaseInsensitiveContains(q)
+    }
 
     var body: some View {
         List {
@@ -74,6 +86,7 @@ struct SubscriptionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
+        .searchable(text: $searchText, prompt: "Search subscriptions")
         .brandedNavigationBar("Subscriptions")
         .sheet(item: $editingBill) { bill in BillEditorView(bill: bill) }
         .sheet(item: $creatingFrom) { item in

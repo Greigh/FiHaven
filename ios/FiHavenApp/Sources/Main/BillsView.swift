@@ -9,6 +9,7 @@ struct BillsView: View {
     @State private var paying: PayTarget?
     @State private var sortKey = "due"
     @State private var showFilters = false
+    @State private var searchText = ""
     @State private var fUnpaid = false
     @State private var fOverdue = false
     @State private var fAutopay = false
@@ -31,6 +32,7 @@ struct BillsView: View {
     }
 
     private var displayedBills: [Bill] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         var list = store.sortedBills.filter { b in
             if b.archived { return false }
             if fUnpaid && store.paidState(type: "bill", refId: String(b.id)) == .full { return false }
@@ -38,6 +40,10 @@ struct BillsView: View {
             if fAutopay && !b.autopay { return false }
             if fOnCard && b.cardId == nil { return false }
             if fCategory != "all" && b.category != fCategory { return false }
+            if !q.isEmpty {
+                let hay = [b.name, b.business ?? "", b.category].joined(separator: " ")
+                if !hay.localizedCaseInsensitiveContains(q) { return false }
+            }
             return true
         }
         switch sortKey {
@@ -200,6 +206,7 @@ struct BillsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
+        .searchable(text: $searchText, prompt: "Search bills")
         .brandedNavigationBar("Bills")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
