@@ -305,12 +305,13 @@ router.post('/link/token', requireAuth, requireVerified, requireCsrf, requirePla
     // Update mode with account selection — the NEW_ACCOUNTS_AVAILABLE flow that
     // lets the user add newly-available accounts to an existing Item.
     const accountSelection = !!(req.body || {}).accountSelection;
+    const platform = String((req.body || {}).platform || 'web').toLowerCase();
     if (itemId) {
       const item = dbApi.findPlaidItemById(itemId, req.user.id);
       if (!item) return sendError(res, 404, 'not-found');
       accessToken = plaid.decryptToken(item.access_token_enc);
     }
-    const data = await plaid.createLinkToken(req.user, accessToken, { accountSelection });
+    const data = await plaid.createLinkToken(req.user, accessToken, { accountSelection, platform });
     res.json({ linkToken: data.link_token, expiration: data.expiration, update: !!accessToken, accountSelection });
   } catch (err) {
     logPlaidErr('link/token', err);

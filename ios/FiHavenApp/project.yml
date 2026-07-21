@@ -88,6 +88,7 @@ targets:
         # entry (365KR8NF53.app.fihaven). Also enable the Associated Domains
         # capability on the App ID in the Apple Developer portal.
         com.apple.developer.associated-domains:
+          - applinks:fihaven.app
           - webcredentials:fihaven.app
     dependencies:
       - package: FiHavenCore

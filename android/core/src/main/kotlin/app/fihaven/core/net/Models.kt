@@ -172,7 +172,11 @@ data class PlaidStatus(
 @Serializable data class PlaidLinkTokenResponse(val linkToken: String)
 @Serializable data class PlaidItemsResponse(val items: List<PlaidItem> = emptyList())
 @Serializable data class PlaidExchangeBody(@SerialName("public_token") val publicToken: String)
-@Serializable data class PlaidLinkTokenBody(val itemId: Int, val accountSelection: Boolean? = null)
+@Serializable data class PlaidLinkTokenBody(
+    val itemId: Int? = null,
+    val accountSelection: Boolean? = null,
+    val platform: String = "android",
+)
 
 /** `GET /api/card-presets` — admin-editable rewards catalog. */
 @Serializable

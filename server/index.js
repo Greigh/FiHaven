@@ -195,6 +195,13 @@ sub.get(['/oauth/apple', '/oauth/google'], (req, res) => {
   res.type('html').sendFile(path.join(PUBLIC_ASSET_DIR, 'oauth-return.html'));
 });
 
+// iOS Plaid Universal Link target (`https://fihaven.app/plaid`). When the
+// association opens the app, LinkKit resumes; this page is only a fallback
+// if the browser stays put.
+sub.get('/plaid', (req, res) => {
+  res.type('html').sendFile(path.join(PUBLIC_ASSET_DIR, 'plaid.html'));
+});
+
 // RFC 9116 security.txt + assetlinks.json (Android passkeys) — express.static
 // ignores dot-directories by default.
 sub.use(

@@ -422,7 +422,8 @@ the Vite dev middleware.
 | `/verify-email` | Email-verification landing (token) | public | ❌ noindex |
 | `/reset` | Forgot / reset password (token) | public | ❌ noindex |
 | `/recover` | Lost-2FA account recovery (token) | public | ❌ noindex |
-| `/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/plaid-oauth` | Plaid OAuth return handler for **web** Link (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/plaid` | Plaid Universal Link target for **iOS** native Link (fallback page if the app does not open) | required | ❌ noindex |
 | `/dev-portal` | Developer subscription portal (manage a comp/dev Pro grant) | required | ❌ noindex |
 | `/404` | Not-found page | public | ❌ |
 | `/500` | Server-error page | public | ❌ |
@@ -762,9 +763,11 @@ source of truth. Synced transactions are persisted *additively* (tagged
 `source:'plaid'`, deduped by Plaid id, outflows only) and shown alongside
 your manual entries with a 🏦 marker; they're non-deletable from the row
 (manage the link in Settings) and a dropped connection never breaks the
-dashboard. OAuth banks redirect the whole browser out and back to
-`/plaid-oauth`, which resumes Link from a stashed token. Webhooks are
-ES256-JWT-verified in production, and re-auth ("update mode") is a
+dashboard. OAuth banks on **web** redirect to `/plaid-oauth`, which
+resumes Link from a stashed token. **Native** Link uses platform-specific
+returns instead: Android `android_package_name` (`app.fihaven`) and an iOS
+Universal Link at `/plaid` (so bank OAuth does not dump users in the browser).
+Webhooks are ES256-JWT-verified in production, and re-auth ("update mode") is a
 first-class Reconnect flow on web, iOS, and Android.
 
 ### Responsive / mobile layout
