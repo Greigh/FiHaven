@@ -106,11 +106,18 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     REWARDS("rewards", "Rewards", Icons.Filled.Stars),
     BUDGET("budget", "Budget", Icons.Filled.PieChart),
     SPENDING("spending", "Spending", Icons.Filled.Payments),
-    SUBSCRIPTIONS("subscriptions", "Subscriptions", Icons.Filled.Autorenew),
+    // Short nav labels — Material bottom bars with 4–5 slots wrap long words
+    // awkwardly ("Subscriptio / ns"). Full names stay in contentDescription.
+    SUBSCRIPTIONS("subscriptions", "Subs", Icons.Filled.Autorenew),
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
-    NETWORTH("networth", "Net Worth", Icons.Filled.AccountBalanceWallet),
+    NETWORTH("networth", "Worth", Icons.Filled.AccountBalanceWallet),
     ;
+    val a11yLabel: String get() = when (this) {
+        SUBSCRIPTIONS -> "Subscriptions"
+        NETWORTH -> "Net Worth"
+        else -> label
+    }
     companion object { fun from(id: String?): TabId? = entries.find { it.id == id } }
 }
 
@@ -181,12 +188,14 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
             bottomBar = {
                 NavigationBar(containerColor = Ct.colors.surface) {
                     shownBottom.forEach { t ->
-                        NavBarItem(selected == t.id, t.label, t.icon) { selected = t.id }
+                        NavBarItem(selected == t.id, t.label, t.a11yLabel, t.icon) { selected = t.id }
                     }
                     if (!isPro) {
-                        NavBarItem(selected == "getpro", "Get Pro", Icons.Filled.WorkspacePremium) { selected = "getpro" }
+                        NavBarItem(selected == "getpro", "Get Pro", "Get Pro", Icons.Filled.WorkspacePremium) {
+                            selected = "getpro"
+                        }
                     }
-                    NavBarItem(selected == "more", "More", Icons.Filled.MoreHoriz) {
+                    NavBarItem(selected == "more", "More", "More", Icons.Filled.MoreHoriz) {
                         if (selected == "more") morePopToRoot++
                         selected = "more"
                     }
@@ -266,12 +275,26 @@ private fun SyncOfflineBanner(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun RowScope.NavBarItem(selected: Boolean, label: String, icon: ImageVector, onClick: () -> Unit) {
+private fun RowScope.NavBarItem(
+    selected: Boolean,
+    label: String,
+    contentDescription: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) },
+        icon = { Icon(icon, contentDescription = contentDescription) },
+        label = {
+            Text(
+                label,
+                maxLines = 1,
+                softWrap = false,
+                fontSize = 11.sp,
+            )
+        },
+        alwaysShowLabel = true,
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Ct.colors.accent,
             selectedTextColor = Ct.colors.accent,
