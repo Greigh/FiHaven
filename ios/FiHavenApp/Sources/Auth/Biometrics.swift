@@ -52,6 +52,7 @@ enum BioLockDelay {
     static let never = -1
     static let immediately = 0
     static let presets = [1, 5, 15, 30]
+    static let preferredKey = "fh_bio_lock_after_preferred"
 
     static func label(for minutes: Int) -> String {
         switch minutes {
@@ -71,6 +72,14 @@ enum BioLockDelay {
             return defaults.bool(forKey: "fh_biometric") ? immediately : never
         }
         return BiometricAuth.isAvailable ? immediately : never
+    }
+
+    static func preferred(from defaults: UserDefaults) -> Int {
+        if defaults.object(forKey: preferredKey) != nil {
+            let v = defaults.integer(forKey: preferredKey)
+            return v >= 0 ? min(max(v, 0), 60) : 5
+        }
+        return 5
     }
 }
 
@@ -107,6 +116,9 @@ final class BiometricStore: ObservableObject {
         if defaults.object(forKey: Self.lockAfterKey) == nil {
             defaults.set(delay, forKey: Self.lockAfterKey)
         }
+        if delay >= 0, defaults.object(forKey: BioLockDelay.preferredKey) == nil {
+            defaults.set(delay, forKey: BioLockDelay.preferredKey)
+        }
         lockAfterMinutes = delay
         // Cold launch starts locked when a delay is configured; a fresh
         // interactive login clears it (AppEnvironment calls markUnlocked).
@@ -132,6 +144,11 @@ final class BiometricStore: ObservableObject {
         lockAfterMinutes = clamped
         UserDefaults.standard.set(clamped, forKey: Self.lockAfterKey)
         UserDefaults.standard.set(clamped >= 0, forKey: Self.legacyKey)
+        if clamped >= 0 {
+            UserDefaults.standard.set(clamped, forKey: BioLockDelay.preferredKey)
+        }
+        // Force a sync so the delay survives an immediate app update / terminate.
+        UserDefaults.standard.synchronize()
         locked = false
         backgroundedAt = nil
     }

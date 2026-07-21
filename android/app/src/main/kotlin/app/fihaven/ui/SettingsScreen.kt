@@ -805,7 +805,7 @@ private fun DefaultViewDialog(vm: AppViewModel, current: String, onDone: () -> U
 
 /// "Stay unlocked for" duration label (on/off is handled by the toggle).
 private fun stayUnlockedLabel(minutes: Int): String = when (minutes) {
-    BioLockDelay.IMMEDIATELY -> "0 minutes"
+    BioLockDelay.IMMEDIATELY -> "Immediately"
     1 -> "1 minute"
     else -> "$minutes minutes"
 }
