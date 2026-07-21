@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +69,42 @@ fun SortFilterBar(
                 color = Ct.colors.text, fontSize = 14.sp)
         }
     }
+}
+
+/** Search field for list screens (Bills, Cards, Subscriptions, Spending). */
+@Composable
+fun ListSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        singleLine = true,
+        placeholder = { Text(placeholder, color = Ct.colors.muted) },
+        leadingIcon = {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = Ct.colors.muted)
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Filled.Clear, contentDescription = "Clear search", tint = Ct.colors.muted)
+                }
+            }
+        },
+    )
+}
+
+/** Case-insensitive substring match across one or more haystacks. */
+fun matchesListSearch(query: String, vararg haystacks: String?): Boolean {
+    val q = query.trim()
+    if (q.isEmpty()) return true
+    return haystacks.any { it?.contains(q, ignoreCase = true) == true }
 }
 
 /** A label + Switch row for the filter sheets. */
