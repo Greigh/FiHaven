@@ -96,6 +96,11 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private const val BIO_KEY = "fh_biometric"
 private const val BIO_LOCK_AFTER_KEY = "fh_bio_lock_after"
+/** Remembers the last positive delay so toggling lock back on restores it
+ *  instead of always falling back to “Immediately” (0 minutes). */
+private const val BIO_PREFERRED_KEY = "fh_bio_lock_after_preferred"
+private const val SECURITY_PREFS = "fh_security_prefs"
+private const val LEGACY_PREFS = "fh_prefs"
 
 /** Local lock-delay values — mirrors BioLockDelay in Biometrics.swift. */
 object BioLockDelay {
@@ -161,7 +166,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     // ── Biometric app lock (local, per-device) ───────────────────────
-    private val prefs = app.getSharedPreferences("fh_prefs", Context.MODE_PRIVATE)
+    // Dedicated prefs file so theme/intro writes to fh_prefs can't clobber
+    // lock settings, and so values survive app updates reliably.
+    private val prefs = run {
+        val secure = app.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
+        val legacy = app.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+        if (!secure.contains(BIO_LOCK_AFTER_KEY) &&
+            (legacy.contains(BIO_LOCK_AFTER_KEY) || legacy.contains(BIO_KEY))
+        ) {
+            secure.edit(commit = true) {
+                if (legacy.contains(BIO_LOCK_AFTER_KEY)) {
+                    putInt(BIO_LOCK_AFTER_KEY, legacy.getInt(BIO_LOCK_AFTER_KEY, BioLockDelay.IMMEDIATELY))
+                }
+                if (legacy.contains(BIO_KEY)) {
+                    putBoolean(BIO_KEY, legacy.getBoolean(BIO_KEY, false))
+                }
+                if (legacy.contains(BIO_PREFERRED_KEY)) {
+                    putInt(BIO_PREFERRED_KEY, legacy.getInt(BIO_PREFERRED_KEY, 5))
+                }
+            }
+        }
+        secure
+    }
     private val lockAfterDefault: Int = run {
         val delay = when {
             prefs.contains(BIO_LOCK_AFTER_KEY) -> prefs.getInt(BIO_LOCK_AFTER_KEY, BioLockDelay.IMMEDIATELY)
@@ -174,9 +200,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         if (!prefs.contains(BIO_LOCK_AFTER_KEY)) {
-            prefs.edit {
+            prefs.edit(commit = true) {
                 putInt(BIO_LOCK_AFTER_KEY, delay)
                 putBoolean(BIO_KEY, delay >= 0)
+                if (delay >= 0) putInt(BIO_PREFERRED_KEY, delay)
             }
         }
         delay
@@ -191,12 +218,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var backgroundedAt: Long? = null
 
     // First-run intro is local (no account yet) — shown once before auth.
-    private val _introSeen = MutableStateFlow(prefs.getBoolean("intro_seen", false))
+    private val introPrefs = app.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+    private val _introSeen = MutableStateFlow(introPrefs.getBoolean("intro_seen", false))
     val introSeen: StateFlow<Boolean> = _introSeen.asStateFlow()
 
     fun markIntroSeen() {
         _authError.value = null
-        prefs.edit { putBoolean("intro_seen", true) }
+        introPrefs.edit { putBoolean("intro_seen", true) }
         _introSeen.value = true
     }
 
@@ -204,17 +232,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val clamped = BioLockDelay.clamp(minutes)
         _lockAfterMinutes.value = clamped
         _biometricEnabled.value = clamped >= 0
-        prefs.edit {
+        prefs.edit(commit = true) {
             putInt(BIO_LOCK_AFTER_KEY, clamped)
             putBoolean(BIO_KEY, clamped >= 0)
+            if (clamped >= 0) putInt(BIO_PREFERRED_KEY, clamped)
         }
         _locked.value = false
         backgroundedAt = null
     }
 
-    /** @deprecated Prefer [setLockAfterMinutes]. */
+    /** Toggle lock on/off without wiping a custom “Stay unlocked for” delay. */
     fun setBiometricEnabled(on: Boolean) {
-        setLockAfterMinutes(if (on) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER)
+        if (on) {
+            val preferred = prefs.getInt(BIO_PREFERRED_KEY, 5).let {
+                if (it >= 0) BioLockDelay.clamp(it) else 5
+            }
+            setLockAfterMinutes(preferred)
+        } else {
+            val current = _lockAfterMinutes.value
+            if (current >= 0) {
+                prefs.edit(commit = true) { putInt(BIO_PREFERRED_KEY, current) }
+            }
+            setLockAfterMinutes(BioLockDelay.NEVER)
+        }
     }
 
     fun onBackground() {
@@ -635,9 +675,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // never touches the server. devEntitlement() returns null in release.
     private val devEntKey = "fh_dev_entitlement"
     var devEntitlementOverride: String
-        get() = prefs.getString(devEntKey, "off") ?: "off"
+        get() = introPrefs.getString(devEntKey, "off") ?: "off"
         set(value) {
-            prefs.edit().apply { if (value == "off") remove(devEntKey) else putString(devEntKey, value) }.apply()
+            introPrefs.edit().apply { if (value == "off") remove(devEntKey) else putString(devEntKey, value) }.apply()
             val synth = devEntitlement(value)
             if (synth != null) _entitlement.value = synth
             else viewModelScope.launch { refreshEntitlement() }

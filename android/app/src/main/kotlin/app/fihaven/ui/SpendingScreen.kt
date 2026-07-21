@@ -8,13 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,8 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +41,7 @@ import app.fihaven.core.logic.Reconcile
 import app.fihaven.core.logic.SpendingInsights
 import app.fihaven.core.logic.Period
 import app.fihaven.core.model.SPENDING_CATEGORIES
+import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.ui.theme.Ct
 
@@ -183,38 +190,14 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 }
             }
             items(recentTx, key = { "tx-${it.id}" }) { tx ->
-                CtCard(padding = 12, modifier = Modifier.clickable { editingTx = tx }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(tx.merchant.ifBlank { tx.category }, color = Ct.colors.text, fontSize = 14.sp)
-                                if (tx.isBank) {
-                                    Text(if (tx.pending) "🏦 pending" else "🏦", color = Ct.colors.accent,
-                                        fontSize = 10.sp, modifier = Modifier.padding(start = 5.dp))
-                                }
-                            }
-                            Text(tx.date, color = Ct.colors.muted, fontSize = 11.sp)
-                            if (tx.note.isNotBlank()) {
-                                Text(tx.note, color = Ct.colors.muted, fontSize = 11.sp)
-                            }
-                        }
-                        Text(Money.fmt(tx.amount), color = Ct.colors.text, fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                        Text("Edit", color = Ct.colors.accent, fontSize = 13.sp,
-                            modifier = Modifier.padding(start = 12.dp).clickable { editingTx = tx })
-                        if (!tx.isBank) {
-                            Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
-                                modifier = Modifier.padding(start = 12.dp).clickable { vm.deleteTransaction(tx) })
-                        } else {
-                            if (tx.pending) {
-                                Text("Keep", color = Ct.colors.accent, fontSize = 13.sp,
-                                    modifier = Modifier.padding(start = 12.dp).clickable { vm.acceptBankTransaction(tx) })
-                            }
-                            Text("✕", color = Ct.colors.muted, fontSize = 16.sp,
-                                modifier = Modifier.padding(start = 12.dp).clickable { vm.declineBankTransaction(tx) })
-                        }
-                    }
+                CtCard(padding = 10, modifier = Modifier.clickable { editingTx = tx }) {
+                    SpendingTxRow(
+                        tx = tx,
+                        onEdit = { editingTx = tx },
+                        onDelete = { vm.deleteTransaction(tx) },
+                        onKeep = { vm.acceptBankTransaction(tx) },
+                        onDecline = { vm.declineBankTransaction(tx) },
+                    )
                 }
             }
         }
@@ -223,6 +206,68 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     if (addingTx) TransactionEditorDialog(vm) { addingTx = false }
     editingTx?.let { tx -> TransactionEditorDialog(vm, edit = tx) { editingTx = null } }
     if (editingBudgets) CategoryBudgetsDialog(vm, budgets) { editingBudgets = false }
+}
+
+@Composable
+private fun SpendingTxRow(
+    tx: SpendTransaction,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onKeep: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    val title = tx.merchant.ifBlank { tx.category }
+    val subtitle = buildString {
+        append(tx.date)
+        if (tx.isBank) {
+            append(" · ")
+            append(if (tx.pending) "Bank · pending" else "Bank")
+        }
+        if (tx.note.isNotBlank()) {
+            append(" · ")
+            append(tx.note)
+        }
+    }
+
+    Row(verticalAlignment = Alignment.Top) {
+        Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp, top = 2.dp))
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(
+                title,
+                color = Ct.colors.text,
+                fontSize = 14.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(subtitle, color = Ct.colors.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(
+            Money.fmt(tx.amount),
+            color = Ct.colors.text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = PlexMono,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Filled.Edit, contentDescription = "Edit transaction", tint = Ct.colors.accent)
+        }
+        if (tx.isBank && tx.pending) {
+            IconButton(onClick = onKeep, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = "Keep pending bank transaction", tint = Ct.colors.accent)
+            }
+        }
+        IconButton(
+            onClick = { if (tx.isBank) onDecline() else onDelete() },
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = if (tx.isBank) "Not mine — remove and don’t import again" else "Delete transaction",
+                tint = Ct.colors.muted,
+            )
+        }
+    }
 }
 
 private fun spendIcon(c: String) = when (c) {

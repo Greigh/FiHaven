@@ -110,48 +110,13 @@ struct SpendingView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(recentTx.enumerated()), id: \.element.id) { i, tx in
                             if i > 0 { Divider().overlay(Theme.border) }
-                            HStack(spacing: 10) {
-                                Text(Self.catIcon(tx.category)).font(.system(size: 15))
-                                VStack(alignment: .leading, spacing: 1) {
-                                    HStack(spacing: 5) {
-                                        Text(tx.merchant.isEmpty ? tx.category : tx.merchant)
-                                            .font(Theme.ui(13)).foregroundStyle(Theme.text)
-                                        if tx.isBank {
-                                            Text(tx.pending ? "🏦 pending" : "🏦")
-                                                .font(Theme.ui(10)).foregroundStyle(Theme.accent)
-                                        }
-                                    }
-                                    Text(tx.date).font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                }
-                                Spacer()
-                                Text(Money.fmt(tx.amount)).font(Theme.mono(13)).foregroundStyle(Theme.text)
-                                Button("Edit") { editingTx = tx }
-                                    .font(Theme.ui(13)).foregroundStyle(Theme.accent)
-                                    .buttonStyle(.plain)
-                                    .accessibilityIconButton("Edit transaction")
-                                if !tx.isBank {
-                                    Button { store.deleteTransaction(tx) } label: {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityIconButton("Delete transaction")
-                                } else {
-                                    if tx.pending {
-                                        Button("Keep") { store.acceptBankTransaction(tx) }
-                                            .font(Theme.ui(13)).foregroundStyle(Theme.accent)
-                                            .buttonStyle(.plain)
-                                            .accessibilityLabel("Keep pending bank transaction")
-                                    }
-                                    Button { store.declineBankTransaction(tx) } label: {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Not mine — remove and don’t import again")
-                                }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture { editingTx = tx }
-                            .padding(.vertical, 7)
+                            SpendingRow(
+                                tx: tx,
+                                onEdit: { editingTx = tx },
+                                onDelete: { store.deleteTransaction(tx) },
+                                onKeep: { store.acceptBankTransaction(tx) },
+                                onDecline: { store.declineBankTransaction(tx) }
+                            )
                         }
                     }
                     .ctCard()
@@ -220,5 +185,89 @@ struct SpendingView: View {
         case "Transport": return "🚗"; case "Entertainment": return "🎬"; case "Health": return "💊"
         case "Bills": return "📄"; default: return "📦"
         }
+    }
+}
+
+/// Spending list row: title + bank status under the name (not beside the amount),
+/// amount alone on the trailing edge, and ≥44pt action controls.
+private struct SpendingRow: View {
+    let tx: SpendTransaction
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    let onKeep: () -> Void
+    let onDecline: () -> Void
+
+    private var title: String { tx.merchant.isEmpty ? tx.category : tx.merchant }
+
+    private var subtitle: String {
+        var parts = [tx.date]
+        if tx.isBank { parts.append(tx.pending ? "Bank · pending" : "Bank") }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(SpendingView.catIcon(tx.category))
+                .font(.system(size: 15))
+                .frame(width: 22, alignment: .center)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(subtitle)
+                    .font(Theme.ui(11))
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(Money.fmt(tx.amount))
+                .font(Theme.mono(13))
+                .foregroundStyle(Theme.text)
+                .padding(.top, 2)
+
+            HStack(spacing: 2) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIconButton("Edit transaction")
+
+                if tx.isBank && tx.pending {
+                    Button(action: onKeep) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Keep pending bank transaction")
+                }
+
+                Button(action: { if tx.isBank { onDecline() } else { onDelete() } }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Theme.muted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tx.isBank
+                    ? "Not mine — remove and don’t import again"
+                    : "Delete transaction")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .padding(.vertical, 4)
     }
 }
