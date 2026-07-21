@@ -237,15 +237,26 @@ struct PaywallView: View {
                     Button {
                         Task { await billing.purchase(product) }
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(product.displayName).font(Theme.ui(16, weight: .semibold))
-                                if let period = periodLabel(product) {
-                                    Text(period).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                // Apple 3.1.2: title, length, and price of each
+                                // auto-renewing subscription must be visible.
+                                Text(product.displayName)
+                                    .font(Theme.ui(16, weight: .semibold))
+                                    .foregroundStyle(Theme.text)
+                                Text(lengthLabel(product))
+                                    .font(Theme.ui(12))
+                                    .foregroundStyle(Theme.muted)
+                                if let perUnit = pricePerUnitLabel(product) {
+                                    Text(perUnit)
+                                        .font(Theme.ui(11))
+                                        .foregroundStyle(Theme.muted)
                                 }
                             }
-                            Spacer()
-                            Text(product.displayPrice).font(Theme.mono(16, weight: .semibold))
+                            Spacer(minLength: 12)
+                            Text(product.displayPrice)
+                                .font(Theme.mono(16, weight: .semibold))
+                                .foregroundStyle(Theme.text)
                         }
                     }
                     .buttonStyle(PlanButtonStyle())
@@ -267,10 +278,20 @@ struct PaywallView: View {
     /// the purchase as a crossgrade within the subscription group.
     private func familyOption(_ product: Product, isUpgrade: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                FamilyBadge()
-                Spacer()
-                Text(product.displayPrice).font(Theme.mono(16, weight: .semibold))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    FamilyBadge()
+                    Text(product.displayName)
+                        .font(Theme.ui(16, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                    Text(lengthLabel(product))
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 12)
+                Text(product.displayPrice)
+                    .font(Theme.mono(16, weight: .semibold))
+                    .foregroundStyle(Theme.text)
             }
             Text("Everything in Pro, plus a shared household — share bills, cards & goals with up to 3 people. Joining a household is always free.")
                 .font(Theme.ui(13)).foregroundStyle(Theme.muted)
@@ -282,7 +303,7 @@ struct PaywallView: View {
         }
         .ctCard()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Family plan, \(product.displayPrice)")
+        .accessibilityLabel("\(product.displayName), \(product.displayPrice), \(lengthLabel(product))")
     }
 
     private var activeCard: some View {
@@ -334,10 +355,18 @@ struct PaywallView: View {
             Button("Restore purchases") { Task { await billing.restore() } }
                 .font(Theme.ui(14))
                 .foregroundStyle(Theme.muted)
-            Text("Subscriptions renew automatically until cancelled. Manage or cancel anytime in your App Store account settings.")
+            Text("Subscriptions are auto-renewing. Payment is charged to your Apple ID. Renews unless canceled at least 24 hours before the period ends. Manage or cancel in Settings → Apple ID → Subscriptions.")
                 .font(Theme.ui(11)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
+            // Required functional links for Guideline 3.1.2 (also in Settings → About).
+            HStack(spacing: 6) {
+                Link("Privacy Policy", destination: URL(string: "https://fihaven.app/privacy")!)
+                Text("·").foregroundStyle(Theme.muted)
+                Link("Terms of Use (EULA)", destination: URL(string: "https://fihaven.app/terms")!)
+            }
+            .font(Theme.ui(12))
+            .foregroundStyle(Theme.accent)
         }
     }
 
@@ -350,19 +379,44 @@ struct PaywallView: View {
         return "\(verb) \(f.string(from: date))"
     }
 
-    private func periodLabel(_ p: Product) -> String? {
-        guard let period = p.subscription?.subscriptionPeriod else { return nil }
-        switch (period.unit, period.value) {
-        case (.month, 1): return "Monthly"
-        case (.year, 1): return "Yearly"
-        case (.week, 1): return "Weekly"
-        default: return nil
+    /// Human-readable subscription length for App Review / 3.1.2.
+    private func lengthLabel(_ p: Product) -> String {
+        guard let period = p.subscription?.subscriptionPeriod else {
+            return "Auto-renewing subscription"
         }
+        let unit: String
+        switch period.unit {
+        case .day: unit = period.value == 1 ? "day" : "\(period.value) days"
+        case .week: unit = period.value == 1 ? "week" : "\(period.value) weeks"
+        case .month: unit = period.value == 1 ? "month" : "\(period.value) months"
+        case .year: unit = period.value == 1 ? "year" : "\(period.value) years"
+        @unknown default: unit = "period"
+        }
+        if period.value == 1 {
+            return "Length: 1 \(unit) · auto-renewing"
+        }
+        return "Length: \(unit) · auto-renewing"
+    }
+
+    /// Optional price-per-unit line (e.g. yearly → approx. monthly).
+    private func pricePerUnitLabel(_ p: Product) -> String? {
+        guard let period = p.subscription?.subscriptionPeriod,
+              period.unit == .year, period.value == 1,
+              let yearly = decimalPrice(p) else { return nil }
+        let monthly = yearly / 12
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .currency
+        fmt.locale = .current
+        guard let s = fmt.string(from: monthly as NSDecimalNumber) else { return nil }
+        return "\(s)/mo billed annually"
+    }
+
+    private func decimalPrice(_ p: Product) -> Decimal? {
+        p.price
     }
 
     private func planAccessibilityLabel(_ product: Product) -> String {
-        let period = periodLabel(product) ?? "subscription"
-        return "\(product.displayName), \(product.displayPrice), \(period)"
+        "\(product.displayName), \(product.displayPrice), \(lengthLabel(product))"
     }
 }
 
