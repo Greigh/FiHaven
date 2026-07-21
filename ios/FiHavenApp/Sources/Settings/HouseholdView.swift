@@ -198,7 +198,8 @@ struct HouseholdSettingsView: View {
             HStack {
                 Text(view.household.name).font(Theme.ui(16, weight: .semibold))
                 Spacer()
-                Text("\(view.memberCount)/\(view.memberMax)").foregroundStyle(Theme.muted)
+                Text(Self.memberCapLabel(count: view.memberCount, max: view.memberMax))
+                    .foregroundStyle(Theme.muted)
             }
         }
 
@@ -224,12 +225,19 @@ struct HouseholdSettingsView: View {
         }
 
         if isOwner {
-            Section("Invite someone") {
-                TextField("name@email.com", text: $inviteEmail)
-                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Send invite") {
-                    Task { await model.invite(email: inviteEmail.trimmingCharacters(in: .whitespaces)); inviteEmail = "" }
-                }.disabled(model.busy || inviteEmail.isEmpty)
+            if view.memberMax >= 2 {
+                Section("Invite someone") {
+                    TextField("name@email.com", text: $inviteEmail)
+                        .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Send invite") {
+                        Task { await model.invite(email: inviteEmail.trimmingCharacters(in: .whitespaces)); inviteEmail = "" }
+                    }.disabled(model.busy || inviteEmail.isEmpty)
+                }
+            } else {
+                Section("Invite someone") {
+                    Text("Inviting more people needs the Family plan. You’re still the owner of this household.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                }
             }
         }
 
@@ -287,6 +295,11 @@ struct HouseholdSettingsView: View {
             if case .string(let merchant)? = o["merchant"] { return merchant }
         }
         return e.kind.capitalized
+    }
+
+    private static func memberCapLabel(count: Int, max: Int) -> String {
+        if max <= 0 { return count == 1 ? "1 member" : "\(count) members" }
+        return "\(count)/\(max)"
     }
 
     private func rollupRow(_ label: String, _ amount: Double) -> some View {
