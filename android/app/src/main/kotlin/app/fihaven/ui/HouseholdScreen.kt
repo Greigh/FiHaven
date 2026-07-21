@@ -161,7 +161,7 @@ private fun householdBody(
         view.members.forEachIndexed { i, m ->
             if (i > 0) HorizontalDivider(color = Ct.colors.border)
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier.weight(1f)) {
+                Column(Modifier.weight(1f)) {
                     Text(m.name?.takeIf { it.isNotBlank() } ?: m.email, fontSize = 15.sp, color = Ct.colors.text)
                     if (m.email.lowercase() == myEmail.lowercase()) Text("You", fontSize = 12.sp, color = Ct.colors.muted)
                 }
