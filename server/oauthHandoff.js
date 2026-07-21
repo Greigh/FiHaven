@@ -95,17 +95,26 @@ function consume({ provider, code, state }) {
   };
 }
 
-/** https App Link for the native app (falls back to custom scheme in local dev). */
+/** Deep-link return into the Android app (Custom Tab–safe).
+ *  Prefer the custom scheme: same-host https App Links often stay inside
+ *  Chrome Custom Tabs and never reach MainActivity. The one-time handoff
+ *  code (not a JWT) is what travels on the URL. */
 function appReturnUrl(provider, { code, state }) {
+  const params = new URLSearchParams({ code: String(code || '') });
+  if (state) params.set('state', String(state));
+  return `fihaven://oauth/${provider}?${params.toString()}`;
+}
+
+/** https App Link twin — useful for browsers / verified association; not used
+ *  as the primary Custom Tab bounce (see appReturnUrl). */
+function httpsReturnUrl(provider, { code, state }) {
   const params = new URLSearchParams({ code: String(code || '') });
   if (state) params.set('state', String(state));
   const origin = publicOrigin();
   if (origin && /^https:\/\//i.test(origin)) {
     return `${origin}/oauth/${provider}?${params.toString()}`;
   }
-  // Local / missing PUBLIC_ORIGIN: keep the legacy custom scheme so
-  // Custom Tab can still return without App Links association.
-  return `fihaven://oauth/${provider}?${params.toString()}`;
+  return null;
 }
 
 module.exports = {
@@ -113,5 +122,6 @@ module.exports = {
   create,
   consume,
   appReturnUrl,
+  httpsReturnUrl,
   publicOrigin,
 };

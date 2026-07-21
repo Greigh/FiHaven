@@ -62,6 +62,9 @@ describe('integration — oauth handoff (App Link return)', () => {
     const body = await res.json();
     expect(body.code).toMatch(/^[a-f0-9]{64}$/);
     expect(body.returnUrl).toBe(
+      `fihaven://oauth/google?code=${body.code}&state=csrf-1`,
+    );
+    expect(body.httpsReturnUrl).toBe(
       `https://fihaven.app/oauth/google?code=${body.code}&state=csrf-1`,
     );
     expect(body.returnUrl).not.toContain('idToken');
