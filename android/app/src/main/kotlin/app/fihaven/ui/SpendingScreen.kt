@@ -54,6 +54,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     var editingTx by remember { mutableStateOf<app.fihaven.core.model.SpendTransaction?>(null) }
     var editingBudgets by remember { mutableStateOf(false) }
     var dismissedDupes by remember { mutableStateOf(setOf<String>()) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Bank-sync reconciliation: duplicate audit + uncorroborated manual entries.
     val today = app.fihaven.core.logic.DateLogic.today(vm.zone())
@@ -69,10 +70,17 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val spentByCat = periodTx.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }
     val totalSpent = periodTx.sumOf { it.amount }
     val budgets = data.settings.categoryBudgets
-    val recentTx = periodTx.sortedByDescending { it.date }
+    val recentTx = periodTx
+        .filter { matchesListSearch(searchQuery, it.merchant, it.category, it.note) }
+        .sortedByDescending { it.date }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Spending", onBack = onBack, branded = true)
+        ListSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search spending",
+        )
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
