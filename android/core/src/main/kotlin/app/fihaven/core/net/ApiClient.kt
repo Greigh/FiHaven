@@ -152,11 +152,16 @@ class ApiClient(
     // Pass itemId for an update-mode token (re-auth an existing item). Set
     // accountSelection for the NEW_ACCOUNTS_AVAILABLE "add accounts" flow.
     suspend fun plaidLinkToken(itemId: Int? = null, accountSelection: Boolean = false): String {
-        val req = if (itemId != null)
-            makeRequest("api/plaid/link/token", HttpMethod.POST,
-                encode(PlaidLinkTokenBody(itemId, if (accountSelection) true else null)))
-        else makeRequest("api/plaid/link/token", HttpMethod.POST)
-        return decode<PlaidLinkTokenResponse>(send(req)).linkToken
+        val body = encode(
+            PlaidLinkTokenBody(
+                itemId = itemId,
+                accountSelection = if (accountSelection) true else null,
+                platform = "android",
+            )
+        )
+        return decode<PlaidLinkTokenResponse>(
+            send(makeRequest("api/plaid/link/token", HttpMethod.POST, body))
+        ).linkToken
     }
 
     suspend fun plaidExchange(publicToken: String) {

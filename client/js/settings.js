@@ -2083,7 +2083,7 @@ import {
     function connect() {
       showMessage('plaid', 'Opening your bank…', false);
       connectBtn.disabled = true;
-      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST')]).then(function (out) {
+      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { platform: 'web' })]).then(function (out) {
         var Plaid = out[0];
         var res = out[1];
         connectBtn.disabled = false;
@@ -2133,7 +2133,7 @@ import {
       btn.disabled = true;
       var adding = !!accountSelection;
       showMessage('plaid', adding ? 'Opening your bank…' : 'Reopening your bank…', false);
-      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { itemId: id, accountSelection: adding })]).then(function (out) {
+      Promise.all([loadPlaidLink(), plaidFetch('link/token', 'POST', { itemId: id, accountSelection: adding, platform: 'web' })]).then(function (out) {
         var Plaid = out[0];
         var res = out[1];
         btn.disabled = false;

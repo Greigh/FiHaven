@@ -5,7 +5,9 @@
       {
         "appIDs": ["365KR8NF53.app.fihaven"],
         "components": [
-          { "/": "/oauth/*" }
+          { "/": "/oauth/*" },
+          { "/": "/plaid" },
+          { "/": "/plaid/*" }
         ]
       }
     ]
