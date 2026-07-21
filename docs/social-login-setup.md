@@ -11,7 +11,7 @@ vars below** — exactly like the Plaid/Stripe integrations.
 | **Server** | `POST /api/auth/oauth/:provider` (verifies the OIDC ID token, auto-links by verified email, else creates a verified no-password account, issues a session) and `GET /api/auth/oauth/config`. OIDC verification in `server/oauth.js`; `oauth_identities` table in `server/db.js`. ✅ built + tested |
 | **Web** | "Continue with Google/Apple" buttons on `/login`, hidden until a provider is configured (`client/js/social-login.js`). ✅ built |
 | **iOS** | Native **Sign in with Apple** (no SDK) **and Continue with Google** (GoogleSignIn SDK) on the auth screen. ✅ built. |
-| **Android** | **Continue with Google** (Credential Manager) **and Continue with Apple** (Custom Tab → one-time handoff → `https://fihaven.app/oauth/…` App Link). ✅ built. |
+| **Android** | **Continue with Google** (Credential Manager) **and Continue with Apple** (Custom Tab → one-time handoff → package-locked `fihaven://oauth/…`, with https App Link as fallback). ✅ built. |
 
 **Design notes**
 - Auto-linking: if the provider's *verified* email matches an existing
@@ -101,8 +101,11 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
   Credential Manager still fails (typical `DEVELOPER_ERROR` on Play builds
   missing the App Signing SHA-1), it opens a Custom Tab to
   `/oauth-google-android.html` (Google Identity Services). That page deposits
-  the JWT via `POST /api/auth/oauth/google/handoff` and returns through
-  `https://fihaven.app/oauth/google?code=…` (App Link). Cancellation stays silent.
+  a one-time handoff via `POST /api/auth/oauth/google/handoff` and returns through
+  package-locked `fihaven://oauth/google?code=…` (Custom Tabs often keep
+  same-host `https://fihaven.app/oauth/…` in the tab). The https App Link page
+  remains a fallback with an “Open FiHaven” control. Failed / expired handoffs
+  show an on-screen error instead of a silent signed-out state.
   **Optional but recommended in Google Cloud:** create an **Android** OAuth
   client with package `app.fihaven` and every signing SHA-1 (debug, upload/
   release, and **Play App Signing** from Play Console → App integrity). Its
@@ -115,9 +118,10 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
   button (`AppleWebSignIn`) opens Apple's authorize page in a Custom Tab using
   `BuildConfig.APPLE_SERVICES_ID` (`app.fihaven.web`) and redirect
   `…/api/auth/oauth/apple/callback`. Apple form-posts there; the server stores
-  the id_token under a one-time handoff and 302-redirects to
-  `https://fihaven.app/oauth/apple?code=…`, which `MainActivity` catches
-  (verified App Link) and finishes via `vm.oauthSignInHandoff("apple", …)`.
+  the id_token under a one-time handoff and returns via package-locked
+  `fihaven://oauth/apple?code=…` (same Custom Tab reason as Google); https
+  `https://fihaven.app/oauth/apple?code=…` remains available. `MainActivity`
+  finishes via `vm.oauthSignInHandoff("apple", …)`.
   **One portal step required:** add this exact **Return URL** to the Services ID
   (alongside `/login`): `https://fihaven.app/api/auth/oauth/apple/callback`.
 
@@ -126,7 +130,8 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
 `assetlinks.json` already lists package `app.fihaven` with debug / upload /
 Play App Signing SHA-256 fingerprints and
 `delegate_permission/common.handle_all_urls`. AASA includes `applinks` for
-`/oauth/*`. After deploying those files:
+`/oauth/*`. After deploying those files, iOS Associated Domains also cover
+`/plaid` for native Plaid OAuth Universal Links (see Plaid Dashboard allow-list).
 
 1. Confirm live files:
    - `https://fihaven.app/.well-known/assetlinks.json`
@@ -138,13 +143,15 @@ Play App Signing SHA-256 fingerprints and
 3. Statement list tester:
    https://developers.google.com/digital-asset-links/tools/generator
 4. iOS: Associated Domains already includes `applinks:fihaven.app` (Universal
-   Links for `/oauth/*` if needed later; native Apple/Google SDKs do not use
-   this path today).
-5. Set `PUBLIC_ORIGIN=https://fihaven.app` in production so OAuth handoffs
-   redirect to https App Links (without it, local/dev keeps `fihaven://`).
+   Links for `/oauth/*` and `/plaid`; native Apple/Google SDKs do not use the
+   OAuth https path when Custom Tab returns via `fihaven://`).
+5. Set `PUBLIC_ORIGIN=https://fihaven.app` in production so https App Link
+   handoff URLs and iOS Plaid `/plaid` defaults resolve correctly. Custom Tab
+   Android returns prefer `fihaven://oauth/…?code=` so the tab can leave Chrome.
 
 Apple Services ID return URL does **not** change — only the post-callback
-bounce into the app moved from `fihaven://…` to `https://fihaven.app/oauth/…`.
+bounce into the app. Prefer `fihaven://oauth/…?code=` from Custom Tabs; keep
+https App Links verified as a fallback.
 
 ## 6. Verify
 
@@ -157,6 +164,6 @@ bounce into the app moved from `fihaven://…` to `https://fihaven.app/oauth/…
 - Production: set real audiences, `OAUTH_VERIFY_MODE=production`, click the
   buttons on `/login`. The button block stays hidden if config is empty, so a
   missing var fails safe.
-- Android: after a Play build with App Links verified, Apple / Google web
-  fallback should open the app on `https://fihaven.app/oauth/…` without a
-  chooser for a random `fihaven://` claimant.
+- Android: after a Play build, Google / Apple Custom Tab fallback should open
+  FiHaven on `fihaven://oauth/…?code=…` (or the https App Link fallback) without
+  stalling in Chrome after account selection.
