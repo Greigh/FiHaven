@@ -685,6 +685,32 @@ router.post('/oauth/apple/callback', appleFormBody, appleAndroidCallback);
 // GET fallback (e.g. user-error redirects from Apple).
 router.get('/oauth/apple/callback', appleAndroidCallback);
 
+// Google Custom Tab: GIS posts the id_token here (form), we store a handoff
+// and 302 to fihaven:// — same pattern as Apple. Async JS location.replace
+// after fetch often leaves Chrome Custom Tabs stuck on the page.
+function googleAndroidCallback(req, res) {
+  const b = req.body || {};
+  const idToken = String(b.id_token || b.idToken || '');
+  const state = String(b.state || '');
+  if (!idToken) {
+    return res.status(400).type('html').send(
+      '<!doctype html><title>Sign-in failed</title><p>Google did not return a token. Close this tab and try again in FiHaven.</p>'
+    );
+  }
+  let code;
+  try {
+    code = oauthHandoff.create({ provider: 'google', idToken, name: null, state });
+  } catch (err) {
+    console.error('oauth google handoff create failed:', err && err.message);
+    return res.status(500).type('html').send(
+      '<!doctype html><title>Sign-in failed</title><p>Could not finish Google sign-in. Close this tab and try again in FiHaven.</p>'
+    );
+  }
+  return res.redirect(302, oauthHandoff.appReturnUrl('google', { code, state }));
+}
+router.post('/oauth/google/callback', appleFormBody, googleAndroidCallback);
+router.get('/oauth/google/callback', googleAndroidCallback);
+
 // POST /api/auth/oauth/:provider/handoff — Custom Tab Google page deposits
 // an id_token and receives a one-time code for the App Link return.
 router.post('/oauth/:provider/handoff', (req, res) => {

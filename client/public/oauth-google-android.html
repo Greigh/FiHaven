@@ -40,43 +40,28 @@
 
       function fail(msg) { statusEl.textContent = msg; }
 
-      /** Bounce back into the Play-signed app. Same-host https App Links often
-       *  stay inside Custom Tabs — package-locked fihaven:// leaves reliably. */
-      function openApp(code) {
-        var q = 'code=' + encodeURIComponent(code) +
-          (state ? '&state=' + encodeURIComponent(state) : '');
-        var customUrl = 'fihaven://oauth/google?' + q;
-        var intentUrl =
-          'intent://oauth/google?' + q +
-          '#Intent;scheme=fihaven;package=app.fihaven;end';
-        openEl.href = customUrl;
-        openEl.style.display = 'inline-flex';
-        statusEl.textContent = 'Returning to the app…';
-        location.replace(intentUrl);
-        setTimeout(function () {
-          location.href = customUrl;
-          statusEl.textContent =
-            'If FiHaven did not open, tap Open FiHaven below, then close this tab.';
-        }, 600);
-      }
-
+      /**
+       * Top-level form POST → server 302 to fihaven:// (same as Apple).
+       * Custom Tabs honor HTTP redirects out of the tab; they often block
+       * async JS location.replace(intent://…) after fetch.
+       */
       function finish(idToken) {
         statusEl.textContent = 'Finishing sign-in…';
-        fetch('/api/auth/oauth/google/handoff', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ idToken: idToken, state: state }),
-        })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (res) {
-            if (!res.ok || !res.d || !res.d.code) {
-              fail((res.d && res.d.error) || 'Could not finish Google sign-in. Try again.');
-              return;
-            }
-            openApp(res.d.code);
-          })
-          .catch(function () { fail('Could not reach FiHaven. Try again.'); });
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/api/auth/oauth/google/callback';
+        form.style.display = 'none';
+        function field(name, value) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = name;
+          input.value = value;
+          form.appendChild(input);
+        }
+        field('id_token', idToken);
+        if (state) field('state', state);
+        document.body.appendChild(form);
+        form.submit();
       }
 
       function ready(clientId) {
@@ -129,6 +114,14 @@
           }
         })
         .catch(function () { fail('Could not reach FiHaven. Try again.'); });
+
+      // Manual backup if the 302 bounce fails (rare).
+      openEl.style.display = 'none';
+      openEl.addEventListener('click', function (e) {
+        if (!openEl.getAttribute('href') || openEl.getAttribute('href') === '#') {
+          e.preventDefault();
+        }
+      });
     })();
   </script>
 </body>
