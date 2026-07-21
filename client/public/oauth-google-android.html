@@ -17,25 +17,51 @@
     h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
     #status { color: #57534e; font-size: 0.95rem; text-align: center; max-width: 22rem; }
     #btn { min-height: 44px; }
+    a.btn {
+      display: none; align-items: center; justify-content: center;
+      min-height: 44px; padding: 0 18px; border-radius: 10px;
+      background: #1c1917; color: #fafaf9; text-decoration: none; font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <h1>FiHaven</h1>
   <p id="status">Connecting to Google…</p>
   <div id="btn"></div>
+  <a class="btn" id="open" href="#">Open FiHaven</a>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     (function () {
       var params = new URLSearchParams(location.search);
       var state = params.get('state') || '';
       var statusEl = document.getElementById('status');
+      var openEl = document.getElementById('open');
       var started = false;
 
       function fail(msg) { statusEl.textContent = msg; }
 
-      function finish(idToken) {
+      /** Bounce back into the Play-signed app. Same-host https App Links often
+       *  stay inside Custom Tabs — package-locked fihaven:// leaves reliably. */
+      function openApp(code) {
+        var q = 'code=' + encodeURIComponent(code) +
+          (state ? '&state=' + encodeURIComponent(state) : '');
+        var customUrl = 'fihaven://oauth/google?' + q;
+        var intentUrl =
+          'intent://oauth/google?' + q +
+          '#Intent;scheme=fihaven;package=app.fihaven;end';
+        openEl.href = customUrl;
+        openEl.style.display = 'inline-flex';
         statusEl.textContent = 'Returning to the app…';
-        // Deposit the JWT server-side; App Link only carries a one-time code.
+        location.replace(intentUrl);
+        setTimeout(function () {
+          location.href = customUrl;
+          statusEl.textContent =
+            'If FiHaven did not open, tap Open FiHaven below, then close this tab.';
+        }, 600);
+      }
+
+      function finish(idToken) {
+        statusEl.textContent = 'Finishing sign-in…';
         fetch('/api/auth/oauth/google/handoff', {
           method: 'POST',
           credentials: 'same-origin',
@@ -44,11 +70,11 @@
         })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (res) {
-            if (!res.ok || !res.d || !res.d.returnUrl) {
+            if (!res.ok || !res.d || !res.d.code) {
               fail((res.d && res.d.error) || 'Could not finish Google sign-in. Try again.');
               return;
             }
-            location.replace(res.d.returnUrl);
+            openApp(res.d.code);
           })
           .catch(function () { fail('Could not reach FiHaven. Try again.'); });
       }
@@ -64,6 +90,9 @@
           },
           auto_select: false,
           cancel_on_tap_outside: false,
+          // One Tap prompt() often dismisses without a credential inside
+          // Custom Tabs — use the explicit button only.
+          use_fedcm_for_prompt: false,
         });
         google.accounts.id.renderButton(document.getElementById('btn'), {
           theme: 'outline',
@@ -73,8 +102,7 @@
           shape: 'rectangular',
           logo_alignment: 'left',
         });
-        statusEl.textContent = 'Choose a Google account to continue.';
-        try { google.accounts.id.prompt(); } catch (_) { /* optional */ }
+        statusEl.textContent = 'Tap Continue with Google, then choose an account.';
       }
 
       fetch('/api/auth/oauth/config', { credentials: 'same-origin' })

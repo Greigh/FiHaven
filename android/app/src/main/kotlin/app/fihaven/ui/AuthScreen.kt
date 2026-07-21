@@ -406,13 +406,18 @@ private fun Context.findActivity(): Activity? {
 }
 
 private fun finishGoogleCredential(result: GetCredentialResponse, vm: AppViewModel) {
-    val cred = result.credential
-    if (cred is CustomCredential &&
-        cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-    ) {
-        val google = GoogleIdTokenCredential.createFrom(cred.data)
-        vm.oauthSignIn("google", google.idToken, google.displayName)
-        return
+    try {
+        val cred = result.credential
+        if (cred is CustomCredential &&
+            cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+        ) {
+            val google = GoogleIdTokenCredential.createFrom(cred.data)
+            vm.oauthSignIn("google", google.idToken, google.displayName)
+            return
+        }
+        vm.reportAuthError("Google did not return a sign-in token. Try again.")
+    } catch (e: Exception) {
+        Log.w(TAG_GOOGLE_AUTH, "Failed to read Google credential", e)
+        vm.reportAuthError("Google sign-in failed. Try again.")
     }
-    vm.reportAuthError("Google did not return a sign-in token. Try again.")
 }
