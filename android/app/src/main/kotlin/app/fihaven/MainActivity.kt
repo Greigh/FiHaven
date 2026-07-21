@@ -60,14 +60,20 @@ class MainActivity : FragmentActivity() {
                         "google" -> GoogleWebSignIn.consumeState(parsed.state)
                         else -> false
                     }
-                    if (stateOk && !parsed.handoffCode.isNullOrBlank()) {
-                        vm.oauthSignInHandoff(parsed.provider, parsed.handoffCode, parsed.state)
-                    } else if (stateOk && !parsed.idToken.isNullOrBlank()) {
-                        // Legacy Custom Tab returns that still embed idToken.
-                        vm.oauthSignIn(
-                            parsed.provider,
-                            parsed.idToken,
-                            parsed.name,
+                    when {
+                        !stateOk -> vm.reportAuthError(
+                            "That sign-in link expired. Tap Continue with Google and try again.",
+                        )
+                        !parsed.handoffCode.isNullOrBlank() ->
+                            vm.oauthSignInHandoff(parsed.provider, parsed.handoffCode, parsed.state)
+                        !parsed.idToken.isNullOrBlank() ->
+                            vm.oauthSignIn(
+                                parsed.provider,
+                                parsed.idToken,
+                                parsed.name,
+                            )
+                        else -> vm.reportAuthError(
+                            "Google sign-in did not return a code. Close the browser tab and try again.",
                         )
                     }
                     oauthDeepLink.value = null

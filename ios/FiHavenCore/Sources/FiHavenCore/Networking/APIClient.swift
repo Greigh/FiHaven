@@ -227,13 +227,13 @@ public final class APIClient: Sendable {
     /// `accountSelection` to open update mode with account selection (the
     /// NEW_ACCOUNTS_AVAILABLE "add accounts" flow).
     public func plaidLinkToken(itemId: Int? = nil, accountSelection: Bool = false) async throws -> String {
-        let req: URLRequest
-        if let itemId {
-            req = try makeRequest(path: "api/plaid/link/token", method: .POST,
-                                  body: AnyEncodable(PlaidLinkTokenBody(itemId: itemId, accountSelection: accountSelection ? true : nil)))
-        } else {
-            req = try makeRequest(path: "api/plaid/link/token", method: .POST)
-        }
+        let body = PlaidLinkTokenBody(
+            itemId: itemId,
+            accountSelection: accountSelection ? true : nil,
+            platform: "ios"
+        )
+        let req = try makeRequest(path: "api/plaid/link/token", method: .POST,
+                                  body: AnyEncodable(body))
         return try decode(PlaidLinkTokenResponse.self, from: try await send(req)).linkToken
     }
 
