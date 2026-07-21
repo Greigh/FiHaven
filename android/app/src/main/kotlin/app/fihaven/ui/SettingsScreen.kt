@@ -480,40 +480,70 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
 
 @Composable
 private fun TabsDialog(vm: AppViewModel, onDone: () -> Unit) {
-    val resolved = remember { resolveTabs(vm.data.value.settings.tabBar) }
-    var bottom by remember { mutableStateOf(resolved.first) }
-    var more by remember { mutableStateOf(resolved.second) }
+    val loaded = remember {
+        val r = resolveTabs(vm.data.value.settings.tabBar)
+        // Older goal onboarding wrote every tab into `tabs`; only the first
+        // MAX_BOTTOM_TABS actually appear in the bar — put the rest under More.
+        val over = r.first.size > MAX_BOTTOM_TABS
+        Triple(r.first.take(MAX_BOTTOM_TABS), r.first.drop(MAX_BOTTOM_TABS) + r.second, over)
+    }
+    var bottom by remember { mutableStateOf(loaded.first) }
+    var more by remember { mutableStateOf(loaded.second) }
+    val initialIds = remember { loaded.first.map { it.id } }
+    val dirty = bottom.map { it.id } != initialIds || loaded.third
 
-    fun persist(newBottom: List<TabId>) {
-        bottom = newBottom
-        vm.setTabs(newBottom.map { it.id })
+    fun moveUp(i: Int) {
+        if (i <= 0) return
+        bottom = bottom.toMutableList().apply { add(i - 1, removeAt(i)) }
+    }
+    fun moveDown(i: Int) {
+        if (i >= bottom.lastIndex) return
+        bottom = bottom.toMutableList().apply { add(i + 1, removeAt(i)) }
+    }
+    fun removeFromBottom(t: TabId) {
+        more = listOf(t) + more
+        bottom = bottom - t
+    }
+    fun addToBottom(t: TabId) {
+        if (bottom.size >= MAX_BOTTOM_TABS) return
+        more = more - t
+        bottom = bottom + t
     }
 
-    FormDialog("Customize tabs", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+    FormDialog(
+        "Customize tabs",
+        saveEnabled = dirty,
+        saveLabel = "Save",
+        onSave = {
+            vm.setTabs(bottom.map { it.id })
+            onDone()
+        },
+        onDismiss = onDone,
+    ) {
         Text("BOTTOM BAR", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         bottom.forEachIndexed { i, t ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(t.label, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                TextButton(
-                    onClick = { if (i > 0) persist(bottom.toMutableList().apply { add(i - 1, removeAt(i)) }) },
-                    enabled = i > 0,
-                ) { Text("↑", color = Ct.colors.accent) }
-                TextButton(
-                    onClick = { if (i < bottom.lastIndex) persist(bottom.toMutableList().apply { add(i + 1, removeAt(i)) }) },
-                    enabled = i < bottom.lastIndex,
-                ) { Text("↓", color = Ct.colors.accent) }
-                TextButton(onClick = { more = listOf(t) + more; persist(bottom - t) }) {
+                Text(t.a11yLabel, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { moveUp(i) }, enabled = i > 0) {
+                    Text("↑", color = Ct.colors.accent)
+                }
+                TextButton(onClick = { moveDown(i) }, enabled = i < bottom.lastIndex) {
+                    Text("↓", color = Ct.colors.accent)
+                }
+                TextButton(onClick = { removeFromBottom(t) }) {
                     Text("Remove", color = Ct.colors.red)
                 }
             }
         }
-        Text("MORE", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 8.dp))
+        Text(
+            "MORE", color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         more.forEach { t ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(t.label, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(t.a11yLabel, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
                 TextButton(
-                    onClick = { if (bottom.size < MAX_BOTTOM_TABS) { more = more - t; persist(bottom + t) } },
+                    onClick = { addToBottom(t) },
                     enabled = bottom.size < MAX_BOTTOM_TABS,
                 ) { Text("Add", color = Ct.colors.accent) }
             }
@@ -805,7 +835,7 @@ private fun DefaultViewDialog(vm: AppViewModel, current: String, onDone: () -> U
 
 /// "Stay unlocked for" duration label (on/off is handled by the toggle).
 private fun stayUnlockedLabel(minutes: Int): String = when (minutes) {
-    BioLockDelay.IMMEDIATELY -> "0 minutes"
+    BioLockDelay.IMMEDIATELY -> "Immediately"
     1 -> "1 minute"
     else -> "$minutes minutes"
 }

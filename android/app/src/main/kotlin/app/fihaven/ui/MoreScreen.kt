@@ -82,7 +82,7 @@ private fun Menu(padding: PaddingValues, overflow: List<TabId>, onOpen: (String)
                     Column {
                         overflow.forEachIndexed { i, t ->
                             if (i > 0) HorizontalDivider(color = Ct.colors.border)
-                            item(t.label, t.icon) { onOpen(t.id) }
+                            item(t.a11yLabel, t.icon) { onOpen(t.id) }
                         }
                     }
                 }
