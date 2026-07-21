@@ -37,6 +37,10 @@ sealed class ApiError : Exception() {
                 "passkey-verify-failed" -> "Passkey verification failed. Try again."
                 "bad-challenge", "challenge-expired" -> "That setup session expired. Please try again."
                 "bad-passkey-id" -> "Passkey not found."
+                "oauth-verify-failed" -> "That sign-in could not be verified. Please try again."
+                "oauth-email-unverified" -> "Your Google/Apple account has no verified email."
+                "handoff-invalid", "handoff-expired", "handoff-used", "handoff-mismatch" ->
+                    "That sign-in link expired. Tap Continue with Google and try again."
                 else -> code ?: "Request failed ($status)."
             }
         }

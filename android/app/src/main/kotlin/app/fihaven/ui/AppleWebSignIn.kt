@@ -12,8 +12,8 @@ import androidx.core.net.toUri
  * We open Apple's authorize page in a Custom Tab. Apple form-posts the result
  * to the server callback (`/api/auth/oauth/apple/callback`), which stores the
  * id_token under a one-time handoff code and 302-redirects to
- * `https://fihaven.app/oauth/apple?code=…` (App Link). MainActivity consumes
- * the code via [app.fihaven.AppViewModel.oauthSignInHandoff].
+ * `fihaven://oauth/apple?code=…` so the Custom Tab returns to the app.
+ * MainActivity consumes the code via [app.fihaven.AppViewModel.oauthSignInHandoff].
  */
 object AppleWebSignIn {
     /** CSRF guard: the `state` we sent, checked when the deep link returns.
