@@ -129,7 +129,7 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) — see [`docs/social-login-setup.md`](docs/social-login-setup.md) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
-| **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth redirect, `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
+| **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
 | **Deploy** | Copy [`scripts/examples/upload.example.sh`](scripts/examples/upload.example.sh) → gitignored `upload.sh`; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart |
 
@@ -422,7 +422,8 @@ the Vite dev middleware.
 | `/verify-email` | Email-verification landing (token) | public | ❌ noindex |
 | `/reset` | Forgot / reset password (token) | public | ❌ noindex |
 | `/recover` | Lost-2FA account recovery (token) | public | ❌ noindex |
-| `/plaid-oauth` | Plaid OAuth return handler (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/plaid-oauth` | Plaid OAuth return handler for **web** Link (resumes bank Link after the redirect) | required | ❌ noindex |
+| `/plaid` | Plaid Universal Link target for **iOS** native Link (fallback page if the app does not open) | required | ❌ noindex |
 | `/dev-portal` | Developer subscription portal (manage a comp/dev Pro grant) | required | ❌ noindex |
 | `/404` | Not-found page | public | ❌ |
 | `/500` | Server-error page | public | ❌ |
@@ -543,7 +544,7 @@ when the gate is off, and every caller leaves the cursor alone.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/plaid/status` | Linked items + last-sync state |
-| `POST` | `/api/plaid/link/token` | Create a Link token (pass `{itemId}` for update-mode reconnect) |
+| `POST` | `/api/plaid/link/token` | Create a Link token (`{itemId}` for update-mode; `{platform:'web'\|'ios'\|'android'}` for OAuth return) |
 | `POST` | `/api/plaid/link/exchange` | Exchange the public token; dedupes against already-linked banks (`409 already-linked`) |
 | `POST` | `/api/plaid/refresh` | `transactionsSync` → additively merge new outflows. Throttled to 1/hour per item so clients can call it on app open; `{force:true}` overrides |
 | `POST` | `/api/plaid/item/:id/repaired` | Mark a reconnected (update-mode) item healthy |
@@ -762,10 +763,11 @@ source of truth. Synced transactions are persisted *additively* (tagged
 `source:'plaid'`, deduped by Plaid id, outflows only) and shown alongside
 your manual entries with a 🏦 marker; they're non-deletable from the row
 (manage the link in Settings) and a dropped connection never breaks the
-dashboard. OAuth banks redirect the whole browser out and back to
-`/plaid-oauth`, which resumes Link from a stashed token. Webhooks are
-ES256-JWT-verified in production, and re-auth ("update mode") is a
-first-class Reconnect flow on web, iOS, and Android.
+dashboard. OAuth banks on **web** redirect to `/plaid-oauth`, which resumes Link
+from a stashed token. **Native** Link uses platform-specific returns (Android
+`android_package_name`, iOS Universal Link `/plaid`) so bank OAuth does not dump
+users in the browser. Webhooks are ES256-JWT-verified in production, and re-auth
+("update mode") is a first-class Reconnect flow on web, iOS, and Android.
 
 ### Responsive / mobile layout
 
@@ -949,8 +951,8 @@ ideas are tracked in [`docs/competitive-roadmap.md`](docs/competitive-roadmap.md
 | Platform | Status |
 |---|---|
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | TestFlight beta — not on the public App Store yet |
-| **Android** | Internal testing on Google Play — public listing coming soon |
+| **iOS** | TestFlight beta — **1.6.1 (6)** — not on the public App Store yet |
+| **Android** | Closed testing on Google Play — **1.6.1 (29)** — public listing coming soon |
 | **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
 
 Marketing copy on some public pages still says mobile apps are “coming soon” until

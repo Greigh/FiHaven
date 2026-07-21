@@ -60,7 +60,7 @@ GOOGLE_PLAY_TRACK=production bun run deploy:android
 `GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
 It does **not** auto-bump `versionCode` — pass `--version-code +1` (or an
 absolute N) when you need a new code. Play release names are
-`versionName (versionCode)` (e.g. `1.6.1 (27)`).
+`versionName (versionCode)` (e.g. `1.6.1 (29)`).
 
 If commit fails with **The caller does not have permission**: Play Console →
 **Users and permissions** → add the JSON `client_email` → grant **Manage

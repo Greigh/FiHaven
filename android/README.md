@@ -64,7 +64,7 @@ cross-platform parity.
 Bump `versionCode` in `app/build.gradle.kts` before each Play upload (or pass
 `--version-code +1`). `deploy:android` does **not** auto-bump — it uploads
 whatever code is already in the Gradle file. The Play release is named
-`versionName (versionCode)` (e.g. `1.6.1 (27)`).
+`versionName (versionCode)` (e.g. `1.6.1 (29)`).
 
 **One-shot upload** (from repo root; builds then uploads):
 

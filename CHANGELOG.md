@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] Current Pre-Release — 2026-07-18
+## [1.6.1] Current Pre-Release — 2026-07-20
 
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (5) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 28) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (6) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 29) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -31,10 +31,22 @@ Each release below uses two layers:
 > pick a card (and keeps your rates when the catalog updates), report wrong rates
 > against what FiHaven ships, **manual-first** bank balance suggestions and
 > subscription confirms, a clearer debt-payoff planner, safer production auth /
-> store webhooks, Android social sign-in that returns through App Links, and a
-> pile of store-launch + UX polish.
+> store webhooks, Android social sign-in that returns into the app after Google /
+> Apple (Custom Tab → handoff), native Plaid OAuth that returns to iOS/Android
+> instead of the web redirect page, and a pile of store-launch + UX polish.
 
 ### Changes
+
+**Auth & bank linking (Jul 20)**
+
+- Android Google (Custom Tab fallback): after account pick, return via
+  package-locked `fihaven://oauth/google?code=…` so Chrome Custom Tabs do not
+  keep same-host `https://fihaven.app/oauth/…` and stall sign-in; surface handoff /
+  CSRF errors instead of a silent signed-out state (#194).
+- Native Plaid Link: platform-specific OAuth return — Android `android_package_name`,
+  iOS Universal Link `/plaid` + `resumeAfterTermination` — so OAuth banks no longer
+  dump users on web `/plaid-oauth` (#195). Web Link still uses `/plaid-oauth`.
+- CodeQL ReDoS cleanups + more resilient XcodeGen downloads in CI (#189).
 
 **Auth & security (Jul 18)**
 
@@ -154,7 +166,9 @@ Each release below uses two layers:
   `GOOGLE_PLAY_TRACK`, mapping + native-debug-symbols upload, clearer permission
   errors; release title `versionName (versionCode)` without auto-increment (#181).
 - App Links fingerprints + maintainer store-launch docs; OAuth App Links + AASA
-  `applinks` for `/oauth/*` (#186).
+  `applinks` for `/oauth/*` (#186); Custom Tab prefers package-locked
+  `fihaven://oauth/…?code=` when https would stay in-tab (#194); AASA `/plaid`
+  for iOS Plaid Universal Links (#195).
 - Marketing/legal copy: native apps rolling out (TestFlight / Play internal).
 - Interactive deploy version prompts (`scripts/native-versions.js`): npm-init style
   Version + iOS build; Android versionCode always previous+1; iOS deploy does not
@@ -181,7 +195,7 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (5)**, Android **1.6.1 (28)**.
+- Native builds for this notes pass: iOS **1.6.1 (6)**, Android **1.6.1 (29)**.
 
 ### Technical changelog
 
@@ -192,7 +206,11 @@ Each release below uses two layers:
   Apple JWS verify path; Google Pub/Sub push verify; `requirePro` for iCal token.
 - **OAuth**: `oauth_handoffs` table + `server/oauthHandoff.js`; App Link return
   `/oauth/{apple|google}`; `POST /oauth/:provider/handoff`; MFA challenge after
-  federated login when enrolled.
+  federated login when enrolled; Custom Tab `appReturnUrl` prefers
+  `fihaven://oauth/…?code=` (#194).
+- **Plaid Link**: `createLinkToken` platform fields — Android `android_package_name`,
+  iOS `/plaid` Universal Link, web `PLAID_REDIRECT_URI`; iOS
+  `ActivePlaidLink.resumeAfterTermination` (#195).
 - **Rewards**: `client/js/cardPresets.js` `shippedRewardRate` / `presetRateForCategory`;
   FiHavenCore / Android `Rewards.shippedRewardRate`; report UI on all clients;
   report sheet supports %/× unit + Pro-only local-only correct; catalog presets +
@@ -219,7 +237,8 @@ Each release below uses two layers:
 - **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
 - **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
   `play-upload.js --version-code` / release naming; `upload.example.sh` requires
-  `MFA_ENCRYPTION_KEY` and `chmod 700/600` on remote `data/`.
+  `MFA_ENCRYPTION_KEY` and `chmod 700/600` on remote `data/`; XcodeGen download
+  retries in `ci_post_clone.sh` (#189).
 - **Data at rest**: `decodeUserDataBlob` / `encodeUserDataBlob` in `db.js`;
   `mfa.warnIfProductionFileKey()` on boot; `server/userDataCrypto.test.js`.
 - **Verification gates**: `requireVerified` on Plaid auth routes and account
@@ -228,7 +247,8 @@ Each release below uses two layers:
   `appleJws` / `oauthHandoff` unit + handoff HTTP integration; removed obsolete
   rewards-link panel test; `plaidBalances` / subscriptionsFinder unit coverage.
 - **Docs**: `docs/native-contract.md` balance field meanings + approval settings;
-  `docs/social-login-setup.md` App Links verification steps.
+  `docs/social-login-setup.md` App Links + Custom Tab `fihaven://` return (#194);
+  README bank-sync native vs web OAuth paths (#195).
 ---
 
 ## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
