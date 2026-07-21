@@ -713,6 +713,10 @@ router.post('/oauth/:provider/handoff', (req, res) => {
       code,
       state: body.state || null,
     }),
+    httpsReturnUrl: oauthHandoff.httpsReturnUrl(provider, {
+      code,
+      state: body.state || null,
+    }),
   });
 });
 
