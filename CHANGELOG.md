@@ -33,9 +33,35 @@ Each release below uses two layers:
 > subscription confirms, a clearer debt-payoff planner, safer production auth /
 > store webhooks, Android social sign-in that returns into the app after Google /
 > Apple (Custom Tab → handoff), native Plaid OAuth that returns to iOS/Android
-> instead of the web redirect page, and a pile of store-launch + UX polish.
+> instead of the web redirect page, a refreshed post-signup onboarding (Back,
+> edit goals in place, delayed Free CTA, archive-by-default), and native Spending /
+> Family / tab-bar polish.
 
 ### Changes
+
+**Onboarding & tabs (Jul 20)**
+
+- Post-signup flow is now **Goals → Plan → Security → Pro** on web, iOS, and
+  Android. Back revisits earlier steps; Plan shows what will sit in your bottom
+  bar with **Change goals**; Pro leads with Premium and only reveals
+  **Continue with Free** after **Not now** or closing the paywall.
+- Plan step offers **Archive instead of delete** (on by default) so retiring a
+  bill, card, or loan keeps history instead of hard-deleting.
+- Goal picks only reserve bottom-bar slots (up to four); everything else stays
+  under More — Customize tabs no longer lists the whole catalog as “bottom bar.”
+- Android Customize tabs: changes draft until **Save** (Save was stuck disabled);
+  Cancel discards. Oversized saved tab lists are capped so Save can clean them up.
+- Android bottom bar: short **Subs** / **Worth** labels so long words don’t wrap
+  mid-name; Intro/onboarding Back controls on both platforms.
+
+**Native UI polish (Jul 20)**
+
+- Spending: long merchant names truncate cleanly; bank status sits under the
+  title; Edit / Keep / dismiss targets are easier to tap (#197).
+- Family: Leave / invite actions stay readable in dark mode; member caps no
+  longer show “1 of 0”; household totals use clearer row layout (#197).
+- Biometric lock delay persists across toggles and app updates (dedicated prefs
+  on Android; preferred key sync on iOS) (#197).
 
 **Auth & bank linking (Jul 20)**
 
@@ -195,10 +221,19 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (6)**, Android **1.6.1 (29)**.
+- Native builds for this notes pass: iOS **1.6.1 (6)**, Android **1.6.1 (29)**
+  (same store build numbers — re-upload with the Jul 20 onboarding / UI polish).
 
 ### Technical changelog
 
+- **Onboarding**: web `welcome.html` / `welcome.js`; iOS `OnboardingView` /
+  `IntroView`; Android `OnboardingScreen` / `IntroScreen` — four-step Goals /
+  Plan / Security / Pro; `archiveInsteadOfDelete` on finish; tab ids capped to
+  `MAX_BOTTOM_TABS` / `maxBottomTabs`.
+- **Tabs**: Android `TabsDialog` draft + Save; short `TabId` nav labels +
+  `a11yLabel`; More menu uses full names.
+- **UI polish**: Spending / Household / biometric prefs (#197); Kotlin plugins
+  pinned at **2.4.0** for CodeQL; AGP remains **9.3.0**.
 - **Admin API** (`server/routes/admin.js`): suspend, reset-password, logout, delete,
   expanded `/pro`, `GET|POST /promo`, `POST /promo/:code/deactivate`;
   `users.suspended*` + `listUsers` join `user_data.updated_at`.

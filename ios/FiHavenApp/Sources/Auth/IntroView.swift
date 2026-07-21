@@ -67,7 +67,19 @@ struct IntroView: View {
     // ── Top bar: wordmark + skip ─────────────────────────────────────
     private var header: some View {
         HStack {
-            Wordmark(size: 22)
+            if step > 0 {
+                Button {
+                    performWithAnimation(!reduceMotion) { step -= 1 }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Back")
+            } else {
+                Wordmark(size: 22)
+            }
             Spacer()
             if !isLast {
                 Button("Skip") { introSeen = true }

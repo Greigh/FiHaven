@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
@@ -20,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,7 +32,6 @@ import app.fihaven.core.model.HouseholdView
 import app.fihaven.core.model.SharedEntity
 import app.fihaven.core.net.ApiError
 import app.fihaven.core.Money
-import app.fihaven.ui.theme.PlexMono
 import app.fihaven.ui.theme.Ct
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.contentOrNull
@@ -108,7 +109,12 @@ private fun joinOrCreate(
     if (info?.canCreate == true) {
         LabeledCard("START A HOUSEHOLD") {
             OutlinedTextField(name, onName, label = { Text("Household name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Button(onClick = { act { vm.api.createHousehold(name.ifBlank { "My Household" }) } }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { act { vm.api.createHousehold(name.ifBlank { "My Household" }) } },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent, contentColor = Color.White),
+            ) {
                 Text("Create household")
             }
         }
@@ -118,14 +124,24 @@ private fun joinOrCreate(
         LabeledCard("FAMILY SHARING  ·  FAMILY") {
             Text("Start a household and invite up to three people with the Family plan. Already invited? You can join below for free.",
                 color = Ct.colors.muted, fontSize = 14.sp)
-            Button(onClick = onUpgrade, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onUpgrade,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent, contentColor = Color.White),
+            ) {
                 Text("Get the Family plan")
             }
         }
     }
     LabeledCard("HAVE AN INVITE CODE?") {
         OutlinedTextField(joinCode, onJoin, label = { Text("Paste your invite code") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { act { vm.api.acceptHouseholdInvite(joinCode.trim()) } }, enabled = !busy && joinCode.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = { act { vm.api.acceptHouseholdInvite(joinCode.trim()) } },
+            enabled = !busy && joinCode.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent, contentColor = Color.White),
+        ) {
             Text("Join household")
         }
     }
@@ -140,7 +156,7 @@ private fun householdBody(
     val isOwner = view.role == "owner"
 
     LabeledCard(view.household.name.uppercase()) {
-        Text("${view.memberCount} of ${view.memberMax} members" + if (isOwner) " · you’re the owner" else "",
+        Text(memberCapLabel(view.memberCount, view.memberMax, isOwner),
             color = Ct.colors.muted, fontSize = 12.5.sp)
         view.members.forEachIndexed { i, m ->
             if (i > 0) HorizontalDivider(color = Ct.colors.border)
@@ -161,21 +177,33 @@ private fun householdBody(
     }
 
     if (isOwner) {
-        LabeledCard("INVITE SOMEONE") {
-            OutlinedTextField(inviteEmail, onInvite, label = { Text("name@email.com") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Button(onClick = { act { vm.api.inviteToHousehold(inviteEmail.trim()) } }, enabled = !busy && inviteEmail.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text("Send invite")
+        if (view.memberMax >= 2) {
+            LabeledCard("INVITE SOMEONE") {
+                OutlinedTextField(inviteEmail, onInvite, label = { Text("name@email.com") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(
+                    onClick = { act { vm.api.inviteToHousehold(inviteEmail.trim()) } },
+                    enabled = !busy && inviteEmail.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent, contentColor = Color.White),
+                ) {
+                    Text("Send invite")
+                }
+            }
+        } else {
+            LabeledCard("INVITE SOMEONE") {
+                Text(
+                    "Inviting more people needs the Family plan. You’re still the owner of this household.",
+                    color = Ct.colors.muted, fontSize = 13.sp,
+                )
             }
         }
     }
 
     rollup?.totals?.let { t ->
         LabeledCard("HOUSEHOLD TOTALS") {
-            Text(
-                "Shared totals · Bills ${Money.fmt(t.billsMonthly)}/mo · " +
-                    "Card debt ${Money.fmt(t.cardDebt)} · Goals ${Money.fmt(t.goalsTarget)}",
-                color = Ct.colors.muted, fontSize = 13.sp, fontFamily = PlexMono,
-            )
+            totalRow("Bills (monthly)", Money.fmt(t.billsMonthly) + "/mo")
+            totalRow("Card debt", Money.fmt(t.cardDebt))
+            totalRow("Goals (target)", Money.fmt(t.goalsTarget))
         }
     }
 
@@ -195,9 +223,36 @@ private fun householdBody(
         }
     }
 
-    Button(onClick = { act { vm.api.leaveHousehold() } }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-        Text(if (isOwner) "Leave (transfers or dissolves)" else "Leave household", color = Ct.colors.red)
+    Button(
+        onClick = { act { vm.api.leaveHousehold() } },
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Ct.colors.surface2,
+            contentColor = Ct.colors.red,
+            disabledContainerColor = Ct.colors.surface2,
+            disabledContentColor = Ct.colors.muted,
+        ),
+    ) {
+        Text(if (isOwner) "Leave (transfers or dissolves)" else "Leave household")
     }
+}
+
+@Composable
+private fun totalRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Ct.colors.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(value, color = Ct.colors.muted, fontSize = 14.sp)
+    }
+}
+
+/** Avoid “1 of 0 members” when the owner’s plan no longer includes Family seats. */
+private fun memberCapLabel(count: Int, max: Int, isOwner: Boolean): String {
+    val base = when {
+        max <= 0 -> if (count == 1) "1 member" else "$count members"
+        else -> "$count of $max members"
+    }
+    return base + if (isOwner) " · you’re the owner" else ""
 }
 
 @Composable

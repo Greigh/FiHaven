@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.pager.HorizontalPager
@@ -103,10 +105,16 @@ fun IntroScreen(vm: AppViewModel) {
     Column(Modifier.authScreen().padding(horizontal = 24.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Wordmark(size = 22)
+            if (step > 0) {
+                IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(step - 1) } }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Ct.colors.text)
+                }
+            } else {
+                Wordmark(size = 22)
+            }
+            Spacer(Modifier.weight(1f))
             if (!last) TextButton(onClick = { vm.markIntroSeen() }) { Text("Skip", color = Ct.colors.muted) }
         }
 

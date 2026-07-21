@@ -1,9 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
-   welcome.js — first-run onboarding. A 4-step intro shown once
-   after a new account confirms its email: secure (2FA/settings),
-   add bills & cards, then FiHaven Pro. Any exit (a deep-link or
-   "Continue") marks onboarding complete via POST /api/account/
-   onboarded so it never shows again.
+   welcome.js — first-run onboarding after email confirm.
+   Goals → plan review → security → Pro. Back revises earlier
+   steps; Continue with Free only after Premium / “Not now”.
 ═══════════════════════════════════════════════════════════ */
 
 import './theme.js';
@@ -11,13 +9,17 @@ import './theme.js';
 var API = '/api/auth';
 var csrfToken = null;
 var step = 1;
-var TOTAL = 5;
+var TOTAL = 4;
+var freeUnlocked = false;
 
-function go(url) { window.location.replace(url); }
+var GOAL_META = {
+  bills: { title: 'Stay on top of bills', blurb: 'Bills + calendar up front' },
+  debt: { title: 'Pay off credit cards & debt', blurb: 'Cards + payoff planner' },
+  budget: { title: 'Budget each month', blurb: 'Budget + spending' },
+  rewards: { title: 'Maximize card rewards', blurb: 'Rewards picker' },
+  subscriptions: { title: 'Track subscriptions', blurb: 'Subscription finder' },
+};
 
-// ── Goals → tab bar ────────────────────────────────────────
-// Each chosen goal surfaces its tabs in the bottom bar so people land on
-// the features they came for. Mirrors the iOS/Android onboarding mapping.
 var GOAL_TABS = {
   bills: ['bills', 'calendar'],
   debt: ['cards', 'payoff'],
@@ -25,24 +27,25 @@ var GOAL_TABS = {
   rewards: ['rewards'],
   subscriptions: ['subscriptions'],
 };
-var ALL_TABS = ['dashboard', 'bills', 'cards', 'loans', 'payoff', 'rewards',
-                'budget', 'spending', 'subscriptions', 'calendar', 'history'];
 
-// The ordered tab ids for the chosen goals (dashboard first, then chosen
-// features, then the rest), or null when nothing was selected.
-function selectedTabIds() {
-  var chosen = Array.prototype.slice
+function go(url) { window.location.replace(url); }
+
+function chosenGoals() {
+  return Array.prototype.slice
     .call(document.querySelectorAll('[data-goal]:checked'))
     .map(function (c) { return c.value; });
+}
+
+function selectedTabIds() {
+  var chosen = chosenGoals();
   if (!chosen.length) return null;
   var ordered = ['dashboard'];
-  // Fixed goal order so the bar is deterministic regardless of click order.
   ['bills', 'debt', 'budget', 'rewards', 'subscriptions'].forEach(function (g) {
     if (chosen.indexOf(g) === -1) return;
     GOAL_TABS[g].forEach(function (t) { if (ordered.indexOf(t) === -1) ordered.push(t); });
   });
-  ALL_TABS.forEach(function (t) { if (ordered.indexOf(t) === -1) ordered.push(t); });
-  return ordered;
+  // Prefer bottom slots only — remaining tabs stay under More.
+  return ordered.slice(0, 4);
 }
 
 function fetchData() {
@@ -52,8 +55,6 @@ function fetchData() {
   });
 }
 
-// Persist settings.tabs from the chosen goals. Best-effort: resolves even on
-// failure so onboarding never gets stuck.
 function selectedBudgetRule() {
   var wrap = document.querySelector('[data-budget-style-wrap]');
   if (!wrap || wrap.hidden) return null;
@@ -65,21 +66,62 @@ function selectedBudgetRule() {
 function toggleBudgetStyle() {
   var wrap = document.querySelector('[data-budget-style-wrap]');
   if (!wrap) return;
-  var budgetOn = Array.prototype.some.call(
-    document.querySelectorAll('[data-goal]:checked'),
-    function (c) { return c.value === 'budget'; }
-  );
+  var budgetOn = chosenGoals().indexOf('budget') !== -1;
   wrap.hidden = !budgetOn;
+  updateGoalsContinue();
+}
+
+function updateGoalsContinue() {
+  var btn = document.querySelector('[data-goals-continue]');
+  if (!btn) return;
+  btn.textContent = chosenGoals().length ? 'Continue' : 'Skip for now';
+}
+
+function refreshPlan() {
+  var list = document.querySelector('[data-plan-list]');
+  var tips = document.querySelector('[data-plan-tips]');
+  var copy = document.querySelector('[data-plan-copy]');
+  if (!list || !tips) return;
+  var chosen = chosenGoals();
+  var html = '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">Home</div>' +
+    '<div style="font-weight:500;margin-bottom:10px;">Dashboard</div>';
+  if (!chosen.length) {
+    html += '<div style="color:var(--muted);font-size:13px;">Default tabs — Bills, Cards, Spending, More</div>';
+    if (copy) copy.textContent = 'We’ll start you on the dashboard. You can pin features later in Settings.';
+  } else {
+    chosen.forEach(function (g) {
+      var m = GOAL_META[g] || { title: g, blurb: '' };
+      html += '<div style="margin:8px 0;"><div style="font-weight:500;">' + m.title + '</div>' +
+        '<div style="color:var(--muted);font-size:12px;">' + m.blurb + '</div></div>';
+    });
+    var rule = selectedBudgetRule();
+    if (chosen.indexOf('budget') !== -1 && rule) {
+      html += '<div style="color:var(--muted);font-size:13px;margin-top:8px;">Budget style: ' +
+        (rule === '50-30-20' ? '50/30/20' : 'detailed categories') + '</div>';
+    }
+    if (copy) copy.textContent = 'Based on what you picked, these features sit in your bottom bar. Change anytime in Settings.';
+  }
+  list.innerHTML = html;
+
+  var tipItems = [
+    'Add a few bills or cards from those tabs',
+    'Mark what’s paid this month from the dashboard',
+  ];
+  if (chosen.indexOf('debt') !== -1) tipItems.push('Open Payoff to see a debt-free date');
+  if (chosen.indexOf('rewards') !== -1) tipItems.push('Ask Rewards which card to use');
+  tips.innerHTML = tipItems.map(function (t) { return '<li>' + t + '</li>'; }).join('');
 }
 
 function saveGoalTabs() {
   var ids = selectedTabIds();
   var rule = selectedBudgetRule();
-  if (!ids && !rule) return Promise.resolve();
+  var archiveCb = document.querySelector('[data-archive-instead]');
+  var archiveOn = archiveCb ? !!archiveCb.checked : true;
   return fetchData().then(function (server) {
     var nextSettings = Object.assign({}, server.settings || {});
     if (ids) nextSettings.tabs = ids;
     if (rule) nextSettings.budgetRule = rule;
+    nextSettings.archiveInsteadOfDelete = archiveOn;
     return fetch('/api/data', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
@@ -99,8 +141,6 @@ function getMe() {
     .catch(function () { return null; });
 }
 
-// Mark onboarding done (idempotent). Resolves regardless so navigation
-// never gets stuck on a transient failure.
 function markOnboarded() {
   return fetch('/api/account/onboarded', {
     method: 'POST',
@@ -109,19 +149,17 @@ function markOnboarded() {
   }).catch(function () {});
 }
 
-// Mark complete, then leave the flow for `url`.
 function finishTo(url) {
   var msg = document.querySelector('[data-onboard-message]');
   if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'One moment…'; }
   saveGoalTabs().then(markOnboarded).then(function () { go(url); });
 }
 
-// Finish onboarding, then kick off Stripe Checkout for `plan` (e.g. the free
-// trial). Falls back to the in-app Pro dialog if checkout can't be started
-// (e.g. the plan isn't configured), so the user is never stranded.
 function startProCheckout(plan) {
   var msg = document.querySelector('[data-onboard-message]');
   if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'One moment…'; }
+  freeUnlocked = true;
+  updateFreeCta();
   saveGoalTabs().then(markOnboarded).then(function () {
     return fetch('/api/billing/stripe/checkout', {
       method: 'POST',
@@ -134,46 +172,85 @@ function startProCheckout(plan) {
   }).catch(function () { go('/dashboard?pro=open'); });
 }
 
+function updateFreeCta() {
+  var notNow = document.querySelector('[data-not-now]');
+  var finish = document.querySelector('[data-finish]');
+  if (!finish) return;
+  if (freeUnlocked) {
+    finish.hidden = false;
+    if (notNow) notNow.hidden = true;
+  } else {
+    finish.hidden = true;
+    if (notNow) notNow.hidden = false;
+  }
+}
+
 function render() {
   for (var i = 1; i <= TOTAL; i++) {
     var panel = document.querySelector('[data-step="' + i + '"]');
     if (panel) panel.hidden = i !== step;
     var dot = document.querySelector('[data-dot="' + i + '"]');
-    if (dot) dot.classList.toggle('active', i <= step);
+    if (dot) {
+      dot.classList.toggle('active', i === step);
+      dot.classList.toggle('clickable', i < step);
+    }
   }
+  var back = document.querySelector('[data-back]');
+  if (back) back.hidden = step <= 1;
+  if (step === 2) refreshPlan();
+  if (step === 4) updateFreeCta();
+  updateGoalsContinue();
 }
 
 function next() {
   if (step < TOTAL) { step += 1; render(); }
-  else finishTo('/dashboard');
+}
+
+function back() {
+  if (step > 1) { step -= 1; render(); }
 }
 
 function wire() {
-  // "Next" / "Maybe later" / "I'll do it later" — advance without exiting.
   Array.prototype.forEach.call(document.querySelectorAll('[data-next]'), function (b) {
     b.addEventListener('click', next);
   });
+  var backBtn = document.querySelector('[data-back]');
+  if (backBtn) backBtn.addEventListener('click', back);
   Array.prototype.forEach.call(document.querySelectorAll('[data-goal]'), function (c) {
     c.addEventListener('change', toggleBudgetStyle);
   });
-  // Exits — each marks onboarding complete first.
-  var skipAll = document.querySelector('[data-skip-all]');
-  if (skipAll) skipAll.addEventListener('click', function () { finishTo('/dashboard'); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dot]'), function (dot) {
+    dot.addEventListener('click', function () {
+      var n = parseInt(dot.getAttribute('data-dot'), 10);
+      if (n && n < step) { step = n; render(); }
+    });
+  });
+  var editGoals = document.querySelector('[data-edit-goals]');
+  if (editGoals) editGoals.addEventListener('click', function () { step = 1; render(); });
+
+  // Security deep-link completes onboarding (same as before) so Settings works.
   var settings = document.querySelector('[data-go-settings]');
   if (settings) settings.addEventListener('click', function () { finishTo('/settings#security'); });
-  var dash = document.querySelector('[data-go-dashboard]');
-  if (dash) dash.addEventListener('click', function () { finishTo('/dashboard'); });
+
   var trial = document.querySelector('[data-start-trial]');
   if (trial) trial.addEventListener('click', function () { startProCheckout('trial'); });
   var premium = document.querySelector('[data-get-premium]');
-  if (premium) premium.addEventListener('click', function () { finishTo('/dashboard?pro=open'); });
+  if (premium) premium.addEventListener('click', function () {
+    freeUnlocked = true;
+    updateFreeCta();
+    finishTo('/dashboard?pro=open');
+  });
+  var notNow = document.querySelector('[data-not-now]');
+  if (notNow) notNow.addEventListener('click', function () {
+    freeUnlocked = true;
+    updateFreeCta();
+  });
   var finish = document.querySelector('[data-finish]');
   if (finish) finish.addEventListener('click', function () { finishTo('/dashboard'); });
 }
 
 function init() {
   getMe().then(function (user) {
-    // Server already gates /welcome, but double-check client-side.
     if (!user) { go('/login'); return; }
     if (user.emailVerified === false) { go('/verify-email'); return; }
     if (user.onboarded === true) { go('/dashboard'); return; }

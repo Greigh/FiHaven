@@ -132,12 +132,15 @@ function inviteRowHtml(i) {
 
 function renderHousehold(view) {
   var isOwner = view.role === 'owner';
-  var full = view.memberCount >= view.memberMax;
+  var full = view.memberMax > 0 && view.memberCount >= view.memberMax;
+  var capLabel = view.memberMax > 0
+    ? (view.memberCount + ' of ' + view.memberMax + ' members')
+    : (view.memberCount === 1 ? '1 member' : view.memberCount + ' members');
 
   var html = bannerHtml() + '<div class="card" style="padding:16px;">';
   html += '<div style="display:flex;align-items:center;gap:10px;">' +
     '<div style="flex:1 1 auto;min-width:0;"><div style="font-weight:600;font-size:16px;">' + esc(view.household.name) + '</div>' +
-    '<div style="color:var(--muted);font-size:12.5px;">' + view.memberCount + ' of ' + view.memberMax + ' members' + (isOwner ? ' · you’re the owner' : '') + '</div></div>' +
+    '<div style="color:var(--muted);font-size:12.5px;">' + capLabel + (isOwner ? ' · you’re the owner' : '') + '</div></div>' +
     '<span class="badge badge-blue">Household</span></div>';
 
   // Members
