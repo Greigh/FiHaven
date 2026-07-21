@@ -1,19 +1,22 @@
 import SwiftUI
 
-/// First-run onboarding, shown once after a new account confirms its email
-/// (gated on `user.onboarded`). Mirrors the web /welcome flow: a goals
-/// question that tailors the tab bar, a short tour, then a "Get started"
-/// that marks onboarding complete server-side.
+/// First-run onboarding after email confirm (`user.onboarded`). Goals tailor
+/// the tab bar; Back revises choices; Free CTA only after Premium / “Not now”.
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var step = 0
+    @State private var step: Step = .goals
     @State private var finishing = false
     @State private var selectedGoals: Set<Goal> = []
+    @State private var budgetDetailed = true
+    @State private var archiveInstead = true
+    @State private var freeUnlocked = false
     @State private var showPaywall = false
 
-    /// What a new user wants from FiHaven. Each goal surfaces its tabs in the
-    /// bottom bar so people land on the features they actually came for.
+    enum Step: Int, CaseIterable {
+        case goals, plan, security, pro
+    }
+
     enum Goal: String, CaseIterable, Identifiable {
         case bills, debt, budget, rewards, subscriptions
         var id: String { rawValue }
@@ -27,16 +30,24 @@ struct OnboardingView: View {
             case .subscriptions: return "Track subscriptions"
             }
         }
+        var blurb: String {
+            switch self {
+            case .bills: return "Bills + calendar up front"
+            case .debt: return "Cards + payoff planner"
+            case .budget: return "Budget + spending"
+            case .rewards: return "Rewards picker"
+            case .subscriptions: return "Subscription finder"
+            }
+        }
         var icon: String {
             switch self {
             case .bills: return "doc.text.fill"
-            case .debt: return "chart.line.downtrend.xyaxis"
+            case .debt: return "creditcard.fill"
             case .budget: return "chart.pie.fill"
             case .rewards: return "star.circle.fill"
             case .subscriptions: return "arrow.triangle.2.circlepath"
             }
         }
-        /// Tabs to surface for this goal (in priority order).
         var tabs: [TabItem] {
             switch self {
             case .bills: return [.bills, .calendar]
@@ -48,98 +59,118 @@ struct OnboardingView: View {
         }
     }
 
-    private struct Page {
-        let icon: String
-        let title: String
-        let body: String
-        var features: [(icon: String, text: String)] = []
-    }
-    private let pages: [Page] = [
-        Page(icon: "lock.shield.fill", title: "Secure your account",
-             body: "Add two-factor authentication anytime from Settings → Security for an extra layer of protection."),
-        Page(icon: "doc.text.fill", title: "Track bills & cards",
-             body: "Add recurring bills and credit cards — including 0% promo periods — from the Bills and Cards tabs."),
-        Page(icon: "crown.fill", title: "FiHaven Pro",
-             body: "Start free and upgrade anytime — one subscription across web, iOS, and Android.",
-             features: [
-                ("chart.line.downtrend.xyaxis", "Payoff planner & debt-free date"),
-                ("person.2.fill", "Family sharing for your household"),
-                ("calendar", "Due-date calendar & full history"),
-                ("star.circle.fill", "Rewards & subscription finder"),
-                ("chart.pie.fill", "Category budgets & bank linking"),
-             ]),
-    ]
+    private var stepIndex: Int { step.rawValue }
+    private var isLast: Bool { step == .pro }
 
-    // Step 0 is the goals question; steps 1...pages.count are the tour.
-    private var totalSteps: Int { pages.count + 1 }
-    private var isGoalsStep: Bool { step == 0 }
-    private var isLast: Bool { step == totalSteps - 1 }
+    private let proFeatures: [(icon: String, text: String)] = [
+        ("chart.line.downtrend.xyaxis", "Payoff planner & debt-free date"),
+        ("person.2.fill", "Family sharing for your household"),
+        ("calendar", "Due-date calendar & full history"),
+        ("star.circle.fill", "Rewards & subscription finder"),
+        ("chart.pie.fill", "Category budgets & bank linking"),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Spacer()
-                Button("Skip") { finish() }
-                    .font(Theme.ui(15, weight: .medium))
-                    .foregroundStyle(Theme.muted)
+                if stepIndex > 0 {
+                    Button { goBack() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                            .frame(width: 44, height: 44)
+                    }
                     .disabled(finishing)
+                    .accessibilityLabel("Back")
+                } else {
+                    Color.clear.frame(width: 44, height: 44)
+                }
+                Spacer()
+                Color.clear.frame(width: 44, height: 44)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
 
-            Spacer(minLength: 0)
-
-            if isGoalsStep { goalsStep } else { tourStep(pages[step - 1]) }
-
-            Spacer(minLength: 0)
+            ScrollView {
+                Group {
+                    switch step {
+                    case .goals: goalsStep
+                    case .plan: planStep
+                    case .security: securityStep
+                    case .pro: proStep
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 12)
+            }
 
             HStack(spacing: 8) {
-                ForEach(0..<totalSteps, id: \.self) { i in
+                ForEach(Step.allCases, id: \.rawValue) { s in
                     Capsule()
-                        .fill(i == step ? Theme.accent : Theme.border)
-                        .frame(width: i == step ? 22 : 8, height: 8)
+                        .fill(s == step ? Theme.accent : Theme.border)
+                        .frame(width: s == step ? 22 : 8, height: 8)
                         .animationIfAllowed(.spring(response: 0.3), value: step)
+                        .onTapGesture {
+                            guard !finishing, s.rawValue < stepIndex else { return }
+                            performWithAnimation(!reduceMotion) { step = s }
+                        }
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Step \(step + 1) of \(totalSteps)")
-            .padding(.bottom, 20)
+            .accessibilityLabel("Step \(stepIndex + 1) of \(Step.allCases.count)")
+            .padding(.bottom, 16)
 
-            if isLast {
-                // Premium decision point. StoreKit owns the trial-vs-price
-                // choice on its own sheet, so a single entry point avoids a
-                // redundant pair of buttons that open the same paywall.
-                VStack(spacing: 10) {
-                    Button("See Premium plans") { showPaywall = true }
-                        .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
-                        .disabled(finishing)
-                    Button(finishing ? "Getting started…" : "Continue with Free") { finish() }
-                        .font(Theme.ui(15))
-                        .foregroundStyle(Theme.muted)
-                        .disabled(finishing)
-                }
+            footer
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
-            } else {
-                Button {
-                    performWithAnimation(!reduceMotion) { step += 1 }
-                } label: {
-                    Text(buttonLabel)
-                }
-                .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
-                .disabled(finishing)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 30)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
-        .sheet(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall, onDismiss: { freeUnlocked = true }) {
             PaywallView().environmentObject(env.billing)
         }
     }
 
-    // ── Goals question ───────────────────────────────────────────────
+    @ViewBuilder
+    private var footer: some View {
+        if isLast {
+            VStack(spacing: 10) {
+                Button("See Premium plans") { showPaywall = true }
+                    .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
+                    .disabled(finishing)
+                if freeUnlocked {
+                    Button(finishing ? "Getting started…" : "Continue with Free") { finish() }
+                        .font(Theme.ui(15))
+                        .foregroundStyle(Theme.muted)
+                        .disabled(finishing)
+                } else {
+                    Button("Not now") { freeUnlocked = true }
+                        .font(Theme.ui(15))
+                        .foregroundStyle(Theme.muted)
+                        .disabled(finishing)
+                }
+            }
+        } else {
+            Button {
+                performWithAnimation(!reduceMotion) { goNext() }
+            } label: {
+                Text(primaryLabel)
+            }
+            .buttonStyle(PrimaryButtonStyle(enabled: !finishing))
+            .disabled(finishing)
+        }
+    }
+
+    private var primaryLabel: String {
+        switch step {
+        case .goals: return selectedGoals.isEmpty ? "Skip for now" : "Continue"
+        case .plan: return "Looks good"
+        case .security: return "Next"
+        case .pro: return "Next"
+        }
+    }
+
+    // ── Goals ────────────────────────────────────────────────────────
     private var goalsStep: some View {
         VStack(spacing: 18) {
             VStack(spacing: 10) {
@@ -147,20 +178,32 @@ struct OnboardingView: View {
                     .font(Theme.ui(26, weight: .bold))
                     .foregroundStyle(Theme.text)
                     .multilineTextAlignment(.center)
-                Text("Pick what matters — we’ll put those features front and center. You can change this anytime in Settings.")
+                Text("Pick one or more — we’ll put those tabs front and center. You can change this anytime.")
                     .font(Theme.ui(15))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
             VStack(spacing: 10) {
                 ForEach(Goal.allCases) { goal in
                     goalRow(goal)
                 }
             }
+            if selectedGoals.contains(.budget) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("How do you like to budget?")
+                        .font(Theme.ui(14, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                    budgetChoice("Detailed — I’ll track categories myself", selected: budgetDetailed) {
+                        budgetDetailed = true
+                    }
+                    budgetChoice("Simple — use the 50/30/20 rule", selected: !budgetDetailed) {
+                        budgetDetailed = false
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
-        .padding(.horizontal, 28)
     }
 
     private func goalRow(_ goal: Goal) -> some View {
@@ -173,9 +216,14 @@ struct OnboardingView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(selected ? Theme.accent : Theme.muted)
                     .frame(width: 26)
-                Text(goal.title)
-                    .font(Theme.ui(16, weight: .medium))
-                    .foregroundStyle(Theme.text)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(goal.title)
+                        .font(Theme.ui(16, weight: .medium))
+                        .foregroundStyle(Theme.text)
+                    Text(goal.blurb)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.muted)
+                }
                 Spacer(minLength: 0)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(selected ? Theme.accent : Theme.border)
@@ -191,83 +239,236 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(goal.title)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint(selected ? "Selected. Double tap to deselect." : "Double tap to select.")
     }
 
-    // ── Tour page ────────────────────────────────────────────────────
-    private func tourStep(_ page: Page) -> some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(Theme.accent.opacity(0.12))
-                    .frame(width: 120, height: 120)
-                Image(systemName: page.icon)
-                    .font(.system(size: 50))
-                    .foregroundStyle(Theme.accent)
-                    .accessibilityHidden(true)
+    private func budgetChoice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? Theme.accent : Theme.border)
+                Text(title)
+                    .font(Theme.ui(14))
+                    .foregroundStyle(Theme.text)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
             }
-            .accessibilityLabel(page.title)
-            Text(page.title)
+            .padding(14)
+            .background(selected ? Theme.accentBg : Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Theme.accent : Theme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // ── Plan review ──────────────────────────────────────────────────
+    private var planStep: some View {
+        VStack(spacing: 18) {
+            Text("Your FiHaven home")
                 .font(Theme.ui(26, weight: .bold))
                 .foregroundStyle(Theme.text)
                 .multilineTextAlignment(.center)
-                .accessibilityAddTraits(.isHeader)
-            Text(page.body)
+            Text(selectedGoals.isEmpty
+                  ? "We’ll start you on the dashboard. You can pin features later in Settings → Customize tabs."
+                  : "Based on what you picked, these will sit in your bottom bar. Change anytime.")
+                .font(Theme.ui(15))
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Home")
+                    .font(Theme.ui(12, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                Text("Dashboard")
+                    .font(Theme.ui(15, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                if selectedGoals.isEmpty {
+                    Text("Default tabs — Bills, Cards, Spending, More")
+                        .font(Theme.ui(13))
+                        .foregroundStyle(Theme.muted)
+                } else {
+                    ForEach(Goal.allCases.filter { selectedGoals.contains($0) }) { g in
+                        HStack(spacing: 10) {
+                            Image(systemName: g.icon)
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(g.title).font(Theme.ui(15)).foregroundStyle(Theme.text)
+                                Text(g.blurb).font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    if selectedGoals.contains(.budget) {
+                        Text(budgetDetailed ? "Budget style: detailed categories" : "Budget style: 50/30/20")
+                            .font(Theme.ui(13))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
+
+            Button("Change goals") {
+                performWithAnimation(!reduceMotion) { step = .goals }
+            }
+            .font(Theme.ui(15, weight: .medium))
+            .foregroundStyle(Theme.accent)
+
+            Button {
+                archiveInstead.toggle()
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: archiveInstead ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(archiveInstead ? Theme.accent : Theme.border)
+                        .font(.system(size: 20))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Archive instead of delete")
+                            .font(Theme.ui(15, weight: .medium))
+                            .foregroundStyle(Theme.text)
+                        Text("Retire a bill, card, or loan without losing its history. Restore anytime.")
+                            .font(Theme.ui(12))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(14)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.radiusCard)
+                        .stroke(archiveInstead ? Theme.accent : Theme.border, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("After this")
+                    .font(Theme.ui(13, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                bullet("Add a few bills or cards from those tabs")
+                bullet("Mark what’s paid this month from Home")
+                if selectedGoals.contains(.debt) { bullet("Open Payoff to see a debt-free date") }
+                if selectedGoals.contains(.rewards) { bullet("Ask Rewards which card to use") }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accentBg, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+        }
+    }
+
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•").foregroundStyle(Theme.accent)
+            Text(text).font(Theme.ui(14)).foregroundStyle(Theme.text)
+            Spacer(minLength: 0)
+        }
+    }
+
+    // ── Security ─────────────────────────────────────────────────────
+    private var securityStep: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle().fill(Theme.accent.opacity(0.12)).frame(width: 100, height: 100)
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Theme.accent)
+            }
+            Text("Lock it down")
+                .font(Theme.ui(26, weight: .bold))
+                .foregroundStyle(Theme.text)
+            Text("Your money data stays on your account. Turn on an authenticator, passkey, or biometric unlock anytime from Settings → Security — it takes about a minute.")
                 .font(Theme.ui(16))
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !page.features.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(page.features.indices, id: \.self) { i in
-                        let f = page.features[i]
-                        HStack(spacing: 12) {
-                            Image(systemName: f.icon)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 26)
-                                .accessibilityHidden(true)
-                            Text(f.text)
-                                .font(Theme.ui(15))
-                                .foregroundStyle(Theme.text)
-                            Spacer(minLength: 0)
-                        }
-                        .accessibilityElement(children: .combine)
+            VStack(alignment: .leading, spacing: 14) {
+                securityRow("Authenticator app", "Codes that rotate every 30 seconds")
+                securityRow("Passkeys", "Sign in with Face ID / Touch ID")
+                securityRow("App lock", "Require biometrics when you leave FiHaven")
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
+        }
+    }
+
+    private func securityRow(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
+            Text(body).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+        }
+    }
+
+    // ── Pro ──────────────────────────────────────────────────────────
+    private var proStep: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle().fill(Theme.accent.opacity(0.12)).frame(width: 100, height: 100)
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Theme.accent)
+            }
+            Text("FiHaven Pro")
+                .font(Theme.ui(26, weight: .bold))
+                .foregroundStyle(Theme.text)
+            Text("Free covers the basics. Pro unlocks planning tools that keep working across web, iOS, and Android.")
+                .font(Theme.ui(16))
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(proFeatures.indices, id: \.self) { i in
+                    let f = proFeatures[i]
+                    HStack(spacing: 12) {
+                        Image(systemName: f.icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 26)
+                        Text(f.text).font(Theme.ui(15)).foregroundStyle(Theme.text)
+                        Spacer(minLength: 0)
                     }
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
-                .padding(.top, 4)
             }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard).stroke(Theme.border, lineWidth: 1))
         }
-        .padding(.horizontal, 32)
     }
 
-    private var buttonLabel: String {
-        if isGoalsStep { return selectedGoals.isEmpty ? "Skip for now" : "Continue" }
-        if !isLast { return "Next" }
-        return finishing ? "Getting started…" : "Get started"
+    // ── Navigation helpers ───────────────────────────────────────────
+    private func goBack() {
+        guard let prev = Step(rawValue: stepIndex - 1) else { return }
+        performWithAnimation(!reduceMotion) { step = prev }
     }
 
-    /// Surface the tabs for the chosen goals in the bottom bar (dashboard
-    /// first, then chosen features, then the rest fall into "More").
+    private func goNext() {
+        guard let next = Step(rawValue: stepIndex + 1) else { return }
+        performWithAnimation(!reduceMotion) { step = next }
+    }
+
     private func applyGoalTabs() {
         guard !selectedGoals.isEmpty, let store = env.store else { return }
         var ordered: [TabItem] = [.dashboard]
         for goal in Goal.allCases where selectedGoals.contains(goal) {
             for tab in goal.tabs where !ordered.contains(tab) { ordered.append(tab) }
         }
-        for tab in defaultBottomTabs + TabItem.allCases where !ordered.contains(tab) { ordered.append(tab) }
-        store.setTabs(ordered.map(\.rawValue))
+        // Only preferred bottom slots — everything else stays under More.
+        store.setTabs(Array(ordered.prefix(maxBottomTabs)).map(\.rawValue))
+        if selectedGoals.contains(.budget) {
+            store.setBudgetRule(budgetDetailed ? "off" : "50-30-20")
+        }
     }
 
     private func finish() {
         guard !finishing else { return }
         finishing = true
         applyGoalTabs()
+        env.store?.setArchiveInsteadOfDelete(archiveInstead)
         Task { await env.completeOnboarding() }
     }
 }
