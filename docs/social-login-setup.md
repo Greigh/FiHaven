@@ -100,10 +100,12 @@ APPLE_CLIENT_ID=<services-id>,<ios-bundle-id>
   **`GetSignInWithGoogleOption`**, then One Tap (`GetGoogleIdOption`). If
   Credential Manager still fails (typical `DEVELOPER_ERROR` on Play builds
   missing the App Signing SHA-1), it opens a Custom Tab to
-  `/oauth-google-android.html` (Google Identity Services). That page deposits
-  a one-time handoff via `POST /api/auth/oauth/google/handoff` and returns through
-  package-locked `fihaven://oauth/google?code=…` (Custom Tabs often keep
-  same-host `https://fihaven.app/oauth/…` in the tab). The https App Link page
+  `/oauth-google-android.html` (Google Identity Services). That page form-POSTs
+  the id_token to `POST /api/auth/oauth/google/callback`, which stores a
+  one-time handoff and **302-redirects** to package-locked
+  `fihaven://oauth/google?code=…` (same pattern as Apple — Custom Tabs honor
+  HTTP redirects; async JS `intent://` bounces often stall). The JSON
+  `POST …/handoff` endpoint remains for diagnostics. The https App Link page
   remains a fallback with an “Open FiHaven” control. Failed / expired handoffs
   show an on-screen error instead of a silent signed-out state.
   **Optional but recommended in Google Cloud:** create an **Android** OAuth
