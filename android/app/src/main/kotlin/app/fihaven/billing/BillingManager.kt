@@ -163,11 +163,15 @@ class BillingManager(
         fun period(p: ProductDetails): String? =
             when (p.subscriptionOfferDetails?.firstOrNull()
                 ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.billingPeriod) {
-                "P1M" -> "Monthly"
-                "P1Y" -> "Yearly"
-                "P1W" -> "Weekly"
+                "P1M" -> "Length: 1 month · auto-renewing"
+                "P1Y" -> "Length: 1 year · auto-renewing"
+                "P1W" -> "Length: 1 week · auto-renewing"
                 else -> null
             }
+
+        /** Short title for plan buttons (product name from Play, else period). */
+        fun planTitle(p: ProductDetails): String =
+            p.name.ifBlank { period(p)?.substringBefore(" ·") ?: "FiHaven Pro" }
 
         private fun priceMicros(p: ProductDetails): Long =
             p.subscriptionOfferDetails?.firstOrNull()

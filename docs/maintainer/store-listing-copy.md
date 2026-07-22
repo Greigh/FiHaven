@@ -32,6 +32,8 @@ Track bills, cards, and loans in one calm dashboard. Budget lenses, rewards tips
 
 ### Description
 
+Paste into App Store Connect → App Information / version Description. **No Android mentions.** Include the Terms link (required when using Apple’s standard EULA).
+
 ```
 FiHaven is a calm, manual-first money dashboard for bills, credit cards, loans, budget, and debt payoff — with the same account on iPhone, iPad, and the web.
 
@@ -44,9 +46,23 @@ FiHaven is a calm, manual-first money dashboard for bills, credit cards, loans, 
 
 Free to use. FiHaven Pro unlocks payoff, calendar, history, rewards optimizer, category budgets, optional bank linking, and family sharing. Subscriptions auto-renew unless canceled at least 24 hours before the period ends; manage in Settings → Apple ID → Subscriptions.
 
-Privacy: https://fihaven.app/privacy
+Privacy Policy: https://fihaven.app/privacy
+Terms of Use (EULA): https://fihaven.app/terms
 Support: https://fihaven.app/contact
 ```
+
+### License / EULA
+
+| Option | What to do |
+|---|---|
+| **Apple Standard EULA** (current) | Keep License Agreement = Apple Standard. **Must** put a Terms of Use URL in the **App Description** (line above). |
+| Custom EULA | App Store Connect → App Information → License Agreement → Custom, paste/link https://fihaven.app/terms |
+
+Privacy Policy URL field (separate): `https://fihaven.app/privacy`
+
+### Promoted IAP images (Guideline 2.3.2)
+
+Do **not** reuse the app icon. Each promoted subscription needs a **unique** 1024×1024 promotional image that reads as that plan (e.g. “Monthly”, “Yearly”, “Family”). Upload under each IAP → Promotional Image in App Store Connect. Source files (if generated): `docs/maintainer/iap-promo/`.
 
 ### Keywords (≤100 chars, comma-separated)
 
@@ -81,6 +97,29 @@ Finance app; no unrestricted web, UGC, gambling, or mature content. Complete App
 - Contact: support@fihaven.app  
 - Demo account: *(docs/local only — verified, MFA off)*  
 - Notes: paste from `store-launch-checklist.md` §4  
+
+### Reply to App Review (1.6.0 rejection — paste into Resolution Center)
+
+```
+Hello,
+
+Thank you for the review. We have addressed each guideline:
+
+2.3.10 — The App Store description no longer references Android or other non-iOS platforms. It describes the iPhone / iPad / web experience only.
+
+3.1.2(c) — Terms of Use is now linked in the App Description:
+https://fihaven.app/terms
+Privacy Policy remains in the Privacy Policy URL field:
+https://fihaven.app/privacy
+We use Apple’s standard EULA and also link Terms of Use in the description as required. In-app, Privacy Policy and Terms of Use are available on the FiHaven Pro paywall and under Settings → About.
+
+2.3.2 — Promotional images for each auto-renewable subscription have been replaced with unique artwork that is not the app icon and is not shared across products (Monthly / Yearly / Family).
+
+Please let us know if anything else is needed.
+
+Thank you,
+Daniel
+```
 
 ### Screenshots
 
