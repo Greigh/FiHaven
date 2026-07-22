@@ -2,10 +2,19 @@
   SortFilterBar.svelte — reusable sort control + collapsible filter
   sheet, shared by Bills and Cards. `sorts` is [{key,label}]; `filters`
   is [{key,label,type:'toggle'|'select',options?}]. Binds `sort` (a key)
-  and `active` (an object of filter values). Multiple filters combine.
+  and `active` (an object of filter values). Optional `search` bindable
+  for a per-list search field. Multiple filters combine.
 -->
 <script>
-  let { sorts = [], filters = [], sort = $bindable(), active = $bindable({}) } = $props();
+  let {
+    sorts = [],
+    filters = [],
+    sort = $bindable(),
+    active = $bindable({}),
+    search = $bindable(''),
+    searchPlaceholder = 'Search…',
+    showSearch = true,
+  } = $props();
   let open = $state(false);
 
   let activeCount = $derived(
@@ -25,6 +34,18 @@
     active = next;
   }
 </script>
+
+{#if showSearch}
+  <div class="sf-search">
+    <input
+      type="search"
+      class="sf-search-input"
+      placeholder={searchPlaceholder}
+      bind:value={search}
+      aria-label={searchPlaceholder}
+    />
+  </div>
+{/if}
 
 <div class="sf-bar">
   <label class="sf-sort">
@@ -64,3 +85,23 @@
     {/each}
   </div>
 {/if}
+
+<style>
+  .sf-search {
+    margin: 0 0 10px;
+  }
+  .sf-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface, #fff);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+  }
+  .sf-search-input::placeholder {
+    color: var(--muted);
+  }
+</style>

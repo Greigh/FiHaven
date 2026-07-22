@@ -86,6 +86,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
     var justAdded by remember { mutableStateOf<Card?>(null) }
     var sortKey by remember { mutableStateOf("due") }
     var showFilters by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     var fBalance by remember { mutableStateOf(false) }
     var fPromo by remember { mutableStateOf(false) }
     var fOverdue by remember { mutableStateOf(false) }
@@ -105,6 +106,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                 vm.isFullyPaid("card", c.id.toString()),
                 zone,
             ) < 0)) return@filter false
+        if (!matchesListSearch(searchQuery, c.name, c.issuer, c.type)) return@filter false
         true
     }
     val cards = when (sortKey) {
@@ -132,6 +134,11 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader(if (isLoanView) "Loans" else "Cards", onAdd = { creating = true }, onBack = onBack, branded = true)
+        ListSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = if (isLoanView) "Search loans" else "Search cards",
+        )
         SortFilterBar(
             sortOptions = if (isLoanView) listOf(
                 "due" to "Due date", "balance" to "Largest balance",
