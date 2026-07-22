@@ -68,6 +68,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
     var paying by remember { mutableStateOf<Bill?>(null) }
     var sortKey by remember { mutableStateOf("due") }
     var showFilters by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     var fUnpaid by remember { mutableStateOf(false) }
     var fOverdue by remember { mutableStateOf(false) }
     var fAutopay by remember { mutableStateOf(false) }
@@ -89,6 +90,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
         if (fAutopay && !b.autopay) return@filter false
         if (fOnCard && b.cardId == null) return@filter false
         if (fCategory != "All" && b.category != fCategory) return@filter false
+        if (!matchesListSearch(searchQuery, b.name, b.business, b.category)) return@filter false
         true
     }
     val bills = when (sortKey) {
@@ -107,6 +109,11 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("Bills", onAdd = { creating = true }, onBack = onBack, branded = true)
+        ListSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search bills",
+        )
         SortFilterBar(
             sortOptions = listOf(
                 "due" to "Due date", "amount-desc" to "Largest first", "amount-asc" to "Smallest first",

@@ -28,8 +28,23 @@
       : [];
     return buildSubscriptionItems(bills, transactions, Date.now(), { declined });
   });
-  let tracked = $derived(trackedSubs(allItems));
-  let candidates = $derived(candidateSubs(allItems));
+  let search = $state('');
+  let tracked = $derived.by(() => {
+    const q = (search || '').trim().toLowerCase();
+    return trackedSubs(allItems).filter((s) => {
+      if (!q) return true;
+      const hay = [s.name, s.merchantKey].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  });
+  let candidates = $derived.by(() => {
+    const q = (search || '').trim().toLowerCase();
+    return candidateSubs(allItems).filter((s) => {
+      if (!q) return true;
+      const hay = [s.name, s.merchantKey].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  });
   let totalMonthly = $derived(totalMonthlySubs(tracked));
 
   let openLink = $state(null);
@@ -187,7 +202,7 @@
   </div>
 {/snippet}
 
-{#if tracked.length > 0 || candidates.length > 0}
+{#if tracked.length > 0 || candidates.length > 0 || search}
   <section class="subs-card">
     <div class="subs-head">
       <div>
@@ -195,6 +210,21 @@
         <div class="subs-total">{fmt(totalMonthly)}<span class="subs-total-sub">/mo across {tracked.length} tracked</span></div>
       </div>
     </div>
+
+    <div class="sf-search" style="margin:0 0 12px;">
+      <input
+        type="search"
+        class="sf-search-input"
+        placeholder="Search subscriptions"
+        bind:value={search}
+        aria-label="Search subscriptions"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface,#fff);color:var(--text);font:inherit;font-size:14px;"
+      />
+    </div>
+
+    {#if search && tracked.length === 0 && candidates.length === 0}
+      <p class="subs-suggested-hint">No subscriptions match “{search}”.</p>
+    {/if}
 
     {#if detectMode === 'inbox'}
       {#if tracked.length > 0}

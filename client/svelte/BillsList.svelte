@@ -68,6 +68,7 @@
   /* ── Sort + filter ──────────────────────────────────────── */
   let sort = $state('due');
   let activeFilters = $state({});
+  let search = $state('');
 
   const SORTS = [
     { key: 'due', label: 'Due date (soonest)' },
@@ -89,6 +90,7 @@
 
   let visibleBills = $derived.by(() => {
     const f = activeFilters;
+    const q = (search || '').trim().toLowerCase();
     const list = bills.filter((b) => {
       if (b.archived) return false;
       if (f.unpaid && paidState('bill', String(b.id), mk) === 'full') return false;
@@ -96,6 +98,10 @@
       if (f.autopay && !b.autopay) return false;
       if (f.oncard && b.cardId == null) return false;
       if (f.category && f.category !== 'all' && b.category !== f.category) return false;
+      if (q) {
+        const hay = [b.name, b.business, b.category].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
     const arr = list.slice();
@@ -148,7 +154,8 @@
 </div>
 
 {#if bills.length > 0}
-  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
+  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters}
+    bind:search searchPlaceholder="Search bills" />
 
   {#if visibleBills.length === 0}
     <div class="empty">

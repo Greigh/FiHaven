@@ -75,6 +75,7 @@
   /* ── Sort + filter state (per-session, local to this view) ──── */
   let sort = $state('due');
   let activeFilters = $state({});
+  let search = $state('');
   let openPromos = $state({});    // { [cardId]: true } — promo block open
 
   let SORTS = $derived(isLoanView ? [
@@ -178,11 +179,16 @@
   /* ── Filtered + sorted view ─────────────────────────── */
   let displayCards = $derived.by(() => {
     const f = activeFilters;
+    const q = (search || '').trim().toLowerCase();
     const list = baseCards.filter((c) => {
       if (f.balance && !(parseFloat(c.balance) > 0)) return false;
       if (f.promo && !(c.hasPromo && c.promoEndDate)) return false;
       if (f.overdue && !(c.dueDay && effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id), mk) < 0)) return false;
       if (f.autopay && !c.autopay) return false;
+      if (q) {
+        const hay = [c.name, c.issuer, c.type].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
     const out = list.slice();
@@ -317,7 +323,8 @@
   {/if}
 
   <!-- ── Sort + filter ─────────────────────────────────── -->
-  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters} />
+  <SortFilterBar sorts={SORTS} filters={FILTERS} bind:sort bind:active={activeFilters}
+    bind:search searchPlaceholder={isLoanView ? 'Search loans' : 'Search cards'} />
 
   <!-- ── Card list ─────────────────────────────────────── -->
   {#if displayCards.length === 0}
