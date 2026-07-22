@@ -167,9 +167,19 @@ final class StoreManager: ObservableObject {
         do {
             let items = try await Product.products(for: Self.productIDs)
             products = items.sorted { $0.price < $1.price }
+            #if DEBUG
+            if items.isEmpty {
+                print("[StoreManager] Product.products returned [] for \(Self.productIDs). Check ASC metadata, Paid Apps Agreement, and that IAPs are attached to this version.")
+            } else {
+                print("[StoreManager] loaded products: \(items.map(\.id))")
+            }
+            #endif
         } catch {
             // Leave products empty (e.g. no StoreKit config / network):
             // the paywall still offers the promo-code path.
+            #if DEBUG
+            print("[StoreManager] Product.products failed: \(error)")
+            #endif
         }
     }
 
