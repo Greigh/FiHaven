@@ -177,6 +177,9 @@ struct PaywallView: View {
             } message: {
                 Text(billing.message ?? "")
             }
+            // Re-fetch when the sheet opens — launch-time StoreKit can return
+            // [] (agreement / metadata / network), and we never retried before.
+            .task { await billing.loadProducts() }
         }
     }
 
@@ -229,9 +232,14 @@ struct PaywallView: View {
             if billing.loadingProducts {
                 ProgressView().padding()
             } else if billing.products.isEmpty {
-                Text("Subscriptions aren’t available right now. You can still redeem a code below.")
-                    .font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: 10) {
+                    Text("Subscriptions aren’t available right now. You can still redeem a code below.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
+                    Button("Try again") { Task { await billing.loadProducts() } }
+                        .font(Theme.ui(14, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                }
             } else {
                 ForEach(proProducts, id: \.id) { product in
                     Button {
