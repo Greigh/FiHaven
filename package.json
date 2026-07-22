@@ -78,5 +78,10 @@
     "better-sqlite3@12.11.1": true,
     "@firebase/util@1.15.1": true,
     "protobufjs@7.6.5": true
+  },
+  "overrides": {
+    "fast-xml-parser": ">=5.10.1",
+    "shell-quote": ">=1.8.5",
+    "uuid": "^11.1.1"
   }
 }
