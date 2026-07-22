@@ -3,7 +3,7 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.0  
+**Version train:** 1.6.1  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
 **Privacy:** https://fihaven.app/privacy  
 **Terms:** https://fihaven.app/terms  
@@ -70,10 +70,10 @@ Do **not** reuse the app icon. Each promoted subscription needs a **unique** 102
 bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 ```
 
-### What's New (1.6.0)
+### What's New (1.6.1)
 
 ```
-Build labels and bank transaction review polish. Same calm dashboard for bills, cards, loans, budget, and payoff — synced with the web.
+Search on Bills, Cards, Loans, Subscriptions & Spending. Clearer Pro paywall with plan length, price, and Privacy & Terms links. Refreshed onboarding with Back, Change goals, and archive instead of delete. Smoother Spending & Family screens.
 ```
 
 ### In-App Purchases (attach to version)

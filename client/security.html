@@ -51,12 +51,12 @@
               <p>Passwords are hashed with bcrypt and never stored in plain text. Web sessions use HttpOnly, Secure, SameSite cookies with per-session CSRF tokens. Changing your password signs out every other device.</p>
             </article>
             <article class="security-summary-card">
-              <h4>Multi-factor sign-in</h4>
-              <p>Optional TOTP authenticator apps, email one-time codes, or WebAuthn passkeys. MFA secrets are encrypted at rest on the server.</p>
+              <h4>Multi-factor &amp; social sign-in</h4>
+              <p>Optional TOTP authenticator apps, email one-time codes, or WebAuthn passkeys. Sign in with Apple or Google is supported; if MFA is enabled, the second factor still runs after social sign-in. MFA secrets are encrypted at rest.</p>
             </article>
             <article class="security-summary-card">
               <h4>Transport &amp; storage</h4>
-              <p>All traffic is served over HTTPS. Plaid access tokens and MFA material are encrypted at rest with AES-256-GCM. Secrets live in environment configuration — never in source control.</p>
+              <p>All traffic is served over HTTPS. Your synced app data, Plaid access tokens, and MFA material are encrypted at rest with AES-256-GCM. Secrets live in environment configuration — never in source control.</p>
             </article>
             <article class="security-summary-card">
               <h4>Abuse resistance</h4>
@@ -68,7 +68,7 @@
             </article>
             <article class="security-summary-card">
               <h4>Payments</h4>
-              <p>FiHaven Pro on the web is billed by Stripe. Card numbers never touch FiHaven&rsquo;s servers — Stripe handles PCI scope.</p>
+              <p>FiHaven Pro on the web is billed by Stripe. On iOS and Android (TestFlight / Play testing), in-app purchases go through Apple or Google. Card numbers never touch FiHaven&rsquo;s servers.</p>
             </article>
           </div>
         </div>
@@ -80,8 +80,8 @@
         </div>
 
         <div class="legal-section">
-          <h3>Native apps (when released)</h3>
-          <p>The in-development iOS and Android apps will authenticate against the same API. Session tokens will live in the platform secure store (Keychain / encrypted storage), not in a browser cookie. Biometric app lock will be enforced on-device — we never receive biometric data.</p>
+          <h3>Native apps</h3>
+          <p>iOS (TestFlight) and Android (Play closed testing) authenticate against the same API. Session tokens live in the platform secure store (Keychain / encrypted storage), not in a browser cookie. Optional biometric app lock is enforced on-device — we never receive biometric data. Sign in with Apple or Google is supported on native builds.</p>
         </div>
 
         <div class="legal-section">
