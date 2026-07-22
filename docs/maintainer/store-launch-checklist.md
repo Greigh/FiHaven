@@ -129,6 +129,7 @@ FiHaven is a calm, manual-first money dashboard for bills, credit cards, loans, 
 Free to use. FiHaven Pro unlocks payoff, calendar, history, rewards optimizer, category budgets, optional bank linking, and family sharing. Subscriptions auto-renew unless canceled at least 24 hours before the period ends; manage in Settings → Apple ID → Subscriptions.
 
 Privacy: https://fihaven.app/privacy
+Terms of Use (EULA): https://fihaven.app/terms
 Support: https://fihaven.app/contact
 ```
 
@@ -147,6 +148,7 @@ FiHaven is a personal finance tracker (manual-first). Sign in with the demo acco
 
 Privacy Policy: Settings → About → Privacy Policy (also https://fihaven.app/privacy)
 Terms of Use: Settings → About → Terms of Use (also https://fihaven.app/terms)
+Paywall (FiHaven Pro): each plan shows title, length, and price; Privacy Policy + Terms of Use (EULA) links in the footer; auto-renew / cancel copy.
 
 Free features work without a subscription. Pro features (Payoff, Calendar, History, bank link, etc.) require FiHaven Pro — use Sign in with Apple sandbox / StoreKit subscription, or the promo/comp grant noted for this review build.
 
