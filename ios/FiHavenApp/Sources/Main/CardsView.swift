@@ -17,6 +17,7 @@ struct CardsView: View {
     @State private var justAdded: Card?
     @State private var sortKey = "due"
     @State private var showFilters = false
+    @State private var searchText = ""
     @State private var fBalance = false
     @State private var fPromo = false
     @State private var fOverdue = false
@@ -63,10 +64,15 @@ struct CardsView: View {
     }
 
     private var displayedCards: [Card] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         var list = baseCards.filter { c in
             if fBalance && !(c.balance > 0) { return false }
             if fPromo && !(c.hasPromo && !(c.promoEndDate ?? "").isEmpty) { return false }
             if fOverdue && !(dueDays(c) < 0) { return false }
+            if !q.isEmpty {
+                let hay = [c.name, c.issuer ?? "", c.type ?? ""].joined(separator: " ")
+                if !hay.localizedCaseInsensitiveContains(q) { return false }
+            }
             return true
         }
         switch sortKey {
@@ -205,6 +211,7 @@ struct CardsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
+        .searchable(text: $searchText, prompt: isLoanView ? "Search loans" : "Search cards")
         .brandedNavigationBar(isLoanView ? "Loans" : "Cards")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
