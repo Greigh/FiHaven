@@ -12,7 +12,9 @@ import java.util.UUID
  * Signing SHA-1). Opens a FiHaven page that runs Google Identity Services,
  * deposits the JWT under a one-time handoff code, then returns via
  * package-locked `fihaven://oauth/google?code=…` (Custom Tabs keep same-host
- * https App Links in the tab).
+ * https App Links in the tab). The GIS page form-POSTs to
+ * `/api/auth/oauth/google/callback`, which 302-redirects like Apple — more
+ * reliable than async JS `location.replace(intent://…)`.
  */
 object GoogleWebSignIn {
     @Volatile var pendingState: String? = null

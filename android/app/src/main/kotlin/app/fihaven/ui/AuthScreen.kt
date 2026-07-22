@@ -113,17 +113,20 @@ fun AuthScreen(vm: AppViewModel) {
                 return@launch
             }
             val cm = CredentialManager.create(activity)
+
+            // 1) Labeled "Continue with Google" button → Sign-In-with-Google.
             try {
-                // Labeled "Continue with Google" → Sign-In-with-Google first.
                 val siwg = GetSignInWithGoogleOption.Builder(clientId).build()
                 val siwgReq = GetCredentialRequest.Builder().addCredentialOption(siwg).build()
                 finishGoogleCredential(cm.getCredential(activity, siwgReq), vm)
                 return@launch
-            } catch (_: GetCredentialCancellationException) {
-                return@launch
+            } catch (e: GetCredentialCancellationException) {
+                Log.i(TAG_GOOGLE_AUTH, "Sign-In-with-Google cancelled; trying One Tap", e)
             } catch (e: GetCredentialException) {
                 Log.w(TAG_GOOGLE_AUTH, "Sign-In-with-Google failed; trying One Tap", e)
             }
+
+            // 2) One Tap / account picker.
             try {
                 val oneTap = GetGoogleIdOption.Builder()
                     .setServerClientId(clientId)
@@ -132,11 +135,15 @@ fun AuthScreen(vm: AppViewModel) {
                 val oneTapReq = GetCredentialRequest.Builder().addCredentialOption(oneTap).build()
                 finishGoogleCredential(cm.getCredential(activity, oneTapReq), vm)
                 return@launch
-            } catch (_: GetCredentialCancellationException) {
+            } catch (e: GetCredentialCancellationException) {
+                // User dismissed both native sheets — don't open a browser.
+                Log.i(TAG_GOOGLE_AUTH, "One Tap cancelled", e)
                 return@launch
             } catch (e: GetCredentialException) {
                 Log.w(TAG_GOOGLE_AUTH, "Credential Manager failed; opening web Google sign-in", e)
             }
+
+            // 3) Custom Tab GIS page → form POST → 302 fihaven:// handoff.
             GoogleWebSignIn.launch(activity)
         }
     }
