@@ -13,13 +13,13 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] Current Pre-Release — 2026-07-20
+## [1.6.1] Current Pre-Release — 2026-07-21
 
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (6) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 29) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (7) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 30) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -34,10 +34,25 @@ Each release below uses two layers:
 > store webhooks, Android social sign-in that returns into the app after Google /
 > Apple (Custom Tab → handoff), native Plaid OAuth that returns to iOS/Android
 > instead of the web redirect page, a refreshed post-signup onboarding (Back,
-> edit goals in place, delayed Free CTA, archive-by-default), and native Spending /
-> Family / tab-bar polish.
+> edit goals in place, delayed Free CTA, archive-by-default), native Spending /
+> Family / tab-bar polish, **search on major lists**, and a Pro paywall that
+> shows plan length, price, and Privacy / Terms links.
 
 ### Changes
+
+**Lists, paywall & Android Google (Jul 21)**
+
+- Search on **Bills**, **Cards / Loans**, **Subscriptions**, and **Spending** —
+  iOS, Android, and web (#200).
+- Pro paywall: plan title, subscription length, price (yearly shows $/mo),
+  Privacy Policy and Terms of Use (EULA) links, clearer auto-renew copy on iOS
+  and Android (#201).
+- Maintainer App Store / Play listing notes and 1024×1024 IAP promo images
+  (`docs/maintainer/iap-promo/`) for Guideline 2.3 / 3.1.2 (#201).
+- Android Google Custom Tab: callback uses form **POST** then **302** to
+  `fihaven://oauth/google?code=…` so Chrome hands off without a JS redirect
+  after `fetch` (#199). Deploy web/API for the new route before relying on it
+  in production.
 
 **Onboarding & tabs (Jul 20)**
 
@@ -221,11 +236,24 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (6)**, Android **1.6.1 (29)**
-  (same store build numbers — re-upload with the Jul 20 onboarding / UI polish).
+- Native builds for this notes pass: iOS **1.6.1 (7)**, Android **1.6.1 (30)**
+  (Jul 21 list search, paywall disclosure, Google Custom Tab POST/302).
 
 ### Technical changelog
 
+- **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;
+  Android `ListSearchField` + `matchesListSearch` in `SortFilter.kt`; web
+  `SortFilterBar` search bind + panel filters (#200).
+- **Paywall / store**: iOS `Paywall.swift` + Android `Paywall.kt` /
+  `BillingManager` period labels; Privacy + Terms links; maintainer
+  `store-listing-copy.md`, `store-launch-checklist.md`, `iap-promo/*` (#201).
+- **Google OAuth (Android Custom Tab)**: `POST /api/auth/oauth/google/callback`
+  creates handoff and **302**s to `fihaven://oauth/google?code=…`;
+  `client/public/oauth-google-android.html` form POST (no fetch + JS intent);
+  `docs/social-login-setup.md` updated (#199).
+- **Deps / CI**: npm bumps (`better-sqlite3` 13, tailwind 4.3.3, svelte, vite,
+  etc.); sync `package-lock.json` for `npm ci`; `allowScripts` for
+  `better-sqlite3@13.0.1` (#202).
 - **Onboarding**: web `welcome.html` / `welcome.js`; iOS `OnboardingView` /
   `IntroView`; Android `OnboardingScreen` / `IntroScreen` — four-step Goals /
   Plan / Security / Pro; `archiveInsteadOfDelete` on finish; tab ids capped to
@@ -242,7 +270,7 @@ Each release below uses two layers:
 - **OAuth**: `oauth_handoffs` table + `server/oauthHandoff.js`; App Link return
   `/oauth/{apple|google}`; `POST /oauth/:provider/handoff`; MFA challenge after
   federated login when enrolled; Custom Tab `appReturnUrl` prefers
-  `fihaven://oauth/…?code=` (#194).
+  `fihaven://oauth/…?code=` (#194); Google form-POST callback (#199).
 - **Plaid Link**: `createLinkToken` platform fields — Android `android_package_name`,
   iOS `/plaid` Universal Link, web `PLAID_REDIRECT_URI`; iOS
   `ActivePlaidLink.resumeAfterTermination` (#195).
@@ -282,8 +310,9 @@ Each release below uses two layers:
   `appleJws` / `oauthHandoff` unit + handoff HTTP integration; removed obsolete
   rewards-link panel test; `plaidBalances` / subscriptionsFinder unit coverage.
 - **Docs**: `docs/native-contract.md` balance field meanings + approval settings;
-  `docs/social-login-setup.md` App Links + Custom Tab `fihaven://` return (#194);
-  README bank-sync native vs web OAuth paths (#195).
+  `docs/social-login-setup.md` App Links + Custom Tab `fihaven://` return
+  (#194, #199); README bank-sync native vs web OAuth paths (#195);
+  store listing / IAP promo maintainer docs (#201).
 ---
 
 ## [1.6.0] (Pre-Release) — Last updated: 2026-07-14
