@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -233,10 +234,21 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                                 onClick = { buy(product) },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(BillingManager.period(product) ?: product.name,
-                                    color = Ct.colors.text, modifier = Modifier.weight(1f))
-                                Text(BillingManager.formattedPrice(product) ?: "",
-                                    color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        BillingManager.planTitle(product),
+                                        color = Ct.colors.text,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    BillingManager.period(product)?.let { len ->
+                                        Text(len, color = Ct.colors.muted, fontSize = 12.sp)
+                                    }
+                                }
+                                Text(
+                                    BillingManager.formattedPrice(product) ?: "",
+                                    color = Ct.colors.text,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
                             }
                         }
                         familyProduct?.let { p ->
@@ -251,9 +263,23 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                         Text("Restore purchases", color = Ct.colors.muted)
                     }
                     Text(
-                        "Subscriptions renew automatically until cancelled. Manage in Google Play.",
+                        "Subscriptions are auto-renewing. Payment is charged through Google Play. Renews unless canceled before the period ends. Manage in Google Play → Subscriptions.",
                         color = Ct.colors.muted, fontSize = 11.sp, textAlign = TextAlign.Center,
                     )
+                    val uriHandler = LocalUriHandler.current
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = { uriHandler.openUri("https://fihaven.app/privacy") }) {
+                            Text("Privacy Policy", color = Ct.colors.accent, fontSize = 12.sp)
+                        }
+                        Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+                        TextButton(onClick = { uriHandler.openUri("https://fihaven.app/terms") }) {
+                            Text("Terms of Use (EULA)", color = Ct.colors.accent, fontSize = 12.sp)
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -363,11 +389,24 @@ fun RedeemCodeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 private fun FamilyOption(product: ProductDetails, isUpgrade: Boolean, onClick: () -> Unit) {
     CtCard {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PlanBadge("FAMILY")
-                Spacer(Modifier.weight(1f))
-                Text(BillingManager.formattedPrice(product) ?: "",
-                    color = Ct.colors.text, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    PlanBadge("FAMILY")
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        BillingManager.planTitle(product),
+                        color = Ct.colors.text,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    BillingManager.period(product)?.let { len ->
+                        Text(len, color = Ct.colors.muted, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    BillingManager.formattedPrice(product) ?: "",
+                    color = Ct.colors.text,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
             Text(
                 "Everything in Pro, plus a shared household — share bills, cards & goals " +
