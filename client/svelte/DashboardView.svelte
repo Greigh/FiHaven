@@ -28,6 +28,7 @@
   import SubscriptionsPanel from './SubscriptionsPanel.svelte';
   import IncomeHistory from './IncomeHistory.svelte';
   import BudgetStatusPanel from './BudgetStatusPanel.svelte';
+  import IconMark from './IconMark.svelte';
   import { buildSubscriptionItems } from '../js/subscriptionsFinder.js';
 
   pruneExpiredSnoozes();
@@ -51,7 +52,10 @@
   }));
   let urgentPromo = $derived(promoCards.filter((c) => monthsUntil(c.promoEndDate) <= 3).length);
 
-  let allItems   = $derived(buildUpcomingItems());
+  let allItems   = $derived.by(() => {
+    void settings.categoryIcons;
+    return buildUpcomingItems();
+  });
   let obligationItems = $derived(periodObligationItems(allItems, periodBnds));
   let hidePaid   = $derived(hidePaidOnDashboard(settings));
   let paidThisMo = $derived(
@@ -301,7 +305,7 @@
           {@const rem = remainingForItem(u.type, u.refId, mk)}
           <div class="upcoming-item">
             <div class="upcoming-icon">
-              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand}{u.brand.emoji}{:else}{u.icon}{/if}
+              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
             </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>

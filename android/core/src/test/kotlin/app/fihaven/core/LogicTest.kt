@@ -17,6 +17,7 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.CategoryIcon
 import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.Payment
 import app.fihaven.core.model.SavingsGoal
@@ -154,7 +155,24 @@ class ScheduleTest {
         assertEquals(listOf("1", "2"), items.map { it.refId })
         assertEquals(5, items[0].days)
         assertEquals(25, items[1].days)
-        assertEquals("📌", items[0].icon)
+        assertEquals(CategoryIcon.Emoji("📌"), items[0].icon)
+    }
+
+    @Test fun upcomingAppliesCategoryIconOverrides() {
+        val bills = listOf(Bill(id = "h", name = "Rent", amount = 10.0, dueDay = 20, category = "Housing"))
+        val emoji = Schedule.buildUpcomingItems(
+            bills, emptyList(), UTC,
+            categoryIcons = mapOf("Housing" to CategoryIcon.Emoji("🏡")),
+            now = NOW,
+        )
+        assertEquals(CategoryIcon.Emoji("🏡"), emoji[0].icon)
+
+        val image = Schedule.buildUpcomingItems(
+            bills, emptyList(), UTC,
+            categoryIcons = mapOf("Housing" to CategoryIcon.Image("data:image/png;base64,abc")),
+            now = NOW,
+        )
+        assertEquals(CategoryIcon.Image("data:image/png;base64,abc"), image[0].icon)
     }
 
     @Test fun cardUsesPromoNeeded() {
@@ -164,6 +182,7 @@ class ScheduleTest {
         assertEquals(1, items.size)
         assertEquals(585.0, items[0].amount, 0.001)
         assertEquals("Chase (payment)", items[0].name)
+        assertEquals(CategoryIcon.Emoji("💳"), items[0].icon)
     }
 
     @Test fun paidHelpers() {
