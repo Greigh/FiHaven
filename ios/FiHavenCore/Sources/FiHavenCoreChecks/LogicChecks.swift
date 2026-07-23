@@ -122,7 +122,29 @@ func runScheduleChecks() {
         checkEqual(items.map(\.refId), ["1", "2"], "sorted soonest-first")
         checkEqual(items[0].days, 5, "first item days")
         checkEqual(items[1].days, 25, "second item days")
-        checkEqual(items[0].icon, "📌", "bill category Other → 📌")
+        checkEqual(items[0].icon, CategoryIcon.emoji("📌"), "bill category Other → 📌")
+
+        let housing = Schedule.buildUpcomingItems(
+            bills: [Bill(id: "h", name: "Rent", category: "Housing", amount: 10, dueDay: 20)],
+            cards: [],
+            tz: tz,
+            categoryIcons: ["Housing": .emoji("🏡")],
+            now: now
+        )
+        checkEqual(housing[0].icon, .emoji("🏡"), "categoryIcons override applied")
+
+        let imageOverride = Schedule.buildUpcomingItems(
+            bills: [Bill(id: "h2", name: "Rent", category: "Housing", amount: 10, dueDay: 20)],
+            cards: [],
+            tz: tz,
+            categoryIcons: ["Housing": .image(dataURI: "data:image/png;base64,abc")],
+            now: now
+        )
+        checkEqual(
+            imageOverride[0].icon,
+            .image(dataURI: "data:image/png;base64,abc"),
+            "image categoryIcons override applied"
+        )
 
         let cards = [Card(id: "10", name: "Chase", balance: 2340, minPayment: 35,
                           hasPromo: true, promoEndDate: "2026-10-01",
@@ -131,6 +153,7 @@ func runScheduleChecks() {
         checkEqual(cardItems.count, 1, "one card item")
         checkClose(cardItems[0].amount, 585, "max(min 35, promoNeeded 585)", tol: 0.001)
         checkEqual(cardItems[0].name, "Chase (payment)", "card item name")
+        checkEqual(cardItems[0].icon, .emoji("💳"), "card glyph until issuer icons land")
 
         let noDue = Schedule.buildUpcomingItems(
             bills: [Bill(id: "1", name: "NoDue", amount: 10, dueDay: nil)], cards: [], tz: tz, now: now)

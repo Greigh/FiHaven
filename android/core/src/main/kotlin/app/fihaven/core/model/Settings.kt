@@ -169,6 +169,20 @@ val JsonObject.budgetBucketOverrides: BudgetBucketOverrides
         return BudgetBucketOverrides(mapOfStrings("bills"), mapOfStrings("spending"))
     }
 
+/**
+ * Category icon overrides from `settings.categoryIcons` (emoji or image data URI).
+ */
+val JsonObject.categoryIcons: Map<String, CategoryIcon>
+    get() = CategoryIcon.parseMap(this["categoryIcons"])
+
+/**
+ * Emoji-only view of [categoryIcons] (images omitted). Prefer [categoryIcons].
+ */
+val JsonObject.categoryIconEmojis: Map<String, String>
+    get() = categoryIcons.mapNotNull { (k, v) ->
+        (v as? CategoryIcon.Emoji)?.let { k to it.value }
+    }.toMap()
+
 fun JsonObject.withBudgetRule(mode: String): JsonObject = buildJsonObject {
     this@withBudgetRule.forEach { (k, v) -> if (k != "budgetRule") put(k, v) }
     put("budgetRule", mode)

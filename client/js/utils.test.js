@@ -340,6 +340,32 @@ describe('utils — buildUpcomingItems', () => {
       expect(items[k].days).toBeGreaterThanOrEqual(items[k - 1].days);
     }
   });
+
+  it('applies category icon overrides to bill rows', () => {
+    setSettings({ categoryIcons: { Housing: '🏡' } });
+    setCards([]);
+    const rent = buildUpcomingItems().find((i) => i.name === 'Rent');
+    expect(rent.icon).toBe('🏡');
+    expect(rent.iconInfo).toEqual({ isImage: false, emoji: '🏡' });
+  });
+
+  it('applies image category overrides on bill iconInfo', () => {
+    const src = 'data:image/png;base64,abc';
+    setSettings({ categoryIcons: { Housing: { type: 'image', value: src } } });
+    setCards([]);
+    const rent = buildUpcomingItems().find((i) => i.name === 'Rent');
+    expect(rent.iconInfo).toEqual({ isImage: true, src });
+    // Text fallback stays on the default category emoji.
+    expect(rent.icon).toBe('🏠');
+  });
+
+  it('uses the default card glyph for card rows', () => {
+    setBills([]);
+    setCards([{ id: 'C1', name: 'Sapphire', issuer: 'Chase', minPayment: 35, dueDay: 15 }]);
+    const item = buildUpcomingItems()[0];
+    expect(item.icon).toBe('💳');
+    expect(item.iconInfo).toEqual({ isImage: false, emoji: '💳' });
+  });
 });
 
 describe('utils — bill active window (start/end dates)', () => {

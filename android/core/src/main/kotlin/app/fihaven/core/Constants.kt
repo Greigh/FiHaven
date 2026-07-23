@@ -1,6 +1,9 @@
 package app.fihaven.core
 
-/// Category icons + palette, ported from utils.js (docs/native-contract.md §8).
+import app.fihaven.core.model.CategoryIcon
+
+/// Category icons + palette, ported from utils.js / categoryIcons.js
+/// (docs/native-contract.md §8).
 object CTConstants {
     val categoryIcons: Map<String, String> = mapOf(
         "Housing" to "🏠",
@@ -13,9 +16,22 @@ object CTConstants {
         "Other" to "📌",
     )
 
-    fun iconForCategory(category: String): String = categoryIcons[category] ?: "📌"
+    /** Resolve a category icon (emoji or custom image) from settings overrides. */
+    fun iconInfoForCategory(
+        category: String,
+        overrides: Map<String, CategoryIcon> = emptyMap(),
+    ): CategoryIcon =
+        overrides[category] ?: CategoryIcon.Emoji(categoryIcons[category] ?: "📌")
+
+    /** Emoji-only convenience. Image overrides fall back to the built-in default. */
+    fun iconForCategory(
+        category: String,
+        overrides: Map<String, CategoryIcon> = emptyMap(),
+    ): String =
+        iconInfoForCategory(category, overrides).emoji(categoryIcons[category] ?: "📌")
 
     const val cardIcon = "💳"
+    val cardIconInfo: CategoryIcon = CategoryIcon.Emoji(cardIcon)
     const val loanIcon = "🏦"
 
     val categories = listOf(

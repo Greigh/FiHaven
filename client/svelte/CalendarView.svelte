@@ -6,13 +6,15 @@
   Budget tab so the two views stay in sync.
 -->
 <script>
-  import { bills, cards } from '../js/storage.svelte.js';
+  import { bills, cards, settings } from '../js/storage.svelte.js';
   import {
-    ICONS, fmt, monthKey, monthLabel, offsetDate,
-    paidState, billActive, billDueOn,
+    fmt, monthKey, monthLabel, offsetDate,
+    paidState, billActive, billDueOn, categoryIconInfo, categoryIconEmoji,
   } from '../js/utils.js';
+  import { CARD_ICON } from '../js/categoryIcons.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
+  import IconMark from './IconMark.svelte';
 
   let monthOffset = $state(getBudgetMonthOffset());
   $effect(() => { setBudgetMonthOffset(monthOffset); });
@@ -41,7 +43,8 @@
           refId: String(b.id),
           name: b.name,
           amount: parseFloat(b.amount || 0),
-          icon: ICONS[b.category] || '📌',
+          icon: categoryIconEmoji(b.category, settings),
+          iconInfo: categoryIconInfo(b.category, settings),
           autopay: !!b.autopay,
         });
       }
@@ -55,7 +58,8 @@
         refId: String(c.id),
         name: c.name + ' (payment)',
         amount: parseFloat(c.minPayment || 0),
-        icon: '💳',
+        icon: CARD_ICON,
+        iconInfo: { isImage: false, emoji: CARD_ICON },
         autopay: !!c.autopay,
       });
     });
@@ -124,7 +128,7 @@
                       type="button"
                       onclick={() => openPayModal(item.type, item.refId, item.name, item.amount)}
                       title="{item.name} · {fmt(item.amount)}{item.autopay ? ' · autopay' : ''}{state === 'full' ? ' · paid' : state === 'partial' ? ' · partially paid' : ''}">
-                <span class="chip-icon">{item.icon}</span>
+                <span class="chip-icon"><IconMark info={item.iconInfo} emoji={item.icon} /></span>
                 <span class="chip-name">{item.name}</span>
                 <span class="chip-amt">{fmt(item.amount)}</span>
               </button>
