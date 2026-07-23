@@ -88,7 +88,7 @@
 
 <style>
   .sf-search {
-    margin: 0 0 10px;
+    margin: 0 0 14px;
   }
   .sf-search-input {
     width: 100%;
