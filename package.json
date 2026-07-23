@@ -46,7 +46,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "apns2": "^12.2.0",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -55,7 +55,7 @@
     "googleapis": "^173.0.0",
     "nodemailer": "^9.0.3",
     "otpauth": "^9.5.1",
-    "plaid": "^43.0.0",
+    "plaid": "^44.0.0",
     "qrcode": "^1.5.4",
     "stripe": "^22.3.2",
     "web-push": "^3.6.7"
@@ -75,9 +75,9 @@
     "bcrypt@6.0.0": true,
     "fsevents@2.3.3": true,
     "@parcel/watcher@2.5.1": true,
-    "better-sqlite3@12.11.1": true,
     "@firebase/util@1.15.1": true,
-    "protobufjs@7.6.5": true
+    "protobufjs@7.6.5": true,
+    "better-sqlite3@13.0.1": true
   },
   "overrides": {
     "fast-xml-parser": ">=5.10.1",
