@@ -188,6 +188,19 @@
                 {#if b.business}
                   <div class="card-row-business">{b.business}</div>
                 {/if}
+                {#if !ended && !notStarted && (state === 'skipped' || state === 'full' || state === 'partial')}
+                  <div class="card-row-status">
+                    {#if state === 'skipped'}
+                      <span class="badge badge-gray" title="No payment expected this {billPeriodNoun(b.frequency)}">⏭ Skipped</span>
+                    {:else if state === 'full'}
+                      <span class="badge badge-green">✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}</span>
+                    {:else}
+                      <span class="badge badge-orange" title="{fmt(remainingForItem('bill', String(b.id), mk))} still due">
+                        Paid {fmt(paidAmount('bill', String(b.id), mk))} of {fmt(goalAmountFor('bill', String(b.id)))}
+                      </span>
+                    {/if}
+                  </div>
+                {/if}
                 <div class="card-row-meta">
                   {#if ended}
                     <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended</span>
@@ -232,16 +245,10 @@
             <div class="card-row-actions">
               {#if !ended && !notStarted}
                 {#if state === 'skipped'}
-                  <span class="badge badge-gray" title="No payment expected this {billPeriodNoun(b.frequency)}">⏭ Skipped</span>
                   <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('bill', String(b.id))}>
                     Undo skip
                   </button>
-                {:else if state === 'full'}
-                  <span class="badge badge-green">✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}</span>
                 {:else if state === 'partial'}
-                  <span class="badge badge-orange" title="{fmt(remainingForItem('bill', String(b.id), mk))} still due">
-                    Paid {fmt(paidAmount('bill', String(b.id), mk))} of {fmt(goalAmountFor('bill', String(b.id)))}
-                  </span>
                   <button
                     class="btn btn-green btn-sm"
                     onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
@@ -255,7 +262,7 @@
                   >
                     Skip
                   </button>
-                {:else}
+                {:else if state !== 'full'}
                   <button
                     class="btn btn-green btn-sm"
                     onclick={() => openPayModal('bill', String(b.id), b.name, b.amount)}
