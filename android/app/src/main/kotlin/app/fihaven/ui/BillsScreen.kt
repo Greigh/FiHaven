@@ -55,9 +55,11 @@ import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.Money
 import app.fihaven.core.logic.PaidState
+import app.fihaven.core.model.categoryIcons
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.genId
 import app.fihaven.core.model.archiveInsteadOfDelete
+import app.fihaven.core.model.CategoryIcon
 import app.fihaven.ui.theme.Ct
 
 @Composable
@@ -190,6 +192,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
                     BillRow(
                         bill = bill,
                         zone = zone,
+                        iconOverrides = data.settings.categoryIcons,
                         state = vm.paidState("bill", bill.id.toString()),
                         paidSoFar = vm.paidAmountFor("bill", bill.id.toString()),
                         chargedTo = bill.cardId?.let { id -> data.cards.firstOrNull { it.id.toString() == id }?.name },
@@ -248,6 +251,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
 private fun BillRow(
     bill: Bill,
     zone: java.time.ZoneId,
+    iconOverrides: Map<String, CategoryIcon> = emptyMap(),
     state: PaidState,
     paidSoFar: Double,
     chargedTo: String? = null,
@@ -277,8 +281,12 @@ private fun BillRow(
     CtCard(Modifier.clickable(onClick = onEdit), padding = 14) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(CTConstants.iconForCategory(bill.category), fontSize = 22.sp,
-                    modifier = Modifier.padding(end = 10.dp))
+                IconMark(
+                    icon = CTConstants.iconInfoForCategory(bill.category, iconOverrides),
+                    size = 22.dp,
+                    fallbackEmoji = CTConstants.categoryIcons[bill.category] ?: "📌",
+                    modifier = Modifier.padding(end = 10.dp),
+                )
                 Column(Modifier.weight(1f)) {
                     Text(bill.name, color = Ct.colors.text, fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold, maxLines = 1)

@@ -12,7 +12,7 @@ struct CalendarView: View {
         let id: String
         let name: String
         let amount: Double
-        let icon: String
+        let icon: CategoryIcon
         let type: String
         let refId: String
     }
@@ -41,7 +41,7 @@ struct CalendarView: View {
                 guard BillSchedule.dueOn(b, date: d, tz: store.tz) else { continue }
                 map[day, default: []].append(DayItem(
                     id: "bill-\(b.id)", name: b.name, amount: b.amount,
-                    icon: CTConstants.icon(forCategory: b.category), type: "bill", refId: String(b.id)))
+                    icon: CTConstants.iconInfo(forCategory: b.category, overrides: store.data.settings.categoryIcons), type: "bill", refId: String(b.id)))
             }
         }
         for c in store.activeCards {
@@ -49,7 +49,7 @@ struct CalendarView: View {
             let amt = c.hasPromo ? max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz)) : c.minPayment
             map[d, default: []].append(DayItem(
                 id: "card-\(c.id)", name: c.name + " (payment)", amount: amt,
-                icon: CTConstants.cardIcon, type: "card", refId: String(c.id)))
+                icon: .emoji(CTConstants.cardIcon), type: "card", refId: String(c.id)))
         }
         return map
     }
@@ -176,7 +176,7 @@ struct CalendarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(item.name), \(A11y.paidStateLabel(state))")
             .accessibilityHint("Opens payment screen")
-            Text(item.icon)
+            IconMark(icon: item.icon, size: 18)
                 .accessibilityHidden(true)
             Text(item.name).font(Theme.ui(15)).foregroundStyle(Theme.text)
             Spacer()
