@@ -33,7 +33,14 @@ struct BillEditorView: View {
                     TextField("Business / Provider", text: $business)
                     Picker("Category", selection: $category) {
                         ForEach(CTConstants.categories, id: \.self) { c in
-                            Text("\(CTConstants.icon(forCategory: c))  \(c)")
+                            HStack(spacing: 8) {
+                                IconMark(
+                                    icon: CTConstants.iconInfo(forCategory: c, overrides: store.data.settings.categoryIcons),
+                                    size: 16,
+                                    fallbackEmoji: CTConstants.categoryIcons[c] ?? "📌"
+                                )
+                                Text(c)
+                            }
                                 .tag(c)
                                 .accessibilityLabel(c)
                         }

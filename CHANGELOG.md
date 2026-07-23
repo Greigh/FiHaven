@@ -40,6 +40,15 @@ Each release below uses two layers:
 
 ### Changes
 
+**Category icons (Jul 23)**
+
+- **Category icons in Settings** — Preferences → Category icons: pick a standard
+  glyph, add a custom emoji, or upload a small image per bill category (Housing,
+  Utilities, etc.). Overrides sync with your encrypted data blob on web, iOS,
+  and Android.
+- Custom images render on native too (not web-only); emoji fallbacks stay for
+  text contexts when an image is set.
+
 **Dependencies (Jul 23)**
 
 - Bump `better-sqlite3` to 13.0.1 and `plaid` to 44 (lockfiles synced). Confirm
@@ -247,6 +256,12 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Category icons**: `settings.categoryIcons` / `customIcons`; web
+  `categoryIcons.js` + Settings picker; `IconMark` (web / iOS / Android);
+  native `CategoryIcon` parse + `CTConstants.iconInfo(forCategory:)` /
+  `iconInfoForCategory`; upcoming / bills / calendar / budget / dashboard
+  resolve overrides; Vitest + FiHavenCoreChecks + Android `CategoryIconTest`
+  / `ScheduleTest` coverage. Docs: `native-contract.md` iconography.
 - **Deps**: `better-sqlite3` ^13.0.1 (`allowScripts`), `plaid` ^44; sync
   `package-lock.json` / `bun.lock`.
 - **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;

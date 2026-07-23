@@ -589,6 +589,165 @@
 .settings-toggle-title { font-weight: 600; }
 .settings-toggle-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
+/* Category icon picker (Preferences) */
+.cat-icon-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.cat-icon-row.is-open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.cat-icon-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.cat-icon-row-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cat-icon-preview-emoji { font-size: 20px; line-height: 1; }
+.cat-icon-preview-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.cat-icon-row-meta { flex: 1; min-width: 0; }
+.cat-icon-row-name {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -.02em;
+}
+.cat-icon-row-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.cat-icon-picker {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+.cat-icon-picker-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 8px;
+}
+.cat-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cat-icon-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color .12s ease, background .12s ease, transform .12s ease;
+}
+.cat-icon-swatch:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  transform: translateY(-1px);
+}
+.cat-icon-swatch[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.cat-icon-swatch .cat-icon-preview-emoji { font-size: 18px; }
+.cat-icon-swatch .cat-icon-preview-img { width: 22px; height: 22px; }
+.cat-icon-custom-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.cat-icon-custom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 120px;
+}
+.cat-icon-custom-field input {
+  width: 100px;
+  font-size: 18px;
+  text-align: center;
+  padding: 6px 8px;
+}
+.cat-icon-upload-btn { cursor: pointer; margin: 0; }
+.cat-icon-library {
+  margin-top: 18px;
+  padding-top: 4px;
+}
+.cat-icon-library-item {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+.cat-icon-library-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.cat-icon-library-remove:hover { color: var(--red); }
+.cat-icon-library-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.icon-mark { line-height: 1; }
+.icon-mark-img {
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  border-radius: 4px;
+  vertical-align: -0.15em;
+}
+.card-row-chip .icon-mark-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
 .fh-switch { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
 .fh-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .fh-switch-track { position: absolute; inset: 0; background: var(--border); border-radius: 999px; transition: background .15s ease; }

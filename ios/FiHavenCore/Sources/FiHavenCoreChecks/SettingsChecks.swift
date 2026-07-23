@@ -76,4 +76,52 @@ func runSettingsChecks() {
         checkEqual(fromWeb.reminderLeadDays, 14, "lead clamps high on get")
         checkEqual(fromWeb.notifyHour, 23, "hour clamps high on get")
     }
+
+    section("Settings — categoryIcons emoji + image") {
+        let emojiOnly = Settings(["categoryIcons": .object([
+            "Housing": .string("🏡"),
+            "Utilities": .object(["type": .string("emoji"), "value": .string("💡")]),
+        ])])
+        checkEqual(emojiOnly.categoryIcons["Housing"], .emoji("🏡"), "plain emoji string")
+        checkEqual(emojiOnly.categoryIcons["Utilities"], .emoji("💡"), "typed emoji object")
+        checkEqual(emojiOnly.categoryIconEmojis["Housing"], "🏡", "emoji map exposes Housing")
+
+        let withImage = Settings(["categoryIcons": .object([
+            "Auto": .object([
+                "type": .string("image"),
+                "value": .string("data:image/png;base64,abc"),
+            ]),
+            "Loan": .string("🏦"),
+        ])])
+        checkEqual(withImage.categoryIcons["Auto"], .image(dataURI: "data:image/png;base64,abc"), "image override")
+        checkEqual(withImage.categoryIcons["Loan"], .emoji("🏦"), "emoji alongside image")
+        check(withImage.categoryIconEmojis["Auto"] == nil, "image omitted from emoji map")
+        checkEqual(
+            CTConstants.iconInfo(forCategory: "Auto", overrides: withImage.categoryIcons),
+            .image(dataURI: "data:image/png;base64,abc"),
+            "resolver returns image"
+        )
+        checkEqual(
+            CTConstants.icon(forCategory: "Auto", overrides: withImage.categoryIcons),
+            "🚗",
+            "emoji helper falls back for images"
+        )
+
+        let rejected = Settings(["categoryIcons": .object([
+            "Housing": .string("Housing"),
+            "Utilities": .object([
+                "type": .string("image"),
+                "value": .string("http://evil.example/x.png"),
+            ]),
+            "Loan": .object([
+                "type": .string("image"),
+                "value": .string("data:text/plain;base64,abc"),
+            ]),
+        ])])
+        check(rejected.categoryIcons["Housing"] == nil, "plain text rejected")
+        check(rejected.categoryIcons["Utilities"] == nil, "http image rejected")
+        check(rejected.categoryIcons["Loan"] == nil, "non-image data URI rejected")
+        check(CategoryIcon.isSafeDataURI("data:image/png;base64,abc"), "png data URI ok")
+        check(!CategoryIcon.isSafeDataURI("data:text/plain;base64,abc"), "text data URI rejected")
+    }
 }

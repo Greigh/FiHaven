@@ -340,7 +340,7 @@ private struct UpcomingRow: View {
             .frame(width: 44)
             .accessibilityHidden(true)
 
-            Text(item.icon).font(.system(size: 22))
+            IconMark(icon: item.icon, size: 22)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {

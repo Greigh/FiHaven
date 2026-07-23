@@ -11,6 +11,7 @@
     paidState, paidAmount, goalAmountFor, remainingForItem,
     paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
     nextBillDueDate, daysUntilBillDue, archiveInsteadOfDelete,
+    categoryIconInfo,
   } from '../js/utils.js';
 
   // "YYYY-MM-DD" → local Date for friendly display (e.g. "Jul 15").
@@ -19,6 +20,7 @@
   import { billPeriodNoun } from '../js/billSchedule.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
+  import IconMark from './IconMark.svelte';
 
   const mk = currentPeriodKey();
 
@@ -180,7 +182,7 @@
         <article class="card-row fade-up" class:paid-row={state === 'full'} style="animation-delay:{viewIdx * 0.05}s">
           <header class="card-row-head is-bill-head">
             <div class="card-row-identity">
-              <div class="card-row-chip" style="background:{color};">{ICONS[b.category] || '📌'}</div>
+              <div class="card-row-chip" style="background:{color};"><IconMark info={categoryIconInfo(b.category, settings)} /></div>
               <div class="card-row-naming">
                 <div class="card-row-name">{b.name}</div>
                 {#if b.business}
@@ -330,7 +332,7 @@
       <div class="archived-list">
         {#each archivedBills as b (b.id)}
           <div class="archived-row">
-            <span class="archived-name">{ICONS[b.category] || '📌'} {b.name}</span>
+            <span class="archived-name"><IconMark info={categoryIconInfo(b.category, settings)} /> {b.name}</span>
             <span class="archived-amt">{fmt(b.amount)}</span>
             <button class="btn btn-ghost btn-xs" onclick={() => restoreBill(b)}>Restore</button>
             <button class="btn btn-danger btn-xs" onclick={() => deleteBill(b)}>Delete forever</button>
