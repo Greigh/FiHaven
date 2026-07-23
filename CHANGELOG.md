@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (7) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 30) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (8) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 31) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -39,6 +39,12 @@ Each release below uses two layers:
 > shows plan length, price, and Privacy / Terms links.
 
 ### Changes
+
+**Lists spacing (Jul 23)**
+
+- Cards, Loans, and Bills list rows breathe more — summary, search, and meta
+  chips are less cramped, and Paid / Skipped badges sit under the account name
+  so they no longer overlap titles when action buttons are crowded (#207).
 
 **Category icons (Jul 23)**
 
@@ -255,11 +261,17 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (7)**, Android **1.6.1 (30)**
-  (Jul 21 list search, paywall disclosure, Google Custom Tab POST/302).
+- Native builds for this notes pass: iOS **1.6.1 (8)**, Android **1.6.1 (31)**
+  (Jul 23 list spacing / status badge layout; prior: icons, deps, list search,
+  paywall, Google Custom Tab).
 
 ### Technical changelog
 
+- **List spacing**: web `CardsList` / `BillsList` move payment status badges
+  under the name (`card-row-status`); looser summary / search / meta gaps in
+  `components.css` + `SortFilterBar`; actions column capped so buttons wrap
+  instead of overlapping titles (#207). Native store builds: iOS **8**,
+  Android **versionCode 31**.
 - **Category icons**: `settings.categoryIcons` / `customIcons`; web
   `categoryIcons.js` + Settings picker; `IconMark` (web / iOS / Android);
   native `CategoryIcon` parse + `CTConstants.iconInfo(forCategory:)` /
