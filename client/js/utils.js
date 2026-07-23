@@ -19,6 +19,7 @@ import {
   categoryIconInfo,
   categoryIconEmoji,
 } from './categoryIcons.js';
+import { issuerIconInfo, issuerIconMark, issuerEmoji } from './issuerIcons.js';
 
 export {
   nextBillDueDate, daysUntilBillDue, billDueOn, billDueInPeriod,
@@ -512,8 +513,9 @@ export function buildUpcomingItems() {
       type:    'card',
       refId:   String(c.id),
       autopay: c.autopay,
-      icon:    CARD_ICON,
-      iconInfo: { isImage: false, emoji: CARD_ICON },
+      icon:    issuerEmoji(c),
+      iconInfo: issuerIconMark(c),
+      brand:   issuerIconInfo(c),
     });
   });
 

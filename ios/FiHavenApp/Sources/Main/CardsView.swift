@@ -558,9 +558,7 @@ private struct CardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
-                Image(systemName: card.type == "loan" ? "building.columns" : "creditcard")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Theme.accent)
+                IconMark(icon: IssuerIcons.iconInfo(for: card), size: 20)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .center, spacing: 4) {
