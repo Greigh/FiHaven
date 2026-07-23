@@ -11,7 +11,7 @@
     fmt, monthKey, monthLabel, offsetDate,
     paidState, billActive, billDueOn, categoryIconInfo, categoryIconEmoji,
   } from '../js/utils.js';
-  import { CARD_ICON } from '../js/categoryIcons.js';
+  import { issuerIconMark, issuerEmoji } from '../js/issuerIcons.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
   import IconMark from './IconMark.svelte';
@@ -58,8 +58,8 @@
         refId: String(c.id),
         name: c.name + ' (payment)',
         amount: parseFloat(c.minPayment || 0),
-        icon: CARD_ICON,
-        iconInfo: { isImage: false, emoji: CARD_ICON },
+        icon: issuerEmoji(c),
+        iconInfo: issuerIconMark(c),
         autopay: !!c.autopay,
       });
     });

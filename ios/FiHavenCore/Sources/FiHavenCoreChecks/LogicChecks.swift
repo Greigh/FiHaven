@@ -153,7 +153,7 @@ func runScheduleChecks() {
         checkEqual(cardItems.count, 1, "one card item")
         checkClose(cardItems[0].amount, 585, "max(min 35, promoNeeded 585)", tol: 0.001)
         checkEqual(cardItems[0].name, "Chase (payment)", "card item name")
-        checkEqual(cardItems[0].icon, .emoji("💳"), "card glyph until issuer icons land")
+        checkEqual(cardItems[0].icon, .emoji("🔵"), "Chase card issuer icon")
 
         let noDue = Schedule.buildUpcomingItems(
             bills: [Bill(id: "1", name: "NoDue", amount: 10, dueDay: nil)], cards: [], tz: tz, now: now)
