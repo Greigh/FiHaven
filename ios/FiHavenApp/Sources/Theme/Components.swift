@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import FiHavenCore
 
 /// A surface "card": padded, rounded, hairline border — the web's `.card`.
 struct CardBackground: ViewModifier {
@@ -240,5 +242,33 @@ struct PercentField: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label), percent")
+    }
+}
+
+/// Render a [CategoryIcon] — emoji glyph or a decoded data-URI image.
+struct IconMark: View {
+    let icon: CategoryIcon
+    var size: CGFloat = 22
+    var fallbackEmoji: String = "📌"
+
+    var body: some View {
+        switch icon {
+        case .emoji(let glyph):
+            Text(glyph)
+                .font(.system(size: size))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        case .image(let uri):
+            if let ui = imageFromDataURL(uri) {
+                Image(uiImage: ui)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: max(3, size * 0.18), style: .continuous))
+            } else {
+                Text(fallbackEmoji)
+                    .font(.system(size: size))
+            }
+        }
     }
 }

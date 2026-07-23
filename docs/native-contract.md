@@ -353,6 +353,8 @@ The server stores `settings` verbatim as an object. Known keys:
 | `budgetRule` | `"off"` \| `"50-30-20"` \| `"80-20"` \| `"60-20-20"` \| `"70-20-10"` \| `"custom"` \| `"obligations-first"` \| `"debt-focus"` \| `"envelope"` | optional Budget lens (default `off`) |
 | `budgetRuleSplits` | `{ needs, wants, save }` percentages | custom split when `budgetRule` is `custom` (default 50/30/20) |
 | `debtFocusExtra` | number | planned extra monthly debt payment (`debt-focus` lens) |
+| `categoryIcons` | `{ [category]: string \| { type: "emoji"\|"image", value } }` | per-bill-category icon overrides (emoji string, or small image data URI). Unset categories use built-in defaults. |
+| `customIcons` | `[{ id, type, value }]` | reusable custom icons (emoji or image) available in Settings picker |
 
 `incomes[].frequency` ∈ `weekly | biweekly | semimonthly | monthly | annual`.
 
@@ -453,9 +455,15 @@ light and dark; follow the OS appearance by default.
 - Base body ~15px, line-height ~1.55.
 - Bundle both fonts in each app (don't rely on system availability).
 
-### Iconography & color helpers ([`utils.js`](../client/js/utils.js))
-- Category icons: Housing 🏠, Utilities ⚡, Subscriptions 📱,
-  Insurance 🛡️, Loan 🏦, Auto 🚗, Other 📌. Cards use 💳.
+### Iconography & color helpers ([`utils.js`](../client/js/utils.js), [`categoryIcons.js`](../client/js/categoryIcons.js))
+- Default category icons: Housing 🏠, Utilities ⚡, Subscriptions 🔁,
+  Insurance 🛡️, Loan 🏦, Auto 🚗, Investment 📈, Other 📌. Cards use 💳.
+- Users can override category icons in Settings → Preferences
+  (`settings.categoryIcons`); resolve with `categoryIconInfo` /
+  `categoryIconEmoji` (web) or `CTConstants.iconInfo(forCategory:overrides:)` /
+  `iconInfoForCategory` (native). Overrides may be emoji strings or
+  `{ type: "image", value: "data:image/…;base64,…" }` — both web and native
+  render custom images (native via `IconMark`).
 - Card accent palette: `#1A6BFF #C0392B #1A7A4A #7B3CC0 #C06010 #007080 #8B5A00`.
 - Currency: `fmt` = `$1,450.00` (2 dp), `fmtShort` = `$1,450` (0 dp),
   `en-US` grouping.

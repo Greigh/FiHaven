@@ -26,6 +26,18 @@ import { webPushSupported, webPushStatus, enableWebPush, disableWebPush } from '
 import {
   BILL_CATEGORIES, SPENDING_CATEGORIES, BUDGET_BUCKETS,
 } from './budgetRules.js';
+import {
+  STANDARD_ICONS,
+  MAX_CUSTOM_ICONS,
+  categoryIconInfo,
+  categoryIconOverrides,
+  customIconLibrary,
+  compressIconFile,
+  normalizeEmoji,
+  iconOverrideValue,
+  newCustomIconId,
+  parseIconValue,
+} from './categoryIcons.js';
 
     function showMessage(form, text, isError) {
     var el = document.querySelector('[data-message="' + form + '"]');
@@ -447,6 +459,7 @@ import {
     /* ── Budget rule lens ──────────────────────────────────── */
     initBudgetRuleSection();
     initBucketOverridesSection();
+    initCategoryIconsSection();
 
     /* ── Autopay auto-mark ─────────────────────────────────── */
     initAutopaySection();
@@ -1335,6 +1348,248 @@ import {
         .catch(function (err) {
           setBusy(form, false);
           showMessage('bucketoverrides', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Category icons ─────────────────────────────────────── */
+  function initCategoryIconsSection() {
+    var form = document.querySelector('[data-form="categoryicons"]');
+    var root = document.querySelector('[data-category-icons-root]');
+    if (!form || !root) return;
+
+    var state = {
+      overrides: {},
+      custom: [],
+      openCat: null,
+    };
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function previewHtml(info) {
+      if (info && info.isImage && info.src) {
+        return '<img class="cat-icon-preview-img" src="' + escapeHtml(info.src) + '" alt="" />';
+      }
+      return '<span class="cat-icon-preview-emoji">' + escapeHtml((info && info.emoji) || '📌') + '</span>';
+    }
+
+    function swatchHtml(info, attrs) {
+      var inner = previewHtml(info);
+      return '<button type="button" class="cat-icon-swatch"' + (attrs || '') + '>' + inner + '</button>';
+    }
+
+    function resolvedFor(cat) {
+      return categoryIconInfo(cat, { categoryIcons: state.overrides });
+    }
+
+    function render() {
+      var html = '';
+      BILL_CATEGORIES.forEach(function (cat) {
+        var info = resolvedFor(cat);
+        var isOpen = state.openCat === cat;
+        var isCustom = !!state.overrides[cat];
+        html += '<div class="cat-icon-row' + (isOpen ? ' is-open' : '') + '" data-cat-row="' + escapeHtml(cat) + '">';
+        html += '<div class="cat-icon-row-main">';
+        html += '<div class="cat-icon-row-preview">' + previewHtml(info) + '</div>';
+        html += '<div class="cat-icon-row-meta">';
+        html += '<div class="cat-icon-row-name">' + escapeHtml(cat) + '</div>';
+        html += '<div class="cat-icon-row-hint">' + (isCustom ? 'Custom' : 'Default') + '</div>';
+        html += '</div>';
+        html += '<button type="button" class="btn btn-ghost btn-sm" data-cat-toggle="' + escapeHtml(cat) + '">'
+          + (isOpen ? 'Close' : 'Change') + '</button>';
+        html += '</div>';
+
+        if (isOpen) {
+          html += '<div class="cat-icon-picker" data-cat-picker="' + escapeHtml(cat) + '">';
+          html += '<div class="cat-icon-picker-label">Standard</div>';
+          html += '<div class="cat-icon-grid" data-grid="standard">';
+          STANDARD_ICONS.forEach(function (emoji) {
+            var sel = (!info.isImage && info.emoji === emoji) ? ' aria-pressed="true"' : ' aria-pressed="false"';
+            html += swatchHtml({ isImage: false, emoji: emoji },
+              ' data-pick-emoji="' + escapeHtml(emoji) + '"' + sel);
+          });
+          html += '</div>';
+
+          if (state.custom.length) {
+            html += '<div class="cat-icon-picker-label">Your icons</div>';
+            html += '<div class="cat-icon-grid" data-grid="custom">';
+            state.custom.forEach(function (entry) {
+              var parsed = parseIconValue(entry);
+              if (!parsed) return;
+              var selected = false;
+              if (info.isImage && parsed.isImage && info.src === parsed.src) selected = true;
+              if (!info.isImage && !parsed.isImage && info.emoji === parsed.emoji) selected = true;
+              html += swatchHtml(parsed,
+                ' data-pick-custom="' + escapeHtml(entry.id) + '"'
+                + (selected ? ' aria-pressed="true"' : ' aria-pressed="false"'));
+            });
+            html += '</div>';
+          }
+
+          html += '<div class="cat-icon-custom-row">';
+          html += '<label class="cat-icon-custom-field">';
+          html += '<span>Your emoji</span>';
+          html += '<input type="text" maxlength="8" inputmode="text" autocomplete="off" '
+            + 'placeholder="e.g. 🎸" data-custom-emoji="' + escapeHtml(cat) + '" />';
+          html += '</label>';
+          html += '<button type="button" class="btn btn-ghost btn-sm" data-apply-emoji="' + escapeHtml(cat) + '">Use</button>';
+          html += '<label class="btn btn-ghost btn-sm cat-icon-upload-btn">Upload'
+            + '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-upload-icon="' + escapeHtml(cat) + '" />'
+            + '</label>';
+          if (isCustom) {
+            html += '<button type="button" class="btn btn-ghost btn-sm" data-reset-icon="' + escapeHtml(cat) + '">Reset</button>';
+          }
+          html += '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+
+      if (state.custom.length) {
+        html += '<div class="cat-icon-library">';
+        html += '<div class="cat-icon-picker-label">Saved custom icons</div>';
+        html += '<div class="cat-icon-grid">';
+        state.custom.forEach(function (entry) {
+          var parsed = parseIconValue(entry);
+          if (!parsed) return;
+          html += '<div class="cat-icon-library-item">';
+          html += previewHtml(parsed);
+          html += '<button type="button" class="cat-icon-library-remove" data-remove-custom="'
+            + escapeHtml(entry.id) + '" title="Remove from library" aria-label="Remove custom icon">×</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<p class="cat-icon-library-note">Custom icons you upload or type are saved here so you can reuse them on any category.</p>';
+        html += '</div>';
+      }
+
+      root.innerHTML = html;
+    }
+
+    function setOverride(cat, value) {
+      if (value == null) delete state.overrides[cat];
+      else state.overrides[cat] = value;
+      render();
+    }
+
+    function addCustom(entry) {
+      state.custom = state.custom.filter(function (c) { return c.id !== entry.id; });
+      state.custom.unshift(entry);
+      if (state.custom.length > MAX_CUSTOM_ICONS) {
+        state.custom = state.custom.slice(0, MAX_CUSTOM_ICONS);
+      }
+    }
+
+    function loadFromServer(server) {
+      var s = (server && server.settings) || {};
+      state.overrides = Object.assign({}, categoryIconOverrides(s));
+      state.custom = customIconLibrary(s).slice();
+      state.openCat = null;
+      render();
+    }
+
+    fetchData()
+      .then(loadFromServer)
+      .catch(function () { loadFromServer({}); });
+
+    root.addEventListener('click', function (event) {
+      var t = event.target.closest('[data-cat-toggle],[data-pick-emoji],[data-pick-custom],[data-apply-emoji],[data-reset-icon],[data-remove-custom]');
+      if (!t) return;
+      event.preventDefault();
+
+      if (t.hasAttribute('data-cat-toggle')) {
+        var cat = t.getAttribute('data-cat-toggle');
+        state.openCat = state.openCat === cat ? null : cat;
+        render();
+        return;
+      }
+      if (t.hasAttribute('data-pick-emoji')) {
+        var emoji = t.getAttribute('data-pick-emoji');
+        setOverride(state.openCat, emoji);
+        return;
+      }
+      if (t.hasAttribute('data-pick-custom')) {
+        var id = t.getAttribute('data-pick-custom');
+        var entry = state.custom.find(function (c) { return c.id === id; });
+        if (!entry) return;
+        setOverride(state.openCat, iconOverrideValue(parseIconValue(entry)));
+        return;
+      }
+      if (t.hasAttribute('data-apply-emoji')) {
+        var applyCat = t.getAttribute('data-apply-emoji');
+        var input = root.querySelector('[data-custom-emoji="' + applyCat + '"]');
+        var custom = normalizeEmoji(input && input.value);
+        if (!custom) {
+          showMessage('categoryicons', 'Enter a short emoji or symbol.', true);
+          return;
+        }
+        addCustom({ id: newCustomIconId(), type: 'emoji', value: custom });
+        setOverride(applyCat, custom);
+        showMessage('categoryicons', '', false);
+        return;
+      }
+      if (t.hasAttribute('data-reset-icon')) {
+        setOverride(t.getAttribute('data-reset-icon'), null);
+        return;
+      }
+      if (t.hasAttribute('data-remove-custom')) {
+        var rid = t.getAttribute('data-remove-custom');
+        state.custom = state.custom.filter(function (c) { return c.id !== rid; });
+        render();
+      }
+    });
+
+    root.addEventListener('change', function (event) {
+      var input = event.target.closest('[data-upload-icon]');
+      if (!input || !input.files || !input.files[0]) return;
+      var cat = input.getAttribute('data-upload-icon');
+      var file = input.files[0];
+      input.value = '';
+      showMessage('categoryicons', 'Processing image…', false);
+      compressIconFile(file)
+        .then(function (dataUri) {
+          var entry = { id: newCustomIconId(), type: 'image', value: dataUri };
+          addCustom(entry);
+          setOverride(cat, { type: 'image', value: dataUri });
+          showMessage('categoryicons', '', false);
+        })
+        .catch(function (err) {
+          showMessage('categoryicons', (err && err.message) || 'Could not use that image.', true);
+        });
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      setBusy(form, true);
+      showMessage('categoryicons', 'Saving…', false);
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, {
+              categoryIcons: state.overrides,
+              customIcons: state.custom,
+            }),
+          };
+          return pushData(snapshot).then(function () {
+            return pullFromServer().catch(function () { /* local sync best-effort */ });
+          });
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('categoryicons', 'Category icons saved.', false);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('categoryicons', (err && err.message) || errorText('network'), true);
         });
     });
   }

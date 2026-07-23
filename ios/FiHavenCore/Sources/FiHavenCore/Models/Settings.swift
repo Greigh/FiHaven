@@ -406,6 +406,36 @@ public struct Settings: Codable, Equatable, Sendable {
         }
     }
 
+    /// Per-category icon overrides (emoji or small image data URI).
+    /// Mirrors web `settings.categoryIcons`.
+    public var categoryIcons: [String: CategoryIcon] {
+        get { CategoryIcon.parseMap(raw["categoryIcons"]) }
+        set {
+            var obj: [String: JSONValue] = [:]
+            for (k, v) in newValue {
+                switch v {
+                case .emoji(let e):
+                    obj[k] = .string(e)
+                case .image(let uri):
+                    obj[k] = .object([
+                        "type": .string("image"),
+                        "value": .string(uri),
+                    ])
+                }
+            }
+            raw["categoryIcons"] = .object(obj)
+        }
+    }
+
+    /// Emoji-only view of [categoryIcons] (images omitted). Prefer [categoryIcons].
+    public var categoryIconEmojis: [String: String] {
+        var m: [String: String] = [:]
+        for (k, v) in categoryIcons {
+            if case .emoji(let e) = v { m[k] = e }
+        }
+        return m
+    }
+
     /// Per-category monthly spending budgets (category → amount).
     public var categoryBudgets: [String: Double] {
         get {

@@ -1,7 +1,7 @@
 import Foundation
 
-/// Category icons + card accent palette, ported from utils.js so the
-/// native apps match the web's iconography.
+/// Category icons + card accent palette, ported from utils.js /
+/// categoryIcons.js so the native apps match the web's iconography.
 public enum CTConstants {
     public static let categoryIcons: [String: String] = [
         "Housing": "🏠",
@@ -14,11 +14,26 @@ public enum CTConstants {
         "Other": "📌",
     ]
 
-    public static func icon(forCategory category: String) -> String {
-        categoryIcons[category] ?? "📌"
+    /// Resolve a category icon (emoji or custom image) from settings overrides.
+    public static func iconInfo(
+        forCategory category: String,
+        overrides: [String: CategoryIcon] = [:]
+    ) -> CategoryIcon {
+        if let custom = overrides[category] { return custom }
+        return .emoji(categoryIcons[category] ?? "📌")
+    }
+
+    /// Emoji-only convenience. Image overrides fall back to the built-in default.
+    public static func icon(
+        forCategory category: String,
+        overrides: [String: CategoryIcon] = [:]
+    ) -> String {
+        iconInfo(forCategory: category, overrides: overrides)
+            .emoji(default: categoryIcons[category] ?? "📌")
     }
 
     public static let cardIcon = "💳"
+    public static let cardIconInfo: CategoryIcon = .emoji(cardIcon)
 
     /// Bill category names, in the order the web presents them.
     public static let categories = [

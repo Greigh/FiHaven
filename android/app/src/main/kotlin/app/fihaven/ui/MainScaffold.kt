@@ -72,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.categoryIcons
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.dashboardWidgets
 import app.fihaven.core.model.landingView
@@ -342,6 +343,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         data.payments,
         periodBounds,
         vm.paidGoalPolicy(),
+        data.settings.categoryIcons,
     )
     val obligations = vm.periodObligationItems(upcoming)
     val visible = vm.dashboardUpcoming(upcoming)
@@ -745,7 +747,7 @@ private fun UpcomingRow(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(item.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+        IconMark(icon = item.icon, size = 22.dp, modifier = Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             // Who it's actually paid to — the name above is often a nickname.

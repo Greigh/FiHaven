@@ -3,6 +3,7 @@ package app.fihaven.core.logic
 import app.fihaven.core.CTConstants
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.CategoryIcon
 import app.fihaven.core.model.Payment
 import java.time.Instant
 import java.time.LocalDate
@@ -20,7 +21,7 @@ data class UpcomingItem(
     val type: String,      // "bill" | "card"
     val refId: String,
     val autopay: Boolean,
-    val icon: String,
+    val icon: CategoryIcon,
 )
 
 /// Upcoming-items + paid-state helpers, ported from utils.js.
@@ -40,6 +41,7 @@ object Schedule {
         payments: List<Payment> = emptyList(),
         bounds: PeriodBounds? = null,
         policy: PaidGoalPolicy = PaidGoalPolicy.RECOMMENDED,
+        categoryIcons: Map<String, CategoryIcon> = emptyMap(),
         now: Instant = Instant.now(),
     ): List<UpcomingItem> {
         val items = mutableListOf<UpcomingItem>()
@@ -65,7 +67,7 @@ object Schedule {
                     type = "bill",
                     refId = ref,
                     autopay = b.autopay,
-                    icon = CTConstants.iconForCategory(b.category),
+                    icon = CTConstants.iconInfoForCategory(b.category, categoryIcons),
                 )
             )
         }
@@ -92,7 +94,7 @@ object Schedule {
                     type = "card",
                     refId = ref,
                     autopay = c.autopay,
-                    icon = CTConstants.cardIcon,
+                    icon = CategoryIcon.Emoji(CTConstants.cardIcon),
                 )
             )
         }

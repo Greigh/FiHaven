@@ -78,13 +78,13 @@ struct BudgetRuleSettingsView: View {
 
             Section("Bill categories") {
                 ForEach(BudgetRules.billCategories, id: \.self) { cat in
-                    bucketRow(kind: "bills", category: cat, icon: CTConstants.icon(forCategory: cat))
+                    bucketRow(kind: "bills", category: cat, icon: CTConstants.iconInfo(forCategory: cat, overrides: store.data.settings.categoryIcons))
                 }
             }
 
             Section("Spending categories") {
                 ForEach(spendingCategories, id: \.self) { cat in
-                    bucketRow(kind: "spending", category: cat, icon: SpendingView.catIcon(cat))
+                    bucketRow(kind: "spending", category: cat, icon: .emoji(SpendingView.catIcon(cat)))
                 }
             }
         }
@@ -109,7 +109,7 @@ struct BudgetRuleSettingsView: View {
         }
     }
 
-    private func bucketRow(kind: String, category: String, icon: String) -> some View {
+    private func bucketRow(kind: String, category: String, icon: CategoryIcon) -> some View {
         let current = kind == "bills"
             ? store.data.settings.budgetBucketOverrides.bills[category]
             : store.data.settings.budgetBucketOverrides.spending[category]
@@ -119,7 +119,10 @@ struct BudgetRuleSettingsView: View {
         )) {
             ForEach(Self.bucketChoices, id: \.0) { Text($0.1).tag($0.0) }
         } label: {
-            Text("\(icon) \(category)")
+            HStack(spacing: 8) {
+                IconMark(icon: icon, size: 16, fallbackEmoji: CTConstants.categoryIcons[category] ?? "📌")
+                Text(category)
+            }
         }
         .pickerStyle(.menu)
     }

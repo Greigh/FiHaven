@@ -437,7 +437,8 @@ final class AppStore: ObservableObject {
             tz: tz,
             payments: data.payments,
             bounds: currentBounds,
-            policy: paidGoalPolicy
+            policy: paidGoalPolicy,
+            categoryIcons: data.settings.categoryIcons
         )
     }
 

@@ -40,6 +40,15 @@ Each release below uses two layers:
 
 ### Changes
 
+**Category icons (Jul 23)**
+
+- **Category icons in Settings** — Preferences → Category icons: pick a standard
+  glyph, add a custom emoji, or upload a small image per bill category (Housing,
+  Utilities, etc.). Overrides sync with your encrypted data blob on web, iOS,
+  and Android.
+- Custom images render on native too (not web-only); emoji fallbacks stay for
+  text contexts when an image is set.
+
 **Lists, paywall & Android Google (Jul 21)**
 
 - Search on **Bills**, **Cards / Loans**, **Subscriptions**, and **Spending** —
@@ -241,6 +250,12 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Category icons**: `settings.categoryIcons` / `customIcons`; web
+  `categoryIcons.js` + Settings picker; `IconMark` (web / iOS / Android);
+  native `CategoryIcon` parse + `CTConstants.iconInfo(forCategory:)` /
+  `iconInfoForCategory`; upcoming / bills / calendar / budget / dashboard
+  resolve overrides; Vitest + FiHavenCoreChecks + Android `CategoryIconTest`
+  / `ScheduleTest` coverage. Docs: `native-contract.md` iconography.
 - **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;
   Android `ListSearchField` + `matchesListSearch` in `SortFilter.kt`; web
   `SortFilterBar` search bind + panel filters (#200).
