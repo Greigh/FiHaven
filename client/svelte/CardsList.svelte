@@ -374,6 +374,19 @@
                 {#if c.issuer}<span style="color:var(--muted);font-weight:500;">{c.issuer} · </span>{/if}
                 {c.name}
               </div>
+              {#if state === 'skipped' || state === 'full' || state === 'partial'}
+                <div class="card-row-status">
+                  {#if state === 'skipped'}
+                    <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
+                  {:else if state === 'full'}
+                    <span class="badge badge-green">✓ Paid {fmt(paidAmount('card', String(c.id), mk))}</span>
+                  {:else}
+                    <span class="badge badge-orange" title="{fmt(remainingForItem('card', String(c.id), mk))} still due">
+                      Paid {fmt(paidAmount('card', String(c.id), mk))} of {fmt(goalAmountFor('card', String(c.id)))}
+                    </span>
+                  {/if}
+                </div>
+              {/if}
               <div class="card-row-meta">
                 {#if days !== null}
                   {#if days < 0}
@@ -402,16 +415,10 @@
 
           <div class="card-row-actions">
             {#if state === 'skipped'}
-              <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
               <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('card', String(c.id))}>
                 Undo skip
               </button>
-            {:else if state === 'full'}
-              <span class="badge badge-green">✓ Paid {fmt(paidAmount('card', String(c.id), mk))}</span>
             {:else if state === 'partial'}
-              <span class="badge badge-orange" title="{fmt(remainingForItem('card', String(c.id), mk))} still due">
-                Paid {fmt(paidAmount('card', String(c.id), mk))} of {fmt(goalAmountFor('card', String(c.id)))}
-              </span>
               <button class="btn btn-green btn-sm"
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 Pay {fmt(remainingForItem('card', String(c.id), mk))} more
@@ -421,7 +428,7 @@
                 onclick={() => skipMonth('card', String(c.id), c.name)}>
                 Skip
               </button>
-            {:else}
+            {:else if state !== 'full'}
               <button class="btn btn-green btn-sm"
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 ✓ Pay

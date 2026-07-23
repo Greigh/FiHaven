@@ -1097,7 +1097,7 @@ input[type="file"]::file-selector-button:hover {
 
 
 /* ── Sort + filter bar (Bills / Cards) ─────────────────────── */
-.sf-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.sf-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
 .sf-sort { display:flex; align-items:center; gap:8px; }
 .sf-sort-label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
 .sf-sort select { padding:6px 10px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text); font:inherit; }
