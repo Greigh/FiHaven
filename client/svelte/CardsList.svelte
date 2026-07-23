@@ -390,21 +390,18 @@
               <div class="card-row-meta">
                 {#if days !== null}
                   {#if days < 0}
-                    <span class="badge badge-red">{Math.abs(days)}d overdue</span>
+                    <span class="badge badge-red">{Math.abs(days)}d overdue{#if next} · Next {shortDate(next)}{/if}</span>
                   {:else if days === 0}
-                    <span class="badge badge-orange">Due today</span>
+                    <span class="badge badge-orange">Due today{#if next} · {shortDate(next)}{/if}</span>
                   {:else if days <= 5}
-                    <span class="badge badge-orange">Due {days}d</span>
+                    <span class="badge badge-orange">Due {days}d{#if next} · Next {shortDate(next)}{/if}</span>
                   {:else}
-                    <span class="badge badge-gray">Day {c.dueDay}</span>
-                  {/if}
-                  {#if next}
-                    <span class="card-row-next">Next: {shortDate(next)}</span>
+                    <span class="badge badge-gray">Day {c.dueDay}{#if next} · Next {shortDate(next)}{/if}</span>
                   {/if}
                 {:else}
-                  <span class="card-row-next">No due day</span>
+                  <span class="badge badge-gray">No due day</span>
                 {/if}
-                <span style="color:{aprColor(c.regularAPR)};font-weight:600;">{c.regularAPR}% APR</span>
+                <span class="card-row-pill is-muted" style="color:{aprColor(c.regularAPR)};">{c.regularAPR}% APR</span>
                 {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
                 {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
                 {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay{#if c.autopayDay} · day {c.autopayDay}{/if}</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
