@@ -94,7 +94,7 @@ object Schedule {
                     type = "card",
                     refId = ref,
                     autopay = c.autopay,
-                    icon = CategoryIcon.Emoji(CTConstants.cardIcon),
+                    icon = IssuerIcons.iconInfo(c),
                 )
             )
         }

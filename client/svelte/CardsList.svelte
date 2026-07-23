@@ -15,6 +15,7 @@
     monthsUntil, daysUntilDate, promoNeeded,
     paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
+  import { issuerIconInfo, issuerIconMark } from '../js/issuerIcons.js';
   import { askDelete, openPayModal, editCard, skipMonth, unskipMonth } from '../js/modals.js';
   import {
     pendingBalanceProposals,
@@ -23,6 +24,7 @@
   } from '../js/plaidBalanceReview.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
+  import IconMark from './IconMark.svelte';
 
   const mk = currentPeriodKey();
 
@@ -344,6 +346,8 @@
       {@const days    = c.dueDay ? effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id), mk) : null}
       {@const next    = c.dueDay ? nextDueDate(c.dueDay) : null}
       {@const color   = CARD_COLORS[i % CARD_COLORS.length]}
+      {@const issuerIcon = issuerIconInfo(c)}
+      {@const chipColor = (issuerIcon.isLogo && issuerIcon.color) ? issuerIcon.color : color}
       {@const state   = paidState('card', String(c.id), mk)}
       {@const stats   = paymentStats('card', String(c.id), 6)}
       {@const hasPromo = !!(c.hasPromo && c.promoEndDate)}
@@ -364,7 +368,7 @@
              third due track. -->
         <header class="card-row-head is-bill-head">
           <div class="card-row-identity">
-            <div class="card-row-chip" style="background:{color};">{c.type === 'loan' ? '🏦' : '💳'}</div>
+            <div class="card-row-chip" style="background:{chipColor};"><IconMark info={issuerIconMark(c, { chip: true })} /></div>
             <div class="card-row-naming">
               <div class="card-row-name">
                 {#if c.issuer}<span style="color:var(--muted);font-weight:500;">{c.issuer} · </span>{/if}

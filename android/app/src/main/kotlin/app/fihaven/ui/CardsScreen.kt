@@ -56,6 +56,7 @@ import app.fihaven.core.model.CardOffer
 import app.fihaven.core.model.genId
 import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.logic.IssuerIcons
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -375,7 +376,7 @@ private fun CardRow(
     CtCard(Modifier.clickable(onClick = onEdit)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (isLoan) CTConstants.loanIcon else CTConstants.cardIcon, fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+                IconMark(icon = IssuerIcons.iconInfo(card), size = 20.dp, modifier = Modifier.padding(end = 8.dp))
                 // Name owns the title line; issuer and the network/last-4 share the
                 // subtitle. Keeping the digits out of the title stops a long card
                 // name from squeezing them into a second wrapped line.
