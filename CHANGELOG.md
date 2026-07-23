@@ -49,6 +49,12 @@ Each release below uses two layers:
 - Custom images render on native too (not web-only); emoji fallbacks stay for
   text contexts when an image is set.
 
+**Dependencies (Jul 23)**
+
+- Bump `better-sqlite3` to 13.0.1 and `plaid` to 44 (lockfiles synced). Confirm
+  production Node is on the engines floor (≥24.18) before deploying — v13 was
+  previously pinned back after segfaults on Node 20.
+
 **Lists, paywall & Android Google (Jul 21)**
 
 - Search on **Bills**, **Cards / Loans**, **Subscriptions**, and **Spending** —
@@ -256,6 +262,8 @@ Each release below uses two layers:
   `iconInfoForCategory`; upcoming / bills / calendar / budget / dashboard
   resolve overrides; Vitest + FiHavenCoreChecks + Android `CategoryIconTest`
   / `ScheduleTest` coverage. Docs: `native-contract.md` iconography.
+- **Deps**: `better-sqlite3` ^13.0.1 (`allowScripts`), `plaid` ^44; sync
+  `package-lock.json` / `bun.lock`.
 - **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;
   Android `ListSearchField` + `matchesListSearch` in `SortFilter.kt`; web
   `SortFilterBar` search bind + panel filters (#200).
