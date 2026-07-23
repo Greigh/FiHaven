@@ -455,7 +455,7 @@ light and dark; follow the OS appearance by default.
 - Base body ~15px, line-height ~1.55.
 - Bundle both fonts in each app (don't rely on system availability).
 
-### Iconography & color helpers ([`utils.js`](../client/js/utils.js), [`categoryIcons.js`](../client/js/categoryIcons.js))
+### Iconography & color helpers ([`utils.js`](../client/js/utils.js), [`categoryIcons.js`](../client/js/categoryIcons.js), [`issuerIcons.js`](../client/js/issuerIcons.js))
 - Default category icons: Housing 🏠, Utilities ⚡, Subscriptions 🔁,
   Insurance 🛡️, Loan 🏦, Auto 🚗, Investment 📈, Other 📌. Cards use 💳.
 - Users can override category icons in Settings → Preferences
@@ -464,6 +464,12 @@ light and dark; follow the OS appearance by default.
   `iconInfoForCategory` (native). Overrides may be emoji strings or
   `{ type: "image", value: "data:image/…;base64,…" }` — both web and native
   render custom images (native via `IconMark`).
+- Credit-card issuer icons: `issuerIconInfo(card)` resolves from
+  `card.issuer` (then preset / name). Web bundles Simple Icons SVGs for
+  Chase, Amex, Bank of America, Wells Fargo, Discover, Visa, Mastercard,
+  Apple, PayPal, Robinhood, Target; other issuers (Citi, Capital One, Bilt,
+  …) use emoji stand-ins. Native uses the same emoji map
+  (`IssuerIcons.swift` / `IssuerIcons.kt`).
 - Card accent palette: `#1A6BFF #C0392B #1A7A4A #7B3CC0 #C06010 #007080 #8B5A00`.
 - Currency: `fmt` = `$1,450.00` (2 dp), `fmtShort` = `$1,450` (0 dp),
   `en-US` grouping.

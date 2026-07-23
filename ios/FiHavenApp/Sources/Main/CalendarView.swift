@@ -49,7 +49,7 @@ struct CalendarView: View {
             let amt = c.hasPromo ? max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz)) : c.minPayment
             map[d, default: []].append(DayItem(
                 id: "card-\(c.id)", name: c.name + " (payment)", amount: amt,
-                icon: .emoji(CTConstants.cardIcon), type: "card", refId: String(c.id)))
+                icon: IssuerIcons.iconInfo(for: c), type: "card", refId: String(c.id)))
         }
         return map
     }

@@ -48,6 +48,10 @@ Each release below uses two layers:
   and Android.
 - Custom images render on native too (not web-only); emoji fallbacks stay for
   text contexts when an image is set.
+- **Card issuer icons** — Cards and upcoming payments show Chase, Amex, Bank of
+  America, Wells Fargo, Discover, Visa, Mastercard, Apple, PayPal, Robinhood,
+  Target logos on web; Citi, Capital One, Bilt, and others use recognizable
+  emoji stand-ins. Native uses the same emoji map.
 
 **Dependencies (Jul 23)**
 
@@ -262,6 +266,10 @@ Each release below uses two layers:
   `iconInfoForCategory`; upcoming / bills / calendar / budget / dashboard
   resolve overrides; Vitest + FiHavenCoreChecks + Android `CategoryIconTest`
   / `ScheduleTest` coverage. Docs: `native-contract.md` iconography.
+- **Issuer icons**: web `issuerIcons.js` + `issuerLogos.js` (Simple Icons SVG
+  data URIs); native `IssuerIcons.swift` / `IssuerIcons.kt` emoji parity;
+  Cards list chips + upcoming card rows; Vitest + `IssuerIconChecks` +
+  `IssuerIconsTest`.
 - **Deps**: `better-sqlite3` ^13.0.1 (`allowScripts`), `plaid` ^44; sync
   `package-lock.json` / `bun.lock`.
 - **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;

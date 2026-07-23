@@ -104,7 +104,7 @@ public enum Schedule {
                 type: "card",
                 refId: ref,
                 autopay: c.autopay,
-                icon: .emoji(CTConstants.cardIcon)
+                icon: IssuerIcons.iconInfo(for: c)
             ))
         }
 
