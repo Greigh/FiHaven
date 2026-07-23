@@ -359,12 +359,23 @@ describe('utils — buildUpcomingItems', () => {
     expect(rent.icon).toBe('🏠');
   });
 
-  it('uses the default card glyph for card rows', () => {
+  it('attaches issuer brand icons to card rows', () => {
     setBills([]);
     setCards([{ id: 'C1', name: 'Sapphire', issuer: 'Chase', minPayment: 35, dueDay: 15 }]);
     const item = buildUpcomingItems()[0];
-    expect(item.icon).toBe('💳');
-    expect(item.iconInfo).toEqual({ isImage: false, emoji: '💳' });
+    expect(item.brand.isLogo).toBe(true);
+    expect(item.brand.key).toBe('chase');
+    expect(item.iconInfo.isImage).toBe(true);
+    expect(item.icon).toBe('🔵');
+  });
+
+  it('uses Bilt emoji for Bilt cards without a bundled logo', () => {
+    setBills([]);
+    setCards([{ id: 'C2', name: 'Blue Card', issuer: 'Bilt', minPayment: 10, dueDay: 1 }]);
+    const item = buildUpcomingItems()[0];
+    expect(item.brand.isLogo).toBe(false);
+    expect(item.brand.emoji).toBe('🏠');
+    expect(item.icon).toBe('🏠');
   });
 });
 

@@ -182,7 +182,7 @@ class ScheduleTest {
         assertEquals(1, items.size)
         assertEquals(585.0, items[0].amount, 0.001)
         assertEquals("Chase (payment)", items[0].name)
-        assertEquals(CategoryIcon.Emoji("💳"), items[0].icon)
+        assertEquals(CategoryIcon.Emoji("🔵"), items[0].icon)
     }
 
     @Test fun paidHelpers() {

@@ -13,7 +13,7 @@
     billNotStarted, billEnded, billDueInPeriod,
     categoryIconInfo, categoryIconEmoji,
   } from '../js/utils.js';
-  import { CARD_ICON } from '../js/categoryIcons.js';
+  import { issuerIconMark, issuerEmoji } from '../js/issuerIcons.js';
   import { currentPeriod, shiftPeriod, periodLabel } from '../js/period.js';
   import { openPayModal } from '../js/modals.js';
   import { getBudgetMonthOffset, setBudgetMonthOffset } from '../js/budget.js';
@@ -147,8 +147,8 @@
       if (c.archived) return;
       rs.push({
         type: 'card', refId: String(c.id), name: c.name + ' (payment)',
-        icon: CARD_ICON,
-        iconInfo: { isImage: false, emoji: CARD_ICON },
+        icon: issuerEmoji(c),
+        iconInfo: issuerIconMark(c),
         category: 'Credit Card',
         amount: goalAmountFor('card', String(c.id), mk),
         state: paidState('card', String(c.id), mk),
