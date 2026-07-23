@@ -48,10 +48,12 @@ import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.PaidState
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.model.categoryIcons
+import app.fihaven.core.model.CategoryIcon
 import app.fihaven.ui.theme.Ct
 import kotlin.math.max
 
-private data class DayItem(val name: String, val amount: Double, val icon: String, val type: String, val refId: String)
+private data class DayItem(val name: String, val amount: Double, val icon: CategoryIcon, val type: String, val refId: String)
 
 @Composable
 fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
@@ -74,7 +76,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 val d = first.plusDays((day - 1).toLong())
                 if (BillSchedule.dueOn(b, d, zone)) {
                     map.getOrPut(day) { mutableListOf() }
-                        .add(DayItem(b.name, b.amount, CTConstants.iconForCategory(b.category), "bill", b.id.toString()))
+                        .add(DayItem(b.name, b.amount, CTConstants.iconInfoForCategory(b.category, data.settings.categoryIcons), "bill", b.id.toString()))
                 }
             }
         }
@@ -82,7 +84,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
             c.dueDay?.let { d ->
                 val amt = if (c.hasPromo) max(c.minPayment, Schedule.promoNeeded(c, zone)) else c.minPayment
                 map.getOrPut(d) { mutableListOf() }
-                    .add(DayItem(c.name + " (payment)", amt, CTConstants.cardIcon, "card", c.id.toString()))
+                    .add(DayItem(c.name + " (payment)", amt, CategoryIcon.Emoji(CTConstants.cardIcon), "card", c.id.toString()))
             }
         }
         map
@@ -139,7 +141,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                         },
                                     )
                                 }
-                                Text(it.icon, fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
+                                IconMark(icon = it.icon, size = 18.dp, modifier = Modifier.padding(end = 8.dp))
                                 Text(it.name, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
                                 Text(Money.fmt(it.amount), color = Ct.colors.text, fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium, fontFamily = PlexMono)

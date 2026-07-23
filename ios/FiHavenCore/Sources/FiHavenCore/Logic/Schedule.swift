@@ -12,7 +12,7 @@ public struct UpcomingItem: Equatable, Sendable, Identifiable {
     public var type: String        // "bill" | "card"
     public var refId: String
     public var autopay: Bool
-    public var icon: String
+    public var icon: CategoryIcon
 
     // Stable id for SwiftUI lists.
     public var id: String { "\(type)-\(refId)" }
@@ -46,6 +46,7 @@ public enum Schedule {
         payments: [Payment] = [],
         bounds: PeriodBounds? = nil,
         policy: PaidGoalPolicy = .recommended,
+        categoryIcons: [String: CategoryIcon] = [:],
         now: Date = Date()
     ) -> [UpcomingItem] {
         var items: [UpcomingItem] = []
@@ -73,7 +74,7 @@ public enum Schedule {
                 type: "bill",
                 refId: ref,
                 autopay: b.autopay,
-                icon: CTConstants.icon(forCategory: b.category)
+                icon: CTConstants.iconInfo(forCategory: b.category, overrides: categoryIcons)
             ))
         }
 
@@ -103,7 +104,7 @@ public enum Schedule {
                 type: "card",
                 refId: ref,
                 autopay: c.autopay,
-                icon: CTConstants.cardIcon
+                icon: .emoji(CTConstants.cardIcon)
             ))
         }
 

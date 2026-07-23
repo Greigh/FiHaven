@@ -291,7 +291,11 @@ private struct BillRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Text(CTConstants.icon(forCategory: bill.category)).font(.system(size: 22))
+                IconMark(
+                    icon: CTConstants.iconInfo(forCategory: bill.category, overrides: store.data.settings.categoryIcons),
+                    size: 22,
+                    fallbackEmoji: CTConstants.categoryIcons[bill.category] ?? "📌"
+                )
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(bill.name)

@@ -13,6 +13,12 @@ import {
   billDueOn, nextBillDueDate, daysUntilBillDue, billDueInPeriod,
 } from './billSchedule.js';
 import { brandIconInfo } from './subscriptionIcons.js';
+import {
+  DEFAULT_CATEGORY_ICONS,
+  CARD_ICON,
+  categoryIconInfo,
+  categoryIconEmoji,
+} from './categoryIcons.js';
 
 export {
   nextBillDueDate, daysUntilBillDue, billDueOn, billDueInPeriod,
@@ -21,17 +27,15 @@ export {
 // Re-export the period helpers so components can keep importing from utils.
 export { currentPeriodKey, periodKeyLabel, periodKeyForPayment };
 
+export {
+  categoryIconInfo,
+  categoryIconEmoji,
+  DEFAULT_CATEGORY_ICONS,
+} from './categoryIcons.js';
+
 /* ── Constants ──────────────────────────────────────────── */
-export const ICONS = {
-  Housing:       '🏠',
-  Utilities:     '⚡',
-  Subscriptions: '🔁',
-  Insurance:     '🛡️',
-  Loan:          '🏦',
-  Auto:          '🚗',
-  Investment:    '📈',
-  Other:         '📌',
-};
+/** @deprecated Prefer categoryIconInfo / categoryIconEmoji — kept as the default map. */
+export const ICONS = DEFAULT_CATEGORY_ICONS;
 
 // Spending categories used by the rewards optimizer ("which card should I
 // use?"). Kept in sync with REWARD_CATEGORIES in the native cores.
@@ -485,7 +489,8 @@ export function buildUpcomingItems() {
       type:    'bill',
       refId:   String(b.id),
       autopay: b.autopay,
-      icon:    ICONS[b.category] || '📌',
+      icon:    categoryIconEmoji(b.category),
+      iconInfo: categoryIconInfo(b.category),
       // A recognized brand (Netflix, Spotify…) overrides the category icon.
       brand:   brandIconInfo(b.name),
     });
@@ -507,7 +512,8 @@ export function buildUpcomingItems() {
       type:    'card',
       refId:   String(c.id),
       autopay: c.autopay,
-      icon:    '💳',
+      icon:    CARD_ICON,
+      iconInfo: { isImage: false, emoji: CARD_ICON },
     });
   });
 
