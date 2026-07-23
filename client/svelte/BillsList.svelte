@@ -203,22 +203,18 @@
                 {/if}
                 <div class="card-row-meta">
                   {#if ended}
-                    <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended</span>
-                    {#if b.endDate}<span class="card-row-next">on {shortDate(parseYmd(b.endDate))}</span>{/if}
+                    <span class="badge badge-gray" title="Past its stop date — no longer due or counted">⏹ Ended{#if b.endDate} · {shortDate(parseYmd(b.endDate))}{/if}</span>
                   {:else if notStarted}
                     <span class="badge badge-gray" title="Hasn't started yet — not due or counted until then">Starts {shortDate(parseYmd(b.startDate))}</span>
                   {:else if days !== null}
                     {#if days < 0}
-                      <span class="badge badge-red">{Math.abs(days)}d overdue</span>
+                      <span class="badge badge-red">{Math.abs(days)}d overdue{#if next} · Next {shortDate(next)}{/if}</span>
                     {:else if days === 0}
-                      <span class="badge badge-orange">Due today</span>
+                      <span class="badge badge-orange">Due today{#if next} · {shortDate(next)}{/if}</span>
                     {:else if days <= 5}
-                      <span class="badge badge-orange">Due {days}d</span>
+                      <span class="badge badge-orange">Due {days}d{#if next} · Next {shortDate(next)}{/if}</span>
                     {:else}
-                      <span class="badge badge-gray">Day {b.dueDay}</span>
-                    {/if}
-                    {#if next}
-                      <span class="card-row-next">Next: {shortDate(next)}</span>
+                      <span class="badge badge-gray">Day {b.dueDay}{#if next} · Next {shortDate(next)}{/if}</span>
                     {/if}
                   {/if}
                   <span class="card-row-pill is-muted">{b.category || 'Other'}</span>
