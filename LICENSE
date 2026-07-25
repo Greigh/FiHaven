@@ -1,26 +1,37 @@
-FiHaven Source Available License
-Version 1.0, June 2026
+Greigh Studios Source Available License
+Version 1.0, July 2026
 
-Copyright (c) 2026 Daniel Hipskind. All rights reserved.
+Copyright (c) 2026 Greigh Studios LLC. All rights reserved.
 
-This license governs the FiHaven source code published at
-https://github.com/Greigh/FiHaven (the "Software"). FiHaven is
-**source available**, not open source. Using the hosted service at
-https://fihaven.app is governed separately by the Terms of Use.
+This is the Greigh Studios Source Available License ("License"). It is a
+reusable license used across Greigh Studios projects. The specific project it
+applies to — its source repository and its hosted service — is identified in
+Schedule A at the end of this file. Software under this License is **source
+available**, not open source. Using the hosted service is governed separately
+by that service's Terms of Use.
 
 ────────────────────────────────────────────────────────────────
 1. Definitions
 ────────────────────────────────────────────────────────────────
 
-"Service" means the FiHaven website, API, and official apps operated
-by the copyright holder.
+"Project" means the project identified in Schedule A.
 
-"You" means the individual or legal entity exercising permissions
-granted by this license.
+"Software" means the source code of the Project published in the repository
+identified in Schedule A.
 
-"Production use" means making the Software (or a derivative) available
-to anyone other than yourself for regular use, including operating a
-network service, SaaS, or multi-user hosted instance.
+"Service" means the website, APIs, and any official applications for the
+Project operated by the copyright holder, as identified in Schedule A.
+
+"Content" means the non-code material in the Software, including copy, case
+studies, photographs, screenshots, illustrations, names, logos, and brand
+assets.
+
+"You" means the individual or legal entity exercising permissions granted by
+this License.
+
+"Production use" means making the Software, or a derivative of it, available
+to anyone other than yourself — including publishing it as a public website,
+operating a network service or SaaS, or distributing an application to others.
 
 ────────────────────────────────────────────────────────────────
 2. Permissions
@@ -31,83 +42,122 @@ You may, without a separate agreement:
   (a) View and study the Software for personal, educational, or
       security-research purposes.
 
-  (b) Run the Software locally on your own devices for personal
-      evaluation and development, provided it is not Production use
-      and is not used to circumvent FiHaven Pro entitlements.
+  (b) Run the Software locally on your own devices for personal evaluation
+      and development, provided it is not Production use and is not used to
+      circumvent any paid entitlement of the Service.
 
-  (c) Submit contributions (for example, pull requests) to the
-      official repository. By submitting a contribution, you grant
-      the copyright holder a perpetual, worldwide, royalty-free
-      license to use, modify, and distribute that contribution under
-      this license and any future license the project adopts.
+  (c) Reuse small, generic code portions (for example, a utility function or
+      a configuration snippet) in your own projects, provided you do not
+      reproduce the Project's overall design, structure, or Content.
+
+  (d) Submit contributions (for example, pull requests) to the official
+      repository. By submitting a contribution, you grant the copyright
+      holder a perpetual, worldwide, royalty-free license to use, modify, and
+      distribute that contribution under this License and any future license
+      the Project adopts.
 
 ────────────────────────────────────────────────────────────────
 3. Restrictions
 ────────────────────────────────────────────────────────────────
 
-Unless you have prior written permission from the copyright holder,
-you may not:
+Unless you have prior written permission from the copyright holder, you may
+not:
 
   (a) Use the Software for Production use.
 
-  (b) Offer the Software, or a derivative, as a commercial product
-      or paid service.
+  (b) Publish the Software, or a derivative, as your own website, application,
+      or service, or as that of any other person or organization.
 
-  (c) Remove, disable, or bypass subscription, entitlement, billing,
-      authentication, or rate-limiting mechanisms in any distributed
-      build.
+  (c) Offer the Software, or a derivative, as a commercial product, template,
+      or theme, whether free or paid.
 
-  (d) Sublicense, sell, or redistribute the Software or substantial
-      portions of it, except as part of a contribution merged into
-      the official repository with the copyright holder's acceptance.
+  (d) Sublicense, sell, or redistribute the Software or substantial portions
+      of it, except as part of a contribution merged into the official
+      repository with the copyright holder's acceptance.
 
-  (e) Use the Software to operate a competing hosted bill-tracking
-      or personal-finance service aimed at the general public.
+  (e) Reproduce the Project's distinctive look and feel in a way likely to
+      cause confusion about its source or to suggest affiliation with Greigh
+      Studios LLC.
 
-Personal use of the official Service under its Terms of Use is
-always permitted. This license does not restrict end users of
-fihaven.app.
+  (f) Remove, disable, or bypass any authentication, entitlement, billing, or
+      rate-limiting mechanism present in the Software or the Service.
 
-────────────────────────────────────────────────────────────────
-4. FiHaven Pro
-────────────────────────────────────────────────────────────────
+  (g) Operate the Software, or a derivative, as a service that competes with
+      the Service and is aimed at the general public.
 
-FiHaven Pro features on the hosted Service require a valid
-subscription or grant verified by the Service's servers. Client-side
-changes do not entitle anyone to Pro access on fihaven.app. Attempts
-to circumvent Pro billing on the Service may violate the Terms of
-Use and this license.
+Personal use of the official Service under its Terms of Use is always
+permitted. This License does not restrict end users of the Service.
 
 ────────────────────────────────────────────────────────────────
-5. Third-party components
+4. Brand assets and content
 ────────────────────────────────────────────────────────────────
 
-The Software includes third-party libraries and assets under their
-own licenses (for example Apache-2.0, SIL OFL 1.1, and SDK terms
-from Apple, Google, Plaid, and others). Those components remain
-governed by their respective licenses.
+The Content is proprietary and is NOT licensed for reuse under this License.
+The permissions in Section 2 apply to the source code only.
+
+In particular, the Greigh Studios and Project names, logos, and marks, the
+written copy, and any case-study material or imagery (including third-party
+client work shown as examples) may not be copied, redistributed, or used to
+represent yourself or any other party. This License grants no right to use the
+Greigh Studios or Project name, logo, or branding in a way that suggests
+endorsement or affiliation.
 
 ────────────────────────────────────────────────────────────────
-6. No trademark license
+5. Additional project terms
 ────────────────────────────────────────────────────────────────
 
-This license does not grant permission to use the FiHaven name, logo,
-or branding in a way that suggests endorsement or affiliation.
+Schedule A may state additional terms specific to the Project. Those terms are
+part of this License for that Project and control over the general terms above
+only where they expressly say so.
+
+────────────────────────────────────────────────────────────────
+6. Third-party components
+────────────────────────────────────────────────────────────────
+
+The Software includes third-party libraries and assets under their own
+licenses (for example MIT, Apache-2.0, SIL OFL 1.1, and vendor SDK terms).
+Those components remain governed by their respective licenses. Schedule A may
+list notable examples for the Project.
 
 ────────────────────────────────────────────────────────────────
 7. Disclaimer
 ────────────────────────────────────────────────────────────────
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE
-FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM USE OF THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+FROM USE OF THE SOFTWARE.
 
 ────────────────────────────────────────────────────────────────
 8. Contact
 ────────────────────────────────────────────────────────────────
 
-For commercial licensing, self-hosting permission, or other
-questions: support@fihaven.app
+For commercial licensing, self-hosting or reuse permission, or other
+questions, use the contact address in Schedule A.
+
+════════════════════════════════════════════════════════════════
+Schedule A — Project terms
+════════════════════════════════════════════════════════════════
+
+Project:          FiHaven
+Repository:       https://github.com/Greigh/FiHaven
+Service:          https://fihaven.app (website, API, and official apps)
+Copyright holder: Greigh Studios LLC
+Contact:          support@fihaven.app
+
+Notable third-party components:
+  - Next.js, React (MIT)
+  - Platform and vendor SDKs from Apple, Google, and Plaid (under their
+    respective terms)
+  - Typefaces under SIL OFL 1.1
+
+Additional terms:
+  1. FiHaven Pro. FiHaven Pro features on the Service require a valid
+     subscription or grant verified by the Service's servers. Client-side
+     changes do not entitle anyone to Pro access on fihaven.app. Attempts to
+     circumvent Pro billing or entitlements on the Service may violate the
+     Terms of Use and this License (see Sections 2(b) and 3(f)).
+
+  2. Competing service. For clarity, Section 3(g) includes operating a hosted
+     bill-tracking or personal-finance service aimed at the general public.
