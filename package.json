@@ -2,8 +2,8 @@
   "name": "fihaven",
   "version": "1.6.1",
   "description": "Manual-first personal finance — bills, cards, loans, budget lenses, spending, and debt payoff — with optional bank linking (Plaid), rewards optimizer, and family sharing. Web app plus native iOS and Android clients on a shared Node/SQLite backend with server-side sync and FiHaven Pro subscriptions.",
-  "license": "SEE LICENSE",
-  "author": "Greigh",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Greigh Studios LLC",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Greigh/FiHaven.git"
@@ -55,7 +55,7 @@
     "googleapis": "^173.0.0",
     "nodemailer": "^9.0.3",
     "otpauth": "^9.5.1",
-    "plaid": "^44.0.0",
+    "plaid": "^45.0.0",
     "qrcode": "^1.5.4",
     "stripe": "^22.3.2",
     "web-push": "^3.6.7"
@@ -64,9 +64,9 @@
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@tailwindcss/cli": "^4.3.3",
     "@vitest/coverage-v8": "^4.1.10",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "jsdom": "^29.1.1",
-    "svelte": "^5.56.7",
+    "svelte": "^5.56.8",
     "tailwindcss": "^4.3.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"

@@ -104,7 +104,16 @@ class BillingManager(
     }
 
     fun launchPurchase(activity: Activity, product: ProductDetails) {
-        val offerToken = product.subscriptionOfferDetails?.firstOrNull()?.offerToken ?: return
+        // Monthly and yearly carry a free-trial offer alongside the bare base
+        // plan. Play returns both in an unspecified order, so pick the trial
+        // explicitly — taking whatever came first would silently charge some
+        // users on day one despite the advertised 7-day trial.
+        val offers = product.subscriptionOfferDetails.orEmpty()
+        val offerToken = (
+            offers.firstOrNull { offer ->
+                offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
+            } ?: offers.firstOrNull()
+        )?.offerToken ?: return
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
             .setOfferToken(offerToken)
@@ -151,18 +160,30 @@ class BillingManager(
         const val MONTHLY = "app.fihaven.pro.monthly"
         const val YEARLY = "app.fihaven.pro.yearly"
 
-        /// Family plan. `queryProductDetailsAsync` returns only the ids that
-        /// exist in Play Console, so listing this before the product is live
-        /// simply means it doesn't appear in the paywall.
-        const val FAMILY = "app.fihaven.pro.family"
+        /// Family plan. Note the id is *not* `app.fihaven.pro.family` — Play
+        /// Console was created as `…family.yearly` and product ids can't be
+        /// renamed after the fact, so this is the id of record on Android and
+        /// the server maps both (server/billing.js DEFAULT_PRODUCTS). iOS keeps
+        /// `app.fihaven.pro.family`.
+        ///
+        /// `queryProductDetailsAsync` returns only the ids that exist in Play
+        /// Console, so a missing product simply doesn't appear in the paywall.
+        const val FAMILY = "app.fihaven.pro.family.yearly"
 
-        fun formattedPrice(p: ProductDetails): String? =
+        /// The recurring base-plan phase. A base plan with a free-trial offer
+        /// attached reports *two* pricing phases — the $0.00 trial first, then
+        /// the real one — and Play doesn't guarantee which offer comes first in
+        /// `subscriptionOfferDetails`. Reading `.first()` therefore renders the
+        /// plan as "Free" and sorts it to the top; the last phase is always the
+        /// recurring one, whichever offer got picked.
+        private fun basePhase(p: ProductDetails) =
             p.subscriptionOfferDetails?.firstOrNull()
-                ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
+                ?.pricingPhases?.pricingPhaseList?.lastOrNull()
+
+        fun formattedPrice(p: ProductDetails): String? = basePhase(p)?.formattedPrice
 
         fun period(p: ProductDetails): String? =
-            when (p.subscriptionOfferDetails?.firstOrNull()
-                ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.billingPeriod) {
+            when (basePhase(p)?.billingPeriod) {
                 "P1M" -> "Length: 1 month · auto-renewing"
                 "P1Y" -> "Length: 1 year · auto-renewing"
                 "P1W" -> "Length: 1 week · auto-renewing"
@@ -174,7 +195,6 @@ class BillingManager(
             p.name.ifBlank { period(p)?.substringBefore(" ·") ?: "FiHaven Pro" }
 
         private fun priceMicros(p: ProductDetails): Long =
-            p.subscriptionOfferDetails?.firstOrNull()
-                ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.priceAmountMicros ?: Long.MAX_VALUE
+            basePhase(p)?.priceAmountMicros ?: Long.MAX_VALUE
     }
 }

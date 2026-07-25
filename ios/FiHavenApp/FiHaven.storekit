@@ -34,7 +34,7 @@
           ],
           "displayPrice" : "1.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "D0DB7105-DFBF-49BD-A2C1-4AFB0F699D58",
           "introductoryOffer" : null,
           "localizations" : [
@@ -57,9 +57,9 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "14.99",
+          "displayPrice" : "16.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "22551385-6EDA-465B-BF4E-BADAE5AC5B06",
           "introductoryOffer" : null,
           "localizations" : [
@@ -72,6 +72,31 @@
           "productID" : "app.fihaven.pro.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly",
+          "subscriptionGroupID" : "A8C99221-B614-4C76-8955-D5A145A18624",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "29.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "443CC8AF-8C07-4FFF-987E-DDD4A8258118",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Everything in Pro, plus a shared household of up to three people.",
+              "displayName" : "FiHaven Family (Yearly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "app.fihaven.pro.family",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Family Yearly",
           "subscriptionGroupID" : "A8C99221-B614-4C76-8955-D5A145A18624",
           "type" : "RecurringSubscription"
         }

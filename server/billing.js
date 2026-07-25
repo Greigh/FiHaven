@@ -35,7 +35,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PRODUCTS = {
   'app.fihaven.pro.monthly': { plan: 'monthly', days: 31 },
   'app.fihaven.pro.yearly': { plan: 'yearly', days: 366 },
+  // Family carries two ids: Play Console was created as `…family.yearly`, and
+  // Play product ids are immutable, so both map to the same `family` plan
+  // rather than renaming one store to match the other.
   'app.fihaven.pro.family': { plan: 'family', days: 366 },
+  'app.fihaven.pro.family.yearly': { plan: 'family', days: 366 },
 };
 
 function products() {
@@ -533,10 +537,14 @@ async function createStripeCheckout(user, plan, baseUrl) {
     success_url: `${baseUrl}/settings?pro=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/settings?pro=cancel`,
     metadata: { userId: String(user.id) },
-    // 7-day free trial on every web plan (parity with the App Store / Play
+    // 7-day free trial on the solo Pro plans (parity with the App Store / Play
     // intro offers). Checkout still collects a card up front, so it converts
     // automatically when the trial ends; the webhook treats `trialing` as active.
-    subscription_data: { metadata: { userId: String(user.id) }, trial_period_days: 7 },
+    // Family is deliberately excluded — it has no trial offer on Play either.
+    subscription_data: {
+      metadata: { userId: String(user.id) },
+      ...(plan === 'family' ? {} : { trial_period_days: 7 }),
+    },
   });
   return { url: session.url };
 }
