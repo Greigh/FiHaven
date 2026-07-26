@@ -46,6 +46,7 @@ const cleanUrls = {
       [BASE + '/faq.html']:       BASE + '/faq',
       [BASE + '/pricing.html']:   BASE + '/pricing',
       [BASE + '/security.html']:  BASE + '/security',
+      [BASE + '/refunds.html']:   BASE + '/refunds',
       [BASE + '/contact.html']:   BASE + '/contact',
     };
     server.middlewares.use((req, res, next) => {
@@ -157,6 +158,7 @@ export default defineConfig({
         faq:       clientFile('faq.html'),
         pricing:   clientFile('pricing.html'),
         security:  clientFile('security.html'),
+        refunds:   clientFile('refunds.html'),
         contact:   clientFile('contact.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
