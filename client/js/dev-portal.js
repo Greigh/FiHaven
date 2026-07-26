@@ -33,7 +33,7 @@ function post(path, body) {
 }
 
 var PLAN_LABELS = { trial: 'Trial', monthly: 'Monthly', three_month: '3 months', yearly: 'Yearly' };
-var PROVIDER_LABELS = { stripe: 'Stripe', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code' };
+var PROVIDER_LABELS = { paddle: 'Paddle', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code' };
 
 function refresh() {
   fetch('/api/billing/status')
@@ -73,7 +73,7 @@ document.querySelectorAll('[data-plan]').forEach(btn => {
   btn.addEventListener('click', () => {
     var plan = btn.getAttribute('data-plan');
     setMsg('Changing subscription plan...', false);
-    post('stripe/portal/dev-change', { plan })
+    post('paddle/portal/dev-change', { plan })
       .then(res => {
         if (res.entitlement) {
           setMsg('Subscription plan changed successfully!', false);
@@ -90,7 +90,7 @@ document.querySelectorAll('[data-plan]').forEach(btn => {
 
 cancelBtn.addEventListener('click', () => {
   setMsg('Cancelling subscription...', false);
-  post('stripe/portal/dev-cancel')
+  post('paddle/portal/dev-cancel')
     .then(res => {
       if (res.entitlement) {
         setMsg('Subscription cancelled successfully!', false);

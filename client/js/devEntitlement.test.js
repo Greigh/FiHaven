@@ -13,7 +13,7 @@ import {
 // stored value erased. refreshEntitlement() therefore always asks the server.
 
 const SERVER_FREE = { pro: false, source: 'server', plan: null, expiresAt: null };
-const SERVER_PRO = { pro: true, source: 'stripe', plan: 'annual', expiresAt: Date.now() + 1000 };
+const SERVER_PRO = { pro: true, source: 'paddle', plan: 'annual', expiresAt: Date.now() + 1000 };
 
 // Mock GET /api/billing/status.
 function mockStatus({ admin, ent = SERVER_FREE }) {
@@ -88,7 +88,7 @@ describe('storage — dev entitlement override', () => {
     await setDevEntitlement('off');
     expect(localStorage.getItem('fh_dev_entitlement')).toBe(null);
     expect(fetchSpy).toHaveBeenCalled();
-    expect(entitlement.source).toBe('stripe');
+    expect(entitlement.source).toBe('paddle');
     expect(entitlement.pro).toBe(true);
   });
 

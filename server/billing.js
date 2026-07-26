@@ -68,8 +68,8 @@ function planFor(productId) {
   }
   const p = products()[productId];
   if (p) return p.plan;
-  // Stripe uses price ids rather than the store product ids.
-  return stripePlanForPrice(productId);
+  // Paddle uses price ids (pri_…) rather than the store product ids.
+  return paddlePlanForPrice(productId);
 }
 
 function compDefaultDays(plan) {
@@ -78,18 +78,21 @@ function compDefaultDays(plan) {
     : 31;
 }
 
-// Web (Stripe) plans, driven entirely by which STRIPE_PRICE_* vars are
+// Web (Paddle) plans, driven entirely by which PADDLE_PRICE_* vars are
 // set. `order` controls how they appear on the web paywall; `devDays`
 // is the fallback period used by the local dev-grant. Add a plan here +
 // its env var to offer a new billing interval — no other code changes.
-const STRIPE_PLANS = {
-  trial:       { env: 'STRIPE_PRICE_TRIAL',       label: 'Trial',    order: 0, devDays: 14 },
-  monthly:     { env: 'STRIPE_PRICE_MONTHLY',     label: 'Monthly',  order: 1, devDays: 31 },
-  three_month: { env: 'STRIPE_PRICE_THREE_MONTH', label: '3 months', order: 2, devDays: 92 },
-  yearly:      { env: 'STRIPE_PRICE_YEARLY',      label: 'Yearly',   order: 3, devDays: 366 },
+//
+// The 7-day free trial lives on the Paddle price itself (monthly and yearly
+// carry one; Family deliberately does not), so nothing here configures it.
+const PADDLE_PLANS = {
+  trial:       { env: 'PADDLE_PRICE_TRIAL',       label: 'Trial',    order: 0, devDays: 14 },
+  monthly:     { env: 'PADDLE_PRICE_MONTHLY',     label: 'Monthly',  order: 1, devDays: 31 },
+  three_month: { env: 'PADDLE_PRICE_THREE_MONTH', label: '3 months', order: 2, devDays: 92 },
+  yearly:      { env: 'PADDLE_PRICE_YEARLY',      label: 'Yearly',   order: 3, devDays: 366 },
   // Family plan ($25.99/yr): same Pro features plus a shared household of up
-  // to three people. Only appears once STRIPE_PRICE_FAMILY is set.
-  family:      { env: 'STRIPE_PRICE_FAMILY',      label: 'Family',   order: 4, devDays: 366 },
+  // to three people. Only appears once PADDLE_PRICE_FAMILY is set.
+  family:      { env: 'PADDLE_PRICE_FAMILY',      label: 'Family',   order: 4, devDays: 366 },
 };
 
 // How many people a household can hold, by tier. Individual Pro is a single
@@ -102,27 +105,6 @@ const HOUSEHOLD_MAX_FAMILY = parseInt(process.env.HOUSEHOLD_MAX_FAMILY || '3', 1
 function householdMaxFor(pro, plan) {
   if (!pro) return 0;
   return plan === 'family' ? HOUSEHOLD_MAX_FAMILY : HOUSEHOLD_MAX_PRO;
-}
-
-function stripePriceForPlan(plan) {
-  const p = STRIPE_PLANS[plan];
-  return p ? process.env[p.env] || null : null;
-}
-
-function stripePlanForPrice(priceId) {
-  if (!priceId) return null;
-  for (const [plan, def] of Object.entries(STRIPE_PLANS)) {
-    if (process.env[def.env] && process.env[def.env] === priceId) return plan;
-  }
-  return null;
-}
-
-// Plans that actually have a configured price id, for the web paywall.
-function stripeAvailablePlans() {
-  return Object.entries(STRIPE_PLANS)
-    .filter(([, def]) => !!process.env[def.env])
-    .sort((a, b) => a[1].order - b[1].order)
-    .map(([plan, def]) => ({ plan, label: def.label }));
 }
 
 function verifyMode() {
@@ -469,203 +451,260 @@ function handleGoogleNotification(body) {
   return { ok: true, status };
 }
 
-/* ── Stripe (web checkout) ───────────────────────────────────── */
+/* ── Paddle (web checkout) ───────────────────────────────────────
+   Paddle is the merchant of record for web purchases: it owns the
+   payment, the tax, and the subscription lifecycle, and reports back
+   over webhooks. Entitlement is still ours — a Paddle subscription is
+   just another row in the shared `subscriptions` table, so
+   computeEntitlement treats it exactly like an App Store or Play one. */
 
-let _stripe = null;
-function stripeConfigured() { return !!process.env.STRIPE_SECRET_KEY; }
-function stripePublishableKey() { return process.env.STRIPE_PUBLISHABLE_KEY || null; }
-function stripeClient() {
-  if (!stripeConfigured()) return null;
-  if (!_stripe) _stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-  return _stripe;
+const paddle = require('./paddle');
+
+function paddleConfigured() { return paddle.paddleConfigured(); }
+function paddleClientToken() { return paddle.clientToken(); }
+
+function paddlePriceForPlan(plan) {
+  const p = PADDLE_PLANS[plan];
+  return p ? process.env[p.env] || null : null;
 }
 
-// Upsert a Stripe subscription into the shared subscriptions table.
-function recordStripeSubscription(userId, s) {
+function paddlePlanForPrice(priceId) {
+  if (!priceId) return null;
+  for (const [plan, def] of Object.entries(PADDLE_PLANS)) {
+    if (process.env[def.env] && process.env[def.env] === priceId) return plan;
+  }
+  return null;
+}
+
+/** Plans with a configured price id, for the web paywall. */
+function paddleAvailablePlans() {
+  return Object.entries(PADDLE_PLANS)
+    .filter(([, def]) => !!process.env[def.env])
+    .sort((a, b) => a[1].order - b[1].order)
+    .map(([plan, def]) => ({ plan, label: def.label, priceId: process.env[def.env] }));
+}
+
+// Upsert a Paddle subscription into the shared subscriptions table.
+function recordPaddleSubscription(userId, s) {
   const now = Date.now();
   dbApi.upsertSubscription({
     user_id: userId,
-    platform: 'stripe',
+    platform: 'paddle',
     product_id: s.priceId,
     txn_id: s.subscriptionId,
     status: s.status || 'active',
     expires_at: s.currentPeriodEndMs == null ? null : s.currentPeriodEndMs,
-    environment: s.environment || (stripeConfigured() ? 'Live' : 'Dev'),
-    auto_renew: s.status === 'active' ? 1 : 0,
-    raw: s.raw ? JSON.stringify(s.raw) : null,
+    environment: s.environment || (paddle.environment() === 'sandbox' ? 'Sandbox' : 'Live'),
+    auto_renew: s.autoRenew ? 1 : 0,
+    // The Paddle customer id lives here so the client can pass `pwCustomer`
+    // to Paddle Retain without us adding a column for it.
+    raw: JSON.stringify({ customerId: s.customerId || null, event: s.raw || null }),
     created_at: now,
     updated_at: now,
   });
   return computeEntitlement(userId);
 }
 
-// Create a Checkout Session for `plan` ('monthly'|'yearly'). When Stripe
-// isn't configured (local dev), grant directly (dev-trust) so the web
-// flow is exercisable, returning a same-origin success URL.
-async function createStripeCheckout(user, plan, baseUrl) {
-  const def = STRIPE_PLANS[plan];
+/** The Paddle customer id for this user, from their most recent row. */
+function paddleCustomerIdForUser(userId) {
+  const rows = dbApi.activeSubscriptions(userId).filter((r) => r.platform === 'paddle');
+  for (const row of rows) {
+    try {
+      const parsed = JSON.parse(row.raw || '{}');
+      if (parsed && parsed.customerId) return parsed.customerId;
+    } catch (_) { /* malformed raw is not fatal */ }
+  }
+  return null;
+}
+
+/**
+ * Everything the browser needs to open Paddle Checkout for `plan`.
+ * Paddle.js opens the overlay client-side, so this endpoint exists for
+ * the guard and the dev path rather than to create a session.
+ */
+function createPaddleCheckout(user, plan) {
+  const def = PADDLE_PLANS[plan];
   if (!def) throw new Error('unknown-plan');
-  // BILLING SAFETY: a Checkout Session always *creates* a subscription. Someone
-  // who already has an active Stripe one (solo Pro switching to Family) must go
-  // through the Billing Portal, which swaps the price on the existing
-  // subscription. Without this they'd be charged for both.
-  const hasStripeSub = dbApi.activeSubscriptions(user.id)
-    .some((s) => s.platform === 'stripe');
-  if (hasStripeSub) throw new Error('already-subscribed');
-  const stripe = stripeClient();
-  if (!stripe) {
-    // SECURITY: the dev-grant below skips payment — never allow it in
-    // production. Missing Stripe config there is a hard error, not free Pro.
-    if (process.env.NODE_ENV === 'production') throw new Error('stripe-not-configured');
-    recordStripeSubscription(user.id, {
+
+  // BILLING SAFETY: opening checkout always creates a NEW subscription.
+  // Someone already subscribed (solo Pro moving to Family) must change plan
+  // through the customer portal, or they would be charged for both.
+  const hasPaddleSub = dbApi.activeSubscriptions(user.id)
+    .some((s) => s.platform === 'paddle');
+  if (hasPaddleSub) throw new Error('already-subscribed');
+
+  if (!paddleClientToken()) {
+    // SECURITY: the dev-grant below skips payment entirely — never in
+    // production. Missing config there is a hard error, not free Pro.
+    if (process.env.NODE_ENV === 'production') throw new Error('paddle-not-configured');
+    recordPaddleSubscription(user.id, {
       subscriptionId: 'dev_' + user.id + '_' + Date.now(),
-      priceId: stripePriceForPlan(plan) || ('dev_' + plan),
+      priceId: paddlePriceForPlan(plan) || ('dev_' + plan),
       currentPeriodEndMs: Date.now() + def.devDays * DAY_MS,
       status: 'active',
+      autoRenew: true,
       environment: 'Dev',
     });
-    return { url: `${baseUrl}/settings?pro=success`, devGranted: true };
-  }
-  const price = stripePriceForPlan(plan);
-  if (!price) throw new Error('price-not-configured');
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price, quantity: 1 }],
-    client_reference_id: String(user.id),
-    customer_email: user.email,
-    allow_promotion_codes: true,
-    success_url: `${baseUrl}/settings?pro=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/settings?pro=cancel`,
-    metadata: { userId: String(user.id) },
-    // 7-day free trial on the solo Pro plans (parity with the App Store / Play
-    // intro offers). Checkout still collects a card up front, so it converts
-    // automatically when the trial ends; the webhook treats `trialing` as active.
-    // Family is deliberately excluded — it has no trial offer on Play either.
-    subscription_data: {
-      metadata: { userId: String(user.id) },
-      ...(plan === 'family' ? {} : { trial_period_days: 7 }),
-    },
-  });
-  return { url: session.url };
-}
-
-// True when this user has an active Stripe subscription row and Stripe
-// is configured — the billing portal can open for them.
-function canUseStripePortal(userId) {
-  if (!stripeConfigured()) return false;
-  return dbApi.activeSubscriptions(userId).some((s) => s.platform === 'stripe');
-}
-
-async function stripeCustomerIdForUser(user) {
-  const stripe = stripeClient();
-  if (!stripe) return null;
-
-  // Prefer the customer tied to an active Stripe subscription.
-  const subs = dbApi.activeSubscriptions(user.id).filter((s) => s.platform === 'stripe');
-  for (const row of subs) {
-    try {
-      const sub = await stripe.subscriptions.retrieve(row.txn_id);
-      const customer = sub.customer;
-      if (customer) return typeof customer === 'string' ? customer : customer.id;
-    } catch (err) {
-      // Subscription may have been removed in Stripe; try the next row.
-    }
+    return { devGranted: true };
   }
 
-  const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-  return customers.data[0] ? customers.data[0].id : null;
+  const priceId = paddlePriceForPlan(plan);
+  if (!priceId) throw new Error('price-not-configured');
+  return {
+    priceId,
+    email: user.email,
+    // Echoed back on every webhook for this subscription, which is how a
+    // payment is attributed to an account.
+    customData: { userId: String(user.id) },
+  };
 }
 
-// Stripe Billing Portal so web users can manage/cancel.
-async function createStripePortal(user, baseUrl) {
-  const stripe = stripeClient();
-  if (!stripe) return null;
-  if (!canUseStripePortal(user.id)) return null;
-  const customerId = await stripeCustomerIdForUser(user);
+/** True when this user has an active Paddle subscription to manage. */
+function canUsePaddlePortal(userId) {
+  return dbApi.activeSubscriptions(userId).some((s) => s.platform === 'paddle');
+}
+
+/**
+ * Paddle-hosted customer portal (manage payment method, cancel, change
+ * plan). Returns null when there is nothing to manage.
+ */
+async function createPaddlePortal(user) {
+  if (!paddleConfigured()) return null;
+  if (!canUsePaddlePortal(user.id)) return null;
+  const customerId = paddleCustomerIdForUser(user.id);
   if (!customerId) return null;
-  const session = await stripe.billingPortal.sessions.create({
-    customer: customerId,
-    return_url: `${baseUrl}/settings`,
+  const data = await paddle.api('/customers/' + encodeURIComponent(customerId) + '/portal-sessions', {
+    method: 'POST',
+    body: {},
   });
-  return session.url;
+  return (data && data.urls && data.urls.general && data.urls.general.overview) || null;
 }
 
-function userForStripeSub(subId) {
-  const row = dbApi.findSubscriptionByTxn('stripe', subId);
+function userForPaddleSub(subId) {
+  const row = dbApi.findSubscriptionByTxn('paddle', subId);
   return row ? row.user_id : null;
 }
 
-function upsertFromStripeSub(userId, sub) {
-  const status =
-    sub.status === 'active' || sub.status === 'trialing' ? 'active'
-      : sub.status === 'past_due' || sub.status === 'unpaid' ? 'grace'
-        : 'expired';
-  const priceId = sub.items && sub.items.data && sub.items.data[0]
-    && sub.items.data[0].price && sub.items.data[0].price.id;
-  recordStripeSubscription(userId, {
+// Paddle's status vocabulary → ours. `past_due` keeps access (grace) because
+// a failed card is usually retried successfully; `paused`/`canceled` do not.
+function paddleStatusFor(status) {
+  switch (String(status || '')) {
+    case 'active':
+    case 'trialing':
+      return 'active';
+    case 'past_due':
+      return 'grace';
+    default:
+      return 'expired';
+  }
+}
+
+function msFromIso(iso) {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+// Fold a subscription payload into a subscriptions row.
+function upsertFromPaddleSub(userId, sub) {
+  const status = paddleStatusFor(sub.status);
+  const priceId = sub.items && sub.items[0] && sub.items[0].price && sub.items[0].price.id;
+  const period = sub.current_billing_period || {};
+  // A subscription cancelled mid-period stays `active` at Paddle until the
+  // period ends, with the cancellation in `scheduled_change`. Access should
+  // continue to the paid-through date, but auto-renew must read as off.
+  const scheduledCancel = !!(sub.scheduled_change
+    && String(sub.scheduled_change.action) === 'cancel');
+  recordPaddleSubscription(userId, {
     subscriptionId: sub.id,
     priceId,
-    currentPeriodEndMs: sub.current_period_end ? sub.current_period_end * 1000 : null,
+    customerId: sub.customer_id,
+    currentPeriodEndMs: msFromIso(period.ends_at),
     status,
-    environment: sub.livemode ? 'Live' : 'Test',
+    autoRenew: status === 'active' && !scheduledCancel,
+    environment: paddle.environment() === 'sandbox' ? 'Sandbox' : 'Live',
     raw: sub,
   });
 }
 
-// Verify (when STRIPE_WEBHOOK_SECRET set) and process a Stripe webhook.
-async function handleStripeWebhook(rawBody, signature) {
-  const stripe = stripeClient();
-  if (!stripe) throw new Error('stripe-not-configured');
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  // SECURITY: a forged webhook could grant Pro for free, so production
-  // must verify the signature; only dev may parse an unsigned body.
-  if (!secret && process.env.NODE_ENV === 'production') throw new Error('webhook-secret-required');
-  const event = secret
-    ? stripe.webhooks.constructEvent(rawBody, signature, secret) // throws on bad sig
-    : JSON.parse(rawBody.toString('utf8'));
+// Resolve the FiHaven account a Paddle payload belongs to: the custom_data
+// we set at checkout, else an existing row for this subscription.
+function userIdFromPaddlePayload(data) {
+  const custom = data && data.custom_data;
+  const fromCustom = custom && parseInt(custom.userId, 10);
+  if (fromCustom) return fromCustom;
+  if (data && data.id) {
+    const viaSub = userForPaddleSub(data.id);
+    if (viaSub) return viaSub;
+  }
+  if (data && data.subscription_id) {
+    const viaTxn = userForPaddleSub(data.subscription_id);
+    if (viaTxn) return viaTxn;
+  }
+  return null;
+}
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const s = event.data.object;
-      const userId = parseInt(s.client_reference_id || (s.metadata && s.metadata.userId), 10);
-      if (userId && s.subscription) {
-        const sub = await stripe.subscriptions.retrieve(s.subscription);
-        upsertFromStripeSub(userId, sub);
-      }
+/**
+ * Verify and process a Paddle webhook.
+ *
+ * @param {Buffer} rawBody   exact received bytes (signature covers these)
+ * @param {string} signature the `Paddle-Signature` header
+ */
+async function handlePaddleWebhook(rawBody, signature) {
+  const secret = paddle.webhookSecret();
+  // SECURITY: a forged webhook grants Pro for free. Production must verify;
+  // only local dev may parse an unsigned body.
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') throw new Error('webhook-secret-required');
+  } else if (!paddle.verifyWebhookSignature(rawBody, signature)) {
+    throw new Error('invalid-signature');
+  }
+
+  const event = JSON.parse(rawBody.toString('utf8'));
+  const type = event.event_type || event.eventType;
+  const data = event.data || {};
+
+  switch (type) {
+    case 'subscription.created':
+    case 'subscription.activated':
+    case 'subscription.updated':
+    case 'subscription.resumed':
+    case 'subscription.paused':
+    case 'subscription.past_due':
+    case 'subscription.canceled': {
+      const userId = userIdFromPaddlePayload(data);
+      if (userId) upsertFromPaddleSub(userId, data);
       break;
     }
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted': {
-      const sub = event.data.object;
-      const userId = (sub.metadata && parseInt(sub.metadata.userId, 10)) || userForStripeSub(sub.id);
-      if (userId) upsertFromStripeSub(userId, sub);
-      break;
-    }
-    case 'invoice.paid': {
-      const inv = event.data.object;
-      if (inv.subscription) {
-        const sub = await stripe.subscriptions.retrieve(inv.subscription);
-        const userId = (sub.metadata && parseInt(sub.metadata.userId, 10)) || userForStripeSub(sub.id);
-        if (userId) upsertFromStripeSub(userId, sub);
+    case 'transaction.completed': {
+      // A renewal payment. The subscription object carries the authoritative
+      // period, so fetch it rather than inferring dates from the transaction.
+      const userId = userIdFromPaddlePayload(data);
+      if (userId && data.subscription_id && paddleConfigured()) {
+        try {
+          const sub = await paddle.api('/subscriptions/' + encodeURIComponent(data.subscription_id));
+          if (sub) upsertFromPaddleSub(userId, sub);
+        } catch (err) {
+          console.error('paddle: could not fetch subscription for transaction:', err.message);
+        }
       }
       break;
     }
     default:
       break;
   }
-  return { received: true, type: event.type };
+  return { received: true, type };
 }
 
-// Local dev portal mock operations (only allowed if Stripe not configured or not in production)
+/* ── local dev portal mocks (never reachable in production) ──── */
+
 function devCancelSubscription(userId) {
-  const subs = dbApi.activeSubscriptions(userId);
-  const stripeSubs = subs.filter(s => s.platform === 'stripe');
+  const subs = dbApi.activeSubscriptions(userId).filter((s) => s.platform === 'paddle');
   const now = Date.now();
-  for (const s of stripeSubs) {
+  for (const s of subs) {
     dbApi.upsertSubscription({
       user_id: userId,
-      platform: 'stripe',
+      platform: 'paddle',
       product_id: s.product_id,
       txn_id: s.txn_id,
       status: 'expired',
@@ -681,23 +720,18 @@ function devCancelSubscription(userId) {
 }
 
 function devChangeSubscription(userId, plan) {
-  const def = STRIPE_PLANS[plan];
+  const def = PADDLE_PLANS[plan];
   if (!def) throw new Error('unknown-plan');
-  // First expire any existing stripe subscriptions
   devCancelSubscription(userId);
 
   const now = Date.now();
-  const expiresAt = now + def.devDays * DAY_MS;
-  const txnId = 'dev_' + userId + '_' + now;
-  const productId = stripePriceForPlan(plan) || ('dev_' + plan);
-
   dbApi.upsertSubscription({
     user_id: userId,
-    platform: 'stripe',
-    product_id: productId,
-    txn_id: txnId,
+    platform: 'paddle',
+    product_id: paddlePriceForPlan(plan) || ('dev_' + plan),
+    txn_id: 'dev_' + userId + '_' + now,
     status: 'active',
-    expires_at: expiresAt,
+    expires_at: now + def.devDays * DAY_MS,
     environment: 'Dev',
     auto_renew: 1,
     raw: null,
@@ -722,14 +756,18 @@ module.exports = {
   createPromoCode,
   handleAppleNotification,
   handleGoogleNotification,
-  // Stripe (web)
-  stripeConfigured,
-  stripePublishableKey,
-  stripeAvailablePlans,
-  createStripeCheckout,
-  createStripePortal,
-  canUseStripePortal,
-  handleStripeWebhook,
+  // Paddle (web)
+  paddleConfigured,
+  paddleClientToken,
+  paddleAvailablePlans,
+  paddlePriceForPlan,
+  paddlePlanForPrice,
+  paddleCustomerIdForUser,
+  createPaddleCheckout,
+  createPaddlePortal,
+  canUsePaddlePortal,
+  handlePaddleWebhook,
+  paddleStatusFor,
   devCancelSubscription,
   devChangeSubscription,
 };
