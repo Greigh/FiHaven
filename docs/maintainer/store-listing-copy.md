@@ -88,6 +88,27 @@ If build 10 or later ships publicly on its own, append or substitute:
 FiHaven is now published by Greigh Studios LLC — updated About, Terms of Use, and Privacy Policy. Subscription plan handling is more accurate across web, iOS, and Android.
 ```
 
+### TestFlight — What to Test (1.6.1 build 11)
+
+Build 11 adds card↔bank-account linking. Build 10 (already on TestFlight) was
+the ownership pass — its notes are below.
+
+```
+1. Settings → Bank — make sure a bank is linked (Pro only). Note the accounts listed and the last digits shown for each.
+
+2. Cards → edit any card — there's a new "Linked bank account" row under Network. It only appears once a bank is linked. It should list your credit/loan accounts as "Bank · Account name ····mask".
+
+3. The Amex case — if you hold an Amex, compare the mask in that list against the digits printed on your card. They usually differ, which is exactly why matching by digits alone never worked. Pick the account and save.
+
+4. Balance suggestions — with Settings → Bank → "Suggest balances" on, run a refresh. The suggestion for that account should now land on the card you linked, not on another card and not nowhere.
+
+5. Spending — imported charges from a linked account should show the card name after the date. The card row on the Cards tab should show a "🏦 $x · n charges" pill for the current period.
+
+6. Re-point it — change the card to a different account and save. Its charges and totals should follow immediately; nothing should be stranded on the old account.
+
+7. Leave one card on "Match automatically" and confirm nothing regressed for cards that already matched by digits.
+```
+
 ### TestFlight — What to Test (1.6.1 build 10)
 
 Build 10 is a legal/ownership pass on iOS. The Family SKU and trial fixes in
@@ -220,6 +241,19 @@ Complete IARC questionnaire as a finance/productivity-style app (no social UGC, 
 ### Track progression
 
 Internal testing → closed testing (optional short soak) → **production**.
+
+### Release notes (1.6.1 — versionCode 33)
+
+418 / 500 characters. Play counts every character including newlines, so
+re-count if you edit it.
+
+```
+Link a card to a bank account yourself: open a card and pick the account it is. Balance suggestions and imported charges then follow that card.
+
+Matching is smarter on its own too — it recognizes the bank behind a name (Amex, American Express) and the card's product name, so more cards match without help.
+
+Spending now shows which card a bank charge belongs to, and linked cards show what they've spent this period.
+```
 
 ### Release notes (1.6.1 — versionCode 32)
 
