@@ -21,6 +21,7 @@ export function mountCardEditorDom() {
       <div id="c-feemonth-field"></div>
       <input id="c-lastdigits" />
       <select id="c-network"><option value="">—</option><option value="Visa">Visa</option></select>
+      <div id="c-bank-field"><select id="c-bank-account"><option value="">Match automatically</option></select></div>
       <input id="c-haspromo" type="checkbox" />
       <input id="c-promoapr" />
       <input id="c-promoend" />

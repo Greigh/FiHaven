@@ -142,7 +142,7 @@ function saveAccounts(itemPk, accounts) {
 // enables `settings.plaidUpdateBalances`, sync stores proposals for Current
 // Balance (never Statement Balance). The client Accepts/Declines; resolved
 // fingerprints are not re-proposed until the bank figure changes.
-function applyPlaidBalances(userId, accounts) {
+function applyPlaidBalances(userId, accounts, institutionName) {
   try {
     const data = dbApi.getUserData(userId);
     if (!data) return;
@@ -158,7 +158,9 @@ function applyPlaidBalances(userId, accounts) {
     const resolved = Array.isArray(data.settings.plaidBalanceResolved)
       ? data.settings.plaidBalanceResolved.map((r) => (r && r.fingerprint) || r).filter(Boolean)
       : [];
-    const proposals = balanceProposals(data.cards || [], accounts || [], resolved);
+    const proposals = balanceProposals(data.cards || [], accounts || [], resolved, {
+      institutionName: institutionName || '',
+    });
     const prev = JSON.stringify(data.settings.plaidBalanceProposals || []);
     const next = JSON.stringify(proposals);
     if (prev === next) return;
@@ -248,7 +250,7 @@ async function syncItem(item, userId) {
   const accessToken = plaid.decryptToken(item.access_token_enc);
   const { accounts } = await plaid.getAccounts(accessToken);
   saveAccounts(item.id, accounts);
-  applyPlaidBalances(userId, accounts);
+  applyPlaidBalances(userId, accounts, decField(item.institution_name));
 
   try {
     const sync = await plaid.syncTransactions(accessToken, item.cursor);
@@ -330,7 +332,7 @@ router.post('/item/:id/repaired', requireAuth, requireVerified, requireCsrf, req
     const accessToken = plaid.decryptToken(item.access_token_enc);
     const { accounts } = await plaid.getAccounts(accessToken);
     saveAccounts(item.id, accounts);
-    applyPlaidBalances(req.user.id, accounts);
+    applyPlaidBalances(req.user.id, accounts, decField(item.institution_name));
     try {
       const sync = await plaid.syncTransactions(accessToken, item.cursor);
       mergePlaidTransactions(req.user.id, sync);
@@ -397,7 +399,7 @@ router.post('/link/exchange', requireAuth, requireVerified, requireCsrf, require
       updated_at: now,
     });
     saveAccounts(itemPk, accounts);
-    applyPlaidBalances(req.user.id, accounts);
+    applyPlaidBalances(req.user.id, accounts, institutionName);
 
     // Backfill straight away, so a bank that's linked while the user has
     // already opted in shows its history immediately instead of sitting empty
