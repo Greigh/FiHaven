@@ -1,6 +1,7 @@
 {
   "name": "fihaven",
   "version": "1.6.1",
+  "private": true,
   "description": "Manual-first personal finance — bills, cards, loans, budget lenses, spending, and debt payoff — with optional bank linking (Plaid), rewards optimizer, and family sharing. Web app plus native iOS and Android clients on a shared Node/SQLite backend with server-side sync and FiHaven Pro subscriptions.",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Greigh Studios LLC",
