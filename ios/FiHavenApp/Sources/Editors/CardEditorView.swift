@@ -4,6 +4,7 @@ import FiHavenCore
 /// Add/edit a credit card or loan.
 struct CardEditorView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
 
     let card: Card?
@@ -27,6 +28,11 @@ struct CardEditorView: View {
     @State private var notes = ""
     @State private var lastDigits = ""
     @State private var network = ""
+    /// Plaid account this card is pinned to ("" = match automatically), plus
+    /// the credit/loan accounts available to pick from. Loaded on appear; the
+    /// row stays hidden when the user has no linked bank.
+    @State private var plaidAccountId = ""
+    @State private var bankAccounts: [(id: String, label: String)] = []
 
     @State private var hasPromo = false
     @State private var promoAPR: Double = 0
@@ -70,6 +76,22 @@ struct CardEditorView: View {
                     Picker("Network", selection: $network) {
                         Text("—").tag("")
                         ForEach(["Visa", "Mastercard", "Amex", "Discover", "Other"], id: \.self) { Text($0).tag($0) }
+                    }
+
+                    // Only shown once a bank is linked. Pinning beats digit
+                    // matching, which Amex defeats by reporting the account's
+                    // mask rather than the number printed on the card.
+                    if !bankAccounts.isEmpty || !plaidAccountId.isEmpty {
+                        Picker("Linked bank account", selection: $plaidAccountId) {
+                            Text("Match automatically").tag("")
+                            ForEach(bankAccounts, id: \.id) { Text($0.label).tag($0.id) }
+                            if !plaidAccountId.isEmpty && !bankAccounts.contains(where: { $0.id == plaidAccountId }) {
+                                Text("Previously linked account").tag(plaidAccountId)
+                            }
+                        }
+                        Text("Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.muted)
                     }
                 }
 
@@ -272,6 +294,7 @@ struct CardEditorView: View {
                 }
             }
             .onAppear(perform: load)
+            .task { await loadBankAccounts() }
         }
     }
 
@@ -318,6 +341,23 @@ struct CardEditorView: View {
         return (m >= 1 && m <= 12) ? names[m] : "—"
     }
 
+    /// Credit/loan accounts across every linked bank. A chequing account is
+    /// never a card, so offering one would only invite a nonsense link.
+    /// Failures are silent — the picker simply stays hidden.
+    private func loadBankAccounts() async {
+        guard let status = try? await env.api.plaidStatus() else { return }
+        bankAccounts = status.items.flatMap { item in
+            item.accounts
+                .filter { ["credit", "loan"].contains(($0.type ?? "").lowercased()) }
+                .map { a in
+                    var label = item.institutionName
+                    if let n = a.name, !n.isEmpty { label += " · " + n }
+                    if let m = a.mask, !m.isEmpty { label += " ····" + m }
+                    return (id: a.accountId, label: label)
+                }
+        }
+    }
+
     private func load() {
         guard let card else { type = defaultType; return }
         type = card.type ?? "card"
@@ -335,6 +375,7 @@ struct CardEditorView: View {
         notes = card.notes
         lastDigits = card.lastDigits ?? ""
         network = card.network ?? ""
+        plaidAccountId = card.plaidAccountId ?? ""
         hasPromo = card.hasPromo
         promoAPR = card.promoAPR ?? 0
         promoBalance = card.promoBalance ?? card.balance
@@ -383,6 +424,7 @@ struct CardEditorView: View {
             currentBalance: isLoan ? nil : Double(currentBalance),
             lastDigits: lastDigits.isEmpty ? nil : lastDigits.trimmingCharacters(in: .whitespaces),
             network: network.isEmpty ? nil : network,
+            plaidAccountId: plaidAccountId.isEmpty ? nil : plaidAccountId,
             rewardBase: isLoan ? 0 : rewardBase,
             rewardCategories: isLoan ? [:] : rewardCats.filter { $0.value > 0 },
             rotatingPool: (isLoan || rotatingPool.isEmpty) ? nil : rotatingPool,

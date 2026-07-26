@@ -9,7 +9,7 @@
   (modals, server sync, import) re-render automatically.
 -->
 <script>
-  import { cards, save, settings } from '../js/storage.svelte.js';
+  import { cards, save, settings, transactions } from '../js/storage.svelte.js';
   import {
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded,
@@ -22,11 +22,26 @@
     acceptBalanceProposal,
     declineBalanceProposal,
   } from '../js/plaidBalanceReview.js';
+  import { boundsForKey, paymentInBounds } from '../js/period.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
   import IconMark from './IconMark.svelte';
 
   const mk = currentPeriodKey();
+
+  /* Bank charges this period for a card the user linked to an account.
+     Only linked cards can show this — an unlinked card has no way to know
+     which charges are its own, and guessing would be worse than silence. */
+  const periodBounds = boundsForKey(mk);
+  function cardSpend(card) {
+    if (!card.plaidAccountId) return null;
+    const rows = transactions.filter(
+      (t) => t.accountId && String(t.accountId) === String(card.plaidAccountId)
+        && paymentInBounds(t, periodBounds),
+    );
+    if (!rows.length) return null;
+    return { total: rows.reduce((s, t) => s + (Number(t.amount) || 0), 0), count: rows.length };
+  }
 
   // kind === 'loan' renders the Loans tab; default 'card' renders Credit Cards.
   // Cards and loans share this component (and the editor) but live in separate
@@ -403,6 +418,7 @@
                 {/if}
                 <span class="card-row-pill is-muted" style="color:{aprColor(c.regularAPR)};">{c.regularAPR}% APR</span>
                 {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
+                {#if cardSpend(c)}<span class="card-row-pill is-muted" title="Bank charges imported for this card this period">🏦 {fmt(cardSpend(c).total)} · {cardSpend(c).count} charge{cardSpend(c).count === 1 ? '' : 's'}</span>{/if}
                 {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
                 {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay{#if c.autopayDay} · day {c.autopayDay}{/if}</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
                 {#if c.notes}<span class="card-row-notes">{c.notes}</span>{/if}

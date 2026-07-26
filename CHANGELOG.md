@@ -40,6 +40,25 @@ Each release below uses two layers:
 
 ### Changes
 
+**Cards ↔ bank accounts (Jul 26)**
+
+- **Link a card to a bank account yourself.** The card editor on web, iOS, and
+  Android gained a **Linked bank account** picker. Pick the account a card
+  actually is and FiHaven stops guessing — balance suggestions and imported
+  charges follow the card you chose. American Express needs this: the account
+  number Plaid reports isn't the one printed on the card, so matching by digits
+  was never going to connect them.
+- **Automatic matching got better too.** Beyond the last 4 digits, FiHaven now
+  recognizes the issuer behind a bank's trading name (Amex ↔ American Express,
+  Chase ↔ JPMorgan Chase) and matches the product name — "Gold Card" against
+  "Amex Gold Card". An account with no digits at all can now be matched, which
+  it previously could not.
+- It still refuses to guess: two Amex cards and one Amex account means FiHaven
+  asks instead of picking, and a card you've pinned somewhere is never claimed
+  by something else.
+- **Spending knows which card.** Imported charges show the card they belong to,
+  and a linked card shows what it's spent this period.
+
 **Ownership & licensing (Jul 25)**
 
 - FiHaven is now owned and operated by **Greigh Studios LLC**. The code moves to
@@ -291,10 +310,32 @@ Each release below uses two layers:
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
 - Native builds for this notes pass: iOS **1.6.1 (10)**, Android **1.6.1 (32)**
-  (Jul 25 ownership / licensing + Family SKU and trial fixes; prior: list
-  spacing, icons, deps, list search, paywall, Google Custom Tab).
+  (Jul 26 card↔account linking; Jul 25 ownership / licensing + Family SKU and
+  trial fixes; prior: list spacing, icons, deps, list search, paywall, Google
+  Custom Tab).
 
 ### Technical changelog
+
+- **Card↔account linking**: new `card.plaidAccountId` (iOS `Card.swift`,
+  Android `Models.kt` — fixed structs, so the field had to be added or native
+  sync would strip it) and `transaction.accountId` (`plaidMerge.toLocalTx`
+  stamps Plaid's `account_id`). `plaidBalances.js` replaces the mask-only
+  `cardMatchesMask` gate with `matchCardToAccount`, a three-tier resolver:
+  explicit link → digits (`lastDigits`, Amex 4↔5) → `issuerMatchesInstitution`
+  + `nameOverlaps` (alias table folds Amex/American Express, Chase/JPMorgan,
+  BofA/Bank of America N.A.; stopword list keeps "card"/"credit" from counting
+  as a match). The old `if (!m4) return` bail is gone, so a maskless account is
+  matchable; a card pinned elsewhere is excluded from auto-claiming and a
+  proposal still needs exactly one candidate. `balanceProposals` takes
+  `{ institutionName }`, threaded from the item through `applyPlaidBalances`
+  at all three call sites. Editors: `client/js/plaidAccounts.js` (cached
+  `/api/plaid/status` loader, credit/loan only) + `fillBankAccountPicker` in
+  `modals.js`, `CardEditorView.swift`, `CardsScreen.kt` — each keeps a stale id
+  as a "previously linked" option so opening an editor can't silently drop a
+  link. Attribution is read-time via `cardForTransaction` (`utils.js`), shown
+  per-row in `SpendingPanel.svelte` and as a per-period total pill in
+  `CardsList.svelte`. Tests: matching tiers, merge attribution, and the web
+  helper. Docs: `native-contract.md` §6 Card.
 
 - **Ownership / licensing**: `LICENSE` is the Greigh Studios Source Available
   License v1.0 (Schedule A: repository, service, holder `Greigh Studios LLC`,

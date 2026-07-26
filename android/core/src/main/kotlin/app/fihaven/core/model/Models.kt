@@ -45,6 +45,11 @@ data class Card(
     val currentBalance: Double? = null,
     val lastDigits: String? = null,
     val network: String? = null,        // "Visa" | "Mastercard" | "Amex" | "Discover" | …
+    // Plaid accountId the user pinned this card to in the editor. Set, it beats
+    // digit matching for balance suggestions and claims that account's imported
+    // charges. Amex needs it: the mask Plaid reports is the account's, not the
+    // number printed on the card.
+    val plaidAccountId: String? = null,
     val balance: Double = 0.0, // Statement Balance (Credit Card) or Remaining Principal (Loan)
     val limit: Double = 0.0,
     val minPayment: Double = 0.0,
@@ -190,6 +195,10 @@ data class SpendTransaction(
     val source: String = "manual",
     val plaidId: String? = null,
     val pending: Boolean = false,
+    // Plaid account this charge came from. A card pinned to the same account
+    // claims the row — that's how per-card spending works. Resolved at read
+    // time so re-pointing a card re-attributes its whole history.
+    val accountId: String? = null,
 ) {
     val isBank: Boolean get() = source == "plaid"
 }

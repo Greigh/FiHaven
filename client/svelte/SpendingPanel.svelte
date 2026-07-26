@@ -4,8 +4,8 @@
   budget bars for the current period; recent transactions list.
 -->
 <script>
-  import { transactions, settings, save, entitlement } from '../js/storage.svelte.js';
-  import { fmt, currentPeriodKey } from '../js/utils.js';
+  import { transactions, settings, save, entitlement, cards } from '../js/storage.svelte.js';
+  import { fmt, currentPeriodKey, cardForTransaction } from '../js/utils.js';
 
   // Manual transaction logging is free (manual-first); per-category
   // budgets are the Pro "insight" layer.
@@ -287,6 +287,7 @@
             {t.merchant || t.category}
             {#if t.source === 'plaid'}<span class="spend-tx-bank" title="Imported from your linked bank{t.pending ? ' (pending)' : ''}">🏦{t.pending ? ' pending' : ''}</span>{/if}
             <span class="spend-tx-sub"> · {shortDay(t.date)}</span>
+            {#if cardForTransaction(t, cards)}<span class="spend-tx-sub"> · {cardForTransaction(t, cards).name}</span>{/if}
             {#if t.note}<span class="spend-tx-sub"> · {t.note}</span>{/if}
           </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
