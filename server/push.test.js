@@ -78,6 +78,75 @@ describe('push — sendToUser', () => {
   });
 });
 
+/* The FCM path had no coverage, and that is how a real break shipped:
+   firebase-admin v13 removed the namespaced `admin.messaging()`, so every
+   Android send threw TypeError while init still reported ready. These stub the
+   real module entry points, so importing the wrong one fails the test. */
+describe('push — FCM (Android)', () => {
+  let tmpSaPath;
+
+  beforeEach(() => {
+    clearModule('./push');
+    clearModule('./db');
+    clearModule('firebase-admin/app');
+    clearModule('firebase-admin/messaging');
+    vi.unstubAllEnvs();
+    delete process.env.APNS_KEY_ID;
+    delete process.env.APNS_TEAM_ID;
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+    tmpSaPath = path.join(os.tmpdir(), `fihaven-fcm-test-${Date.now()}.json`);
+    fs.writeFileSync(tmpSaPath, JSON.stringify({ project_id: 'test', client_email: 'a@b.c', private_key: 'k' }));
+    process.env.FCM_SERVICE_ACCOUNT_JSON = tmpSaPath;
+  });
+
+  afterEach(() => {
+    if (tmpSaPath && fs.existsSync(tmpSaPath)) fs.unlinkSync(tmpSaPath);
+    delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+  });
+
+  function stubFirebase(send) {
+    stubModule('firebase-admin/app', {
+      getApps: () => [],
+      initializeApp: vi.fn(),
+      cert: vi.fn((x) => x),
+    });
+    stubModule('firebase-admin/messaging', { getMessaging: () => ({ send }) });
+  }
+
+  it('sends to a registered Android device', async () => {
+    const send = vi.fn(async () => 'projects/test/messages/1');
+    stubFirebase(send);
+    stubModule('./db', { listPushDevices: vi.fn(() => [{ platform: 'android', token: 'tok-1' }]) });
+
+    const push = require('./push');
+    const out = await push.sendToUser(1, { title: 'Bill reminder', body: 'Rent — $1,200.00' });
+
+    expect(out).toEqual({ sent: 1 });
+    expect(send).toHaveBeenCalledWith({
+      token: 'tok-1',
+      notification: { title: 'Bill reminder', body: 'Rent — $1,200.00' },
+    });
+  });
+
+  it('prunes a token FCM reports as unregistered', async () => {
+    const err = new Error('token not registered');
+    err.code = 'messaging/registration-token-not-registered';
+    stubFirebase(vi.fn(async () => { throw err; }));
+    const deletePushDeviceByToken = vi.fn();
+    stubModule('./db', {
+      listPushDevices: vi.fn(() => [{ platform: 'android', token: 'dead-tok' }]),
+      deletePushDeviceByToken,
+    });
+
+    const push = require('./push');
+    const out = await push.sendToUser(1, { title: 'Hi', body: 'There' });
+
+    expect(out).toEqual({ sent: 0 });
+    expect(deletePushDeviceByToken).toHaveBeenCalledWith('dead-tok');
+  });
+});
+
 describe('push — copy helpers', () => {
   beforeEach(() => {
     clearModule('./push');
