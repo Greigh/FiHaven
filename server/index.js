@@ -173,6 +173,7 @@ const LEGACY = {
   '/faq.html':       '/faq',
   '/pricing.html':   '/pricing',
   '/security.html':  '/security',
+  '/refunds.html':   '/refunds',
   '/contact.html':   '/contact',
 };
 sub.get(Object.keys(LEGACY), (req, res) =>

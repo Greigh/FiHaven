@@ -11,6 +11,7 @@ var FOOTER_LINKS = [
   { href: '/login',    label: 'Log In' },
   { href: '/terms',    label: 'Terms' },
   { href: '/privacy',  label: 'Privacy' },
+  { href: '/refunds',  label: 'Refunds' },
 ];
 
 function renderPublicFooter(container) {
