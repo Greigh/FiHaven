@@ -59,10 +59,19 @@ Each release below uses two layers:
 **Refund policy (Jul 26)**
 
 - New **[Refund & Cancellation Policy](https://fihaven.app/refunds)** covering
-  cancellation on each platform, a **3-day refund** on a first web purchase or
-  an accidental renewal, billing errors, and the fact that App Store and Google
-  Play purchases can only be refunded by Apple or Google. Linked from Terms,
-  Pricing, and the site footer.
+  cancellation on each platform, refunds on web purchases, and the fact that
+  App Store and Google Play purchases can only be refunded by Apple or Google.
+  Linked from Terms, Pricing, and the site footer.
+- **Every web charge is refundable in full within 14 days** — first purchase or
+  renewal, any plan, no conditions and no reason required. This replaces the
+  3-day, case-by-case window the policy launched with: Paddle's domain review
+  rejected it for carrying qualifiers and for being shorter than Paddle's own
+  refund policy, which already gives EU/EEA/UK buyers 14 days regardless of
+  what we publish. Billing mistakes are still corrected after the window.
+- Statutory-rights and promo-code sections reworded so neither reads as a
+  carve-out: complimentary Pro has nothing to refund, but a discounted *paid*
+  subscription is refundable on the same 14-day terms as any other.
+- Terms section 5 and the Pricing billing panel restated to match.
 
 **Cards ↔ bank accounts (Jul 26)**
 
