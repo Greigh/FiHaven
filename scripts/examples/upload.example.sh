@@ -22,10 +22,18 @@
 #   pm2 save
 #   # nginx: proxy_pass http://127.0.0.1:5222;
 #
-# Required in .env (repo root, gitignored):
-#   SSH_PASSWORD=<VPS password>
+# Authentication (preferred: SSH keys, no secrets in .env):
+#   ssh-copy-id $SSH_USER@$SSH_HOST     # once, then nothing else is needed
+# Fallback, if the host has no key installed — requires sshpass:
+#   SSH_PASSWORD=<VPS password>         in .env (repo root, gitignored)
+#
+# Either way the deploy authenticates ONCE and multiplexes every later
+# ssh/rsync over that connection (ControlMaster), so server-side throttling
+# can't reject a step mid-run.
+#
 # Optional:
-#   SSH_USER, SSH_HOST, DEPLOY_PATH, REMOTE_RESTART_CMD, BACKUP_RETENTION_DAYS
+#   SSH_KEY (path to a specific private key), SSH_USER, SSH_HOST,
+#   DEPLOY_PATH, REMOTE_RESTART_CMD, BACKUP_RETENTION_DAYS
 #   PUBLIC_ORIGIN (used for post-deploy HTTP check and summary URL)
 
 set -euo pipefail
@@ -59,6 +67,11 @@ log_fail() { echo "❌ $*" >&2; }
 
 cleanup() {
   rm -f "$TMP_ENV"
+  # Close the shared SSH connection instead of leaving it idling until
+  # ControlPersist expires.
+  if [ -n "${SSH_TARGET:-}" ] && [ -n "${SSH_OPTS:-}" ]; then
+    ssh $SSH_OPTS -O exit "$SSH_TARGET" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -90,10 +103,8 @@ apply_defaults() {
   BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
   REMOTE_RESTART_CMD="${REMOTE_RESTART_CMD:-pm2 restart fihaven --update-env || pm2 start server/index.js --name fihaven --update-env}"
 
-  if [ -z "${SSH_PASSWORD:-}" ]; then
-    log_fail "SSH_PASSWORD not set in .env"
-    exit 1
-  fi
+  # SSH_PASSWORD is no longer required up front — setup_ssh_auth only asks for
+  # it when key auth isn't available.
 }
 
 sanity_check_repo() {
@@ -105,20 +116,69 @@ sanity_check_repo() {
 
 # ─── SSH / rsync ─────────────────────────────────────────────────
 
+# A deploy runs a dozen-odd remote steps (backup, mkdir, rsyncs, chmods,
+# npm/PM2, verify). Each one used to open its own connection and authenticate
+# from scratch, so any server-side throttling — pam_faillock, fail2ban,
+# OpenSSH PerSourcePenalties — could reject one at random and the deploy died
+# at a different step every time ("Permission denied, please try again" with a
+# password that is in fact correct).
+#
+# Now: authenticate ONCE, then multiplex every later ssh/rsync over that one
+# connection via ControlMaster. Keys are preferred; sshpass stays as a
+# fallback so an unconfigured host still deploys.
 setup_ssh_auth() {
   log_step "SSH authentication"
-  if ! command -v sshpass >/dev/null 2>&1; then
-    log_fail "sshpass not found — install with: brew install hudochenkov/sshpass/sshpass"
-    exit 1
-  fi
-  export SSHPASS="$SSH_PASSWORD"
-  SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+
   SSH_TARGET="$SSH_USER@$SSH_HOST"
-  SSH_CMD=(sshpass -e ssh $SSH_OPTS "$SSH_TARGET")
-  RSYNC_BASE=(sshpass -e rsync -az --stats
-              -e "ssh $SSH_OPTS"
+
+  local control_dir="${HOME}/.ssh/cm"
+  mkdir -p "$control_dir"
+  chmod 700 "$control_dir"
+
+  # %C is a short hash of (host, port, user) — keeps the socket path well under
+  # the ~104-char limit for unix sockets.
+  SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+  SSH_OPTS="$SSH_OPTS -o ControlMaster=auto -o ControlPath=${control_dir}/%C -o ControlPersist=5m"
+  if [ -n "${SSH_KEY:-}" ]; then
+    SSH_OPTS="$SSH_OPTS -o IdentitiesOnly=yes -i ${SSH_KEY}"
+  fi
+
+  # BatchMode makes the probe fail fast instead of dropping to an interactive
+  # password prompt. On success this connection becomes the shared master.
+  if ssh $SSH_OPTS -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" true 2>/dev/null; then
+    log_ok "Key auth → $SSH_TARGET (single multiplexed connection)"
+  else
+    if ! command -v sshpass >/dev/null 2>&1; then
+      log_fail "No SSH key on $SSH_TARGET and sshpass not found."
+      log_fail "  Preferred:  ssh-copy-id $SSH_TARGET"
+      log_fail "  Or:         brew install hudochenkov/sshpass/sshpass"
+      exit 1
+    fi
+    if [ -z "${SSH_PASSWORD:-}" ]; then
+      log_fail "No SSH key on $SSH_TARGET and SSH_PASSWORD not set in .env."
+      log_fail "  Fix once with: ssh-copy-id $SSH_TARGET"
+      exit 1
+    fi
+    export SSHPASS="$SSH_PASSWORD"
+    # -f backgrounds ssh once authenticated, so sshpass exits cleanly and the
+    # master survives to serve every later step.
+    if ! sshpass -e ssh $SSH_OPTS -N -f "$SSH_TARGET"; then
+      log_fail "Password auth to $SSH_TARGET failed."
+      log_fail "  If the password is correct, the server may be throttling logins"
+      log_fail "  (pam_faillock / fail2ban). Check: ssh $SSH_TARGET 'tail -50 /var/log/auth.log'"
+      exit 1
+    fi
+    log_warn "Password auth (sshpass) → $SSH_TARGET — one connection, then multiplexed."
+    log_warn "  Switch to keys and drop SSH_PASSWORD from .env: ssh-copy-id $SSH_TARGET"
+  fi
+
+  # Every later step rides the master. BatchMode means that if the master dies
+  # mid-deploy they fail loudly instead of hanging on an invisible prompt.
+  local run_opts="$SSH_OPTS -o BatchMode=yes"
+  SSH_CMD=(ssh $run_opts "$SSH_TARGET")
+  RSYNC_BASE=(rsync -az --stats
+              -e "ssh $run_opts"
               --exclude '.DS_Store')
-  log_ok "Password auth → $SSH_TARGET"
 }
 
 remote_exec() {
@@ -338,7 +398,19 @@ EOF
 verify_deployment() {
   log_step "Verify deployment"
 
-  if remote_exec "pm2 status 2>/dev/null | grep -q online"; then
+  # An unreachable server and a dead app are different failures. Conflating
+  # them reported a perfectly healthy PM2 as offline whenever the SSH step
+  # itself failed. ssh exits 255 on its own transport/auth errors (a remote
+  # command exiting 255 is indistinguishable, but pm2/grep never do).
+  local pm2_out pm2_rc=0
+  pm2_out=$(remote_exec "pm2 status 2>/dev/null") || pm2_rc=$?
+  if [ "$pm2_rc" -eq 255 ]; then
+    log_fail "Could not reach $SSH_TARGET — deployment NOT verified."
+    log_fail "  This says nothing about the app; it may well be running."
+    log_fail "  Check by hand: ssh $SSH_TARGET 'pm2 status'"
+    return 1
+  fi
+  if printf '%s' "$pm2_out" | grep -q online; then
     log_ok "PM2 process online"
   else
     log_fail "PM2 process not online"
