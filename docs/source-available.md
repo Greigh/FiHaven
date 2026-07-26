@@ -1,8 +1,15 @@
 # FiHaven source available (not open source)
 
-FiHaven publishes its source on GitHub for **transparency and trust** —
-especially for a personal-finance app — but it is **not** open source in
-the “use it however you want” sense.
+FiHaven is owned and operated by **Greigh Studios LLC**. It publishes its
+source on GitHub for **transparency and trust** — especially for a
+personal-finance app — but it is **not** open source in the “use it however
+you want” sense.
+
+The code is licensed under the **Greigh Studios Source Available License
+v1.0** ([`LICENSE`](../LICENSE)), the house license used across Greigh
+Studios projects. Project-specific terms — repository, service, copyright
+holder, contact, and the FiHaven Pro / competing-service clauses — live in
+**Schedule A** at the end of that file.
 
 | | **Open source (e.g. MIT, AGPL)** | **FiHaven (source available)** |
 |---|----------------------------------|--------------------------------|
@@ -14,8 +21,10 @@ the “use it however you want” sense.
 
 ## What protects the product
 
-1. **This license** ([`LICENSE`](../LICENSE)) — no production hosting or
-   commercial redistribution without permission.
+1. **The license** ([`LICENSE`](../LICENSE)) — no production hosting or
+   commercial redistribution without written permission from Greigh Studios
+   LLC. Section 4 also keeps the FiHaven and Greigh Studios names, logos,
+   copy, and brand assets out of the code grant entirely.
 2. **Terms of Use** ([`client/terms.html`](../client/terms.html)) —
    account abuse, API misuse, and circumventing Pro on the hosted service.
 3. **Server-side entitlements** — Pro features that matter (Plaid, household
@@ -34,8 +43,10 @@ the “use it however you want” sense.
 - Operating FiHaven (or a fork) as a service for others
 - Commercial use of the codebase
 - Redistribution of modified builds
+- Any use of the FiHaven or Greigh Studios names, logos, or brand assets
 
-Contact: **security@fihaven.app**
+Licensing contact: **support@fihaven.app** (per Schedule A).
+Security reports still go to **security@fihaven.app**.
 
 ## For app users
 

@@ -2,9 +2,10 @@
 
 | | |
 |---|---|
-| **Owner** | Daniel Hipskind (FiHaven) — acting Security Officer |
+| **Owner** | Greigh Studios LLC — Daniel Hipskind, acting Security Officer |
+| **Operating entity** | Greigh Studios LLC (Michigan, United States), owner of FiHaven |
 | **Security contact** | security@fihaven.app |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Effective date** | 2026-06-08 |
 | **Review cadence** | At least annually and on any material change to systems or roles |
 
@@ -95,3 +96,4 @@ Compliance with this policy is mandatory for everyone in scope. Exceptions requi
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-06-08 | Initial documented access control policy. |
+| 1.1 | 2026-07-25 | Ownership transferred to Greigh Studios LLC; owner and operating entity rows updated. |
