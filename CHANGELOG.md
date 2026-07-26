@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (11) - On TestFlight testing (10 shipped the ownership pass) |
-| **Android** | 1.6.1 (versionCode 33) - On Closed Play Store Alpha Testing (32 shipped the Family SKU fixes) |
+| **iOS** | 1.6.1 (12) - On TestFlight testing (11 added card↔bank linking, 10 shipped the ownership pass) |
+| **Android** | 1.6.1 (versionCode 35) - On Closed Play Store Alpha Testing (34 carried card↔bank linking, 32 the Family SKU fixes) |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -39,6 +39,29 @@ Each release below uses two layers:
 > shows plan length, price, and Privacy / Terms links.
 
 ### Changes
+
+**Push notifications fixed (Jul 26)**
+
+- **Android push notifications work again.** Every server-sent notification —
+  bill reminders included — had been failing to deliver. `firebase-admin` moved
+  its messaging entry point in v13, so the send call threw on every attempt
+  while push still reported itself as configured. Nothing surfaced it: the
+  error was caught, logged to stderr, and the code path had no test coverage.
+  Fixed, and covered by tests that fail against the old call.
+- **Turning notifications off now takes effect.** Both apps only remembered the
+  registered device token in memory, so after restarting the app the switch had
+  nothing to unregister — the device stayed subscribed and notifications kept
+  arriving. The token is now stored on the device, so switching push off retires
+  what the server actually holds.
+- **Devices no longer pile up.** The same in-memory gap meant a token reissued
+  by the OS (reinstall, restore to a new phone, clearing app data) never
+  retired its predecessor; one account had accumulated 12 Android registrations,
+  11 of them dead. Old tokens are now retired as they are replaced, and the
+  server prunes any the push service reports as gone.
+- iOS remote push additionally needs the Push Notifications capability on the
+  App ID and an `aps-environment` entitlement, which the app does not yet carry
+  — no iOS device has ever been able to register. Web push was unaffected and
+  is working.
 
 **Web billing moves to Paddle (Jul 26)**
 
