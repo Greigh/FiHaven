@@ -140,7 +140,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val api = ApiClient(ApiConfig(BuildConfig.API_BASE), tokens)
 
     init {
-        PushRegistrar.configure(api)
+        PushRegistrar.configure(app, api)
     }
 
     private val _session = MutableStateFlow<Session>(Session.Loading)

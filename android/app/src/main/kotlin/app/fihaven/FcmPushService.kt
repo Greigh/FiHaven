@@ -12,7 +12,7 @@ class FcmPushService : FirebaseMessagingService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onNewToken(token: String) {
-        scope.launch { PushRegistrar.onNewToken(token) }
+        scope.launch { PushRegistrar.onNewToken(this@FcmPushService, token) }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
