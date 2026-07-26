@@ -75,9 +75,40 @@ bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 
 ### What's New (1.6.1)
 
+Covers the 1.6.1 version as a whole — use this if the version goes to public
+review. Build-level notes for testers are in the TestFlight section below.
+
 ```
 Search on Bills, Cards, Loans, Subscriptions & Spending. Clearer Pro paywall with plan length, price, and Privacy & Terms links. Refreshed onboarding with Back, Change goals, and archive instead of delete. Smoother Spending & Family screens.
 ```
+
+If build 10 or later ships publicly on its own, append or substitute:
+
+```
+FiHaven is now published by Greigh Studios LLC — updated About, Terms of Use, and Privacy Policy. Subscription plan handling is more accurate across web, iOS, and Android.
+```
+
+### TestFlight — What to Test (1.6.1 build 10)
+
+Build 10 is a legal/ownership pass on iOS. The Family SKU and trial fixes in
+this train are **Android and web**; the iOS binary change is the About screen.
+
+```
+1. Settings → About — version reads 1.6.1 (10). License row says "Source available" and opens the Greigh Studios Source Available License. Footer reads © 2026 Greigh Studios LLC. Privacy Policy and Terms of Use both open on fihaven.app.
+
+2. Terms and Privacy — both now name Greigh Studios LLC as the provider of the service and the controller of your data. Nothing about what is collected or stored changed. Skim for anything that still reads wrong.
+
+3. Paywall — plan names, prices, and length labels still correct; Privacy and Terms links still work. In Apple's purchase sheet, monthly and yearly should offer the 7-day free trial and Family should offer none (Family bills right away, same as on Play).
+
+4. Upgrade path — if you already hold monthly or yearly Pro, tap Upgrade to Family. It should switch immediately, not at the end of your paid period. Report if it defers.
+
+5. Sanity — sign in, sync bills and cards, mark a payment paid, confirm nothing regressed from build 8.
+```
+
+**Before uploading build 10:** Family must rank above Monthly/Yearly in the
+subscription group in App Store Connect (level 1 vs 2), or test 4 fails no
+matter what the build does. `FiHaven.storekit` mirrors that ranking for local
+testing only.
 
 ### In-App Purchases (attach to version)
 
@@ -85,7 +116,7 @@ Search on Bills, Cards, Loans, Subscriptions & Spending. Clearer Pro paywall wit
 |---|---|
 | `app.fihaven.pro.monthly` | Auto-renewable |
 | `app.fihaven.pro.yearly` | Auto-renewable |
-| `app.fihaven.pro.family` | Auto-renewable (if offered) |
+| `app.fihaven.pro.family` | Auto-renewable (if offered) — iOS id only; Play uses `app.fihaven.pro.family.yearly` |
 
 ### App Privacy (summary)
 
@@ -179,7 +210,7 @@ Complete IARC questionnaire as a finance/productivity-style app (no social UGC, 
 |---|---|
 | `app.fihaven.pro.monthly` | Must match server `server/billing.js` map |
 | `app.fihaven.pro.yearly` | Same |
-| `app.fihaven.pro.family` | If offered on Play |
+| `app.fihaven.pro.family.yearly` | **Not** `app.fihaven.pro.family` — Play Console was created with the `.yearly` suffix and product ids can't be renamed. iOS keeps `app.fihaven.pro.family`; `server/billing.js` maps both. |
 
 ### Assets
 
@@ -189,6 +220,26 @@ Complete IARC questionnaire as a finance/productivity-style app (no social UGC, 
 ### Track progression
 
 Internal testing → closed testing (optional short soak) → **production**.
+
+### Release notes (1.6.1 — versionCode 32)
+
+410 / 500 characters. Play counts every character including newlines, so
+re-count if you edit it.
+
+```
+Family plan now shows up in the paywall — the Play product ID didn't match what the app asked for, so it was hidden.
+
+Plan prices no longer read "Free" when a trial offer is attached, and the 7-day free trial is actually applied at checkout instead of charging on day one.
+
+The trial is on monthly and yearly Pro; Family bills right away.
+
+FiHaven is now published by Greigh Studios LLC. See Settings > About.
+```
+
+**Before uploading versionCode 32:** confirm in Play Console that the Family
+product really is `app.fihaven.pro.family.yearly` and that its base plan has
+**no** trial offer attached — otherwise the first two lines above aren't true
+for testers.
 
 ### Release notes (1.6.0)
 
