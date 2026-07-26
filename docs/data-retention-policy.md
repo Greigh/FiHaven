@@ -38,7 +38,7 @@ This policy defines how long FiHaven retains the data it holds, how that data is
 | **MFA secrets** (encrypted TOTP seeds, passkey records, backup codes) | While the factor is enrolled | Deleted when the factor is removed or the account is deleted |
 | **Login sessions** | Until expiry, logout, or revocation | Expired sessions are purged automatically; changing a password revokes a user's other sessions |
 | **Single-use email tokens** (verify email, password reset, 2FA recovery) | Until used or expired (minutes–24h); stored only as a SHA-256 hash | Invalidated on use/expiry and purged |
-| **Subscription reference** (Stripe customer/subscription ID or store purchase identifier; status) | While the account is open | Deleted on account deletion (billing records retained by the processor per its own policy) |
+| **Subscription reference** (Paddle customer/subscription ID or store purchase identifier; status) | While the account is open | Deleted on account deletion (billing records retained by the processor per its own policy) |
 | **Security/operational logs** (app, PM2, nginx) | Short operational window, then rotated/aged out | Rotated and discarded on a defined cycle; contain no Restricted data |
 | **Backups** | Aged out on a defined cycle | Old backups are securely destroyed when superseded |
 

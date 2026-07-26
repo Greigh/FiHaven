@@ -1,18 +1,21 @@
 /* ═══════════════════════════════════════════════════════════
    pro.js — FiHaven Pro overlay, opened from the appbar menu
    (and from the in-app Pro nudge). Holds the whole subscription
-   flow: status, Stripe checkout, manage portal, and promo
+   flow: status, Paddle checkout, manage portal, and promo
    redemption. Entitlement is server-authoritative — this UI just
    reads /api/billing/status and kicks off checkout/portal.
 
-   Moved here (out of the Settings page) so Pro lives in the menu
-   on every authed page. Importing this module also wires the
-   Stripe Checkout return handler, so landing back on any page
-   with ?pro=success|cancel pops the dialog with the result.
+   Paddle is the merchant of record and opens checkout as an OVERLAY
+   rather than a redirect, so a successful purchase never leaves the
+   page: the `checkout.completed` callback polls until the webhook has
+   granted entitlement. The ?pro= return handler is kept for the portal
+   round-trip and the onboarding hand-off.
 ═══════════════════════════════════════════════════════════ */
 
 var overlay = null;
-var lastBilling = { stripePortal: false, plans: null };
+var lastBilling = { paddlePortal: false, plans: null };
+var paddleReady = null;    // Promise, resolved once Paddle.js is initialized
+var paddleConfig = null;   // { clientToken, environment, plans }
 
 function billingNote(ent) {
   if (!ent || !ent.pro) return '';
@@ -27,9 +30,9 @@ function billingNote(ent) {
 
 function portalError(code, ent) {
   switch (code) {
-    case 'not-stripe-subscriber': return billingNote(ent) || 'No Stripe subscription is linked to this account.';
+    case 'not-paddle-subscriber': return billingNote(ent) || 'No web subscription is linked to this account.';
     case 'portal-customer-missing':
-      return 'We couldn’t find your Stripe billing profile. Contact support if this persists.';
+      return 'We couldn’t find your billing profile. Contact support if this persists.';
     case 'portal-failed':
       return 'The billing portal couldn’t be opened. Please try again.';
     default:
@@ -64,7 +67,7 @@ function toResult(r) {
     .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
 }
 
-// `family` matters here: billing.js issues plan:'family' for both the Stripe
+// `family` matters here: billing.js issues plan:'family' for both the Paddle
 // Family price and the app.fihaven.pro.family IAP, and without a label a Family
 // subscriber falls through to a bare "Pro".
 var PLAN_LABELS = {
@@ -190,7 +193,8 @@ function hide() { if (overlay) overlay.style.display = 'none'; }
 /* ── Status + plans + actions ─────────────────────────────── */
 function render(ent, billingMeta) {
   if (billingMeta) {
-    lastBilling.stripePortal = !!billingMeta.stripePortal;
+    lastBilling.paddlePortal = !!billingMeta.paddlePortal;
+    if (billingMeta.paddleCustomerId) lastBilling.paddleCustomerId = billingMeta.paddleCustomerId;
     if (billingMeta.entitlement !== undefined) lastBilling.entitlement = billingMeta.entitlement;
   }
   if (ent) lastBilling.entitlement = ent;
@@ -201,16 +205,16 @@ function render(ent, billingMeta) {
   var billingNoteEl = overlay.querySelector('[data-pro-billing-note]');
 
   var isPro = !!(ent && ent.pro);
-  var canManageStripe = !!(isPro && lastBilling.stripePortal);
+  var canManageSub = !!(isPro && lastBilling.paddlePortal);
 
   // renderPlans decides visibility now: hidden only for Family subscribers,
   // who have nothing left to upgrade to. Solo Pro still gets the Family row.
   if (upgradeWrap) renderPlans();
   if (manageWrap) {
-    manageWrap.style.display = canManageStripe ? 'block' : 'none';
+    manageWrap.style.display = canManageSub ? 'block' : 'none';
   }
   if (billingNoteEl) {
-    var note = isPro && !canManageStripe ? billingNote(ent) : '';
+    var note = isPro && !canManageSub ? billingNote(ent) : '';
     billingNoteEl.textContent = note;
     billingNoteEl.hidden = !note;
   }
@@ -223,7 +227,7 @@ function render(ent, billingMeta) {
 
       var providerEl = detailsCard.querySelector('[data-pro-provider]');
       var providerRow = detailsCard.querySelector('[data-pro-provider-row]');
-      var providers = { stripe: 'Stripe', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code', comp: 'Complimentary' };
+      var providers = { paddle: 'Paddle', apple: 'App Store (iOS)', google: 'Play Store (Android)', promo: 'Promo Code', comp: 'Complimentary' };
       var providerName = providers[ent.source] || (ent.source ? ent.source.charAt(0).toUpperCase() + ent.source.slice(1) : '');
       if (providerName) {
         providerEl.textContent = providerName;
@@ -260,20 +264,26 @@ function render(ent, billingMeta) {
 function refresh() {
   return billingFetch('status').then(function (res) {
     if (res.ok && res.data) {
-      render(res.data.entitlement, { stripePortal: !!res.data.stripePortal });
+      render(res.data.entitlement, {
+        paddlePortal: !!res.data.paddlePortal,
+        paddleCustomerId: res.data.paddleCustomerId,
+      });
     }
   }).catch(function () { /* leave default */ });
 }
 
-// After a successful checkout, Stripe redirects us back before its
-// `checkout.session.completed` webhook has necessarily landed, so the first
-// status read can still say Free. Poll a few times until Pro shows up (or we
-// give up) so the UI reflects the new subscription without a manual reload.
+// Paddle's overlay closes as soon as payment succeeds, which is usually
+// BEFORE its `subscription.created` webhook reaches us — so the first status
+// read can still say Free. Poll a few times until Pro shows up (or we give
+// up) so the UI reflects the new subscription without a manual reload.
 function pollUntilPro(attempt) {
   attempt = attempt || 0;
   return billingFetch('status').then(function (res) {
     var ent = res.ok && res.data ? res.data.entitlement : null;
-    if (ent) render(ent, { stripePortal: !!(res.data && res.data.stripePortal) });
+    if (ent) render(ent, {
+      paddlePortal: !!(res.data && res.data.paddlePortal),
+      paddleCustomerId: res.data && res.data.paddleCustomerId,
+    });
     if (ent && ent.pro) return true;
     if (attempt >= 5) return false;
     return new Promise(function (resolve) {
@@ -282,26 +292,97 @@ function pollUntilPro(attempt) {
   }).catch(function () { return false; });
 }
 
+/* ── Paddle.js ────────────────────────────────────────────── */
+
+// Load Paddle.js on demand and initialize it once. The client-side token is
+// public by design (it ships in the bundle); nothing secret passes through
+// here. `pwCustomer` powers Paddle Retain and MUST be the Paddle customer id
+// — an internal id or an email silently disables Retain's dunning flows.
+function loadPaddle() {
+  if (paddleReady) return paddleReady;
+  paddleReady = new Promise(function (resolve, reject) {
+    if (!paddleConfig || !paddleConfig.clientToken) { reject(new Error('not-configured')); return; }
+    function init() {
+      var opts = { token: paddleConfig.clientToken };
+      // Live is Paddle.js's default; only sandbox needs saying out loud.
+      if (paddleConfig.environment === 'sandbox') opts.environment = 'sandbox';
+      if (lastBilling.paddleCustomerId) opts.pwCustomer = { id: lastBilling.paddleCustomerId };
+      // The overlay closes on success without navigating anywhere, so this is
+      // the only signal that a purchase happened. Entitlement still comes from
+      // the webhook — we just poll until it lands rather than trusting the
+      // client, which could otherwise be spoofed into showing Pro.
+      opts.eventCallback = function (ev) {
+        if (!ev || ev.name !== 'checkout.completed') return;
+        setMsg('Thanks! Confirming your Pro subscription…', false);
+        pollUntilPro().then(function (active) {
+          setMsg(
+            active
+              ? 'Your Pro subscription is now active.'
+              : 'Payment received — your Pro access will activate shortly. Refresh in a moment if it hasn’t.',
+            !active
+          );
+        });
+      };
+      try { window.Paddle.Initialize(opts); resolve(window.Paddle); }
+      catch (err) { reject(err); }
+    }
+    if (window.Paddle) { init(); return; }
+    var el = document.createElement('script');
+    el.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+    el.async = true;
+    el.onload = init;
+    el.onerror = function () { reject(new Error('paddle-js-failed')); };
+    document.head.appendChild(el);
+  }).catch(function (err) {
+    paddleReady = null;   // let a later attempt retry rather than stay broken
+    throw err;
+  });
+  return paddleReady;
+}
+
 function startCheckout(plan, btn) {
   btn.disabled = true;
-  setMsg('Redirecting to checkout…', false);
-  billingFetch('stripe/checkout', 'POST', { plan: plan }).then(function (res) {
-    if (res.ok && res.data && res.data.url) {
-      window.location.assign(res.data.url);
-    } else {
+  setMsg('Opening checkout…', false);
+  billingFetch('paddle/checkout', 'POST', { plan: plan }).then(function (res) {
+    if (!res.ok || !res.data) {
       btn.disabled = false;
       setMsg(res.status === 409
         ? 'You already have a subscription — use Manage subscription to change plans.'
         : 'Could not start checkout. Please try again.', true);
+      return;
     }
+    // Local dev with no Paddle configured: the server granted Pro directly.
+    if (res.data.devGranted) {
+      btn.disabled = false;
+      setMsg('Pro granted locally (no payment taken).', false);
+      refresh();
+      return;
+    }
+    var payload = res.data;
+    loadPaddle().then(function (Paddle) {
+      Paddle.Checkout.open({
+        items: [{ priceId: payload.priceId, quantity: 1 }],
+        // Prefilling skips Paddle's contact step for a signed-in user.
+        customer: payload.email ? { email: payload.email } : undefined,
+        // Echoed on every webhook for this subscription — this is how the
+        // payment is attributed back to the account.
+        customData: payload.customData,
+        settings: { displayMode: 'overlay', theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' },
+      });
+      btn.disabled = false;
+      setMsg('', false);
+    }).catch(function () {
+      btn.disabled = false;
+      setMsg('Checkout couldn’t load. Check your connection and try again.', true);
+    });
   }).catch(function () { btn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
 }
 
-// Changing an existing Stripe subscription's plan happens in the Billing
-// Portal — a Checkout Session would create a second subscription.
-function openStripePortal(btn) {
+// Changing an existing subscription's plan happens in the Paddle customer
+// portal — opening checkout again would create a SECOND subscription.
+function openPortal(btn) {
   btn.disabled = true;
-  billingFetch('stripe/portal', 'POST').then(function (res) {
+  billingFetch('paddle/portal', 'POST').then(function (res) {
     if (res.ok && res.data && res.data.url) {
       window.location.assign(res.data.url);
     } else {
@@ -325,9 +406,9 @@ function renderPlans(plans) {
   var isPro = !!(ent && ent.pro);
   var list = lastBilling.plans || [];
   if (isPro) {
-    // Only Stripe subscribers can switch plans from here — an Apple/Google/promo
+    // Only web (Paddle) subscribers can switch plans from here — an Apple/Google/promo
     // Pro has to change it where they bought it, so offer them nothing.
-    list = (ent.plan === 'family' || !lastBilling.stripePortal)
+    list = (ent.plan === 'family' || !lastBilling.paddlePortal)
       ? []
       : list.filter(function (p) { return p.plan === 'family'; });
   }
@@ -363,7 +444,7 @@ function renderPlans(plans) {
     // An existing subscriber changes plan in the Billing Portal; checkout would
     // open a second subscription (the server now rejects that with 409 too).
     btn.addEventListener('click', function () {
-      if (isPro) openStripePortal(btn); else startCheckout(p.plan, btn);
+      if (isPro) openPortal(btn); else startCheckout(p.plan, btn);
     });
     upgradeWrap.appendChild(btn);
   });
@@ -372,7 +453,7 @@ function renderPlans(plans) {
 function wire() {
   var manageBtn = overlay.querySelector('[data-pro-manage]');
   if (manageBtn) {
-    manageBtn.addEventListener('click', function () { openStripePortal(manageBtn); });
+    manageBtn.addEventListener('click', function () { openPortal(manageBtn); });
   }
 
   var promoForm = overlay.querySelector('[data-pro-promo]');
@@ -401,7 +482,8 @@ function wire() {
   }
 
   // Plans are static per server config — fetch once when the dialog is built.
-  billingFetch('stripe/config').then(function (res) {
+  billingFetch('paddle/config').then(function (res) {
+    if (res.ok && res.data) paddleConfig = res.data;
     renderPlans(res.ok && res.data ? res.data.plans : null);
   }).catch(function () { renderPlans(null); });
 }
@@ -463,15 +545,15 @@ function renderNudge(slot) {
   }).catch(function () { /* stay silent on failure */ });
 })();
 
-/* ── Stripe Checkout return handler ───────────────────────── */
-// Stripe sends the user back to /settings?pro=success|cancel. Since
-// Pro now lives in the menu, catch that here (this module loads via
-// navbar.js on every authed page) and surface the result.
+/* ── Checkout / portal return handler ─────────────────────── */
+// Paddle checkout is an overlay and resolves in-page, so this mainly
+// catches the customer-portal round-trip and the onboarding "Get Pro"
+// hand-off. ?pro=success is still honored for any redirect-style return.
 (function handleCheckoutReturn() {
   var params = new URLSearchParams(window.location.search);
   var pro = params.get('pro');
-  // success|cancel come back from Stripe Checkout; open is the onboarding
-  // "Get Pro" hand-off, which just pops the dialog.
+  // success|cancel may come back from a redirect-style return; open is the
+  // onboarding "Get Pro" hand-off, which just pops the dialog.
   if (pro !== 'success' && pro !== 'cancel' && pro !== 'open') return;
   // Strip the param so a reload doesn't re-trigger.
   try {

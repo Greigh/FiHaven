@@ -155,21 +155,18 @@ function finishTo(url) {
   saveGoalTabs().then(markOnboarded).then(function () { go(url); });
 }
 
+// Paddle checkout is an in-page overlay, not a URL we can redirect to, so
+// onboarding finishes up and hands off to the Pro dialog on the dashboard —
+// which owns the Paddle.js lifecycle and opens the overlay from there.
 function startProCheckout(plan) {
   var msg = document.querySelector('[data-onboard-message]');
   if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'One moment…'; }
   freeUnlocked = true;
   updateFreeCta();
-  saveGoalTabs().then(markOnboarded).then(function () {
-    return fetch('/api/billing/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken || '' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ plan: plan }),
-    }).then(function (r) { return r.ok ? r.json() : null; });
-  }).then(function (d) {
-    go(d && d.url ? d.url : '/dashboard?pro=open');
-  }).catch(function () { go('/dashboard?pro=open'); });
+  var target = '/dashboard?pro=open' + (plan ? '&plan=' + encodeURIComponent(plan) : '');
+  saveGoalTabs().then(markOnboarded)
+    .then(function () { go(target); })
+    .catch(function () { go('/dashboard?pro=open'); });
 }
 
 function updateFreeCta() {

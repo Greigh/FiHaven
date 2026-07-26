@@ -2,7 +2,7 @@
 
 This is the step-by-step for turning on "Continue with Google" and "Sign in
 with Apple". The code is already wired and **inert until you set the env
-vars below** — exactly like the Plaid/Stripe integrations.
+vars below** — exactly like the Plaid/Paddle integrations.
 
 ## What's already built
 

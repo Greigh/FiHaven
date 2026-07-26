@@ -8,6 +8,10 @@
      POST /promo               — (admin) create a promo code
      POST /apple/notifications — App Store Server Notifications V2
      POST /google/notifications— Google RTDN (Pub/Sub)
+     GET  /paddle/config       — client token + available web plans
+     POST /paddle/checkout     — open-checkout payload for a plan
+     POST /paddle/portal       — Paddle-hosted customer portal
+     POST /paddle/webhook      — Paddle notifications (signed)
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -16,6 +20,7 @@ const express = require('express');
 
 const { requireAuth, requireAdmin, requireCsrf } = require('../session');
 const billing = require('../billing');
+const paddle = require('../paddle');
 const googlePubSubAuth = require('../googlePubSubAuth');
 
 const router = express.Router();
@@ -24,23 +29,14 @@ function sendError(res, code, error) {
   return res.status(code).json({ error });
 }
 
-// Public origin for Stripe redirect URLs. Production requires
-// PUBLIC_ORIGIN (enforced at boot); never fall back to Host there.
-function appBaseUrl(req) {
-  const configured = String(process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
-  if (configured) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('public-origin-required');
-  }
-  return `${req.protocol}://${req.get('host')}`;
-}
-
 /* ── GET /api/billing/status ─────────────────────────────────── */
 
 router.get('/status', requireAuth, (req, res) => {
   res.json({
     entitlement: billing.computeEntitlement(req.user.id),
-    stripePortal: billing.canUseStripePortal(req.user.id),
+    paddlePortal: billing.canUsePaddlePortal(req.user.id),
+    // Paddle customer id, so the client can pass `pwCustomer` to Paddle Retain.
+    paddleCustomerId: billing.paddleCustomerIdForUser(req.user.id),
     // Whether the dev subscription override may be honored. Only the server
     // knows who is an admin, so the client never decides this for itself.
     admin: req.user.role === 'admin',
@@ -102,44 +98,45 @@ router.post('/promo', requireAuth, requireCsrf, requireAdmin, (req, res) => {
   }
 });
 
-/* ── Stripe (web checkout) ───────────────────────────────────── */
+/* ── Paddle (web checkout) ───────────────────────────────────── */
 
-// GET /api/billing/stripe/config — publishable key + whether Stripe is
-// live. Publishable keys are not secret; safe to expose to the client.
-router.get('/stripe/config', (req, res) => {
+// GET /api/billing/paddle/config — client-side token + available plans.
+// The token is public by design (it ships in the browser bundle).
+router.get('/paddle/config', (req, res) => {
   res.json({
-    configured: billing.stripeConfigured(),
-    publishableKey: billing.stripePublishableKey(),
-    plans: billing.stripeAvailablePlans(),
+    // "Configured" for a browser means checkout can open, which needs the
+    // client token. The API key is server-side only and irrelevant here.
+    configured: !!billing.paddleClientToken(),
+    clientToken: billing.paddleClientToken(),
+    environment: paddle.environment(),
+    plans: billing.paddleAvailablePlans(),
   });
 });
 
-// POST /api/billing/stripe/checkout — create a Checkout Session for the
-// requested plan ('trial'|'monthly'|'three_month'|'yearly').
-router.post('/stripe/checkout', requireAuth, requireCsrf, async (req, res) => {
+// POST /api/billing/paddle/checkout — what the browser needs to open the
+// Paddle overlay for `plan`. Paddle.js opens checkout client-side, so this
+// exists for the already-subscribed guard and the local dev-grant.
+router.post('/paddle/checkout', requireAuth, requireCsrf, (req, res) => {
   const plan = (req.body || {}).plan;
   try {
-    const result = await billing.createStripeCheckout(req.user, plan, appBaseUrl(req));
-    res.json(result);
+    res.json(billing.createPaddleCheckout(req.user, plan));
   } catch (err) {
     if (err.message === 'already-subscribed') return sendError(res, 409, 'already-subscribed');
-    const known = ['unknown-plan', 'price-not-configured'];
+    const known = ['unknown-plan', 'price-not-configured', 'paddle-not-configured'];
     sendError(res, 400, known.includes(err.message) ? err.message : 'checkout-failed');
   }
 });
 
-// POST /api/billing/stripe/portal — manage/cancel via Stripe Billing Portal.
-router.post('/stripe/portal', requireAuth, requireCsrf, async (req, res) => {
+// POST /api/billing/paddle/portal — Paddle-hosted customer portal for
+// managing the payment method, changing plan, or cancelling.
+router.post('/paddle/portal', requireAuth, requireCsrf, async (req, res) => {
   try {
-    const url = await billing.createStripePortal(req.user, appBaseUrl(req));
+    const url = await billing.createPaddlePortal(req.user);
     if (!url) {
-      if (!billing.stripeConfigured()) {
-        return res.json({ url: '/dev-portal' });
-      }
-      const err = billing.canUseStripePortal(req.user.id)
+      if (!billing.paddleConfigured()) return res.json({ url: '/dev-portal' });
+      return sendError(res, 400, billing.canUsePaddlePortal(req.user.id)
         ? 'portal-customer-missing'
-        : 'not-stripe-subscriber';
-      return sendError(res, 400, err);
+        : 'not-paddle-subscriber');
     }
     res.json({ url });
   } catch (err) {
@@ -147,43 +144,48 @@ router.post('/stripe/portal', requireAuth, requireCsrf, async (req, res) => {
   }
 });
 
-// POST /api/billing/stripe/portal/dev-cancel — (dev-only) cancel subscription
-router.post('/stripe/portal/dev-cancel', requireAuth, requireCsrf, (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return sendError(res, 403, 'forbidden');
-  }
+// POST /api/billing/paddle/portal/dev-cancel — (dev-only) cancel subscription
+router.post('/paddle/portal/dev-cancel', requireAuth, requireCsrf, (req, res) => {
+  if (process.env.NODE_ENV === 'production') return sendError(res, 403, 'forbidden');
   try {
-    const entitlement = billing.devCancelSubscription(req.user.id);
-    res.json({ entitlement });
+    res.json({ entitlement: billing.devCancelSubscription(req.user.id) });
   } catch (err) {
     sendError(res, 400, 'dev-cancel-failed');
   }
 });
 
-// POST /api/billing/stripe/portal/dev-change — (dev-only) change plan
-router.post('/stripe/portal/dev-change', requireAuth, requireCsrf, (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return sendError(res, 403, 'forbidden');
-  }
+// POST /api/billing/paddle/portal/dev-change — (dev-only) change plan
+router.post('/paddle/portal/dev-change', requireAuth, requireCsrf, (req, res) => {
+  if (process.env.NODE_ENV === 'production') return sendError(res, 403, 'forbidden');
   const plan = (req.body || {}).plan;
   try {
-    const entitlement = billing.devChangeSubscription(req.user.id, plan);
-    res.json({ entitlement });
+    res.json({ entitlement: billing.devChangeSubscription(req.user.id, plan) });
   } catch (err) {
     sendError(res, 400, err.message === 'unknown-plan' ? 'unknown-plan' : 'dev-change-failed');
   }
 });
 
-// POST /api/billing/stripe/webhook — Stripe-signed; no user auth. Uses the
-// raw request body (captured globally in index.js) for signature checks.
-router.post('/stripe/webhook', async (req, res) => {
+// POST /api/billing/paddle/webhook — Paddle-signed; no user auth.
+//
+// Two independent gates, in order of strength:
+//   1. Source IP must be one Paddle publishes at api.paddle.com/ips. Fetched,
+//      never hard-coded — the list changes. Unknown (list unreachable) falls
+//      through rather than rejecting, since dropping real subscription events
+//      would silently strip Pro from paying customers.
+//   2. HMAC signature over the RAW body — authoritative, and enforced in
+//      production by billing.handlePaddleWebhook.
+router.post('/paddle/webhook', async (req, res) => {
   try {
-    const sig = req.get('stripe-signature');
+    const allowed = await paddle.isPaddleIp(req.ip);
+    if (allowed === false) {
+      console.warn('paddle webhook: rejected non-Paddle IP', paddle.normalizeIp(req.ip));
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    const sig = req.get('paddle-signature');
     const raw = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
-    const result = await billing.handleStripeWebhook(raw, sig);
-    res.json(result);
+    res.json(await billing.handlePaddleWebhook(raw, sig));
   } catch (err) {
-    console.error('stripe webhook error:', err.message);
+    console.error('paddle webhook error:', err.message);
     return res.status(400).json({ error: 'webhook-error' });
   }
 });

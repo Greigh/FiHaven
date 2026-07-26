@@ -4,9 +4,9 @@ import { createTestServer, listen, cookieFrom } from './helpers/testServer.js';
 // Two claims the UI now makes, pinned end-to-end:
 //   1. Only the Family plan can create a household. Solo Pro cannot — the
 //      paywall says so, so the server had better agree.
-//   2. A Stripe Checkout Session always *creates* a subscription, so someone
+//   2. Opening Paddle Checkout always *creates* a subscription, so someone
 //      who already has one (solo Pro upgrading to Family) must be refused and
-//      sent to the Billing Portal instead. Otherwise they pay for both.
+//      sent to the customer portal instead. Otherwise they pay for both.
 
 describe('integration — plan gating + checkout safety', () => {
   let ctx;
@@ -38,8 +38,8 @@ describe('integration — plan gating + checkout safety', () => {
     return { id: user.id, email, cookie, csrf: session.csrfToken };
   }
 
-  // `platform` matters: the checkout guard only blocks an existing *Stripe*
-  // subscription, since that's the rail a Checkout Session would duplicate.
+  // `platform` matters: the checkout guard only blocks an existing *Paddle*
+  // subscription, since that's the rail a new checkout would duplicate.
   function grantPlan(userId, productId, platform = 'comp') {
     const db = ctx.db();
     const now = Date.now();
@@ -87,32 +87,32 @@ describe('integration — plan gating + checkout safety', () => {
     expect(denied.status).toBe(403);
   });
 
-  it('refuses a second Stripe checkout for an existing Stripe subscriber', async () => {
+  it('refuses a second checkout for an existing Paddle subscriber', async () => {
     const u = await makeUser('checkout');
 
-    // Stripe isn't configured under NODE_ENV=test, so this takes the dev-grant
-    // path — which records a real `platform: 'stripe'` subscription row.
-    const first = await fetch(`${base}/api/billing/stripe/checkout`, J(u, 'POST', { plan: 'yearly' }));
+    // Paddle isn't configured under NODE_ENV=test, so this takes the dev-grant
+    // path — which records a real `platform: 'paddle'` subscription row.
+    const first = await fetch(`${base}/api/billing/paddle/checkout`, J(u, 'POST', { plan: 'yearly' }));
     expect(first.status).toBe(200);
     expect((await first.json()).devGranted).toBe(true);
 
-    const second = await fetch(`${base}/api/billing/stripe/checkout`, J(u, 'POST', { plan: 'family' }));
+    const second = await fetch(`${base}/api/billing/paddle/checkout`, J(u, 'POST', { plan: 'family' }));
     expect(second.status).toBe(409);
     expect((await second.json()).error).toBe('already-subscribed');
   });
 
-  it('an Apple/comp subscriber is not blocked from Stripe checkout', async () => {
-    // Deliberate: the guard exists to stop a *duplicate Stripe* subscription.
+  it('an Apple/comp subscriber is not blocked from web checkout', async () => {
+    // Deliberate: the guard exists to stop a *duplicate Paddle* subscription.
     // Cross-store is a different concern, handled by hiding the plan rows.
     const u = await makeUser('apple');
     grantPlan(u.id, 'app.fihaven.pro.monthly', 'apple');
-    const res = await fetch(`${base}/api/billing/stripe/checkout`, J(u, 'POST', { plan: 'yearly' }));
+    const res = await fetch(`${base}/api/billing/paddle/checkout`, J(u, 'POST', { plan: 'yearly' }));
     expect(res.status).toBe(200);
   });
 
   it('still rejects an unknown plan', async () => {
     const u = await makeUser('unknown');
-    const res = await fetch(`${base}/api/billing/stripe/checkout`, J(u, 'POST', { plan: 'nonsense' }));
+    const res = await fetch(`${base}/api/billing/paddle/checkout`, J(u, 'POST', { plan: 'nonsense' }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('unknown-plan');
   });

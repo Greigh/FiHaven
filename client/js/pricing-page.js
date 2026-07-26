@@ -1,12 +1,12 @@
 /* ═══════════════════════════════════════════════════════════
-   pricing-page.js — show which Stripe billing intervals are live.
+   pricing-page.js — show which Paddle billing intervals are live.
 ═══════════════════════════════════════════════════════════ */
 
 function initPricingPlans() {
-  var el = document.querySelector('[data-stripe-plans]');
+  var el = document.querySelector('[data-paddle-plans]');
   if (!el) return;
 
-  fetch('/api/billing/stripe/config', { credentials: 'same-origin' })
+  fetch('/api/billing/paddle/config', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.configured || !data.plans || !data.plans.length) {

@@ -108,7 +108,7 @@ Align with [`client/privacy.html`](../../client/privacy.html). Typical answers:
 | Advertising Data / Advertising ID | **No** | — | — | — |
 | Analytics / Usage Data via third-party SDK | **No** | — | — | — |
 
-Third parties (Plaid, Stripe, Apple/Google for IAP, email delivery) process data as described in the privacy policy — declare per Apple’s questionnaire categories.
+Third parties (Plaid, Paddle, Apple/Google for IAP, email delivery) process data as described in the privacy policy — declare per Apple’s questionnaire categories.
 
 ### Promotional Text (≤170 chars)
 

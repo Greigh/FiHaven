@@ -20,7 +20,7 @@ function assertProductionSafe() {
 
   const origin = String(process.env.PUBLIC_ORIGIN || '').trim();
   if (!origin) {
-    problems.push('PUBLIC_ORIGIN is required in production (Stripe redirects / webhook audiences)');
+    problems.push('PUBLIC_ORIGIN is required in production (checkout redirects / webhook audiences)');
   } else if (!/^https:\/\//i.test(origin)) {
     problems.push('PUBLIC_ORIGIN must be an https:// URL in production');
   }
