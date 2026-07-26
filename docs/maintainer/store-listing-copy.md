@@ -88,6 +88,27 @@ If build 10 or later ships publicly on its own, append or substitute:
 FiHaven is now published by Greigh Studios LLC — updated About, Terms of Use, and Privacy Policy. Subscription plan handling is more accurate across web, iOS, and Android.
 ```
 
+### TestFlight — What to Test (1.6.1 build 13)
+
+**The first build on which iOS push notifications can work at all.** Builds 12
+and earlier shipped without the `aps-environment` entitlement, so iOS never
+issued a device token and the server had nothing to send to — no iOS device has
+ever been registered. Build 13 adds it.
+
+Requires the server deploy carrying the push fix; without it nothing sends.
+
+```
+1. Update to build 13, sign in, then Settings → Notifications and turn push on. Accept the iOS permission prompt when it appears. This is the step that has never worked before — if the prompt appears and the switch stays on, that alone is the fix landing.
+
+2. Tell Daniel once you've done step 1 so the server can be checked for your device. A notification will be sent straight to it to confirm delivery end to end.
+
+3. Bill reminders — with a bill due tomorrow, confirm the reminder arrives as a push, not only as an email.
+
+4. Turn push off, force-quit, reopen, and confirm nothing further arrives. Turn it back on and confirm delivery resumes.
+
+5. Local reminders (these already worked) should be unaffected — no duplicates, no missing alerts.
+```
+
 ### TestFlight — What to Test (1.6.1 build 12)
 
 Build 12 is the push-notification pass. Be aware of the scope: **remote push
