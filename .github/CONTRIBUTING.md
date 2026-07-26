@@ -5,7 +5,8 @@ Thanks for helping improve FiHaven.
 ## Before you start
 
 - Read the main [README](../README.md) and the native contract in [docs/native-contract.md](../docs/native-contract.md) if your change touches the web, iOS, Android, or shared API behavior.
-- FiHaven is **source available** — see [LICENSE](../LICENSE) and [docs/source-available.md](../docs/source-available.md). Contributions are welcome; operating a competing hosted instance is not.
+- FiHaven is owned by **Greigh Studios LLC** and is **source available**, not open source — see [LICENSE](../LICENSE) (Greigh Studios Source Available License v1.0) and [docs/source-available.md](../docs/source-available.md). Contributions are welcome; operating a competing hosted instance is not.
+- By opening a pull request you agree to Section 2(d) of the LICENSE: you grant Greigh Studios LLC a perpetual, worldwide, royalty-free license to use, modify, and distribute your contribution under that license and any future license the project adopts.
 - Keep changes focused. Small, well-scoped pull requests are easier to review and ship.
 
 ## Maintainer-only files

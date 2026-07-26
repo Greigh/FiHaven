@@ -379,8 +379,9 @@ fun RedeemCodeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 
 /**
  * The Family subscription, presented as its own option rather than a Pro perk.
- * It is a separate SKU (`app.fihaven.pro.family`) and the only plan the server
- * grants a shared household to — see `billing.js` `householdMaxFor`.
+ * It is a separate SKU (`app.fihaven.pro.family.yearly` on Play) and the only
+ * plan the server grants a shared household to — see `billing.js`
+ * `householdMaxFor`.
  *
  * [isUpgrade] is true when the user already has solo Pro, in which case Play
  * runs a plan change (BillingManager passes the old purchase token).

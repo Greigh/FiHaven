@@ -2,10 +2,11 @@
 
 | | |
 |---|---|
-| **Owner** | Daniel Hipskind (FiHaven) — acting Security Officer |
+| **Owner** | Greigh Studios LLC — Daniel Hipskind, acting Security Officer |
+| **Operating entity** | Greigh Studios LLC (Michigan, United States), owner of FiHaven |
 | **Applies to** | FiHaven web app, API/backend, iOS app, Android app, and supporting infrastructure (collectively, the "Service") |
 | **Security contact** | security@fihaven.app |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Effective date** | 2026-06-08 |
 | **Review cadence** | Reviewed at least annually and upon any material change to the architecture, data flows, or third-party processors |
 
@@ -207,3 +208,4 @@ FiHaven operates no on-premises production infrastructure. Production compute an
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-06-08 | Initial documented information security policy. |
+| 1.1 | 2026-07-25 | Ownership transferred to Greigh Studios LLC; owner and operating entity rows updated. |

@@ -522,8 +522,12 @@ transaction or redeem a promo, then read the entitlement back.
 
 **Products** (must match App Store Connect / Play Console and the server map):
 `app.fihaven.pro.monthly`, `…pro.yearly`, `…pro.family` (auto-renewing subs).
+**Family is the one id that differs by store**: Play Console was created as
+`app.fihaven.pro.family.yearly`, and Play product ids are immutable, so the
+server maps both spellings to the `family` plan and `BillingManager.FAMILY`
+carries the Play id while `StoreManager.familyID` carries the Apple one.
 
-**Pricing ladder.** The same product ids and `plan` keys are used on every
+**Pricing ladder.** The `plan` keys are used on every
 platform, but the **displayed price differs by store** so the take-home is even
 after fees. iOS/Android carry a ~15% store commission (App Store / Play Small
 Business Program); web (Stripe) is 2.9% + $0.30, whose flat fee dominates on
@@ -535,7 +539,7 @@ and never reads it, so entitlement is identical regardless of what a plan cost.
 |---|---|---|---|---|
 | Monthly | `app.fihaven.pro.monthly` | $1.99 / mo | $1.99 / mo | `monthly` |
 | Yearly (default) | `app.fihaven.pro.yearly` | $14.99 / yr | $16.99 / yr | `yearly` |
-| Family | `app.fihaven.pro.family` | $25.99 / yr | $29.99 / yr | `family` |
+| Family | `app.fihaven.pro.family` (Play: `…family.yearly`) | $25.99 / yr | $29.99 / yr | `family` |
 
 Net after fees (keep this even when adjusting prices): web ≈ $1.63 / $14.26 /
 $24.94; iOS/Android @15% ≈ $1.69 / $14.44 / $25.49. Monthly stays $1.99 on all
@@ -544,10 +548,33 @@ Apple/Google's 15% does. If a store cut is 30% (not enrolled in the small-busine
 tier), the iOS/Android points would need to rise (~$2.49 / $20.99 / $35.99) —
 enroll in the 15% program instead.
 
-All plans carry a **7-day free trial** — a store intro offer (Introductory Offer →
-Free → 7 days, one per subscription group) on iOS/Android, and
-`trial_period_days: 7` on the Stripe checkout on web. On web, Stripe reports the
-subscription as `trialing`, which the server treats as an active `pro` grant.
+The **monthly and yearly** plans carry a **7-day free trial** — a store intro
+offer (Introductory Offer → Free → 7 days, one per subscription group) on
+iOS/Android, and `trial_period_days: 7` on the Stripe checkout on web. On web,
+Stripe reports the subscription as `trialing`, which the server treats as an
+active `pro` grant.
+
+**Family has no trial** on any platform: no intro offer on its Play base plan or
+ASC product, and `createCheckoutSession` omits `trial_period_days` for
+`plan === 'family'`. Adding an intro offer in either store console would
+reinstate it there without a code change — the store is the source of truth for
+native, so keep them offer-free.
+
+**Subscription-group levels (iOS).** App Store Connect ranks the group by level,
+where **level 1 is the highest service tier**. Family must sit at level 1 with
+monthly and yearly *both* at level 2:
+
+| Level | Products | Effect |
+|---|---|---|
+| 1 | Family | Pro → Family is an **upgrade**: immediate, prorated refund |
+| 2 | Monthly, Yearly | Same level → switching is a **crossgrade**, applied at next renewal |
+
+Get this backwards (e.g. Family ranked below Pro) and StoreKit treats "Upgrade to
+Family" as a *downgrade* — deferred to the end of the paid period, which for a
+yearly subscriber is up to a full year of paying for a household they can't
+create. iOS has no code-side override for this; the levels are the only control.
+Android does it explicitly instead, via `CHARGE_PRORATED_PRICE` in
+`BillingManager.launchPurchase`.
 
 **Entitlement shape** (in `GET /api/data` and `GET /api/billing/status`):
 ```json

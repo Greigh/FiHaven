@@ -27,6 +27,15 @@ final class StoreManager: ObservableObject {
     /// `Product.products(for:)` returns only the ids that exist in App Store
     /// Connect, so listing `familyID` before that product is approved simply
     /// means it doesn't appear — no error, no crash.
+    ///
+    /// Note the Play id for Family is `app.fihaven.pro.family.yearly` — the two
+    /// stores disagree and the server maps both. See BillingManager.FAMILY.
+    ///
+    /// Subscription-group **levels** matter here and live only in App Store
+    /// Connect: Family must rank above the Pro plans (level 1 vs 2) or StoreKit
+    /// defers "Upgrade to Family" to the end of the paid period instead of
+    /// switching immediately. FiHaven.storekit mirrors that ranking for local
+    /// testing.
     static let monthlyID = "app.fihaven.pro.monthly"
     static let yearlyID = "app.fihaven.pro.yearly"
     static let familyID = "app.fihaven.pro.family"

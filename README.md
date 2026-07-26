@@ -1007,11 +1007,15 @@ share (bills, cards, goals), live-syncing via SSE — at parity with web.
 
 ## License
 
-FiHaven is **[source available](docs/source-available.md)**, not open source.
-The code is public on GitHub for transparency and contributions, but you
-may not operate a production hosted copy for others, redistribute modified
-builds, or strip billing or entitlement checks without written permission.
-See [LICENSE](LICENSE).
+© 2026 **Greigh Studios LLC**. All rights reserved.
+
+FiHaven is **[source available](docs/source-available.md)**, not open source,
+under the **Greigh Studios Source Available License v1.0** — see
+[LICENSE](LICENSE) (project-specific terms are in Schedule A). The code is
+public on GitHub for transparency and contributions, but you may not operate
+a production hosted copy for others, redistribute modified builds, or strip
+billing or entitlement checks without written permission. The FiHaven and
+Greigh Studios names, logos, and copy are not covered by the code grant.
 
 Using **fihaven.app** or the official apps is governed by the
 [Terms of Use](https://fihaven.app/terms). FiHaven Pro is enforced on the
