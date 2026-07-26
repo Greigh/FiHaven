@@ -52,7 +52,7 @@ var PLAN_LABELS = {
 var SOURCE_LABELS = {
   apple: 'App Store',
   google: 'Play Store',
-  stripe: 'Web',
+  paddle: 'Web',
   comp: 'Admin',
   promo: 'Promo',
 };

@@ -92,7 +92,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // 256kb comfortably holds a full bill/card/payment dataset. Capture the
-// raw bytes too so the Stripe webhook can verify its signature.
+// raw bytes too so the Paddle webhook can verify its signature.
 app.use(express.json({
   limit: '256kb',
   verify: (req, _res, buf) => { req.rawBody = buf; },
@@ -139,7 +139,7 @@ if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
 // API routes. The data + MFA mounts are gated behind requireVerified:
 // an authenticated-but-unverified session gets 403 'email-unverified',
 // which makes the dashboard non-functional until the email is confirmed.
-// (Billing is left open here because its Stripe webhook is unauthenticated.)
+// (Billing is left open here because its Paddle webhook is unauthenticated.)
 sub.use('/api/auth', authRouter);
 sub.use('/api/data', requireVerified, dataRouter);
 sub.use('/api/household', requireVerified, householdRouter);

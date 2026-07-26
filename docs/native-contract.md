@@ -559,35 +559,40 @@ carries the Play id while `StoreManager.familyID` carries the Apple one.
 **Pricing ladder.** The `plan` keys are used on every
 platform, but the **displayed price differs by store** so the take-home is even
 after fees. iOS/Android carry a ~15% store commission (App Store / Play Small
-Business Program); web (Stripe) is 2.9% + $0.30, whose flat fee dominates on
+Business Program); web (Paddle, merchant of record) is 5% + $0.50, whose flat fee dominates on
 small charges. iOS/Android prices are bumped to net roughly the same as — or a
 hair above — web. The price is display-only: the server maps `product → plan`
 and never reads it, so entitlement is identical regardless of what a plan cost.
 
-| Plan | Product id | Web (Stripe) | iOS / Android (15%) | Server plan key |
+| Plan | Product id | Web (Paddle) | iOS / Android (15%) | Server plan key |
 |---|---|---|---|---|
 | Monthly | `app.fihaven.pro.monthly` | $1.99 / mo | $1.99 / mo | `monthly` |
 | Yearly (default) | `app.fihaven.pro.yearly` | $14.99 / yr | $16.99 / yr | `yearly` |
 | Family | `app.fihaven.pro.family` (Play: `…family.yearly`) | $25.99 / yr | $29.99 / yr | `family` |
 
-Net after fees (keep this even when adjusting prices): web ≈ $1.63 / $14.26 /
-$24.94; iOS/Android @15% ≈ $1.69 / $14.44 / $25.49. Monthly stays $1.99 on all
-platforms because Stripe's flat $0.30 already eats more of a small charge than
+Web price ids live in `PADDLE_PRICE_*` env vars and map to plans via
+`paddlePlanForPrice`; the ids themselves are public (they ship in the
+checkout call).
+
+Net after fees (recheck when adjusting prices — Paddle's merchant-of-record
+rate is higher than a pure gateway's, and it also remits sales tax/VAT on your
+behalf): iOS/Android @15% ≈ $1.69 / $14.44 / $25.49. Monthly stays $1.99 on all
+platforms because the flat per-transaction fee eats more of a small charge than
 Apple/Google's 15% does. If a store cut is 30% (not enrolled in the small-business
 tier), the iOS/Android points would need to rise (~$2.49 / $20.99 / $35.99) —
 enroll in the 15% program instead.
 
 The **monthly and yearly** plans carry a **7-day free trial** — a store intro
 offer (Introductory Offer → Free → 7 days, one per subscription group) on
-iOS/Android, and `trial_period_days: 7` on the Stripe checkout on web. On web,
-Stripe reports the subscription as `trialing`, which the server treats as an
-active `pro` grant.
+iOS/Android, and a **trial on the Paddle price itself** on web (not a checkout
+parameter — it is configured on `pri_…` in the Paddle catalog). Paddle reports
+the subscription as `trialing`, which `paddleStatusFor` maps to an active `pro`
+grant.
 
 **Family has no trial** on any platform: no intro offer on its Play base plan or
-ASC product, and `createCheckoutSession` omits `trial_period_days` for
-`plan === 'family'`. Adding an intro offer in either store console would
-reinstate it there without a code change — the store is the source of truth for
-native, so keep them offer-free.
+ASC product, and no trial on its Paddle price. Adding one in any console would
+reinstate it there without a code change — the store or Paddle catalog is the
+source of truth, so keep them offer-free.
 
 **Subscription-group levels (iOS).** App Store Connect ranks the group by level,
 where **level 1 is the highest service tier**. Family must sit at level 1 with

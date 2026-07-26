@@ -33,7 +33,7 @@ You retain ownership of the financial information you enter into FiHaven. You gr
 5. FiHaven Pro subscriptions
 FiHaven is free to use. FiHaven Pro is an optional paid subscription that unlocks additional features, including the payoff planner, family (household) sharing, due-date calendar and iCal feed, payment history, rewards optimizer, subscription finder, per-category budgets, optional bank linking through Plaid, and autopay auto-mark. If you purchase Pro, the following apply:
 - Billing: Pro is an auto-renewing subscription (for example, monthly or yearly). By subscribing you authorize a recurring charge each billing period until you cancel.
-- Where you buy: Purchases on the web are processed by Stripe. Purchases made inside the iOS or Android apps are processed by Apple or Google and are also governed by that store's terms (see section 6).
+- Where you buy: Purchases on the web are sold and processed by Paddle, which acts as our merchant of record. Purchases made inside the iOS or Android apps are processed by Apple or Google and are also governed by that store's terms (see section 6).
 - Auto-renewal and cancellation: Your subscription renews automatically at the then-current price unless you cancel before the renewal date. You can cancel anytime — on the web through the billing portal, or for in-app purchases through your Apple or Google account's subscription settings. Access continues until the end of the period you have paid for.
 - Refunds: Except where required by law, payments are non-refundable. Refunds for App Store or Google Play purchases are handled by Apple or Google under their respective policies.
 - Price changes: We may change subscription pricing; changes apply to future billing periods, with advance notice where required.

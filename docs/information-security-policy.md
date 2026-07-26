@@ -39,7 +39,7 @@ Security is a standing consideration in design and code review, not a separate g
 
 FiHaven runs a continuous, lightweight risk-management cycle:
 
-**Identify.** Risks are identified through (a) threat modeling of new features that touch authentication, payments, or connected-account data; (b) automated static analysis (GitHub CodeQL) on pushes to the main branch; (c) automated dependency scanning (Dependabot + dependency review) for known-vulnerable libraries; (d) GitHub secret scanning; and (e) review of provider security bulletins (Plaid, Stripe, Cloudflare, hosting, runtime/OS).
+**Identify.** Risks are identified through (a) threat modeling of new features that touch authentication, payments, or connected-account data; (b) automated static analysis (GitHub CodeQL) on pushes to the main branch; (c) automated dependency scanning (Dependabot + dependency review) for known-vulnerable libraries; (d) GitHub secret scanning; and (e) review of provider security bulletins (Plaid, Paddle, Cloudflare, hosting, runtime/OS).
 
 **Mitigate.** Identified risks are tracked and remediated based on severity. Controls are layered: encryption in transit and at rest, least-privilege access, MFA, input validation, rate limiting, bot mitigation, CSRF protection, and dependency patching. High-severity issues are prioritized for immediate remediation; lower-severity issues are scheduled and tracked to closure.
 
@@ -76,7 +76,7 @@ Restricted and Confidential data are only ever transmitted over encrypted channe
 
 - **In transit.** All client–server traffic is served over **HTTPS/TLS**; the reverse proxy terminates TLS and the application sets the `Secure` flag on session cookies. Plaintext HTTP is not used for authenticated traffic.
 - **At rest.** Secrets classified as Restricted — **Plaid access tokens** and **MFA/TOTP secrets** — and Confidential **user financial payloads** stored in `user_data` are encrypted with **AES-256-GCM** using a unique random 12-byte IV per record and an authentication tag, via a single vetted encryption helper shared across the codebase.
-- **Key management.** The 256-bit at-rest encryption key is supplied via an environment variable (`MFA_ENCRYPTION_KEY`). Production deployments must set this explicitly so the key is not stored beside the database; if absent in non-production, a key is generated once and persisted to a key file with restrictive (`0600`) permissions outside the web root. Keys and all other secrets live only in environment configuration (`.env`), which is excluded from version control and stripped/sanitized during deployment. Plaid client secrets, Stripe keys, and SMTP credentials are handled the same way.
+- **Key management.** The 256-bit at-rest encryption key is supplied via an environment variable (`MFA_ENCRYPTION_KEY`). Production deployments must set this explicitly so the key is not stored beside the database; if absent in non-production, a key is generated once and persisted to a key file with restrictive (`0600`) permissions outside the web root. Keys and all other secrets live only in environment configuration (`.env`), which is excluded from version control and stripped/sanitized during deployment. Plaid client secrets, the Paddle API key, and SMTP credentials are handled the same way.
 - **No secrets in code.** Source control is scanned for secrets; credentials, tokens, and keys are never committed.
 
 ---
@@ -118,7 +118,7 @@ FiHaven runs a defined vulnerability-management program spanning source code, de
 
 - Application, process-manager, and reverse-proxy logs are retained for operational and security review. Logs **must not** contain Restricted data (no access tokens, secrets, passwords, or full PANs — FiHaven never handles card numbers; see §13).
 - Authentication failures are rate-limited and observable.
-- CI security analysis acts as continuous monitoring of the codebase; provider dashboards (Plaid, Stripe, Cloudflare) are reviewed for anomalies and alerts.
+- CI security analysis acts as continuous monitoring of the codebase; provider dashboards (Plaid, Paddle, Cloudflare) are reviewed for anomalies and alerts.
 
 ---
 
@@ -151,7 +151,7 @@ FiHaven relies on a small number of vetted processors, each governed by its agre
 | Vendor | Purpose | Data shared | Notes |
 |---|---|---|---|
 | **Plaid** | Optional bank-account balance retrieval | User-initiated bank link; FiHaven holds an encrypted access token | See §14 |
-| **Stripe** | Subscription billing (FiHaven Pro) | Payment details handled entirely by Stripe | **FiHaven never receives or stores card numbers**; PCI-DSS scope is borne by Stripe |
+| **Paddle** | Merchant of record for web billing (FiHaven Pro) — sells to the customer, takes payment, remits sales tax/VAT | Payment details handled entirely by Paddle | **FiHaven never receives or stores card numbers**; PCI-DSS scope is borne by Paddle |
 | **Cloudflare** | Bot mitigation (Turnstile) | Challenge token only | No financial data |
 | **VPS host (Hostinger)** | Compute/storage for the Service | Encrypted-at-rest data on the host | Hardened, patched, access-restricted |
 | **Email (self-hosted Postfix/OpenDKIM or SMTP relay)** | Transactional email (verification, reset, reminders) | Email address + message content | SPF/DKIM/DMARC aligned |
