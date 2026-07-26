@@ -58,10 +58,10 @@ function init() {
   const fcmPath = resolvePath(process.env.FCM_SERVICE_ACCOUNT_JSON, 'FCM_SA_LOCAL');
   if (fcmPath) {
     try {
-      const admin = require('firebase-admin');
-      if (!admin.getApps().length) {
-        admin.initializeApp({
-          credential: admin.cert(JSON.parse(fs.readFileSync(fcmPath, 'utf8'))),
+      const { getApps, initializeApp, cert } = require('firebase-admin/app');
+      if (!getApps().length) {
+        initializeApp({
+          credential: cert(JSON.parse(fs.readFileSync(fcmPath, 'utf8'))),
         });
       }
       fcmReady = true;
@@ -107,9 +107,13 @@ async function sendApns(token, { title, body }) {
   }));
 }
 
+// firebase-admin dropped the namespaced `admin.messaging()` in v13; the root
+// export now carries app-level helpers only (initializeApp/cert/getApps), so
+// messaging has to come from the modular entry point. Getting this wrong fails
+// at send time, not init — init still succeeds and fcmReady stays true.
 async function sendFcm(token, { title, body }) {
-  const admin = require('firebase-admin');
-  await admin.messaging().send({
+  const { getMessaging } = require('firebase-admin/messaging');
+  await getMessaging().send({
     token,
     notification: { title, body },
   });
