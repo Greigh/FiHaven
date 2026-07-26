@@ -88,6 +88,25 @@ If build 10 or later ships publicly on its own, append or substitute:
 FiHaven is now published by Greigh Studios LLC — updated About, Terms of Use, and Privacy Policy. Subscription plan handling is more accurate across web, iOS, and Android.
 ```
 
+### TestFlight — What to Test (1.6.1 build 12)
+
+Build 12 is the push-notification pass. Be aware of the scope: **remote push
+still cannot work on iOS** — the app has no `aps-environment` entitlement and
+the App ID has no Push Notifications capability, so `registerForRemoteNotifications()`
+fails at the OS level and no iOS device has ever registered a token. What this
+build changes is how the app *handles* a token once it can get one, plus local
+reminders. Test the entitlement fix separately once it lands.
+
+```
+1. Settings → Notifications — toggle push on, force-quit the app, reopen it, then toggle push off. It should stay off. (Before this build the off switch was ignored after a restart.)
+
+2. Local bill reminders — these never went through the server. Set a bill due tomorrow with a reminder and confirm the notification still fires on schedule.
+
+3. Sign out and back in — no crash, no duplicate prompts, notification settings survive the round trip.
+
+4. Reinstall the app, sign in, and turn push on. Nothing should error; the app should not re-register anything from the previous install.
+```
+
 ### TestFlight — What to Test (1.6.1 build 11)
 
 Build 11 adds card↔bank-account linking. Build 10 (already on TestFlight) was
@@ -241,6 +260,26 @@ Complete IARC questionnaire as a finance/productivity-style app (no social UGC, 
 ### Track progression
 
 Internal testing → closed testing (optional short soak) → **production**.
+
+### Release notes (1.6.1 — versionCode 35)
+
+427 / 500 characters. Play counts every character including newlines, so
+re-count if you edit it.
+
+versionCode 34 was the same app as 33 — it exists only because 33's upload
+failed before reaching Play, so it has no notes of its own.
+
+```
+Push notifications now arrive on Android. A server-side fault had been stopping every notification from being delivered, so bill reminders never reached your phone. They do again.
+
+Turning notifications off now works properly too. If you switched them off after restarting the app, the setting could be ignored and notifications kept coming.
+
+Devices you no longer use are also cleaned up instead of staying subscribed forever.
+```
+
+**Before uploading versionCode 35:** the delivery half of this fix is
+server-side. Deploy the server first, or testers install the build and still
+get nothing.
 
 ### Release notes (1.6.1 — versionCode 33)
 
