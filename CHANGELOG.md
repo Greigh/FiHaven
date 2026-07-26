@@ -18,7 +18,7 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (12) - On TestFlight testing (11 added card↔bank linking, 10 shipped the ownership pass) |
+| **iOS** | 1.6.1 (13) - On TestFlight testing (12 was the push-handling pass, 11 added card↔bank linking) |
 | **Android** | 1.6.1 (versionCode 35) - On Closed Play Store Alpha Testing (34 carried card↔bank linking, 32 the Family SKU fixes) |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
@@ -58,10 +58,12 @@ Each release below uses two layers:
   retired its predecessor; one account had accumulated 12 Android registrations,
   11 of them dead. Old tokens are now retired as they are replaced, and the
   server prunes any the push service reports as gone.
-- iOS remote push additionally needs the Push Notifications capability on the
-  App ID and an `aps-environment` entitlement, which the app does not yet carry
-  — no iOS device has ever been able to register. Web push was unaffected and
-  is working.
+- **iOS can now receive push at all.** The app shipped without the
+  `aps-environment` entitlement, so `registerForRemoteNotifications()` failed at
+  the OS level, no device token was ever issued, and the server had nothing to
+  send to — zero iOS devices had ever registered. Added in build 13, with the
+  value tracking the signing profile so debug and release builds each target the
+  right APNs environment. Web push was unaffected throughout and is working.
 
 **Web billing moves to Paddle (Jul 26)**
 
