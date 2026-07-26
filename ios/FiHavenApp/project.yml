@@ -81,6 +81,19 @@ targets:
     entitlements:
       path: Sources/FiHaven.entitlements
       properties:
+        # Remote push. Without this the Push Notifications capability on the
+        # App ID does nothing: registerForRemoteNotifications() fails at the OS
+        # level with "no valid aps-environment entitlement", no token is ever
+        # issued, and the server has nothing to send to.
+        #
+        # The value MUST track the provisioning profile — development profiles
+        # grant `development`, App Store profiles grant `production`. Hardcoding
+        # `production` keeps Release working while silently breaking
+        # Debug-on-device signing, so it comes from APS_ENVIRONMENT, set per
+        # configuration below. It also selects the APNs host the token is valid
+        # for: `development` = sandbox, `production` = api.push.apple.com, which
+        # is where the server sends (APNS_PRODUCTION=1).
+        aps-environment: $(APS_ENVIRONMENT)
         com.apple.developer.applesignin:
           - Default
         # Passkeys (passwordless sign-in). Must match the rpID 'fihaven.app'
@@ -165,7 +178,7 @@ targets:
         MARKETING_VERSION: "1.6.1"
         # 1.6.0 starts a fresh build train (a new marketing version resets the
         # App Store build count). The 1.5.0 TestFlight mislabel used build 11.
-        CURRENT_PROJECT_VERSION: "12"
+        CURRENT_PROJECT_VERSION: "13"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         # Swift 5 language mode keeps the first builds free of strict-
@@ -194,8 +207,13 @@ targets:
       configs:
         Debug:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+          # Sandbox APNs — matches the development provisioning profile. Tokens
+          # from a Debug device build are NOT deliverable by the server, which
+          # talks to production only; test delivery from TestFlight.
+          APS_ENVIRONMENT: development
         Release:
           # TestFlight / App Store: no DEBUG flag — strips #if DEBUG dev UI
           # (Settings → Developer, FH_AUTOLOGIN, StoreKit skip, etc.).
+          APS_ENVIRONMENT: production
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
           ENABLE_DEBUG_DYLIB: NO
