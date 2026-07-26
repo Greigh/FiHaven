@@ -12,6 +12,7 @@ Related: [`docs/local/app-store-connect.md`](../local/app-store-connect.md) (git
 - [ ] Versions match: `package.json` `1.6.0`, iOS `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, Android `versionName` / `versionCode` in `android/app/build.gradle.kts`.
 - [ ] Web legal pages deployed: Privacy / Terms / FAQ (`npm run deploy` if copy changed).
 - [ ] `GET https://fihaven.app/health` returns `{"ok":true}`.
+- [ ] Seller/publisher identity is **Greigh Studios LLC** on both stores: Apple Developer Program account is an Organization (D-U-N-S on file) and the App Store "Copyright" field reads `2026 Greigh Studios LLC`; Google Play developer account name and "Developer" listing name read Greigh Studios LLC. If either account is still a personal/individual account, start the transfer before submitting — Apple's individual→organization move and Play's account transfer both take time.
 
 ---
 
@@ -88,6 +89,7 @@ Bump iOS `CURRENT_PROJECT_VERSION` and Android `versionCode` before every new up
 | Support URL | `https://fihaven.app/contact` |
 | Marketing URL (optional) | `https://fihaven.app` |
 | EULA | **Apple Standard** (custom empty) |
+| Copyright | `2026 Greigh Studios LLC` |
 | Category | Finance |
 | Age rating | Complete questionnaire (finance app; no UGC, gambling, unrestricted web) |
 

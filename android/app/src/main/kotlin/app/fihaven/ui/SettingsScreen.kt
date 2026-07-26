@@ -420,6 +420,11 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     NavRow("Source code", null) { uriHandler.openUri("https://github.com/Greigh/FiHaven") }
                     HorizontalDivider(color = Ct.colors.border)
                     KeyValueRow("Version", BuildConfig.VERSION_NAME)
+                    Text(
+                        "© 2026 Greigh Studios LLC. All rights reserved.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
                 }
             }
           }
@@ -594,7 +599,10 @@ private fun LicensesDialog(onDone: () -> Unit) {
             Text("View the Apache License 2.0", color = Ct.colors.accent, fontSize = 13.sp)
         }
         HorizontalDivider(color = Ct.colors.border)
-        Text("FiHaven itself is source available — see github.com/Greigh/FiHaven.", color = Ct.colors.muted, fontSize = 12.sp)
+        Text(
+            "FiHaven itself is © 2026 Greigh Studios LLC and source available under the Greigh Studios Source Available License — see github.com/Greigh/FiHaven.",
+            color = Ct.colors.muted, fontSize = 12.sp,
+        )
     }
 }
 

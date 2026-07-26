@@ -4,6 +4,8 @@ Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](
 
 **Bundle / application ID:** `app.fihaven`  
 **Version train:** 1.6.1  
+**Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
+**Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
 **Privacy:** https://fihaven.app/privacy  
 **Terms:** https://fihaven.app/terms  
@@ -19,6 +21,7 @@ Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](
 | Name | FiHaven |
 | Subtitle (≤30) | Quiet money. Calm month. |
 | Category | Finance |
+| Copyright | 2026 Greigh Studios LLC |
 | Privacy Policy URL | https://fihaven.app/privacy |
 | Support URL | https://fihaven.app/contact |
 | Marketing URL | https://fihaven.app |

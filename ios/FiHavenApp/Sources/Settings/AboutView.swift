@@ -2,8 +2,9 @@ import SwiftUI
 
 /// About + licensing.
 ///
-/// FiHaven is source available (see LICENSE on GitHub), with an optional Pro
-/// subscription on the hosted service. The iOS build's third-party runtime
+/// FiHaven is owned by Greigh Studios LLC and source available under the
+/// Greigh Studios Source Available License (see LICENSE on GitHub), with an
+/// optional Pro subscription on the hosted service. The iOS build's third-party runtime
 /// dependency is Plaid's LinkKit (Plaid SDK License); it otherwise runs on
 /// Apple's SDKs, FiHavenCore, and bundled fonts (SIL OFL 1.1).
 struct AboutView: View {
@@ -53,8 +54,11 @@ struct AboutView: View {
             }
 
             Section {
-                Text("Source is published on GitHub for transparency. You may not operate a public hosted copy or redistribute modified builds without permission.")
-                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Source is published on GitHub for transparency. You may not operate a public hosted copy or redistribute modified builds without permission.")
+                    Text("© 2026 Greigh Studios LLC. All rights reserved.")
+                }
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
         .listStyle(.insetGrouped)

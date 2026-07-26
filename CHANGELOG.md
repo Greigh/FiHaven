@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (8) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 31) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (10) - On TestFlight testing |
+| **Android** | 1.6.1 (versionCode 32) - On Closed Play Store Alpha Testing |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -39,6 +39,35 @@ Each release below uses two layers:
 > shows plan length, price, and Privacy / Terms links.
 
 ### Changes
+
+**Ownership & licensing (Jul 25)**
+
+- FiHaven is now owned and operated by **Greigh Studios LLC**. The code moves to
+  the **Greigh Studios Source Available License v1.0** (project-specific terms in
+  Schedule A of `LICENSE`) — what you may do with the source is unchanged: read
+  it, contribute, run it locally; no public hosted copies, no redistributed
+  builds, no stripping billing.
+- **Terms of Use** and **Privacy Policy** now name Greigh Studios LLC as the
+  provider of the Service and the controller of your data. Nothing about what is
+  collected, stored, or shared changed.
+- Site footers, transactional emails, and the iOS / Android **About** screens
+  carry `© 2026 Greigh Studios LLC`. The "Made with ♥ by Daniel Hipskind"
+  credit stays — same person, now behind the studio.
+
+**Family plan & trials (Jul 25)**
+
+- Fixed the **Family** plan not appearing on Android — Play Console's product id
+  is `app.fihaven.pro.family.yearly`, not `app.fihaven.pro.family`, and product
+  ids can't be renamed. The server now honors both ids.
+- Fixed paywall pricing that could read **"Free"** and sort a plan to the top
+  when a free-trial offer was attached to its base plan.
+- Fixed Play purchases that could **charge on day one** despite the advertised
+  7-day trial, by explicitly picking the trial offer instead of whichever offer
+  Play returned first.
+- Family on the web checkout no longer starts a 7-day trial, matching Play and
+  the App Store, where Family has never carried a trial offer. Home, Pricing,
+  and FAQ copy now say so: the trial is on monthly and yearly Pro, Family bills
+  right away.
 
 **Lists spacing (Jul 23)**
 
@@ -261,11 +290,38 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (8)**, Android **1.6.1 (31)**
-  (Jul 23 list spacing / status badge layout; prior: icons, deps, list search,
-  paywall, Google Custom Tab).
+- Native builds for this notes pass: iOS **1.6.1 (10)**, Android **1.6.1 (32)**
+  (Jul 25 ownership / licensing + Family SKU and trial fixes; prior: list
+  spacing, icons, deps, list search, paywall, Google Custom Tab).
 
 ### Technical changelog
+
+- **Ownership / licensing**: `LICENSE` is the Greigh Studios Source Available
+  License v1.0 (Schedule A: repository, service, holder `Greigh Studios LLC`,
+  contact `support@fihaven.app`). Copyright holder propagated to
+  `client/*.html` footers, `client/terms.html` (provider, liability, governing
+  law, source-code clauses) and `client/privacy.html` (controller),
+  `client/contact.html`, `client/faq.html`, `server/emails.js` layout footer,
+  iOS `AboutView` + `NSHumanReadableCopyright` (set in `project.yml`, since
+  xcodegen regenerates `Sources/Info.plist`), Android Settings → About and the
+  licenses sheet, `package.json` (`author`, SPDX `SEE LICENSE IN LICENSE`),
+  `README.md`, `.github/CONTRIBUTING.md` (Section 2(d) contribution grant),
+  `docs/source-available.md`, and the three compliance policies in `docs/`
+  (owner + operating entity rows, bumped to v1.1). Store docs gained an App
+  Store `Copyright` field and a seller-of-record pre-submit check.
+- **Family SKU**: `BillingManager.FAMILY` = `app.fihaven.pro.family.yearly`
+  (Play id is immutable; iOS keeps `app.fihaven.pro.family`); `server/billing.js`
+  `DEFAULT_PRODUCTS` maps both ids to plan `family`. `basePhase()` reads the
+  **last** pricing phase so a trial-bearing base plan prices/sorts correctly,
+  and `launchPurchase` selects the offer with a $0 phase rather than
+  `subscriptionOfferDetails.first()`. `createStripeCheckout` omits
+  `trial_period_days` for `plan === 'family'`. `FiHaven.storekit` mirrors App
+  Store Connect subscription-group levels (Family above Pro) so upgrades switch
+  immediately instead of deferring; noted in `StoreManager` and
+  `docs/native-contract.md`.
+- **Deps**: `plaid` ^45, `svelte` ^5.56.8, `concurrently` ^10.0.4 (lockfiles
+  synced).
+- **Builds**: iOS `CURRENT_PROJECT_VERSION` 10, Android `versionCode` 32.
 
 - **List spacing**: web `CardsList` / `BillsList` move payment status badges
   under the name (`card-row-status`); looser summary / search / meta gaps in

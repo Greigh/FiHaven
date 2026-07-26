@@ -116,6 +116,9 @@ targets:
         # "1.5.0 (11)".
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Copyright holder of FiHaven — shown in Finder/Get Info and read by
+        # App Store Connect. Must match the LICENSE Schedule A holder.
+        NSHumanReadableCopyright: © 2026 Greigh Studios LLC. All rights reserved.
         UILaunchScreen:
           UIColorName: LaunchBg
           UIImageName: LaunchIcon
@@ -162,7 +165,7 @@ targets:
         MARKETING_VERSION: "1.6.1"
         # 1.6.0 starts a fresh build train (a new marketing version resets the
         # App Store build count). The 1.5.0 TestFlight mislabel used build 11.
-        CURRENT_PROJECT_VERSION: "8"
+        CURRENT_PROJECT_VERSION: "10"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         # Swift 5 language mode keeps the first builds free of strict-

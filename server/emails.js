@@ -81,6 +81,7 @@ function layout({ heading, lines, cta, footnote }) {
     </table>
     <p style="max-width:520px;margin:16px auto 0;color:#9aa1ad;font-size:12px;text-align:center;">
       FiHaven · You're receiving this because someone used this address at fihaven.app.
+      <br/>© 2026 Greigh Studios LLC
     </p>
   </td></tr></table>
 </body></html>`;
