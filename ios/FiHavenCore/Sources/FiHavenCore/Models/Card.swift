@@ -84,6 +84,11 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var currentBalance: Double?
     public var lastDigits: String?
     public var network: String?          // "Visa" | "Mastercard" | "Amex" | "Discover" | …
+    /// Plaid `accountId` the user pinned this card to in the editor. Set, it
+    /// overrides digit matching for balance suggestions and claims that
+    /// account's imported transactions. Amex needs it: the mask Plaid reports
+    /// is the account's, not the number printed on the card.
+    public var plaidAccountId: String?
     public var rewardBase: Double        // flat reward % on everything (rewards optimizer)
     public var rewardCategories: [String: Double]   // per-category reward % overrides
     public var rotatingPool: [String]?   // categories that can earn the elevated rotating rate
@@ -121,6 +126,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         currentBalance: Double? = nil,
         lastDigits: String? = nil,
         network: String? = nil,
+        plaidAccountId: String? = nil,
         rewardBase: Double = 0,
         rewardCategories: [String: Double] = [:],
         rotatingPool: [String]? = nil,
@@ -157,6 +163,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         self.currentBalance = currentBalance
         self.lastDigits = lastDigits
         self.network = network
+        self.plaidAccountId = plaidAccountId
         self.rewardBase = rewardBase
         self.rewardCategories = rewardCategories
         self.rotatingPool = rotatingPool
@@ -177,7 +184,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         case id, name, balance, limit, minPayment, recommendedPayment, regularAPR
         case hasPromo, promoAPR, promoEndDate, promoBalance, promoPayoffPrompted
         case dueDay, autopay, autopayDay, notes
-        case type, issuer, currentBalance, lastDigits, network
+        case type, issuer, currentBalance, lastDigits, network, plaidAccountId
         case rewardBase, rewardCategories, rotatingPool, rotatingRate, pointValue, perks
         case presetId, acceptedPresetUpdatedAt, declinedPresetUpdatedAt
         case annualFee, feeMonth, offers, rewardsUrl, archived
@@ -206,6 +213,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         currentBalance = c.flexibleDouble(.currentBalance)
         lastDigits = c.flexibleString(.lastDigits)
         network = c.flexibleString(.network)
+        plaidAccountId = c.flexibleString(.plaidAccountId)
         rewardBase = c.flexibleDouble(.rewardBase) ?? 0
         // Web writes a plain { "Dining": 4 } object of numbers; tolerate a
         // missing or malformed map by falling back to empty.

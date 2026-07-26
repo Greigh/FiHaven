@@ -328,6 +328,18 @@
         <label for="c-lastdigits">Ends In (last 4 — Amex 5)</label>
         <input type="text" id="c-lastdigits" inputmode="numeric" placeholder="e.g. 1234" maxlength="5"/>
       </div>
+      <!-- Populated from /api/plaid/status by modals.js; the whole row stays
+           hidden unless the user actually has a linked bank. -->
+      <div class="field" id="c-bank-field" style="grid-column:span 2;display:none;">
+        <label for="c-bank-account">Linked bank account</label>
+        <select id="c-bank-account">
+          <option value="">Match automatically</option>
+        </select>
+        <p class="field-hint" id="c-bank-hint">
+          Pick the account this card is, when the digits don’t line up — American Express
+          reports a different number than the one printed on the card.
+        </p>
+      </div>
       <div class="field" id="c-haspromo-field" style="grid-column:span 2;">
         <label class="checkbox-label">
           <input type="checkbox" id="c-haspromo" onchange="togglePromoFields()"/>

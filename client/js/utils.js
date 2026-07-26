@@ -340,6 +340,20 @@ export function promoNeeded(card) {
   return months <= 0 ? bal : bal / months;
 }
 
+/* Bank rows carry the Plaid `accountId` they came from; a card carries the
+   account the user linked it to. Attribution is resolved at read time on
+   purpose — re-pointing a card at another account re-attributes its whole
+   history rather than stranding rows tagged with a stale card id. */
+export function cardForTransaction(tx, cardList) {
+  var acct = tx && tx.accountId;
+  if (!acct) return null;
+  var list = cardList || cards;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].plaidAccountId && String(list[i].plaidAccountId) === String(acct)) return list[i];
+  }
+  return null;
+}
+
 /* ── Payment Helpers ────────────────────────────────────────
    Paid/owed is matched by whether a payment's date falls inside the
    active period's [start, end) — resolved from the period key — so

@@ -526,6 +526,27 @@ fun CardEditorDialog(
     var currentBalance by remember { mutableStateOf(card?.currentBalance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var lastDigits by remember { mutableStateOf(card?.lastDigits ?: "") }
     var network by remember { mutableStateOf(card?.network ?: "") }
+    // Plaid account this card is pinned to ("" = match automatically) and the
+    // credit/loan accounts to choose from. The row stays hidden until a bank is
+    // linked; failures leave the list empty rather than blocking the editor.
+    var plaidAccountId by remember { mutableStateOf(card?.plaidAccountId ?: "") }
+    val bankAccounts = remember { mutableStateListOf<Pair<String, String>>() } // id to label
+    LaunchedEffect(Unit) {
+        val status = runCatching { vm.api.plaidStatus() }.getOrNull() ?: return@LaunchedEffect
+        bankAccounts.clear()
+        status.items.forEach { item ->
+            item.accounts
+                .filter { (it.type ?: "").lowercase() in listOf("credit", "loan") }
+                .forEach { a ->
+                    val label = buildString {
+                        append(item.institutionName)
+                        a.name?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                        a.mask?.takeIf { it.isNotBlank() }?.let { append(" ····").append(it) }
+                    }
+                    bankAccounts.add(a.accountId to label)
+                }
+        }
+    }
     var balance by remember { mutableStateOf(card?.balance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var limit by remember { mutableStateOf(card?.limit?.takeIf { it != 0.0 }?.toString() ?: "") }
     var minPayment by remember { mutableStateOf(card?.minPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
@@ -584,6 +605,7 @@ fun CardEditorDialog(
                     currentBalance = if (isLoan) null else currentBalance.toDoubleOrNull(),
                     lastDigits = lastDigits.trim().takeIf { it.isNotBlank() },
                     network = network.takeIf { it.isNotBlank() },
+                    plaidAccountId = plaidAccountId.takeIf { it.isNotBlank() },
                     balance = balance.toDoubleOrNull() ?: 0.0,
                     limit = if (isLoan) 0.0 else (limit.toDoubleOrNull() ?: 0.0),
                     minPayment = minPayment.toDoubleOrNull() ?: 0.0,
@@ -644,6 +666,31 @@ fun CardEditorDialog(
             singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
         DropdownField("Network", listOf("—", "Visa", "Mastercard", "Amex", "Discover", "Other"), network.ifBlank { "—" }) { network = if (it == "—") "" else it }
+
+        // Pinning beats digit matching, which Amex defeats by reporting the
+        // account's mask rather than the number printed on the card.
+        if (bankAccounts.isNotEmpty() || plaidAccountId.isNotBlank()) {
+            val auto = "Match automatically"
+            val stale = "Previously linked account"
+            val labels = buildList {
+                add(auto)
+                addAll(bankAccounts.map { it.second })
+                if (plaidAccountId.isNotBlank() && bankAccounts.none { it.first == plaidAccountId }) add(stale)
+            }
+            val selected = bankAccounts.firstOrNull { it.first == plaidAccountId }?.second
+                ?: if (plaidAccountId.isBlank()) auto else stale
+            DropdownField("Linked bank account", labels, selected) { picked ->
+                plaidAccountId = when (picked) {
+                    auto -> ""
+                    stale -> plaidAccountId
+                    else -> bankAccounts.firstOrNull { it.second == picked }?.first ?: ""
+                }
+            }
+            Text(
+                "Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card.",
+                color = Ct.colors.muted, fontSize = 12.sp,
+            )
+        }
 
         money(balance, if (isLoan) "Remaining Principal" else "Statement Balance") { balance = it }
 

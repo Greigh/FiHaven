@@ -15,6 +15,7 @@ import {
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
 import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
+import { loadPlaidAccounts } from './plaidAccounts.js';
 import { PERK_FREQUENCIES, newPerkId } from './perks.js';
 import { newOfferId } from './offers.js';
 import { renderBills } from './bills.js';
@@ -390,6 +391,41 @@ function setupRewardPreset() {
   }
 }
 
+/* Populate the "Linked bank account" picker with the user's credit/loan
+   accounts. The whole row stays hidden when there is nothing to pick — Free
+   users and anyone without a linked bank never see it.
+
+   A card saved against an account that has since been unlinked keeps its
+   stored id as an option, so opening the editor can't silently drop the link.
+   The account list arrives asynchronously; `selected` is applied on arrival. */
+function fillBankAccountPicker(selected) {
+  var field = document.getElementById('c-bank-field');
+  var sel = document.getElementById('c-bank-account');
+  if (!field || !sel) return;
+
+  field.style.display = 'none';
+  sel.innerHTML = '<option value="">Match automatically</option>';
+  sel.value = '';
+
+  loadPlaidAccounts().then(function (accounts) {
+    if (!accounts.length && !selected) return;
+    accounts.forEach(function (a) {
+      var o = document.createElement('option');
+      o.value = a.accountId;
+      o.textContent = a.label;
+      sel.appendChild(o);
+    });
+    if (selected && !accounts.some(function (a) { return a.accountId === selected; })) {
+      var stale = document.createElement('option');
+      stale.value = selected;
+      stale.textContent = 'Previously linked account (no longer available)';
+      sel.appendChild(stale);
+    }
+    sel.value = selected || '';
+    field.style.display = '';
+  });
+}
+
 // Fill name/issuer/network (without clobbering non-empty fields) and the
 // reward rates from a preset. Everything stays editable afterward.
 export function applyCardPreset(id) {
@@ -541,6 +577,7 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-feemonth').value  = c.feeMonth    || '';
   document.getElementById('c-lastdigits').value = c.lastDigits  || '';
   document.getElementById('c-network').value   = c.network     || '';
+  fillBankAccountPicker(c.plaidAccountId || '');
   document.getElementById('c-haspromo').checked = !!c.hasPromo;
   document.getElementById('c-promoapr').value  = c.promoAPR    || 0;
   document.getElementById('c-promoend').value  = c.promoEndDate|| '';
@@ -606,6 +643,9 @@ export function saveCard() {
     issuer:       issuer,
     lastDigits:   lastDigits,
     network:      network,
+    // '' → keep matching by digits/issuer. A chosen account pins this card to
+    // it for balance suggestions and bank-transaction attribution.
+    plaidAccountId: document.getElementById('c-bank-account').value || null,
     balance:      parseFloat(document.getElementById('c-balance').value) || 0,
     currentBalance: currentBalance,
     limit:        isLoan ? 0 : (parseFloat(document.getElementById('c-limit').value) || 0),
