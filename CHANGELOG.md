@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (10) - On TestFlight testing |
-| **Android** | 1.6.1 (versionCode 32) - On Closed Play Store Alpha Testing |
+| **iOS** | 1.6.1 (11) - On TestFlight testing (10 shipped the ownership pass) |
+| **Android** | 1.6.1 (versionCode 33) - On Closed Play Store Alpha Testing (32 shipped the Family SKU fixes) |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -309,10 +309,11 @@ Each release below uses two layers:
 - Corrected 1.6.0-era iOS Info.plist override that mislabeled TestFlight as 1.5.0;
   `CFBundleShortVersionString` tracks `$(MARKETING_VERSION)`.
 - Adopt bun for scripts where applicable; dependency bumps (stripe, svelte, etc.).
-- Native builds for this notes pass: iOS **1.6.1 (10)**, Android **1.6.1 (32)**
-  (Jul 26 card↔account linking; Jul 25 ownership / licensing + Family SKU and
-  trial fixes; prior: list spacing, icons, deps, list search, paywall, Google
-  Custom Tab).
+- Native builds, and what actually shipped in each:
+  - iOS **1.6.1 (11)** / Android **1.6.1 (33)** — Jul 26 card↔account linking.
+  - iOS **1.6.1 (10)** / Android **1.6.1 (32)** — Jul 25 ownership / licensing
+    + Family SKU and trial fixes. Uploaded before card linking merged.
+  - Prior: list spacing, icons, deps, list search, paywall, Google Custom Tab.
 
 ### Technical changelog
 
@@ -335,7 +336,8 @@ Each release below uses two layers:
   link. Attribution is read-time via `cardForTransaction` (`utils.js`), shown
   per-row in `SpendingPanel.svelte` and as a per-period total pill in
   `CardsList.svelte`. Tests: matching tiers, merge attribution, and the web
-  helper. Docs: `native-contract.md` §6 Card.
+  helper. Docs: `native-contract.md` §6 Card. Ships in iOS **11** /
+  Android **33**.
 
 - **Ownership / licensing**: `LICENSE` is the Greigh Studios Source Available
   License v1.0 (Schedule A: repository, service, holder `Greigh Studios LLC`,
