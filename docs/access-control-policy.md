@@ -37,7 +37,7 @@ This policy governs access to all FiHaven production assets (servers, databases,
 - Users may enroll **phishing-resistant MFA** — WebAuthn **passkeys**, authenticator-app **TOTP**, and/or email one-time codes; MFA secrets are encrypted at rest.
 - Sessions are bound server-side. Web clients use `Secure`/`HttpOnly`/`SameSite` cookies plus a per-session CSRF token; native apps store a bearer token in the platform secure store (iOS Keychain, Android EncryptedSharedPreferences).
 
-**Operator / administrative identities** (server SSH, hosting console, GitHub, Plaid, Stripe, Cloudflare, DNS/mail):
+**Operator / administrative identities** (server SSH, hosting console, GitHub, Plaid, Paddle, Cloudflare, DNS/mail):
 
 - Each provider account is protected by a **strong, unique credential and MFA** wherever the provider supports it.
 - Production SSH uses key-based authentication; password SSH is disabled.
@@ -46,7 +46,7 @@ This policy governs access to all FiHaven production assets (servers, databases,
 **Non-human / service identities:**
 
 - The native apps and web client authenticate to the API with **bearer tokens** (or session cookies); machine-to-machine and provider traffic is authenticated with per-service API credentials over **TLS**.
-- Provider secrets (Plaid `client_id`/`secret`, Stripe keys, SMTP credentials) are stored only in environment configuration, are environment-specific (e.g., Plaid sandbox vs. production), and are never committed to source control.
+- Provider secrets (Plaid `client_id`/`secret`, Paddle API key, SMTP credentials) are stored only in environment configuration, are environment-specific (e.g., Plaid sandbox vs. production), and are never committed to source control.
 
 ---
 

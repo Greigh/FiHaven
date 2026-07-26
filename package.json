@@ -58,7 +58,6 @@
     "otpauth": "^9.5.1",
     "plaid": "^45.0.0",
     "qrcode": "^1.5.4",
-    "stripe": "^22.3.2",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

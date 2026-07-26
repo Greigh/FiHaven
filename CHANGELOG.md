@@ -40,6 +40,30 @@ Each release below uses two layers:
 
 ### Changes
 
+**Web billing moves to Paddle (Jul 26)**
+
+- Web checkout is now handled by **Paddle**, which acts as our **merchant of
+  record** — Paddle is the seller for web purchases, takes the payment, and
+  handles sales tax and VAT. Stripe is gone from the web entirely.
+- Checkout is now an **overlay** instead of a redirect: you stay on the page,
+  and Pro activates as soon as the payment confirms.
+- Cancelling and changing plan happen in the Paddle customer portal, reached
+  from the same **Manage subscription** button as before.
+- Prices, plans, and the 7-day trial on monthly and yearly are unchanged.
+  Family still bills right away with no trial.
+- **App Store and Google Play purchases are untouched** — those still go
+  through Apple and Google, and existing native subscriptions keep working.
+- Terms, Privacy, Refunds, Security, FAQ and Pricing now name Paddle as the
+  merchant of record, replacing every mention of Stripe.
+
+**Refund policy (Jul 26)**
+
+- New **[Refund & Cancellation Policy](https://fihaven.app/refunds)** covering
+  cancellation on each platform, a **3-day refund** on a first web purchase or
+  an accidental renewal, billing errors, and the fact that App Store and Google
+  Play purchases can only be refunded by Apple or Google. Linked from Terms,
+  Pricing, and the site footer.
+
 **Cards ↔ bank accounts (Jul 26)**
 
 - **Link a card to a bank account yourself.** The card editor on web, iOS, and
@@ -316,6 +340,39 @@ Each release below uses two layers:
   - Prior: list spacing, icons, deps, list search, paywall, Google Custom Tab.
 
 ### Technical changelog
+
+- **Paddle (web billing)**: new `server/paddle.js` — REST client, webhook
+  signature verification, and the notification-IP allowlist. Signature is
+  HMAC-SHA256 over `"<ts>:<raw body>"` compared timing-safely against the raw
+  bytes (re-serializing the parsed body changes key order and breaks it), with
+  a replay window on `ts`. IPs come from `api.paddle.com/ips` and are cached,
+  never hard-coded; an unfetchable list returns `null` ("unknown") and falls
+  through to the signature rather than dropping real subscription events.
+  `server/billing.js` swaps `STRIPE_PLANS`→`PADDLE_PLANS` (`PADDLE_PRICE_*`),
+  `planFor` falls back to `paddlePlanForPrice`, and adds
+  `recordPaddleSubscription` / `upsertFromPaddleSub` / `handlePaddleWebhook` /
+  `createPaddlePortal`. `paddleStatusFor` maps `active|trialing`→active,
+  `past_due`→grace, everything else→expired; a mid-period cancel arrives as
+  `scheduled_change.action === 'cancel'`, which keeps access to the paid-through
+  date while reporting auto-renew off. The Paddle customer id is stored in the
+  subscription row's `raw` so `pwCustomer` needs no new column. Routes:
+  `/api/billing/paddle/{config,checkout,portal,webhook}` plus the dev-portal
+  mocks. `computeEntitlement` was already platform-agnostic and is unchanged.
+- **Paddle (client)**: `pro.js` loads `cdn.paddle.com/paddle/v2/paddle.js` on
+  demand, calls `Paddle.Initialize({ token, pwCustomer })` — `pwCustomer` is
+  the Paddle customer id, which Retain requires — and opens
+  `Paddle.Checkout.open({ items, customer, customData })`. The overlay closes
+  without navigating, so `checkout.completed` polls entitlement rather than
+  trusting the client. `custom_data.userId` is how a payment is attributed back
+  to an account. Onboarding hands off to the Pro dialog instead of redirecting,
+  since an overlay has no URL.
+- **Removed**: the `stripe` dependency, `STRIPE_*` env vars, and every Stripe
+  reference across server, client, tests, and docs. `.env.example` documents the
+  Paddle set, flagging `PADDLE_API_KEY` as secret and the client token as public.
+- Tests: 17 new in `server/paddle.test.js` covering tampered bodies, wrong
+  secret, stale and future timestamps, malformed headers, missing secret, IP
+  allow/deny, IPv6-mapped addresses, caching, and the deliberate
+  fail-open-on-unknown behaviour.
 
 - **Card↔account linking**: new `card.plaidAccountId` (iOS `Card.swift`,
   Android `Models.kt` — fixed structs, so the field had to be added or native
