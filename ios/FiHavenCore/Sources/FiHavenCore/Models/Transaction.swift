@@ -16,6 +16,10 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
     public var source: String
     public var plaidId: String?
     public var pending: Bool
+    /// Plaid account this charge came from. A card pinned to the same account
+    /// claims the row, which is how per-card spending works. Resolved at read
+    /// time so re-pointing a card re-attributes its whole history.
+    public var accountId: String?
 
     public init(
         id: String,
@@ -26,7 +30,8 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         note: String = "",
         source: String = "manual",
         plaidId: String? = nil,
-        pending: Bool = false
+        pending: Bool = false,
+        accountId: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -37,10 +42,11 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         self.source = source
         self.plaidId = plaidId
         self.pending = pending
+        self.accountId = accountId
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, date, amount, category, merchant, note, source, plaidId, pending
+        case id, date, amount, category, merchant, note, source, plaidId, pending, accountId
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +60,7 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         source = c.flexibleString(.source) ?? "manual"
         plaidId = c.flexibleString(.plaidId)
         pending = c.flexibleBool(.pending) ?? false
+        accountId = c.flexibleString(.accountId)
     }
 
     public var isBank: Bool { source == "plaid" }

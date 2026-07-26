@@ -135,3 +135,33 @@ describe('plaidMerge — additive, outflows only', () => {
     expect(byId.c).toBe('Other');
   });
 });
+
+describe('plaidMerge — account attribution', () => {
+  const on = { plaidUpdatePurchases: true };
+
+  it('tags each bank row with the account it came from', () => {
+    const out = mergeTransactions(on, [], {
+      added: [tx('p1', 10, { account_id: 'acct-gold' }), tx('p2', 20, { account_id: 'acct-plat' })],
+    });
+    const byId = Object.fromEntries(out.transactions.map((t) => [t.plaidId, t.accountId]));
+    expect(byId.p1).toBe('acct-gold');
+    expect(byId.p2).toBe('acct-plat');
+  });
+
+  it('falls back to an empty accountId rather than undefined', () => {
+    // Older Plaid payloads (and our own fixtures) may omit account_id; the
+    // field must still exist so native decoders see a consistent shape.
+    const out = mergeTransactions(on, [], { added: [tx('p1')] });
+    expect(out.transactions[0].accountId).toBe('');
+  });
+
+  it('keeps attribution across a modify', () => {
+    const first = mergeTransactions(on, [], { added: [tx('p1', 10, { account_id: 'acct-gold' })] });
+    const second = mergeTransactions(on, first.transactions, {
+      modified: [tx('p1', 12, { account_id: 'acct-gold' })],
+    });
+    const row = second.transactions.find((t) => t.plaidId === 'p1');
+    expect(row.amount).toBe(12);
+    expect(row.accountId).toBe('acct-gold');
+  });
+});

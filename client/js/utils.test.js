@@ -42,6 +42,7 @@ import {
   renderTab,
   refreshAll,
   periodObligationItems,
+  cardForTransaction,
 } from './utils.js';
 import { setCards, setBills, setPayments, setSettings } from './storage.svelte.js';
 import { boundsForKey } from './period.js';
@@ -566,5 +567,31 @@ describe('utils — periodObligationItems', () => {
     ], bounds);
 
     expect(items.map((i) => i.refId)).toEqual(['C1', 'B1']);
+  });
+});
+
+describe('cardForTransaction', () => {
+  const gold = { id: 'C1', name: 'Amex Gold', plaidAccountId: 'acct-gold' };
+  const plat = { id: 'C2', name: 'Amex Platinum', plaidAccountId: 'acct-plat' };
+  const unlinked = { id: 'C3', name: 'Chase Freedom' };
+
+  it('attributes a bank row to the card pinned to its account', () => {
+    expect(cardForTransaction({ accountId: 'acct-plat' }, [gold, plat, unlinked]).id).toBe('C2');
+  });
+
+  it('returns null for manual rows and unlinked accounts', () => {
+    expect(cardForTransaction({ amount: 5 }, [gold])).toBe(null);
+    expect(cardForTransaction({ accountId: '' }, [gold])).toBe(null);
+    expect(cardForTransaction({ accountId: 'acct-unknown' }, [gold, plat])).toBe(null);
+  });
+
+  it('never claims a row for a card with no link', () => {
+    // The unlinked card must not soak up rows just by being present.
+    expect(cardForTransaction({ accountId: 'acct-gold' }, [unlinked])).toBe(null);
+  });
+
+  it('re-attributes history when a card is re-pointed at another account', () => {
+    const tx = { accountId: 'acct-plat' };
+    expect(cardForTransaction(tx, [{ ...gold, plaidAccountId: 'acct-plat' }]).id).toBe('C1');
   });
 });

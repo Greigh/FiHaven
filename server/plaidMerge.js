@@ -50,6 +50,10 @@ function toLocalTx(t) {
     source: 'plaid',
     plaidId: t.transaction_id,
     pending: !!t.pending,
+    // Which linked account the charge came from. Stored rather than resolved
+    // to a card id so that re-pointing a card at a different account
+    // re-attributes its whole history instead of stranding it.
+    accountId: t.account_id || '',
   };
 }
 

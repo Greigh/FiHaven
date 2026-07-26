@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   last4,
   cardMatchesMask,
+  cardMatchesIssuerAndName,
+  issuerMatchesInstitution,
+  matchCardToAccount,
   balanceFingerprint,
   balanceProposals,
   applyAcceptedCurrentBalance,
@@ -33,6 +36,79 @@ describe('plaidBalances — last4 & match', () => {
     expect(cardMatchesMask({ name: 'Amex Gold ••1009' }, '1009')).toBe(true);
     expect(cardMatchesMask({ name: 'Chase Sapphire' }, '1009')).toBe(false);
     expect(cardMatchesMask({ name: 'X' }, '')).toBe(false);
+  });
+});
+
+describe('plaidBalances — issuer + name (tier 3)', () => {
+  it('folds trading names onto one issuer', () => {
+    expect(issuerMatchesInstitution('Amex', 'American Express')).toBe(true);
+    expect(issuerMatchesInstitution('American Express', 'American Express Credit Cards')).toBe(true);
+    expect(issuerMatchesInstitution('Bank of America', 'Bank of America, N.A.')).toBe(true);
+    expect(issuerMatchesInstitution('Chase', 'JPMorgan Chase')).toBe(true);
+    expect(issuerMatchesInstitution('Chase', 'American Express')).toBe(false);
+    expect(issuerMatchesInstitution('', 'American Express')).toBe(false);
+  });
+
+  it('needs a shared product word, not just the issuer', () => {
+    const gold = { name: 'Gold Card', issuer: 'American Express' };
+    expect(cardMatchesIssuerAndName(gold, { name: 'Amex Gold Card' }, 'American Express')).toBe(true);
+    // Same bank, different product — must NOT match.
+    expect(cardMatchesIssuerAndName(gold, { name: 'Platinum Card' }, 'American Express')).toBe(false);
+    // Right product, wrong bank.
+    expect(cardMatchesIssuerAndName(gold, { name: 'Gold Card' }, 'Chase')).toBe(false);
+    // "Card"/"credit" alone are stopwords and prove nothing.
+    expect(cardMatchesIssuerAndName({ name: 'Card', issuer: 'Amex' }, { name: 'Credit Card' }, 'American Express')).toBe(false);
+  });
+
+  it('reads official_name when the short name is unhelpful', () => {
+    const card = { name: 'Sapphire Preferred', issuer: 'Chase' };
+    const account = { name: 'CREDIT CARD', official_name: 'Chase Sapphire Preferred Card' };
+    expect(cardMatchesIssuerAndName(card, account, 'JPMorgan Chase')).toBe(true);
+  });
+});
+
+describe('plaidBalances — matchCardToAccount tiers', () => {
+  const gold = { id: 'g', name: 'Gold Card', issuer: 'American Express', lastDigits: '1001' };
+  const plat = { id: 'p', name: 'Platinum Card', issuer: 'American Express', lastDigits: '2002' };
+
+  it('an explicit link wins over digits that point elsewhere', () => {
+    const linked = { ...gold, plaidAccountId: 'acct-1' };
+    const account = { account_id: 'acct-1', mask: '2002' }; // digits say Platinum
+    expect(matchCardToAccount([linked, plat], account, 'American Express').id).toBe('g');
+  });
+
+  it('an explicit link needs no mask at all', () => {
+    const linked = { ...gold, plaidAccountId: 'acct-1' };
+    expect(matchCardToAccount([linked], { account_id: 'acct-1', mask: null }, '').id).toBe('g');
+  });
+
+  it('never auto-claims a card pinned to a different account', () => {
+    const pinned = { ...gold, plaidAccountId: 'somewhere-else' };
+    // Digits would otherwise match this account outright.
+    expect(matchCardToAccount([pinned], { account_id: 'acct-9', mask: '1001' }, '')).toBe(null);
+  });
+
+  it('falls back to issuer + name when the bank reports no mask (the Amex case)', () => {
+    const account = { account_id: 'acct-2', name: 'Gold Card', mask: null };
+    expect(matchCardToAccount([gold, plat], account, 'American Express').id).toBe('g');
+  });
+
+  it('breaks a digit tie with issuer + name', () => {
+    const a = { id: 'a', name: 'Gold Card', issuer: 'American Express', lastDigits: '1001' };
+    const b = { id: 'b', name: 'Freedom', issuer: 'Chase', lastDigits: '1001' };
+    const account = { account_id: 'acct-3', name: 'Amex Gold Card', mask: '1001' };
+    expect(matchCardToAccount([a, b], account, 'American Express').id).toBe('a');
+  });
+
+  it('stays silent rather than guessing between two cards at one bank', () => {
+    const account = { account_id: 'acct-4', name: 'Credit Card', mask: null };
+    expect(matchCardToAccount([gold, plat], account, 'American Express')).toBe(null);
+  });
+
+  it('two cards explicitly linked to the same account is ambiguous, not first-wins', () => {
+    const one = { ...gold, plaidAccountId: 'acct-5' };
+    const two = { ...plat, plaidAccountId: 'acct-5' };
+    expect(matchCardToAccount([one, two], { account_id: 'acct-5' }, '')).toBe(null);
   });
 });
 

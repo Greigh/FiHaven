@@ -259,7 +259,8 @@ today's `YYYY-MM-DD` in the user's tz.
   "offers": [               // optional — card-linked offers (manual tracker)
     { "id": "o1", "merchant": "Whole Foods", "detail": "10% back", "expires": "2026-07-31", "used": false }
   ],
-  "rewardsUrl": "https://…"  // optional — user-saved rewards/offers link (Rewards tab)
+  "rewardsUrl": "https://…", // optional — user-saved rewards/offers link (Rewards tab)
+  "plaidAccountId": null    // optional string — Plaid accountId this card is pinned to (see Card↔account linking)
 }
 ```
 **Credits & perks (`perks`).** Each perk is a recurring statement credit
@@ -308,6 +309,34 @@ is manual — "remove my copy" / "keep both". Bank balances become **Current Bal
 proposals** when `plaidUpdateBalances` is on (never Statement Balance). The client
 Accepts or Declines each proposal; declined/accepted fingerprints are not
 re-prompted until the bank figure changes.
+
+**Card↔account linking (`card.plaidAccountId`, `transaction.accountId`).**
+Which card a Plaid account belongs to is decided server-side by
+`plaidBalances.js` in three tiers, most trustworthy first:
+
+1. **Explicit** — `card.plaidAccountId`, set in the card editor's *Linked bank
+   account* picker (web, iOS, Android). Wins over everything, needs no mask.
+   Some issuers make it the only workable route: American Express reports the
+   **account's** mask, which routinely differs from the digits printed on the
+   card, so digit matching can never connect the two.
+2. **Digits** — `card.lastDigits` vs the account `mask` (Amex 4↔5 tolerated),
+   with the card name as a fallback for entries that baked the mask into it.
+3. **Issuer + name** — only when digits are absent or tied: the card's `issuer`
+   must fold to the same institution AND share a significant word with the
+   account name (`"Gold"` in `"Amex Gold Card"`; `"card"`/`"credit"` are
+   stopwords and prove nothing).
+
+A card already pinned to another account is never auto-claimed, and a proposal
+still requires **exactly one** candidate — two Amex cards mean FiHaven asks
+rather than guesses.
+
+Bank transactions carry `accountId` (the Plaid account they came from), so a
+card pinned to that account claims them: that's how per-card spending works.
+Attribution is resolved at read time (`cardForTransaction` in `utils.js`) rather
+than stamped onto the row, so re-pointing a card at a different account
+re-attributes its whole history instead of stranding it. Native editors load
+their picker options from `GET /api/plaid/status` (credit/loan accounts only —
+a chequing account is never a card).
 
 ### Payment
 ```jsonc
