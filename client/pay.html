@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="Secure checkout for FiHaven."/>
+  <!-- A transaction-specific utility page: never useful from search. -->
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <title>Secure checkout — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="public">
+  <div class="page-frame">
+    <main class="page-main legal-page">
+      <section class="legal-card hero-shell" style="text-align:center;">
+        <div class="hero-badge">FiHaven</div>
+        <h1>Secure checkout</h1>
+
+        <p data-pay-status class="mono" style="font-size:13px;color:var(--muted);">Opening secure checkout…</p>
+
+        <div data-pay-fallback hidden>
+          <p>This page opens a payment from a link we sent you. If you got here another way, there’s nothing to pay.</p>
+          <p style="margin-top:10px;">
+            Manage your subscription from <a href="/settings">Settings</a>, see plans on
+            <a href="/pricing">Pricing</a>, or email
+            <a href="mailto:support@fihaven.app">support@fihaven.app</a> if a payment link didn’t work.
+          </p>
+        </div>
+
+        <p style="margin-top:18px;font-size:12px;color:var(--muted);">
+          Payments are processed by Paddle, our merchant of record.
+          See our <a href="/terms">Terms</a>, <a href="/privacy">Privacy Policy</a>, and
+          <a href="/refunds">Refund Policy</a>.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer-legal">© 2026 Greigh Studios LLC</div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/pay.js"></script>
+</body>
+</html>
