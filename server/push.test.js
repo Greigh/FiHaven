@@ -164,3 +164,62 @@ describe('push — copy helpers', () => {
     expect(out.skipped).toBe('unconfigured');
   });
 });
+
+// Devices read this at registration to decide whether to suppress their local
+// reminders. Reporting ready for a platform we cannot actually send to would
+// make those devices go silent, so the unconfigured cases matter most.
+describe('push — platformReady', () => {
+  let tmpSaPath;
+
+  beforeEach(() => {
+    clearModule('./push');
+    clearModule('./db');
+    clearModule('firebase-admin/app');
+    clearModule('firebase-admin/messaging');
+    vi.unstubAllEnvs();
+    delete process.env.APNS_KEY_ID;
+    delete process.env.APNS_TEAM_ID;
+    delete process.env.APNS_KEY_PATH;
+    delete process.env.APNS_SA_LOCAL;
+    delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+    delete process.env.FCM_SA_LOCAL;
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+  });
+
+  afterEach(() => {
+    if (tmpSaPath && fs.existsSync(tmpSaPath)) fs.unlinkSync(tmpSaPath);
+    tmpSaPath = null;
+    delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+  });
+
+  it('reports every platform unready when nothing is configured', () => {
+    const push = require('./push');
+    expect(push.platformReady('ios')).toBe(false);
+    expect(push.platformReady('android')).toBe(false);
+    expect(push.platformReady('web')).toBe(false);
+  });
+
+  it('reports android ready once FCM credentials load, others still unready', () => {
+    tmpSaPath = path.join(os.tmpdir(), `fihaven-fcm-ready-${Date.now()}.json`);
+    fs.writeFileSync(tmpSaPath, JSON.stringify({ project_id: 't', client_email: 'a@b.c', private_key: 'k' }));
+    process.env.FCM_SERVICE_ACCOUNT_JSON = tmpSaPath;
+    stubModule('firebase-admin/app', {
+      getApps: () => [],
+      initializeApp: vi.fn(),
+      cert: vi.fn((x) => x),
+    });
+    stubModule('firebase-admin/messaging', { getMessaging: () => ({ send: vi.fn() }) });
+
+    const push = require('./push');
+    expect(push.platformReady('android')).toBe(true);
+    expect(push.platformReady('ios')).toBe(false);
+  });
+
+  it('never reports an unknown platform as ready', () => {
+    const push = require('./push');
+    expect(push.platformReady('windows')).toBe(false);
+    expect(push.platformReady('')).toBe(false);
+    expect(push.platformReady(undefined)).toBe(false);
+  });
+});

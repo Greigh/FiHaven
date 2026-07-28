@@ -15,7 +15,7 @@ import {
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
 import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
-import { loadPlaidAccounts } from './plaidAccounts.js';
+import { loadPlaidAccounts, PLAID_LINK_NONE } from './plaidAccounts.js';
 import { PERK_FREQUENCIES, newPerkId } from './perks.js';
 import { newOfferId } from './offers.js';
 import { renderBills } from './bills.js';
@@ -415,7 +415,14 @@ function fillBankAccountPicker(selected) {
       o.textContent = a.label;
       sel.appendChild(o);
     });
-    if (selected && !accounts.some(function (a) { return a.accountId === selected; })) {
+    // "Match automatically" is not a refusal — it invites the next sync to pin
+    // the card. This is how someone says no and has it stick.
+    var no = document.createElement('option');
+    no.value = PLAID_LINK_NONE;
+    no.textContent = "Don't link this card";
+    sel.appendChild(no);
+    if (selected && selected !== PLAID_LINK_NONE
+        && !accounts.some(function (a) { return a.accountId === selected; })) {
       var stale = document.createElement('option');
       stale.value = selected;
       stale.textContent = 'Previously linked account (no longer available)';
@@ -644,7 +651,8 @@ export function saveCard() {
     lastDigits:   lastDigits,
     network:      network,
     // '' → keep matching by digits/issuer. A chosen account pins this card to
-    // it for balance suggestions and bank-transaction attribution.
+    // it for balance suggestions and bank-transaction attribution;
+    // PLAID_LINK_NONE keeps it out of matching altogether.
     plaidAccountId: document.getElementById('c-bank-account').value || null,
     balance:      parseFloat(document.getElementById('c-balance').value) || 0,
     currentBalance: currentBalance,

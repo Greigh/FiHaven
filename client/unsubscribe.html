@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+  <meta name="description" content="Turn off FiHaven notification emails."/>
+  <meta name="robots" content="noindex,nofollow"/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+
+  <title>Email preferences — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+</head>
+<body class="min-h-screen text-(--text) antialiased">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="page-main" style="display:flex;align-items:center;justify-content:center;">
+      <section class="auth-card hero-shell" style="width:min(560px,100%);">
+        <div class="hero-badge">Email preferences</div>
+        <h1 style="margin-top:14px;" data-unsub-heading>Unsubscribe</h1>
+        <p style="margin-top:12px;" data-unsub-status>Checking your link…</p>
+
+        <!-- Valid link: confirm before anything changes, so a mail
+             scanner that prefetches the URL can't opt someone out. -->
+        <div data-unsub-confirm hidden style="margin-top:8px;">
+          <p style="color:var(--muted);font-size:14px;">
+            This turns off <strong data-unsub-what>these emails</strong> for your account.
+            Account security emails — password resets, sign-in confirmations — always keep sending.
+          </p>
+          <div class="auth-actions" style="margin-top:14px;">
+            <button class="btn btn-primary" type="button" data-unsub-go>Unsubscribe</button>
+            <a class="btn btn-ghost" href="/settings?tab=notifications#notifications">Manage all preferences</a>
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div data-unsub-done hidden style="margin-top:8px;">
+          <p style="color:var(--muted);font-size:14px;">
+            Changed your mind? You can turn any of them back on from Settings at any time.
+          </p>
+          <div class="auth-actions" style="margin-top:14px;">
+            <a class="btn btn-primary" href="/settings?tab=notifications#notifications">Notification settings</a>
+          </div>
+        </div>
+
+        <!-- Bad or expired link -->
+        <div data-unsub-bad hidden style="margin-top:8px;">
+          <p style="color:var(--muted);font-size:14px;">
+            Sign in and open Settings → Notifications to change what FiHaven emails you.
+          </p>
+          <div class="auth-actions" style="margin-top:14px;">
+            <a class="btn btn-primary" href="/login">Go to sign in</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><strong style="color:var(--text);">FiHaven</strong> keeps your finances calm.</div>
+      <div class="site-footer-links">
+        <a href="/">Home</a>
+        <a href="/login">Sign in</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+      <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/unsubscribe.js"></script>
+</body>
+</html>

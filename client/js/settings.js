@@ -22,6 +22,7 @@ import { fmt } from './utils.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
 import { initHousehold } from './household.js';
 import { plaidExitError, PLAID_OAUTH_RESULT } from './plaidLink.js';
+import { clearPlaidAccountCache } from './plaidAccounts.js';
 import { webPushSupported, webPushStatus, enableWebPush, disableWebPush } from './webpush.js';
 import {
   BILL_CATEGORIES, SPENDING_CATEGORIES, BUDGET_BUCKETS,
@@ -529,10 +530,15 @@ import {
       updateScrollHints();
     }
 
-    // Honor a #hash deep-link (e.g. /settings#security from onboarding).
-    var hash = (window.location.hash || '').replace('#', '');
-    if (hash && panels.some(function (p) { return p.getAttribute('data-tab-panel') === hash; })) {
-      activate(hash);
+    // Honor a deep link to a tab: #hash (e.g. /settings#security from
+    // onboarding) or ?tab= — the query is the one that survives the
+    // sign-in redirect, since a fragment never leaves the browser.
+    var wanted = '';
+    try { wanted = new URLSearchParams(window.location.search).get('tab') || ''; }
+    catch (_) { wanted = ''; }
+    if (!wanted) wanted = (window.location.hash || '').replace('#', '');
+    if (wanted && panels.some(function (p) { return p.getAttribute('data-tab-panel') === wanted; })) {
+      activate(wanted);
     }
   }
 
@@ -2330,6 +2336,12 @@ import {
     }
 
     function refreshStatus() {
+      // Every caller is a moment the account list may have changed — linked,
+      // reconnected, accounts added, disconnected. The card editor's picker
+      // caches that list for the life of the page, so drop it here or the
+      // picker keeps offering a disconnected bank's accounts (and stays empty
+      // for a bank linked after the cache was first filled).
+      clearPlaidAccountCache();
       return plaidFetch('status', 'GET').then(function (res) {
         if (res.ok) render(res.data);
       }).catch(function () { /* leave section hidden on error */ });

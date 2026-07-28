@@ -12,9 +12,11 @@ import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.billReminders
 import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.offerReminders
+import app.fihaven.core.model.pushNotifications
 import app.fihaven.core.model.reminderLeadDays
 import app.fihaven.core.model.remindOnDueDay
 import kotlinx.serialization.json.Json
@@ -31,10 +33,15 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
- * Schedules on-device bill-due reminders from synced data. There's no server
- * push: each device mirrors the user's reminder settings as local
- * notifications (AlarmManager → [BillReminderReceiver]), so they fire even
- * offline. We reschedule whenever the data or settings change (AppViewModel).
+ * Schedules on-device bill-due reminders from synced data (AlarmManager →
+ * [BillReminderReceiver]), so they fire even offline. We reschedule whenever
+ * the data or settings change (AppViewModel).
+ *
+ * The server also pushes these reminders over FCM. Local and push are separate
+ * user toggles, and when both are on the same event would arrive twice — so a
+ * category the server will push is *not* scheduled locally, leaving local as
+ * the offline fallback for whatever push doesn't cover. The suppression gates
+ * mirror server/scheduler.js exactly; see [reschedule].
  *
  * AlarmManager alarms don't survive a reboot, so we persist the full schedule
  * (fire time + copy) to SharedPreferences and re-arm it from [BootReceiver] on
@@ -59,8 +66,21 @@ object NotificationScheduler {
         }
     }
 
-    /** Cancel existing reminders and reschedule from the current bills + cards. */
-    fun reschedule(context: Context, bills: List<Bill>, cards: List<Card>, settings: JsonObject, zone: ZoneId) {
+    /**
+     * Cancel existing reminders and reschedule from the current bills + cards.
+     *
+     * [pro] is the server-derived entitlement, needed because the server only
+     * pushes offer reminders to Pro users — a free user with offers + push on
+     * gets nothing from the server, so we must still schedule those locally.
+     */
+    fun reschedule(
+        context: Context,
+        bills: List<Bill>,
+        cards: List<Card>,
+        settings: JsonObject,
+        zone: ZoneId,
+        pro: Boolean,
+    ) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -72,30 +92,45 @@ object NotificationScheduler {
         if (!settings.localNotifications) return
         ensureChannel(context)
 
+        // Categories the server will push for this user, which we therefore skip
+        // locally to avoid a duplicate. These mirror server/scheduler.js: the
+        // bill and trial pushes both sit inside `billReminders`, and the offer
+        // push additionally requires Pro. Anything the server won't send still
+        // gets scheduled here, so no category can end up silent.
+        //
+        // [PushRegistrar.healthy] is the safety net: if push looks broken we
+        // schedule everything locally and accept the risk of a duplicate over
+        // the risk of no reminder at all.
+        val push = settings.pushNotifications && PushRegistrar.healthy(context)
+        val pushCoversBills = push && settings.billReminders
+        val pushCoversOffers = push && settings.offerReminders && pro
+
         val lead = settings.reminderLeadDays
         val hour = settings.notifyHour
         val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
         val now = ZonedDateTime.now(zone)
 
-        // Soonest-due first so a long list still gets the most relevant
-        // reminders within the alarm budget.
-        val upcoming = bills.mapNotNull { b -> BillSchedule.nextDueDate(b, zone)?.let { b to it } }
-            .sortedBy { it.second }
-
         val scheduled = mutableListOf<Scheduled>()
-        for ((bill, due) in upcoming) {
-            if (scheduled.size >= MAX) break
-            for (off in offsets) {
+        if (!pushCoversBills) {
+            // Soonest-due first so a long list still gets the most relevant
+            // reminders within the alarm budget.
+            val upcoming = bills.mapNotNull { b -> BillSchedule.nextDueDate(b, zone)?.let { b to it } }
+                .sortedBy { it.second }
+
+            for ((bill, due) in upcoming) {
                 if (scheduled.size >= MAX) break
-                val fire = due.minusDays(off.toLong()).atStartOfDay(zone).withHour(hour)
-                if (!fire.isAfter(now)) continue
-                scheduled.add(
-                    Scheduled(bill.id.hashCode() * 31 + off, fire.toInstant().toEpochMilli(), "Bill reminder", bodyFor(bill, off))
-                )
+                for (off in offsets) {
+                    if (scheduled.size >= MAX) break
+                    val fire = due.minusDays(off.toLong()).atStartOfDay(zone).withHour(hour)
+                    if (!fire.isAfter(now)) continue
+                    scheduled.add(
+                        Scheduled(bill.id.hashCode() * 31 + off, fire.toInstant().toEpochMilli(), "Bill reminder", bodyFor(bill, off))
+                    )
+                }
             }
+            scheduleTrials(bills, settings, zone, scheduled)
         }
-        scheduleTrials(bills, settings, zone, scheduled)
-        scheduleOffers(cards, settings, zone, scheduled)
+        if (!pushCoversOffers) scheduleOffers(cards, settings, zone, scheduled)
         scheduled.forEach { arm(am, context, it) }
         writeSchedule(prefs, scheduled)
     }
@@ -275,7 +310,8 @@ object NotificationScheduler {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(context.applicationInfo.icon)
+            .setSmallIcon(R.drawable.ic_stat_fihaven)
+            .setColor(androidx.core.content.ContextCompat.getColor(context, R.color.fh_brand))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(body))

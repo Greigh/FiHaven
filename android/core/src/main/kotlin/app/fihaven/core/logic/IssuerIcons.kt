@@ -5,8 +5,8 @@ import app.fihaven.core.model.Card
 import app.fihaven.core.model.CategoryIcon
 
 /**
- * Map a credit-card issuer to a recognizable emoji. The web app also
- * renders real SVG brand logos; native mirrors the emoji layer.
+ * Map a credit-card issuer to a recognizable mark — a bundled brand logo
+ * where we have one ([IssuerLogos]), otherwise an emoji stand-in.
  * Keep in sync with web `issuerIcons.js` and iOS `IssuerIcons`.
  */
 object IssuerIcons {
@@ -72,5 +72,30 @@ object IssuerIcons {
         return CTConstants.cardIcon
     }
 
-    fun iconInfo(card: Card): CategoryIcon = CategoryIcon.Emoji(emoji(card))
+    /** Bundled brand-mark key for a name, or null. Mirrors web `findLogoKey`. */
+    fun logoKey(name: String): String? {
+        val key = normalize(name)
+        if (key.isEmpty()) return null
+        val canon = aliases[key] ?: key
+        if (IssuerLogos.all.containsKey(canon)) return canon
+        if (IssuerLogos.all.containsKey(key)) return key
+        for (k in IssuerLogos.keysByLength) {
+            if (canon.contains(k) || key.contains(k)) return k
+        }
+        return null
+    }
+
+    /** Brand mark for a card (issuer → name). Loans stay on the 🏦 glyph. */
+    fun logo(card: Card): IssuerLogo? {
+        if (card.type == "loan") return null
+        val key = logoKey(resolveIssuer(card)) ?: logoKey(card.name) ?: return null
+        return IssuerLogos.all[key]
+    }
+
+    /** Renderable icon: brand logo when bundled, else the emoji stand-in. */
+    fun iconInfo(card: Card): CategoryIcon {
+        val logo = logo(card)
+        if (logo != null) return CategoryIcon.Logo(logo.key, emoji(card))
+        return CategoryIcon.Emoji(emoji(card))
+    }
 }

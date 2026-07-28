@@ -329,8 +329,11 @@ private fun BillRow(
 /// clickable (it opens the editor) — so a near-miss used to edit the bill
 /// instead of paying it. The padding sits *inside* the clickable, which is what
 /// grows the hit area rather than just the visual box.
+///
+/// Shared with the dashboard's Upcoming rows (MainScaffold.kt) so both lists
+/// spell their actions out the same way.
 @Composable
-private fun QuickAction(label: String, color: Color, onClick: () -> Unit) {
+internal fun QuickAction(label: String, color: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))

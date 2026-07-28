@@ -17,7 +17,10 @@ import app.fihaven.core.model.HouseholdInviteBody
 import app.fihaven.core.model.HouseholdAcceptBody
 import app.fihaven.core.model.ShareEntityBody
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /// Talks to the FiHaven REST API with token/Bearer auth
@@ -192,12 +195,22 @@ class ApiClient(
         tokens.clear()
     }
 
-    suspend fun registerPushDevice(platform: String, token: String) {
+    /**
+     * Claim this device's push token. Returns the server's `ready` flag — false
+     * when it has no push credentials for this platform, in which case the
+     * caller must keep scheduling local reminders instead of trusting push.
+     * An older server omits the field; treat that as ready so we don't
+     * double-notify against a deployment that is in fact sending pushes.
+     */
+    suspend fun registerPushDevice(platform: String, token: String): Boolean {
         val body = buildJsonObject {
             put("platform", platform)
             put("token", token)
         }.toString()
-        send(makeRequest("api/push/register", HttpMethod.POST, body))
+        val resp = send(makeRequest("api/push/register", HttpMethod.POST, body))
+        return runCatching {
+            FiHavenJson.parseToJsonElement(resp).jsonObject["ready"]?.jsonPrimitive?.booleanOrNull
+        }.getOrNull() ?: true
     }
 
     suspend fun unregisterPushDevice(token: String) {

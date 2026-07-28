@@ -23,5 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The native issuer logos are generated from client/js/issuerLogos.js;
+      # fail the build if someone edited the table without regenerating.
+      - name: Check issuer logos are in sync
+        run: node scripts/sync-issuer-logos.js --check
+
       - name: Build
         run: npm run build

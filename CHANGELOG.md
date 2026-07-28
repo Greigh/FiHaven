@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (13) - On TestFlight testing (12 was the push-handling pass, 11 added card↔bank linking) |
-| **Android** | 1.6.1 (versionCode 35) - On Closed Play Store Alpha Testing (34 carried card↔bank linking, 32 the Family SKU fixes) |
+| **iOS** | 1.6.1 (14) - Card↔bank matching pass; 13 was the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 36) - Card↔bank matching pass; 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -30,7 +30,9 @@ Each release below uses two layers:
 > Admin tools you can actually run a product with, a Rewards page that helps you
 > pick a card (and keeps your rates when the catalog updates), report wrong rates
 > against what FiHaven ships, **manual-first** bank balance suggestions and
-> subscription confirms, a clearer debt-payoff planner, safer production auth /
+> subscription confirms — now reliable across **more than one linked bank**, with
+> cards that show which account they matched and a way to say *don't link this
+> one* — a clearer debt-payoff planner, safer production auth /
 > store webhooks, Android social sign-in that returns into the app after Google /
 > Apple (Custom Tab → handoff), native Plaid OAuth that returns to iOS/Android
 > instead of the web redirect page, a refreshed post-signup onboarding (Back,
@@ -39,6 +41,78 @@ Each release below uses two layers:
 > shows plan length, price, and Privacy / Terms links.
 
 ### Changes
+
+**Card logos on iPhone and Android (Jul 27)**
+
+- **Your cards show their bank's logo in the app now, not a colored dot.** The
+  web has drawn real brand marks for Chase, Amex, Bank of America, Wells Fargo,
+  Discover, Visa, Mastercard, Apple, PayPal, Robinhood and Target for a while;
+  iPhone and Android showed a stand-in emoji instead. They now draw the same
+  marks — in the cards list, the calendar, and what's-coming-up on the home
+  screen. Issuers without a bundled logo (Citi, Capital One, Bilt, …) keep their
+  emoji, and loans keep 🏦.
+- **Logos stay readable in dark mode.** Apple's black and the Visa / Bank of
+  America navies would have disappeared against a dark card, so a mark that's
+  too close to its background is lightened just enough to read, keeping its
+  color rather than washing out to white.
+
+**Cards ↔ bank accounts, part two (Jul 27)**
+
+- **Every bank's cards get an Accept button now, not just one bank's.** With
+  more than one bank linked, each sync overwrote the previous bank's balance
+  suggestions, so only the last bank to sync ever had anything to approve.
+  Suggestions are now built across every linked bank at once.
+- **A suggestion can no longer vanish before you answer it.** Saving anything
+  from a device that had loaded before the last sync — a second phone, another
+  tab, a settings change — wiped the review queue, and the hourly sync throttle
+  meant it could stay empty for an hour.
+- **A card FiHaven matched to an account now says so.** Matching by digits was
+  invisible and forgotten between syncs, so a matched card got balance
+  suggestions while its purchases stayed unattributed and the editor still read
+  "Match automatically". A confident match is now written onto the card, where
+  you can see it and change it.
+- **New "Don't link this card" option** in the same picker, for a card you never
+  want matched to a bank. "Match automatically" isn't a refusal — it invites the
+  next sync to match again — so this is how a no sticks.
+- **Disconnecting a bank no longer breaks the cards that used it.** A card
+  pinned to an account from a bank you removed (or relinked, which issues new
+  account ids) was quietly barred from ever matching again. Those pins now
+  repair themselves.
+- **An overpaid card is no longer read as debt.** A $50 credit balance was
+  suggested as owing $50. Cards where you're ahead now suggest a zero balance,
+  and issuers that report what's owed as a negative are still read correctly.
+- **A closed or de-selected account stops making suggestions.** Its last-seen
+  balance used to linger and get re-proposed forever.
+- **Loan suggestions appear on the Loans tab**, where the loan actually is,
+  instead of under Credit Cards.
+- Archived cards no longer appear in the review queue, an account whose balance
+  the bank didn't report no longer suggests $0.00, and the card editor's account
+  list refreshes after you link or disconnect a bank instead of going stale
+  until reload.
+
+**Notification emails redesigned + one-click unsubscribe (Jul 27)**
+
+- **The reminder, digest, and summary emails were rebuilt.** Bills are now a
+  proper list — name on the left with a "due in 3 days" pill, amount lined up
+  on the right — and the totals sit in their own panel instead of trailing off
+  the end of a sentence. Bigger heading, roomier spacing, a real button.
+- **They finally look right in dark mode.** The templates ship a dark palette
+  of their own, so Gmail and Apple Mail stop force-inverting them into the
+  half-white, half-black mess they were.
+- **Every notification email now has an Unsubscribe link** next to a
+  **Manage notification preferences** link, both in the footer. Unsubscribe
+  works signed out, straight from the inbox — no password, no app.
+- **Your mail app's own Unsubscribe button works too.** Gmail and Apple Mail
+  show a built-in unsubscribe control at the top of the message; FiHaven now
+  answers it, which is what Gmail and Yahoo require of anyone sending
+  recurring mail and what EU rules expect for consent-based email.
+- Unsubscribing only turns off the kind of email you clicked from — opting out
+  of the weekly digest keeps your bill reminders. **Account security emails
+  (password reset, email confirmation, 2FA recovery) have no opt-out** and
+  always send.
+- **A deep link now survives sign-in.** Following the preferences link while
+  signed out used to dump you on the marketing page; now you sign in and land
+  on Settings → Notifications, the tab already open.
 
 **Push notifications fixed (Jul 26)**
 
@@ -375,6 +449,137 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Email templates**: `server/emails.js` `layout()` now emits a full document
+  with `<meta name="color-scheme">` and a `<style>` block whose
+  `prefers-color-scheme: dark` rules re-color by class. Inline styles keep the
+  light palette as the base, so a client that strips `<style>` still renders
+  the intended design rather than a broken one. New building blocks —
+  `itemList()` (label / meta / right-aligned value rows), `statPanel()`
+  (tinted totals), `chip()`, `preheaderBlock()` (hidden inbox preview) and a
+  table-cell CTA that survives Outlook. Every notification sender takes a
+  trailing `userId` (`scheduler.js` passes `u.id`); it is optional, and
+  omitting it degrades to the sign-in-required settings link.
+- **Unsubscribe**: new `server/unsubscribe.js` mints `<userId>.<kind>.<hmac>`
+  tokens — stateless, so nothing has to be stored or swept, and stable for the
+  life of the address. `kind` is `reminders|digest|summary|offers|all` and maps
+  to the settings flags to clear, so an opt-out is scoped to the email it came
+  from. The signing key is HKDF-derived from the master key via the new
+  `mfa.deriveKey(label)`, so there is no extra secret to deploy. `apply()`
+  rewrites the whole data blob (`upsertUserData` replaces the record — naming
+  only `settings` would erase the user's bills).
+- **Route**: `server/routes/unsubscribe.js`, mounted public at `/unsubscribe`
+  with its own 30/min per-IP limiter. `GET /` serves the confirmation page and
+  `GET /info` reports what the link covers; **neither mutates anything** —
+  corporate link scanners follow URLs in incoming mail, and a GET that opted
+  people out would silently kill their reminders. `POST /` applies it, and
+  accepts both the page's JSON and the form-encoded
+  `List-Unsubscribe=One-Click` body mail clients send (RFC 8058).
+  `mail.sendMail` grew a `listUnsubscribe` option that emits the
+  `List-Unsubscribe` / `List-Unsubscribe-Post` header pair.
+- **Client**: `client/unsubscribe.html` + `client/js/unsubscribe.js` (new Vite
+  entry) — confirm-then-apply, works with no session.
+- **`?next=` hand-off**: the private-page gate moved out of `index.js` into
+  `server/pageGate.js` (testable without booting the app) and now redirects a
+  signed-out visitor to `/login?next=<target>` **when the URL carries a query**
+  — a bare `/dashboard` still lands on the marketing page, so the funnel is
+  unchanged. `client/js/nextUrl.js` validates the value before anything
+  navigates: same-origin absolute paths only, rejecting `//host`, `/\host`,
+  any scheme, control characters, and over-long input, so `next` can't become
+  an open redirect. `auth.js` consumes it in `postAuthHome()` (after the
+  existing `?household=` invite path) and `initPrivatePage` mirrors the gate on
+  session expiry — the client version can keep the `#hash`, which never
+  reaches the server. `settings.js` accepts `?tab=` alongside `#hash` for the
+  same reason, and the emailed preferences link carries both.
+- Tests: `server/unsubscribe.test.js` (signing, tampering, blob preservation),
+  new cases in `emails.test.js` / `mail.test.js`, and
+  `tests/integration/unsubscribe.server.integration.test.js`, which walks the
+  real loop: scheduler sends → link extracted from the sent body → POST →
+  settings flip → next scheduler pass sends nothing.
+
+- **Bank balance review, multi-bank fix**: the review queue lives in one
+  settings key (`plaidBalanceProposals`), but `applyPlaidBalances` rebuilt it
+  from only the accounts of the item being synced — so with two or more banks
+  linked, each sync erased the previous bank's proposals and only the
+  last-synced institution's cards ever had an Accept button. Replaced with
+  `refreshBalanceProposals(userId)` in `server/routes/plaid.js`, which rebuilds
+  across every linked item from the (just-saved) stored accounts, one proposal
+  per card. New `storedAccount()` decodes a `plaid_accounts` row back into
+  Plaid's own account shape — including `official_name`, which tier-3
+  issuer+name matching reads — and `serializeItem` now shares it.
+- **Bank balance review, stale-save fix**: `PUT /api/data` took the client's
+  `settings` wholesale, so a client saving a snapshot taken before the last
+  sync wiped the queue — and the one-hour sync throttle left the Accept buttons
+  missing for up to an hour. `keepBalanceProposals` in `server/routes/data.js`
+  now treats proposals as server-owned: it keeps the stored list minus whatever
+  the client reports in `plaidBalanceResolved` (Accept and Decline both append
+  there), and clears it outright when `plaidUpdateBalances` is off.
+- **Dead account pins**: disconnecting a bank (or relinking one, which mints
+  fresh Plaid account ids) left every card that pointed at it pinned to an
+  account that no longer exists — and `matchCardToAccount` treats a pinned card
+  as spoken for, so those cards were barred from matching again, permanently and
+  invisibly. `matchCardToAccount` / `balanceProposals` now take the set of
+  account ids the user actually has (`knownAccountIds`, the union across all
+  banks) and ignore a pin that isn't in it. A pin to a live account at another
+  bank still blocks auto-claiming, and omitting the set trusts every pin.
+- **Stale account rows**: `saveAccounts` only ever upserted, so an account the
+  user de-selected or closed kept its last-seen balance in `plaidAccounts`
+  forever and went on being proposed. Added `dbApi.prunePlaidAccounts(itemPk,
+  keepIds)` (`json_each`, scoped to the item) and a prune at the end of each
+  save. An empty keep-list is a no-op, so a transiently empty accounts response
+  can't wipe a working item.
+- **Archived cards** are no longer proposed: the review queue could name a card
+  that isn't on the Cards tab, which the user has no way to judge. An archived
+  card also no longer makes its live replacement look ambiguous.
+- **Picker cache**: `clearPlaidAccountCache()` existed but was never called, so
+  the card editor's "Linked bank account" list was frozen for the life of the
+  page — it offered a disconnected bank's accounts, and stayed empty for a bank
+  linked after the cache was first filled. `refreshStatus()` now clears it.
+- **Auto-matches are now written down**: matching by digits or issuer+name ran
+  on every sync but was ephemeral, and only a *pinned* card is any use
+  downstream — `cardForTransaction` resolves a bank charge by `plaidAccountId`
+  alone, so an auto-matched card showed balance proposals while its purchases
+  stayed unattributed, and the editor still read "Match automatically". New
+  `autoLinkCards(userId)` writes a confident match onto the card, so spending,
+  balances, and the picker all agree on one id. It runs on every sync
+  regardless of the balance opt-in (attribution is a separate concern), never
+  overwrites a pin the user made, skips archived and ambiguous cards, and
+  repairs a pin left behind by a bank that's gone. Paired with
+  `refreshBalanceProposals` under one `afterAccountsSaved(userId)` seam —
+  pinning first, so proposals are built from the cards it just linked.
+- **Overpaid cards were read as debt**: `proposedCurrent` was
+  `Math.abs(balances.current)`, so a $50 credit balance (Plaid reports `-50`)
+  was proposed as owing $50. New `owedFromBalances()` keeps a positive `current`
+  as-is, and reads a negative one as a credit — unless `limit - available`
+  (Plaid's own identity for a credit line) shows the issuer flipped the sign,
+  in which case the magnitude is owed. Also fixes a `Number(null) === 0` trap
+  that proposed "Current → $0.00" for an account whose balance the bank never
+  reported (a stored snapshot writes absent figures as explicit nulls).
+- **"Don't link this card"**: with matches now written down, "Match
+  automatically" stopped being able to express a refusal — clearing the picker
+  just invited the next sync to pin the card again, so a card the matcher got
+  wrong could only be redirected, never excluded. The picker gains an explicit
+  opt-out on all three clients, stored as the sentinel `plaidAccountId: "none"`
+  (`NO_LINK` / `Card.noPlaidLink` / `Card.NO_PLAID_LINK`). `cardOptedOut()`
+  withholds the card from every tier, and `linkIsLive` counts the sentinel as
+  spoken-for so the dead-pin repair can't quietly undo it. It rides in the
+  existing field rather than a new `plaidLinkOptOut` flag because native
+  Bill/Card are fixed structs that strip unknown keys — a new key would be
+  dropped by any client build predating it, reverting the opt-out on that
+  device's next save.
+- **Loan proposals surfaced on the wrong tab**: all three clients gated the
+  review queue on `!isLoanView`, so a matched loan account appeared under Credit
+  Cards and never under Loans. `BalanceProposal` carries `isLoan` on iOS and
+  Android and the queue filters to the tab that owns the card; the web derives
+  the same from the card's type. A proposal whose card is gone stays with Cards
+  so it remains answerable.
+- Tests: `server/routes/plaidProposals.test.js` (proposals span every linked
+  bank, one row per card, resolved figures skipped, dead pin re-matches, live
+  pin respected, unreported balance skipped, opt-out clears; plus nine
+  `autoLinkCards` cases including the durable opt-out), new `plaidBalances`
+  cases for dead/live pins, archived cards, the opt-out sentinel across all
+  three tiers, and the full `owedFromBalances` sign matrix, plus a
+  stale-settings case in
+  `tests/integration/dataPartialSave.server.integration.test.js`.
 - **Paddle (web billing)**: new `server/paddle.js` — REST client, webhook
   signature verification, and the notification-IP allowlist. Signature is
   HMAC-SHA256 over `"<ts>:<raw body>"` compared timing-safely against the raw

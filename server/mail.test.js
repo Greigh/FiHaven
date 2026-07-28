@@ -104,4 +104,24 @@ describe('mail.js', () => {
       replyTo: 'support@fihaven.app',
     });
   });
+
+  it('sendMail() adds the RFC 8058 one-click headers for a listUnsubscribe URL', async () => {
+    await mail.sendMail({
+      to: 'user@test.com',
+      subject: 'Digest',
+      text: 'Plain',
+      html: '<p>HTML</p>',
+      listUnsubscribe: 'https://fihaven.app/unsubscribe?t=1.digest.sig',
+    });
+
+    expect(transportSendMail.mock.calls[0][0].headers).toEqual({
+      'List-Unsubscribe': '<https://fihaven.app/unsubscribe?t=1.digest.sig>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+  });
+
+  it('sendMail() leaves headers off when there is no unsubscribe URL', async () => {
+    await mail.sendMail({ to: 'user@test.com', subject: 'Reset', text: 'Plain' });
+    expect(transportSendMail.mock.calls[0][0].headers).toBeUndefined();
+  });
 });

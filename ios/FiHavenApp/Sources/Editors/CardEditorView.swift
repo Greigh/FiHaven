@@ -85,11 +85,15 @@ struct CardEditorView: View {
                         Picker("Linked bank account", selection: $plaidAccountId) {
                             Text("Match automatically").tag("")
                             ForEach(bankAccounts, id: \.id) { Text($0.label).tag($0.id) }
-                            if !plaidAccountId.isEmpty && !bankAccounts.contains(where: { $0.id == plaidAccountId }) {
+                            // Automatic is not a refusal; this is.
+                            Text("Don't link this card").tag(Card.noPlaidLink)
+                            if !plaidAccountId.isEmpty
+                                && plaidAccountId != Card.noPlaidLink
+                                && !bankAccounts.contains(where: { $0.id == plaidAccountId }) {
                                 Text("Previously linked account").tag(plaidAccountId)
                             }
                         }
-                        Text("Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card.")
+                        Text("Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card. \"Don't link this card\" keeps it out of bank matching entirely.")
                             .font(.caption)
                             .foregroundStyle(Theme.muted)
                     }

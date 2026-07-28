@@ -12,6 +12,13 @@
    "don't show the picker" without checking entitlement themselves.
 ═════════════════════════════════════════════════════════════════ */
 
+/* Stored in `plaidAccountId` to mean "never match this card to a bank".
+   Clearing the picker back to Match automatically isn't a "no" — the next sync
+   just pins the card again — so the refusal needs somewhere to live. It rides
+   in the existing field because a separate flag would be dropped by native
+   clients that predate it. Kept in sync with NO_LINK in server/plaidBalances.js. */
+export const PLAID_LINK_NONE = 'none';
+
 let cache = null;      // resolved account list
 let inFlight = null;   // de-dupe concurrent callers
 

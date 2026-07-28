@@ -21,7 +21,7 @@ const express = require('express');
 const dbApi = require('../db');
 const plaid = require('../plaid');
 const billing = require('../billing');
-const { balanceProposals } = require('../plaidBalances');
+const { balanceProposals, matchCardToAccount, cardOptedOut } = require('../plaidBalances');
 const { mergeTransactions } = require('../plaidMerge');
 const { requireAuth, requireVerified, requireCsrf } = require('../session');
 
@@ -135,6 +135,92 @@ function saveAccounts(itemPk, accounts) {
       updated_at: now,
     });
   }
+  // Forget accounts this item no longer reports. A de-selected or closed
+  // account would otherwise keep its last-seen balance and go on proposing it.
+  dbApi.prunePlaidAccounts(itemPk, accounts.map((a) => a.account_id));
+}
+
+// The decrypted, Plaid-shaped form of a stored plaid_accounts row, so matching
+// code can treat what we cached exactly like a fresh API response. Falls back to
+// the legacy plaintext columns for rows written before the enc blob existed.
+function storedAccount(a) {
+  let d = null;
+  if (a.enc) { try { d = JSON.parse(plaid.decryptToken(a.enc)); } catch (_) { d = null; } }
+  if (!d) {
+    d = {
+      name: a.name, official_name: a.official_name, mask: a.mask,
+      type: a.type, subtype: a.subtype,
+      current: a.current_balance, available: a.available_balance,
+      limit: a.limit_balance, iso: a.iso_currency,
+    };
+  }
+  return {
+    account_id: a.account_id,
+    name: d.name,
+    official_name: d.official_name,
+    mask: d.mask,
+    type: d.type,
+    subtype: d.subtype,
+    balances: { current: d.current, available: d.available, limit: d.limit },
+    iso: d.iso,
+  };
+}
+
+// Every linked account the user still has, grouped by bank, plus the flat set
+// of their ids. A card pinned to an id that isn't in that set is pinned to a
+// bank they disconnected (or relinked, which mints new ids).
+function linkedAccounts(userId) {
+  const byItem = dbApi.listPlaidItems(userId).map((item) => ({
+    institutionName: decField(item.institution_name) || '',
+    accounts: dbApi.listPlaidAccountsByItem(item.id).map(storedAccount),
+  }));
+  const knownAccountIds = new Set(
+    byItem.flatMap((it) => it.accounts.map((a) => String(a.account_id)))
+  );
+  return { byItem, knownAccountIds };
+}
+
+/* Write a confident match down on the card as `plaidAccountId`.
+
+   Matching by digits or issuer+name already ran on every sync, but it was
+   ephemeral, and only a *pinned* card is any use downstream: spending
+   attribution resolves a bank charge to a card by account id alone
+   (cardForTransaction), so an auto-matched card showed balance proposals while
+   its purchases stayed unattributed. A pin is also the only form of the match
+   the user can see — and correct — in the card editor.
+
+   An explicit pin the user made always wins; "Match automatically" now means
+   "match me and remember it". A pin to an account that no longer exists is
+   repaired here rather than left to block the card forever. */
+function autoLinkCards(userId) {
+  try {
+    const data = dbApi.getUserData(userId);
+    if (!data || !Array.isArray(data.cards) || !data.cards.length) return;
+    const { byItem, knownAccountIds } = linkedAccounts(userId);
+    // Same objects as data.cards, so pinning one is visible to the next pass:
+    // a card claimed at bank A can't also be claimed at bank B.
+    const cards = data.cards.filter((c) => c && !c.archived);
+    let linked = 0;
+    for (const { institutionName, accounts } of byItem) {
+      for (const a of accounts) {
+        const type = String(a.type || '').toLowerCase();
+        if (type !== 'credit' && type !== 'loan') continue;
+        const card = matchCardToAccount(cards, a, institutionName, knownAccountIds);
+        // No match, already pinned here, or the user said don't — nothing to
+        // write. (matchCardToAccount already withholds an opted-out card; the
+        // guard is here too so this can never be the thing that overrides a no.)
+        if (!card || cardOptedOut(card)) continue;
+        if (String(card.plaidAccountId || '') === String(a.account_id)) continue;
+        card.plaidAccountId = String(a.account_id);
+        linked += 1;
+      }
+    }
+    if (!linked) return;
+    dbApi.upsertUserData(userId, data);
+    logPlaid('cards-auto-linked', { userId, linked });
+  } catch (e) {
+    logPlaid('cards-auto-link:error', { userId, message: e && e.message });
+  }
 }
 
 // Opt-in balance *suggestions*. By default FiHaven NEVER changes the balances
@@ -142,7 +228,13 @@ function saveAccounts(itemPk, accounts) {
 // enables `settings.plaidUpdateBalances`, sync stores proposals for Current
 // Balance (never Statement Balance). The client Accepts/Declines; resolved
 // fingerprints are not re-proposed until the bank figure changes.
-function applyPlaidBalances(userId, accounts, institutionName) {
+//
+// The queue is rebuilt from EVERY linked bank, not just the one that happened to
+// sync: the list is a single settings key, so proposing per item used to leave
+// only the last-synced bank's cards with an Accept button. Reading the accounts
+// back out of the DB is equivalent to using the just-fetched ones — saveAccounts
+// runs first — and it costs nothing to include the banks that were throttled.
+function refreshBalanceProposals(userId) {
   try {
     const data = dbApi.getUserData(userId);
     if (!data) return;
@@ -158,9 +250,18 @@ function applyPlaidBalances(userId, accounts, institutionName) {
     const resolved = Array.isArray(data.settings.plaidBalanceResolved)
       ? data.settings.plaidBalanceResolved.map((r) => (r && r.fingerprint) || r).filter(Boolean)
       : [];
-    const proposals = balanceProposals(data.cards || [], accounts || [], resolved, {
-      institutionName: institutionName || '',
-    });
+    const cards = data.cards || [];
+    const { byItem, knownAccountIds } = linkedAccounts(userId);
+    const proposals = [];
+    const claimed = new Set();   // one proposal per card, first bank wins
+    for (const { institutionName, accounts } of byItem) {
+      balanceProposals(cards, accounts, resolved, { institutionName, knownAccountIds }).forEach((p) => {
+        const key = String(p.id);
+        if (claimed.has(key)) return;
+        claimed.add(key);
+        proposals.push(p);
+      });
+    }
     const prev = JSON.stringify(data.settings.plaidBalanceProposals || []);
     const next = JSON.stringify(proposals);
     if (prev === next) return;
@@ -170,6 +271,13 @@ function applyPlaidBalances(userId, accounts, institutionName) {
   } catch (e) {
     logPlaid('balances-propose:error', { userId, message: e && e.message });
   }
+}
+
+// Everything that has to happen once an item's accounts are on disk. Pinning
+// runs first: proposals are built from the cards it just linked.
+function afterAccountsSaved(userId) {
+  autoLinkCards(userId);
+  refreshBalanceProposals(userId);
 }
 
 // Shape an item (+ its accounts) for the client. Never leaks the token, and
@@ -184,30 +292,17 @@ function serializeItem(item) {
     error: item.error || null,
     updatedAt: item.updated_at,
     lastSyncAt: item.last_sync_at || null,
-    accounts: dbApi.listPlaidAccountsByItem(item.id).map((a) => {
-      let d = null;
-      if (a.enc) { try { d = JSON.parse(plaid.decryptToken(a.enc)); } catch (_) { d = null; } }
-      if (d) {
-        return {
-          accountId: a.account_id,
-          name: d.name,
-          mask: d.mask,
-          type: d.type,
-          subtype: d.subtype,
-          currentBalance: d.current,
-          availableBalance: d.available,
-          isoCurrency: d.iso,
-        };
-      }
+    accounts: dbApi.listPlaidAccountsByItem(item.id).map((row) => {
+      const a = storedAccount(row);
       return {
         accountId: a.account_id,
         name: a.name,
         mask: a.mask,
         type: a.type,
         subtype: a.subtype,
-        currentBalance: a.current_balance,
-        availableBalance: a.available_balance,
-        isoCurrency: a.iso_currency,
+        currentBalance: a.balances.current,
+        availableBalance: a.balances.available,
+        isoCurrency: a.iso,
       };
     }),
   };
@@ -250,7 +345,7 @@ async function syncItem(item, userId) {
   const accessToken = plaid.decryptToken(item.access_token_enc);
   const { accounts } = await plaid.getAccounts(accessToken);
   saveAccounts(item.id, accounts);
-  applyPlaidBalances(userId, accounts, decField(item.institution_name));
+  afterAccountsSaved(userId);
 
   try {
     const sync = await plaid.syncTransactions(accessToken, item.cursor);
@@ -332,7 +427,7 @@ router.post('/item/:id/repaired', requireAuth, requireVerified, requireCsrf, req
     const accessToken = plaid.decryptToken(item.access_token_enc);
     const { accounts } = await plaid.getAccounts(accessToken);
     saveAccounts(item.id, accounts);
-    applyPlaidBalances(req.user.id, accounts, decField(item.institution_name));
+    afterAccountsSaved(req.user.id);
     try {
       const sync = await plaid.syncTransactions(accessToken, item.cursor);
       mergePlaidTransactions(req.user.id, sync);
@@ -399,7 +494,7 @@ router.post('/link/exchange', requireAuth, requireVerified, requireCsrf, require
       updated_at: now,
     });
     saveAccounts(itemPk, accounts);
-    applyPlaidBalances(req.user.id, accounts, institutionName);
+    afterAccountsSaved(req.user.id);
 
     // Backfill straight away, so a bank that's linked while the user has
     // already opted in shows its history immediately instead of sitting empty
@@ -507,3 +602,9 @@ module.exports.syncAllItems = syncAllItems;
 // Exposed for tests: its return value is what stops the sync cursor advancing
 // past transactions we chose not to import.
 module.exports.mergePlaidTransactions = mergePlaidTransactions;
+// Exposed for tests: the review queue spans every linked bank, so syncing one
+// must not drop the proposals belonging to another.
+module.exports.refreshBalanceProposals = refreshBalanceProposals;
+// Exposed for tests: a confident digits/issuer match is written onto the card,
+// which is what makes spending attribution and the editor's picker agree.
+module.exports.autoLinkCards = autoLinkCards;
