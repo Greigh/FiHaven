@@ -1,10 +1,17 @@
 import Foundation
 
-/// Resolved category icon — emoji glyph or a small uploaded image (data URI).
+/// Resolved icon — emoji glyph, a small uploaded image (data URI), or a
+/// bundled issuer brand mark (see `IssuerLogos`).
 /// Mirrors web `categoryIcons.js` (`parseIconValue` / `categoryIconInfo`).
+///
+/// `parse` only ever produces `.emoji` / `.image`; `.logo` comes from
+/// `IssuerIcons`, so a card row and the upcoming list share one renderer.
 public enum CategoryIcon: Equatable, Sendable, Hashable {
     case emoji(String)
     case image(dataURI: String)
+    /// `key` indexes `IssuerLogos.all`; `emoji` is the stand-in for text
+    /// contexts and for renderers that can't draw a vector.
+    case logo(key: String, emoji: String)
 
     /// Soft cap matching web `MAX_ICON_DATA_URI_LEN`.
     public static let maxDataURILength = 12_000
@@ -13,6 +20,7 @@ public enum CategoryIcon: Equatable, Sendable, Hashable {
     public func emoji(default defaultEmoji: String = "📌") -> String {
         switch self {
         case .emoji(let e): return e
+        case .logo(_, let e): return e
         case .image: return defaultEmoji
         }
     }

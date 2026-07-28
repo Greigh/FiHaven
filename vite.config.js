@@ -151,6 +151,7 @@ export default defineConfig({
         reset:     clientFile('reset.html'),
         recover:   clientFile('recover.html'),
         verifyEmail: clientFile('verify-email.html'),
+        unsubscribe: clientFile('unsubscribe.html'),
         welcome:   clientFile('welcome.html'),
         settings:  clientFile('settings.html'),
         plaidOauth: clientFile('plaid-oauth.html'),

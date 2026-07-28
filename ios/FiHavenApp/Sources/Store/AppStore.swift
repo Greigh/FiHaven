@@ -48,7 +48,14 @@ final class AppStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let debounce: Duration = .milliseconds(800)
 
-    init(api: APIClient) { self.api = api }
+    init(api: APIClient) {
+        self.api = api
+        // A settled registration can flip push health, which decides whether
+        // local reminders stand down — so re-run the schedule whenever it does.
+        PushRegistrar.shared.onRegistrationSettled = { [weak self] in
+            self?.refreshNotifications()
+        }
+    }
 
     func load() async {
         do {
@@ -319,7 +326,11 @@ final class AppStore: ObservableObject {
 
     /// Re-sync on-device bill reminders to the current bills + settings.
     func refreshNotifications() {
-        NotificationScheduler.reschedule(bills: data.bills, cards: data.cards, settings: data.settings, tz: tz)
+        NotificationScheduler.reschedule(
+            bills: data.bills, cards: data.cards, settings: data.settings, tz: tz,
+            pro: data.entitlement?.pro ?? false,
+            pushHealthy: PushRegistrar.shared.healthy
+        )
     }
 
     // ── Derived values (use the ported core logic) ──────────────────

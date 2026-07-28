@@ -152,8 +152,9 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
             filterCount = filterCount, onFilters = { showFilters = true },
         )
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!isLoanView) {
-                val proposals = vm.pendingBalanceProposals()
+            run {
+                // A proposal belongs to the tab its card lives on.
+                val proposals = vm.pendingBalanceProposals().filter { it.isLoan == isLoanView }
                 if (proposals.isNotEmpty()) {
                     item {
                         CtCard {
@@ -671,23 +672,35 @@ fun CardEditorDialog(
         // account's mask rather than the number printed on the card.
         if (bankAccounts.isNotEmpty() || plaidAccountId.isNotBlank()) {
             val auto = "Match automatically"
+            val never = "Don't link this card"
             val stale = "Previously linked account"
+            val optedOut = plaidAccountId == Card.NO_PLAID_LINK
             val labels = buildList {
                 add(auto)
                 addAll(bankAccounts.map { it.second })
-                if (plaidAccountId.isNotBlank() && bankAccounts.none { it.first == plaidAccountId }) add(stale)
+                // Automatic is not a refusal — the next sync would pin the card
+                // again. This is how a no sticks.
+                add(never)
+                if (plaidAccountId.isNotBlank() && !optedOut &&
+                    bankAccounts.none { it.first == plaidAccountId }
+                ) add(stale)
             }
             val selected = bankAccounts.firstOrNull { it.first == plaidAccountId }?.second
-                ?: if (plaidAccountId.isBlank()) auto else stale
+                ?: when {
+                    plaidAccountId.isBlank() -> auto
+                    optedOut -> never
+                    else -> stale
+                }
             DropdownField("Linked bank account", labels, selected) { picked ->
                 plaidAccountId = when (picked) {
                     auto -> ""
+                    never -> Card.NO_PLAID_LINK
                     stale -> plaidAccountId
                     else -> bankAccounts.firstOrNull { it.second == picked }?.first ?: ""
                 }
             }
             Text(
-                "Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card.",
+                "Pick the account this card is when the digits don't line up. Its balance suggestions and imported charges then follow this card. \"$never\" keeps it out of bank matching entirely.",
                 color = Ct.colors.muted, fontSize = 12.sp,
             )
         }

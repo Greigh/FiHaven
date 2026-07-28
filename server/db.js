@@ -696,6 +696,13 @@ const stmt = {
     `SELECT account_id, enc, name, official_name, mask, type, subtype, current_balance, available_balance, limit_balance, iso_currency, updated_at
        FROM plaid_accounts WHERE item_pk = ? ORDER BY updated_at`
   ),
+  // Drop accounts the bank no longer returns for an item (the user de-selected
+  // one, or it was closed). Without this their last-seen balance lingers and
+  // keeps getting proposed forever.
+  prunePlaidAccounts: db.prepare(
+    `DELETE FROM plaid_accounts
+       WHERE item_pk = ? AND account_id NOT IN (SELECT value FROM json_each(?))`
+  ),
 
   /* ── Households (couples / families) ──────────────────────── */
   insertHousehold: db.prepare(
@@ -1390,6 +1397,13 @@ function setPlaidItemStatus(id, status, error) {
 function deletePlaidItem(id, userId)         { return stmt.deletePlaidItem.run(id, userId).changes; }
 function upsertPlaidAccount(row)             { stmt.upsertPlaidAccount.run(row); }
 function listPlaidAccountsByItem(itemPk)     { return stmt.listPlaidAccountsByItem.all(itemPk); }
+// An empty keep-list is treated as "don't prune": a transiently empty accounts
+// response must never wipe a working item's accounts.
+function prunePlaidAccounts(itemPk, keepIds) {
+  const ids = (keepIds || []).filter(Boolean).map(String);
+  if (!ids.length) return 0;
+  return stmt.prunePlaidAccounts.run(itemPk, JSON.stringify(ids)).changes;
+}
 
 /* ── Household wrappers ─────────────────────────────────────── */
 function createHousehold(name, ownerUserId) {
@@ -1554,6 +1568,7 @@ module.exports = {
   deletePlaidItem,
   upsertPlaidAccount,
   listPlaidAccountsByItem,
+  prunePlaidAccounts,
   // Households (couples / families)
   createHousehold,
   findHouseholdById,

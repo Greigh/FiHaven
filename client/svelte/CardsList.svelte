@@ -51,14 +51,19 @@
   const inView = (c) => (isLoanView ? c.type === 'loan' : (c.type || 'card') !== 'loan');
   let baseCards = $derived(cards.filter((c) => !c.archived && inView(c)));
 
+  /* A proposal belongs to the tab its card lives on — a matched loan account
+     used to surface on Credit Cards, and never on Loans. A proposal whose card
+     is gone has no tab of its own; it shows here so it stays answerable (the
+     next sync drops it anyway). */
   let balanceProposals = $derived.by(() => {
     void settings.plaidBalanceProposals;
     void settings.plaidBalanceResolved;
-    if (isLoanView) return [];
-    return pendingBalanceProposals().map((p) => {
-      const c = cards.find((x) => String(x.id) === String(p.id));
-      return { ...p, name: (c && c.name) || ('Card ' + p.id) };
-    });
+    return pendingBalanceProposals()
+      .map((p) => {
+        const c = cards.find((x) => String(x.id) === String(p.id));
+        return { ...p, card: c, name: (c && c.name) || ('Card ' + p.id) };
+      })
+      .filter((p) => (p.card ? inView(p.card) : !isLoanView));
   });
 
   function acceptProposal(p) {
@@ -233,7 +238,7 @@
   }
 </script>
 
-{#if !isLoanView && balanceProposals.length > 0}
+{#if balanceProposals.length > 0}
   <div class="recon-card" style="margin-bottom:16px;">
     <div class="recon-head">🏦 Bank balance review</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">

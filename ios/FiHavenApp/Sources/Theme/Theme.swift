@@ -1,4 +1,5 @@
 import SwiftUI
+import FiHavenCore
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -81,6 +82,20 @@ enum Theme {
         )
     }
     #endif
+
+    /// An issuer brand color, nudged toward legibility against the card
+    /// surface it's drawn on (see `BrandColor`) — Visa's navy and Apple's
+    /// black are otherwise invisible in dark mode.
+    static func brand(_ color: UInt32) -> Color {
+        #if canImport(UIKit)
+        return Color(UIColor { traits in
+            let surface: UInt32 = traits.userInterfaceStyle == .dark ? 0x17181B : 0xFFFFFF
+            return uiColor(UInt(BrandColor.legible(color, on: surface)))
+        })
+        #else
+        return rgb(UInt(BrandColor.legible(color, on: 0xFFFFFF)))
+        #endif
+    }
 
     private static func rgb(_ hex: UInt) -> Color {
         Color(

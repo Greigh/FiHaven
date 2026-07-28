@@ -62,6 +62,14 @@ public struct CardOffer: Codable, Identifiable, Equatable, Sendable {
 /// A credit card, including optional 0%-promo tracking. Shape mirrors the
 /// web client (docs/native-contract.md §6).
 public struct Card: Codable, Identifiable, Equatable, Sendable {
+    /// `plaidAccountId` value meaning "never match this card to a bank
+    /// account". Clearing the picker back to automatic isn't a refusal — the
+    /// next sync just pins the card again — so the no needs somewhere to live,
+    /// and it rides in this field because a separate flag would be dropped by
+    /// clients that predate it. Kept in sync with NO_LINK in
+    /// `server/plaidBalances.js`.
+    public static let noPlaidLink = "none"
+
     public var id: String
     public var name: String
     public var balance: Double
@@ -88,6 +96,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     /// overrides digit matching for balance suggestions and claims that
     /// account's imported transactions. Amex needs it: the mask Plaid reports
     /// is the account's, not the number printed on the card.
+    ///
+    /// `Card.noPlaidLink` means the opposite — never match this card at all.
     public var plaidAccountId: String?
     public var rewardBase: Double        // flat reward % on everything (rewards optimizer)
     public var rewardCategories: [String: Double]   // per-category reward % overrides

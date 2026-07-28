@@ -334,7 +334,7 @@ async function runChecks(now = new Date(), deps = {}) {
           );
           if (due.length) {
             const ok = await trySend('reminder', u.email,
-              () => mailer.sendBillReminder(u.email, due, days, currency));
+              () => mailer.sendBillReminder(u.email, due, days, currency, u.id));
             delivered = delivered && ok;
             if (s.pushNotifications) {
               await tryPush('push reminder', u.email,
@@ -356,7 +356,7 @@ async function runChecks(now = new Date(), deps = {}) {
           const ending = trialsEndingOn(u.data, lp, days);
           if (ending.length) {
             const ok = await trySend('trial reminder', u.email,
-              () => mailer.sendTrialReminder(u.email, ending, days, currency));
+              () => mailer.sendTrialReminder(u.email, ending, days, currency, u.id));
             delivered = delivered && ok;
             if (s.pushNotifications) {
               await tryPush('push trial reminder', u.email,
@@ -378,7 +378,7 @@ async function runChecks(now = new Date(), deps = {}) {
           const expiring = offersExpiringOn(u.data, lp, days);
           if (expiring.length) {
             const ok = await trySend('offer reminder', u.email,
-              () => mailer.sendOfferReminder(u.email, expiring, days, currency));
+              () => mailer.sendOfferReminder(u.email, expiring, days, currency, u.id));
             delivered = delivered && ok;
             if (s.pushNotifications) {
               await tryPush('push offer reminder', u.email,
@@ -394,7 +394,7 @@ async function runChecks(now = new Date(), deps = {}) {
       if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
         const digest = weeklyDigest(u.data, lp);
         const ok = await trySend('digest', u.email,
-          () => mailer.sendWeeklyDigest(u.email, digest, currency));
+          () => mailer.sendWeeklyDigest(u.email, digest, currency, u.id));
         if (s.pushNotifications) {
           await tryPush('push digest', u.email,
             () => push.sendWeeklyDigestPush(u.id, digest, currency));
@@ -406,7 +406,7 @@ async function runChecks(now = new Date(), deps = {}) {
       if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
         const summary = summarize(u.data, lp);
         const ok = await trySend('summary', u.email,
-          () => mailer.sendMonthlySummary(u.email, summary, currency));
+          () => mailer.sendMonthlySummary(u.email, summary, currency, u.id));
         if (s.pushNotifications) {
           await tryPush('push summary', u.email,
             () => push.sendMonthlySummaryPush(u.id, summary, currency));

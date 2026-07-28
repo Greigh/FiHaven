@@ -34,6 +34,7 @@ describe('emails.js', () => {
     clearModule('./mail');
     stubModule('./mail', { sendMail: sendMailMock });
     process.env.PUBLIC_ORIGIN = 'https://fihaven.app';
+    process.env.MFA_ENCRYPTION_KEY = 'a'.repeat(64);
     emails = require('./emails');
   });
 
@@ -84,7 +85,7 @@ describe('emails.js', () => {
     expect(msg.subject).toBe('Reminder: Rent is due in 3 days');
     expect(msg.text).toContain('• Rent — $1,450.00 (due on the 20th)');
     expect(msg.html).toContain('$1,450.00');
-    expect(msg.html).toContain('due on the 20th');
+    expect(msg.html).toContain('Due on the 20th');
     expect(msg.text).toContain('https://fihaven.app/dashboard');
   });
 
@@ -229,5 +230,81 @@ describe('emails.js', () => {
     expect(msg.subject).toContain('Hulu');
     expect(msg.text).toContain('trial ends');
     expect(msg.html).toContain('Review subscriptions');
+  });
+
+  it('sendWeeklyDigest carries an unsubscribe link, a preferences link, and the one-click header', async () => {
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      { upcoming: [], upcomingTotal: 0, debtTotal: 0 },
+      'USD',
+      7,
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    const unsubscribe = require('./unsubscribe');
+    const href = 'https://fihaven.app/unsubscribe?t=' +
+      encodeURIComponent(unsubscribe.token(7, 'digest'));
+
+    expect(msg.listUnsubscribe).toBe(href);
+    expect(msg.html).toContain(href);
+    expect(msg.text).toContain(href);
+    expect(msg.html).toContain('https://fihaven.app/settings?tab=notifications#notifications');
+    expect(msg.text).toContain('Manage your notification preferences');
+  });
+
+  it('scopes the unsubscribe token to the email it is sent with', async () => {
+    const unsubscribe = require('./unsubscribe');
+    await emails.sendMonthlySummary(
+      'user@test.com',
+      { month: 'May 2026', paid: 0, billsCount: 0, billsTotal: 0, debtTotal: 0 },
+      'USD',
+      7,
+    );
+    expect(sendMailMock.mock.calls[0][0].listUnsubscribe).toContain(
+      encodeURIComponent(unsubscribe.token(7, 'summary')),
+    );
+
+    sendMailMock.mockClear();
+    await emails.sendOfferReminder(
+      'user@test.com',
+      [{ merchant: 'Delta', detail: '10% back', expires: '2026-07-01' }],
+      3,
+      'USD',
+      7,
+    );
+    expect(sendMailMock.mock.calls[0][0].listUnsubscribe).toContain(
+      encodeURIComponent(unsubscribe.token(7, 'offers')),
+    );
+  });
+
+  it('falls back to the settings link when no user id is supplied', async () => {
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      { upcoming: [], upcomingTotal: 0, debtTotal: 0 },
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.listUnsubscribe).toBeUndefined();
+    expect(msg.html).not.toContain('/unsubscribe?t=');
+    expect(msg.text).toContain('https://fihaven.app/settings?tab=notifications#notifications');
+  });
+
+  it('offers no unsubscribe on security email — those are not optional', async () => {
+    await emails.sendPasswordReset('user@test.com', 'tok');
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.listUnsubscribe).toBeUndefined();
+    expect(msg.html).not.toContain('Unsubscribe');
+  });
+
+  it('renders a dark-mode block and an inbox preheader', async () => {
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      { upcoming: [{ name: 'Rent', amount: 10, daysUntil: 2 }], upcomingTotal: 10, debtTotal: 0 },
+      'USD',
+      7,
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.html).toContain('prefers-color-scheme: dark');
+    expect(msg.html).toContain('<meta name="color-scheme" content="light dark"/>');
+    expect(msg.html).toContain('1 bill due');
   });
 });
