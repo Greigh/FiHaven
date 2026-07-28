@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar notification icon: the "Fi" monogram on a transparent
+     background. Android keeps only the alpha channel of a small icon, so this
+     must stay a bare glyph — passing the adaptive launcher icon instead renders
+     as a solid white disc. Same 64-grid path as ic_launcher_foreground, scaled
+     up to fill the 24dp canvas since there is no adaptive-icon safe zone here. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group
+        android:pivotX="32"
+        android:pivotY="32"
+        android:scaleX="1.7"
+        android:scaleY="1.7">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M18,17 H21 A2,2 0 0 1 23,19 V45 A2,2 0 0 1 21,47 H18 A2,2 0 0 1 16,45 V19 A2,2 0 0 1 18,17 Z M18,17 H36 A2,2 0 0 1 38,19 V22 A2,2 0 0 1 36,24 H18 A2,2 0 0 1 16,22 V19 A2,2 0 0 1 18,17 Z M18,29 H31 A2,2 0 0 1 33,31 V33 A2,2 0 0 1 31,35 H18 A2,2 0 0 1 16,33 V31 A2,2 0 0 1 18,29 Z M43,27 H46 A2,2 0 0 1 48,29 V45 A2,2 0 0 1 46,47 H43 A2,2 0 0 1 41,45 V29 A2,2 0 0 1 43,27 Z M40.5,20 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0 Z" />
+    </group>
+</vector>

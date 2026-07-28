@@ -2,11 +2,15 @@ import Foundation
 import UserNotifications
 import FiHavenCore
 
-/// Schedules on-device bill-due reminders from synced data. There's no server
-/// push: each device mirrors the user's reminder settings as local
-/// notifications, so they fire even offline. We reschedule whenever the data
-/// or settings change (AppStore) — cancelling our pending requests and
-/// re-adding from the current bills.
+/// Schedules on-device bill-due reminders from synced data, so they fire even
+/// offline. We reschedule whenever the data or settings change (AppStore) —
+/// cancelling our pending requests and re-adding from the current bills.
+///
+/// The server also pushes these reminders over APNs. Local and push are
+/// separate user toggles, and when both are on the same event would arrive
+/// twice — so a category the server will push is *not* scheduled locally,
+/// leaving local as the offline fallback for whatever push doesn't cover. The
+/// suppression gates mirror server/scheduler.js exactly; see `reschedule`.
 enum NotificationScheduler {
     private static var center: UNUserNotificationCenter { .current() }
 
@@ -26,9 +30,32 @@ enum NotificationScheduler {
 
     /// Cancel existing bill/trial reminders and reschedule from the current data.
     /// Off (or no permission) simply clears everything we'd scheduled.
-    static func reschedule(bills: [Bill], cards: [Card] = [], settings: Settings, tz: TimeZone) {
+    ///
+    /// `pro` is the server-derived entitlement, needed because the server only
+    /// pushes offer reminders to Pro users — a free user with offers + push on
+    /// gets nothing from the server, so we must still schedule those locally.
+    ///
+    /// `pushHealthy` is `PushRegistrar.healthy`, passed in rather than read here
+    /// because the registrar is `@MainActor` and this is not.
+    static func reschedule(
+        bills: [Bill], cards: [Card] = [], settings: Settings, tz: TimeZone,
+        pro: Bool, pushHealthy: Bool
+    ) {
         center.removeAllPendingNotificationRequests()
         guard settings.localNotifications else { return }
+
+        // Categories the server will push for this user, which we therefore skip
+        // locally to avoid a duplicate. These mirror server/scheduler.js: the
+        // bill and trial pushes both sit inside `billReminders`, and the offer
+        // push additionally requires Pro. Anything the server won't send still
+        // gets scheduled here, so no category can end up silent.
+        //
+        // `PushRegistrar.healthy` is the safety net: if push looks broken we
+        // schedule everything locally and accept the risk of a duplicate over
+        // the risk of no reminder at all.
+        let push = settings.pushNotifications && pushHealthy
+        let pushCoversBills = push && settings.billReminders
+        let pushCoversOffers = push && settings.offerReminders && pro
 
         let cal = DateLogic.calendar(tz: tz)
         let now = Date()
@@ -40,7 +67,7 @@ enum NotificationScheduler {
         var scheduled = 0
         // Soonest-due first, so a long bill list still gets the most relevant
         // reminders within the pending-request budget.
-        let upcoming = bills.compactMap { bill -> (Bill, Date)? in
+        let upcoming: [(Bill, Date)] = pushCoversBills ? [] : bills.compactMap { bill -> (Bill, Date)? in
             guard let due = BillSchedule.nextDueDate(bill, tz: tz, from: now) else { return nil }
             return (bill, due)
         }.sorted { $0.1 < $1.1 }
@@ -73,7 +100,8 @@ enum NotificationScheduler {
         }
 
         // Trial-ending reminders for subscription bills with trialEnds set.
-        let trials = bills.compactMap { bill -> (Bill, Date)? in
+        // Server-side these ride the same `billReminders` gate as bill pushes.
+        let trials: [(Bill, Date)] = pushCoversBills ? [] : bills.compactMap { bill -> (Bill, Date)? in
             guard let end = trialEndDate(bill, tz: tz) else { return nil }
             return (bill, end)
         }.sorted { $0.1 < $1.1 }
@@ -108,7 +136,7 @@ enum NotificationScheduler {
         // Card-linked offer expiry reminders (Pro; mirrors the server email,
         // gated on offerReminders). Nudges the user before an activated offer
         // lapses.
-        if settings.offerReminders {
+        if settings.offerReminders && !pushCoversOffers {
             let offers = cards.flatMap { card in
                 card.offers.filter { !$0.used && !$0.expires.isEmpty }
                     .compactMap { offer -> (CardOffer, Date)? in

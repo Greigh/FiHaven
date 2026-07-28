@@ -1,7 +1,7 @@
 import Foundation
 
-/// Map a credit-card issuer to a recognizable emoji. The web app also
-/// renders real SVG brand logos; native mirrors the emoji layer.
+/// Map a credit-card issuer to a recognizable mark — a bundled brand logo
+/// where we have one (`IssuerLogos`), otherwise an emoji stand-in.
 /// Keep in sync with web `issuerIcons.js` and Android `IssuerIcons.kt`.
 public enum IssuerIcons {
     static let issuerEmoji: [String: String] = [
@@ -70,7 +70,31 @@ public enum IssuerIcons {
         return CTConstants.cardIcon
     }
 
+    /// Bundled brand-mark key for a name, or nil. Mirrors web `findLogoKey`.
+    public static func logoKey(_ name: String) -> String? {
+        let key = normalize(name)
+        guard !key.isEmpty else { return nil }
+        let canon = aliases[key] ?? key
+        if IssuerLogos.all[canon] != nil { return canon }
+        if IssuerLogos.all[key] != nil { return key }
+        for k in IssuerLogos.keysByLength where canon.contains(k) || key.contains(k) {
+            return k
+        }
+        return nil
+    }
+
+    /// Brand mark for a card (issuer → name). Loans stay on the 🏦 glyph.
+    public static func logo(for card: Card) -> IssuerLogo? {
+        guard card.type != "loan" else { return nil }
+        guard let key = logoKey(resolveIssuer(for: card)) ?? logoKey(card.name) else { return nil }
+        return IssuerLogos.all[key]
+    }
+
+    /// Renderable icon: brand logo when bundled, else the emoji stand-in.
     public static func iconInfo(for card: Card) -> CategoryIcon {
-        .emoji(emoji(for: card))
+        if let logo = logo(for: card) {
+            return .logo(key: logo.key, emoji: emoji(for: card))
+        }
+        return .emoji(emoji(for: card))
     }
 }

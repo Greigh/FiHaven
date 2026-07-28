@@ -92,6 +92,16 @@ function decrypt(blob) {
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf-8');
 }
 
+// Derive a stable, purpose-scoped 32-byte key from the master key. Lets
+// other modules (e.g. unsubscribe-link signing) get their own secret
+// without a second env var and without ever touching the master key
+// itself — HKDF makes the derived keys independent of each other.
+function deriveKey(label) {
+  return Buffer.from(
+    crypto.hkdfSync('sha256', key(), Buffer.alloc(0), `fihaven:${label}`, 32)
+  );
+}
+
 /* ── TOTP ───────────────────────────────────────────────────── */
 
 const TOTP_ISSUER = 'FiHaven';
@@ -335,6 +345,7 @@ module.exports = {
   // crypto
   encrypt,
   decrypt,
+  deriveKey,
   usingFileKey,
   warnIfProductionFileKey,
   // TOTP

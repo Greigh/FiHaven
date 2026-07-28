@@ -143,25 +143,66 @@ function accountIdOf(account) {
   return String(account.account_id || account.accountId || '');
 }
 
+/* The "leave this card alone" sentinel, stored in `plaidAccountId` itself.
+   A real Plaid account id is a long opaque string, so this can't collide.
+
+   It rides in the existing field rather than a new `plaidLinkOptOut` flag on
+   purpose: native Bill/Card are fixed structs that drop fields they don't know,
+   so a new key would be silently stripped by any client build that predates it
+   — and the opt-out would revert on the user's next save from that device.
+   Every client already round-trips `plaidAccountId` untouched.
+
+   Without this, "no" was not expressible: clearing the picker back to Match
+   automatically just let the next sync pin the card again. */
+const NO_LINK = 'none';
+
+/** True when the user asked that this card never be matched to a bank. */
+function cardOptedOut(card) {
+  return String((card && card.plaidAccountId) || '') === NO_LINK;
+}
+
 /** True when the user has explicitly linked this card to this account. */
 function cardIsLinkedTo(card, account) {
   const linked = card && card.plaidAccountId;
+  if (cardOptedOut(card)) return false;
   const id = accountIdOf(account);
   return !!linked && !!id && String(linked) === id;
 }
 
 /**
+ * True when a card's pin should keep it out of the auto-matching pool.
+ *
+ * That covers a pin to an account the user actually has, and the opt-out
+ * sentinel. It deliberately does NOT cover a pin to an account that's gone:
+ * disconnecting a bank (or relinking one, which mints fresh account ids)
+ * leaves a pin pointing at nothing, and treating that as "spoken for" would
+ * bar the card from ever matching again. `known` is the set of every account
+ * id across ALL the user's banks — omit it and a pin is trusted as-is, which
+ * is the right default for a caller that only knows about one bank.
+ */
+function linkIsLive(card, known) {
+  const linked = card && card.plaidAccountId;
+  if (!linked) return false;
+  if (cardOptedOut(card)) return true;   // an intentional "no" outlives any bank
+  if (!known) return true;
+  return known.has(String(linked));
+}
+
+/**
  * The single card that owns `account`, or null when it's ambiguous or
  * unknown. `institutionName` enables tier 3 and may be omitted.
+ * `knownAccountIds` (a Set) marks which pins are still live.
  */
-function matchCardToAccount(cards, account, institutionName) {
+function matchCardToAccount(cards, account, institutionName, knownAccountIds) {
   const list = Array.isArray(cards) ? cards : [];
 
   const explicit = list.filter((c) => cardIsLinkedTo(c, account));
   if (explicit.length) return explicit.length === 1 ? explicit[0] : null;
 
-  // A card pinned to some *other* account is spoken for — never auto-claim it.
-  const free = list.filter((c) => !(c && c.plaidAccountId));
+  // A card pinned to some *other* live account is spoken for — never
+  // auto-claim it. A pin to an account that no longer exists is dead weight,
+  // so that card goes back in the pool.
+  const free = list.filter((c) => !linkIsLive(c, knownAccountIds));
 
   const byDigits = free.filter((c) => cardMatchesMask(c, account && account.mask));
   if (byDigits.length === 1) return byDigits[0];
@@ -177,6 +218,47 @@ function matchCardToAccount(cards, account, institutionName) {
   return soft.length === 1 ? soft[0] : null;
 }
 
+// A real number, or null. `Number(null)` is 0, so the plain Number() check let
+// an account whose balance the bank didn't report propose a $0 balance — and a
+// stored snapshot writes those absent figures as an explicit null.
+function num(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * What the card actually owes, from a Plaid `balances` object.
+ *
+ * Plaid reports `current` on a credit line as a POSITIVE amount owed, so a
+ * negative figure means one of two opposite things: you're ahead (a refund or
+ * overpayment left a credit balance), or the issuer reports what's owed with
+ * the sign flipped. This used to take the absolute value, which read an
+ * overpaid card as debt — being $50 ahead was proposed as owing $50.
+ *
+ * `limit - available` is Plaid's own identity for a credit line, so when the
+ * bank reports both it settles which case this is. With nothing to corroborate,
+ * Plaid's documented meaning wins: a negative balance is a credit, not debt.
+ *
+ * @returns {number|null} amount owed (never negative), or null if unusable.
+ */
+function owedFromBalances(bal) {
+  const b = bal || {};
+  const current = num(b.current);
+  if (current == null) return null;
+  if (current >= 0) return current;
+
+  const limit = num(b.limit);
+  const available = num(b.available);
+  if (limit != null && available != null) {
+    const owed = Math.round((limit - available) * 100) / 100;
+    // The line agrees with |current| → the issuer flipped the sign, not a credit.
+    if (Math.abs(owed - Math.abs(current)) < 0.005) return Math.abs(current);
+    return Math.max(0, owed);
+  }
+  return 0;
+}
+
 /** Stable id for Accept/Decline memory: card + rounded current + limit. */
 function balanceFingerprint(cardId, proposedCurrent, limit) {
   const lim = limit != null && Number.isFinite(Number(limit)) ? String(Number(limit)) : '';
@@ -189,11 +271,17 @@ function balanceFingerprint(cardId, proposedCurrent, limit) {
  * user already accepted or declined. Skips when the card's currentBalance
  * (and limit, when proposed) already match.
  *
- * @param {object} [opts] `{ institutionName }` enables tier-3 issuer matching.
+ * Archived cards are skipped: the user has put them away, and a review queue
+ * that asks about a card they can't see on the Cards tab is unanswerable.
+ *
+ * @param {object} [opts] `{ institutionName, knownAccountIds }` — the first
+ *   enables tier-3 issuer matching, the second (a Set of every account id the
+ *   user has linked) lets a pin to a removed account be ignored.
  */
 function balanceProposals(cards, accounts, resolvedFingerprints, opts) {
-  const list = cards || [];
+  const list = (cards || []).filter((c) => c && !c.archived);
   const institutionName = (opts && opts.institutionName) || '';
+  const knownAccountIds = opts && opts.knownAccountIds;
   const resolved = new Set((resolvedFingerprints || []).map(String));
   const out = [];
   (accounts || []).forEach((a) => {
@@ -203,13 +291,12 @@ function balanceProposals(cards, accounts, resolvedFingerprints, opts) {
     const type = String(a.type || '').toLowerCase();
     if (type !== 'credit' && type !== 'loan') return;
     const bal = a.balances || {};
-    const owed = Number(bal.current);
-    if (!Number.isFinite(owed)) return;
-    const card = matchCardToAccount(list, a, institutionName);
+    const proposedCurrent = owedFromBalances(bal);
+    if (proposedCurrent == null) return;
+    const card = matchCardToAccount(list, a, institutionName, knownAccountIds);
     if (!card) return;
-    const proposedCurrent = Math.abs(owed);
-    const limitNum = Number(bal.limit);
-    const limit = Number.isFinite(limitNum) && limitNum > 0 ? limitNum : undefined;
+    const limitNum = num(bal.limit);
+    const limit = limitNum != null && limitNum > 0 ? limitNum : undefined;
     const fingerprint = balanceFingerprint(card.id, proposedCurrent, limit);
     if (resolved.has(fingerprint)) return;
 
@@ -271,13 +358,17 @@ function applyBalanceUpdates(cards, updates) {
 }
 
 module.exports = {
+  NO_LINK,
+  cardOptedOut,
   last4,
   cardMatchesMask,
   cardMatchesIssuerAndName,
   issuerMatchesInstitution,
   cardIsLinkedTo,
+  linkIsLive,
   accountIdOf,
   matchCardToAccount,
+  owedFromBalances,
   balanceFingerprint,
   balanceProposals,
   balanceUpdates,

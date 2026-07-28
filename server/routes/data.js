@@ -60,12 +60,15 @@ router.put('/', requireAuth, requireCsrf, (req, res) => {
     else if (Array.isArray(current[key])) clean[key] = current[key];
     else clean[key] = [];
   }
-  clean.settings =
+  clean.settings = Object.assign(
+    {},
     body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
       ? body.settings
-      : (current.settings || {});
+      : (current.settings || {})
+  );
 
   const before = current.settings || {};
+  keepBalanceProposals(before, clean.settings);
   dbApi.upsertUserData(req.user.id, clean);
   res.json({ ok: true });
 
@@ -75,6 +78,32 @@ router.put('/', requireAuth, requireCsrf, (req, res) => {
   // Fire-and-forget: the save above already succeeded and must not depend on it.
   backfillOnOptIn(req.user.id, before, clean.settings);
 });
+
+/* The bank-balance review queue is the one settings key the SERVER owns: Plaid
+   sync writes `plaidBalanceProposals`, and the client only ever resolves them
+   by appending to `plaidBalanceResolved` (Accept and Decline both do). A client
+   posting a settings snapshot taken before the last sync would otherwise wipe
+   the queue — and with the one-hour sync throttle, the Accept buttons would
+   stay missing for an hour. So keep the server's list and subtract only what
+   the client has actually resolved. */
+function keepBalanceProposals(before, next) {
+  const server = Array.isArray(before.plaidBalanceProposals) ? before.plaidBalanceProposals : [];
+  if (!server.length) return;
+  // Opting out clears the queue; sync would do the same on its next pass.
+  if (!next.plaidUpdateBalances) {
+    next.plaidBalanceProposals = [];
+    return;
+  }
+  const resolved = new Set(
+    (Array.isArray(next.plaidBalanceResolved) ? next.plaidBalanceResolved : [])
+      .map((r) => (r && r.fingerprint) || r)
+      .filter(Boolean)
+      .map(String)
+  );
+  next.plaidBalanceProposals = server.filter(
+    (p) => p && p.fingerprint && !resolved.has(String(p.fingerprint))
+  );
+}
 
 const OPT_IN_KEYS = ['plaidUpdatePurchases', 'plaidUpdateBalances'];
 

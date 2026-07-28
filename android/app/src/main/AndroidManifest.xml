@@ -63,6 +63,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- When the app is backgrounded, FCM notification payloads are drawn by
+             the system, not FcmPushService — without these it falls back to the
+             launcher icon, which flattens to a white disc in the status bar. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_fihaven" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/fh_brand" />
+
         <!-- Server push via Firebase Cloud Messaging (requires google-services.json). -->
         <service
             android:name=".FcmPushService"

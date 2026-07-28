@@ -93,6 +93,19 @@ function configured() {
   return !!(apnsClient || fcmReady || webPushReady);
 }
 
+// Whether we can actually deliver to a given platform right now. Devices ask at
+// registration time so they know whether to trust push: a client that assumes
+// push works when the credentials are missing would suppress its local
+// reminders and go silent. Unknown platforms are never ready.
+function platformReady(platform) {
+  switch (platform) {
+    case 'ios': return !!apnsClient;
+    case 'android': return fcmReady;
+    case 'web': return webPushReady;
+    default: return false;
+  }
+}
+
 function vapidPublicKey() {
   return webPushReady ? (process.env.VAPID_PUBLIC_KEY || null) : null;
 }
@@ -216,6 +229,7 @@ init();
 
 module.exports = {
   configured,
+  platformReady,
   vapidPublicKey,
   sendToUser,
   sendBillReminderPush,

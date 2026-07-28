@@ -421,6 +421,9 @@ public struct Settings: Codable, Equatable, Sendable {
                         "type": .string("image"),
                         "value": .string(uri),
                     ])
+                case .logo:
+                    // Issuer brand marks are derived, never a stored override.
+                    continue
                 }
             }
             raw["categoryIcons"] = .object(obj)

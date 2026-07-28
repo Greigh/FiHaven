@@ -34,7 +34,7 @@ optimizer** tells you which card to reach for per spending category
 (and pointedly *won't* recommend a card mid-0%-promo, since carrying a
 reward purchase at the back of your payoff queue costs more in interest
 than the rewards are worth). Premium features live behind a unified
-**FiHaven Pro** entitlement across web (Stripe), iOS (StoreKit), and
+**FiHaven Pro** entitlement across web (Paddle), iOS (StoreKit), and
 Android (Play).
 
 ---
@@ -128,7 +128,7 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | **Server** | Node 24 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
 | **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) — see [`docs/social-login-setup.md`](docs/social-login-setup.md) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
-| **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Stripe](https://stripe.com), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
+| **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Paddle](https://paddle.com) (merchant of record), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
 | **Deploy** | Copy [`scripts/examples/upload.example.sh`](scripts/examples/upload.example.sh) → gitignored `upload.sh`; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart |
@@ -186,7 +186,7 @@ FiHaven Pro subscription. Each has its own README:
 
 The shared API + data + design + billing contract both apps follow lives
 in **[`docs/native-contract.md`](docs/native-contract.md)**. FiHaven Pro
-entitlement is server-authoritative and unified across web (Stripe), iOS
+entitlement is server-authoritative and unified across web (Paddle), iOS
 (StoreKit), and Android (Play) — see [the API section](#api).
 
 ---
@@ -268,19 +268,30 @@ fihaven/
 │   │                                page gates, scheduler boot, / base
 │   ├── db.js                        better-sqlite3 + schema + statements
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
+│   ├── securityConfig.js            CSP / security headers, one place
+│   ├── pageGate.js                  server-side gate on private pages (works with JS off)
+│   ├── health.js                    /health probe (db reachable, build info)
 │   ├── tokens.js                    single-use email tokens (verify / reset / recover)
 │   ├── emails.js                    branded HTML emails (verify, reset, recovery,
-│   │                                bill reminders, weekly digest)
+│   │                                bill reminders, weekly digest) — light + dark palettes
+│   ├── unsubscribe.js               signed opt-out tokens for List-Unsubscribe + footer links
 │   ├── oauth.js                     OIDC ID-token verification for Sign in with Apple/Google
+│   ├── oauthHandoff.js              short-lived handoff codes (Android Custom Tab → app)
+│   ├── appleJws.js                  App Store Server Notifications JWS verification
+│   ├── googlePubSubAuth.js          verifies Play RTDN Pub/Sub push requests
 │   ├── scheduler.js                 tz-aware mailer: bill reminders (configurable lead time,
 │   │                                send hour, due-day), weekly digest, monthly summary
+│   ├── billSchedule.js              server-side copy of the bill recurrence math
+│   ├── push.js                      APNs + FCM + web push fan-out, dead-token pruning
 │   ├── captcha.js                   Cloudflare Turnstile siteverify
 │   ├── mfa.js                       AES-256-GCM, TOTP, backup codes, passkeys, email codes
-│   ├── billing.js                   Stripe + entitlement (FiHaven Pro)
+│   ├── billing.js                   entitlement (FiHaven Pro) across Paddle + Apple + Play
+│   ├── paddle.js                    Paddle REST client, webhook signature + IP allowlist
 │   ├── googlePlay.js                Google Play Developer API — verify Play
 │   │                                purchases + Real-time Developer Notifications
 │   ├── plaid.js                     optional Plaid bank-linking helpers
-│   ├── plaidBalances.js             Plaid balance sync (opt-in card auto-update)
+│   ├── plaidBalances.js             card↔account matching + Current Balance proposals
+│   ├── plaidMerge.js                additive transaction merge (dedupe, outflows only)
 │   ├── household.js                 Family/household model + caps
 │   ├── householdEvents.js           per-household SSE broadcast (live share sync)
 │   ├── mail.js                      thin nodemailer wrapper
@@ -294,9 +305,12 @@ fihaven/
 │       ├── account.js               change-email/password/name, delete, export,
 │       │                            export/<type>.csv, iCal token CRUD, onboarded
 │       ├── mfa.js                   /api/account/mfa (enroll/manage second factors)
-│       ├── billing.js               Stripe checkout / portal / webhook + entitlement
+│       ├── billing.js               Paddle checkout / portal / webhook + entitlement
 │       ├── plaid.js                 Pro-gated bank linking (link / exchange /
 │       │                            refresh / item-remove / repaired / webhook)
+│       ├── push.js                  device registration + notification preferences
+│       ├── unsubscribe.js           token-authenticated opt-out (no sign-in needed)
+│       ├── feedback.js              user-volunteered links (rate reports, contact)
 │       ├── household.js             Family/household create/join/invite + share
 │       ├── admin.js                 admin-only stats + user management
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
@@ -498,18 +512,23 @@ CSV / JSON export endpoints and the public `.ics` feed).
 ### Billing & entitlement (FiHaven Pro)
 
 The server is the single source of truth for the `pro` entitlement,
-unified across web (Stripe), iOS (StoreKit), and Android (Play) — it's
+unified across web (Paddle), iOS (StoreKit), and Android (Play) — it's
 also embedded in `GET /api/data`. Full spec:
 [`docs/native-contract.md` §10](docs/native-contract.md).
+
+Web checkout is **Paddle**, which is the merchant of record for web
+purchases (it takes the payment and handles sales tax / VAT). Stripe was
+removed entirely in 1.6.1; App Store and Play purchases are unaffected.
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/billing/status` | Current entitlement `{ pro, source, plan, expiresAt }` |
-| `GET` | `/api/billing/stripe/config` | Publishable key + whether Stripe is live |
-| `POST` | `/api/billing/stripe/checkout` | Create a hosted Checkout Session (web) |
-| `POST` | `/api/billing/stripe/portal` | Stripe Billing Portal (manage/cancel) |
-| `POST` | `/api/billing/stripe/webhook` | Stripe-signed events → entitlement |
+| `GET` | `/api/billing/paddle/config` | Client token, price ids, and whether Paddle is live |
+| `POST` | `/api/billing/paddle/checkout` | Open the Paddle overlay checkout (web) |
+| `POST` | `/api/billing/paddle/portal` | Paddle customer portal (manage/cancel) |
+| `POST` | `/api/billing/paddle/webhook` | Paddle-signed events → entitlement |
 | `POST` | `/api/billing/{apple,google}/verify` | Verify a native store transaction |
+| `POST` | `/api/billing/{apple,google}/notifications` | Store server notifications (ASSN JWS / Play RTDN) |
 | `POST` | `/api/billing/promo/redeem` | Redeem a server promo code |
 | `POST` | `/api/billing/promo` | Create a promo code (admin; `ADMIN_EMAILS`) |
 
@@ -534,6 +553,20 @@ overwrites Statement Balance. A sync then runs on **link**, on
 call `refresh` and let the server decide), on an explicit **"Sync now"**
 (`{force:true}`), on a **webhook**, and immediately when a user **opts in**
 (`PUT /api/data` notices the gate flip and backfills).
+
+**The proposal queue is one settings key, rebuilt from every linked bank.**
+`settings.plaidBalanceProposals` is server-owned, so `refreshBalanceProposals`
+rebuilds it across all items on any sync — building it from only the item being
+synced meant each bank erased the previous one's proposals, leaving just the
+last-synced bank with Accept buttons. `PUT /api/data` defends the same key: a
+client's settings snapshot can't introduce proposals or drop them wholesale, it
+can only resolve them via `plaidBalanceResolved` (Accept and Decline both append
+there), so a stale save can't empty the queue. Account rows are pruned to what
+the bank still reports, or a de-selected account's last-seen balance would be
+proposed forever. `owedFromBalances` reads a negative `balances.current` as a
+credit balance rather than debt — unless `limit - available` shows the issuer
+flipped the sign — so an overpaid card doesn't propose what you're ahead by as
+what you owe.
 
 **The cursor is only advanced when the merge actually ran.** Plaid's sync
 cursor is destructive — advancing it past transactions we chose not to import
@@ -769,6 +802,20 @@ returns instead: Android `android_package_name` (`app.fihaven`) and an iOS
 Universal Link at `/plaid` (so bank OAuth does not dump users in the browser).
 Webhooks are ES256-JWT-verified in production, and re-auth ("update mode") is a
 first-class Reconnect flow on web, iOS, and Android.
+
+**Which card is which account.** `plaidBalances.js` matches server-side in three
+tiers — an explicit pin, then last-4 digits, then issuer + product name — and a
+confident match is *written onto the card* as `plaidAccountId` (`autoLinkCards`).
+That matters because per-card spending resolves a bank charge by account id
+alone, so an unrecorded match left purchases unattributed and the editor still
+reading "Match automatically". Pinning is idempotent, never overrides a pin the
+user made, skips archived and ambiguous cards, and repairs a pin left behind by
+a disconnected or relinked bank (whose account ids no longer exist). The
+sentinel `plaidAccountId: "none"` — the editor's **Don't link this card** — is a
+durable refusal: clearing the picker back to automatic isn't one, since the next
+sync would just match it again. It rides in the existing field because native
+`Card` is a fixed struct that strips unknown keys, so a separate opt-out flag
+would be dropped by any client build predating it.
 
 ### Responsive / mobile layout
 

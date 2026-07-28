@@ -2,13 +2,11 @@ package app.fihaven.ui
 
 import app.fihaven.ui.theme.PlexMono
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,8 +40,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -498,6 +494,10 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                                 onPay = { paying = item },
                                                 onSkip = { requestSkip(item) },
                                                 onUnskip = { vm.unskip(item.type, item.refId) },
+                                                onUnmark = {
+                                                    vm.setPaid(item.type, item.refId, item.name,
+                                                        vm.goalAmount(item), false)
+                                                },
                                                 onEdit = {
                                                     if (item.type == "bill")
                                                         editingBill = data.bills.firstOrNull { it.id.toString() == item.refId }
@@ -710,7 +710,6 @@ object DashboardWidgets {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UpcomingRow(
     item: UpcomingItem,
@@ -723,10 +722,10 @@ private fun UpcomingRow(
     onPay: () -> Unit,
     onSkip: () -> Unit,
     onUnskip: () -> Unit,
+    onUnmark: () -> Unit,
     onEdit: () -> Unit,
 ) {
     val c = Ct.colors
-    var menuOpen by remember { mutableStateOf(false) }
     val dueTint = when {
         state == PaidState.FULL -> c.green
         state == PaidState.PARTIAL -> c.orange
@@ -741,33 +740,49 @@ private fun UpcomingRow(
     }
     // No own card — the dashboard wraps the whole list in one CtCard with
     // dividers (iOS parity). Internal padding matches iOS's row insets.
-    Row(
+    //
+    // Every action is spelled out as its own button (Bills-tab idiom, and web
+    // parity). Tapping the row body used to *pay* the item outright, with the
+    // full amount pre-filled — testers reaching for the pay sheet's "Note
+    // (optional)" field marked bills paid by accident, and with
+    // `hidePaidOnDashboard` on by default they then vanished from Upcoming.
+    // The body now opens the editor, which is the harmless of the two.
+    Column(
         Modifier.fillMaxWidth()
-            .combinedClickable(onClick = onPay, onLongClick = { menuOpen = true })
+            .clickable(onClick = onEdit)
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconMark(icon = item.icon, size = 22.dp, modifier = Modifier.padding(end = 12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            // Who it's actually paid to — the name above is often a nickname.
-            if (item.business.isNotBlank()) {
-                Text(item.business, color = c.muted, fontSize = 12.sp, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconMark(icon = item.icon, size = 22.dp, modifier = Modifier.padding(end = 12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                // Who it's actually paid to — the name above is often a nickname.
+                if (item.business.isNotBlank()) {
+                    Text(item.business, color = c.muted, fontSize = 12.sp, maxLines = 1)
+                }
             }
-            Text(label, color = dueTint, fontSize = 12.sp)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(Money.fmt(if (state == PaidState.FULL) goal else remaining), color = Ct.colors.text,
+                    fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+            }
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(Money.fmt(if (state == PaidState.FULL) goal else remaining), color = Ct.colors.text,
-                fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-            if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text("Pay") }, onClick = { menuOpen = false; onPay() })
-            DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onEdit() })
-            if (skipped) {
-                DropdownMenuItem(text = { Text("Un-skip $periodNoun") }, onClick = { menuOpen = false; onUnskip() })
-            } else {
-                DropdownMenuItem(text = { Text("Skip this $periodNoun") }, onClick = { menuOpen = false; onSkip() })
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (skipped) "⏭ Skipped this $periodNoun" else label,
+                color = if (skipped) c.muted else dueTint,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                when {
+                    skipped -> QuickAction("Undo skip", c.accent, onUnskip)
+                    state == PaidState.FULL -> QuickAction("Undo", c.muted, onUnmark)
+                    else -> {
+                        QuickAction("Skip", c.muted, onSkip)
+                        QuickAction("Pay", c.accent, onPay)
+                    }
+                }
             }
         }
     }

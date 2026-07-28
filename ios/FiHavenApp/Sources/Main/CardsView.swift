@@ -90,32 +90,35 @@ struct CardsView: View {
         return list
     }
 
+    // A proposal belongs to the tab its card lives on: a matched loan account
+    // used to surface under Credit Cards and never under Loans.
+    private var visibleProposals: [AppStore.BalanceProposal] {
+        store.pendingBalanceProposals().filter { $0.isLoan == isLoanView }
+    }
+
     var body: some View {
         List {
-            if !isLoanView {
-                let proposals = store.pendingBalanceProposals()
-                if !proposals.isEmpty {
-                    Section {
-                        ForEach(proposals) { p in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(p.name).font(Theme.ui(14, weight: .semibold))
-                                Text("Current → \(Money.fmt(p.proposedCurrent))"
-                                     + (p.limit.map { " · limit \(Money.fmt($0))" } ?? ""))
-                                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                                HStack {
-                                    Button("Accept") { store.acceptBalanceProposal(p) }
-                                        .buttonStyle(.borderedProminent)
-                                    Button("Decline") { store.declineBalanceProposal(p) }
-                                        .buttonStyle(.bordered)
-                                }
+            if !visibleProposals.isEmpty {
+                Section {
+                    ForEach(visibleProposals) { p in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(p.name).font(Theme.ui(14, weight: .semibold))
+                            Text("Current → \(Money.fmt(p.proposedCurrent))"
+                                 + (p.limit.map { " · limit \(Money.fmt($0))" } ?? ""))
+                                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                            HStack {
+                                Button("Accept") { store.acceptBalanceProposal(p) }
+                                    .buttonStyle(.borderedProminent)
+                                Button("Decline") { store.declineBalanceProposal(p) }
+                                    .buttonStyle(.bordered)
                             }
-                            .padding(.vertical, 4)
                         }
-                    } header: {
-                        Text("Bank balance review")
-                    } footer: {
-                        Text("Suggestions update Current Balance only. Decline remembers this figure until the bank changes.")
+                        .padding(.vertical, 4)
                     }
+                } header: {
+                    Text("Bank balance review")
+                } footer: {
+                    Text("Suggestions update Current Balance only. Decline remembers this figure until the bank changes.")
                 }
             }
             if !isLoanView && !baseCards.isEmpty {

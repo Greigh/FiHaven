@@ -30,7 +30,10 @@ router.post('/register', requireAuth, requireVerified, requireCsrf, (req, res) =
   if (!PLATFORMS.has(platform)) return sendError(res, 400, 'invalid-platform');
   if (!token) return sendError(res, 400, 'invalid-token');
   dbApi.upsertPushDevice(req.user.id, platform, token);
-  return res.json({ ok: true });
+  // `ready` tells the device whether this platform's push credentials are
+  // actually configured, so it can decide whether to stand its local reminders
+  // down in favour of ours. See push.platformReady.
+  return res.json({ ok: true, ready: push.platformReady(platform) });
 });
 
 router.post('/unregister', requireAuth, requireVerified, requireCsrf, (req, res) => {
