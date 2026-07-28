@@ -52,9 +52,47 @@ func runIssuerIconChecks() {
         )
         checkEqual(
             IssuerIcons.iconInfo(for: Card(id: "1", name: "Sapphire", issuer: "Chase")),
-            .emoji("🔵"),
-            "iconInfo wraps emoji"
+            .logo(key: "chase", emoji: "🔵"),
+            "iconInfo prefers the bundled logo"
         )
+        checkEqual(
+            IssuerIcons.iconInfo(for: Card(id: "1", name: "Blue", issuer: "Bilt")),
+            .emoji("🏠"),
+            "iconInfo falls back to emoji with no bundled logo"
+        )
+        checkEqual(
+            IssuerIcons.iconInfo(for: Card(id: "1", name: "Sapphire", issuer: "Chase")).emoji(),
+            "🔵",
+            "logo carries its emoji stand-in for text contexts"
+        )
+    }
+
+    section("IssuerIcons — brand logos") {
+        checkEqual(IssuerIcons.logoKey("Chase"), "chase", "exact issuer")
+        checkEqual(IssuerIcons.logoKey("Amex"), "americanexpress", "alias → canonical key")
+        checkEqual(IssuerIcons.logoKey("American Express"), "americanexpress", "normalized issuer")
+        checkEqual(IssuerIcons.logoKey("Bank of America, N.A."), "bankofamerica", "substring match")
+        checkEqual(IssuerIcons.logoKey("JPMorgan Chase"), "chase", "alias on a longer name")
+        checkEqual(IssuerIcons.logoKey("Bilt"), nil, "no bundled mark")
+        checkEqual(IssuerIcons.logoKey(""), nil, "empty")
+
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Freedom Flex", issuer: "Chase"))?.key,
+            "chase", "logo from issuer"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Discover it"))?.key,
+            "discover", "logo from card name"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Chase Mortgage", type: "loan"))?.key,
+            nil, "loans keep the bank glyph"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Mystery Rewards"))?.key,
+            nil, "unknown issuer"
+        )
+        checkEqual(IssuerLogos.logo("chase")?.color, 0x117ACA, "brand color packed as 0xRRGGBB")
     }
 
     section("IssuerIcons — normalize") {
@@ -73,7 +111,7 @@ func runIssuerIconChecks() {
         let items = Schedule.buildUpcomingItems(bills: [], cards: cards, tz: tz, now: now)
         checkEqual(items.count, 2, "two card items")
         let byId = Dictionary(uniqueKeysWithValues: items.map { ($0.refId, $0) })
-        checkEqual(byId["10"]?.icon, .emoji("🔵"), "Chase card icon")
+        checkEqual(byId["10"]?.icon, .logo(key: "chase", emoji: "🔵"), "Chase card logo")
         checkEqual(byId["11"]?.icon, .emoji("🏠"), "Bilt card icon")
     }
 }

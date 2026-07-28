@@ -845,7 +845,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshNotifications() {
         val d = _data.value
         runCatching {
-            NotificationScheduler.reschedule(getApplication(), d.bills, d.cards, d.settings, zone())
+            NotificationScheduler.reschedule(
+                getApplication(), d.bills, d.cards, d.settings, zone(),
+                pro = d.entitlement?.pro ?: false,
+            )
         }
     }
 
@@ -1139,8 +1142,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setTabs(ids: List<String>) =
         mutate { it.copy(settings = it.settings.withSetting("tabs", buildJsonArray { ids.forEach { id -> add(id) } })) }
 
-    fun setBillReminders(on: Boolean) =
+    /** Email bill reminders — also gates the server's bill/trial push, so a
+     *  change here flips whether local reminders are the ones covering them. */
+    fun setBillReminders(on: Boolean) {
         mutate { it.copy(settings = it.settings.withSetting("billReminders", JsonPrimitive(on))) }
+        refreshNotifications()
+    }
 
     fun setHidePaidOnDashboard(on: Boolean) =
         mutate { it.copy(settings = it.settings.withSetting("hidePaidOnDashboard", JsonPrimitive(on))) }
@@ -1194,6 +1201,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val proposedCurrent: Double,
         val limit: Double?,
         val fingerprint: String,
+        /** Which tab owns this proposal. A matched loan account used to surface
+         *  under Credit Cards and never under Loans. A proposal whose card is
+         *  gone stays with Cards so it remains answerable. */
+        val isLoan: Boolean = false,
     )
 
     fun pendingBalanceProposals(): List<BalanceProposal> {
@@ -1213,8 +1224,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 ?: (raw["balance"] as? JsonPrimitive)?.doubleOrNull
                 ?: return@mapNotNull null
             val limit = (raw["limit"] as? JsonPrimitive)?.doubleOrNull
-            val name = d.cards.firstOrNull { it.id.toString() == cardId }?.name ?: "Card $cardId"
-            BalanceProposal(cardId, name, proposed, limit, fp)
+            val card = d.cards.firstOrNull { it.id.toString() == cardId }
+            BalanceProposal(
+                cardId = cardId,
+                name = card?.name ?: "Card $cardId",
+                proposedCurrent = proposed,
+                limit = limit,
+                fingerprint = fp,
+                isLoan = card?.type == "loan",
+            )
         }
     }
 
@@ -1314,13 +1332,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshNotifications()
     }
 
+    /** Server push. Also reschedules: local reminders stand down for whatever
+     *  push now covers, and pick it back up when push is turned off. */
     fun setPushNotifications(on: Boolean) {
         mutate { it.copy(settings = it.settings.withSetting("pushNotifications", JsonPrimitive(on))) }
         refreshPush()
     }
 
+    /** Sync the device token, then reschedule — registration is what decides
+     *  whether push is healthy, so the reminders can only be settled after it
+     *  has run, not concurrently with it. */
     private fun refreshPush() = viewModelScope.launch {
         PushRegistrar.sync(getApplication(), _data.value.settings)
+        refreshNotifications()
     }
 
     fun setAutopayMark(on: Boolean) {

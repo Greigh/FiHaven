@@ -51,7 +51,11 @@ async function verify() {
   return transporter().verify();
 }
 
-async function sendMail({ to, subject, text, html, replyTo }) {
+// `listUnsubscribe` is the one-click opt-out URL for bulk-ish mail
+// (reminders, digest, summary). Passing it adds the RFC 8058 header pair
+// Gmail/Yahoo require, so their built-in "Unsubscribe" button posts to us
+// instead of the user reaching for "Report spam".
+async function sendMail({ to, subject, text, html, replyTo, listUnsubscribe, headers }) {
   const msg = {
     from: from(),
     to,
@@ -60,6 +64,12 @@ async function sendMail({ to, subject, text, html, replyTo }) {
     html,
   };
   if (replyTo) msg.replyTo = replyTo;
+  const extra = { ...(headers || {}) };
+  if (listUnsubscribe) {
+    extra['List-Unsubscribe'] = `<${listUnsubscribe}>`;
+    extra['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+  if (Object.keys(extra).length) msg.headers = extra;
   return transporter().sendMail(msg);
 }
 

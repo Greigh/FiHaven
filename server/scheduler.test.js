@@ -193,6 +193,7 @@ describe('scheduler — runChecks', () => {
       [expect.objectContaining({ name: 'Rent', dueDay: 20 })],
       REMINDER_LEAD_DAYS,
       'USD',
+      1,
     ]);
     expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
   });

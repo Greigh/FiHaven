@@ -55,6 +55,7 @@ function createTestServer() {
   const householdRouter = require(path.join(SERVER_DIR, 'routes/household'));
   const billingRouter = require(path.join(SERVER_DIR, 'routes/billing'));
   const feedbackRouter = require(path.join(SERVER_DIR, 'routes/feedback'));
+  const unsubscribeRouter = require(path.join(SERVER_DIR, 'routes/unsubscribe'));
 
   const dbApi = require(path.join(SERVER_DIR, 'db'));
   const { healthHandler } = require(path.join(SERVER_DIR, 'health'));
@@ -70,6 +71,9 @@ function createTestServer() {
   app.use('/api/household', requireVerified, householdRouter);
   app.use('/api/billing', billingRouter);
   app.use('/api/feedback', feedbackRouter);
+  // Public, token-authenticated email opt-out. CLIENT_DIR only matters for
+  // the GET page, which these tests don't exercise.
+  app.use('/unsubscribe', unsubscribeRouter(path.resolve(__dirname, '../../../client')));
 
   return {
     app,

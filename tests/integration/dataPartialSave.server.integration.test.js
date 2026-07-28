@@ -85,6 +85,47 @@ describe('integration — PUT /api/data must not drop omitted lists', () => {
     expect(after.cards).toHaveLength(1);
   });
 
+  // `plaidBalanceProposals` is written by Plaid sync, not by any client. A
+  // client saving a snapshot taken before the last sync must not empty the
+  // review queue — that left the Accept buttons missing until the next
+  // unthrottled sync, up to an hour later.
+  it('a stale settings save cannot wipe the bank balance review queue', async () => {
+    const u = await makeUser();
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true } });
+
+    // Stand in for a sync: the server writes proposals straight to the record.
+    const proposals = [
+      { id: 'c1', proposedCurrent: 120, fingerprint: 'c1:120.00:' },
+      { id: 'c2', proposedCurrent: 80, fingerprint: 'c2:80.00:' },
+    ];
+    const user = ctx.db().findUserByEmail(u.email);
+    const stored = ctx.db().getUserData(user.id);
+    stored.settings.plaidBalanceProposals = proposals;
+    ctx.db().upsertUserData(user.id, stored);
+
+    // A client that loaded before the sync: no proposals in its snapshot.
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true, currency: 'EUR' } });
+    let after = await get(u);
+    expect(after.settings.plaidBalanceProposals).toHaveLength(2);
+    expect(after.settings.currency).toBe('EUR');
+
+    // Accepting one resolves it, and only that one leaves the queue.
+    await put(u, {
+      ...seeded,
+      settings: {
+        plaidUpdateBalances: true,
+        plaidBalanceResolved: [{ fingerprint: 'c1:120.00:', decision: 'accept' }],
+      },
+    });
+    after = await get(u);
+    expect(after.settings.plaidBalanceProposals.map((p) => p.id)).toEqual(['c2']);
+
+    // Opting out of balance suggestions empties it.
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: false } });
+    after = await get(u);
+    expect(after.settings.plaidBalanceProposals).toEqual([]);
+  });
+
   it('an explicit empty array still clears a list (deleting everything works)', async () => {
     const u = await makeUser();
     await put(u, seeded);

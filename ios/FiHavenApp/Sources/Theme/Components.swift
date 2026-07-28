@@ -245,7 +245,8 @@ struct PercentField: View {
     }
 }
 
-/// Render a [CategoryIcon] — emoji glyph or a decoded data-URI image.
+/// Render a [CategoryIcon] — emoji glyph, a decoded data-URI image, or a
+/// bundled issuer brand mark.
 struct IconMark: View {
     let icon: CategoryIcon
     var size: CGFloat = 22
@@ -258,6 +259,8 @@ struct IconMark: View {
                 .font(.system(size: size))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+        case .logo(let key, let glyph):
+            IssuerLogoView(key: key, size: size, fallbackEmoji: glyph)
         case .image(let uri):
             if let ui = imageFromDataURL(uri) {
                 Image(uiImage: ui)

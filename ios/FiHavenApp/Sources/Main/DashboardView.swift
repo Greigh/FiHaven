@@ -60,6 +60,15 @@ struct DashboardView: View {
         }
     }
 
+    /// Open the editor behind an upcoming item (its bill, or its card).
+    private func edit(_ item: UpcomingItem) {
+        if item.type == "bill" {
+            editingBill = store.data.bills.first { String($0.id) == item.refId }
+        } else {
+            editingCard = store.data.cards.first { String($0.id) == item.refId }
+        }
+    }
+
     /// Skip an upcoming item — but for a card you still owe on, confirm first.
     private func requestSkip(_ item: UpcomingItem) {
         if item.type == "card", let warning = store.cardSkipWarning(refId: item.refId, name: item.name) {
@@ -173,21 +182,29 @@ struct DashboardView: View {
                             goal: store.goalAmount(item),
                             remaining: store.remaining(item),
                             tz: store.tz,
-                            periodNoun: store.periodNoun(item)
+                            periodNoun: store.periodNoun(item),
+                            skipped: store.isSkipped(item),
+                            onPay: { paying = PayTarget(item) },
+                            onUnmark: {
+                                store.setPaid(type: item.type, refId: item.refId, name: item.name,
+                                              amount: store.goalAmount(item), paid: false)
+                            },
+                            onSkip: { requestSkip(item) },
+                            onUnskip: { store.unskip(type: item.type, refId: item.refId) }
                         )
                         .contentShape(Rectangle())
-                        .onTapGesture { paying = PayTarget(item) }
+                        // Tapping the row body opens the editor, never the pay
+                        // sheet: that sheet pre-fills the full amount, so a tap
+                        // meant as "let me look at this bill" (or as a reach for
+                        // its "Note (optional)" field) marked the item paid and —
+                        // with hidePaidOnDashboard on by default — made it vanish
+                        // from Upcoming. Paying is now its own button.
+                        .onTapGesture { edit(item) }
                         .contextMenu {
                             Button { paying = PayTarget(item) } label: {
                                 Label("Pay", systemImage: "dollarsign.circle")
                             }
-                            Button {
-                                if item.type == "bill" {
-                                    editingBill = store.data.bills.first { String($0.id) == item.refId }
-                                } else {
-                                    editingCard = store.data.cards.first { String($0.id) == item.refId }
-                                }
-                            } label: {
+                            Button { edit(item) } label: {
                                 Label(item.type == "bill" ? "Edit bill" : "Edit card", systemImage: "pencil")
                             }
                             if store.isSkipped(item) {
@@ -326,56 +343,90 @@ private struct UpcomingRow: View {
     let remaining: Double
     let tz: TimeZone
     var periodNoun: String = "month"
+    var skipped: Bool = false
+    let onPay: () -> Void
+    let onUnmark: () -> Void
+    let onSkip: () -> Void
+    let onUnskip: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(spacing: 2) {
-                Image(systemName: A11y.paidStateIcon(state))
-                    .font(.system(size: 18))
-                    .foregroundStyle(labelColor)
-                Text(A11y.paidStateLabel(state))
-                    .font(Theme.ui(9, weight: .medium))
-                    .foregroundStyle(labelColor)
-            }
-            .frame(width: 44)
-            .accessibilityHidden(true)
-
-            IconMark(icon: item.icon, size: 22)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                VStack(spacing: 2) {
+                    Image(systemName: A11y.paidStateIcon(state))
+                        .font(.system(size: 18))
+                        .foregroundStyle(labelColor)
+                    Text(A11y.paidStateLabel(state))
+                        .font(Theme.ui(9, weight: .medium))
+                        .foregroundStyle(labelColor)
+                }
+                .frame(width: 44)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(Theme.ui(15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                // Who it's actually paid to — the name above is often a nickname.
-                if !item.business.isEmpty {
-                    Text(item.business)
-                        .font(Theme.ui(12))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
+                IconMark(icon: item.icon, size: 22)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.name)
+                        .font(Theme.ui(15, weight: .medium))
+                        .foregroundStyle(Theme.text)
+                    // Who it's actually paid to — the name above is often a nickname.
+                    if !item.business.isEmpty {
+                        Text(item.business)
+                            .font(Theme.ui(12))
+                            .foregroundStyle(Theme.muted)
+                            .lineLimit(1)
+                    }
                 }
-                Text(dueLabel)
-                    .font(Theme.ui(12))
-                    .foregroundStyle(labelColor)
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Money.fmt(state == .full ? goal : remaining))
+                        .font(Theme.mono(15, weight: .medium))
+                        .foregroundStyle(Theme.text)
+                    if item.autopay {
+                        Text("autopay")
+                            .font(Theme.mono(9))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
             }
+            // Combined on the info half only, so the actions below stay their
+            // own VoiceOver elements instead of being swallowed by the row.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(item.name), \(statusLine), \(Money.fmt(state == .full ? goal : remaining))")
+            .accessibilityHint("Double tap to edit")
 
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Money.fmt(state == .full ? goal : remaining))
-                    .font(Theme.mono(15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                if item.autopay {
-                    Text("autopay")
-                        .font(Theme.mono(9))
-                        .foregroundStyle(Theme.muted)
+            // Actions spelled out, matching the Bills tab and the web dashboard.
+            HStack(spacing: 16) {
+                Text(statusLine)
+                    .font(Theme.ui(12))
+                    .foregroundStyle(skipped ? Theme.muted : labelColor)
+                Spacer()
+                if skipped {
+                    quickAction("Undo skip", Theme.accent, onUnskip)
+                } else if state == .full {
+                    quickAction("Undo", Theme.muted, onUnmark)
+                } else {
+                    quickAction("Skip", Theme.muted, onSkip)
+                    quickAction("Pay", Theme.accent, onPay)
                 }
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name), \(dueLabel), \(Money.fmt(state == .full ? goal : remaining))")
+    }
+
+    private func quickAction(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).font(Theme.ui(12, weight: .medium)).foregroundStyle(color)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var statusLine: String {
+        skipped ? "⏭ Skipped this \(periodNoun)" : dueLabel
     }
 
     private var labelColor: Color {

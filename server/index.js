@@ -46,6 +46,8 @@ const adminRouter = require('./routes/admin');
 const householdRouter = require('./routes/household');
 const pushRouter = require('./routes/push');
 const feedbackRouter = require('./routes/feedback');
+const unsubscribeRouter = require('./routes/unsubscribe');
+const { privatePageGate } = require('./pageGate');
 const scheduler = require('./scheduler');
 const mail = require('./mail');
 const { healthHandler } = require('./health');
@@ -134,6 +136,9 @@ if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
   sub.use(ipLimiter({ windowMs: 60 * 1000, limit: 600, name: 'global' }));
   sub.use('/api', ipLimiter({ windowMs: 60 * 1000, limit: 240, name: 'api' }));
   sub.use('/api/auth', ipLimiter({ windowMs: 60 * 1000, limit: 40, name: 'auth' }));
+  // Unauthenticated and it writes settings — keep the token-guessing
+  // surface small (a legitimate opt-out is one or two requests).
+  sub.use('/unsubscribe', ipLimiter({ windowMs: 60 * 1000, limit: 30, name: 'unsubscribe' }));
 }
 
 // API routes. The data + MFA mounts are gated behind requireVerified:
@@ -156,6 +161,12 @@ sub.get('/api/card-presets', (req, res) => {
 });
 // Public iCal subscription feed; auth is via the token in the URL.
 sub.use('/api/calendar', calendarRouter);
+
+// Email opt-out. Public by design — the signed token in the link is the
+// only credential, so it works straight from the inbox (and from the
+// mail client's own one-click List-Unsubscribe button). Must be mounted
+// before the static handler so /unsubscribe isn't served as a bare file.
+sub.use('/unsubscribe', unsubscribeRouter(CLIENT_DIR));
 
 // Old .html URLs (and the renamed /home) redirect to the clean URL.
 const LEGACY = {
@@ -225,16 +236,7 @@ if (process.env.INDEXNOW_KEY && /^[a-f0-9]{8,128}$/i.test(process.env.INDEXNOW_K
 // Server-side gate for the private pages — works even with JS
 // disabled. Anonymous visitors get the marketing landing; signed-in
 // but unverified users get the verify-email page until they confirm.
-sub.get(['/dashboard', '/settings', '/plaid-oauth'], (req, res, next) => {
-  if (!req.user) return res.redirect(BASE + '/');
-  if (!req.user.emailVerified) return res.redirect(BASE + '/verify-email');
-  // New, verified accounts run the welcome flow first. Only /dashboard
-  // forces it — /settings stays reachable so onboarding can deep-link there.
-  if (!req.user.onboarded && req.path === '/dashboard') {
-    return res.redirect(BASE + '/welcome');
-  }
-  return next();
-});
+sub.get(['/dashboard', '/settings', '/plaid-oauth'], privatePageGate(BASE));
 
 // The welcome (onboarding) page: signed-in + verified users who haven't
 // finished onboarding. Everyone else is bounced to where they belong.

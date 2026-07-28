@@ -260,7 +260,8 @@ today's `YYYY-MM-DD` in the user's tz.
     { "id": "o1", "merchant": "Whole Foods", "detail": "10% back", "expires": "2026-07-31", "used": false }
   ],
   "rewardsUrl": "https://…", // optional — user-saved rewards/offers link (Rewards tab)
-  "plaidAccountId": null    // optional string — Plaid accountId this card is pinned to (see Card↔account linking)
+  "plaidAccountId": null    // optional string — Plaid accountId this card is pinned to, or "none"
+                            // to never match it at all (see Card↔account linking)
 }
 ```
 **Credits & perks (`perks`).** Each perk is a recurring statement credit
@@ -310,6 +311,16 @@ proposals** when `plaidUpdateBalances` is on (never Statement Balance). The clie
 Accepts or Declines each proposal; declined/accepted fingerprints are not
 re-prompted until the bank figure changes.
 
+`settings.plaidBalanceProposals` is **written by the server**, rebuilt across
+every linked bank on each sync; `settings.plaidBalanceResolved` is the client's
+half of the contract. A client resolves a proposal by appending its fingerprint
+there (Accept *and* Decline) — dropping it from the proposals array alone is not
+enough, because `PUT /api/data` restores any proposal the resolved list doesn't
+account for. That's deliberate: it stops a settings snapshot taken before the
+last sync from wiping a queue the user hasn't answered yet. A proposal belongs to
+the tab its card lives on — filter by the card's `type` so a matched loan doesn't
+surface under Credit Cards.
+
 **Card↔account linking (`card.plaidAccountId`, `transaction.accountId`).**
 Which card a Plaid account belongs to is decided server-side by
 `plaidBalances.js` in three tiers, most trustworthy first:
@@ -326,9 +337,44 @@ Which card a Plaid account belongs to is decided server-side by
    account name (`"Gold"` in `"Amex Gold Card"`; `"card"`/`"credit"` are
    stopwords and prove nothing).
 
-A card already pinned to another account is never auto-claimed, and a proposal
-still requires **exactly one** candidate — two Amex cards mean FiHaven asks
-rather than guesses.
+A card already pinned to another *live* account is never auto-claimed, archived
+cards are skipped, and a proposal still requires **exactly one** candidate — two
+Amex cards mean FiHaven asks rather than guesses.
+
+**A confident match is written down.** Tier 2 and 3 matches used to be
+recomputed each sync and never recorded, which left a matched card getting
+balance proposals while its purchases stayed unattributed (spending resolves by
+account id alone) and its editor still read *Match automatically*. Server-side
+`autoLinkCards` now stamps the match onto `card.plaidAccountId`, so every
+consumer agrees on one id and the user can see and change it. Clients need no
+change for this beyond round-tripping the field — but note that **the field is
+now written by the server**, so a client must not assume it only changes when
+the user edits a card.
+
+**Three states, not two.** `plaidAccountId` is now tri-state:
+
+| Value | Meaning |
+|---|---|
+| `null` / `""` | Match automatically — and remember the result |
+| An account id | This card **is** that account; beats every heuristic |
+| `"none"` | **Don't link this card** — never match it to anything |
+
+`"none"` is a sentinel, not an account id (`NO_LINK` in `plaidBalances.js`,
+`Card.noPlaidLink` on iOS, `Card.NO_PLAID_LINK` on Android), and every editor
+offers it as *Don't link this card*. It exists because clearing the picker back
+to automatic is not a refusal — the next sync would match the card again. It
+rides in this field rather than a new `plaidLinkOptOut` key precisely because
+native `Bill`/`Card` are fixed structs that drop unknown fields: a new key would
+be stripped by any build predating it and the opt-out would silently revert.
+**A client that shows this field must handle `"none"` explicitly** — otherwise it
+renders as a stale "previously linked account".
+
+**A pin to an account that no longer exists is repaired, not honoured.**
+Disconnecting a bank (or relinking one, which mints fresh account ids) strands
+every pin that pointed at it. Matching takes the set of account ids the user
+still has and ignores pins outside it, so those cards return to the pool instead
+of being barred from matching forever. The `"none"` sentinel is deliberately
+exempt — an intentional refusal outlives any bank.
 
 Bank transactions carry `accountId` (the Plaid account they came from), so a
 card pinned to that account claims them: that's how per-card spending works.
@@ -336,7 +382,8 @@ Attribution is resolved at read time (`cardForTransaction` in `utils.js`) rather
 than stamped onto the row, so re-pointing a card at a different account
 re-attributes its whole history instead of stranding it. Native editors load
 their picker options from `GET /api/plaid/status` (credit/loan accounts only —
-a chequing account is never a card).
+a chequing account is never a card), and should refresh that list after a bank
+is linked or disconnected rather than caching it for the session.
 
 ### Payment
 ```jsonc
@@ -494,11 +541,22 @@ light and dark; follow the OS appearance by default.
   `{ type: "image", value: "data:image/…;base64,…" }` — both web and native
   render custom images (native via `IconMark`).
 - Credit-card issuer icons: `issuerIconInfo(card)` resolves from
-  `card.issuer` (then preset / name). Web bundles Simple Icons SVGs for
-  Chase, Amex, Bank of America, Wells Fargo, Discover, Visa, Mastercard,
-  Apple, PayPal, Robinhood, Target; other issuers (Citi, Capital One, Bilt,
-  …) use emoji stand-ins. Native uses the same emoji map
-  (`IssuerIcons.swift` / `IssuerIcons.kt`).
+  `card.issuer` (then preset / name). All three platforms bundle the same
+  Simple Icons marks for Chase, Amex, Bank of America, Wells Fargo,
+  Discover, Visa, Mastercard, Apple, PayPal, Robinhood, Target; other
+  issuers (Citi, Capital One, Bilt, …) use emoji stand-ins, as do loans (🏦).
+  - The table lives in [`issuerLogos.js`](../client/js/issuerLogos.js);
+    `node scripts/sync-issuer-logos.js` regenerates `IssuerLogos.swift` /
+    `IssuerLogos.kt` from it (CI runs it with `--check`). Edit the web
+    table, never the generated files.
+  - Native resolution returns `CategoryIcon.logo(key:emoji:)`, so `IconMark`
+    renders the vector wherever an icon appears (cards list, calendar,
+    upcoming) and falls back to the carried emoji in text contexts. iOS
+    parses the path data with `SVGPath` (SwiftUI has no SVG support);
+    Android hands it to Compose's `addPathNodes`.
+  - Brand colors are lifted toward the surface's 3:1 contrast floor by
+    `BrandColor.legible` — Apple's black and the Visa / BofA navies are
+    otherwise invisible on the dark theme.
 - Card accent palette: `#1A6BFF #C0392B #1A7A4A #7B3CC0 #C06010 #007080 #8B5A00`.
 - Currency: `fmt` = `$1,450.00` (2 dp), `fmtShort` = `$1,450` (0 dp),
   `en-US` grouping.

@@ -48,7 +48,8 @@ data class Card(
     // Plaid accountId the user pinned this card to in the editor. Set, it beats
     // digit matching for balance suggestions and claims that account's imported
     // charges. Amex needs it: the mask Plaid reports is the account's, not the
-    // number printed on the card.
+    // number printed on the card. [NO_PLAID_LINK] means the opposite: never
+    // match this card at all.
     val plaidAccountId: String? = null,
     val balance: Double = 0.0, // Statement Balance (Credit Card) or Remaining Principal (Loan)
     val limit: Double = 0.0,
@@ -78,7 +79,19 @@ data class Card(
     val offers: List<CardOffer> = emptyList(), // card-linked offers (manual tracker)
     val rewardsUrl: String? = null,           // User-saved rewards/offers link (rewards panel)
     val archived: Boolean = false,            // Soft delete — hidden from lists/totals, restorable
-)
+) {
+    companion object {
+        /**
+         * [plaidAccountId] value meaning "never match this card to a bank
+         * account". Clearing the picker back to automatic isn't a refusal —
+         * the next sync just pins the card again — so the no needs somewhere
+         * to live, and it rides in this field because a separate flag would be
+         * dropped by clients that predate it. Kept in sync with NO_LINK in
+         * `server/plaidBalances.js`.
+         */
+        const val NO_PLAID_LINK = "none"
+    }
+}
 
 /**
  * A card-linked offer (Amex/Chase/BofA deal) the user has activated. FiHaven

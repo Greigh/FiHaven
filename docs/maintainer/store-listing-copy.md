@@ -88,6 +88,34 @@ If build 10 or later ships publicly on its own, append or substitute:
 FiHaven is now published by Greigh Studios LLC — updated About, Terms of Use, and Privacy Policy. Subscription plan handling is more accurate across web, iOS, and Android.
 ```
 
+### TestFlight — What to Test (1.6.1 build 14)
+
+The card↔bank matching pass. Most of this fix is **server-side**, so deploy the
+server first or the build tests nothing. Testers with **two or more banks
+linked** are the ones who can confirm the main fix; a single-bank tester can
+still check the picker and the Loans tab.
+
+Balance suggestions only appear if Settings → Bank → *Suggest balance updates*
+is on. Suggestions are also skipped when the bank's figure already matches what
+you have, and a figure you Declined won't return until the bank's number
+changes — so "nothing appeared" is not automatically a bug.
+
+```
+1. With two or more banks linked, Settings → Bank → Sync now. Cards from EVERY linked bank should now appear in the Cards tab's review queue. Before this build only one bank's cards ever did — that's the fix.
+
+2. Open a card FiHaven matched on its own. The Linked bank account picker should now name the account it matched, instead of reading "Match automatically".
+
+3. Change that picker to a different account, sync again, and confirm your choice stuck — the app must never overwrite an account you picked.
+
+4. Pick "Don't link this card" on any card, sync again, and confirm it stays that way and produces no suggestions.
+
+5. If you have a card you've overpaid (a negative balance at the bank), confirm the suggestion is $0.00 and not the amount you're ahead by.
+
+6. If you have a loan matched to a bank account, its suggestion should appear on the Loans tab — not under Credit Cards.
+
+7. Disconnect a bank and reconnect it. Cards that were linked to it should match again rather than staying stuck.
+```
+
 ### TestFlight — What to Test (1.6.1 build 13)
 
 **The first build on which iOS push notifications can work at all.** Builds 12
@@ -281,6 +309,23 @@ Complete IARC questionnaire as a finance/productivity-style app (no social UGC, 
 ### Track progression
 
 Internal testing → closed testing (optional short soak) → **production**.
+
+### Release notes (1.6.1 — versionCode 36)
+
+391 / 500 characters. Play counts every character including newlines, so
+re-count if you edit it. ~109 characters spare if the card-logo work ships in
+the same build and wants a line.
+
+```
+Balance suggestions now work with more than one bank linked. Before, each bank's sync wiped the last one's, so only one card could ever be approved.
+
+Cards now show which bank account they matched, and you can change it — or pick "Don't link this card" to keep one out of matching.
+
+A card you're ahead on no longer suggests you owe that credit, and loan suggestions appear on the Loans tab.
+```
+
+**Before uploading versionCode 36:** this fix is mostly server-side. Deploy the
+server first, or the build changes nothing for testers.
 
 ### Release notes (1.6.1 — versionCode 35)
 

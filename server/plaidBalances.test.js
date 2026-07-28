@@ -5,6 +5,9 @@ import {
   cardMatchesIssuerAndName,
   issuerMatchesInstitution,
   matchCardToAccount,
+  cardOptedOut,
+  NO_LINK,
+  owedFromBalances,
   balanceFingerprint,
   balanceProposals,
   applyAcceptedCurrentBalance,
@@ -105,10 +108,106 @@ describe('plaidBalances — matchCardToAccount tiers', () => {
     expect(matchCardToAccount([gold, plat], account, 'American Express')).toBe(null);
   });
 
+  // Disconnecting a bank (or relinking one, which mints fresh account ids)
+  // strands the pin on every card that pointed at it. Treating a dead pin as
+  // "spoken for" barred those cards from ever matching again.
+  it('ignores a pin to an account the user no longer has', () => {
+    const pinned = { ...gold, plaidAccountId: 'removed-bank-acct' };
+    const account = { account_id: 'acct-9', mask: '1001' };
+    const live = new Set(['acct-9', 'acct-other']);
+    expect(matchCardToAccount([pinned], account, '', live).id).toBe('g');
+  });
+
+  it('still refuses to auto-claim a card pinned to another LIVE account', () => {
+    const pinned = { ...gold, plaidAccountId: 'acct-other' };
+    const account = { account_id: 'acct-9', mask: '1001' };
+    const live = new Set(['acct-9', 'acct-other']);
+    expect(matchCardToAccount([pinned], account, '', live)).toBe(null);
+  });
+
+  it('trusts every pin when the caller does not say which are live', () => {
+    const pinned = { ...gold, plaidAccountId: 'acct-other' };
+    expect(matchCardToAccount([pinned], { account_id: 'acct-9', mask: '1001' }, '')).toBe(null);
+  });
+
+  // "Match automatically" can't express a refusal — the next sync just pins the
+  // card again. NO_LINK is the durable no.
+  it('never matches a card the user opted out of, by digits or by name', () => {
+    const opted = { ...gold, plaidAccountId: NO_LINK };
+    const live = new Set(['acct-9']);
+    expect(matchCardToAccount([opted], { account_id: 'acct-9', mask: '1001' }, '', live)).toBe(null);
+    expect(matchCardToAccount([opted], { account_id: 'acct-9', name: 'Gold Card', mask: null }, 'American Express', live))
+      .toBe(null);
+  });
+
+  it('keeps the opt-out even though no account by that id exists', () => {
+    // The sentinel isn't a real account id, so it must not read as a dead pin.
+    const opted = { ...gold, plaidAccountId: NO_LINK };
+    expect(matchCardToAccount([opted], { account_id: 'acct-9', mask: '1001' }, '', new Set(['acct-9'])))
+      .toBe(null);
+    expect(cardOptedOut(opted)).toBe(true);
+    expect(cardOptedOut(gold)).toBe(false);
+  });
+
+  it('does not let the opt-out claim an account by explicit link', () => {
+    // Belt and braces: even an account somehow named "none" isn't a match.
+    const opted = { ...gold, plaidAccountId: NO_LINK };
+    expect(matchCardToAccount([opted], { account_id: NO_LINK }, '')).toBe(null);
+  });
+
+  it('an opted-out card does not make its neighbour look ambiguous', () => {
+    const opted = { id: 'x', name: 'Old Gold', lastDigits: '1001', plaidAccountId: NO_LINK };
+    const live = { id: 'y', name: 'Gold Card', lastDigits: '1001' };
+    expect(matchCardToAccount([opted, live], { account_id: 'acct-9', mask: '1001' }, '').id).toBe('y');
+  });
+
   it('two cards explicitly linked to the same account is ambiguous, not first-wins', () => {
     const one = { ...gold, plaidAccountId: 'acct-5' };
     const two = { ...plat, plaidAccountId: 'acct-5' };
     expect(matchCardToAccount([one, two], { account_id: 'acct-5' }, '')).toBe(null);
+  });
+});
+
+// A negative `current` on a credit line is ambiguous: either you're ahead, or
+// the issuer flipped the sign. Taking the absolute value read "you have a $50
+// credit" as "you owe $50" — the one direction a money app must never get
+// wrong on its own initiative.
+describe('plaidBalances — owedFromBalances', () => {
+  it('takes a positive current as the amount owed', () => {
+    expect(owedFromBalances({ current: 742.18, limit: 10000, available: 9257.82 })).toBe(742.18);
+  });
+
+  it('reads a negative current as a credit balance when nothing contradicts it', () => {
+    expect(owedFromBalances({ current: -55 })).toBe(0);
+    expect(owedFromBalances({ current: -55, limit: null, available: null })).toBe(0);
+  });
+
+  it('trusts the credit line over the sign: available ABOVE the limit is a real credit', () => {
+    // $1,000 line with $1,055 available = $55 in your favour, owing nothing.
+    expect(owedFromBalances({ current: -55, limit: 1000, available: 1055 })).toBe(0);
+  });
+
+  it('detects an issuer that reports what is owed as a negative', () => {
+    // $1,000 line with $945 available means $55 IS owed, so -55 is a sign flip.
+    expect(owedFromBalances({ current: -55, limit: 1000, available: 945 })).toBe(55);
+  });
+
+  // A stored snapshot writes a figure the bank didn't report as an explicit
+  // null, and Number(null) is 0 — which proposed "Current → $0.00" for an
+  // account whose balance simply wasn't available.
+  it('rejects a balance it cannot use', () => {
+    expect(owedFromBalances({ current: null })).toBe(null);
+    expect(owedFromBalances({})).toBe(null);
+    expect(owedFromBalances(null)).toBe(null);
+    expect(owedFromBalances({ current: '' })).toBe(null);
+    expect(owedFromBalances({ current: 'n/a' })).toBe(null);
+  });
+
+  it('does not let an unreported limit fake a zero credit line', () => {
+    // limit/available both null → no corroboration, so the credit reading wins
+    // rather than "limit 0 - available 0 = owes 0" arriving by accident.
+    expect(owedFromBalances({ current: -55, limit: null, available: null })).toBe(0);
+    expect(owedFromBalances({ current: -55, limit: 1000, available: null })).toBe(0);
   });
 });
 
@@ -136,7 +235,8 @@ describe('plaidBalances — balanceProposals', () => {
         limit: 10000,
         fingerprint: balanceFingerprint(1, 742.18, 10000),
       },
-      { id: 2, proposedCurrent: 55, fingerprint: balanceFingerprint(2, 55) },
+      // current: -55 with nothing to corroborate it = a credit balance.
+      { id: 2, proposedCurrent: 0, fingerprint: balanceFingerprint(2, 0) },
       { id: 4, proposedCurrent: 12, fingerprint: balanceFingerprint(4, 12) },
     ]);
   });
@@ -159,6 +259,19 @@ describe('plaidBalances — balanceProposals', () => {
         []
       )
     ).toEqual([]);
+  });
+
+  // An archived card is off the Cards tab, so a proposal for it would sit in
+  // the review queue naming a card the user can't see — and can't judge.
+  it('skips archived cards, and does not let one shadow a live match', () => {
+    const archived = [{ id: 9, name: 'Old Amex', lastDigits: '1009', archived: true }];
+    expect(balanceProposals(archived, [{ type: 'credit', mask: '1009', balances: { current: 5 } }], []))
+      .toEqual([]);
+
+    // The archived twin must not make the live card look ambiguous.
+    const both = [...archived, { id: 10, name: 'New Amex', lastDigits: '1009' }];
+    expect(balanceProposals(both, [{ type: 'credit', mask: '1009', balances: { current: 5 } }], []))
+      .toEqual([{ id: 10, proposedCurrent: 5, fingerprint: balanceFingerprint(10, 5) }]);
   });
 
   it('skips a mask that matches more than one card (ambiguous)', () => {

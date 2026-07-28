@@ -6,16 +6,27 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * Resolved category icon — emoji glyph or a small uploaded image (data URI).
+ * Resolved icon — emoji glyph, a small uploaded image (data URI), or a
+ * bundled issuer brand mark (see `IssuerLogos`).
  * Mirrors web `categoryIcons.js` (`parseIconValue` / `categoryIconInfo`).
+ *
+ * [parse] only ever produces [Emoji] / [Image]; [Logo] comes from
+ * `IssuerIcons`, so a card row and the upcoming list share one renderer.
  */
 sealed class CategoryIcon {
     data class Emoji(val value: String) : CategoryIcon()
     data class Image(val dataUri: String) : CategoryIcon()
 
+    /**
+     * [key] indexes `IssuerLogos.all`; [emoji] is the stand-in for text
+     * contexts and for renderers that can't draw a vector.
+     */
+    data class Logo(val key: String, val emoji: String) : CategoryIcon()
+
     /** Glyph for text-only contexts; images fall back to [defaultEmoji]. */
     fun emoji(defaultEmoji: String = "📌"): String = when (this) {
         is Emoji -> value
+        is Logo -> emoji
         is Image -> defaultEmoji
     }
 

@@ -383,8 +383,11 @@ extension AppStore {
         mutate { $0.settings.tabs = ids }
     }
 
+    /// Email bill reminders — also gates the server's bill/trial push, so a
+    /// change here flips whether local reminders are the ones covering them.
     func setBillReminders(_ on: Bool) {
         mutate { $0.settings.billReminders = on }
+        refreshNotifications()
     }
 
     func setMonthlySummary(_ on: Bool) {
@@ -422,6 +425,10 @@ extension AppStore {
         let proposedCurrent: Double
         let limit: Double?
         let fingerprint: String
+        /// Which tab owns this proposal. A matched loan account used to surface
+        /// under Credit Cards and never under Loans. A proposal whose card is
+        /// gone stays with Cards so it remains answerable.
+        let isLoan: Bool
     }
 
     func pendingBalanceProposals() -> [BalanceProposal] {
@@ -436,8 +443,15 @@ extension AppStore {
             guard !cardId.isEmpty else { return nil }
             let proposed = raw["proposedCurrent"]?.asDouble ?? raw["balance"]?.asDouble ?? 0
             let limit = raw["limit"]?.asDouble
-            let name = data.cards.first(where: { String($0.id) == cardId })?.name ?? "Card \(cardId)"
-            return BalanceProposal(cardId: cardId, name: name, proposedCurrent: proposed, limit: limit, fingerprint: fp)
+            let card = data.cards.first(where: { String($0.id) == cardId })
+            return BalanceProposal(
+                cardId: cardId,
+                name: card?.name ?? "Card \(cardId)",
+                proposedCurrent: proposed,
+                limit: limit,
+                fingerprint: fp,
+                isLoan: card?.type == "loan"
+            )
         }
     }
 
@@ -533,10 +547,13 @@ extension AppStore {
         }
     }
 
-    /// Server push (APNs). Registers this device when turned on.
+    /// Server push (APNs). Registers this device when turned on, and reschedules:
+    /// local reminders stand down for whatever push now covers, and pick it back
+    /// up when push is turned off.
     func setPushNotifications(_ on: Bool) {
         mutate { $0.settings.pushNotifications = on }
         PushRegistrar.shared.setEnabled(on)
+        refreshNotifications()
     }
 
     func setAutopayMark(_ on: Bool) {

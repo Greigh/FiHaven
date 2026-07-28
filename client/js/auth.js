@@ -6,6 +6,8 @@
    signup page, private-page gating, logout, and public CTAs.
 ═════════════════════════════════════════════════════════════════ */
 
+import { nextFromSearch, loginWithNext } from './nextUrl.js';
+
   var API = '/api/auth';
   var csrfToken = null;
 
@@ -106,9 +108,13 @@
     try { return new URLSearchParams(window.location.search).get('household') || ''; }
     catch (_) { return ''; }
   }
+  // /login?next=<path> — set by the server-side gate on the private pages,
+  // so a deep link followed while signed out (an emailed settings link,
+  // say) still ends where it meant to. Validated: see nextUrl.js.
   function postAuthHome() {
     var hh = pendingHouseholdToken();
-    return hh ? '/settings?household=' + encodeURIComponent(hh) : '/dashboard';
+    if (hh) return '/settings?household=' + encodeURIComponent(hh);
+    return nextFromSearch() || '/dashboard';
   }
 
   function routeAfterAuth(data) {
@@ -562,10 +568,17 @@
   function initPrivatePage() {
     me().then(function (user) {
       // Anonymous visitors land on the marketing home (matches the
-      // server-side gate). Session expiries mid-use are handled by
-      // storage.js / account.js routing straight to /login. Unverified
-      // accounts are sent to confirm their email before the dashboard.
-      if (!user) { go('/'); return; }
+      // server-side gate) — unless the URL carries an intent worth
+      // keeping, in which case sign-in returns them to it. Unlike the
+      // server gate this can preserve the #hash, which never leaves the
+      // browser. Session expiries mid-use are handled by storage.js /
+      // account.js routing straight to /login. Unverified accounts are
+      // sent to confirm their email before the dashboard.
+      if (!user) {
+        var here = window.location.pathname + window.location.search + window.location.hash;
+        go(window.location.search ? loginWithNext(here) : '/');
+        return;
+      }
       if (!user.emailVerified) go('/verify-email');
       // Soft-suspended accounts can still call /me; data APIs return 403.
       if (user.suspended && user.role !== 'admin') {
