@@ -287,6 +287,24 @@ struct SettingsView: View {
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
             VStack(alignment: .leading, spacing: 8) {
+                Text("Lead each card with")
+                    .font(Theme.ui(15))
+                    .foregroundStyle(Theme.text)
+                Picker("", selection: Binding(
+                    get: { store.data.settings.cardHeadline },
+                    set: { store.setCardHeadline($0) }
+                )) {
+                    Text("Due").tag("due")
+                    Text("Current").tag("current")
+                    Text("Still owed").tag("owed")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text("Which amount gets the big figure on each card: the statement balance you owe by the due date, the live current balance, or what's left to pay this period. The other two stay on the card in smaller type.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+
+            VStack(alignment: .leading, spacing: 8) {
                 Text("New month bill amounts")
                     .font(Theme.ui(15))
                     .foregroundStyle(Theme.text)

@@ -12,6 +12,9 @@ public enum CategoryIcon: Equatable, Sendable, Hashable {
     /// `key` indexes `IssuerLogos.all`; `emoji` is the stand-in for text
     /// contexts and for renderers that can't draw a vector.
     case logo(key: String, emoji: String)
+    /// Issuer initials on a brand-colored chip (0xRRGGBB), for issuers with
+    /// no bundled logo. `emoji` remains the text-context stand-in.
+    case monogram(text: String, color: UInt32, emoji: String)
 
     /// Soft cap matching web `MAX_ICON_DATA_URI_LEN`.
     public static let maxDataURILength = 12_000
@@ -21,6 +24,7 @@ public enum CategoryIcon: Equatable, Sendable, Hashable {
         switch self {
         case .emoji(let e): return e
         case .logo(_, let e): return e
+        case .monogram(_, _, let e): return e
         case .image: return defaultEmoji
         }
     }

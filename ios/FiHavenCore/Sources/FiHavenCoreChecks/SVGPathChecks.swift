@@ -98,7 +98,7 @@ func runSVGPathChecks() {
     }
 
     section("IssuerLogos — every bundled mark parses") {
-        checkEqual(IssuerLogos.all.count, 11, "bundled mark count")
+        checkEqual(IssuerLogos.all.count, 37, "bundled mark count")
         for key in IssuerLogos.all.keys.sorted() {
             guard let logo = IssuerLogos.all[key] else {
                 check(false, "\(key) present")

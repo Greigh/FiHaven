@@ -54,6 +54,28 @@ enum IssuerLogoCache {
     }
 }
 
+/// Issuer initials on a brand-colored chip, for issuers with no bundled
+/// logo (Citi, Capital One, Bilt, …). Sized to match `IssuerLogoView` so a
+/// list keeps its rhythm whichever mark a row gets.
+struct IssuerMonogramView: View {
+    let text: String
+    let color: UInt32
+    var size: CGFloat = 22
+
+    var body: some View {
+        Text(text)
+            .font(Theme.ui(size * 0.5, weight: .heavy))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: max(3, size * 0.22), style: .continuous)
+                    .fill(Theme.chip(color))
+            )
+    }
+}
+
 /// An issuer mark at `size`, falling back to the emoji stand-in when the
 /// key isn't bundled.
 struct IssuerLogoView: View {

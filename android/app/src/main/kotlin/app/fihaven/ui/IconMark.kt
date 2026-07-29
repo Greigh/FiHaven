@@ -3,12 +3,16 @@ package app.fihaven.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -42,6 +46,9 @@ fun IconMark(
         }
         is CategoryIcon.Logo -> {
             IssuerLogoMark(icon.key, size = size, fallbackEmoji = icon.emoji, modifier = modifier)
+        }
+        is CategoryIcon.Monogram -> {
+            IssuerMonogramMark(icon.text, icon.color, size = size, modifier = modifier)
         }
         is CategoryIcon.Image -> {
             val bitmap = remember(icon.dataUri) { decodeIconDataUrl(icon.dataUri) }
@@ -102,6 +109,42 @@ fun IssuerLogoMark(
         )
     } else {
         Text(fallbackEmoji, fontSize = (size.value * 0.95f).sp, modifier = modifier)
+    }
+}
+
+/**
+ * Issuer initials on a brand-colored chip, for issuers with no bundled logo
+ * (Citi, Capital One, Bilt, …). Sized to match [IssuerLogoMark] so a list
+ * keeps its rhythm whichever mark a row gets.
+ */
+@Composable
+fun IssuerMonogramMark(
+    text: String,
+    color: Int,
+    size: Dp = 22.dp,
+    modifier: Modifier = Modifier,
+) {
+    val surface = Ct.colors.surface
+    val chip = remember(color, surface) {
+        // Dark enough for white initials, then still distinct from the card
+        // behind it — an almost black brand would vanish on the dark theme.
+        val readable = BrandColor.legible(color, 0xFFFFFF)
+        Color(BrandColor.legible(readable, surface.toArgb() and 0xFFFFFF, 1.6) or (0xFF shl 24))
+    }
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape((size.value * 0.22f).dp))
+            .background(chip),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            color = Color.White,
+            fontSize = (size.value * 0.5f).sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
     }
 }
 

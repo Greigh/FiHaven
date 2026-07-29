@@ -225,6 +225,51 @@ class ScheduleTest {
         assertEquals(2000.0, Schedule.goalAmount(card, PaidGoalPolicy.FULL, none, "2026-06", UTC, NOW), 1e-6)
     }
 
+    @Test fun liveBalancePrefersCurrentWhenTracked() {
+        val linked = Card(id = "1", name = "Visa", balance = 2829.0, currentBalance = 2946.18, minPayment = 35.0)
+        assertEquals(2946.18, Schedule.liveBalance(linked), 1e-6)
+        // Unset means "not tracked separately" — fall back to the statement.
+        assertEquals(300.0, Schedule.liveBalance(Card(id = "2", name = "Plain", balance = 300.0)), 1e-6)
+        // A current balance of exactly zero is a real figure, not "unset".
+        assertEquals(0.0, Schedule.liveBalance(Card(id = "3", balance = 300.0, currentBalance = 0.0)), 1e-6)
+    }
+
+    @Test fun cardAmountsSeparatesDueCurrentAndOwed() {
+        val bounds = Period.bounds(LocalDate.of(2026, 6, 15), PeriodConfig.normalized("calendar", null, null))
+        val card = Card(id = "1", name = "Visa", balance = 2829.0, currentBalance = 2946.18,
+            minPayment = 35.0, limit = 13_500.0, regularAPR = 0.0)
+
+        val a = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, emptyList(), bounds, UTC, NOW)
+        assertEquals(2829.0, a.due, 1e-6)        // statement balance
+        assertEquals(2946.18, a.current, 1e-6)   // live balance (drives utilization)
+        assertEquals(35.0, a.owed, 1e-6)         // this period's goal under the policy
+        assertEquals(2946.18, a.valueFor("current"), 1e-6)
+        assertEquals(2829.0, a.valueFor("nonsense"), 1e-6)
+
+        // A partial payment shrinks only the owed figure.
+        val part = listOf(Payment(id = "1", type = "card", refId = "1", amount = 20.0, date = "2026-06-10"))
+        val b = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, part, bounds, UTC, NOW)
+        assertEquals(2829.0, b.due, 1e-6)
+        assertEquals(15.0, b.owed, 1e-6)
+
+        // A skip owes nothing but leaves the balances alone.
+        val skip = listOf(Payment(id = "2", type = "card", refId = "1", date = "2026-06-10", skipped = true))
+        val c = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, skip, bounds, UTC, NOW)
+        assertEquals(0.0, c.owed, 1e-6)
+        assertEquals(2829.0, c.due, 1e-6)
+
+        // A loan's "due" is its scheduled payment, never its principal.
+        val loan = Card(id = "9", name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)
+        val l = Schedule.amounts(loan, PaidGoalPolicy.FULL, emptyList(), bounds, UTC, NOW)
+        assertEquals(1600.0, l.due, 1e-6)
+        assertEquals(250_000.0, l.current, 1e-6)
+
+        // The preference re-ranks the three; it never hides one.
+        assertEquals(listOf("current", "owed"), Schedule.otherAmounts("due"))
+        assertEquals(listOf("due", "owed"), Schedule.otherAmounts("current"))
+        assertEquals(listOf("due", "current"), Schedule.otherAmounts("owed"))
+    }
+
     @Test fun loanRecommendedIsMonthlyPayment() {
         // A loan recommends its scheduled monthly payment, never the principal.
         val loan = Card(id = "9", name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)

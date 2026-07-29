@@ -309,6 +309,29 @@
           </form>
         </section>
 
+        <!-- ── Cards: which amount leads each row ── -->
+        <section class="auth-card">
+          <h2 style="font-size:20px;letter-spacing:-.03em;">Cards</h2>
+          <p style="margin-top:6px;color:var(--muted);font-size:14px;">
+            Every card tracks three amounts. Choose which one gets the big figure in the corner of each card — the other two stay on the card in smaller type, so nothing is hidden either way.
+          </p>
+          <form class="auth-form" data-form="cardheadline" style="margin-top:14px;">
+            <div class="auth-field">
+              <label for="cardheadline-select">Lead each card with</label>
+              <select id="cardheadline-select" data-cardheadline-select>
+                <option value="due">The amount due (statement balance)</option>
+                <option value="current">The current balance (includes new charges)</option>
+                <option value="owed">What's still owed this period</option>
+              </select>
+            </div>
+            <div class="auth-note" data-cardheadline-effective></div>
+            <div class="auth-error" data-message="cardheadline" aria-live="polite"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Save card display</button>
+            </div>
+          </form>
+        </section>
+
         <!-- ── Monthly rollover ── -->
         <section class="auth-card">
           <h2 style="font-size:20px;letter-spacing:-.03em;">Monthly rollover</h2>

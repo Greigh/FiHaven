@@ -34,9 +34,27 @@ public enum IssuerIcons {
         "boa": "bankofamerica",
         "bofa": "bankofamerica",
         "usb": "usbank",
+        "goldman": "goldmansachs",
+        // Loyalty programs — what's printed on the card is often the program,
+        // not the airline or hotel that backs it.
+        "aadvantage": "americanairlines",
+        "skymiles": "delta",
+        "mileageplus": "unitedairlines",
+        "rapidrewards": "southwestairlines",
+        "trueblue": "jetblue",
+        "bonvoy": "marriott",
+        "hiltonhonors": "hilton",
+        "diners": "dinersclub",
     ]
 
     static let keysByLength: [String] = issuerEmoji.keys.sorted { $0.count > $1.count }
+
+    /// Aliases long enough to match inside a longer name ("AAdvantage
+    /// Aviator"). Short ones (boa, usb) would fire on unrelated words, so
+    /// they stay exact.
+    static let aliasKeysByLength: [String] = aliases.keys
+        .filter { $0.count >= 5 }
+        .sorted { $0.count > $1.count }
 
     public static func normalize(_ name: String) -> String {
         name.lowercased().unicodeScalars.filter {
@@ -80,20 +98,49 @@ public enum IssuerIcons {
         for k in IssuerLogos.keysByLength where canon.contains(k) || key.contains(k) {
             return k
         }
+        for a in aliasKeysByLength where key.contains(a) {
+            if let target = aliases[a], IssuerLogos.all[target] != nil { return target }
+        }
         return nil
     }
+
+    /// Card networks — every card is one, so they identify an issuer least.
+    static let networkKeys: Set<String> = ["visa", "mastercard", "dinersclub", "jcb"]
 
     /// Brand mark for a card (issuer → name). Loans stay on the 🏦 glyph.
     public static func logo(for card: Card) -> IssuerLogo? {
         guard card.type != "loan" else { return nil }
-        guard let key = logoKey(resolveIssuer(for: card)) ?? logoKey(card.name) else { return nil }
+        let issuer = resolveIssuer(for: card)
+        guard let key = logoKey(issuer) ?? logoKey(card.name) else { return nil }
+
+        // "Bilt Mastercard" is a Bilt card, not a Mastercard one. A network
+        // mark picked up from the card's name tells you nothing the issuer's
+        // own initials wouldn't — so when the user named an issuer, their
+        // monogram wins. An issuer that IS the network ("Visa") keeps its logo.
+        let named = !(card.issuer?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+        let normalized = normalize(issuer)
+        if networkKeys.contains(key), named, (aliases[normalized] ?? normalized) != key {
+            return nil
+        }
         return IssuerLogos.all[key]
     }
 
-    /// Renderable icon: brand logo when bundled, else the emoji stand-in.
+    /// Monogram for a card with no bundled logo, or nil (loans excluded).
+    public static func monogram(for card: Card) -> (text: String, color: UInt32)? {
+        guard card.type != "loan" else { return nil }
+        let issuer = resolveIssuer(for: card)
+        let key = normalize(issuer)
+        return IssuerMonograms.monogram(key: key.isEmpty ? normalize(card.name) : key, name: issuer)
+    }
+
+    /// Renderable icon: brand logo when bundled, else a monogram chip, else
+    /// the emoji stand-in. Mirrors web `issuerIconInfo`.
     public static func iconInfo(for card: Card) -> CategoryIcon {
         if let logo = logo(for: card) {
             return .logo(key: logo.key, emoji: emoji(for: card))
+        }
+        if let mark = monogram(for: card) {
+            return .monogram(text: mark.text, color: mark.color, emoji: emoji(for: card))
         }
         return .emoji(emoji(for: card))
     }

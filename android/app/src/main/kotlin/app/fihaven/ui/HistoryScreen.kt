@@ -33,16 +33,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
 import app.fihaven.core.CTConstants
 import app.fihaven.core.Money
+import app.fihaven.core.logic.CashflowHistory
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
 import app.fihaven.core.logic.Period
 import app.fihaven.core.model.Payment
+import app.fihaven.core.model.SpendTransaction
 import app.fihaven.ui.theme.Ct
 import kotlinx.serialization.json.JsonObject
 import java.time.LocalDate
@@ -67,7 +70,12 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader("History", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { IncomeHistoryCard(data.settings, vm.zone(), vm.currentUser?.createdAt) }
+            item {
+                IncomeHistoryCard(
+                    data.settings, vm.zone(), vm.currentUser?.createdAt,
+                    data.payments, data.transactions,
+                )
+            }
             if (realPayments.isEmpty()) {
                 item { CtCard { Text("No payments recorded yet.", color = Ct.colors.muted) } }
             }
@@ -100,7 +108,13 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
 
 /** Income history: membership-bounded months (default ≤18) with a range control. */
 @Composable
-private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId, createdAt: Double?) {
+private fun IncomeHistoryCard(
+    settings: JsonObject,
+    zone: ZoneId,
+    createdAt: Double?,
+    payments: List<Payment>,
+    transactions: List<SpendTransaction>,
+) {
     var range by remember { mutableStateOf("18") }
     val membership = remember(createdAt, zone) { monthsSinceJoin(createdAt, zone) }
     val options = remember(membership) {
@@ -131,13 +145,35 @@ private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId, createdAt: Dou
     val maxTotal = (months.maxOfOrNull { it.second } ?: 1.0).coerceAtLeast(1.0)
     val totalBonus = months.sumOf { it.third }
 
+    // Merged income-vs-spending series. Its window self-clamps to months with a
+    // real outflow record, so it can be shorter than the picker's range.
+    val cf = remember(settings, payments, transactions, window, zone) {
+        CashflowHistory.series(
+            settings = settings,
+            payments = payments,
+            transactions = transactions,
+            months = window,
+            from = DateLogic.monthKey(LocalDate.now(zone)),
+        )
+    }
+    val hasCashflow = cf.rows.isNotEmpty()
+    // Averages run over ACCOUNTED months only. A blind month carries spending 0,
+    // and folding that in would quietly understate spending and inflate net — the
+    // same fabricated zero the chart refuses to draw.
+    val accounted = cf.rows.filter { !it.blind }
+    val avgNet = if (accounted.isEmpty()) 0.0 else accounted.sumOf { it.net } / accounted.size
+    val avgSpend = if (accounted.isEmpty()) 0.0 else accounted.sumOf { it.spending } / accounted.size
+
     Column {
         Row(
             Modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Income history", color = Ct.colors.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (hasCashflow) "Income & spending" else "Income history",
+                color = Ct.colors.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            )
             if (options.size > 1) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     options.forEach { opt ->
@@ -160,49 +196,143 @@ private fun IncomeHistoryCard(settings: JsonObject, zone: ZoneId, createdAt: Dou
         }
         CtCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column {
-                        Text("Avg / mo (incl. bonuses)", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                        Text("last ${months.size} mo", color = Ct.colors.muted, fontSize = 11.sp)
-                    }
-                    Column {
-                        Text("Recurring / mo", color = Ct.colors.muted, fontSize = 11.sp)
-                        Text(Money.fmt(base), color = Ct.colors.text, fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                    }
-                    if (totalBonus > 0) {
+                if (hasCashflow) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Column {
-                            Text("Bonuses", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(Money.fmt(totalBonus), color = Ct.colors.green, fontSize = 20.sp,
+                            Text("Avg net / mo", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(
+                                (if (avgNet >= 0) "+" else "") + Money.fmt(avgNet),
+                                color = if (avgNet >= 0) Ct.colors.green else Ct.colors.red,
+                                fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                            )
+                            Text("over ${accounted.size} recorded mo", color = Ct.colors.muted, fontSize = 11.sp)
+                        }
+                        Column {
+                            Text("Avg income", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                        }
+                        Column {
+                            Text("Avg spending", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(Money.fmt(avgSpend), color = Ct.colors.text, fontSize = 20.sp,
                                 fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
                         }
                     }
-                }
-                months.forEach { (mk, total, bonus) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(DateLogic.monthKeyLabel(mk), color = Ct.colors.muted, fontSize = 11.sp,
-                            modifier = Modifier.width(64.dp))
-                        Box(
-                            Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(999.dp))
-                                .background(Ct.colors.surface2),
-                        ) {
-                            Box(
-                                Modifier.fillMaxWidth((total / maxTotal).toFloat()).height(4.dp)
-                                    .clip(RoundedCornerShape(999.dp)).background(Ct.colors.accent.copy(alpha = 0.7f)),
+
+                    CashflowChart(cf.rows)
+
+                    Text(
+                        buildString {
+                            append(
+                                "Income is projected from your current setup, not recorded month by " +
+                                    "month — a raise today reshapes every month shown here. Card payments " +
+                                    "are left out of spending: they settle purchases already counted, so " +
+                                    "adding them would double-count.",
+                            )
+                            if (cf.blindMonths > 0) {
+                                append(
+                                    " ${cf.blindMonths} month${if (cf.blindMonths == 1) "" else "s"} " +
+                                        "can't be accounted for, so the spending line breaks there " +
+                                        "instead of plotting a zero.",
+                                )
+                            }
+                        },
+                        color = Ct.colors.muted, fontSize = 11.sp,
+                    )
+
+                    // Table view for the chart — same figures, exact and screen-readable.
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("MONTH", color = Ct.colors.muted, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text("INCOME", color = Ct.colors.muted, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
+                            modifier = Modifier.width(72.dp))
+                        Text("SPENDING", color = Ct.colors.muted, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
+                            modifier = Modifier.width(80.dp))
+                        Text("NET", color = Ct.colors.muted, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
+                            modifier = Modifier.width(72.dp))
+                    }
+                    HorizontalDivider(color = Ct.colors.border)
+                    // Newest-first for the table; the chart reads oldest → newest.
+                    cf.rows.reversed().forEach { r ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                DateLogic.monthKeyLabel(r.mk),
+                                color = if (r.blind) Ct.colors.muted.copy(alpha = 0.75f) else Ct.colors.muted,
+                                fontSize = 11.sp, modifier = Modifier.weight(1f),
+                            )
+                            Text(Money.fmt(r.income), color = Ct.colors.text, fontSize = 12.sp,
+                                fontFamily = PlexMono, fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+                            Text(
+                                if (r.blind) "not recorded" else Money.fmt(r.spending),
+                                color = if (r.blind) Ct.colors.muted else Ct.colors.text,
+                                fontSize = if (r.blind) 10.sp else 12.sp,
+                                fontFamily = if (r.blind) FontFamily.Default else PlexMono,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End, modifier = Modifier.width(80.dp),
+                            )
+                            Text(
+                                if (r.blind) "—" else (if (r.net >= 0) "+" else "") + Money.fmt(r.net),
+                                color = when {
+                                    r.blind -> Ct.colors.muted
+                                    r.net >= 0 -> Ct.colors.green
+                                    else -> Ct.colors.red
+                                },
+                                fontSize = if (r.blind) 10.sp else 12.sp,
+                                fontFamily = if (r.blind) FontFamily.Default else PlexMono,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End, modifier = Modifier.width(72.dp),
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(Money.fmt(total), color = Ct.colors.text, fontSize = 12.sp,
-                            fontFamily = PlexMono, fontWeight = FontWeight.Medium,
-                            modifier = Modifier.width(78.dp))
-                        Text(
-                            if (bonus > 0) "+${Money.fmt(bonus)}" else "",
-                            color = Ct.colors.green,
-                            fontSize = 11.sp,
-                            modifier = Modifier.width(64.dp),
-                        )
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Column {
+                            Text("Avg / mo (incl. bonuses)", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                            Text("last ${months.size} mo", color = Ct.colors.muted, fontSize = 11.sp)
+                        }
+                        Column {
+                            Text("Recurring / mo", color = Ct.colors.muted, fontSize = 11.sp)
+                            Text(Money.fmt(base), color = Ct.colors.text, fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                        }
+                        if (totalBonus > 0) {
+                            Column {
+                                Text("Bonuses", color = Ct.colors.muted, fontSize = 11.sp)
+                                Text(Money.fmt(totalBonus), color = Ct.colors.green, fontSize = 20.sp,
+                                    fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                            }
+                        }
+                    }
+                    months.forEach { (mk, total, bonus) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(DateLogic.monthKeyLabel(mk), color = Ct.colors.muted, fontSize = 11.sp,
+                                modifier = Modifier.width(64.dp))
+                            Box(
+                                Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(999.dp))
+                                    .background(Ct.colors.surface2),
+                            ) {
+                                Box(
+                                    Modifier.fillMaxWidth((total / maxTotal).toFloat()).height(4.dp)
+                                        .clip(RoundedCornerShape(999.dp)).background(Ct.colors.accent.copy(alpha = 0.7f)),
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(Money.fmt(total), color = Ct.colors.text, fontSize = 12.sp,
+                                fontFamily = PlexMono, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.width(78.dp))
+                            Text(
+                                if (bonus > 0) "+${Money.fmt(bonus)}" else "",
+                                color = Ct.colors.green,
+                                fontSize = 11.sp,
+                                modifier = Modifier.width(64.dp),
+                            )
+                        }
                     }
                 }
             }

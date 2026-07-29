@@ -8,7 +8,7 @@
   import { bills, cards, payments, settings } from '../js/storage.svelte.js';
   import {
     fmt, currentPeriodKey, periodKeyLabel, shortDate,
-    monthsUntil, daysUntilDate, promoNeeded,
+    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem,
     periodObligationItems, hidePaidOnDashboard,
@@ -44,7 +44,9 @@
 
   /* ── Top stat tiles ──────────────────────────────────── */
   let activeCards = $derived(cards.filter((c) => !c.archived));
-  let totalDebt = $derived(activeCards.reduce((s, c) => s + parseFloat(c.balance || 0), 0));
+  // Live balance (current when tracked, statement otherwise) — a card charged
+  // since its statement closed still counts toward debt and utilization.
+  let totalDebt = $derived(activeCards.reduce((s, c) => s + liveCardBalance(c), 0));
   let promoCards = $derived(activeCards.filter((c) => {
     if (!(c.hasPromo && c.promoEndDate)) return false;
     const bal = parseFloat(c.promoBalance) || parseFloat(c.balance) || 0;
@@ -80,7 +82,7 @@
   let owedLabel     = $derived(owedLabelFor(periodCfg));
 
   function cardUtil(c) {
-    const bal = parseFloat(c.balance) || 0;
+    const bal = liveCardBalance(c);
     const lim = parseFloat(c.limit) || 0;
     return lim > 0 ? Math.round((bal / lim) * 100) : null;
   }
@@ -98,7 +100,7 @@
       if (util != null && util >= 80) {
         out.push({
           type: util >= 90 ? 'danger' : 'warn',
-          html: `💳 <strong>${c.name}</strong> — ${util}% credit utilization (${fmt(parseFloat(c.balance) || 0)} of ${fmt(parseFloat(c.limit) || 0)}).`,
+          html: `💳 <strong>${c.name}</strong> — ${util}% credit utilization (${fmt(liveCardBalance(c))} of ${fmt(parseFloat(c.limit) || 0)}).`,
         });
       }
     });
@@ -305,7 +307,7 @@
           {@const rem = remainingForItem(u.type, u.refId, mk)}
           <div class="upcoming-item">
             <div class="upcoming-icon">
-              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
+              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand && u.brand.isMonogram}<span class="upcoming-monogram" style="background:{u.brand.color};">{u.brand.text}</span>{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
             </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>

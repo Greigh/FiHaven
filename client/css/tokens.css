@@ -24,6 +24,11 @@
   --orange-bg:  #FDEEE3;
   --yellow:     #A16207;
   --yellow-bg:  #FBF5DC;
+  /* Chart series. Deliberately NOT green/red: that pair reads as ΔE 2.1 under
+     deuteranopia on the dark surface — effectively one color. Blue/orange holds
+     ΔE ≥ 26 across both modes and every simulated CVD type. */
+  --chart-income: #3D6FE1;
+  --chart-spend:  #C2410C;
   --shadow-sm:  0 1px 2px rgba(15, 18, 30, .04), 0 1px 1px rgba(15, 18, 30, .03);
   --shadow:     0 4px 14px rgba(15, 18, 30, .06), 0 2px 4px rgba(15, 18, 30, .04);
   --shadow-lg:  0 18px 40px rgba(15, 18, 30, .10), 0 6px 16px rgba(15, 18, 30, .06);
@@ -51,6 +56,10 @@
   --orange-bg:  #2B1A0C;
   --yellow:     #FBBF24;
   --yellow-bg:  #2B2008;
+  /* Chosen for the dark surface, not flipped from light: the light steps sit
+     above the dark-mode lightness band (L 0.48–0.67) and glare against #17181B. */
+  --chart-income: #4A87EE;
+  --chart-spend:  #D9700F;
   --shadow-sm:  0 1px 2px rgba(0, 0, 0, .35);
   --shadow:     0 4px 14px rgba(0, 0, 0, .45);
   --shadow-lg:  0 18px 40px rgba(0, 0, 0, .55);
