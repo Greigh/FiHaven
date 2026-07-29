@@ -27,6 +27,12 @@ val JsonObject.theme: String? get() = prim("theme")?.contentOrNull
 /// bill/card counts as fully paid. Parse via PaidGoalPolicy.from.
 val JsonObject.paidGoal: String? get() = prim("paidGoal")?.contentOrNull
 
+/// Which of a card's three amounts leads its row: "due" (default — the
+/// statement balance), "current" (live balance), or "owed" (what's left this
+/// period). The other two stay on the card either way.
+val JsonObject.cardHeadline: String
+    get() = prim("cardHeadline")?.contentOrNull?.takeIf { it == "current" || it == "owed" } ?: "due"
+
 /// Monthly-rollover pre-fill policy: "average" (default) | "carry" | "blank".
 val JsonObject.rolloverPrefill: String
     get() = prim("rolloverPrefill")?.contentOrNull?.takeIf { it == "carry" || it == "blank" } ?: "average"

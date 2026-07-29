@@ -8,6 +8,7 @@ import {
   ISSUER_EMOJI,
 } from './issuerIcons.js';
 import { ISSUER_LOGO_PATHS, issuerLogoDataUri } from './issuerLogos.js';
+import { ISSUER_MONOGRAM_COLORS, issuerInitials } from './issuerMonograms.js';
 
 describe('issuerIcons', () => {
   it('normalizes issuer names', () => {
@@ -30,6 +31,11 @@ describe('issuerIcons', () => {
     for (const key of [
       'chase', 'americanexpress', 'bankofamerica', 'wellsfargo',
       'discover', 'visa', 'mastercard', 'apple', 'paypal', 'robinhood', 'target',
+      'barclays', 'goldmansachs', 'hsbc', 'dinersclub', 'jcb',
+      'americanairlines', 'unitedairlines', 'southwestairlines', 'delta', 'jetblue',
+      'marriott', 'hilton', 'verizon', 'ikea', 'shell',
+      'venmo', 'cashapp', 'klarna', 'afterpay', 'coinbase',
+      'revolut', 'wise', 'monzo', 'n26', 'nubank', 'brex',
     ]) {
       expect(ISSUER_LOGO_PATHS[key], key).toBeTruthy();
       expect(ISSUER_LOGO_PATHS[key].c).toMatch(/^#[0-9A-Fa-f]{6}$/);
@@ -57,14 +63,61 @@ describe('issuerIcons', () => {
     expect(issuerIconInfo({ issuer: 'Target' }).key).toBe('target');
   });
 
-  it('falls back to emoji for issuers without a bundled logo', () => {
-    expect(issuerIconInfo({ issuer: 'Bilt' }).emoji).toBe(ISSUER_EMOJI.bilt);
-    expect(issuerIconInfo({ issuer: 'Citi' }).emoji).toBe(ISSUER_EMOJI.citi);
-    expect(issuerIconInfo({ issuer: 'Citibank' }).emoji).toBe(ISSUER_EMOJI.citi);
-    expect(issuerIconInfo({ issuer: 'Capital One' }).emoji).toBe(ISSUER_EMOJI.capitalone);
-    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).emoji).toBe(ISSUER_EMOJI.usbank);
-    expect(issuerIconInfo({ issuer: 'Fidelity' }).emoji).toBe(ISSUER_EMOJI.fidelity);
-    expect(issuerIconInfo({ issuer: 'SoFi' }).emoji).toBe(ISSUER_EMOJI.sofi);
+  it('prefers a named issuer over a network mark from the card name', () => {
+    // "Bilt Mastercard" is a Bilt card, not a Mastercard one.
+    const bilt = issuerIconInfo({ issuer: 'Bilt', name: 'Bilt Mastercard' });
+    expect(bilt.isLogo).toBe(false);
+    expect(bilt.text).toBe('B');
+    expect(issuerIconInfo({ issuer: 'Citi', name: 'Visa Signature' }).text).toBe('C');
+    // An issuer that IS the network still gets its logo…
+    expect(issuerIconInfo({ issuer: 'Visa', name: 'Signature' }).key).toBe('visa');
+    // …and with no issuer named, the network mark is better than nothing.
+    expect(issuerIconInfo({ name: 'Visa Platinum' }).key).toBe('visa');
+  });
+
+  it('resolves aliases and program names to the right logo', () => {
+    expect(issuerIconInfo({ issuer: 'Verizon Visa' }).key).toBe('verizon');
+    expect(issuerIconInfo({ issuer: 'Goldman' }).key).toBe('goldmansachs');
+    expect(issuerIconInfo({ issuer: 'AAdvantage Aviator' }).key).toBe('americanairlines');
+    expect(issuerIconInfo({ issuer: 'SkyMiles Reserve' }).key).toBe('delta');
+    expect(issuerIconInfo({ issuer: 'MileagePlus Explorer' }).key).toBe('unitedairlines');
+    expect(issuerIconInfo({ issuer: 'Rapid Rewards Priority' }).key).toBe('southwestairlines');
+    expect(issuerIconInfo({ issuer: 'Bonvoy Boundless' }).key).toBe('marriott');
+    expect(issuerIconInfo({ issuer: 'Diners Club' }).key).toBe('dinersclub');
+  });
+
+  it('falls back to a monogram chip for issuers without a bundled logo', () => {
+    const bilt = issuerIconInfo({ issuer: 'Bilt' });
+    expect(bilt.isLogo).toBe(false);
+    expect(bilt.isMonogram).toBe(true);
+    expect(bilt.text).toBe('B');
+    expect(bilt.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    // The emoji stand-in stays available for text-only contexts.
+    expect(bilt.emoji).toBe(ISSUER_EMOJI.bilt);
+
+    expect(issuerIconInfo({ issuer: 'Citi' }).text).toBe('C');
+    expect(issuerIconInfo({ issuer: 'Citibank' }).text).toBe('C');
+    expect(issuerIconInfo({ issuer: 'Capital One' }).text).toBe('C1');
+    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).text).toBe('US');
+    expect(issuerIconInfo({ issuer: 'CareCredit' }).text).toBe('CC');
+    expect(issuerIconInfo({ issuer: 'Care Credit' }).text).toBe('CC');
+    expect(issuerIconInfo({ issuer: 'Navy Federal Credit Union' }).text).toBe('NF');
+    expect(issuerIconInfo({ issuer: 'Fidelity' }).text).toBe('F');
+    expect(issuerIconInfo({ issuer: 'SoFi' }).text).toBe('S');
+    // An issuer we've never heard of still gets a stable, colored mark.
+    const unknown = issuerIconInfo({ issuer: 'Mountain Ridge Credit Union' });
+    expect(unknown.text).toBe('MR');
+    expect(unknown.color).toBe(issuerIconInfo({ issuer: 'Mountain Ridge Credit Union' }).color);
+  });
+
+  it('keeps curated brand colors for issuers we know', () => {
+    expect(issuerIconInfo({ issuer: 'Citi' }).color).toBe(ISSUER_MONOGRAM_COLORS.citi);
+    expect(issuerIconInfo({ issuer: 'Capital One' }).color).toBe(ISSUER_MONOGRAM_COLORS.capitalone);
+    // Curated entries match inside a longer, more formal name.
+    expect(issuerIconInfo({ issuer: 'Navy Federal Credit Union' }).color)
+      .toBe(ISSUER_MONOGRAM_COLORS.navyfederal);
+    expect(issuerIconInfo({ issuer: 'Synchrony Bank' }).color).toBe(ISSUER_MONOGRAM_COLORS.synchrony);
+    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).color).toBe(ISSUER_MONOGRAM_COLORS.usbank);
   });
 
   it('uses loan glyph for loans and card glyph for unknowns', () => {
@@ -88,8 +141,25 @@ describe('issuerIcons', () => {
       .toContain(encodeURIComponent('#FFFFFF'));
     expect(issuerIconMark({ issuer: 'Bilt' })).toEqual({
       isImage: false,
-      emoji: '🏠',
+      isMonogram: true,
+      text: 'B',
+      color: ISSUER_MONOGRAM_COLORS.bilt,
     });
+    // Inside a brand-colored chip the initials ride the chip's background.
+    expect(issuerIconMark({ issuer: 'Bilt' }, { chip: true }).color).toBe(null);
+  });
+
+  it('derives readable initials from any issuer name', () => {
+    expect(issuerInitials('U.S. Bank')).toBe('US');
+    expect(issuerInitials('TD Bank')).toBe('TD');
+    expect(issuerInitials('PNC Bank')).toBe('PNC');
+    expect(issuerInitials('CareCredit')).toBe('CC');
+    expect(issuerInitials('Synchrony Bank')).toBe('S');
+    expect(issuerInitials('Bilt')).toBe('B');
+    expect(issuerInitials('Mountain America Credit Union')).toBe('MA');
+    expect(issuerInitials('Credit Union')).toBe('CU');
+    expect(issuerInitials('')).toBe('');
+    expect(issuerInitials('   ')).toBe('');
   });
 
   it('builds valid SVG data URIs from logo geometry', () => {

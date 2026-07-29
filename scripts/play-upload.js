@@ -10,13 +10,16 @@
  *       (TTY: may prompt for marketing version / optional code change)
  *   node scripts/play-upload.js --version-code +1 --build   # bump then upload
  *   node scripts/play-upload.js --version-code 28 --build   # set then upload
+ *   node scripts/play-upload.js --track alpha --build       # closed testing instead
  *   node scripts/play-upload.js path/to.aab
  *
  * Env:
  *   GOOGLE_PLAY_SA_LOCAL or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON — service-account JSON path
  *   GOOGLE_PLAY_PACKAGE — default app.fihaven
- *   GOOGLE_PLAY_TRACK — internal | alpha | beta | production (default: alpha)
- *                       "alpha" is Play Console Closed testing
+ *   GOOGLE_PLAY_TRACK — internal | alpha | beta | production (default: beta)
+ *                       "beta" is Play Console Open testing, "alpha" is Closed testing
+ *   GOOGLE_PLAY_ROLLOUT — staged rollout fraction for the release, e.g. 0.1 for 10%
+ *                         (default: full release, status "completed")
  *   GOOGLE_PLAY_MAPPING — override R8 mapping.txt path
  *   GOOGLE_PLAY_NATIVE_SYMBOLS — override native-debug-symbols.zip path
  */
@@ -30,7 +33,14 @@ const ROOT = path.join(__dirname, '..');
 const ANDROID = path.join(ROOT, 'android');
 const PACKAGE = process.env.GOOGLE_PLAY_PACKAGE || 'app.fihaven';
 const KEY_FILE = process.env.GOOGLE_PLAY_SA_LOCAL || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
-const TRACK = process.env.GOOGLE_PLAY_TRACK || 'alpha';
+const TRACK = process.env.GOOGLE_PLAY_TRACK || 'beta';
+const TRACKS = ['internal', 'alpha', 'beta', 'production'];
+const TRACK_LABELS = {
+  internal: 'Internal testing',
+  alpha: 'Closed testing',
+  beta: 'Open testing',
+  production: 'Production',
+};
 const DEFAULT_AAB = path.join(ANDROID, 'app/build/outputs/bundle/release/app-release.aab');
 const DEFAULT_MAPPING = path.join(ANDROID, 'app/build/outputs/mapping/release/mapping.txt');
 const DEFAULT_NATIVE = path.join(
@@ -42,6 +52,7 @@ function parseArgs(argv) {
   let build = false;
   let aab = null;
   let versionCode = null;
+  let track = null;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--build' || arg === '-b') build = true;
@@ -50,20 +61,34 @@ function parseArgs(argv) {
       if (versionCode == null) throw new Error('--version-code requires a value (N or +1)');
     } else if (arg.startsWith('--version-code=')) {
       versionCode = arg.slice('--version-code='.length);
+    } else if (arg === '--track') {
+      track = argv[++i];
+      if (track == null) throw new Error(`--track requires a value (${TRACKS.join(' | ')})`);
+    } else if (arg.startsWith('--track=')) {
+      track = arg.slice('--track='.length);
     } else if (arg === '-h' || arg === '--help') {
-      console.log(`Usage: node scripts/play-upload.js [--build] [--version-code N|+1] [path/to/app-release.aab]
+      console.log(`Usage: node scripts/play-upload.js [--build] [--version-code N|+1] [--track NAME] [path/to/app-release.aab]
 
-Uploads to the Play track in GOOGLE_PLAY_TRACK (default: alpha = Closed testing).
+Tracks (--track, or GOOGLE_PLAY_TRACK) — default: beta
+${TRACKS.map((t) => `  ${t.padEnd(11)}Play Console: ${TRACK_LABELS[t]}`).join('\n')}
+
+Open testing (beta) is public: anyone with the Play listing link can join, and
+each release goes through Google review before testers get it.
+
 Also uploads R8 mapping.txt and native-debug-symbols.zip when present.
 
 By default the versionCode already in android/app/build.gradle.kts is used.
 Pass --version-code +1 (or an absolute N) to bump before building.
 With --build and a TTY, you can also confirm marketing version interactively.
-Release name on Play is always "versionName (versionCode)", e.g. "1.6.1 (27)".`);
+Release name on Play is always "versionName (versionCode)", e.g. "1.6.1 (27)".
+Set GOOGLE_PLAY_ROLLOUT=0.1 to release to 10% of testers instead of everyone.`);
       process.exit(0);
     } else if (!arg.startsWith('-')) aab = arg;
   }
-  return { build, aab: aab || DEFAULT_AAB, versionCode };
+  if (track != null && !TRACKS.includes(track)) {
+    throw new Error(`Unknown --track "${track}" (expected ${TRACKS.join(' | ')})`);
+  }
+  return { build, aab: aab || DEFAULT_AAB, versionCode, track };
 }
 
 function loadEnvFile() {
@@ -103,8 +128,21 @@ function bundleRelease() {
 async function main() {
   loadEnvFile();
   const keyFile = process.env.GOOGLE_PLAY_SA_LOCAL || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
-  const track = process.env.GOOGLE_PLAY_TRACK || TRACK;
-  const { build, aab, versionCode: versionCodeArg } = parseArgs(process.argv.slice(2));
+  const { build, aab, versionCode: versionCodeArg, track: trackArg } = parseArgs(
+    process.argv.slice(2),
+  );
+  const track = trackArg || process.env.GOOGLE_PLAY_TRACK || TRACK;
+  if (!TRACKS.includes(track)) {
+    console.error(`Unknown GOOGLE_PLAY_TRACK "${track}" (expected ${TRACKS.join(' | ')})`);
+    process.exit(1);
+  }
+  const rollout = process.env.GOOGLE_PLAY_ROLLOUT ? Number(process.env.GOOGLE_PLAY_ROLLOUT) : null;
+  if (rollout != null && !(rollout > 0 && rollout < 1)) {
+    console.error(
+      `GOOGLE_PLAY_ROLLOUT must be a fraction between 0 and 1 (got "${process.env.GOOGLE_PLAY_ROLLOUT}").`,
+    );
+    process.exit(1);
+  }
   const mapping = process.env.GOOGLE_PLAY_MAPPING || DEFAULT_MAPPING;
   const nativeSymbols = process.env.GOOGLE_PLAY_NATIVE_SYMBOLS || DEFAULT_NATIVE;
 
@@ -150,7 +188,7 @@ async function main() {
 
   const { versionName, versionCode } = nativeVersions.readAndroid();
   const releaseName = `${versionName || 'unknown'} (${versionCode})`;
-  console.log(`Package ${PACKAGE}  ${releaseName}  track ${track}`);
+  console.log(`Package ${PACKAGE}  ${releaseName}  track ${track} (${TRACK_LABELS[track]})`);
   console.log('AAB:', aab);
 
   const auth = new google.auth.GoogleAuth({
@@ -202,24 +240,35 @@ async function main() {
     );
   }
 
+  const release = {
+    name: releaseName,
+    versionCodes: [String(versionCode)],
+    ...(rollout != null
+      ? { status: 'inProgress', userFraction: rollout }
+      : { status: 'completed' }),
+  };
   await publisher.edits.tracks.update({
     packageName: PACKAGE,
     editId,
     track,
-    requestBody: {
-      track,
-      releases: [{
-        name: releaseName,
-        status: 'completed',
-        versionCodes: [String(versionCode)],
-      }],
-    },
+    requestBody: { track, releases: [release] },
   });
 
   console.log('Committing edit…');
   await publisher.edits.commit({ packageName: PACKAGE, editId });
-  console.log(`✅ Uploaded ${releaseName} to Play track "${track}" (${PACKAGE})`);
-  if (track === 'alpha') {
+  console.log(
+    `✅ Uploaded ${releaseName} to Play track "${track}" — ${TRACK_LABELS[track]} (${PACKAGE})`,
+  );
+  if (rollout != null) {
+    console.log(`  → Staged rollout at ${Math.round(rollout * 100)}% — increase it in Play Console`);
+  }
+  if (track === 'beta') {
+    console.log('  → Play Console: Testing → Open testing → Releases');
+    console.log('  → Open testing releases are reviewed by Google first (can take a day or two);');
+    console.log('    testers see the update only once review completes.');
+    console.log('  → Testers join themselves from the store listing or the opt-in link under');
+    console.log('    Testing → Open testing → Testers.');
+  } else if (track === 'alpha') {
     console.log('  → Play Console: Testing → Closed testing (alpha) → manage testers / copy link');
   } else if (track === 'internal') {
     console.log('  → Play Console: Testing → Internal testing');
@@ -242,7 +291,7 @@ Fix:
      (JSON field "client_email", ends in .iam.gserviceaccount.com)
   3. App permissions for app.fihaven — enable at least:
        • View app information and download bulk reports
-       • Manage testing track releases  (needed for alpha / closed testing)
+       • Manage testing track releases  (needed for beta / open testing)
        • Manage production releases     (only if you use GOOGLE_PLAY_TRACK=production)
   4. Wait a few minutes, then re-run: bun run deploy:android
 

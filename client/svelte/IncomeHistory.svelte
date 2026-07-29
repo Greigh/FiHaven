@@ -1,11 +1,19 @@
 <!--
   IncomeHistory.svelte — membership-bounded income months (default ≤18)
-  with a range control. Month list + subtle track (not a dominant bar chart).
+  with a range control.
+
+  Once there's any spending on record this becomes a cash-flow panel: a
+  two-line chart (income vs. merged spending) over the months we actually
+  have outflow records for, with the month list below acting as the chart's
+  table view. Before that, it falls back to the income-only list — there's
+  nothing honest to plot a second line against yet.
 -->
 <script>
   import { onMount } from 'svelte';
-  import { settings } from '../js/storage.svelte.js';
+  import { settings, payments, transactions } from '../js/storage.svelte.js';
   import { fmt } from '../js/utils.js';
+  import { cashflowSeries } from '../js/cashflowHistory.js';
+  import CashflowChart from './CashflowChart.svelte';
   import {
     monthlyIncomeForMonth,
     monthlyIncomeFromSettings,
@@ -96,13 +104,36 @@
   let maxTotal = $derived(Math.max(1, ...rows.map((r) => r.total)));
   let hasIncome = $derived(base > 0 || rows.some((r) => r.total > 0));
 
+  // Merged income-vs-spending series. Its window self-clamps to months with a
+  // real outflow record, so it can be shorter than the picker's range.
+  let cf = $derived(cashflowSeries({
+    settings,
+    payments,
+    transactions,
+    months: windowMonths,
+  }));
+  let cfRows = $derived(cf.rows);
+  let hasCashflow = $derived(cfRows.length > 0);
+  // Newest-first for the table; the chart itself reads oldest → newest.
+  let cfTable = $derived(cfRows.slice().reverse());
+  // Averages run over ACCOUNTED months only. A blind month carries spending 0,
+  // and folding that in would quietly understate spending and inflate net —
+  // the same fabricated zero the chart refuses to draw.
+  let accounted = $derived(cfRows.filter((r) => !r.blind));
+  let avgNet = $derived(accounted.length
+    ? accounted.reduce((s, r) => s + r.net, 0) / accounted.length
+    : 0);
+  let avgSpend = $derived(accounted.length
+    ? accounted.reduce((s, r) => s + r.spending, 0) / accounted.length
+    : 0);
+
   function rangeLabel(r) {
     return r === 'all' ? 'All' : String(r);
   }
 </script>
 
 <div class="section-header income-hist-head">
-  <span class="section-title">Income history</span>
+  <span class="section-title">{hasCashflow ? 'Income & spending' : 'Income history'}</span>
   {#if hasIncome && visibleRanges.length > 1}
     <div class="income-range" role="group" aria-label="History range">
       {#each visibleRanges as r (r)}
@@ -124,41 +155,105 @@
 {:else}
   <div class="card income-hist-card">
     <div class="income-hist-stats">
-      <div>
-        <div class="section-title income-hist-stat-label">Average / month (incl. bonuses)</div>
-        <div class="income-hist-stat-value">{fmt(avg)}</div>
-        <div class="income-hist-stat-sub">over the last {rows.length} month{rows.length === 1 ? '' : 's'}</div>
-      </div>
-      <div>
-        <div class="section-title income-hist-stat-label">Recurring / month</div>
-        <div class="income-hist-stat-value">{fmt(base)}</div>
-        <div class="income-hist-stat-sub">base sources only</div>
-      </div>
-      {#if totalBonus > 0}
+      {#if hasCashflow}
         <div>
-          <div class="section-title income-hist-stat-label">Bonuses (window)</div>
-          <div class="income-hist-stat-value" style="color:var(--green);">{fmt(totalBonus)}</div>
-          <div class="income-hist-stat-sub">one-off additions</div>
+          <div class="section-title income-hist-stat-label">Average net / month</div>
+          <div class="income-hist-stat-value" style="color:{avgNet >= 0 ? 'var(--green)' : 'var(--red)'};">
+            {avgNet >= 0 ? '+' : ''}{fmt(avgNet)}
+          </div>
+          <div class="income-hist-stat-sub">
+            income − spending, over {accounted.length} recorded month{accounted.length === 1 ? '' : 's'}
+          </div>
         </div>
+        <div>
+          <div class="section-title income-hist-stat-label">Average income</div>
+          <div class="income-hist-stat-value">{fmt(avg)}</div>
+          <div class="income-hist-stat-sub">incl. bonuses</div>
+        </div>
+        <div>
+          <div class="section-title income-hist-stat-label">Average spending</div>
+          <div class="income-hist-stat-value">{fmt(avgSpend)}</div>
+          <div class="income-hist-stat-sub">purchases + bills</div>
+        </div>
+      {:else}
+        <div>
+          <div class="section-title income-hist-stat-label">Average / month (incl. bonuses)</div>
+          <div class="income-hist-stat-value">{fmt(avg)}</div>
+          <div class="income-hist-stat-sub">over the last {rows.length} month{rows.length === 1 ? '' : 's'}</div>
+        </div>
+        <div>
+          <div class="section-title income-hist-stat-label">Recurring / month</div>
+          <div class="income-hist-stat-value">{fmt(base)}</div>
+          <div class="income-hist-stat-sub">base sources only</div>
+        </div>
+        {#if totalBonus > 0}
+          <div>
+            <div class="section-title income-hist-stat-label">Bonuses (window)</div>
+            <div class="income-hist-stat-value" style="color:var(--green);">{fmt(totalBonus)}</div>
+            <div class="income-hist-stat-sub">one-off additions</div>
+          </div>
+        {/if}
       {/if}
     </div>
 
-    <ul class="income-hist-list">
-      {#each rows as r (r.mk)}
-        <li class="income-hist-row">
-          <div class="income-hist-label">{r.label}</div>
-          <div class="income-hist-track" aria-hidden="true">
-            <div class="income-hist-fill" style={`width:${Math.round((r.total / maxTotal) * 100)}%`}></div>
-          </div>
-          <div class="income-hist-amt">{fmt(r.total)}</div>
-          {#if r.bonus > 0}
-            <div class="income-hist-bonus" title="Bonus this month">+{fmt(r.bonus)}</div>
-          {:else}
-            <div class="income-hist-bonus is-empty"></div>
-          {/if}
+    {#if hasCashflow}
+      <CashflowChart rows={cfRows} />
+
+      <p class="income-hist-note">
+        Income is projected from your current setup, not recorded month by month — a raise
+        today reshapes every month shown here. Card payments are left out of spending: they
+        settle purchases already counted, so adding them would double-count.
+        {#if cf.blindMonths > 0}
+          <strong>{cf.blindMonths} month{cf.blindMonths === 1 ? '' : 's'}</strong>
+          can't be accounted for, so the spending line breaks there instead of
+          plotting a zero.
+        {/if}
+      </p>
+
+      <ul class="income-hist-list cf-table">
+        <li class="income-hist-row cf-row cf-row-head" aria-hidden="true">
+          <span>Month</span><span>Income</span><span>Spending</span><span>Net</span>
         </li>
-      {/each}
-    </ul>
+        {#each cfTable as r (r.mk)}
+          <li class="income-hist-row cf-row" class:is-blind={r.blind}>
+            <span class="income-hist-label">{monthLabel(r.mk)}</span>
+            <span class="income-hist-amt">{fmt(r.income)}</span>
+            <span class="income-hist-amt">
+              {#if r.blind}
+                <span class="cf-blind-mark" title="No spending recorded for this month">not recorded</span>
+              {:else}{fmt(r.spending)}{/if}
+            </span>
+            <span class="income-hist-amt" style={r.blind ? '' : `color:${r.net >= 0 ? 'var(--green)' : 'var(--red)'};`}>
+              {#if r.blind}
+                <span class="cf-blind-mark">—</span>
+              {:else}{r.net >= 0 ? '+' : ''}{fmt(r.net)}{/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <ul class="income-hist-list">
+        {#each rows as r (r.mk)}
+          <li class="income-hist-row">
+            <div class="income-hist-label">{r.label}</div>
+            <div class="income-hist-track" aria-hidden="true">
+              <div class="income-hist-fill" style={`width:${Math.round((r.total / maxTotal) * 100)}%`}></div>
+            </div>
+            <div class="income-hist-amt">{fmt(r.total)}</div>
+            {#if r.bonus > 0}
+              <div class="income-hist-bonus" title="Bonus this month">+{fmt(r.bonus)}</div>
+            {:else}
+              <div class="income-hist-bonus is-empty"></div>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+
+      <p class="income-hist-note">
+        Log purchases in <strong>Spending</strong> or mark bills paid to see income against
+        spending here.
+      </p>
+    {/if}
   </div>
 {/if}
 
@@ -254,10 +349,42 @@
     color: var(--green);
   }
   .income-hist-bonus.is-empty { visibility: hidden; }
+
+  .income-hist-note {
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .income-hist-note + .cf-table { margin-top: 14px; }
+
+  /* Table view for the chart — same figures, exact and screen-readable. */
+  .cf-row {
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .cf-row-head {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .cf-row-head span:not(:first-child) { text-align: right; }
+  .cf-row.is-blind .income-hist-label { color: color-mix(in srgb, var(--muted) 75%, transparent); }
+  .cf-blind-mark { color: var(--muted); font-weight: 400; font-size: 11px; }
+
   @media (max-width: 520px) {
     .income-hist-row {
       grid-template-columns: 64px minmax(0, 1fr) 72px;
     }
     .income-hist-bonus { display: none; }
+    .cf-row {
+      grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      font-size: 12px;
+    }
   }
 </style>

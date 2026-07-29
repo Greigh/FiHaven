@@ -69,18 +69,25 @@ whatever code is already in the Gradle file. The Play release is named
 **One-shot upload** (from repo root; builds then uploads):
 
 ```sh
-# Closed testing (“alpha” track) — default; uses current versionCode
+# Open testing (“beta” track) — default; uses current versionCode
 bun run deploy:android
 
 # Bump versionCode, then build + upload
 bun run deploy:android -- --version-code +1
 
-# Internal testing
-GOOGLE_PLAY_TRACK=internal bun run deploy:android
+# Closed / internal testing
+bun run deploy:android -- --track alpha
+bun run deploy:android -- --track internal
 ```
 
 Needs `keystore.properties` + `GOOGLE_PLAY_SA_LOCAL` in `.env`. Track names:
-`internal` | `alpha` (Closed testing) | `beta` (Open testing) | `production`.
+`internal` | `alpha` (Closed testing) | `beta` (Open testing) | `production`,
+via `--track` or `GOOGLE_PLAY_TRACK`. Set `GOOGLE_PLAY_ROLLOUT=0.1` for a staged
+10% rollout instead of a full release.
+
+Open testing is public: testers opt in from the Play listing or the link under
+**Testing → Open testing → Testers**, and every release goes through Google
+review before it reaches them (unlike internal testing, which is near-instant).
 
 - **API:** debug and release builds both point at `https://fihaven.app`.
   For local server work, change `API_BASE` in `app/build.gradle.kts` or

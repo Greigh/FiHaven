@@ -2,6 +2,7 @@ package app.fihaven.core
 
 import app.fihaven.core.logic.IssuerIcons
 import app.fihaven.core.logic.IssuerLogos
+import app.fihaven.core.logic.IssuerMonograms
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.CategoryIcon
@@ -33,7 +34,10 @@ class IssuerIconsTest {
             CategoryIcon.Logo("chase", "🔵"),
             IssuerIcons.iconInfo(Card(name = "Sapphire", issuer = "Chase")),
         )
-        assertEquals(CategoryIcon.Emoji("🏠"), IssuerIcons.iconInfo(Card(name = "Blue", issuer = "Bilt")))
+        assertEquals(
+            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
+            IssuerIcons.iconInfo(Card(name = "Blue", issuer = "Bilt")),
+        )
         assertEquals("🔵", IssuerIcons.iconInfo(Card(name = "Sapphire", issuer = "Chase")).emoji())
     }
 
@@ -53,12 +57,82 @@ class IssuerIconsTest {
         assertEquals(0x117ACA, IssuerLogos.logo("chase")?.color)
     }
 
+    @Test fun namedIssuerBeatsNetworkMark() {
+        // "Bilt Mastercard" is a Bilt card, not a Mastercard one.
+        assertEquals(
+            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
+            IssuerIcons.iconInfo(Card(name = "Bilt Mastercard", issuer = "Bilt")),
+        )
+        assertNull(IssuerIcons.logo(Card(name = "Visa Signature", issuer = "Citi")))
+        assertEquals("visa", IssuerIcons.logo(Card(name = "Signature", issuer = "Visa"))?.key)
+        // With no issuer named, the network mark beats nothing.
+        assertEquals("visa", IssuerIcons.logo(Card(name = "Visa Platinum"))?.key)
+    }
+
+    @Test fun aliasesAndProgramNames() {
+        // "verizon" wins over "visa" because longer keys match first.
+        assertEquals("verizon", IssuerIcons.logoKey("Verizon Visa"))
+        assertEquals("goldmansachs", IssuerIcons.logoKey("Goldman"))
+        assertEquals("americanairlines", IssuerIcons.logoKey("AAdvantage Aviator"))
+        assertEquals("delta", IssuerIcons.logoKey("SkyMiles Reserve"))
+        assertEquals("unitedairlines", IssuerIcons.logoKey("MileagePlus Explorer"))
+        assertEquals("southwestairlines", IssuerIcons.logoKey("Rapid Rewards Priority"))
+        assertEquals("marriott", IssuerIcons.logoKey("Bonvoy Boundless"))
+        assertEquals("dinersclub", IssuerIcons.logoKey("Diners Club"))
+        // Short aliases stay exact so they can't fire inside unrelated words.
+        assertNull(IssuerIcons.logoKey("Boat Loan"))
+    }
+
+    @Test fun monogramsForIssuersWithoutLogos() {
+        assertEquals(
+            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
+            IssuerIcons.iconInfo(Card(name = "Bilt Rewards", issuer = "Bilt")),
+        )
+        assertEquals("C", IssuerIcons.monogram(Card(name = "Double Cash", issuer = "Citi"))?.text)
+        assertEquals("C1", IssuerIcons.monogram(Card(name = "Savor", issuer = "Capital One"))?.text)
+        assertEquals("US", IssuerIcons.monogram(Card(name = "Altitude", issuer = "U.S. Bank"))?.text)
+        assertEquals("CC", IssuerIcons.monogram(Card(name = "Card", issuer = "CareCredit"))?.text)
+        assertEquals("S", IssuerIcons.monogram(Card(name = "Card", issuer = "SoFi"))?.text)
+        assertEquals("NF", IssuerIcons.monogram(Card(name = "cashRewards", issuer = "Navy Federal Credit Union"))?.text)
+        // Loans keep the bank glyph rather than taking a monogram.
+        assertNull(IssuerIcons.monogram(Card(name = "Mortgage", type = "loan")))
+        assertEquals(CategoryIcon.Emoji("🏦"), IssuerIcons.iconInfo(Card(name = "Mortgage", type = "loan")))
+    }
+
+    @Test fun monogramInitialsAndColors() {
+        assertEquals("US", IssuerMonograms.initials("U.S. Bank"))
+        assertEquals("TD", IssuerMonograms.initials("TD Bank"))
+        assertEquals("PNC", IssuerMonograms.initials("PNC Bank"))
+        assertEquals("CC", IssuerMonograms.initials("CareCredit"))
+        assertEquals("CC", IssuerMonograms.initials("Care Credit"))
+        assertEquals("S", IssuerMonograms.initials("Synchrony Bank"))
+        assertEquals("S", IssuerMonograms.initials("SoFi"))
+        assertEquals("MA", IssuerMonograms.initials("Mountain America Credit Union"))
+        assertEquals("CU", IssuerMonograms.initials("Credit Union"))
+        assertEquals("", IssuerMonograms.initials(""))
+        assertEquals("", IssuerMonograms.initials("   "))
+
+        // Curated color where we have one, stable fallback otherwise.
+        assertEquals(0x056DAE, IssuerMonograms.monogram("citi", "Citi")?.color)
+        // Curated entries match inside a longer, more formal name.
+        assertEquals(
+            0x003057,
+            IssuerMonograms.monogram("navyfederalcreditunion", "Navy Federal Credit Union")?.color,
+        )
+        assertEquals(0x003057, IssuerMonograms.monogram("synchronybank", "Synchrony Bank")?.color)
+        val first = IssuerMonograms.monogram("mountainridge", "Mountain Ridge")
+        val again = IssuerMonograms.monogram("mountainridge", "Mountain Ridge")
+        assertEquals(first?.color, again?.color)
+        assertTrue(first!!.color in 0x000000..0xFFFFFF)
+    }
+
     /** The paths are drawn by Compose's vector parser, so bad data is invisible. */
     @Test fun bundledLogosAreWellFormed() {
-        assertEquals(11, IssuerLogos.all.size)
+        assertEquals(37, IssuerLogos.all.size)
         for ((key, logo) in IssuerLogos.all) {
             assertEquals(key, logo.key)
-            assertTrue(logo.path.startsWith("M"), "$key starts with a moveto")
+            // Absolute or relative moveto — HSBC's mark starts with "m".
+            assertTrue(logo.path.first() in "Mm", "$key starts with a moveto")
             assertTrue(logo.path.length > 32, "$key has real path data")
             assertTrue(logo.color in 0x000000..0xFFFFFF, "$key color is 0xRRGGBB")
         }
@@ -80,6 +154,6 @@ class IssuerIconsTest {
         )
         val items = Schedule.buildUpcomingItems(emptyList(), cards, UTC, now = NOW)
         assertEquals(CategoryIcon.Logo("chase", "🔵"), items.first { it.refId == "10" }.icon)
-        assertEquals(CategoryIcon.Emoji("🏠"), items.first { it.refId == "11" }.icon)
+        assertEquals(CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"), items.first { it.refId == "11" }.icon)
     }
 }

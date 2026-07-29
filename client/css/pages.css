@@ -747,6 +747,27 @@
   height: 18px;
   border-radius: 4px;
 }
+/* Issuer initials on a brand-colored chip, for issuers with no bundled
+   logo. Sized like .icon-mark-img so rows don't shift between the two. */
+.icon-mark-monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 4px;
+  vertical-align: -0.15em;
+  color: #fff;
+  font-size: 0.62em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-family: var(--font-ui, inherit);
+}
+.card-row-chip .icon-mark-monogram {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
 
 .fh-switch { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
 .fh-switch input { position: absolute; opacity: 0; width: 0; height: 0; }

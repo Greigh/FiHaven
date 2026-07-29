@@ -183,6 +183,66 @@ object Schedule {
     /** Cent-level tolerance so a goal met to the penny reads as full. */
     const val PAID_EPSILON = 0.005
 
+    // ── The three amounts on a card ─────────────────────────────────
+    /**
+     * What's actually on the card right now. [Card.balance] is the statement
+     * balance — what's due by the due date — while [Card.currentBalance]
+     * (typed in, or pushed by a bank sync) is the live figure including
+     * charges made since the statement closed. Utilization follows the live
+     * figure because that's what the issuer reports; unset means "not tracked
+     * separately", so fall back to the statement. Mirrors liveCardBalance in
+     * utils.js.
+     */
+    fun liveBalance(card: Card): Double = card.currentBalance ?: card.balance
+
+    /**
+     * The three amounts a card row can lead with, resolved together so the
+     * headline and its companion figures can never disagree.
+     */
+    data class CardAmounts(
+        /** Statement balance — a loan's is its scheduled payment. */
+        val due: Double,
+        /** Live balance, the one utilization is measured against. */
+        val current: Double,
+        /** Still owed this period under the paid-goal policy (0 if skipped). */
+        val owed: Double,
+    ) {
+        /** The amount named by a `settings.cardHeadline` value. */
+        fun valueFor(headline: String): Double = when (headline) {
+            "current" -> current
+            "owed" -> owed
+            else -> due
+        }
+    }
+
+    fun amounts(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: List<Payment>,
+        bounds: PeriodBounds,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): CardAmounts {
+        val ref = card.id.toString()
+        val owed = if (isSkipped(payments, "card", ref, bounds)) {
+            0.0
+        } else {
+            max(0.0, goalAmount(card, policy, payments, bounds, zone, now) - paidAmount(payments, "card", ref, bounds))
+        }
+        return CardAmounts(
+            due = if (card.type == "loan") card.minPayment else card.balance,
+            current = liveBalance(card),
+            owed = owed,
+        )
+    }
+
+    /**
+     * The two amounts a row isn't leading with, in a stable order. The
+     * preference re-ranks the three; it never hides one.
+     */
+    fun otherAmounts(headline: String): List<String> =
+        listOf("due", "current", "owed").filter { it != headline }
+
     /**
      * The "recommended" payment for a card (mirrors recommendedAmount in utils.js).
      * A per-card override wins; otherwise promo cards spread the balance to clear it

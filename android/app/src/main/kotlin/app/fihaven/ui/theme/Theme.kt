@@ -30,6 +30,12 @@ data class CtColors(
     val orangeBg: Color,
     val yellow: Color,
     val yellowBg: Color,
+    /// Chart series. Deliberately NOT green/red: that pair reads as ΔE 2.1 under
+    /// deuteranopia on the dark surface — effectively one color. Blue/orange holds
+    /// ΔE >= 26 in both modes. The dark steps are chosen against the dark surface,
+    /// not flipped from light (the light steps sit above the dark lightness band).
+    val chartIncome: Color,
+    val chartSpend: Color,
 )
 
 val LightCt = CtColors(
@@ -38,6 +44,7 @@ val LightCt = CtColors(
     accent = Color(0xFF3D6FE1), accentHover = Color(0xFF2F5DCB), accentBg = Color(0xFFEAF0FE),
     green = Color(0xFF15803D), greenBg = Color(0xFFE7F4EC), red = Color(0xFFDC2626), redBg = Color(0xFFFDECEC),
     orange = Color(0xFFC2410C), orangeBg = Color(0xFFFDEEE3), yellow = Color(0xFFA16207), yellowBg = Color(0xFFFBF5DC),
+    chartIncome = Color(0xFF3D6FE1), chartSpend = Color(0xFFC2410C),
 )
 
 val DarkCt = CtColors(
@@ -46,6 +53,7 @@ val DarkCt = CtColors(
     accent = Color(0xFF6098F6), accentHover = Color(0xFF82AEFA), accentBg = Color(0xFF122544),
     green = Color(0xFF34C57B), greenBg = Color(0xFF0E2B1A), red = Color(0xFFF87171), redBg = Color(0xFF2B1414),
     orange = Color(0xFFFB923C), orangeBg = Color(0xFF2B1A0C), yellow = Color(0xFFFBBF24), yellowBg = Color(0xFF2B2008),
+    chartIncome = Color(0xFF4A87EE), chartSpend = Color(0xFFD9700F),
 )
 
 val LocalCt = staticCompositionLocalOf { LightCt }

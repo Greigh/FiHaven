@@ -484,6 +484,18 @@ final class AppStore: ObservableObject {
         Schedule.paidAmount(data.payments, type: type, refId: refId, in: currentBounds)
     }
 
+    // ── Card amounts (due / current / owed) ─────────────────────────
+    /// Which amount leads a card row, per the user's saved preference.
+    var cardHeadline: String { data.settings.cardHeadline }
+
+    /// A card's three amounts, resolved against the active period + policy.
+    func cardAmounts(_ card: Card) -> Schedule.CardAmounts {
+        Schedule.amounts(
+            card: card, policy: paidGoalPolicy,
+            payments: data.payments, in: currentBounds, tz: tz
+        )
+    }
+
     /// True if this bill/card has been skipped for the current period.
     func isSkipped(type: String, refId: String) -> Bool {
         Schedule.isSkipped(data.payments, type: type, refId: refId, in: currentBounds)

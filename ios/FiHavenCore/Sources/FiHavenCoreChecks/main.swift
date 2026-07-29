@@ -5,6 +5,7 @@ print("─── FiHavenCore checks ──────────────�
 runModelChecks()
 runSettingsChecks()
 runIncomeChecks()
+runCashflowHistoryChecks()
 runDateLogicChecks()
 runScheduleChecks()
 runPresetUpdateChecks()

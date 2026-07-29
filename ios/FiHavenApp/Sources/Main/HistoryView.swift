@@ -92,13 +92,87 @@ struct HistoryView: View {
     }
     private var totalBonus: Double { incomeMonths.reduce(0) { $0 + $1.bonus } }
 
+    // ── Merged income-vs-spending series ─────────────────────────────
+    // Its window self-clamps to months with a real outflow record, so it can be
+    // shorter than the picker's range.
+    private var cashflow: CashflowHistory.Series {
+        CashflowHistory.series(
+            settings: store.data.settings,
+            payments: store.data.payments,
+            transactions: store.data.transactions,
+            months: rangeChoice.months(membership: membershipMonths),
+            from: DateLogic.currentMonthKey(tz: store.tz),
+            tz: store.tz
+        )
+    }
+    /// Averages run over ACCOUNTED months only. A blind month carries spending 0,
+    /// and folding that in would quietly understate spending and inflate net —
+    /// the same fabricated zero the chart refuses to draw.
+    private func accounted(_ s: CashflowHistory.Series) -> [CashflowHistory.Row] {
+        s.rows.filter { !$0.blind }
+    }
+
+    /// The honesty caption: income here is projected, not measured, and card
+    /// payments are transfers rather than spending.
+    private func cashflowNote(_ s: CashflowHistory.Series) -> String {
+        var note = "Income is projected from your current setup, not recorded month by month — "
+            + "a raise today reshapes every month shown here. Card payments are left out of "
+            + "spending: they settle purchases already counted, so adding them would double-count."
+        if s.blindMonths > 0 {
+            note += " \(s.blindMonths) month\(s.blindMonths == 1 ? "" : "s") can't be accounted for, "
+                + "so the spending line breaks there instead of plotting a zero."
+        }
+        return note
+    }
+
+    /// Table view for the chart — same figures, exact and screen-readable.
+    @ViewBuilder private func cashflowTable(_ s: CashflowHistory.Series) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Month").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Income").frame(width: 78, alignment: .trailing)
+                Text("Spending").frame(width: 84, alignment: .trailing)
+                Text("Net").frame(width: 78, alignment: .trailing)
+            }
+            .font(Theme.ui(10, weight: .semibold))
+            .foregroundStyle(Theme.muted)
+            Divider().overlay(Theme.border)
+
+            // Newest-first for the table; the chart itself reads oldest → newest.
+            ForEach(Array(s.rows.reversed()), id: \.mk) { r in
+                HStack(spacing: 8) {
+                    Text(DateLogic.monthKeyLabel(r.mk, tz: store.tz))
+                        .font(Theme.ui(12))
+                        .foregroundStyle(r.blind ? Theme.muted.opacity(0.75) : Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(Money.fmt(r.income))
+                        .font(Theme.mono(12, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                        .frame(width: 78, alignment: .trailing)
+                    Text(r.blind ? "not recorded" : Money.fmt(r.spending))
+                        .font(r.blind ? Theme.ui(10) : Theme.mono(12, weight: .semibold))
+                        .foregroundStyle(r.blind ? Theme.muted : Theme.text)
+                        .frame(width: 84, alignment: .trailing)
+                    Text(r.blind ? "—" : (r.net >= 0 ? "+" : "") + Money.fmt(r.net))
+                        .font(r.blind ? Theme.ui(10) : Theme.mono(12, weight: .semibold))
+                        .foregroundStyle(r.blind ? Theme.muted : (r.net >= 0 ? Theme.green : Theme.red))
+                        .frame(width: 78, alignment: .trailing)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
     @ViewBuilder private var incomeHistorySection: some View {
         let months = incomeMonths
         if baseIncome > 0 || months.contains(where: { $0.total > 0 }) {
             let maxTotal = max(1, months.map(\.total).max() ?? 1)
+            let cf = cashflow
+            let hasCashflow = !cf.rows.isEmpty
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Income history").font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
+                    Text(hasCashflow ? "Income & spending" : "Income history")
+                        .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                     Spacer()
                     if visibleRanges.count > 1 {
                         Picker("Range", selection: $rangeChoice) {
@@ -111,24 +185,53 @@ struct HistoryView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 24) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Avg / mo (incl. bonuses)").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                            Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                            Text("last \(months.count) mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Recurring / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                            Text(Money.fmt(baseIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                        }
-                        if totalBonus > 0 {
+                    if hasCashflow {
+                        let acc = accounted(cf)
+                        let avgNet = acc.isEmpty ? 0 : acc.reduce(0) { $0 + $1.net } / Double(acc.count)
+                        let avgSpend = acc.isEmpty ? 0 : acc.reduce(0) { $0 + $1.spending } / Double(acc.count)
+                        HStack(alignment: .top, spacing: 24) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Bonuses").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text(Money.fmt(totalBonus)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.green)
+                                Text("Avg net / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                Text((avgNet >= 0 ? "+" : "") + Money.fmt(avgNet))
+                                    .font(Theme.mono(20, weight: .semibold))
+                                    .foregroundStyle(avgNet >= 0 ? Theme.green : Theme.red)
+                                Text("over \(acc.count) recorded mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Avg income").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Avg spending").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                Text(Money.fmt(avgSpend)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                            }
+                        }
+                        CashflowChartView(rows: cf.rows)
+                        Text(cashflowNote(cf))
+                            .font(Theme.ui(11))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        cashflowTable(cf)
+                    } else {
+                        HStack(alignment: .top, spacing: 24) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Avg / mo (incl. bonuses)").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                                Text("last \(months.count) mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Recurring / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                Text(Money.fmt(baseIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
+                            }
+                            if totalBonus > 0 {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Bonuses").font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                                    Text(Money.fmt(totalBonus)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.green)
+                                }
                             }
                         }
                     }
-                    ForEach(months) { m in
+                    ForEach(hasCashflow ? [] : months) { m in
                         HStack(spacing: 10) {
                             Text(m.label)
                                 .font(Theme.ui(12))

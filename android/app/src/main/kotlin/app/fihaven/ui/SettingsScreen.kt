@@ -84,6 +84,7 @@ import app.fihaven.core.model.pushNotifications
 import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.monthlySummary
 import app.fihaven.core.model.notifyHour
+import app.fihaven.core.model.cardHeadline
 import app.fihaven.core.model.paidGoal
 import app.fihaven.core.model.rolloverPrefill
 import app.fihaven.core.model.reminderLeadDays
@@ -271,6 +272,14 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     PaidGoalPicker(PaidGoalPolicy.from(data.settings.paidGoal)) { vm.setPaidGoal(it) }
                     Text(
                         "How much you must pay before a bill or card counts as fully paid. Anything less shows as a partial payment.",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    )
+                    HorizontalDivider(color = Ct.colors.border)
+                    CardHeadlinePicker(data.settings.cardHeadline) { vm.setCardHeadline(it) }
+                    Text(
+                        "Which amount gets the big figure on each card: the statement balance you owe by the due date, "
+                            + "the live current balance, or what's left to pay this period. The other two stay on the card.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )
@@ -631,6 +640,39 @@ private fun PaidGoalPicker(current: PaidGoalPolicy, onSelect: (PaidGoalPolicy) -
                         .background(if (selected) Ct.colors.accent else Ct.colors.bg)
                         .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(8.dp))
                         .clickable { onSelect(policy) }
+                        .padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardHeadlinePicker(current: String, onSelect: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text("Lead each card with", color = Ct.colors.text, fontSize = 16.sp)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf(
+                "due" to "Due",
+                "current" to "Current",
+                "owed" to "Still owed",
+            ).forEach { (mode, label) ->
+                val selected = mode == current
+                Text(
+                    label,
+                    color = if (selected) Color.White else Ct.colors.text,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) Ct.colors.accent else Ct.colors.bg)
+                        .border(1.dp, if (selected) Ct.colors.accent else Ct.colors.border, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(mode) }
                         .padding(vertical = 10.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )

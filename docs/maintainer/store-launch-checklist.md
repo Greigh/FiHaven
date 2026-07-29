@@ -48,13 +48,20 @@ Confirm on App ID **`app.fihaven`** (team `365KR8NF53`):
 # iOS → App Store Connect / TestFlight
 bun run deploy:ios   # or: npm run deploy:ios
 
-# Android → build signed AAB + upload (default track: alpha = Closed testing)
+# Android → build signed AAB + upload (default track: beta = Open testing)
 bun run deploy:android
-# Internal testing instead:
-GOOGLE_PLAY_TRACK=internal bun run deploy:android
+# Closed / internal testing instead:
+bun run deploy:android -- --track alpha
+bun run deploy:android -- --track internal
 # Production:
-GOOGLE_PLAY_TRACK=production bun run deploy:android
+bun run deploy:android -- --track production
+# Staged rollout (10% of testers/users on the chosen track):
+GOOGLE_PLAY_ROLLOUT=0.1 bun run deploy:android
 ```
+
+Open testing releases are reviewed by Google before testers receive them, and
+anyone can join from the Play listing — manage the audience under
+**Testing → Open testing → Testers** in Play Console.
 
 `deploy:android` runs `./gradlew :app:bundleRelease` then uploads the AAB, R8
 `mapping.txt`, and `native-debug-symbols.zip` when present. Requires

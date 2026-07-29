@@ -518,6 +518,15 @@ light and dark; follow the OS appearance by default.
 | red / red-bg | `#DC2626` / `#FDECEC` | `#F87171` / `#2B1414` |
 | orange / orange-bg | `#C2410C` / `#FDEEE3` | `#FB923C` / `#2B1A0C` |
 | yellow / yellow-bg | `#A16207` / `#FBF5DC` | `#FBBF24` / `#2B2008` |
+| chart-income | `#3D6FE1` | `#4A87EE` |
+| chart-spend | `#C2410C` | `#D9700F` |
+
+- **Chart series** (`chart-income` / `chart-spend`) are a separate pair from the
+  status colors and must not be swapped for green/red: on the dark surface that
+  pair separates by only ΔE 2.1 under deuteranopia — effectively one color.
+  Blue/orange holds ΔE ≥ 26 in both modes. Note the dark steps are *chosen for*
+  the dark surface, not flipped from light: the light steps sit above the
+  dark-mode OKLCH lightness band (0.48–0.67) and glare against `#17181B`.
 
 - **Accent header glow:** a faint radial gradient of `accent` at ~8%
   (light) / ~14% (dark) at the top-center of the background.
@@ -541,19 +550,41 @@ light and dark; follow the OS appearance by default.
   `{ type: "image", value: "data:image/…;base64,…" }` — both web and native
   render custom images (native via `IconMark`).
 - Credit-card issuer icons: `issuerIconInfo(card)` resolves from
-  `card.issuer` (then preset / name). All three platforms bundle the same
-  Simple Icons marks for Chase, Amex, Bank of America, Wells Fargo,
-  Discover, Visa, Mastercard, Apple, PayPal, Robinhood, Target; other
-  issuers (Citi, Capital One, Bilt, …) use emoji stand-ins, as do loans (🏦).
+  `card.issuer` (then preset / name), in this order: **bundled logo →
+  monogram chip → emoji**. Loans keep 🏦.
+  - All three platforms bundle the same 37 Simple Icons marks — banks and
+    networks (Chase, Amex, BofA, Wells Fargo, Discover, Barclays, Goldman
+    Sachs, HSBC, Visa, Mastercard, Diners Club, JCB), airline and hotel
+    co-brands (American, United, Southwest, Delta, JetBlue, Marriott,
+    Hilton), retail/telecom (Target, Verizon, IKEA, Shell, Apple), and
+    fintech (PayPal, Venmo, Cash App, Klarna, Afterpay, Coinbase, Robinhood,
+    Revolut, Wise, Monzo, N26, Nubank, Brex).
+  - Aliases cover shorthands (`amex`, `bofa`) and loyalty programs
+    (`aadvantage`, `skymiles`, `mileageplus`, `rapidrewards`, `bonvoy`,
+    `hiltonhonors`), since what's printed on a card is often the program.
+    Aliases under 5 characters stay exact so they can't fire inside an
+    unrelated word.
+  - A **network** mark (Visa/Mastercard/Diners/JCB) matched from the card's
+    *name* loses to the issuer's monogram — "Bilt Mastercard" is a Bilt
+    card. An issuer that IS the network keeps its logo.
   - The table lives in [`issuerLogos.js`](../client/js/issuerLogos.js);
     `node scripts/sync-issuer-logos.js` regenerates `IssuerLogos.swift` /
     `IssuerLogos.kt` from it (CI runs it with `--check`). Edit the web
     table, never the generated files.
-  - Native resolution returns `CategoryIcon.logo(key:emoji:)`, so `IconMark`
-    renders the vector wherever an icon appears (cards list, calendar,
-    upcoming) and falls back to the carried emoji in text contexts. iOS
-    parses the path data with `SVGPath` (SwiftUI has no SVG support);
-    Android hands it to Compose's `addPathNodes`.
+  - Native resolution returns `CategoryIcon.logo(key:emoji:)` or
+    `.monogram(text:color:emoji:)`, so `IconMark` renders the right mark
+    wherever an icon appears (cards list, calendar, upcoming) and falls back
+    to the carried emoji in text contexts. iOS parses the path data with
+    `SVGPath` (SwiftUI has no SVG support); Android hands it to Compose's
+    `addPathNodes`.
+  - **Monograms** ([`issuerMonograms.js`](../client/js/issuerMonograms.js) /
+    `IssuerMonograms.swift` / `IssuerMonograms.kt`) cover the many US issuers
+    with no CC0 mark to bundle — Citi, Capital One, U.S. Bank, Bilt,
+    CareCredit, SoFi, Synchrony, Navy Federal, … Initials come from the
+    issuer name (acronyms kept: "U.S. Bank" → US; company suffixes dropped:
+    "Synchrony Bank" → S; brand shorthands curated: Capital One → C1), on a
+    curated brand color where we have one and a stable hash of the
+    `CARD_COLORS` palette otherwise. Any issuer a user types gets a mark.
   - Brand colors are lifted toward the surface's 3:1 contrast floor by
     `BrandColor.legible` — Apple's black and the Visa / BofA navies are
     otherwise invisible on the dark theme.
