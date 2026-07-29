@@ -448,6 +448,9 @@ import {
     /* ── Payment goal policy ───────────────────────────────── */
     initPaymentGoalSection();
 
+    /* ── Card headline amount ──────────────────────────────── */
+    initCardHeadlineSection();
+
     /* ── Monthly rollover pre-fill ─────────────────────────── */
     initRolloverSection();
 
@@ -939,6 +942,63 @@ import {
         .catch(function (err) {
           setBusy(form, false);
           showMessage('paidgoal', (err && err.message) || errorText('network'), true);
+        });
+    });
+  }
+
+  /* ── Card headline amount ───────────────────────────────── */
+  function initCardHeadlineSection() {
+    var form   = document.querySelector('[data-form="cardheadline"]');
+    var select = document.querySelector('[data-cardheadline-select]');
+    var noteEl = document.querySelector('[data-cardheadline-effective]');
+    if (!form || !select) return;
+
+    var DESCRIPTIONS = {
+      due:     'Cards lead with the statement balance and its due date — the amount with a deadline attached.',
+      current: 'Cards lead with the live balance, including charges made since the statement closed. This is the figure utilization is measured against.',
+      owed:    'Cards lead with what’s left to pay this period under your payment-goal setting, so it shrinks as you make partial payments.',
+    };
+    function normalize(v) {
+      return (v === 'current' || v === 'owed') ? v : 'due';
+    }
+    function describe(v) {
+      if (noteEl) noteEl.textContent = DESCRIPTIONS[normalize(v)];
+    }
+
+    fetchData()
+      .then(function (server) {
+        var s = (server && server.settings) || {};
+        select.value = normalize(s.cardHeadline);
+        describe(select.value);
+      })
+      .catch(function () { describe(select.value); });
+
+    select.addEventListener('change', function () { describe(select.value); });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var chosen = normalize(select.value);
+      setBusy(form, true);
+      showMessage('cardheadline', 'Saving…', false);
+
+      fetchData()
+        .then(function (server) {
+          var snapshot = {
+            bills: server.bills || [],
+            cards: server.cards || [],
+            payments: server.payments || [],
+            settings: Object.assign({}, server.settings || {}, { cardHeadline: chosen }),
+          };
+          return pushData(snapshot);
+        })
+        .then(function () {
+          setBusy(form, false);
+          showMessage('cardheadline', 'Card display saved.', false);
+          describe(chosen);
+        })
+        .catch(function (err) {
+          setBusy(form, false);
+          showMessage('cardheadline', (err && err.message) || errorText('network'), true);
         });
     });
   }

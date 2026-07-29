@@ -3,14 +3,16 @@
 
    Resolution order:
      1. Bundled SVG logo (ISSUER_LOGO_PATHS) from card.issuer
-     2. Per-issuer emoji stand-in
-     3. Fuzzy match on card.name / preset issuer
+     2. Fuzzy match on card.name / preset issuer
+     3. Monogram chip — initials on a brand color (issuerMonograms.js),
+        for the many issuers with no CC0 logo to bundle
      4. Fallback 💳 (or 🏦 for loans)
 
    Used by Cards list chips and dashboard upcoming card rows.
 ═══════════════════════════════════════════════════════════ */
 
 import { ISSUER_LOGO_PATHS, issuerLogoDataUri } from './issuerLogos.js';
+import { issuerMonogram } from './issuerMonograms.js';
 import { cardPresetById } from './cardPresets.js';
 import { CARD_ICON } from './categoryIcons.js';
 
@@ -67,10 +69,32 @@ const ISSUER_ALIASES = {
   bankamerica: 'bankofamerica',
   usb: 'usbank',
   usbancorp: 'usbank',
+  goldman: 'goldmansachs',
+  // Loyalty programs — what's printed on the card is often the program,
+  // not the airline or hotel that backs it.
+  aadvantage: 'americanairlines',
+  skymiles: 'delta',
+  mileageplus: 'unitedairlines',
+  rapidrewards: 'southwestairlines',
+  trueblue: 'jetblue',
+  bonvoy: 'marriott',
+  hiltonhonors: 'hilton',
+  diners: 'dinersclub',
 };
 
 const EMOJI_KEYS = Object.keys(ISSUER_EMOJI).sort((a, b) => b.length - a.length);
 const LOGO_KEYS = Object.keys(ISSUER_LOGO_PATHS).sort((a, b) => b.length - a.length);
+/**
+ * Aliases long enough to match inside a longer name ("AAdvantage Aviator").
+ * Short ones (boa, usb) would fire on unrelated words, so they stay exact.
+ */
+/** Card networks — every card is one, so they identify an issuer least. */
+const NETWORK_KEYS = new Set(['visa', 'mastercard', 'dinersclub', 'jcb']);
+
+const MIN_ALIAS_SUBSTRING = 5;
+const ALIAS_KEYS = Object.keys(ISSUER_ALIASES)
+  .filter((a) => a.length >= MIN_ALIAS_SUBSTRING)
+  .sort((a, b) => b.length - a.length);
 
 function canonicalKey(key) {
   if (!key) return '';
@@ -83,6 +107,9 @@ function findLogoKey(key) {
   if (ISSUER_LOGO_PATHS[canon]) return canon;
   if (ISSUER_LOGO_PATHS[key]) return key;
   for (const k of LOGO_KEYS) if (canon.includes(k) || key.includes(k)) return k;
+  for (const a of ALIAS_KEYS) {
+    if (key.includes(a) && ISSUER_LOGO_PATHS[ISSUER_ALIASES[a]]) return ISSUER_ALIASES[a];
+  }
   return null;
 }
 
@@ -110,9 +137,10 @@ export function resolveCardIssuer(card) {
 }
 
 /**
- * Issuer icon for a card. Returns:
- *   { isLogo: true, logo, key, color }  — SVG data URI
- *   { isLogo: false, emoji, key }       — emoji stand-in
+ * Issuer icon for a card. Returns one of:
+ *   { isLogo: true, logo, key, color, emoji }        — SVG data URI
+ *   { isMonogram: true, text, color, key, emoji }    — initials chip
+ *   { emoji, key }                                   — emoji stand-in
  * Always resolves (falls back to 💳 / 🏦).
  */
 export function issuerIconInfo(card) {
@@ -124,8 +152,17 @@ export function issuerIconInfo(card) {
   const key = normalizeIssuer(issuer);
   const nameKey = normalizeIssuer(card && card.name);
 
-  const logoKey = findLogoKey(key) || findLogoKey(nameKey);
+  let logoKey = findLogoKey(key) || findLogoKey(nameKey);
   const emojiHit = findEmoji(key) || findEmoji(nameKey);
+
+  // "Bilt Mastercard" is a Bilt card, not a Mastercard one. A network mark
+  // picked up from the card's name tells you nothing the issuer's own initials
+  // wouldn't — so when the user named an issuer, their monogram wins. An
+  // issuer that IS the network ("Visa") still gets its logo.
+  const namedIssuer = !!(card && card.issuer && String(card.issuer).trim());
+  if (logoKey && NETWORK_KEYS.has(logoKey) && namedIssuer && canonicalKey(key) !== logoKey) {
+    logoKey = null;
+  }
 
   if (logoKey && ISSUER_LOGO_PATHS[logoKey]) {
     const entry = ISSUER_LOGO_PATHS[logoKey];
@@ -136,6 +173,20 @@ export function issuerIconInfo(card) {
       color: entry.c,
       // Always include the emoji stand-in for text / native parity.
       emoji: emojiHit || ISSUER_EMOJI[logoKey] || CARD_ICON,
+    };
+  }
+
+  // No bundled mark: initials on a brand chip beat a colored-circle emoji,
+  // and every issuer a user can type gets one.
+  const monogram = issuerMonogram(key || nameKey, issuer || (card && card.name));
+  if (monogram) {
+    return {
+      isLogo: false,
+      isMonogram: true,
+      text: monogram.text,
+      color: monogram.color,
+      key: key || nameKey || null,
+      emoji: emojiHit || CARD_ICON,
     };
   }
 
@@ -151,7 +202,7 @@ export function issuerEmoji(card) {
 
 /**
  * Shape compatible with IconMark / categoryIconInfo:
- * `{ isImage, src }` or `{ isImage: false, emoji }`.
+ * `{ isImage, src }`, `{ isMonogram, text, color }`, or `{ emoji }`.
  * Pass `{ chip: true }` for white marks on a brand-colored chip.
  */
 export function issuerIconMark(card, opts) {
@@ -160,6 +211,11 @@ export function issuerIconMark(card, opts) {
     const entry = ISSUER_LOGO_PATHS[info.key];
     const fill = opts && opts.chip ? '#FFFFFF' : undefined;
     return { isImage: true, src: issuerLogoDataUri(entry, fill) };
+  }
+  if (info.isMonogram) {
+    // On a brand-colored chip the initials ride the chip's own background.
+    const color = opts && opts.chip ? null : info.color;
+    return { isImage: false, isMonogram: true, text: info.text, color: color };
   }
   return { isImage: false, emoji: info.emoji };
 }

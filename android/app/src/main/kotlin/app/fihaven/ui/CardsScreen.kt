@@ -259,6 +259,8 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                         state = vm.paidState("card", card.id.toString()),
                         paidSoFar = vm.paidAmountFor("card", card.id.toString()),
                         goal = vm.goalAmount("card", card.id.toString()),
+                        amounts = vm.cardAmounts(card),
+                        headline = vm.cardHeadline(),
                         skipped = vm.isSkipped("card", card.id.toString()),
                         onPay = { paying = card },
                         onEdit = { editing = card },
@@ -365,6 +367,9 @@ private fun CardRow(
     state: PaidState,
     paidSoFar: Double,
     goal: Double,
+    amounts: Schedule.CardAmounts,
+    /** Which of [amounts] leads the row — "due" | "current" | "owed". */
+    headline: String,
     skipped: Boolean = false,
     onPay: () -> Unit,
     onEdit: () -> Unit,
@@ -372,8 +377,45 @@ private fun CardRow(
     onUnskip: () -> Unit = {},
 ) {
     val isLoan = card.type == "loan"
-    val util = if (card.limit > 0) min(1.0, card.balance / card.limit) else 0.0
+    // Utilization is measured against the live balance — charges made since the
+    // statement closed still count against the limit at the issuer.
+    val util = if (card.limit > 0) min(1.0, amounts.current / card.limit) else 0.0
     val promoActive = card.hasPromo && DateLogic.monthsUntil(card.promoEndDate, zone) > 0
+
+    // Due countdown is resolved up here because both the footer text and the
+    // headline amount's colour read from it — one source, so they can't disagree.
+    val settled = skipped || state == PaidState.FULL
+    val daysLeft = card.dueDay?.takeIf { it > 0 }
+        ?.let { DateLogic.effectiveDaysUntilDue(it, settled, zone) }
+    val dueDate = daysLeft?.let { DateLogic.today(zone).plusDays(it.toLong()) }
+
+    // ── Headline amount (top-right) ─────────────────────────────────
+    val headlineAmount = amounts.valueFor(headline)
+    val headlineLabel = when (headline) {
+        "current" -> "Current"
+        "owed" -> if (skipped) "Skipped" else "Still owed"
+        else -> if (isLoan) "Payment" else "Due"
+    }
+    val headlineColor = when {
+        headlineAmount <= Schedule.PAID_EPSILON -> Ct.colors.green
+        headline != "due" || daysLeft == null -> Ct.colors.text
+        daysLeft < 0 -> Ct.colors.red
+        daysLeft <= 5 -> Ct.colors.orange
+        else -> Ct.colors.text
+    }
+    // The amounts the headline isn't showing — the preference re-ranks the
+    // three rather than hiding any of them. One per line: side by side they
+    // widened the trailing column enough to ellipsize the card's name on a
+    // narrow phone.
+    val companionAmounts = Schedule.otherAmounts(headline).map { key ->
+        val label = when (key) {
+            "current" -> if (isLoan) "principal" else "current"
+            "owed" -> "still owed"
+            else -> if (isLoan) "payment" else "due"
+        }
+        "$label ${Money.fmtShort(amounts.valueFor(key))}"
+    }
+
     CtCard(Modifier.clickable(onClick = onEdit)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -406,8 +448,15 @@ private fun CardRow(
                         }
                     }
                 }
-                Text(Money.fmt(card.balance), color = Ct.colors.text, fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(headlineLabel.uppercase(), color = Ct.colors.muted, fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                    Text(Money.fmt(headlineAmount), color = headlineColor, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                    companionAmounts.forEach { line ->
+                        Text(line, color = Ct.colors.muted, fontSize = 10.sp, maxLines = 1)
+                    }
+                }
             }
             if (!isLoan) {
                 LinearProgressIndicator(
@@ -420,11 +469,6 @@ private fun CardRow(
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("${(util * 100).toInt()}% of ${Money.fmtShort(card.limit)}",
                             color = Ct.colors.muted, fontSize = 12.sp)
-                        card.currentBalance?.let { cur ->
-                            if (cur > 0) {
-                                Text("Current: ${Money.fmtShort(cur)}", color = Ct.colors.muted, fontSize = 12.sp)
-                            }
-                        }
                     }
                     if (promoActive) {
                         Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono)
@@ -445,12 +489,8 @@ private fun CardRow(
             HorizontalDivider(color = Ct.colors.border, modifier = Modifier.padding(vertical = 8.dp))
             // Lead the footer with the actual date the payment lands on — the row
             // used to say only "Not paid this month", which never told you *when*.
-            // The date is derived from the same countdown that picks the colour, so
-            // the two can't disagree; a settled card rolls to its next period.
-            val settled = skipped || state == PaidState.FULL
-            val daysLeft = card.dueDay?.takeIf { it > 0 }
-                ?.let { DateLogic.effectiveDaysUntilDue(it, settled, zone) }
-            val dueDate = daysLeft?.let { DateLogic.today(zone).plusDays(it.toLong()) }
+            // The date comes from the countdown resolved above, so the footer and
+            // the headline amount's colour can't disagree.
             val dueText = when {
                 daysLeft == null || dueDate == null -> "No due day set"
                 daysLeft < 0 -> "Overdue — was due ${friendlyDate(dueDate)}"
@@ -909,7 +949,9 @@ private fun accountIcon(t: String) = when (t) {
 
 @Composable
 private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
-    val totalBalance = cards.sumOf { it.balance }
+    // Live balances, so a card charged since its statement closed still counts
+    // toward the total and the utilization it drives at the issuer.
+    val totalBalance = cards.sumOf { Schedule.liveBalance(it) }
     val totalLimit = cards.sumOf { it.limit }
     val util = if (totalLimit > 0) min(1.0, totalBalance / totalLimit) else 0.0
     val utilPct = (util * 100).toInt()
@@ -935,7 +977,11 @@ private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
                     fontSize = 12.sp,
                 )
                 Text("·", color = Ct.colors.muted, fontSize = 12.sp)
-                Text("${cards.size} card${if (cards.size == 1) "" else "s"}", color = Ct.colors.muted, fontSize = 12.sp)
+                Text(
+                    if (totalLimit > 0) "of ${Money.fmtShort(totalLimit)}"
+                    else "${cards.size} card${if (cards.size == 1) "" else "s"}",
+                    color = Ct.colors.muted, fontSize = 12.sp,
+                )
             }
             if (totalLimit > 0) {
                 LinearProgressIndicator(

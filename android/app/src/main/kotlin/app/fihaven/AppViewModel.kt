@@ -33,6 +33,7 @@ import app.fihaven.core.model.withAutopayDone
 import app.fihaven.core.model.autopayMark
 import app.fihaven.core.model.incomeAdjustments
 import app.fihaven.core.model.incomes
+import app.fihaven.core.model.cardHeadline
 import app.fihaven.core.model.paidGoal
 import app.fihaven.core.model.timezoneSetting
 import app.fihaven.core.model.currency
@@ -1119,6 +1120,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setPaidGoal(policy: PaidGoalPolicy) =
         mutate { it.copy(settings = it.settings.withPaidGoal(policy.raw)) }
 
+    /** Which amount leads each card row: "due" | "current" | "owed". */
+    fun setCardHeadline(headline: String) =
+        mutate { it.copy(settings = it.settings.withSetting("cardHeadline", JsonPrimitive(headline))) }
+
     fun setPeriodMode(mode: String) =
         mutate { it.copy(settings = it.settings.withSetting("periodMode", JsonPrimitive(mode))) }
     fun setPeriodStartDay(day: Int) =
@@ -1450,6 +1455,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun paidAmountFor(type: String, refId: String): Double =
         Schedule.paidAmount(_data.value.payments, type, refId, currentBounds())
+
+    // ── Card amounts (due / current / owed) ─────────────────────────────────
+    /** Which amount leads a card row, per the user's saved preference. */
+    fun cardHeadline(): String = _data.value.settings.cardHeadline
+
+    /** A card's three amounts, resolved against the active period + policy. */
+    fun cardAmounts(card: Card): Schedule.CardAmounts =
+        Schedule.amounts(card, paidGoalPolicy(), _data.value.payments, currentBounds(), zone())
 
     fun isSkipped(type: String, refId: String): Boolean =
         Schedule.isSkipped(_data.value.payments, type, refId, currentBounds())

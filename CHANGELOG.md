@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (14) - Card↔bank matching pass; 13 was the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 36) - Card↔bank matching pass; 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (15) - Income vs. spending history; 14 was the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 37) - Income vs. spending history; 36 was the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -37,10 +37,74 @@ Each release below uses two layers:
 > Apple (Custom Tab → handoff), native Plaid OAuth that returns to iOS/Android
 > instead of the web redirect page, a refreshed post-signup onboarding (Back,
 > edit goals in place, delayed Free CTA, archive-by-default), native Spending /
-> Family / tab-bar polish, **search on major lists**, and a Pro paywall that
-> shows plan length, price, and Privacy / Terms links.
+> Family / tab-bar polish, **search on major lists**, a Pro paywall that
+> shows plan length, price, and Privacy / Terms links, and a History tab that
+> now charts **what you earned against what you spent** — with card payments
+> kept out of the spending figure, and months it can't account for left blank
+> instead of drawn as zero.
 
 ### Changes
+
+**Income history became income *vs. spending* (Jul 28)**
+
+- **The History tab now draws what you earned against what you spent.** It used
+  to be a stack of bars, one per month, each measured against your biggest
+  month. Because income barely moves, every bar ran nearly the full width and
+  they all looked the same — the chart couldn't show you the one thing you'd
+  want from it. It's a line chart now: income and spending as two lines, oldest
+  month on the left, with the gap between them shaded. That gap is your net.
+- **A new headline number: average net per month.** Income minus spending,
+  averaged over the months we actually have records for, in green or red.
+  Average income and average spending sit beside it.
+- **Card payments no longer count as spending.** Paying your Chase bill isn't
+  money leaving your pocket — the purchases already were, when you made them.
+  Counting both would have doubled your card spending. Bills and purchases are
+  merged into one figure, and a bill you both typed into Spending *and* marked
+  paid is counted once, not twice.
+- **Months we can't account for are left blank, not drawn as zero.** If you made
+  card payments in a month but never logged what you bought, we don't know your
+  spending — so the line breaks and the month is shaded rather than plotted at
+  $0, which would have read as a fantastic month. The table underneath says
+  "not recorded" instead of a number, and those months stay out of your
+  averages.
+- **The chart starts where your records do.** Your income is worked out from
+  your current setup, so it can be projected back years — but your spending only
+  exists from when you started logging. Charting the whole range would have
+  shown an enormous fake surplus tapering off right where your real data begins.
+  It now begins at your first recorded month.
+- **The month list is still there**, underneath the chart, with exact figures
+  for income, spending and net.
+- **On iPhone and Android too**, with the same chart and the same rules.
+
+**Cards lead with the amount you choose (Jul 28)**
+
+- **Utilization is measured against your current balance now.** A card whose
+  statement closed at zero but that you've used since read as 0% used — on the
+  card itself, in the total at the top, and in the dashboard's high-utilization
+  warning. All three now follow the live Current Balance whenever you track one
+  (a bank sync fills it in, or you can type it), and fall back to the statement
+  balance when you don't.
+- **The credit total tells you the two numbers behind the percentage.** The
+  utilization tile spells out what you owe against the limits you've entered —
+  "$4,318.42 of $21,500.00 used" — instead of a bare percentage.
+- **What's due has its own spot: the top-right corner of every card.** The
+  amount, its due date, and the color that says how close it is, all in one
+  place instead of buried in a row of statistics.
+- **You pick which of a card's three amounts gets the big figure.** They answer
+  different questions, so there's no single right one: the **amount due** (the
+  statement balance, the one with a deadline), the **current balance** (what's
+  actually on the card, including charges since the statement closed), or
+  **what's still owed** this period (what the Pay button targets — it shrinks as
+  you make partial payments). Whichever you choose, the other two stay on the
+  card in smaller type, so nothing is hidden. Cards start on the amount due.
+- **Set it once, on any device.** Settings → Payments on the web, Settings →
+  Preferences on Android, Settings on iPhone. Loans use the same corner, reading
+  their scheduled payment and remaining principal.
+- **Links that carry you through sign-in are checked against a list.** The
+  "return here after you sign in" part of a link (the one that lands you on
+  Settings → Notifications from an email) is now rebuilt from the handful of
+  pages that are allowed to be a destination, rather than trusted and cleaned
+  up. Nothing changes for a real link; a doctored one goes to your dashboard.
 
 **Card logos on iPhone and Android (Jul 27)**
 
@@ -49,8 +113,22 @@ Each release below uses two layers:
   Discover, Visa, Mastercard, Apple, PayPal, Robinhood and Target for a while;
   iPhone and Android showed a stand-in emoji instead. They now draw the same
   marks — in the cards list, the calendar, and what's-coming-up on the home
-  screen. Issuers without a bundled logo (Citi, Capital One, Bilt, …) keep their
-  emoji, and loans keep 🏦.
+  screen. Loans keep 🏦.
+- **26 more logos, on every platform.** Barclays, Goldman Sachs, HSBC, Diners
+  Club and JCB; the airline and hotel cards — American, United, Southwest,
+  Delta, JetBlue, Marriott, Hilton; Verizon, IKEA and Shell; and Venmo, Cash
+  App, Klarna, Afterpay, Coinbase, Revolut, Wise, Monzo, N26, Nubank and Brex.
+  A card named for its rewards program finds its logo too — AAdvantage,
+  SkyMiles, MileagePlus, Rapid Rewards, Bonvoy and Hilton Honors.
+- **Every other issuer gets its initials on a brand-colored chip.** Citi,
+  Capital One, U.S. Bank, Bilt, CareCredit, SoFi, Synchrony, your credit union
+  — none of them publish a logo we're able to bundle, so instead of a colored
+  dot you get a clean monogram: C1 for Capital One, US for U.S. Bank, NF for
+  Navy Federal. Any issuer you type gets one, with the real brand color where
+  we know it.
+- **"Bilt Mastercard" now shows Bilt, not Mastercard.** Every card is a Visa or
+  a Mastercard, so the network says the least about which card you're looking
+  at; when you've named the issuer, the issuer wins.
 - **Logos stay readable in dark mode.** Apple's black and the Visa / Bank of
   America navies would have disappeared against a dark card, so a mark that's
   too close to its background is lightened just enough to read, keeping its
@@ -449,6 +527,148 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **`cashflowHistory.js`** (+ `CashflowHistory.swift` / `.kt`, three-way mirror,
+  change together): merges the two outflow stores into one monthly spending
+  figure. `transactions` (purchases, manual + `source:'plaid'`) and `payments`
+  (bills / card payments) overlap, so summing them double-counts. Rules:
+  **card payments are transfers** and never count — the purchases they settle
+  are already transactions on that card — but each month reports
+  `cardPaymentsExcluded` so the figure is disclosed rather than silently
+  dropped; **bill payments count**, minus any matching a logged transaction via
+  `reconcile.js`'s `looksSame` (same amount, containing merchant/name ≥3 chars
+  normalized, ±1 day — it under-matches rather than over-matches, and an unnamed
+  transaction never absorbs a bill); each transaction backs at most one payment.
+- **`blind` months**: a month with card payments but no transactions, or no
+  records at all inside the window, carries `blind: true` rather than
+  `spending: 0`. A fabricated zero would read as a surplus month. Consumers must
+  break the line, exclude it from averages, and label it — all three do.
+- **Window clamping**: `monthlyIncomeForMonth()` derives income from *current*
+  settings for any month (only `incomeAdjustments` vary), so it projects back as
+  far as `membershipMonths` (≤240) while transactions only exist from first use.
+  `cashflowSeries()` clamps its start to the first month with an outflow record;
+  rows carry `incomeProjected: true` so the UI can caption that income is
+  derived, not measured. Flip that flag if income ever gains per-month history.
+- **`CashflowChart.svelte` / `CashflowChartView.swift` / `CashflowChart.kt`**:
+  two lines on one **zero-based** axis — unusual for a trend line, but the read
+  is the *gap*, and cropping the axis would inflate it out of proportion. Two
+  series rather than one net line: a net line collapses "earned more" and "spent
+  less" into identical movement. Blind months break the spending path (runs of
+  consecutive accounted months, one sub-path each) and get a shaded column;
+  income stays continuous, being known for every month. The axis ceiling snaps
+  to a 1/1.5/2/2.5/3/4/5/6/8/10 ladder — a coarse 1/2/5/10 one strands a $7.3k
+  series under a $10k ceiling. The Compose version draws its axis labels inside
+  the `Canvas`: laid out as sibling composables they anchor to their own slots
+  and drift off the gridlines they label.
+- **`--chart-income` / `--chart-spend`** tokens (`tokens.css`, `Theme.swift`,
+  `Theme.kt`, documented in `docs/native-contract.md` §8). **Not** green/red:
+  validated with the dataviz palette checker, that pair separates by ΔE **2.1**
+  under deuteranopia on the dark surface — effectively one color. Blue/orange
+  holds ΔE ≥ 26 across both modes and every simulated CVD type. Dark steps are
+  chosen against the dark surface, not flipped from light (the light steps sit
+  above the dark-mode OKLCH lightness band 0.48–0.67).
+- **`IncomeHistory.svelte` / `HistoryView.swift` / `HistoryScreen.kt`** become a
+  cash-flow panel when any spending exists, falling back to the income-only
+  track list otherwise. The month list survives as the chart's table view
+  (income / spending / net, newest first), which is also what keeps the figures
+  screen-readable. Averages run over non-`blind` rows only.
+- Tests: `client/js/cashflowHistory.test.js` (16), mirrored one-to-one by
+  `CashflowHistoryChecks.swift` (26 checks, registered in `main.swift`) and
+  `CashflowHistoryTest.kt` (14) so a behavioral drift on any platform fails
+  somewhere.
+
+- **Card amounts (due / current / owed)**: a card carries three figures that
+  were previously conflated. `balance` is the **statement** balance (what's due;
+  `applyCardPaymentDelta` decrements it), `currentBalance` is the optional
+  **live** balance including post-statement charges, and the **owed** figure is
+  this period's remaining goal under `paidGoal`. Utilization was computed from
+  `balance`, so a card with a $0 statement and a live balance read 0%. New
+  shared helpers resolve all three together — `liveCardBalance()` (current when
+  tracked, statement otherwise; a stored `0` is honored, only null/`''` counts
+  as unset) and `cardAmounts(card, mk)` in `client/js/utils.js`, mirrored by
+  `Schedule.liveBalance` / `Schedule.amounts` → `CardAmounts` in `Schedule.swift`
+  and `Schedule.kt`. Every utilization and debt total now reads `live`:
+  `CardsList.svelte` (per-card, the summary tiles, the payoff lump, the
+  has-a-balance filter and largest-balance sort), `DashboardView.svelte` (card
+  debt tile + the ≥80% alert), `CardsView.swift` and `CardsScreen.kt`.
+- **`settings.cardHeadline`**: new key, `"due"` (default) | `"current"` |
+  `"owed"`, choosing which amount leads a row. Read via `cardHeadlineMode(s)`
+  (`utils.js`), the typed `Settings.cardHeadline` accessor (`Settings.swift`)
+  and the `JsonObject.cardHeadline` extension (`Settings.kt`) — all three
+  normalize unknown values to `"due"`, so an older client that has never heard
+  of the key round-trips it untouched and renders the default.
+  `otherAmounts()` returns the two it isn't leading with, in a stable order:
+  the preference re-ranks the three, it never hides one.
+- **Web card row**: the header is now `.card-row-headline` (identity | corner
+  block), with the amounts in `.card-row-duebox` — headline, caption, and the
+  two companions in `.card-row-duebox-alts`. Since every money figure lives
+  there, the stats grid dropped its balance stat and keeps the credit line's
+  facts (limit / min / suggested / utilization); a loan renders no stats row at
+  all, its two figures already being in the corner. The due badges lost their
+  `· Next <date>` tail, which the corner now carries.
+- **Settings UI**: a "Cards" section in the Payments panel
+  (`client/settings.html` + `initCardHeadlineSection` in `client/js/settings.js`,
+  following the `paidgoal` pattern — the partial snapshot is safe because
+  `PUT /api/data` leaves absent lists alone), `CardHeadlinePicker` in
+  `SettingsScreen.kt` (→ `AppViewModel.setCardHeadline`), and a segmented picker
+  in `SettingsView.swift` (→ `AppStore.setCardHeadline`). `AppStore.cardAmounts`
+  / `AppViewModel.cardAmounts` resolve a row's figures against the active period
+  and policy.
+- **Native layout notes**: `CardsScreen.kt` hoists the due countdown above the
+  header — the footer text and the headline's color now read from one
+  `daysLeft`, so they can't disagree. The two companion amounts stack one per
+  line on iOS and Android: side by side they widened the trailing column enough
+  to ellipsize the card's name at 360dp. The `Current: $X` chip left the
+  utilization row on both, having moved into the corner.
+- Tests: `client/js/utils.test.js` (`liveCardBalance`, `cardHeadlineMode` /
+  `otherCardAmounts`, and `cardAmounts` — policy-driven owed, partial payments,
+  skips, loans), a `Schedule — liveBalance / cardAmounts` section in
+  `LogicChecks.swift`, and `liveBalancePrefersCurrentWhenTracked` /
+  `cardAmountsSeparatesDueCurrentAndOwed` in `LogicTest.kt`. Verified on the
+  Android emulator: all three headline choices re-rank the corner and persist.
+
+- **Issuer marks, three tiers**: resolution is now **bundled logo → monogram
+  chip → emoji** (`issuerIcons.js` ⇄ `IssuerIcons.swift` / `IssuerIcons.kt`),
+  with loans keeping 🏦. `issuerLogos.js` carries 37 Simple Icons (CC0) marks —
+  banks and networks, airline/hotel co-brands, retail/telecom and fintech —
+  regenerated into `IssuerLogos.swift` / `IssuerLogos.kt` by
+  `scripts/sync-issuer-logos.js` (CI runs `--check`; edit the web table, never
+  the generated files). `ISSUER_ALIASES` grew shorthands (`goldman`) and loyalty
+  programs (`aadvantage`, `skymiles`, `mileageplus`, `rapidrewards`, `trueblue`,
+  `bonvoy`, `hiltonhonors`), since a card is often named for its program; only
+  aliases of `MIN_ALIAS_SUBSTRING` (5) or longer may match inside a longer name,
+  so `boa` / `usb` can't fire on an unrelated word. A `NETWORK_KEYS` mark
+  (visa / mastercard / dinersclub / jcb) matched from the card's *name* now
+  loses to the issuer's monogram — "Bilt Mastercard" is a Bilt card — while an
+  issuer that IS the network keeps its logo.
+- **Monograms**: new `client/js/issuerMonograms.js` ⇄ `IssuerMonograms.swift` /
+  `IssuerMonograms.kt` — `issuerInitials()` derives initials from the issuer
+  name (acronyms preserved: "U.S. Bank" → US; company suffixes dropped:
+  "Synchrony Bank" → S) with curated overrides in `ISSUER_MONOGRAM_TEXT`
+  (Capital One → C1), tinted from `ISSUER_MONOGRAM_COLORS` where we have a
+  reading of the brand and a stable hash of `CARD_COLORS` otherwise — so **any**
+  issuer a user types gets a mark. Carried as a new `CategoryIcon` case
+  (`.monogram(text:color:emoji:)` / `CategoryIcon.Monogram`), keeping the emoji
+  as the text-context stand-in, and rendered by `IconMark` on all three
+  platforms (`.icon-mark-monogram` in `pages.css`, `IssuerMonogramMark` in
+  `IconMark.kt`, `IssuerLogoView.swift`). `Theme.chip()` re-lifts an almost
+  black brand color off the dark surface (1.6:1) after `BrandColor.legible`
+  has already guaranteed the white initials read against it. Docs:
+  `native-contract.md` iconography. Tests: `issuerIcons.test.js`,
+  `IssuerIconChecks.swift`, `IssuerIconsTest.kt`.
+- **`?next=` hardening**: `safeNextPath()` no longer filters the input — it
+  **rebuilds** the target, so nothing an attacker writes reaches
+  `window.location` verbatim. The path must equal a literal in `ALLOWED_PATHS`
+  (`/dashboard`, `/settings`, `/plaid-oauth`, `/dev-portal`) and the match
+  yields the list's copy, not the caller's; the query is re-encoded through
+  `URLSearchParams`, dropping any pair failing `SAFE_KEY` / `SAFE_VALUE` and
+  capped at `MAX_PARAMS` (8); the fragment must match `SAFE_HASH`. The fragment
+  is split before the query, so a `?` inside a hash can't smuggle a parameter.
+  Anything else returns `''` and the call site falls back to the dashboard.
+- **Deps**: `rimraf` pinned to `^6.1.3` via `overrides` — v6 sheds the v5
+  transitive tree (`glob`, `jackspeak`, `@isaacs/cliui`, `cross-spawn`,
+  `string-width`, `foreground-child`, …), which is most of the ~400-line
+  `package-lock.json` shrink; `bun.lock` synced.
+
 - **Email templates**: `server/emails.js` `layout()` now emits a full document
   with `<meta name="color-scheme">` and a `<style>` block whose
   `prefers-color-scheme: dark` rules re-color by class. Inline styles keep the
@@ -483,9 +703,10 @@ Each release below uses two layers:
   signed-out visitor to `/login?next=<target>` **when the URL carries a query**
   — a bare `/dashboard` still lands on the marketing page, so the funnel is
   unchanged. `client/js/nextUrl.js` validates the value before anything
-  navigates: same-origin absolute paths only, rejecting `//host`, `/\host`,
-  any scheme, control characters, and over-long input, so `next` can't become
-  an open redirect. `auth.js` consumes it in `postAuthHome()` (after the
+  navigates — first by rejecting `//host`, `/\host`, any scheme, control
+  characters and over-long input, and now by rebuilding the target from an
+  allowlist (see *`?next=` hardening* above) — so `next` can't become an open
+  redirect. `auth.js` consumes it in `postAuthHome()` (after the
   existing `?household=` invite path) and `initPrivatePage` mirrors the gate on
   session expiry — the client version can keep the `#hash`, which never
   reaches the server. `settings.js` accepts `?tab=` alongside `#hash` for the
@@ -674,9 +895,10 @@ Each release below uses two layers:
   resolve overrides; Vitest + FiHavenCoreChecks + Android `CategoryIconTest`
   / `ScheduleTest` coverage. Docs: `native-contract.md` iconography.
 - **Issuer icons**: web `issuerIcons.js` + `issuerLogos.js` (Simple Icons SVG
-  data URIs); native `IssuerIcons.swift` / `IssuerIcons.kt` emoji parity;
-  Cards list chips + upcoming card rows; Vitest + `IssuerIconChecks` +
-  `IssuerIconsTest`.
+  data URIs); native `IssuerIcons.swift` / `IssuerIcons.kt` (emoji only at this
+  point — native gained the vector marks and monograms later in this release,
+  see *Issuer marks, three tiers* above); Cards list chips + upcoming card rows;
+  Vitest + `IssuerIconChecks` + `IssuerIconsTest`.
 - **Deps**: `better-sqlite3` ^13.0.1 (`allowScripts`), `plaid` ^44; sync
   `package-lock.json` / `bun.lock`.
 - **List search**: iOS `.searchable` on Bills / Cards / Subscriptions / Spending;
@@ -736,6 +958,12 @@ Each release below uses two layers:
   tightened `subscriptionsFinder` heuristics + tests.
 - **Plaid purchases**: `plaidHidden` merge rules, pending Keep/decline UI.
 - **Health**: `server/health.js` + integration test; deploy verify uses `{"ok":true}`.
+- **Play track**: `play-upload.js` now defaults to the `beta` track (Play Console
+  **Open testing**) instead of `alpha` (Closed testing), takes `--track
+  internal|alpha|beta|production` alongside `GOOGLE_PLAY_TRACK`, validates the
+  track name before building, and supports `GOOGLE_PLAY_ROLLOUT=<0..1>` for a
+  staged rollout (`status: inProgress` + `userFraction`) instead of a full
+  `completed` release.
 - **Deploy**: `scripts/native-versions.js`, `ios-testflight.sh --build`,
   `play-upload.js --version-code` / release naming; `upload.example.sh` requires
   `MFA_ENCRYPTION_KEY` and `chmod 700/600` on remote `data/`; XcodeGen download

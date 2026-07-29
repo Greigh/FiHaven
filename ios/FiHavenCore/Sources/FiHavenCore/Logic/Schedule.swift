@@ -233,6 +233,70 @@ public enum Schedule {
     /// Cent-level tolerance so a goal met to the penny reads as full.
     public static let paidEpsilon = 0.005
 
+    // ── The three amounts on a card ─────────────────────────────────
+    /// What's actually on the card right now. `balance` is the statement
+    /// balance — what's due by the due date — while `currentBalance` (typed
+    /// in, or pushed by a bank sync) is the live figure including charges made
+    /// since the statement closed. Utilization follows the live figure because
+    /// that's what the issuer reports. Unset means "not tracked separately",
+    /// so fall back to the statement. Mirrors liveCardBalance in utils.js.
+    public static func liveBalance(_ card: Card) -> Double {
+        card.currentBalance ?? card.balance
+    }
+
+    /// The three amounts a card row can lead with, resolved together so the
+    /// headline and its companion figures can never disagree.
+    public struct CardAmounts: Equatable {
+        /// Statement balance — a loan's is its scheduled payment.
+        public let due: Double
+        /// Live balance, the one utilization is measured against.
+        public let current: Double
+        /// Still owed this period under the paid-goal policy (0 if skipped).
+        public let owed: Double
+
+        public init(due: Double, current: Double, owed: Double) {
+            self.due = due
+            self.current = current
+            self.owed = owed
+        }
+
+        /// The amount named by a `Settings.cardHeadline` value.
+        public func value(for headline: String) -> Double {
+            switch headline {
+            case "current": return current
+            case "owed":    return owed
+            default:        return due
+            }
+        }
+    }
+
+    public static func amounts(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: [Payment],
+        in bounds: PeriodBounds,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> CardAmounts {
+        let ref = String(card.id)
+        let isLoan = (card.type ?? "card") == "loan"
+        let goal = goalAmount(card: card, policy: policy, payments: payments, in: bounds, tz: tz, now: now)
+        let owed = isSkipped(payments, type: "card", refId: ref, in: bounds)
+            ? 0
+            : remainingForGoal(type: "card", refId: ref, goal: goal, payments: payments, in: bounds)
+        return CardAmounts(
+            due: isLoan ? card.minPayment : card.balance,
+            current: liveBalance(card),
+            owed: owed
+        )
+    }
+
+    /// The two amounts a row isn't leading with, in a stable order. The
+    /// preference re-ranks the three; it never hides one.
+    public static func otherAmounts(than headline: String) -> [String] {
+        ["due", "current", "owed"].filter { $0 != headline }
+    }
+
     /// The "recommended" payment for a card. A per-card override wins;
     /// otherwise promo cards spread the balance to clear it before the
     /// promo ends (never below the minimum) and non-promo cards recommend

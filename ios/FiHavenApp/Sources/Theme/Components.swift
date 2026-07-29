@@ -261,6 +261,8 @@ struct IconMark: View {
                 .minimumScaleFactor(0.5)
         case .logo(let key, let glyph):
             IssuerLogoView(key: key, size: size, fallbackEmoji: glyph)
+        case .monogram(let text, let color, _):
+            IssuerMonogramView(text: text, color: color, size: size)
         case .image(let uri):
             if let ui = imageFromDataURL(uri) {
                 Image(uiImage: ui)

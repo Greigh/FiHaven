@@ -245,6 +245,18 @@ export function archiveInsteadOfDelete(s) {
   return !!(s && s.archiveInsteadOfDelete);
 }
 
+/* Which of a card's three amounts leads its row (the big figure in the
+   top-right corner). The other two always stay on the card, just smaller —
+   this picks the headline, it never hides anything.
+     'due'     — statement balance: what the issuer wants by the due date
+     'current' — live balance including post-statement charges
+     'owed'    — what's still owed this period under the paid-goal policy
+   Defaults to 'due': the amount with a deadline attached. */
+export function cardHeadlineMode(s) {
+  var v = s && s.cardHeadline;
+  return (v === 'current' || v === 'owed') ? v : 'due';
+}
+
 // Short calendar label (e.g. "Feb 5"); "Feb 5, 2027" if it's in a
 // future year so the year doesn't go missing on a December → January
 // rollover.
@@ -334,6 +346,50 @@ export function daysUntilDate(dateStr) {
 }
 
 /* ── Credit Card Helpers ────────────────────────────────── */
+
+/* What's actually sitting on the card right now. `balance` is the statement
+   balance — what's due by the due date — while `currentBalance` (typed in, or
+   pushed by a bank sync) is the live figure including charges made since the
+   statement closed. Utilization and debt totals follow the live figure because
+   that's what the issuer reports; the statement balance drives what's owed.
+   Unset means "not tracked separately", so fall back to the statement. */
+export function liveCardBalance(card) {
+  if (!card) return 0;
+  var cur = card.currentBalance;
+  if (cur !== null && cur !== undefined && cur !== '' && isFinite(parseFloat(cur))) {
+    return parseFloat(cur);
+  }
+  return parseFloat(card.balance) || 0;
+}
+
+/* The three amounts a card row can lead with, resolved together so the
+   headline and the smaller companion figures can never disagree.
+     due     — statement balance (a loan's is its scheduled payment)
+     current — live balance, the one utilization is measured against
+     owed    — still owed this period under the paid-goal policy (0 if skipped) */
+export function cardAmounts(card, mk) {
+  if (!card) return { due: 0, current: 0, owed: 0 };
+  var isLoan = (card.type || 'card') === 'loan';
+  return {
+    due: isLoan ? (parseFloat(card.minPayment) || 0) : (parseFloat(card.balance) || 0),
+    current: liveCardBalance(card),
+    owed: remainingForItem('card', String(card.id), mk || currentPeriodKey()),
+  };
+}
+
+// Short labels for the two amounts a row isn't leading with.
+export var CARD_AMOUNT_LABELS = {
+  due: 'due',
+  current: 'current',
+  owed: 'still owed',
+};
+
+// The other two amounts, in a stable order, for the companion line.
+// `mode` is a value from cardHeadlineMode().
+export function otherCardAmounts(mode) {
+  return ['due', 'current', 'owed'].filter(function (k) { return k !== mode; });
+}
+
 export function promoNeeded(card) {
   var bal    = parseFloat(card.promoBalance) || parseFloat(card.balance) || 0;
   var months = monthsUntil(card.promoEndDate);
