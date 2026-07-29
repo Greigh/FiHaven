@@ -23,10 +23,17 @@ sealed class CategoryIcon {
      */
     data class Logo(val key: String, val emoji: String) : CategoryIcon()
 
+    /**
+     * Issuer initials on a brand-colored chip ([color] is 0xRRGGBB), for
+     * issuers with no bundled logo. [emoji] stays the text-context stand-in.
+     */
+    data class Monogram(val text: String, val color: Int, val emoji: String) : CategoryIcon()
+
     /** Glyph for text-only contexts; images fall back to [defaultEmoji]. */
     fun emoji(defaultEmoji: String = "📌"): String = when (this) {
         is Emoji -> value
         is Logo -> emoji
+        is Monogram -> emoji
         is Image -> defaultEmoji
     }
 

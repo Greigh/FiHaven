@@ -57,8 +57,8 @@ func runIssuerIconChecks() {
         )
         checkEqual(
             IssuerIcons.iconInfo(for: Card(id: "1", name: "Blue", issuer: "Bilt")),
-            .emoji("🏠"),
-            "iconInfo falls back to emoji with no bundled logo"
+            .monogram(text: "B", color: 0x1A1A1A, emoji: "🏠"),
+            "iconInfo falls back to a monogram with no bundled logo"
         )
         checkEqual(
             IssuerIcons.iconInfo(for: Card(id: "1", name: "Sapphire", issuer: "Chase")).emoji(),
@@ -95,6 +95,84 @@ func runIssuerIconChecks() {
         checkEqual(IssuerLogos.logo("chase")?.color, 0x117ACA, "brand color packed as 0xRRGGBB")
     }
 
+    section("IssuerIcons — issuer beats network") {
+        // "Bilt Mastercard" is a Bilt card, not a Mastercard one.
+        checkEqual(
+            IssuerIcons.iconInfo(for: Card(id: "1", name: "Bilt Mastercard", issuer: "Bilt")),
+            .monogram(text: "B", color: 0x1A1A1A, emoji: "🏠"),
+            "named issuer wins over a network mark from the name"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Visa Signature", issuer: "Citi"))?.key,
+            nil, "Citi card named Visa keeps its monogram"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Signature", issuer: "Visa"))?.key,
+            "visa", "an issuer that IS the network keeps its logo"
+        )
+        checkEqual(
+            IssuerIcons.logo(for: Card(id: "1", name: "Visa Platinum"))?.key,
+            "visa", "with no issuer named, the network mark beats nothing"
+        )
+    }
+
+    section("IssuerIcons — aliases & loyalty programs") {
+        // "verizon" wins over "visa" because longer keys match first.
+        checkEqual(IssuerIcons.logoKey("Verizon Visa"), "verizon", "Verizon Visa")
+        checkEqual(IssuerIcons.logoKey("Goldman"), "goldmansachs", "Goldman → Goldman Sachs")
+        checkEqual(IssuerIcons.logoKey("AAdvantage Aviator"), "americanairlines", "AAdvantage")
+        checkEqual(IssuerIcons.logoKey("SkyMiles Reserve"), "delta", "SkyMiles")
+        checkEqual(IssuerIcons.logoKey("MileagePlus Explorer"), "unitedairlines", "MileagePlus")
+        checkEqual(IssuerIcons.logoKey("Rapid Rewards Priority"), "southwestairlines", "Rapid Rewards")
+        checkEqual(IssuerIcons.logoKey("Bonvoy Boundless"), "marriott", "Bonvoy")
+        checkEqual(IssuerIcons.logoKey("Diners Club"), "dinersclub", "Diners Club")
+        // Short aliases stay exact so they can't fire inside unrelated words.
+        checkEqual(IssuerIcons.logoKey("Boat Loan"), nil, "short alias doesn't match a substring")
+    }
+
+    section("IssuerIcons — monograms") {
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Double Cash", issuer: "Citi"))?.text,
+                   "C", "Citi")
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Savor", issuer: "Capital One"))?.text,
+                   "C1", "Capital One shorthand")
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Altitude", issuer: "U.S. Bank"))?.text,
+                   "US", "U.S. Bank")
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Card", issuer: "CareCredit"))?.text,
+                   "CC", "CareCredit")
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Card", issuer: "SoFi"))?.text,
+                   "S", "SoFi keeps one initial")
+        checkEqual(
+            IssuerIcons.monogram(for: Card(id: "1", name: "cashRewards", issuer: "Navy Federal Credit Union"))?.text,
+            "NF", "Navy Federal"
+        )
+        checkEqual(IssuerIcons.monogram(for: Card(id: "1", name: "Mortgage", type: "loan"))?.text,
+                   nil, "loans keep the bank glyph")
+
+        checkEqual(IssuerMonograms.initials("U.S. Bank"), "US", "acronym start")
+        checkEqual(IssuerMonograms.initials("PNC Bank"), "PNC", "three-letter acronym")
+        checkEqual(IssuerMonograms.initials("Care Credit"), "CC", "two words")
+        checkEqual(IssuerMonograms.initials("Synchrony Bank"), "S", "company suffix dropped")
+        checkEqual(IssuerMonograms.initials("Mountain America Credit Union"), "MA", "filler dropped")
+        checkEqual(IssuerMonograms.initials("Credit Union"), "CU", "nothing but filler")
+        checkEqual(IssuerMonograms.initials(""), "", "empty")
+        checkEqual(IssuerMonograms.initials("   "), "", "blank")
+
+        checkEqual(IssuerMonograms.monogram(key: "citi", name: "Citi")?.color, 0x056DAE, "curated color")
+        // Curated entries match inside a longer, more formal name.
+        checkEqual(
+            IssuerMonograms.monogram(key: "navyfederalcreditunion", name: "Navy Federal Credit Union")?.color,
+            0x003057, "curated color from a longer name"
+        )
+        checkEqual(
+            IssuerMonograms.monogram(key: "synchronybank", name: "Synchrony Bank")?.color,
+            0x003057, "Synchrony Bank"
+        )
+        let first = IssuerMonograms.monogram(key: "mountainridge", name: "Mountain Ridge")
+        let again = IssuerMonograms.monogram(key: "mountainridge", name: "Mountain Ridge")
+        checkEqual(first?.color, again?.color, "fallback color is stable")
+        check((first?.color ?? 0xFFFFFFFF) <= 0xFFFFFF, "fallback color is 0xRRGGBB")
+    }
+
     section("IssuerIcons — normalize") {
         checkEqual(IssuerIcons.normalize("American Express"), "americanexpress", "spaces stripped")
         checkEqual(IssuerIcons.normalize("U.S. Bank"), "usbank", "punctuation stripped")
@@ -112,6 +190,6 @@ func runIssuerIconChecks() {
         checkEqual(items.count, 2, "two card items")
         let byId = Dictionary(uniqueKeysWithValues: items.map { ($0.refId, $0) })
         checkEqual(byId["10"]?.icon, .logo(key: "chase", emoji: "🔵"), "Chase card logo")
-        checkEqual(byId["11"]?.icon, .emoji("🏠"), "Bilt card icon")
+        checkEqual(byId["11"]?.icon, .monogram(text: "B", color: 0x1A1A1A, emoji: "🏠"), "Bilt card monogram")
     }
 }

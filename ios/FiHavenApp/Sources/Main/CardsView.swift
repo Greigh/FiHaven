@@ -147,6 +147,8 @@ struct CardsView: View {
                         state: store.paidState(type: "card", refId: String(card.id)),
                         paidSoFar: store.paidAmount(type: "card", refId: String(card.id)),
                         goal: store.goalAmount(type: "card", refId: String(card.id)),
+                        amounts: store.cardAmounts(card),
+                        headline: store.cardHeadline,
                         skipped: store.isSkipped(type: "card", refId: String(card.id)),
                         onPay: { paying = PayTarget(type: "card", refId: String(card.id), name: card.name) },
                         onEdit: { editing = card },
@@ -310,7 +312,9 @@ struct CardsView: View {
 
     // ── Cards summary (credit cards tab only) ────────────────────────
     private var cardsSummaryHeader: some View {
-        let totalBalance = baseCards.reduce(0.0) { $0 + $1.balance }
+        // Live balances, so a card charged since its statement closed still
+        // counts toward the total and the utilization it drives at the issuer.
+        let totalBalance = baseCards.reduce(0.0) { $0 + Schedule.liveBalance($1) }
         let totalLimit = baseCards.reduce(0.0) { $0 + $1.limit }
         let util = totalLimit > 0 ? totalBalance / totalLimit : 0.0
         let utilPct = Int(util * 100)
@@ -333,7 +337,8 @@ struct CardsView: View {
                 Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 Text("Util \(utilPct)%").font(Theme.ui(12)).foregroundStyle(high ? Theme.red : Theme.green)
                 Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                Text("\(baseCards.count) card\(baseCards.count == 1 ? "" : "s")").font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                Text(totalLimit > 0 ? "of \(Money.fmtShort(totalLimit))" : "\(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
             if totalLimit > 0 {
                 ProgressView(value: min(1, util))
@@ -489,14 +494,54 @@ private struct CardRow: View {
     let state: PaidState
     let paidSoFar: Double
     let goal: Double
+    let amounts: Schedule.CardAmounts
+    /// Which of `amounts` leads the row — "due" | "current" | "owed".
+    let headline: String
     var skipped: Bool = false
     let onPay: () -> Void
     let onEdit: () -> Void
     var onSkip: () -> Void = {}
     var onUnskip: () -> Void = {}
 
+    // Utilization is measured against the live balance — charges made since the
+    // statement closed still count against the limit at the issuer.
     private var utilization: Double {
-        card.limit > 0 ? min(1, card.balance / card.limit) : 0
+        card.limit > 0 ? min(1, amounts.current / card.limit) : 0
+    }
+
+    // ── Headline amount (top-right) ─────────────────────────────────
+    private var headlineLabel: String {
+        switch headline {
+        case "current": return "Current"
+        case "owed":    return skipped ? "Skipped" : "Still owed"
+        default:        return card.type == "loan" ? "Payment" : "Due"
+        }
+    }
+
+    private var headlineColor: Color {
+        if amounts.value(for: headline) <= Schedule.paidEpsilon { return Theme.green }
+        guard headline == "due", let d = daysLeft else { return Theme.text }
+        if d < 0 { return Theme.red }
+        if d <= 5 { return Theme.orange }
+        return Theme.text
+    }
+
+    /// The amounts the headline isn't showing — the preference re-ranks the
+    /// three rather than hiding any of them. One per line: side by side they
+    /// widened the trailing column enough to truncate the card's name on a
+    /// narrow phone.
+    private var companionAmounts: [(key: String, text: String)] {
+        Schedule.otherAmounts(than: headline).map { key in
+            (key, "\(Self.altLabel(key, isLoan: card.type == "loan")) \(Money.fmtShort(amounts.value(for: key)))")
+        }
+    }
+
+    private static func altLabel(_ key: String, isLoan: Bool) -> String {
+        switch key {
+        case "current": return isLoan ? "principal" : "current"
+        case "owed":    return "still owed"
+        default:        return isLoan ? "payment" : "due"
+        }
     }
 
     // Days until the payment lands. A settled card (paid or skipped) rolls to its
@@ -576,7 +621,22 @@ private struct CardRow: View {
                     }
                 }
                 Spacer()
-                Text(Money.fmt(card.balance)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(headlineLabel.uppercased())
+                        .font(Theme.ui(9, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundStyle(Theme.muted)
+                    Text(Money.fmt(amounts.value(for: headline)))
+                        .font(Theme.mono(16, weight: .semibold))
+                        .foregroundStyle(headlineColor)
+                    ForEach(companionAmounts, id: \.key) { companion in
+                        Text(companion.text)
+                            .font(Theme.ui(10))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityElement(children: .combine)
             }
 
             if card.type != "loan" {
@@ -604,9 +664,6 @@ private struct CardRow: View {
                         Text("High")
                             .font(Theme.ui(10, weight: .medium))
                             .foregroundStyle(Theme.orange)
-                    }
-                    if let cur = card.currentBalance, cur > 0 {
-                        Text("Current: \(Money.fmtShort(cur))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
                     autopayChip
                     Spacer()

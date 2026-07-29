@@ -26,6 +26,12 @@ enum Theme {
     static let orangeBg    = dyn(0xFDEEE3, 0x2B1A0C)
     static let yellow      = dyn(0xA16207, 0xFBBF24)
     static let yellowBg    = dyn(0xFBF5DC, 0x2B2008)
+    /// Chart series. Deliberately NOT green/red: that pair reads as ΔE 2.1 under
+    /// deuteranopia on the dark surface — effectively one color. Blue/orange holds
+    /// ΔE ≥ 26 in both modes. The dark steps are chosen against the dark surface,
+    /// not flipped from light (the light steps sit above the dark lightness band).
+    static let chartIncome = dyn(0x3D6FE1, 0x4A87EE)
+    static let chartSpend  = dyn(0xC2410C, 0xD9700F)
 
     // ── Radii (px → pt) ──────────────────────────────────────────────
     static let radius: CGFloat = 10
@@ -94,6 +100,21 @@ enum Theme {
         })
         #else
         return rgb(UInt(BrandColor.legible(color, on: 0xFFFFFF)))
+        #endif
+    }
+
+    /// Background for a monogram chip: dark enough for white initials, and
+    /// in dark mode still distinguishable from the card behind it (an almost
+    /// black brand color would otherwise vanish into the surface).
+    static func chip(_ color: UInt32) -> Color {
+        let readable = BrandColor.legible(color, on: 0xFFFFFF)
+        #if canImport(UIKit)
+        return Color(UIColor { traits in
+            let surface: UInt32 = traits.userInterfaceStyle == .dark ? 0x17181B : 0xFFFFFF
+            return uiColor(UInt(BrandColor.legible(readable, on: surface, minContrast: 1.6)))
+        })
+        #else
+        return rgb(UInt(readable))
         #endif
     }
 

@@ -204,6 +204,54 @@ func runScheduleChecks() {
                    1600, "loan goal = monthly even under full", tol: 0.001)
     }
 
+    section("Schedule — liveBalance / cardAmounts") {
+        let tz = TimeZone(identifier: "UTC")!
+        let bounds = Period.bounds(for: makeDate(2026, 6, 15, tz: tz), config: PeriodConfig(), tz: tz)
+
+        // Live balance: the current balance when tracked, else the statement.
+        var linked = Card(id: "1", name: "Visa", balance: 2829, minPayment: 35, regularAPR: 0)
+        linked.currentBalance = 2946.18
+        linked.limit = 13500
+        checkClose(Schedule.liveBalance(linked), 2946.18, "live balance = current when set", tol: 0.001)
+        let plain = Card(id: "2", name: "Plain", balance: 300, minPayment: 25)
+        checkClose(Schedule.liveBalance(plain), 300, "live balance falls back to statement", tol: 0.001)
+        var paidOff = plain; paidOff.currentBalance = 0
+        checkClose(Schedule.liveBalance(paidOff), 0, "a current balance of zero is honored", tol: 0.001)
+
+        // The three amounts are distinct: due (statement), current (live),
+        // owed (this period's goal under the policy).
+        let a = Schedule.amounts(card: linked, policy: .minimum, payments: [], in: bounds, tz: tz)
+        checkClose(a.due, 2829, "due = statement balance", tol: 0.001)
+        checkClose(a.current, 2946.18, "current = live balance", tol: 0.001)
+        checkClose(a.owed, 35, "owed follows the minimum policy", tol: 0.001)
+        checkClose(a.value(for: "current"), 2946.18, "value(for:) picks the headline", tol: 0.001)
+        checkClose(a.value(for: "nonsense"), 2829, "unknown headline falls back to due", tol: 0.001)
+
+        // Partial payments shrink only the owed figure.
+        let part = [Payment(id: "1", type: "card", refId: "1", amount: 20, date: "2026-06-10", monthKey: "2026-06")]
+        let b = Schedule.amounts(card: linked, policy: .minimum, payments: part, in: bounds, tz: tz)
+        checkClose(b.due, 2829, "a partial payment leaves the statement balance alone", tol: 0.001)
+        checkClose(b.owed, 15, "owed shrinks by what's been paid", tol: 0.001)
+
+        // A skip owes nothing; the balances stay put.
+        let skip = [Payment(id: "2", type: "card", refId: "1", date: "2026-06-10", monthKey: "2026-06", skipped: true)]
+        let c = Schedule.amounts(card: linked, policy: .minimum, payments: skip, in: bounds, tz: tz)
+        checkClose(c.owed, 0, "a skipped card owes nothing", tol: 0.001)
+        checkClose(c.due, 2829, "a skip doesn't touch the statement balance", tol: 0.001)
+
+        // A loan's "due" is its scheduled payment, not its principal.
+        var loan = Card(id: "9", name: "Mortgage", balance: 250_000, minPayment: 1600)
+        loan.type = "loan"
+        let l = Schedule.amounts(card: loan, policy: .full, payments: [], in: bounds, tz: tz)
+        checkClose(l.due, 1600, "loan due = scheduled payment", tol: 0.001)
+        checkClose(l.current, 250_000, "loan current = remaining principal", tol: 0.001)
+
+        // The preference re-ranks the three; it never hides one.
+        check(Schedule.otherAmounts(than: "due") == ["current", "owed"], "due leaves current + owed")
+        check(Schedule.otherAmounts(than: "current") == ["due", "owed"], "current leaves due + owed")
+        check(Schedule.otherAmounts(than: "owed") == ["due", "current"], "owed leaves due + current")
+    }
+
     section("Rewards — rank for category") {
         let tz = TimeZone(identifier: "UTC")!
         let now = makeDate(2026, 6, 15, tz: tz)

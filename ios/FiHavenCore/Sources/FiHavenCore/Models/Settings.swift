@@ -68,6 +68,17 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["paidGoal"] = newValue.map { .string($0) } ?? .null }
     }
 
+    /// Which of a card's three amounts leads its row: "due" (default —
+    /// the statement balance), "current" (live balance), or "owed" (what's
+    /// left this period). The other two stay on the card either way.
+    public var cardHeadline: String {
+        get {
+            let v = raw["cardHeadline"]?.asString
+            return (v == "current" || v == "owed") ? v! : "due"
+        }
+        set { raw["cardHeadline"] = .string(newValue) }
+    }
+
     /// Monthly-rollover pre-fill policy: "average" (default) | "carry" | "blank".
     public var rolloverPrefill: String {
         get {
@@ -421,7 +432,7 @@ public struct Settings: Codable, Equatable, Sendable {
                         "type": .string("image"),
                         "value": .string(uri),
                     ])
-                case .logo:
+                case .logo, .monogram:
                     // Issuer brand marks are derived, never a stored override.
                     continue
                 }

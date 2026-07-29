@@ -359,6 +359,11 @@ extension AppStore {
         mutate { $0.settings.paidGoal = policy.rawValue }
     }
 
+    /// Which amount leads each card row: "due" | "current" | "owed".
+    func setCardHeadline(_ headline: String) {
+        mutate { $0.settings.cardHeadline = headline }
+    }
+
     // ── Budget period ─────────────────────────────────────────────────
     func setPeriodMode(_ mode: String) { mutate { $0.settings.periodMode = mode } }
     func setPeriodStartDay(_ day: Int) { mutate { $0.settings.periodStartDay = min(max(day, 1), 28) } }

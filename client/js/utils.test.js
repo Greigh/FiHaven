@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   recommendedAmount,
   promoNeeded,
+  liveCardBalance,
+  cardAmounts,
+  cardHeadlineMode,
+  otherCardAmounts,
   goalAmountFor,
   fmt,
   fmtShort,
@@ -96,6 +100,103 @@ describe('utils — promoNeeded', () => {
 
   it('returns the whole balance once the promo has ended', () => {
     expect(promoNeeded({ promoBalance: 500, promoEndDate: '2000-01-01' })).toBe(500);
+  });
+});
+
+describe('utils — liveCardBalance', () => {
+  it('prefers the current balance when one is tracked', () => {
+    expect(liveCardBalance({ balance: 0, currentBalance: 420.5 })).toBe(420.5);
+  });
+
+  it('falls back to the statement balance when current is unset', () => {
+    expect(liveCardBalance({ balance: 300 })).toBe(300);
+    expect(liveCardBalance({ balance: 300, currentBalance: null })).toBe(300);
+    expect(liveCardBalance({ balance: 300, currentBalance: '' })).toBe(300);
+  });
+
+  it('honors a current balance of exactly zero', () => {
+    expect(liveCardBalance({ balance: 300, currentBalance: 0 })).toBe(0);
+  });
+
+  it('handles string amounts and missing cards', () => {
+    expect(liveCardBalance({ balance: '150.25' })).toBe(150.25);
+    expect(liveCardBalance({ currentBalance: '75' })).toBe(75);
+    expect(liveCardBalance(null)).toBe(0);
+    expect(liveCardBalance({})).toBe(0);
+  });
+});
+
+describe('utils — cardHeadlineMode', () => {
+  it('defaults to the amount due', () => {
+    expect(cardHeadlineMode(null)).toBe('due');
+    expect(cardHeadlineMode({})).toBe('due');
+    expect(cardHeadlineMode({ cardHeadline: 'nonsense' })).toBe('due');
+  });
+
+  it('honors the two other choices', () => {
+    expect(cardHeadlineMode({ cardHeadline: 'current' })).toBe('current');
+    expect(cardHeadlineMode({ cardHeadline: 'owed' })).toBe('owed');
+  });
+
+  it('always leaves the other two amounts to show alongside', () => {
+    expect(otherCardAmounts('due')).toEqual(['current', 'owed']);
+    expect(otherCardAmounts('current')).toEqual(['due', 'owed']);
+    expect(otherCardAmounts('owed')).toEqual(['due', 'current']);
+  });
+});
+
+describe('utils — cardAmounts', () => {
+  beforeEach(() => {
+    setBills([]);
+    setPayments([]);
+    setSettings({ paidGoal: 'full' });
+  });
+
+  it('separates what is due from the live balance', () => {
+    const card = { id: 'C1', type: 'card', balance: 2829, currentBalance: 2946.18, minPayment: 35 };
+    setCards([card]);
+    const a = cardAmounts(card);
+    expect(a.due).toBe(2829);
+    expect(a.current).toBe(2946.18);
+    expect(a.owed).toBe(2829);       // paidGoal 'full' targets the statement balance
+  });
+
+  it('follows the paid-goal policy for the owed figure', () => {
+    const card = { id: 'C1', type: 'card', balance: 2829, currentBalance: 2946.18, minPayment: 35 };
+    setCards([card]);
+    setSettings({ paidGoal: 'minimum' });
+    const a = cardAmounts(card);
+    expect(a.due).toBe(2829);        // still owed by the due date
+    expect(a.owed).toBe(35);         // but only the minimum counts as "fully paid"
+  });
+
+  it('shrinks only the owed figure as partial payments land', () => {
+    const card = { id: 'C1', type: 'card', balance: 2829, currentBalance: 2946.18, minPayment: 35 };
+    setCards([card]);
+    setSettings({ paidGoal: 'minimum' });
+    setPayments([{ type: 'card', refId: 'C1', amount: 20, date: localIso() }]);
+    const a = cardAmounts(card);
+    expect(a.due).toBe(2829);
+    expect(a.current).toBe(2946.18);
+    expect(a.owed).toBe(15);
+  });
+
+  it('uses the scheduled payment as a loan’s due amount, not its principal', () => {
+    const loan = { id: 'L1', type: 'loan', balance: 200000, minPayment: 1200 };
+    setCards([loan]);
+    const a = cardAmounts(loan);
+    expect(a.due).toBe(1200);
+    expect(a.current).toBe(200000);
+    expect(a.owed).toBe(1200);
+  });
+
+  it('reports nothing owed on a skipped card', () => {
+    const card = { id: 'C1', type: 'card', balance: 500, minPayment: 25 };
+    setCards([card]);
+    setPayments([{ type: 'card', refId: 'C1', skipped: true, date: localIso() }]);
+    const a = cardAmounts(card);
+    expect(a.due).toBe(500);
+    expect(a.owed).toBe(0);
   });
 });
 
