@@ -1,4 +1,4 @@
-# Store release notes — 1.6.1 · iOS build 16 / Android versionCode 37
+# Store release notes — 1.6.1 · iOS build 16 / Android versionCode 38
 
 Paste-ready copy for the store consoles. Neither upload script reads these —
 [`play-upload.js`](../../../scripts/play-upload.js) and
@@ -8,6 +8,11 @@ so the text below goes in by hand.
 Unlike the older folders here, this one is **the copy actually being shipped**,
 not a reconstruction. Source: the `[1.6.1]` section of
 [CHANGELOG.md](../../../CHANGELOG.md).
+
+Android versionCode **38 is a resubmission of 37** — identical code, identical
+copy. 37 went to the beta track and sat in Play review, so 38 was uploaded to see
+whether a fresh build cleared it. Two build numbers carry the same notes for that
+reason, not because anything changed between them.
 
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer). **TestFlight "What to Test" is 4000.**

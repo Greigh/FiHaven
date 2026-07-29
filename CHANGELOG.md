@@ -19,7 +19,7 @@ Each release below uses two layers:
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
 | **iOS** | 1.6.1 (16) - Income vs. spending history; 14 was the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 37) - Income vs. spending history; 36 was the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **Android** | 1.6.1 (versionCode 38) - resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
