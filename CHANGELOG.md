@@ -45,6 +45,19 @@ Each release below uses two layers:
 
 ### Changes
 
+**Security: sign-in redirect hardening (Jul 28)**
+
+- **The page you land on after signing in is now checked at the moment we send
+  you there.** FiHaven carries a deep link across sign-in — follow an emailed
+  settings link while signed out and you still end up at settings — and that
+  destination arrives as part of the URL, so it has always been treated as
+  hostile and rebuilt from a fixed list of pages. That check now also runs
+  immediately before the browser navigates, so a crafted link can't send you to
+  another site or run script through the address bar. Two CodeQL alerts
+  (client-side XSS, open redirect) closed; no change for real links.
+- **Dependency fix:** a bundled build-time package (`brace-expansion`) could be
+  driven to exhaust memory. Updated to a patched release; `npm audit` is clean.
+
 **Income history became income *vs. spending* (Jul 28)**
 
 - **The History tab now draws what you earned against what you spent.** It used
@@ -526,6 +539,28 @@ Each release below uses two layers:
   - Prior: list spacing, icons, deps, list search, paywall, Google Custom Tab.
 
 ### Technical changelog
+
+- **`go()` in `client/js/auth.js`** (CodeQL #48 `js/xss` high, #49
+  `js/client-side-unvalidated-url-redirection` medium — both the same sink,
+  `window.location.replace(url)`): `nextUrl.js`'s `safeNextPath()` already
+  rebuilt `?next=` from `ALLOWED_PATHS` with a re-encoded query/hash, and that
+  logic is sound — but the guarantee sat a module away from the navigation, and
+  `go()` is also handed `/verify-email`, a `?household=` hand-off and
+  `loginWithNext()` output. CodeQL couldn't carry the sanitizer across
+  `URLSearchParams` round-tripping and the cross-module hop, and it was flagging
+  a real gap in *locality*: nothing at the sink asserted same-origin. New
+  exported `SAFE_NAV_TARGET` regex in `nextUrl.js`, `.test()`ed **inline in
+  `go()`** so the guard dominates the sink in the same function (a cross-module
+  guard is what failed before). Anchored, single leading slash via `(?!\/)`, no
+  `:`/`.`/`\` in the path — `javascript:`, `data:`, `//evil.example`,
+  `/\evil.example` and traversal all fail. Rejected targets fall back to `/`.
+- Tests: 6 cases in `client/js/nextUrl.test.js` covering every value auth.js
+  actually navigates to, both attack halves, and a consistency check that
+  everything `safeNextPath()` approves also survives the sink gate — the two
+  validators drifting apart would break legitimate deep links on arrival.
+- **`brace-expansion`** 2.1.2 → 5.0.8 (Dependabot #3, high — unbounded
+  expansion → OOM), pulled up transitively by the new `rimraf: ^6.1.3` entry in
+  `package.json` `overrides`. `npm audit` reports 0 vulnerabilities.
 
 - **`cashflowHistory.js`** (+ `CashflowHistory.swift` / `.kt`, three-way mirror,
   change together): merges the two outflow stores into one monthly spending

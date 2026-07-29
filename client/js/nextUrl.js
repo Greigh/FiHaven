@@ -95,6 +95,24 @@ function safeHash(raw) {
   return '#' + raw;
 }
 
+/* Final gate for anything handed to `window.location`.
+
+   safeNextPath() above already rebuilds `next` from an allowlist, but that
+   guarantee lives a module away from the navigation itself — and callers pass
+   go() other things too (`/verify-email`, a `?household=` hand-off, the result
+   of loginWithNext()). CodeQL read the pass-through as both a DOM XSS sink (a
+   `javascript:` URL) and an open redirect, and it was right to: nothing at the
+   sink said the string was same-origin. This anchored whole-string check makes
+   that local, so neither a reader nor an analyzer has to trace two modules to
+   see it.
+
+   One leading slash with no second one, and no ':' or '.' in the path, rules
+   out `javascript:`, `//evil.example`, `/\evil.example` and traversal alike.
+   Exported so the tests can drive it directly; the `.test()` call itself stays
+   inline at the sink, where it guards the navigation it protects. */
+export var SAFE_NAV_TARGET =
+  /^\/(?!\/)[A-Za-z0-9_\-/]{0,64}(?:\?[A-Za-z0-9._~%=&-]{0,256})?(?:#[A-Za-z0-9_-]{1,64})?$/;
+
 /** Read + validate `next` from a query string (defaults to the page's). */
 export function nextFromSearch(search) {
   try {

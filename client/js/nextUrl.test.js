@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeNextPath, nextFromSearch, loginWithNext } from './nextUrl.js';
+import { safeNextPath, nextFromSearch, loginWithNext, SAFE_NAV_TARGET } from './nextUrl.js';
 
 describe('nextUrl — safeNextPath', () => {
   it('accepts an allowlisted page, with query and hash', () => {
@@ -90,5 +90,65 @@ describe('nextUrl — loginWithNext', () => {
       .toBe('/login?next=' + encodeURIComponent('/settings?tab=notifications'));
     expect(loginWithNext('https://evil.example')).toBe('/login');
     expect(loginWithNext('')).toBe('/login');
+  });
+});
+
+// The gate auth.js applies immediately before window.location.replace().
+// CodeQL flagged that sink as both DOM XSS (#48) and an open redirect (#49):
+// safeNextPath() sanitized `next`, but nothing at the navigation itself said
+// the string was same-origin, and go() is handed other values too.
+describe('nextUrl — SAFE_NAV_TARGET (the navigation sink gate)', () => {
+  const ok = (u) => SAFE_NAV_TARGET.test(u);
+
+  it('accepts every target auth.js actually navigates to', () => {
+    // Literal destinations in routeAfterAuth / initPrivatePage.
+    expect(ok('/')).toBe(true);
+    expect(ok('/verify-email')).toBe(true);
+    expect(ok('/welcome')).toBe(true);
+    expect(ok('/dashboard')).toBe(true);
+    // postAuthHome(): the household hand-off and a validated `next`.
+    expect(ok('/settings?household=' + encodeURIComponent('tok-123_abc'))).toBe(true);
+    expect(ok('/settings?tab=notifications#notifications')).toBe(true);
+    expect(ok('/plaid-oauth?oauth_state_id=abc123')).toBe(true);
+    // loginWithNext() percent-encodes its whole payload into one param.
+    expect(ok(loginWithNext('/settings?tab=notifications'))).toBe(true);
+  });
+
+  it('rejects a scheme-bearing URL — the XSS half', () => {
+    expect(ok('javascript:alert(1)')).toBe(false);
+    expect(ok('JaVaScRiPt:alert(1)')).toBe(false);
+    expect(ok('data:text/html,<script>alert(1)</script>')).toBe(false);
+    expect(ok('vbscript:msgbox(1)')).toBe(false);
+  });
+
+  it('rejects anything that leaves the origin — the redirect half', () => {
+    expect(ok('https://evil.example')).toBe(false);
+    expect(ok('//evil.example')).toBe(false);        // protocol-relative
+    expect(ok('/\\evil.example')).toBe(false);         // backslash variant
+    expect(ok('/\tevil.example')).toBe(false);
+    expect(ok('https:/evil.example')).toBe(false);
+  });
+
+  it('rejects traversal, bare paths and oversized input', () => {
+    expect(ok('/../../etc/passwd')).toBe(false);      // '.' is not a path char
+    expect(ok('dashboard')).toBe(false);              // must start at the root
+    expect(ok('')).toBe(false);
+    expect(ok('/' + 'a'.repeat(65))).toBe(false);     // path cap
+    expect(ok('/dashboard?x=' + 'a'.repeat(257))).toBe(false); // query cap
+  });
+
+  it('rejects markup smuggled through the query or hash', () => {
+    expect(ok('/dashboard?x=<script>')).toBe(false);
+    expect(ok('/dashboard#<img src=x onerror=alert(1)>')).toBe(false);
+    expect(ok('/dashboard?x=a"onmouseover="alert(1)')).toBe(false);
+  });
+
+  it('passes everything safeNextPath approves', () => {
+    // The two validators must agree: anything the allowlist lets through has
+    // to survive the sink gate, or a legitimate deep link breaks on arrival.
+    ['/dashboard', '/settings', '/plaid-oauth', '/dev-portal'].forEach((p) => {
+      expect(ok(safeNextPath(p))).toBe(true);
+      expect(ok(safeNextPath(p + '?tab=notifications#top'))).toBe(true);
+    });
   });
 });

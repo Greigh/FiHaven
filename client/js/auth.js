@@ -6,7 +6,7 @@
    signup page, private-page gating, logout, and public CTAs.
 ═════════════════════════════════════════════════════════════════ */
 
-import { nextFromSearch, loginWithNext } from './nextUrl.js';
+import { nextFromSearch, loginWithNext, SAFE_NAV_TARGET } from './nextUrl.js';
 
   var API = '/api/auth';
   var csrfToken = null;
@@ -96,8 +96,13 @@ import { nextFromSearch, loginWithNext } from './nextUrl.js';
     target.style.color = isError ? 'var(--red)' : 'var(--muted)';
   }
 
+  // Every navigation this module performs goes through here, and `url` can be
+  // derived from the page's own query string — so it is checked at the sink
+  // rather than trusted from upstream. See SAFE_NAV_TARGET in nextUrl.js.
+  // A rejected target falls back to the public landing page: the only way to
+  // get one is to have crafted it, so there is nowhere legitimate to go.
   function go(url) {
-    window.location.replace(url);
+    window.location.replace(SAFE_NAV_TARGET.test(url) ? url : '/');
   }
 
   // After a successful auth, unverified accounts go to the verify
