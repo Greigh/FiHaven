@@ -1,8 +1,13 @@
-# Store release notes — 1.6.1 · iOS build 15 / Android versionCode 37
+# Store release notes — 1.6.1 · iOS build 16 / Android versionCode 37
 
 Paste-ready copy for the store consoles. Neither upload script reads these —
-`scripts/play-upload.js` and `scripts/ios-testflight.sh` push the binary only, so
-the text below goes in by hand.
+[`play-upload.js`](../../../scripts/play-upload.js) and
+[`ios-testflight.sh`](../../../scripts/ios-testflight.sh) push the binary only,
+so the text below goes in by hand.
+
+Unlike the older folders here, this one is **the copy actually being shipped**,
+not a reconstruction. Source: the `[1.6.1]` section of
+[CHANGELOG.md](../../../CHANGELOG.md).
 
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer). **TestFlight "What to Test" is 4000.**
@@ -33,7 +38,7 @@ no longer reads 0%.
 > 2096 / 4000 characters.
 
 ```
-WHAT'S NEW IN BUILD 15
+WHAT'S NEW IN BUILD 16
 
 Income vs. spending in History
 The income panel used to be one bar per month, scaled against your biggest
