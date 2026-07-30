@@ -11,11 +11,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in PushRegistrar.shared.noteDeviceToken(token) }
     }
 
+    /// APNs refused to issue a token. `localizedDescription` alone is useless
+    /// here — the entitlement failure that kept iOS push dead reads only as
+    /// "remote notifications are not supported in the simulator" or a bare
+    /// "no valid 'aps-environment' entitlement string found", and the domain +
+    /// code are what distinguish a provisioning problem from a transient one. Log
+    /// the whole NSError, and persist it to `PushRegistrar.lastFailure` so the
+    /// reason outlives the launch that hit it. Nothing surfaces it in the UI yet,
+    /// so reading it back off TestFlight still needs a cabled console session.
     func application(
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("[Push] APNs registration failed:", error.localizedDescription)
+        let ns = error as NSError
+        let detail = "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
+        print("[Push] APNs registration FAILED —", detail)
+        Task { @MainActor in PushRegistrar.shared.noteRegistrationFailure(detail) }
     }
 }
 
@@ -36,6 +47,7 @@ final class PushRegistrar {
     private static let lastTokenKey = "fh_push_last_token"
     private static let registeredAtKey = "fh_push_registered_at"
     private static let serverReadyKey = "fh_push_server_ready"
+    private static let lastFailureKey = "fh_push_last_failure"
 
     /// Re-claim the token this often even when it hasn't changed, so a token the
     /// server pruned after a delivery failure gets restored.
@@ -121,15 +133,47 @@ final class PushRegistrar {
     }
 
     func noteDeviceToken(_ token: String) {
+        UserDefaults.standard.removeObject(forKey: Self.lastFailureKey)
         self.token = token
         Task { await sync() }
+    }
+
+    /// Why the last APNs registration attempt produced no token. Diagnostic
+    /// only — nothing branches on it; it exists because this failure is
+    /// otherwise completely invisible off a cabled debug session.
+    private(set) var lastFailure: String? {
+        get { UserDefaults.standard.string(forKey: Self.lastFailureKey) }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: Self.lastFailureKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastFailureKey)
+            }
+        }
+    }
+
+    func noteRegistrationFailure(_ detail: String) {
+        lastFailure = detail
+        // No token means nothing to register, so `sync` would return early and
+        // never settle. Settle here instead, or the schedule keeps waiting on a
+        // registration that already failed.
+        onRegistrationSettled?()
     }
 
     func syncIfNeeded(settings: Settings) {
         enabled = settings.pushNotifications
         guard enabled else { return }
         UIApplication.shared.registerForRemoteNotifications()
-        Task { await sync() }
+        // Catch-up for accounts that opted into push before the toggle asked for
+        // permission: without authorization APNs still issues a token and the
+        // server still sends, but iOS displays nothing. Only `.notDetermined` is
+        // prompted, so a deliberate "Don't Allow" is never re-asked.
+        Task {
+            if await NotificationScheduler.authorizationStatus() == .notDetermined {
+                await NotificationScheduler.requestAuthorization()
+            }
+            await sync()
+        }
     }
 
     func clear() {

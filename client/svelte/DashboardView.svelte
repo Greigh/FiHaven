@@ -307,7 +307,12 @@
           {@const rem = remainingForItem(u.type, u.refId, mk)}
           <div class="upcoming-item">
             <div class="upcoming-icon">
-              {#if u.brand && u.brand.isLogo}<img class="upcoming-logo" src={u.brand.logo} alt="" />{:else if u.brand && u.brand.isMonogram}<span class="upcoming-monogram" style="background:{u.brand.color};">{u.brand.text}</span>{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
+              {#if u.brand && u.brand.isLogo}<img
+                  class="upcoming-logo {u.brand.fullColor ? 'is-plate' : ''}"
+                  style={u.brand.fullColor && u.brand.aspect ? `aspect-ratio:${u.brand.aspect};` : ''}
+                  src={u.brand.logo}
+                  alt=""
+                />{:else if u.brand && u.brand.isMonogram}<span class="upcoming-monogram" style="background:{u.brand.color};">{u.brand.text}</span>{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
             </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>

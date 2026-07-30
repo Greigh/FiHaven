@@ -1689,6 +1689,17 @@ main {
 }
 .upcoming-icon { font-size: 18px; line-height: 1; display: inline-flex; align-items: center; }
 .upcoming-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 5px; }
+/* A full-color mark keeps its own colors on a light plate, and its own aspect
+   ratio — capped at 35px so a wordmark can't shove the row's text over. */
+.upcoming-logo.is-plate {
+  width: auto;
+  height: 20px;
+  max-width: 35px;
+  background: #fff;
+  border-radius: 3px;
+  padding: 1px;
+  box-sizing: content-box;
+}
 /* Issuer initials, for issuers with no bundled logo. Matches .upcoming-logo
    so the row keeps its rhythm either way. */
 .upcoming-monogram {
@@ -1843,6 +1854,46 @@ main {
   font-size: 11px;
   color: var(--muted);
 }
+/* Cards tab: an obligations zone (wider — it carries the itemized rows) beside
+   the credit-line zone, instead of a row of equal-weight tiles. */
+.cards-summary--zones {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+@media (max-width: 700px) {
+  .cards-summary--zones { grid-template-columns: 1fr; }
+}
+/* The credit tile is the shorter of the two; pin its bar to the bottom so the
+   pair reads as one band instead of leaving a gap under the figures. */
+.cards-summary--zones .cards-summary-bar { margin-top: auto; }
+/* Itemized amounts under the hero, in the card rows' vocabulary. */
+.cards-summary-rows {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cards-summary-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.cards-summary-row-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cards-summary-row-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .cards-summary-bar {
   margin-top: 6px;
   height: 6px;
@@ -2174,6 +2225,13 @@ main {
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface2) 55%, transparent);
 }
+/* Label and amount share a baseline; each companion amount is its own row. */
+.card-row-duebox-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .card-row-duebox-label {
   font-size: 10px; font-weight: 800;
   letter-spacing: .08em; text-transform: uppercase;
@@ -2188,44 +2246,48 @@ main {
   line-height: 1.15;
   white-space: nowrap;
 }
-.card-row-duebox-sub {
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-}
 /* The two amounts the headline isn't showing — present but clearly secondary,
    so the preference re-ranks the three rather than hiding any of them. */
-.card-row-duebox-alts {
+.card-row-duebox-alt {
   display: flex;
+  align-items: baseline;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  gap: 6px;
+  margin-top: 3px;
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+}
+.card-row-duebox-alt:first-of-type {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .card-row-duebox-alt-label {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
-  margin-right: 3px;
 }
 .card-row-chip {
-  width: 42px;
-  height: 28px;
-  border-radius: 6px;
+  width: 48px;
+  height: 32px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 17px;
   flex-shrink: 0;
   color: white;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
   margin-top: 2px;
+}
+/* Holding a full-color brand mark, the chip becomes the white plate the mark
+   was drawn for — in both themes, so a black wordmark stays visible. The
+   inset highlight and border keep it from floating on the light theme's card. */
+.card-row-chip.is-plate {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
 }
 .card-row-naming {
   min-width: 0;

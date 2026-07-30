@@ -377,14 +377,7 @@ export function cardAmounts(card, mk) {
   };
 }
 
-// Short labels for the two amounts a row isn't leading with.
-export var CARD_AMOUNT_LABELS = {
-  due: 'due',
-  current: 'current',
-  owed: 'still owed',
-};
-
-// The other two amounts, in a stable order, for the companion line.
+// The other two amounts, in a stable order, for the companion lines.
 // `mode` is a value from cardHeadlineMode().
 export function otherCardAmounts(mode) {
   return ['due', 'current', 'owed'].filter(function (k) { return k !== mode; });
@@ -474,21 +467,32 @@ export function recommendedAmount(card) {
   return parseFloat(card.balance || 0);
 }
 
-// The active fully-paid policy, defaulting to "recommended".
-export function paidGoalPolicy() {
-  var g = settings && settings.paidGoal;
-  return (g === 'minimum' || g === 'full') ? g : 'recommended';
+/* ── Pay targets ─────────────────────────────────────────────
+   A pay target is what an item should reach *this period* — its minimum,
+   its recommendation, the whole balance — and `payTargetRemaining` is
+   what's left of it after the payments already recorded. Card payments
+   decrement the live balance, so balance-derived targets add this
+   period's payments back: the target itself holds still while the
+   remainder shrinks as installments land. */
+
+// The card as it stood at the start of the period, payments undone.
+function cardAtPeriodStart(card, paid) {
+  if (!(paid > 0)) return card;
+  var start = Object.assign({}, card);
+  start.balance = (parseFloat(card.balance) || 0) + paid;
+  if (card.promoBalance !== null && card.promoBalance !== undefined && card.promoBalance !== '') {
+    start.promoBalance = (parseFloat(card.promoBalance) || 0) + paid;
+  }
+  return start;
 }
 
-// The fully-paid goal for a bill/card this month, under the active
-// policy. Bills always target their full amount. Cards vary:
-//   minimum     → the minimum payment
-//   recommended → the payoff-aware recommended amount
-//   full        → the start-of-month balance. Card payments decrement
-//                 the live balance, so we add this month's payments
-//                 back to keep the goal stable as installments land
-//                 (otherwise a partial payment would look "complete").
-export function goalAmountFor(type, refId, mk) {
+// This period's target for one pay preset, before payments are subtracted:
+//   full        → a bill's whole amount (the only kind a bill has)
+//   minimum     → the card's minimum payment
+//   recommended → the payoff-aware recommendation
+//   monthly     → a loan's scheduled payment
+//   payoff      → the whole start-of-period balance (a loan's principal)
+export function payTargetAmount(kind, type, refId, mk) {
   mk = mk || currentPeriodKey();
   if (type === 'bill') {
     var b = bills.find(function (x) { return String(x.id) === String(refId); });
@@ -496,28 +500,46 @@ export function goalAmountFor(type, refId, mk) {
   }
   var c = cards.find(function (x) { return String(x.id) === String(refId); });
   if (!c) return 0;
+  if (kind === 'minimum') return parseFloat(c.minPayment || 0);
+  if (kind === 'monthly') {
+    var override = parseFloat(c.recommendedPayment || 0);
+    return override > 0 ? override : parseFloat(c.minPayment || 0);
+  }
+  var start = cardAtPeriodStart(c, paidAmount('card', String(refId), mk));
+  if (kind === 'payoff') return parseFloat(start.balance || 0);
+  return recommendedAmount(start);
+}
+
+// What's left toward a target after this period's payments (never below 0).
+export function payTargetRemaining(kind, type, refId, mk) {
+  mk = mk || currentPeriodKey();
+  return Math.max(0, payTargetAmount(kind, type, refId, mk) - paidAmount(type, refId, mk));
+}
+
+// The active fully-paid policy, defaulting to "recommended".
+export function paidGoalPolicy() {
+  var g = settings && settings.paidGoal;
+  return (g === 'minimum' || g === 'full') ? g : 'recommended';
+}
+
+// The fully-paid goal for a bill/card this month, under the active
+// policy — the pay target the policy names. Bills always target their
+// full amount. Cards vary:
+//   minimum     → the minimum payment
+//   recommended → the payoff-aware recommended amount
+//   full        → the start-of-month balance (payoff)
+export function goalAmountFor(type, refId, mk) {
+  mk = mk || currentPeriodKey();
+  if (type === 'bill') return payTargetAmount('full', type, refId, mk);
+  var c = cards.find(function (x) { return String(x.id) === String(refId); });
+  if (!c) return 0;
   // Loans: the monthly obligation is the scheduled payment under every policy
   // — never the full principal (which would leave the row perpetually "unpaid"
   // and wreck remaining-balance totals). A per-loan override still wins.
-  if ((c.type || 'card') === 'loan') {
-    var loanOverride = parseFloat(c.recommendedPayment || 0);
-    return loanOverride > 0 ? loanOverride : parseFloat(c.minPayment || 0);
-  }
+  if ((c.type || 'card') === 'loan') return payTargetAmount('monthly', type, refId, mk);
   var policy = paidGoalPolicy();
-  if (policy === 'minimum') return parseFloat(c.minPayment || 0);
-  // "full" and a non-promo "recommended" both target paying the balance
-  // to zero. Card payments decrement the live balance, so add this
-  // month's payments back to keep that goal stable across installments.
-  var startBalance = parseFloat(c.balance || 0) + paidAmount(type, refId, mk);
-  if (policy === 'full') return startBalance;
-  // recommended:
-  var override = parseFloat(c.recommendedPayment || 0);
-  if (override > 0) return override;
-  if (c.hasPromo) return Math.max(parseFloat(c.minPayment || 0), promoNeeded(c));
-  // 0% interest (no active promo): no interest cost to carry, so the goal is
-  // just the minimum rather than the full start-of-month balance.
-  if ((parseFloat(c.regularAPR) || 0) <= 0) return parseFloat(c.minPayment || 0);
-  return startBalance;
+  var kind = policy === 'minimum' ? 'minimum' : (policy === 'full' ? 'payoff' : 'recommended');
+  return payTargetAmount(kind, type, refId, mk);
 }
 
 // Amount still owed toward the goal this period (0 once the goal is met).

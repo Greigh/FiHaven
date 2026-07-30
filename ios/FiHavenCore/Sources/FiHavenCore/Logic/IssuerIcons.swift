@@ -18,6 +18,11 @@ public enum IssuerIcons {
         "robinhood": "🟢",
         "fidelity": "🟢",
         "sofi": "🟣",
+        "fifththird": "🔵",
+        "tmobile": "🟣",
+        "hyatt": "🔷",
+        "bestbuy": "🟡",
+        "lowes": "🔵",
         "paypal": "🔵",
         "target": "🎯",
         "visa": "💳", "mastercard": "💳",
@@ -29,12 +34,20 @@ public enum IssuerIcons {
         "jpmorgan": "chase",
         "jpmorganchase": "chase",
         "citibank": "citi",
+        "citicards": "citi",
+        "citigroup": "citi",
         "capone": "capitalone",
         "wells": "wellsfargo",
         "boa": "bankofamerica",
         "bofa": "bankofamerica",
         "usb": "usbank",
         "goldman": "goldmansachs",
+        // "barclays" is a logo key, but the card says Barclay / Barclaycard,
+        // and neither contains the plural the substring match needs.
+        "barclay": "barclays",
+        "barclaycard": "barclays",
+        // The Centurion Card is Amex's, and it's what the cardholder calls it.
+        "centurion": "americanexpress",
         // Loyalty programs — what's printed on the card is often the program,
         // not the airline or hotel that backs it.
         "aadvantage": "americanairlines",
@@ -45,6 +58,13 @@ public enum IssuerIcons {
         "bonvoy": "marriott",
         "hiltonhonors": "hilton",
         "diners": "dinersclub",
+    ]
+
+    /// Names that contain a shorter brand's key without being that brand:
+    /// "Citizens Bank" is not Citi. Only blocks the loose substring match — an
+    /// exact key or alias hit still wins. Mirrors web `LOGO_KEY_CONFLICTS`.
+    static let logoKeyConflicts: [String: [String]] = [
+        "citi": ["citizen"],
     ]
 
     static let keysByLength: [String] = issuerEmoji.keys.sorted { $0.count > $1.count }
@@ -88,6 +108,12 @@ public enum IssuerIcons {
         return CTConstants.cardIcon
     }
 
+    /// Whether `name` names a different brand that merely contains `logoKey`.
+    static func isConflict(_ logoKey: String, _ name: String) -> Bool {
+        guard let words = logoKeyConflicts[logoKey] else { return false }
+        return words.contains { name.contains($0) }
+    }
+
     /// Bundled brand-mark key for a name, or nil. Mirrors web `findLogoKey`.
     public static func logoKey(_ name: String) -> String? {
         let key = normalize(name)
@@ -95,8 +121,9 @@ public enum IssuerIcons {
         let canon = aliases[key] ?? key
         if IssuerLogos.all[canon] != nil { return canon }
         if IssuerLogos.all[key] != nil { return key }
-        for k in IssuerLogos.keysByLength where canon.contains(k) || key.contains(k) {
-            return k
+        for k in IssuerLogos.keysByLength {
+            if isConflict(k, canon) || isConflict(k, key) { continue }
+            if canon.contains(k) || key.contains(k) { return k }
         }
         for a in aliasKeysByLength where key.contains(a) {
             if let target = aliases[a], IssuerLogos.all[target] != nil { return target }

@@ -555,10 +555,25 @@ extension AppStore {
     /// Server push (APNs). Registers this device when turned on, and reschedules:
     /// local reminders stand down for whatever push now covers, and pick it back
     /// up when push is turned off.
+    ///
+    /// Permission is requested here even though APNs issues a device token
+    /// without it. An alert payload is *displayed* only under authorization, so
+    /// registering without asking yields a device the server happily sends to
+    /// and a user who never sees a single notification — silent, and
+    /// indistinguishable on-device from push being broken. Anyone enabling push
+    /// without having first enabled on-device reminders hit exactly that.
     func setPushNotifications(_ on: Bool) {
         mutate { $0.settings.pushNotifications = on }
-        PushRegistrar.shared.setEnabled(on)
-        refreshNotifications()
+        if on {
+            Task {
+                await NotificationScheduler.requestAuthorization()
+                PushRegistrar.shared.setEnabled(true)
+                refreshNotifications()
+            }
+        } else {
+            PushRegistrar.shared.setEnabled(false)
+            refreshNotifications()
+        }
     }
 
     func setAutopayMark(_ on: Bool) {

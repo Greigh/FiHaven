@@ -2,21 +2,25 @@ import Foundation
 
 /// Initials-in-a-chip marks for issuers with no bundled logo.
 ///
-/// Most US card issuers (Citi, Capital One, U.S. Bank, Bilt, CareCredit,
-/// SoFi, …) have no CC0 icon to bundle, and drawing our own version of
-/// someone's trademark isn't an option. A monogram identifies the card
-/// without reproducing a logo, and works for any issuer a user types.
+/// Plenty of US card issuers (CareCredit, Mission Lane, Aven, OpenSky,
+/// Indigo, LMCU, SoFi, …) have no logo we can license, and drawing our own
+/// version of someone's trademark isn't an option. A monogram identifies the
+/// card without reproducing a logo, and works for any issuer a user types.
+///
+/// Keep the text overrides to 2–3 characters: the chip is 22pt, and only iOS
+/// shrinks to fit.
 ///
 /// Keep in sync with web `issuerMonograms.js` and Android `IssuerMonograms.kt`.
 public enum IssuerMonograms {
     /// Approximate brand colors (0xRRGGBB) for issuers we can't draw. Our own
     /// reading of each palette, used only to tint a monogram chip.
     static let brandColors: [String: UInt32] = [
-        "citi": 0x056DAE,
-        "capitalone": 0x004977,
-        "usbank": 0x0C2074,
-        "bilt": 0x1A1A1A,
         "carecredit": 0x0057B8,
+        "missionlane": 0x0F4C4C,
+        "aven": 0x1C1C1C,
+        "opensky": 0x0B6BA8,
+        "indigo": 0x4B3C8C,
+        "lmcu": 0x004B87,
         "synchrony": 0x003057,
         "sofi": 0x00A9E0,
         "fidelity": 0x368727,
@@ -33,9 +37,7 @@ public enum IssuerMonograms {
         "amazon": 0xFF9900,
         "costco": 0xE31837,
         "walmart": 0x0071CE,
-        "bestbuy": 0x0046BE,
         "homedepot": 0xF96302,
-        "lowes": 0x004990,
         "alaskaairlines": 0x01426A,
         "macys": 0xE21A2C,
         "nordstrom": 0x1A1A1A,
@@ -47,11 +49,12 @@ public enum IssuerMonograms {
 
     /// Shorthands a brand uses for itself, where initials would read oddly.
     static let brandText: [String: String] = [
-        "capitalone": "C1",
-        "usbank": "US",
         "navyfederal": "NF",
         "tdbank": "TD",
         "carecredit": "CC",
+        "missionlane": "ML",
+        "lmcu": "LM",
+        "opensky": "OS",
     ]
 
     /// Fallback chip colors — mirrors `CTConstants.cardColors`.

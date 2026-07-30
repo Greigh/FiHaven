@@ -15,7 +15,7 @@ docs/release-notes/v<version>/<builds>.md
 
 The folder carries the marketing version; the filename carries the build
 numbers, so a version that ships several builds can hold several files —
-`v1.6.1/ios16-android38.md` sits alongside whatever 1.6.1 ships next. Where the
+`v1.6.1/ios16-android38.md` sits alongside `v1.6.1/ios17-android39.md`. Where the
 changelog never recorded build numbers, the file is `store-notes.md`.
 
 ## Character limits
@@ -40,6 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.1](v1.6.1/ios17-android39.md) | iOS 17 · Android 39 | 2026-07-29 | Push actually arrives; pay what's left; 9 full-color issuer logos |
 | [1.6.1](v1.6.1/ios16-android38.md) | iOS 16 · Android 38 | 2026-07-28 | Income vs. spending; card amounts & logos (38 resubmits 37) |
 | [1.6.0](v1.6.0/ios1-android20.md) | iOS 1 · Android 20 | 2026-07-14 | Bank sync works; two data-loss fixes |
 | [1.5.0](v1.5.0/ios10-android18.md) | iOS 10 · Android 18 | 2026-07-09 | Net Worth tab, archive, push |
