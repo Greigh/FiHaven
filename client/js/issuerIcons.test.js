@@ -7,7 +7,12 @@ import {
   issuerIconMark,
   ISSUER_EMOJI,
 } from './issuerIcons.js';
-import { ISSUER_LOGO_PATHS, issuerLogoDataUri } from './issuerLogos.js';
+import {
+  ISSUER_LOGO_PATHS,
+  issuerLogoDataUri,
+  issuerLogoAspect,
+  issuerLogoIsFullColor,
+} from './issuerLogos.js';
 import { ISSUER_MONOGRAM_COLORS, issuerInitials } from './issuerMonograms.js';
 
 describe('issuerIcons', () => {
@@ -27,7 +32,7 @@ describe('issuerIcons', () => {
     expect(resolveCardIssuer(null)).toBe('');
   });
 
-  it('bundles SVG logos for major issuers', () => {
+  it('bundles monochrome SVG logos for major issuers', () => {
     for (const key of [
       'chase', 'americanexpress', 'bankofamerica', 'wellsfargo',
       'discover', 'visa', 'mastercard', 'apple', 'paypal', 'robinhood', 'target',
@@ -37,9 +42,41 @@ describe('issuerIcons', () => {
       'venmo', 'cashapp', 'klarna', 'afterpay', 'coinbase',
       'revolut', 'wise', 'monzo', 'n26', 'nubank', 'brex',
     ]) {
-      expect(ISSUER_LOGO_PATHS[key], key).toBeTruthy();
-      expect(ISSUER_LOGO_PATHS[key].c).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(ISSUER_LOGO_PATHS[key].d.length).toBeGreaterThan(20);
+      const entry = ISSUER_LOGO_PATHS[key];
+      expect(entry, key).toBeTruthy();
+      expect(entry.c).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(entry.d.length).toBeGreaterThan(20);
+      // Recolorable, and square on the shared height-24 grid.
+      expect(issuerLogoIsFullColor(entry), key).toBe(false);
+      expect(issuerLogoAspect(entry), key).toBe(1);
+    }
+  });
+
+  it('bundles full-color SVG logos for issuers with no CC0 mark', () => {
+    for (const key of [
+      'bilt', 'bestbuy', 'capitalone', 'citi', 'fifththird',
+      'hyatt', 'lowes', 'tmobile', 'usbank',
+    ]) {
+      const entry = ISSUER_LOGO_PATHS[key];
+      expect(entry, key).toBeTruthy();
+      expect(entry.c, key).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      // Full-color marks carry layers instead of a single recolorable path.
+      expect(entry.d, key).toBeUndefined();
+      expect(issuerLogoIsFullColor(entry), key).toBe(true);
+      expect(entry.l.length, key).toBeGreaterThan(0);
+      for (const [fill, d] of entry.l) {
+        expect(fill, key).toMatch(/^#[0-9A-Fa-f]{6}$/);
+        expect(d.length, key).toBeGreaterThan(8);
+      }
+      // A wordmark is wider than tall; nothing is taller than it is wide.
+      expect(issuerLogoAspect(entry), key).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('every mark is exactly one of monochrome or full color', () => {
+    for (const [key, entry] of Object.entries(ISSUER_LOGO_PATHS)) {
+      expect(!!entry.d, key).toBe(!issuerLogoIsFullColor(entry));
+      expect(entry.c, key).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 
@@ -65,10 +102,12 @@ describe('issuerIcons', () => {
 
   it('prefers a named issuer over a network mark from the card name', () => {
     // "Bilt Mastercard" is a Bilt card, not a Mastercard one.
-    const bilt = issuerIconInfo({ issuer: 'Bilt', name: 'Bilt Mastercard' });
-    expect(bilt.isLogo).toBe(false);
-    expect(bilt.text).toBe('B');
-    expect(issuerIconInfo({ issuer: 'Citi', name: 'Visa Signature' }).text).toBe('C');
+    expect(issuerIconInfo({ issuer: 'Bilt', name: 'Bilt Mastercard' }).key).toBe('bilt');
+    expect(issuerIconInfo({ issuer: 'Citi', name: 'Visa Signature' }).key).toBe('citi');
+    // With no mark of its own, the issuer's initials still beat the network's.
+    const ml = issuerIconInfo({ issuer: 'Mission Lane', name: 'Mission Lane Visa' });
+    expect(ml.isLogo).toBe(false);
+    expect(ml.text).toBe('ML');
     // An issuer that IS the network still gets its logo…
     expect(issuerIconInfo({ issuer: 'Visa', name: 'Signature' }).key).toBe('visa');
     // …and with no issuer named, the network mark is better than nothing.
@@ -84,22 +123,61 @@ describe('issuerIcons', () => {
     expect(issuerIconInfo({ issuer: 'Rapid Rewards Priority' }).key).toBe('southwestairlines');
     expect(issuerIconInfo({ issuer: 'Bonvoy Boundless' }).key).toBe('marriott');
     expect(issuerIconInfo({ issuer: 'Diners Club' }).key).toBe('dinersclub');
+    expect(issuerIconInfo({ issuer: 'World of Hyatt' }).key).toBe('hyatt');
+    // The card says Barclay / Barclaycard; the logo key is the plural.
+    expect(issuerIconInfo({ issuer: 'Barclay' }).key).toBe('barclays');
+    expect(issuerIconInfo({ issuer: 'Barclaycard Arrival' }).key).toBe('barclays');
+    // The Centurion Card is Amex's.
+    expect(issuerIconInfo({ issuer: 'Centurion Card' }).key).toBe('americanexpress');
+  });
+
+  it('resolves the issuers that got a full-color mark', () => {
+    expect(issuerIconInfo({ issuer: 'Citi' }).key).toBe('citi');
+    expect(issuerIconInfo({ issuer: 'Citibank' }).key).toBe('citi');
+    expect(issuerIconInfo({ issuer: 'Capital One' }).key).toBe('capitalone');
+    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).key).toBe('usbank');
+    expect(issuerIconInfo({ issuer: 'Bilt' }).key).toBe('bilt');
+    expect(issuerIconInfo({ issuer: 'Fifth Third Bank' }).key).toBe('fifththird');
+    expect(issuerIconInfo({ issuer: 'T-Mobile' }).key).toBe('tmobile');
+    expect(issuerIconInfo({ issuer: 'Best Buy' }).key).toBe('bestbuy');
+    expect(issuerIconInfo({ issuer: "Lowe's" }).key).toBe('lowes');
+    expect(issuerIconInfo({ issuer: 'Hyatt' }).key).toBe('hyatt');
+
+    // Full-color marks tell the renderer to plate them and give it the aspect
+    // ratio, so a wordmark can be laid out before the image loads.
+    const citi = issuerIconInfo({ issuer: 'Citi' });
+    expect(citi.fullColor).toBe(true);
+    expect(citi.aspect).toBeCloseTo(1.7, 1);
+    expect(issuerIconInfo({ issuer: 'Chase' }).fullColor).toBe(false);
+  });
+
+  it("doesn't mistake another brand for one whose key it contains", () => {
+    // "Citizens Bank" is not Citi — the substring match has to skip it.
+    const citizens = issuerIconInfo({ issuer: 'Citizens Bank' });
+    expect(citizens.isLogo).toBe(false);
+    expect(citizens.key).toBe('citizensbank');
+    expect(issuerIconInfo({ issuer: 'Citizens Access' }).isLogo).toBe(false);
+    // Nor is "Capital City Bank" Capital One.
+    expect(issuerIconInfo({ issuer: 'Capital City Bank' }).isLogo).toBe(false);
   });
 
   it('falls back to a monogram chip for issuers without a bundled logo', () => {
-    const bilt = issuerIconInfo({ issuer: 'Bilt' });
-    expect(bilt.isLogo).toBe(false);
-    expect(bilt.isMonogram).toBe(true);
-    expect(bilt.text).toBe('B');
-    expect(bilt.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    const care = issuerIconInfo({ issuer: 'CareCredit' });
+    expect(care.isLogo).toBe(false);
+    expect(care.isMonogram).toBe(true);
+    expect(care.text).toBe('CC');
+    expect(care.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
     // The emoji stand-in stays available for text-only contexts.
-    expect(bilt.emoji).toBe(ISSUER_EMOJI.bilt);
+    expect(care.emoji).toBe('💳');
 
-    expect(issuerIconInfo({ issuer: 'Citi' }).text).toBe('C');
-    expect(issuerIconInfo({ issuer: 'Citibank' }).text).toBe('C');
-    expect(issuerIconInfo({ issuer: 'Capital One' }).text).toBe('C1');
-    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).text).toBe('US');
-    expect(issuerIconInfo({ issuer: 'CareCredit' }).text).toBe('CC');
+    // The issuers with no logo we can license.
+    expect(issuerIconInfo({ issuer: 'Mission Lane' }).text).toBe('ML');
+    expect(issuerIconInfo({ issuer: 'OpenSky' }).text).toBe('OS');
+    expect(issuerIconInfo({ issuer: 'LMCU' }).text).toBe('LM');
+    expect(issuerIconInfo({ issuer: 'Lake Michigan Credit Union' }).text).toBe('LM');
+    expect(issuerIconInfo({ issuer: 'Aven' }).text).toBe('A');
+    expect(issuerIconInfo({ issuer: 'Indigo' }).text).toBe('I');
+    expect(issuerIconInfo({ issuer: 'Care Credit' }).text).toBe('CC');
     expect(issuerIconInfo({ issuer: 'Care Credit' }).text).toBe('CC');
     expect(issuerIconInfo({ issuer: 'Navy Federal Credit Union' }).text).toBe('NF');
     expect(issuerIconInfo({ issuer: 'Fidelity' }).text).toBe('F');
@@ -111,13 +189,14 @@ describe('issuerIcons', () => {
   });
 
   it('keeps curated brand colors for issuers we know', () => {
-    expect(issuerIconInfo({ issuer: 'Citi' }).color).toBe(ISSUER_MONOGRAM_COLORS.citi);
-    expect(issuerIconInfo({ issuer: 'Capital One' }).color).toBe(ISSUER_MONOGRAM_COLORS.capitalone);
+    expect(issuerIconInfo({ issuer: 'CareCredit' }).color).toBe(ISSUER_MONOGRAM_COLORS.carecredit);
+    expect(issuerIconInfo({ issuer: 'Mission Lane' }).color).toBe(ISSUER_MONOGRAM_COLORS.missionlane);
     // Curated entries match inside a longer, more formal name.
     expect(issuerIconInfo({ issuer: 'Navy Federal Credit Union' }).color)
       .toBe(ISSUER_MONOGRAM_COLORS.navyfederal);
     expect(issuerIconInfo({ issuer: 'Synchrony Bank' }).color).toBe(ISSUER_MONOGRAM_COLORS.synchrony);
-    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).color).toBe(ISSUER_MONOGRAM_COLORS.usbank);
+    // An issuer that gained a real logo reports the brand color, not a chip tint.
+    expect(issuerIconInfo({ issuer: 'U.S. Bank' }).color).toBe(ISSUER_LOGO_PATHS.usbank.c);
   });
 
   it('uses loan glyph for loans and card glyph for unknowns', () => {
@@ -136,17 +215,29 @@ describe('issuerIcons', () => {
     expect(issuerIconMark({ issuer: 'Chase' })).toEqual({
       isImage: true,
       src: expect.stringMatching(/^data:image\/svg\+xml,/),
+      fullColor: false,
+      aspect: 1,
     });
     expect(issuerIconMark({ issuer: 'Chase' }, { chip: true }).src)
       .toContain(encodeURIComponent('#FFFFFF'));
-    expect(issuerIconMark({ issuer: 'Bilt' })).toEqual({
+    expect(issuerIconMark({ issuer: 'CareCredit' })).toEqual({
       isImage: false,
       isMonogram: true,
-      text: 'B',
-      color: ISSUER_MONOGRAM_COLORS.bilt,
+      text: 'CC',
+      color: ISSUER_MONOGRAM_COLORS.carecredit,
     });
     // Inside a brand-colored chip the initials ride the chip's background.
-    expect(issuerIconMark({ issuer: 'Bilt' }, { chip: true }).color).toBe(null);
+    expect(issuerIconMark({ issuer: 'CareCredit' }, { chip: true }).color).toBe(null);
+  });
+
+  it('never flattens a full-color mark to the chip fill', () => {
+    const plain = issuerIconMark({ issuer: 'Citi' });
+    const chipped = issuerIconMark({ issuer: 'Citi' }, { chip: true });
+    expect(chipped.fullColor).toBe(true);
+    // Asking for a white chip mark must not strip Citi's blue and red.
+    expect(chipped.src).toBe(plain.src);
+    expect(chipped.src).not.toContain(encodeURIComponent('#FFFFFF'));
+    expect(chipped.src).toContain(encodeURIComponent('#255BE3'));
   });
 
   it('derives readable initials from any issuer name', () => {
@@ -172,5 +263,25 @@ describe('issuerIcons', () => {
 
     const white = issuerLogoDataUri(ISSUER_LOGO_PATHS.chase, '#FFFFFF');
     expect(decodeURIComponent(white.slice('data:image/svg+xml,'.length))).toContain('#FFFFFF');
+  });
+
+  it('builds a layered data URI on the mark\'s own viewBox', () => {
+    const entry = ISSUER_LOGO_PATHS.citi;
+    const decoded = decodeURIComponent(
+      issuerLogoDataUri(entry).slice('data:image/svg+xml,'.length)
+    );
+    // Height is the shared 24; only the width varies.
+    expect(decoded).toContain(`viewBox="0 0 ${entry.w} 24"`);
+    // One <path> per layer, in order, each with its own fill.
+    expect(decoded.match(/<path /g)).toHaveLength(entry.l.length);
+    for (const [fill, d] of entry.l) {
+      expect(decoded).toContain(`fill="${fill}"`);
+      expect(decoded).toContain(d);
+    }
+    // A monochrome mark keeps the square viewBox it was authored on.
+    const chase = decodeURIComponent(
+      issuerLogoDataUri(ISSUER_LOGO_PATHS.chase).slice('data:image/svg+xml,'.length)
+    );
+    expect(chase).toContain('viewBox="0 0 24 24"');
   });
 });

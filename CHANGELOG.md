@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (16) - Income vs. spending history; 14 was the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 38) - resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (17) - Push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 39) - Push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -44,6 +44,136 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Push notifications actually arrive now (Jul 29)**
+
+- **Turning on push asks for permission.** It didn't. iOS hands out a delivery
+  token whether or not you've allowed notifications, so the server was sending
+  reminders to phones that had never been asked and iOS was throwing every one of
+  them away — silently, and indistinguishable from push simply being broken.
+  Enabling push now asks first. If you'd already turned it on, the app asks the
+  next time you open it; if you've deliberately said no in the past, it doesn't
+  pester you.
+- **On Android, pushed reminders land in "Bill reminders" like they should.**
+  They were going to a channel Android invented on the spot called
+  "Miscellaneous", which meant they ignored the sound, importance and mute
+  settings you'd chosen for bill reminders — and vanished entirely if you'd
+  muted that unfamiliar channel. Both the app and the server now name the right
+  channel, so this is fixed for already-installed apps too, not just new ones.
+- **When push registration fails, we can now tell why.** The failure used to
+  print one useless line and disappear. It's recorded with the underlying reason
+  and kept after the app closes, and the server now says when a device is
+  registered on a platform it can't currently deliver to, or when it drops a dead
+  token — the one failure that previously left no trace anywhere.
+
+**Real logos for 9 more card issuers (Jul 29)**
+
+- **Citi, Capital One, U.S. Bank, Bilt, Fifth Third, T-Mobile, Best Buy, Lowe's
+  and Hyatt now show their actual logo.** These are the issuers that had been
+  showing initials on a colored chip, because the icon set the other marks come
+  from doesn't carry them. They're now drawn in full color — Citi's blue and red,
+  Best Buy's yellow tag, Fifth Third's 5/3 shield, T-Mobile's magenta T — in the
+  cards list, the calendar, budgets, and what's-coming-up on the home screen, on
+  web, iPhone and Android alike.
+- **A full-color logo sits on a white tile.** These logos were drawn for a white
+  page, so instead of being tinted to fit the theme they get a light plate to sit
+  on. That's what keeps Bilt's black wordmark visible in dark mode. The 37 marks
+  that were already there are unchanged: still a white mark on a brand-colored
+  chip.
+- **Wordmarks keep their shape instead of being cropped to a letter.** A logo
+  that's wider than it is tall now renders at its real proportions rather than
+  being squeezed into a square, up to about twice as wide as tall, so a row's
+  text never gets shoved around.
+- **"Barclay" and "Barclaycard" find the Barclays logo**, and a Centurion Card
+  shows American Express — it's an Amex card, and Centurion is what people call
+  it.
+- **"Citizens Bank" no longer shows Citi's logo.** A shorter brand name hiding
+  inside a longer, unrelated one used to be treated as a match; Citizens is its
+  own bank, and now gets its own mark. Same for Capital City Bank, which is not
+  Capital One.
+- **Care Credit, Mission Lane, Aven, OpenSky, Indigo and LMCU** have no logo we
+  can license, so they keep initials on a chip — but now on their own brand
+  color, and with the shorthand they use for themselves (ML, OS, LM, CC) rather
+  than a single letter.
+
+**What to pay counts what you've already paid (Jul 29)**
+
+- **Paying a card lowers what it asks for.** Pay your card for the month and the
+  suggested payment doesn't sit there asking for the same amount again. Every
+  figure in the Pay flow — Minimum, Recommended, a loan's monthly payment, a
+  bill's full amount — is now what's *left* toward that target this period, and a
+  target you've already covered drops off the list instead of offering itself a
+  second time. Where a figure has shrunk, it says why: "Minimum payment ·
+  $35.00 of $35.00 paid".
+- **Open Pay on something already paid and the amount starts empty.** It used to
+  helpfully fill in the whole recommendation again, which is how you end up
+  recording a payment twice. An extra payment is now an amount you type on
+  purpose, and the hint says the item is already fully paid for the period.
+- **The "Suggested" figure on a card shrinks as you pay it**, and disappears once
+  there's nothing left — it was previously fixed to the card's setup and ignored
+  every payment you'd made.
+- **On iPhone and Android too**, with the same targets and the same wording.
+
+**Cards lead with the amount you choose (Jul 29)**
+
+- **Utilization is measured against your current balance now.** A card whose
+  statement closed at zero but that you've used since read as 0% used — on the
+  card itself, in the total at the top, and in the dashboard's high-utilization
+  warning. All three now follow the live Current Balance whenever you track one
+  (a bank sync fills it in, or you can type it), and fall back to the statement
+  balance when you don't.
+- **The credit total tells you the two numbers behind the percentage.** The
+  utilization tile spells out what you owe against the limits you've entered —
+  "$4,318.42 of $21,500.00 used" — instead of a bare percentage.
+- **What's due has its own spot: the top-right corner of every card.** The
+  amount, its due date, and the color that says how close it is, all in one
+  place instead of buried in a row of statistics.
+- **You pick which of a card's three amounts gets the big figure.** They answer
+  different questions, so there's no single right one: the **amount due** (the
+  statement balance, the one with a deadline), the **current balance** (what's
+  actually on the card, including charges since the statement closed), or
+  **what's still owed** this period (what the Pay button targets — it shrinks as
+  you make partial payments). Whichever you choose, the other two stay on the
+  card in smaller type, so nothing is hidden. Cards start on the amount due.
+- **Set it once, on any device.** Settings → Payments on the web, Settings →
+  Preferences on Android, Settings on iPhone. Loans use the same corner, reading
+  their scheduled payment and remaining principal.
+- **Each amount is one line now, and the issuer logo is bigger.** The corner
+  reads label-then-figure on a single line — "DUE AUG 2  $1,204.55" — with the
+  other two amounts on their own lines beneath it, and the date rides along with
+  the word "due" wherever it appears.
+- **The totals above your cards are two things, not five.** Five equal tiles
+  read as five equally important numbers and used words your cards don't. Now
+  there's **what you owe** — the one figure to act on, with due, current and
+  minimums itemized underneath in the same words the cards use — and beside it
+  **your credit line**: utilization, what's used of what's available, and the
+  bar. The due total is shown for the first time.
+
+**Refund windows: what the stores actually allow (Jul 29)**
+
+- **Our 14-day, no-questions refund is a promise about fihaven.app, and the
+  policy now says so plainly.** If you subscribed inside the iPhone or Android
+  app, Apple or Google took the payment, and their window applies instead of
+  ours. The old wording implied 14 days everywhere, which we can't deliver on a
+  store purchase and shouldn't have suggested.
+- **Google Play: 48 hours self-service, then come to us.** You can refund it
+  yourself for the first 48 hours. After that Google stops handling it and sends
+  you to us — and we'll refund it from the Play Console on the same 14-day terms
+  as a web purchase.
+- **Apple: no fixed window, and Apple's decision.** Apple doesn't publish a
+  guaranteed refund period and reviews each request itself; in practice Report a
+  Problem only lists the last ~90 days, so ask early. We can't issue, override or
+  appeal an App Store refund — Apple doesn't give developers that ability.
+- **You won't be worse off for buying through a store.** If Apple refuses a
+  refund we think you should have had, we'll make it right with equivalent Pro
+  access.
+- **EU / EEA / UK:** your 14-day right to withdraw covers store purchases too, but
+  it's a right against the store as seller — exercise it through Apple or Google.
+- **Sales tax and VAT** on web purchases is collected by Paddle, and Paddle can
+  refund the tax portion on its own if you were charged tax you shouldn't have
+  paid — within 60 days, with a valid VAT ID or exemption certificate. Paddle's
+  Buyer Terms are now linked from the policy, with a note that where our policy
+  gives you more, ours applies.
 
 **Security: sign-in redirect hardening (Jul 28)**
 
@@ -88,36 +218,6 @@ Each release below uses two layers:
 - **The month list is still there**, underneath the chart, with exact figures
   for income, spending and net.
 - **On iPhone and Android too**, with the same chart and the same rules.
-
-**Cards lead with the amount you choose (Jul 28)**
-
-- **Utilization is measured against your current balance now.** A card whose
-  statement closed at zero but that you've used since read as 0% used — on the
-  card itself, in the total at the top, and in the dashboard's high-utilization
-  warning. All three now follow the live Current Balance whenever you track one
-  (a bank sync fills it in, or you can type it), and fall back to the statement
-  balance when you don't.
-- **The credit total tells you the two numbers behind the percentage.** The
-  utilization tile spells out what you owe against the limits you've entered —
-  "$4,318.42 of $21,500.00 used" — instead of a bare percentage.
-- **What's due has its own spot: the top-right corner of every card.** The
-  amount, its due date, and the color that says how close it is, all in one
-  place instead of buried in a row of statistics.
-- **You pick which of a card's three amounts gets the big figure.** They answer
-  different questions, so there's no single right one: the **amount due** (the
-  statement balance, the one with a deadline), the **current balance** (what's
-  actually on the card, including charges since the statement closed), or
-  **what's still owed** this period (what the Pay button targets — it shrinks as
-  you make partial payments). Whichever you choose, the other two stay on the
-  card in smaller type, so nothing is hidden. Cards start on the amount due.
-- **Set it once, on any device.** Settings → Payments on the web, Settings →
-  Preferences on Android, Settings on iPhone. Loans use the same corner, reading
-  their scheduled payment and remaining principal.
-- **Links that carry you through sign-in are checked against a list.** The
-  "return here after you sign in" part of a link (the one that lands you on
-  Settings → Notifications from an email) is now rebuilt from the handful of
-  pages that are allowed to be a destination, rather than trusted and cleaned
-  up. Nothing changes for a real link; a doctored one goes to your dashboard.
 
 **Card logos on iPhone and Android (Jul 27)**
 
@@ -540,6 +640,143 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Push: authorization is requested where it's enabled, not assumed.**
+  `AppStore.setPushNotifications(true)` (`AppStore+Edits.swift`) now awaits
+  `NotificationScheduler.requestAuthorization()` before
+  `PushRegistrar.setEnabled(true)`. APNs issues a device token without
+  authorization but iOS *displays* an alert payload only with it, so the previous
+  order produced a device the server sent to and a user who saw nothing —
+  specifically anyone who enabled push without first enabling local reminders.
+  `syncIfNeeded` adds a catch-up that prompts only on `.notDetermined`, so a
+  deliberate "Don't Allow" is never re-asked.
+- **Push: APNs registration failures are recorded.**
+  `didFailToRegisterForRemoteNotificationsWithError` logs the `NSError` domain +
+  code (not just `localizedDescription` — the entitlement failure that kept iOS
+  push dead reads only as a bare "no valid 'aps-environment' entitlement string
+  found") and persists it to `PushRegistrar.lastFailure` under
+  `fh_push_last_failure`, cleared on the next successful token. Diagnostic only;
+  nothing branches on it and nothing surfaces it in the UI yet.
+  `noteRegistrationFailure` also fires `onRegistrationSettled`, since with no
+  token `sync()` returns early and the reschedule would otherwise wait forever on
+  a registration that already failed.
+- **Push: Android notification channel, three places.** A backgrounded FCM
+  notification payload is drawn by the system, and with no channel named FCM
+  silently substitutes its own "Miscellaneous" — escaping the user's "Bill
+  reminders" settings, and dropped outright if that stray channel was muted.
+  Fixed at all three: `default_notification_channel_id` in `AndroidManifest.xml`,
+  `android.notification.channelId` on the server payload in `server/push.js` (so
+  already-installed clients are covered, not just builds shipping the new
+  manifest), and `ensureChannel(context)` moved *above* the `localNotifications`
+  gate in `NotificationScheduler` — it backs server push too, so creating it only
+  for local reminders left every push-on/reminders-off user in an unnamed channel.
+  All three must match `NotificationScheduler.CHANNEL_ID` (`bill-reminders`).
+- **Push: `sendToUser` reports what it couldn't do.** A registered device on a
+  platform with no configured transport now increments an `unready` count and
+  warns, instead of being skipped silently while `configured()` reported healthy
+  because *some* transport was up. Stale-token prunes are logged with the
+  provider's code/reason before `deletePushDeviceByToken` — that was the one
+  failure leaving no trace at all (row gone, send "successful", device quiet
+  until it re-registers), which is what made the outage undiagnosable from the
+  server. Covered by new cases in `server/push.test.js`.
+- **Refund policy rewritten around the store windows** (`client/refunds.html`
+  §3–4, with `client/terms.html` and `client/pricing.html` brought in line and all
+  three re-dated Jul 29): Play's 48-hour self-service window and the
+  post-48-hour handoff to us, Apple's absence of a published window and our
+  inability to issue or appeal an App Store refund, the EU/EEA/UK withdrawal
+  right sitting against the store as seller, Paddle Buyer Terms + privacy links
+  with a "where ours gives you more, ours applies" precedence note, and Paddle's
+  60-day tax/VAT-only refund path. Adds the commitment that an Apple refusal we
+  disagree with is made good with equivalent Pro access.
+- **Dependencies** — `engines.node` `>=24.18.1`, `better-sqlite3` 13.0.2.
+- **Issuer marks are layered and can be full color.** `ISSUER_LOGO_PATHS`
+  (`client/js/issuerLogos.js`) entries are now one of two shapes: monochrome
+  (`{ c, d }` — a single recolorable path, unchanged) or full color
+  (`{ c, w, l }`, where `l` is `[fill, d]` layers painted in order and `w` is the
+  viewBox width). Every mark is authored 24 tall, so `w / 24` is the aspect ratio;
+  `issuerLogoIsFullColor()` and `issuerLogoAspect()` are the accessors, and
+  `issuerLogoDataUri(entry, fill)` ignores `fill` for a full-color mark rather
+  than flattening it to one color. `issuerIconInfo` / `issuerIconMark` carry
+  `fullColor` and `aspect` through to the renderers.
+- **`scripts/sync-issuer-logos.js` no longer parses the table line by line** — it
+  lifts the object literal and evaluates it, since an entry now spans several
+  lines, and validates each one (exactly one of `d`/`l`, `#RRGGBB` fills,
+  positive `w`) so a format drift throws instead of silently dropping issuers.
+  The generated `IssuerLogo` in `IssuerLogos.swift` / `IssuerLogos.kt` gained
+  `width`, `isFullColor`, `layers: [IssuerLogoLayer]` and an `aspect` accessor,
+  replacing the single `path`. Run `npm run sync:issuer-logos` after editing the
+  web table; `--check` fails the build when the generated files are stale.
+- **Renderers stack layers and honor the aspect ratio.** `IssuerLogoShape` takes
+  a `viewBoxWidth` and scales uniformly against it; `IssuerLogoView` draws a
+  `ZStack` of layers for a full-color mark, and Android's `IssuerLogoMark` adds
+  one `addPath` per layer to a single `ImageVector` with `viewportWidth =
+  logo.width`. Width is capped at `1.75x` the height on all three platforms
+  (`maxAspect` / `MAX_LOGO_ASPECT` / `max-width` in CSS), which is what the web's
+  48x32 `.card-row-chip` allows a 24px-tall mark. Full-color marks skip
+  `BrandColor.legible` tinting and get a plate instead: `Theme.logoPlate`,
+  `CtColors.logoPlate`, and `.card-row-chip.is-plate` / `.icon-mark-plate` —
+  white in both themes on purpose.
+- **Provenance and licensing.** The 9 new marks come from Wikimedia Commons
+  public-domain (PD-textlogo) files, listed per key in the `issuerLogos.js`
+  header; the existing 37 are Simple Icons (CC0). Each new mark was flattened to
+  plain fill+path layers (no transforms, groups, clips, gradients or CSS),
+  **cropped to its measured fill bounds**, then scaled onto the height-24 grid —
+  Bilt's source file had padding that left the artwork filling 57% of its box.
+- **Substring matching can now be blocked per key.** `LOGO_KEY_CONFLICTS` /
+  `logoKeyConflicts` (web, Swift, Kotlin) stops a short key from matching inside
+  an unrelated brand: `citi` is skipped when the name contains `citizen`. Only
+  the loose substring pass is blocked — an exact key or alias hit still wins. The
+  `capital` → `capitalone` alias was dropped for the same reason (`capitalone` is
+  now an exact key, and the alias fired on "Capital City Bank"). New aliases:
+  `citicards`, `citigroup`, `barclay`, `barclaycard`, `centurion`.
+- **Monogram tables shed the issuers that gained logos** (citi, capitalone,
+  usbank, bilt, bestbuy, lowes) and gained `missionlane`, `aven`, `opensky`,
+  `indigo`, `lmcu` with curated colors, plus `ML` / `LM` / `OS` text overrides.
+  Keep overrides to 2–3 characters: the chip is 21px on web and 22pt/dp on
+  native, and only iOS shrinks text to fit.
+- **Check-suite note** — `SVGPathChecks` now walks every layer, and asserts a
+  full-color mark's geometry fills the viewBox it declares (the crop guarantees
+  it; hand-authored Simple Icons glyphs legitimately don't touch every edge). Its
+  box-containment tolerance is 3 units because `bounds()` includes Bézier control
+  points, which sit outside the painted shape by design — Capital One's swoosh
+  reaches 2.7 above its own top edge.
+- **Pay targets** — new `payTargetAmount(kind, type, refId, mk)` /
+  `payTargetRemaining(...)` in `client/js/utils.js`, mirrored as
+  `Schedule.payTarget(_:card:paid:tz:)` / `payRemaining(...)` in
+  `Schedule.swift` and `Schedule.kt` (three-way mirror, change together).
+  Kinds: `full` (a bill's amount) · `minimum` · `recommended` · `monthly` (a
+  loan's scheduled payment) · `payoff` (the whole start-of-period balance).
+  Balance-derived targets are computed against the card *as it stood at the
+  start of the period* (`cardAtPeriodStart` adds this period's payments back to
+  `balance`/`promoBalance`, since `applyCardPaymentDelta` decrements both), so
+  the target holds still and only the remainder moves. `goalAmountFor` /
+  `Schedule.goalAmount` are now thin selectors over these kinds — the
+  policy→target mapping (`minimum`→minimum, `full`→payoff,
+  `recommended`→recommended, loans→monthly) lives in one place instead of being
+  re-derived per platform. Side effect worth knowing: a partially-paid 0% promo
+  card's goal is now measured from the start-of-period promo balance, so it no
+  longer drifts down mid-period as installments land (matching what the `full`
+  policy already did).
+- **Pay presets are period-aware** (`buildPayPresets` in `client/js/modals.js`,
+  `PayView.presets`, `PayDialog`): each chip's amount is
+  `max(0, target - paidThisPeriod)`, a chip whose target is already met is
+  dropped, and the sub gets `· $paid of $target paid` when payments have shrunk
+  it. The prefill no longer falls back to the full goal once the goal is met (it
+  starts empty / 0), and `confirmPay` now refuses a `$0` record — the web save
+  button had no amount guard, unlike iOS/Android. `recommendedAmount` is no
+  longer called directly by any UI; it's reached through the `recommended`
+  target.
+- **`CardsList.svelte`**: the "Suggested" stat reads
+  `payTargetRemaining('recommended', …)` and hides below a cent, with a
+  "still, after $X paid" sub-line. iOS/Android card rows only render their
+  suggestion in the `unpaid` state, where paid is 0, so they needed no change.
+- Tests: 6 cases in `client/js/utils.test.js`, a `payTarget / payRemaining`
+  section in `LogicChecks.swift` (811/811), and
+  `payTargetHoldsStillWhileRemainderShrinks` in Android `LogicTest.kt`. Plus a
+  new jsdom integration test —
+  `tests/integration/payPresets.client.integration.test.js` with a
+  `payModalDom.js` fixture — driving the real `openPayModal` / `confirmPay`
+  against the modal's markup: chip set, sub text, prefill and the `$0` guard.
+
 - **`go()` in `client/js/auth.js`** (CodeQL #48 `js/xss` high, #49
   `js/client-side-unvalidated-url-redirection` medium — both the same sink,
   `window.location.replace(url)`): `nextUrl.js`'s `safeNextPath()` already
@@ -634,12 +871,25 @@ Each release below uses two layers:
   `otherAmounts()` returns the two it isn't leading with, in a stable order:
   the preference re-ranks the three, it never hides one.
 - **Web card row**: the header is now `.card-row-headline` (identity | corner
-  block), with the amounts in `.card-row-duebox` — headline, caption, and the
-  two companions in `.card-row-duebox-alts`. Since every money figure lives
-  there, the stats grid dropped its balance stat and keeps the credit line's
-  facts (limit / min / suggested / utilization); a loan renders no stats row at
-  all, its two figures already being in the corner. The due badges lost their
-  `· Next <date>` tail, which the corner now carries.
+  block), with the amounts in `.card-row-duebox` — `.card-row-duebox-head` puts
+  the label on the figure's baseline, and each companion is its own
+  `.card-row-duebox-alt` row (the separate caption line is gone; `amountLabel()`
+  folds the due date into the "due" label instead, since the meta badges carry
+  only the countdown). Since every money figure lives there, the stats grid
+  dropped its balance stat and keeps the credit line's facts (limit / min /
+  suggested / utilization); a loan renders no stats row at all, its two figures
+  already being in the corner. The issuer chip went 42×28 → 48×32 (21px inner
+  mark), and 20 → 24 pt/dp on iOS/Android.
+- **Summary, two zones**: `.cards-summary--zones` replaces the five-tile row on
+  the Cards tab with an obligations tile (hero + `.cards-summary-rows` itemizing
+  due / current / minimums in the card rows' vocabulary) beside a single credit
+  tile (utilization %, used-of-limit, available, bar — `Total credit` and
+  `Overall utilization` were two halves of one idea). The bar is pinned with
+  `margin-top: auto` so the shorter tile's edge lines up. `CardsSummaryCard` /
+  `cardsSummaryHeader` mirror it natively with a `HorizontalDivider` / `Divider`
+  between the zones and grouped sub-stacks rather than one even 10dp rhythm.
+  Dropped `CARD_AMOUNT_LABELS` (the rows compose their own labels now) and the
+  long-dead `promoCount`.
 - **Settings UI**: a "Cards" section in the Payments panel
   (`client/settings.html` + `initCardHeadlineSection` in `client/js/settings.js`,
   following the `paidgoal` pattern — the partial snapshot is safe because

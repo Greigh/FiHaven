@@ -26,6 +26,7 @@ import app.fihaven.core.Money
 import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.model.Card
 import app.fihaven.ui.theme.Ct
 import app.fihaven.ui.theme.PlexMono
 import kotlin.math.abs
@@ -44,28 +45,51 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
     val goal = vm.goalAmount(type, refId)
     val alreadyPaid = vm.paidAmountFor(type, refId)
 
+    // Each preset shows what's *left* toward its target after the payments already
+    // recorded this period, so paying part of a card and coming back doesn't
+    // re-suggest the whole amount; a target already covered drops out entirely.
     val presets: List<PayPreset> =
-            remember(data, type, refId) {
+            remember(data, type, refId, alreadyPaid) {
+                val partly = alreadyPaid > Schedule.PAID_EPSILON
+                // The sub notes the payments already counted, so a shrunken
+                // figure is never a mystery.
+                fun preset(label: String, sub: String, target: Double): PayPreset? {
+                    val left = (target - alreadyPaid).coerceAtLeast(0.0)
+                    if (partly && left <= Schedule.PAID_EPSILON) return null
+                    val note =
+                            if (partly)
+                                    "$sub · ${Money.fmt(alreadyPaid)} of ${Money.fmt(target)} paid"
+                            else sub
+                    return PayPreset(label, note, left)
+                }
+
                 if (type == "bill") {
                     val amt = data.bills.firstOrNull { it.id.toString() == refId }?.amount ?: 0.0
-                    listOf(PayPreset("Full amount", "The whole bill", amt))
+                    listOfNotNull(preset("Full amount", "The whole bill", amt))
                 } else {
                     val card = data.cards.firstOrNull { it.id.toString() == refId }
+                    fun target(kind: Schedule.PayTarget, c: Card) =
+                            Schedule.payTarget(kind, c, alreadyPaid, zone)
                     if (card == null) emptyList()
                     else if (card.type == "loan")
                     // Loans: scheduled monthly payment, plus paying off the
                     // remaining principal in full as an explicit option.
                     buildList {
-                                add(PayPreset("Monthly payment", "Your scheduled payment", card.minPayment))
-                                if (card.balance > card.minPayment + Schedule.PAID_EPSILON) {
-                                    add(PayPreset("Pay off in full", "Clears the remaining principal", card.balance))
+                                add(preset("Monthly payment", "Your scheduled payment",
+                                        target(Schedule.PayTarget.MONTHLY, card)))
+                                if (target(Schedule.PayTarget.PAYOFF, card) >
+                                                target(Schedule.PayTarget.MONTHLY, card) + Schedule.PAID_EPSILON) {
+                                    add(preset("Pay off in full", "Clears the remaining principal",
+                                            target(Schedule.PayTarget.PAYOFF, card)))
                                 }
                             }
+                            .filterNotNull()
                     else
                             buildList {
-                                add(PayPreset("Minimum", "Minimum payment", card.minPayment))
-                                val rec = Schedule.recommendedAmount(card, zone)
-                                if (rec > card.minPayment + Schedule.PAID_EPSILON) {
+                                add(preset("Minimum", "Minimum payment",
+                                        target(Schedule.PayTarget.MINIMUM, card)))
+                                if (target(Schedule.PayTarget.RECOMMENDED, card) >
+                                                target(Schedule.PayTarget.MINIMUM, card) + Schedule.PAID_EPSILON) {
                                     val sub =
                                             when {
                                                 (card.recommendedPayment ?: 0.0) > 0.0 ->
@@ -73,16 +97,24 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                                                 card.hasPromo -> "Clears the 0% promo in time"
                                                 else -> "Pays off the balance"
                                             }
-                                    add(PayPreset("Recommended", sub, rec))
+                                    add(preset("Recommended", sub,
+                                            target(Schedule.PayTarget.RECOMMENDED, card)))
                                 }
                             }
+                                    .filterNotNull()
                 }
             }
 
-    // Default to whatever still gets the item to its goal.
+    // Default to whatever still gets the item to its goal. Once the goal is met the
+    // field starts empty — an extra payment is a deliberate amount to type, not the
+    // whole recommendation offered up a second time.
     val initial =
             (goal - alreadyPaid).coerceAtLeast(0.0).let {
-                if (it > Schedule.PAID_EPSILON) it else goal
+                when {
+                    it > Schedule.PAID_EPSILON -> it
+                    alreadyPaid > Schedule.PAID_EPSILON -> 0.0
+                    else -> goal
+                }
             }
     var amount by remember { mutableStateOf(if (initial > 0) "%.2f".format(initial) else "") }
     val today = DateLogic.today(zone)
@@ -117,6 +149,10 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
     val hint =
             when {
                 goal <= 0 -> ""
+                // Already at the goal before this payment: say so, instead of
+                // claiming the amount being typed is what marks it paid.
+                alreadyPaid >= goal - Schedule.PAID_EPSILON ->
+                        "✓ $name is already fully paid this period (${Money.fmt(alreadyPaid)} of ${Money.fmt(goal)} · $policyLabel). Anything you record here is an extra payment."
                 projected >= goal - Schedule.PAID_EPSILON ->
                         "✓ Marks $name fully paid (goal ${Money.fmt(goal)} · $policyLabel)."
                 else -> {

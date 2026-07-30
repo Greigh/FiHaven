@@ -32,6 +32,10 @@ enum Theme {
     /// not flipped from light (the light steps sit above the dark lightness band).
     static let chartIncome = dyn(0x3D6FE1, 0x4A87EE)
     static let chartSpend  = dyn(0xC2410C, 0xD9700F)
+    /// Plate behind a full-color brand mark. White in both themes on purpose:
+    /// these logos are drawn for a white page, and a black wordmark would
+    /// disappear if the plate followed the dark surface.
+    static let logoPlate   = dyn(0xFFFFFF, 0xFFFFFF)
 
     // ── Radii (px → pt) ──────────────────────────────────────────────
     static let radius: CGFloat = 10
@@ -117,6 +121,10 @@ enum Theme {
         return rgb(UInt(readable))
         #endif
     }
+
+    /// A packed 0xRRGGBB color, exactly as authored — for the layers of a
+    /// full-color brand mark, which must not be nudged for contrast.
+    static func exact(_ color: UInt32) -> Color { rgb(UInt(color)) }
 
     private static func rgb(_ hex: UInt) -> Color {
         Color(

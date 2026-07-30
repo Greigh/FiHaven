@@ -13,8 +13,9 @@
   import {
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
-    cardAmounts, cardHeadlineMode, otherCardAmounts, CARD_AMOUNT_LABELS,
-    paidState, paidAmount, goalAmountFor, remainingForItem, paymentStats, archiveInsteadOfDelete,
+    cardAmounts, cardHeadlineMode, otherCardAmounts,
+    paidState, paidAmount, goalAmountFor, remainingForItem, payTargetRemaining,
+    paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
   import { issuerIconInfo, issuerIconMark } from '../js/issuerIcons.js';
   import { askDelete, openPayModal, editCard, skipMonth, unskipMonth } from '../js/modals.js';
@@ -144,10 +145,21 @@
      Settings writes it. A loan's "current" is its outstanding principal, which
      deserves its own word. */
   let headline = $derived(cardHeadlineMode(settings));
-  function altLabel(key, isLoan) {
-    if (isLoan && key === 'current') return 'principal';
-    if (isLoan && key === 'due') return 'payment';
-    return CARD_AMOUNT_LABELS[key];
+
+  /* Label for one of a card's three amounts. `due` carries the date, since
+     the corner is the only place the row states it; `secondary` is the smaller
+     companion voice under the headline. A loan's amounts are its scheduled
+     payment and its outstanding principal, which deserve their own words. */
+  function amountLabel(key, card, days, next, secondary = false) {
+    const isLoan = (card.type || 'card') === 'loan';
+    if (key === 'current') return isLoan ? 'principal' : (secondary ? 'current' : 'Current');
+    if (key === 'owed') return secondary ? 'still owed' : 'Still owed';
+    const word = isLoan ? 'payment' : 'due';
+    if (days === null) return secondary ? `${word} — no date` : `No ${word} date`;
+    if (days === 0) return secondary ? `${word} today` : `Due today`;
+    const date = shortDate(next);
+    if (days < 0) return secondary ? `${word} ${date} — late` : `Was due ${date}`;
+    return secondary ? `${word} ${date}` : `Due ${date}`;
   }
 
   function aprColor(apr) {
@@ -197,10 +209,6 @@
   // "how much do I pay?".
   let payThisMonth = $derived(baseCards.reduce((s, c) => s + remainingForItem('card', String(c.id), currentPeriodKey()), 0));
   let overallUtil  = $derived(totalLimit > 0 ? Math.round((cardBalance / totalLimit) * 100) : 0);
-  let promoCount   = $derived(baseCards.filter((c) => {
-    if (!(c.type !== 'loan' && c.hasPromo && c.promoEndDate)) return false;
-    return (parseFloat(c.promoBalance) || parseFloat(c.balance) || 0) > 0;
-  }).length);
 
   /* ── Payoff snapshot (cards view only) ──────────────────
      Cards without a 0% promo accrue interest now, so their balance is a
@@ -304,36 +312,43 @@
       </div>
     </div>
   {:else}
-  <div class="cards-summary">
+  <!-- Two zones: what you owe, then the credit line. Five equal tiles read as
+       five equally important numbers, and used words the card rows don't. The
+       obligation tile now leads with the one figure you act on and lists the
+       rest in the rows' own vocabulary; credit limit and utilization were two
+       halves of one idea, so they're one tile. -->
+  <div class="cards-summary cards-summary--zones">
     <div class="cards-summary-tile cards-summary-tile-lead">
-      <div class="cards-summary-label">{payThisMonth > 0.005 ? 'Pay this month' : 'All caught up'}</div>
+      <div class="cards-summary-label">{payThisMonth > 0.005 ? 'Still owed this period' : 'All caught up'}</div>
       <div class="cards-summary-value" style="color:{payThisMonth > 0.005 ? 'var(--text)' : 'var(--green)'};">{payThisMonth > 0.005 ? fmt(payThisMonth) : fmt(0)}</div>
-      <div class="cards-summary-sub">what you still owe this period</div>
-    </div>
-    <div class="cards-summary-tile">
-      <div class="cards-summary-label">Current balance</div>
-      <div class="cards-summary-value" style="color:{totalBalance > 0 ? 'var(--red)' : 'var(--green)'};">{fmt(totalBalance)}</div>
-      <div class="cards-summary-sub">
-        across {baseCards.length} card{baseCards.length === 1 ? '' : 's'}{#if Math.abs(totalStatement - totalBalance) > 0.005} · {fmt(totalStatement)} on statements{/if}
+      <div class="cards-summary-sub">across {baseCards.length} card{baseCards.length === 1 ? '' : 's'}</div>
+      <div class="cards-summary-rows">
+        <div class="cards-summary-row">
+          <span class="cards-summary-row-label">due</span>
+          <span class="cards-summary-row-value">{fmt(totalStatement)}</span>
+        </div>
+        <div class="cards-summary-row">
+          <span class="cards-summary-row-label">current</span>
+          <span class="cards-summary-row-value">{fmt(cardBalance)}</span>
+        </div>
+        <div class="cards-summary-row">
+          <span class="cards-summary-row-label">minimums</span>
+          <span class="cards-summary-row-value">{fmt(totalMin)}</span>
+        </div>
       </div>
     </div>
     <div class="cards-summary-tile">
-      <div class="cards-summary-label">Total credit</div>
-      <div class="cards-summary-value">{totalLimit > 0 ? fmt(totalLimit) : '—'}</div>
-      <div class="cards-summary-sub">{totalLimit > 0 ? fmt(Math.max(0, totalLimit - cardBalance)) + ' available' : 'no limits set'}</div>
-    </div>
-    <div class="cards-summary-tile">
-      <div class="cards-summary-label">Overall utilization</div>
+      <div class="cards-summary-label">Utilization</div>
       <div class="cards-summary-value" style="color:{utilColor(overallUtil)};">{totalLimit > 0 ? overallUtil + '%' : '—'}</div>
-      <div class="cards-summary-sub">{totalLimit > 0 ? fmt(cardBalance) + ' of ' + fmt(totalLimit) + ' used' : 'add credit limits to track this'}</div>
+      {#if totalLimit > 0}
+        <div class="cards-summary-sub">{fmt(cardBalance)} of {fmt(totalLimit)} used</div>
+        <div class="cards-summary-sub">{fmt(Math.max(0, totalLimit - cardBalance))} available</div>
+      {:else}
+        <div class="cards-summary-sub">Add credit limits to track this</div>
+      {/if}
       <div class="cards-summary-bar">
         <div class="cards-summary-bar-fill" style="width:{Math.min(100, overallUtil)}%;background:{utilColor(overallUtil)};"></div>
       </div>
-    </div>
-    <div class="cards-summary-tile">
-      <div class="cards-summary-label">Min payments</div>
-      <div class="cards-summary-value">{fmt(totalMin)}</div>
-      <div class="cards-summary-sub">required this cycle</div>
     </div>
   </div>
 
@@ -389,18 +404,25 @@
       {@const color   = CARD_COLORS[i % CARD_COLORS.length]}
       {@const issuerIcon = issuerIconInfo(c)}
       {@const chipColor = ((issuerIcon.isLogo || issuerIcon.isMonogram) && issuerIcon.color) ? issuerIcon.color : color}
+      <!-- A full-color mark can't be tinted, so the chip turns into the white
+           plate it was drawn for instead of carrying the brand color. -->
+      {@const chipPlated = !!(issuerIcon.isLogo && issuerIcon.fullColor)}
       {@const state   = paidState('card', String(c.id), mk)}
       {@const stats   = paymentStats('card', String(c.id), 6)}
       {@const hasPromo = !!(c.hasPromo && c.promoEndDate)}
       {@const neededPayment = hasPromo
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0)}
-      <!-- What to pay this period when the card has a distinct recommendation —
-           a 0% promo's monthly payoff, or an explicit recommended payment — so
-           it's readable without opening Pay. null = nothing beyond the min. -->
-      {@const suggested = hasPromo
-        ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
-        : (parseFloat(c.recommendedPayment || 0) > 0 ? parseFloat(c.recommendedPayment) : null)}
+      <!-- What's still to pay this period when the card has a distinct
+           recommendation — a 0% promo's monthly payoff, or an explicit
+           recommended payment — so it's readable without opening Pay. Net of
+           this period's payments: null = nothing beyond the min, or nothing
+           left to pay. -->
+      {@const paidSoFar = paidAmount('card', String(c.id), mk)}
+      {@const suggestedLeft = (hasPromo || parseFloat(c.recommendedPayment || 0) > 0)
+        ? payTargetRemaining('recommended', 'card', String(c.id), mk)
+        : 0}
+      {@const suggested = suggestedLeft > 0.005 ? suggestedLeft : null}
       {@const isPromoOpen = !!openPromos[c.id]}
       <!-- The row's three amounts. `headline` leads in the top-right corner
            per the user's preference; the other two ride along underneath it,
@@ -419,7 +441,10 @@
         <header class="card-row-head is-bill-head">
           <div class="card-row-headline">
             <div class="card-row-identity">
-              <div class="card-row-chip" style="background:{chipColor};"><IconMark info={issuerIconMark(c, { chip: true })} /></div>
+              <div
+                class="card-row-chip {chipPlated ? 'is-plate' : ''}"
+                style={chipPlated ? '' : `background:${chipColor};`}
+              ><IconMark info={issuerIconMark(c, { chip: true })} /></div>
               <div class="card-row-naming">
                 <div class="card-row-name">
                   {#if c.issuer}<span style="color:var(--muted);font-weight:500;">{c.issuer} · </span>{/if}
@@ -462,46 +487,22 @@
               </div>
             </div>
 
+            <!-- Label and amount share a line; the two amounts the headline
+                 isn't showing each get their own beneath it, so the block reads
+                 as three rows of "what : how much". The date rides with the
+                 "due" label wherever it appears — the meta badges only carry
+                 the countdown. -->
             <div class="card-row-duebox">
-              <div class="card-row-duebox-label">
-                {#if headline === 'current'}
-                  Current balance
-                {:else if headline === 'owed'}
-                  Still owed
-                {:else if days === null}
-                  No due date
-                {:else if days < 0}
-                  Was due {shortDate(next)}
-                {:else if days === 0}
-                  Due today
-                {:else}
-                  Due {shortDate(next)}
-                {/if}
+              <div class="card-row-duebox-head">
+                <span class="card-row-duebox-label">{amountLabel(headline, c, days, next)}</span>
+                <span class="card-row-duebox-value" style="color:{dueTone};">{fmt(amountDue)}</span>
               </div>
-              <div class="card-row-duebox-value" style="color:{dueTone};">{fmt(amountDue)}</div>
-              <div class="card-row-duebox-sub">
-                {#if headline === 'current'}
-                  {days === null ? 'no due date' : days < 0 ? 'was due ' + shortDate(next) : 'due ' + shortDate(next)}
-                {:else if headline === 'owed'}
-                  {state === 'skipped' ? 'skipped this month' : amountDue <= 0.005 ? 'nothing left this period' : 'to meet this period’s goal'}
-                {:else if amountDue <= 0.005}
-                  nothing owed
-                {:else if c.type === 'loan'}
-                  monthly payment
-                {:else}
-                  statement balance
-                {/if}
-              </div>
-              <!-- The amounts the headline isn't showing. They stay on the row
-                   so the preference only re-ranks the three, never hides one. -->
-              <div class="card-row-duebox-alts">
-                {#each otherCardAmounts(headline) as key}
-                  <span class="card-row-duebox-alt">
-                    <span class="card-row-duebox-alt-label">{altLabel(key, c.type === 'loan')}</span>
-                    {fmt(amounts[key])}
-                  </span>
-                {/each}
-              </div>
+              {#each otherCardAmounts(headline) as key}
+                <div class="card-row-duebox-alt">
+                  <span class="card-row-duebox-alt-label">{amountLabel(key, c, days, next, true)}</span>
+                  <span>{fmt(amounts[key])}</span>
+                </div>
+              {/each}
             </div>
           </div>
 
@@ -558,6 +559,9 @@
               <div class="card-row-stat">
                 <div class="card-row-stat-label">Suggested{hasPromo ? '/mo' : ''}</div>
                 <div class="card-row-stat-value" style="color:var(--accent);">{fmt(suggested)}</div>
+                {#if paidSoFar > 0.005}
+                  <div class="card-row-stat-sub">still, after {fmt(paidSoFar)} paid</div>
+                {/if}
               </div>
             {/if}
             <div class="card-row-stat">

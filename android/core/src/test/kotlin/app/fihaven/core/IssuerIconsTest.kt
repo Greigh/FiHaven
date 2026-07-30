@@ -35,8 +35,12 @@ class IssuerIconsTest {
             IssuerIcons.iconInfo(Card(name = "Sapphire", issuer = "Chase")),
         )
         assertEquals(
-            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
+            CategoryIcon.Logo("bilt", "🏠"),
             IssuerIcons.iconInfo(Card(name = "Blue", issuer = "Bilt")),
+        )
+        assertEquals(
+            CategoryIcon.Monogram("ML", 0x0F4C4C, "💳"),
+            IssuerIcons.iconInfo(Card(name = "Card", issuer = "Mission Lane")),
         )
         assertEquals("🔵", IssuerIcons.iconInfo(Card(name = "Sapphire", issuer = "Chase")).emoji())
     }
@@ -47,7 +51,7 @@ class IssuerIconsTest {
         assertEquals("americanexpress", IssuerIcons.logoKey("American Express"))
         assertEquals("bankofamerica", IssuerIcons.logoKey("Bank of America, N.A."))
         assertEquals("chase", IssuerIcons.logoKey("JPMorgan Chase"))
-        assertNull(IssuerIcons.logoKey("Bilt"))
+        assertNull(IssuerIcons.logoKey("Mission Lane"))
         assertNull(IssuerIcons.logoKey(""))
 
         assertEquals("chase", IssuerIcons.logo(Card(name = "Freedom Flex", issuer = "Chase"))?.key)
@@ -55,15 +59,40 @@ class IssuerIconsTest {
         assertNull(IssuerIcons.logo(Card(name = "Chase Mortgage", type = "loan")))
         assertNull(IssuerIcons.logo(Card(name = "Mystery Rewards")))
         assertEquals(0x117ACA, IssuerLogos.logo("chase")?.color)
+
+        // Full-color marks: layered, wider than tall, and never recolored.
+        assertEquals("citi", IssuerIcons.logoKey("Citi"))
+        assertEquals("citi", IssuerIcons.logoKey("Citibank"))
+        assertEquals("capitalone", IssuerIcons.logoKey("Capital One"))
+        assertEquals("usbank", IssuerIcons.logoKey("U.S. Bank"))
+        assertEquals("fifththird", IssuerIcons.logoKey("Fifth Third Bank"))
+        assertEquals("tmobile", IssuerIcons.logoKey("T-Mobile"))
+        assertEquals("bestbuy", IssuerIcons.logoKey("Best Buy"))
+        assertEquals("lowes", IssuerIcons.logoKey("Lowe's"))
+        assertEquals("hyatt", IssuerIcons.logoKey("World of Hyatt"))
+        assertEquals(true, IssuerLogos.logo("citi")?.isFullColor)
+        assertTrue((IssuerLogos.logo("citi")?.layers?.size ?: 0) > 1, "Citi mark is layered")
+        assertEquals(false, IssuerLogos.logo("chase")?.isFullColor)
+        assertEquals(1f, IssuerLogos.logo("chase")?.aspect, "a monochrome mark is square")
+        assertTrue((IssuerLogos.logo("citi")?.aspect ?: 0f) > 1f, "Citi is a wordmark")
+
+        // "Citizens Bank" is not Citi, and "Capital City Bank" is not Capital One.
+        assertNull(IssuerIcons.logoKey("Citizens Bank"))
+        assertNull(IssuerIcons.logoKey("Citizens Access"))
+        assertNull(IssuerIcons.logoKey("Capital City Bank"))
+
+        // The card says Barclay / Barclaycard; the logo key is the plural.
+        assertEquals("barclays", IssuerIcons.logoKey("Barclay"))
+        assertEquals("barclays", IssuerIcons.logoKey("Barclaycard Arrival"))
+        assertEquals("americanexpress", IssuerIcons.logoKey("Centurion Card"))
     }
 
     @Test fun namedIssuerBeatsNetworkMark() {
         // "Bilt Mastercard" is a Bilt card, not a Mastercard one.
-        assertEquals(
-            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
-            IssuerIcons.iconInfo(Card(name = "Bilt Mastercard", issuer = "Bilt")),
-        )
-        assertNull(IssuerIcons.logo(Card(name = "Visa Signature", issuer = "Citi")))
+        assertEquals("bilt", IssuerIcons.logo(Card(name = "Bilt Mastercard", issuer = "Bilt"))?.key)
+        assertEquals("citi", IssuerIcons.logo(Card(name = "Visa Signature", issuer = "Citi"))?.key)
+        // An issuer with no mark of its own still beats the network's.
+        assertNull(IssuerIcons.logo(Card(name = "Mission Lane Visa", issuer = "Mission Lane")))
         assertEquals("visa", IssuerIcons.logo(Card(name = "Signature", issuer = "Visa"))?.key)
         // With no issuer named, the network mark beats nothing.
         assertEquals("visa", IssuerIcons.logo(Card(name = "Visa Platinum"))?.key)
@@ -85,13 +114,17 @@ class IssuerIconsTest {
 
     @Test fun monogramsForIssuersWithoutLogos() {
         assertEquals(
-            CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"),
-            IssuerIcons.iconInfo(Card(name = "Bilt Rewards", issuer = "Bilt")),
+            CategoryIcon.Monogram("ML", 0x0F4C4C, "💳"),
+            IssuerIcons.iconInfo(Card(name = "Visa", issuer = "Mission Lane")),
         )
-        assertEquals("C", IssuerIcons.monogram(Card(name = "Double Cash", issuer = "Citi"))?.text)
-        assertEquals("C1", IssuerIcons.monogram(Card(name = "Savor", issuer = "Capital One"))?.text)
-        assertEquals("US", IssuerIcons.monogram(Card(name = "Altitude", issuer = "U.S. Bank"))?.text)
         assertEquals("CC", IssuerIcons.monogram(Card(name = "Card", issuer = "CareCredit"))?.text)
+        assertEquals("OS", IssuerIcons.monogram(Card(name = "Card", issuer = "OpenSky"))?.text)
+        assertEquals("LM", IssuerIcons.monogram(Card(name = "Card", issuer = "LMCU"))?.text)
+        assertEquals(
+            "LM",
+            IssuerIcons.monogram(Card(name = "Card", issuer = "Lake Michigan Credit Union"))?.text,
+        )
+        assertEquals("A", IssuerIcons.monogram(Card(name = "Card", issuer = "Aven"))?.text)
         assertEquals("S", IssuerIcons.monogram(Card(name = "Card", issuer = "SoFi"))?.text)
         assertEquals("NF", IssuerIcons.monogram(Card(name = "cashRewards", issuer = "Navy Federal Credit Union"))?.text)
         // Loans keep the bank glyph rather than taking a monogram.
@@ -113,7 +146,7 @@ class IssuerIconsTest {
         assertEquals("", IssuerMonograms.initials("   "))
 
         // Curated color where we have one, stable fallback otherwise.
-        assertEquals(0x056DAE, IssuerMonograms.monogram("citi", "Citi")?.color)
+        assertEquals(0x0057B8, IssuerMonograms.monogram("carecredit", "CareCredit")?.color)
         // Curated entries match inside a longer, more formal name.
         assertEquals(
             0x003057,
@@ -128,13 +161,23 @@ class IssuerIconsTest {
 
     /** The paths are drawn by Compose's vector parser, so bad data is invisible. */
     @Test fun bundledLogosAreWellFormed() {
-        assertEquals(37, IssuerLogos.all.size)
+        assertEquals(46, IssuerLogos.all.size)
         for ((key, logo) in IssuerLogos.all) {
             assertEquals(key, logo.key)
-            // Absolute or relative moveto — HSBC's mark starts with "m".
-            assertTrue(logo.path.first() in "Mm", "$key starts with a moveto")
-            assertTrue(logo.path.length > 32, "$key has real path data")
+            assertTrue(logo.layers.isNotEmpty(), "$key has at least one layer")
             assertTrue(logo.color in 0x000000..0xFFFFFF, "$key color is 0xRRGGBB")
+            assertTrue(logo.width >= 24f, "$key is at least as wide as it is tall")
+            // A monochrome mark is recolored as a whole, so it stays single-path.
+            if (!logo.isFullColor) {
+                assertEquals(1, logo.layers.size, "$key monochrome mark is single-path")
+                assertEquals(24f, logo.width, "$key monochrome mark is square")
+            }
+            for ((index, layer) in logo.layers.withIndex()) {
+                // Absolute or relative moveto — HSBC's mark starts with "m".
+                assertTrue(layer.path.first() in "Mm", "$key layer $index starts with a moveto")
+                assertTrue(layer.path.length > 8, "$key layer $index has real path data")
+                assertTrue(layer.color in 0x000000..0xFFFFFF, "$key layer $index color is 0xRRGGBB")
+            }
         }
     }
 
@@ -151,9 +194,14 @@ class IssuerIconsTest {
         val cards = listOf(
             Card(id = "10", name = "Sapphire", issuer = "Chase", minPayment = 35.0, dueDay = 20),
             Card(id = "11", name = "Blue", issuer = "Bilt", minPayment = 10.0, dueDay = 18),
+            Card(id = "12", name = "Card", issuer = "Mission Lane", minPayment = 10.0, dueDay = 18),
         )
         val items = Schedule.buildUpcomingItems(emptyList(), cards, UTC, now = NOW)
         assertEquals(CategoryIcon.Logo("chase", "🔵"), items.first { it.refId == "10" }.icon)
-        assertEquals(CategoryIcon.Monogram("B", 0x1A1A1A, "🏠"), items.first { it.refId == "11" }.icon)
+        assertEquals(CategoryIcon.Logo("bilt", "🏠"), items.first { it.refId == "11" }.icon)
+        assertEquals(
+            CategoryIcon.Monogram("ML", 0x0F4C4C, "💳"),
+            items.first { it.refId == "12" }.icon,
+        )
     }
 }

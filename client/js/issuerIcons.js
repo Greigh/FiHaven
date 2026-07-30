@@ -11,7 +11,12 @@
    Used by Cards list chips and dashboard upcoming card rows.
 ═══════════════════════════════════════════════════════════ */
 
-import { ISSUER_LOGO_PATHS, issuerLogoDataUri } from './issuerLogos.js';
+import {
+  ISSUER_LOGO_PATHS,
+  issuerLogoDataUri,
+  issuerLogoIsFullColor,
+  issuerLogoAspect,
+} from './issuerLogos.js';
 import { issuerMonogram } from './issuerMonograms.js';
 import { cardPresetById } from './cardPresets.js';
 import { CARD_ICON } from './categoryIcons.js';
@@ -44,6 +49,11 @@ export const ISSUER_EMOJI = {
   usb: '🔵',
   discover: '🟠',
   bilt: '🏠',
+  fifththird: '🔵',
+  tmobile: '🟣',
+  hyatt: '🔷',
+  bestbuy: '🟡',
+  lowes: '🔵',
   apple: '🍎',
   robinhood: '🟢',
   fidelity: '🟢',
@@ -61,8 +71,9 @@ const ISSUER_ALIASES = {
   jpmorgan: 'chase',
   jpmorganchase: 'chase',
   citibank: 'citi',
+  citicards: 'citi',
+  citigroup: 'citi',
   capone: 'capitalone',
-  capital: 'capitalone',
   wells: 'wellsfargo',
   boa: 'bankofamerica',
   bofa: 'bankofamerica',
@@ -70,6 +81,12 @@ const ISSUER_ALIASES = {
   usb: 'usbank',
   usbancorp: 'usbank',
   goldman: 'goldmansachs',
+  // "Barclays" is a logo key, but the card says Barclay / Barclaycard, and
+  // neither contains the plural the substring match needs.
+  barclay: 'barclays',
+  barclaycard: 'barclays',
+  // The Centurion Card is Amex's, and it's what the cardholder calls it.
+  centurion: 'americanexpress',
   // Loyalty programs — what's printed on the card is often the program,
   // not the airline or hotel that backs it.
   aadvantage: 'americanairlines',
@@ -80,6 +97,15 @@ const ISSUER_ALIASES = {
   bonvoy: 'marriott',
   hiltonhonors: 'hilton',
   diners: 'dinersclub',
+};
+
+/**
+ * Names that contain a shorter brand's key without being that brand:
+ * "Citizens Bank" is not Citi. Only blocks the loose substring match — an
+ * exact key or alias hit still wins.
+ */
+const LOGO_KEY_CONFLICTS = {
+  citi: ['citizen'],
 };
 
 const EMOJI_KEYS = Object.keys(ISSUER_EMOJI).sort((a, b) => b.length - a.length);
@@ -102,11 +128,20 @@ function canonicalKey(key) {
   return key;
 }
 
+/** Whether `name` names a different brand that merely contains `logoKey`. */
+function isConflict(logoKey, name) {
+  const words = LOGO_KEY_CONFLICTS[logoKey];
+  return !!words && words.some((w) => name.includes(w));
+}
+
 function findLogoKey(key) {
   const canon = canonicalKey(key);
   if (ISSUER_LOGO_PATHS[canon]) return canon;
   if (ISSUER_LOGO_PATHS[key]) return key;
-  for (const k of LOGO_KEYS) if (canon.includes(k) || key.includes(k)) return k;
+  for (const k of LOGO_KEYS) {
+    if (isConflict(k, canon) || isConflict(k, key)) continue;
+    if (canon.includes(k) || key.includes(k)) return k;
+  }
   for (const a of ALIAS_KEYS) {
     if (key.includes(a) && ISSUER_LOGO_PATHS[ISSUER_ALIASES[a]]) return ISSUER_ALIASES[a];
   }
@@ -138,7 +173,8 @@ export function resolveCardIssuer(card) {
 
 /**
  * Issuer icon for a card. Returns one of:
- *   { isLogo: true, logo, key, color, emoji }        — SVG data URI
+ *   { isLogo: true, logo, key, color, fullColor, aspect, emoji }
+ *                                                    — SVG data URI
  *   { isMonogram: true, text, color, key, emoji }    — initials chip
  *   { emoji, key }                                   — emoji stand-in
  * Always resolves (falls back to 💳 / 🏦).
@@ -171,6 +207,11 @@ export function issuerIconInfo(card) {
       logo: issuerLogoDataUri(entry),
       key: logoKey,
       color: entry.c,
+      // A full-color mark can't be recolored, so it needs a plate rather
+      // than a brand-colored chip; `aspect` sizes a wordmark without the
+      // caller having to measure the image.
+      fullColor: issuerLogoIsFullColor(entry),
+      aspect: issuerLogoAspect(entry),
       // Always include the emoji stand-in for text / native parity.
       emoji: emojiHit || ISSUER_EMOJI[logoKey] || CARD_ICON,
     };
@@ -202,15 +243,24 @@ export function issuerEmoji(card) {
 
 /**
  * Shape compatible with IconMark / categoryIconInfo:
- * `{ isImage, src }`, `{ isMonogram, text, color }`, or `{ emoji }`.
- * Pass `{ chip: true }` for white marks on a brand-colored chip.
+ * `{ isImage, src, fullColor, aspect }`, `{ isMonogram, text, color }`,
+ * or `{ emoji }`.
+ * Pass `{ chip: true }` for white marks on a brand-colored chip. A
+ * full-color mark ignores that and stays in its own colors.
  */
 export function issuerIconMark(card, opts) {
   const info = issuerIconInfo(card);
   if (info.isLogo) {
     const entry = ISSUER_LOGO_PATHS[info.key];
-    const fill = opts && opts.chip ? '#FFFFFF' : undefined;
-    return { isImage: true, src: issuerLogoDataUri(entry, fill) };
+    // Only a monochrome mark can go white on a brand chip; a full-color one
+    // keeps its own colors and the caller plates it instead.
+    const fill = opts && opts.chip && !info.fullColor ? '#FFFFFF' : undefined;
+    return {
+      isImage: true,
+      src: issuerLogoDataUri(entry, fill),
+      fullColor: info.fullColor,
+      aspect: info.aspect,
+    };
   }
   if (info.isMonogram) {
     // On a brand-colored chip the initials ride the chip's own background.

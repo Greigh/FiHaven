@@ -204,6 +204,50 @@ func runScheduleChecks() {
                    1600, "loan goal = monthly even under full", tol: 0.001)
     }
 
+    section("Schedule — payTarget / payRemaining") {
+        let tz = TimeZone(identifier: "UTC")!
+        // $500 of a $2,000 balance paid: the payment decremented the balance,
+        // so the card now reads 1500 and the target adds the payment back.
+        var card = Card(id: "1", name: "Reg", balance: 1500, minPayment: 50, regularAPR: 24)
+        checkClose(Schedule.payTarget(.recommended, card: card, paid: 500, tz: tz),
+                   2000, "recommended target = start-of-period balance", tol: 0.001)
+        checkClose(Schedule.payRemaining(.recommended, card: card, paid: 500, tz: tz),
+                   1500, "recommended remainder = what's left on the card", tol: 0.001)
+        checkClose(Schedule.payTarget(.minimum, card: card, paid: 500, tz: tz),
+                   50, "minimum target is flat", tol: 0.001)
+        checkClose(Schedule.payRemaining(.minimum, card: card, paid: 500, tz: tz),
+                   0, "a paid minimum leaves nothing toward it", tol: 0.001)
+
+        // An explicit recommendation is spent down, not re-suggested in full.
+        card.recommendedPayment = 300
+        checkClose(Schedule.payRemaining(.recommended, card: card, paid: 200, tz: tz),
+                   100, "override remainder = override less paid", tol: 0.001)
+        checkClose(Schedule.payRemaining(.recommended, card: card, paid: 300, tz: tz),
+                   0, "a met override leaves nothing", tol: 0.001)
+
+        // A 0% promo's monthly target is measured from the start-of-period
+        // promo balance: $1,200 over 6 months = $200/mo, $200 of it paid.
+        var promo = Card(id: "2", name: "Promo", balance: 1000, minPayment: 25, regularAPR: 24)
+        promo.hasPromo = true
+        promo.promoBalance = 1000
+        promo.promoEndDate = "2026-12-01"
+        let june = makeDate(2026, 6, 1, tz: tz)
+        checkClose(Schedule.payTarget(.recommended, card: promo, paid: 200, tz: tz, now: june),
+                   200, "promo target = start-of-period balance over months left", tol: 0.001)
+        checkClose(Schedule.payRemaining(.recommended, card: promo, paid: 200, tz: tz, now: june),
+                   0, "a met promo payment leaves nothing", tol: 0.001)
+
+        // Loans: the scheduled payment, with payoff as the whole principal.
+        var loan = Card(id: "9", name: "Mortgage", balance: 248_800, minPayment: 1200)
+        loan.type = "loan"
+        checkClose(Schedule.payRemaining(.monthly, card: loan, paid: 1200, tz: tz),
+                   0, "a paid loan payment leaves nothing", tol: 0.001)
+        checkClose(Schedule.payTarget(.payoff, card: loan, paid: 1200, tz: tz),
+                   250_000, "loan payoff target = start-of-period principal", tol: 0.001)
+        checkClose(Schedule.payRemaining(.payoff, card: loan, paid: 1200, tz: tz),
+                   248_800, "loan payoff remainder = principal left", tol: 0.001)
+    }
+
     section("Schedule — liveBalance / cardAmounts") {
         let tz = TimeZone(identifier: "UTC")!
         let bounds = Period.bounds(for: makeDate(2026, 6, 15, tz: tz), config: PeriodConfig(), tz: tz)

@@ -72,6 +72,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/fh_brand" />
+        <!-- ...and the channel, for the same reason. Omitting this does not fail
+             loudly: FCM quietly posts to a channel it creates itself, labelled
+             "Miscellaneous". Pushed bill reminders then ignore whatever the user
+             configured for "Bill reminders" — and are dropped outright if that
+             stray channel is muted. Must match NotificationScheduler.CHANNEL_ID. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="bill-reminders" />
 
         <!-- Server push via Firebase Cloud Messaging (requires google-services.json). -->
         <service

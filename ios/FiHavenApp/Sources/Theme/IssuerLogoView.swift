@@ -2,23 +2,26 @@ import SwiftUI
 import UIKit
 import FiHavenCore
 
-/// Draws a bundled issuer brand mark (`IssuerLogos`) as a vector.
+/// Draws one layer of a bundled issuer brand mark (`IssuerLogos`) as a vector.
 ///
 /// SwiftUI can't read SVG, so `SVGPath` in the core turns the mark's path
 /// data into move/line/curve segments and this maps them onto a `Path`,
-/// scaled from the 24x24 authoring grid into whatever frame it's given.
-/// Marks are single-path and use the non-zero fill rule, like the web's
-/// `<svg><path/></svg>`.
+/// scaled from the authoring grid (`width` x 24) into whatever frame it's
+/// given. Layers use the non-zero fill rule, like the web's `<svg><path/></svg>`.
 struct IssuerLogoShape: Shape {
     let segments: [SVGPathSegment]
+    /// viewBox width of the mark this layer belongs to; the height is 24.
+    var viewBoxWidth: Double = 24
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         guard !segments.isEmpty else { return path }
 
-        // Uniform scale, centered — never stretch a logo.
-        let scale = min(rect.width, rect.height) / 24
-        let offsetX = rect.minX + (rect.width - 24 * scale) / 2
+        // Uniform scale, centered — never stretch a logo. Every layer of a
+        // mark shares the viewBox, so they stay registered to each other.
+        let boxWidth = CGFloat(viewBoxWidth)
+        let scale = min(rect.width / boxWidth, rect.height / 24)
+        let offsetX = rect.minX + (rect.width - boxWidth * scale) / 2
         let offsetY = rect.minY + (rect.height - 24 * scale) / 2
         func point(_ p: SVGPoint) -> CGPoint {
             CGPoint(x: offsetX + p.x * scale, y: offsetY + p.y * scale)
@@ -43,14 +46,19 @@ struct IssuerLogoShape: Shape {
 /// Parsed marks, kept for the process lifetime — the same handful of logos
 /// is re-rendered on every scroll, and parsing is pure work we can skip.
 enum IssuerLogoCache {
-    private static let segments: [String: [SVGPathSegment]] = IssuerLogos.all.mapValues {
-        SVGPath.parse($0.path)
-    }
+    /// One entry per layer, in paint order, paired with its fill.
+    private static let layers: [String: [(color: UInt32, segments: [SVGPathSegment])]] =
+        IssuerLogos.all.mapValues { logo in
+            logo.layers.map { (color: $0.color, segments: SVGPath.parse($0.path)) }
+        }
 
-    /// Segments for a logo key, or nil if it isn't bundled / failed to parse.
-    static func lookup(_ key: String) -> [SVGPathSegment]? {
-        guard let parsed = segments[key], !parsed.isEmpty else { return nil }
-        return parsed
+    /// Layers for a logo key, or nil if it isn't bundled. A layer that failed
+    /// to parse is dropped; if every layer failed, the caller gets nil and
+    /// falls back to the emoji stand-in.
+    static func lookup(_ key: String) -> [(color: UInt32, segments: [SVGPathSegment])]? {
+        guard let parsed = layers[key] else { return nil }
+        let drawable = parsed.filter { !$0.segments.isEmpty }
+        return drawable.isEmpty ? nil : drawable
     }
 }
 
@@ -76,18 +84,44 @@ struct IssuerMonogramView: View {
     }
 }
 
-/// An issuer mark at `size`, falling back to the emoji stand-in when the
+/// An issuer mark `size` tall, falling back to the emoji stand-in when the
 /// key isn't bundled.
+///
+/// A monochrome mark is a square tinted to stay legible on the current
+/// theme. A full-color mark keeps its own colors on a light plate — it was
+/// drawn for a white page, and Bilt's black wordmark would otherwise vanish
+/// on the dark theme — and takes its natural width, capped so a 4:1 wordmark
+/// can't push the row's text around.
 struct IssuerLogoView: View {
     let key: String
     var size: CGFloat = 22
     var fallbackEmoji: String = "💳"
 
+    /// Widest a mark may render, as a multiple of its height. Matches the
+    /// 42px cap the web's 48x32 card chip allows a 24px-tall mark.
+    static let maxAspect: CGFloat = 1.75
+
     var body: some View {
-        if let segments = IssuerLogoCache.lookup(key), let logo = IssuerLogos.logo(key) {
-            IssuerLogoShape(segments: segments)
-                .fill(Theme.brand(logo.color), style: FillStyle(eoFill: false))
-                .frame(width: size, height: size)
+        if let layers = IssuerLogoCache.lookup(key), let logo = IssuerLogos.logo(key) {
+            if logo.isFullColor {
+                let width = min(size * CGFloat(logo.aspect), size * Self.maxAspect)
+                ZStack {
+                    ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
+                        IssuerLogoShape(segments: layer.segments, viewBoxWidth: logo.width)
+                            .fill(Theme.exact(layer.color), style: FillStyle(eoFill: false))
+                    }
+                }
+                .frame(width: width, height: size)
+                .padding(1)
+                .background(
+                    RoundedRectangle(cornerRadius: max(3, size * 0.18), style: .continuous)
+                        .fill(Theme.logoPlate)
+                )
+            } else {
+                IssuerLogoShape(segments: layers[0].segments, viewBoxWidth: logo.width)
+                    .fill(Theme.brand(logo.color), style: FillStyle(eoFill: false))
+                    .frame(width: size, height: size)
+            }
         } else {
             Text(fallbackEmoji)
                 .font(.system(size: size))

@@ -157,28 +157,13 @@ object Schedule {
         bounds: PeriodBounds,
         zone: ZoneId,
         now: Instant = Instant.now(),
-    ): Double {
-        val paid = paidAmount(payments, "card", card.id.toString(), bounds)
-        val startBalance = card.balance + paid
-        // Loans: the monthly obligation is the scheduled payment under every
-        // policy — never the full principal. A per-loan override still wins.
-        if (card.type == "loan") return card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
-        return when (policy) {
-            PaidGoalPolicy.MINIMUM -> card.minPayment
-            PaidGoalPolicy.FULL -> startBalance
-            PaidGoalPolicy.RECOMMENDED -> {
-                val override = card.recommendedPayment
-                when {
-                    override != null && override > 0 -> override
-                    card.hasPromo -> max(card.minPayment, promoNeeded(card, zone, now))
-                    // 0% interest (no active promo): no interest cost to carry,
-                    // so the goal is just the minimum, not the full balance.
-                    card.regularAPR <= 0 -> card.minPayment
-                    else -> startBalance
-                }
-            }
-        }
-    }
+    ): Double = goalAmount(
+        card,
+        policy,
+        paidAmount(payments, "card", card.id.toString(), bounds),
+        zone,
+        now,
+    )
 
     /** Cent-level tolerance so a goal met to the penny reads as full. */
     const val PAID_EPSILON = 0.005
@@ -261,14 +246,88 @@ object Schedule {
         return card.balance
     }
 
+    // ── Pay targets ─────────────────────────────────────────────────
+    /**
+     * One target a payment can aim at this period. [payTarget] gives the target
+     * itself and [payRemaining] what's left of it after the payments already
+     * recorded. Mirrors payTargetAmount in utils.js.
+     */
+    enum class PayTarget {
+        /** A bill's whole amount (the only target a bill has). */
+        FULL,
+        /** The card's minimum payment. */
+        MINIMUM,
+        /** The payoff-aware recommendation. */
+        RECOMMENDED,
+        /** A loan's scheduled monthly payment. */
+        MONTHLY,
+        /** The whole start-of-period balance (a loan's remaining principal). */
+        PAYOFF,
+    }
+
+    /**
+     * The card as it stood at the start of the period, payments undone. Card
+     * payments decrement the live balance, so balance-derived targets add this
+     * period's payments back: the target holds still while the remainder
+     * shrinks as installments land.
+     */
+    private fun cardAtPeriodStart(card: Card, paid: Double): Card {
+        if (paid <= 0) return card
+        return card.copy(
+            balance = card.balance + paid,
+            promoBalance = card.promoBalance?.let { it + paid },
+        )
+    }
+
+    /** This period's target for one pay preset, before payments are subtracted. */
+    fun payTarget(
+        kind: PayTarget,
+        card: Card,
+        paid: Double,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Double = when (kind) {
+        PayTarget.MINIMUM -> card.minPayment
+        PayTarget.MONTHLY -> card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
+        PayTarget.PAYOFF, PayTarget.FULL -> cardAtPeriodStart(card, paid).balance
+        PayTarget.RECOMMENDED -> recommendedAmount(cardAtPeriodStart(card, paid), zone, now)
+    }
+
+    /** What's left toward a target after this period's payments (never below 0). */
+    fun payRemaining(
+        kind: PayTarget,
+        card: Card,
+        paid: Double,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Double = max(0.0, payTarget(kind, card, paid, zone, now) - paid)
+
     /** A bill's fully-paid goal is always its full amount. */
     fun goalAmount(bill: Bill): Double = bill.amount
 
     /**
-     * A card's fully-paid goal under the active policy. For [PaidGoalPolicy.FULL],
-     * card payments decrement the live balance, so this month's payments are added
-     * back to keep the goal stable as installments land (mirrors goalAmountFor in utils.js).
+     * A card's fully-paid goal this period — the pay target the active policy names
+     * (mirrors goalAmountFor in utils.js). [paid] is what's already been paid this
+     * period; balance-derived targets add it back so the goal stays stable as
+     * installments land.
      */
+    fun goalAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        paid: Double,
+        zone: ZoneId,
+        now: Instant = Instant.now(),
+    ): Double {
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type == "loan") return payTarget(PayTarget.MONTHLY, card, paid, zone, now)
+        return when (policy) {
+            PaidGoalPolicy.MINIMUM -> payTarget(PayTarget.MINIMUM, card, paid, zone, now)
+            PaidGoalPolicy.FULL -> payTarget(PayTarget.PAYOFF, card, paid, zone, now)
+            PaidGoalPolicy.RECOMMENDED -> payTarget(PayTarget.RECOMMENDED, card, paid, zone, now)
+        }
+    }
+
     fun goalAmount(
         card: Card,
         policy: PaidGoalPolicy,
@@ -276,31 +335,13 @@ object Schedule {
         monthKey: String,
         zone: ZoneId,
         now: Instant = Instant.now(),
-    ): Double {
-        val paid = paidAmount(payments, "card", card.id.toString(), monthKey)
-        // "full" and a non-promo "recommended" both target paying the balance
-        // to zero. Card payments decrement the live balance, so add this
-        // month's payments back to keep that goal stable across installments.
-        val startBalance = card.balance + paid
-        // Loans: the monthly obligation is the scheduled payment under every
-        // policy — never the full principal. A per-loan override still wins.
-        if (card.type == "loan") return card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
-        return when (policy) {
-            PaidGoalPolicy.MINIMUM -> card.minPayment
-            PaidGoalPolicy.FULL -> startBalance
-            PaidGoalPolicy.RECOMMENDED -> {
-                val override = card.recommendedPayment
-                when {
-                    override != null && override > 0 -> override
-                    card.hasPromo -> max(card.minPayment, promoNeeded(card, zone, now))
-                    // 0% interest (no active promo): no interest cost to carry,
-                    // so the goal is just the minimum, not the full balance.
-                    card.regularAPR <= 0 -> card.minPayment
-                    else -> startBalance
-                }
-            }
-        }
-    }
+    ): Double = goalAmount(
+        card,
+        policy,
+        paidAmount(payments, "card", card.id.toString(), monthKey),
+        zone,
+        now,
+    )
 }
 
 /** How much must be paid before a bill/card counts as fully paid. */
