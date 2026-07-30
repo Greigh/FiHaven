@@ -89,8 +89,15 @@ object NotificationScheduler {
         readSchedule(prefs).forEach { am.cancel(pendingIntent(context, it.code)) }
         prefs.edit().remove(KEY_SCHEDULE).apply()
 
-        if (!settings.localNotifications) return
+        // Before the localNotifications gate, not after. The channel also backs
+        // SERVER push: a backgrounded FCM notification payload is drawn by the
+        // system against the manifest's default_notification_channel_id, and if
+        // that channel doesn't exist yet FCM silently substitutes its own
+        // "Miscellaneous" one. Creating it only for local reminders left every
+        // push-on/reminders-off user's notifications in a channel the app never
+        // named and the user can't recognise. It's idempotent and cheap.
         ensureChannel(context)
+        if (!settings.localNotifications) return
 
         // Categories the server will push for this user, which we therefore skip
         // locally to avoid a duplicate. These mirror server/scheduler.js: the

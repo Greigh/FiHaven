@@ -126,7 +126,36 @@ describe('push — FCM (Android)', () => {
     expect(send).toHaveBeenCalledWith({
       token: 'tok-1',
       notification: { title: 'Bill reminder', body: 'Rent — $1,200.00' },
+      // Pinned deliberately: without an explicit channel a backgrounded payload
+      // is drawn against FCM's own "Miscellaneous" channel instead of the app's,
+      // which escapes the user's reminder preferences. Must stay in step with
+      // NotificationScheduler.CHANNEL_ID on Android.
+      android: { notification: { channelId: 'bill-reminders' } },
     });
+  });
+
+  it('reports a device whose platform has no transport instead of silently skipping it', async () => {
+    // FCM up, APNs absent (the enclosing beforeEach clears APNS_*) — the shape
+    // of a one-platform credential outage. `configured()` is true because FCM
+    // answers, so this used to return a clean { sent: 0 } and the iOS device's
+    // silence left no trace anywhere on the server.
+    stubFirebase(vi.fn(async () => 'ok'));
+    stubModule('./db', {
+      listPushDevices: vi.fn(() => [
+        { platform: 'android', token: 'tok-1' },
+        { platform: 'ios', token: 'tok-2' },
+      ]),
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const push = require('./push');
+    const out = await push.sendToUser(1, { title: 'Hi', body: 'There' });
+
+    expect(out).toEqual({ sent: 1, unready: 1 });
+    expect(warn).toHaveBeenCalledWith(
+      'push skipped — transport not ready', 1, 'ios',
+    );
+    warn.mockRestore();
   });
 
   it('prunes a token FCM reports as unregistered', async () => {

@@ -7,6 +7,8 @@ import {
   cardHeadlineMode,
   otherCardAmounts,
   goalAmountFor,
+  payTargetAmount,
+  payTargetRemaining,
   fmt,
   fmtShort,
   setMoneyFormat,
@@ -251,6 +253,66 @@ describe('utils — goalAmountFor (bills and card policies)', () => {
   });
 });
 
+describe('utils — payTargetAmount / payTargetRemaining', () => {
+  // A payment decrements the card's balance (applyCardPaymentDelta), so these
+  // fixtures carry the *post-payment* balance alongside the payment record.
+  beforeEach(() => {
+    setBills([{ id: 'B1', amount: 120 }]);
+    setPayments([]);
+    setSettings({ paidGoal: 'recommended' });
+    setCards([{ id: 'C1', balance: 1000, minPayment: 25, regularAPR: 19.99 }]);
+  });
+
+  it('a target holds still while the remainder shrinks with each payment', () => {
+    setCards([{ id: 'C1', balance: 600, minPayment: 25, regularAPR: 19.99 }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 400, date: localIso() }]);
+    expect(payTargetAmount('recommended', 'card', 'C1')).toBe(1000);
+    expect(payTargetRemaining('recommended', 'card', 'C1')).toBe(600);
+    expect(payTargetAmount('payoff', 'card', 'C1')).toBe(1000);
+    expect(payTargetRemaining('payoff', 'card', 'C1')).toBe(600);
+  });
+
+  it('the minimum is a flat target — paying it leaves nothing toward it', () => {
+    setCards([{ id: 'C1', balance: 975, minPayment: 25, regularAPR: 19.99 }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 25, date: localIso() }]);
+    expect(payTargetAmount('minimum', 'card', 'C1')).toBe(25);
+    expect(payTargetRemaining('minimum', 'card', 'C1')).toBe(0);
+  });
+
+  it('an explicit recommended payment is spent down, not re-suggested in full', () => {
+    setCards([{ id: 'C1', balance: 800, minPayment: 25, regularAPR: 19.99, recommendedPayment: 200 }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 200, date: localIso() }]);
+    expect(payTargetAmount('recommended', 'card', 'C1')).toBe(200);
+    expect(payTargetRemaining('recommended', 'card', 'C1')).toBe(0);
+  });
+
+  it("a 0% promo's monthly target is measured from the start-of-period balance", () => {
+    // $1,200 promo over 6 months = $200/mo; $200 of it is already paid.
+    setCards([{
+      id: 'P1', balance: 1000, promoBalance: 1000, minPayment: 25,
+      hasPromo: true, promoEndDate: isoOffsetMonths(6), regularAPR: 19.99,
+    }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'P1', amount: 200, date: localIso() }]);
+    expect(payTargetAmount('recommended', 'card', 'P1')).toBeCloseTo(200, 5);
+    expect(payTargetRemaining('recommended', 'card', 'P1')).toBeCloseTo(0, 5);
+  });
+
+  it('a loan targets its scheduled payment, with payoff as the principal', () => {
+    setCards([{ id: 'L1', type: 'loan', balance: 198800, minPayment: 1200 }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'L1', amount: 1200, date: localIso() }]);
+    expect(payTargetAmount('monthly', 'card', 'L1')).toBe(1200);
+    expect(payTargetRemaining('monthly', 'card', 'L1')).toBe(0);
+    expect(payTargetAmount('payoff', 'card', 'L1')).toBe(200000);
+    expect(payTargetRemaining('payoff', 'card', 'L1')).toBe(198800);
+  });
+
+  it("a bill's only target is its amount, less what's been paid", () => {
+    setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 50, date: localIso() }]);
+    expect(payTargetAmount('full', 'bill', 'B1')).toBe(120);
+    expect(payTargetRemaining('full', 'bill', 'B1')).toBe(70);
+  });
+});
+
 describe('utils — payment state', () => {
   beforeEach(() => {
     setBills([]);
@@ -471,12 +533,25 @@ describe('utils — buildUpcomingItems', () => {
     expect(item.icon).toBe('🔵');
   });
 
-  it('uses Bilt emoji for Bilt cards without a bundled logo', () => {
+  it('uses the emoji stand-in for an issuer without a bundled logo', () => {
     setBills([]);
-    setCards([{ id: 'C2', name: 'Blue Card', issuer: 'Bilt', minPayment: 10, dueDay: 1 }]);
+    setCards([{ id: 'C2', name: 'Blue Card', issuer: 'SoFi', minPayment: 10, dueDay: 1 }]);
     const item = buildUpcomingItems()[0];
     expect(item.brand.isLogo).toBe(false);
-    expect(item.brand.emoji).toBe('🏠');
+    expect(item.brand.isMonogram).toBe(true);
+    expect(item.brand.emoji).toBe('🟣');
+    expect(item.icon).toBe('🟣');
+  });
+
+  it('marks a full-color logo so the row plates it instead of tinting it', () => {
+    setBills([]);
+    setCards([{ id: 'C3', name: 'Blue Card', issuer: 'Bilt', minPayment: 10, dueDay: 1 }]);
+    const item = buildUpcomingItems()[0];
+    expect(item.brand.isLogo).toBe(true);
+    expect(item.brand.key).toBe('bilt');
+    expect(item.brand.fullColor).toBe(true);
+    expect(item.brand.aspect).toBeGreaterThan(1);
+    // The emoji stand-in survives for text-only contexts.
     expect(item.icon).toBe('🏠');
   });
 });

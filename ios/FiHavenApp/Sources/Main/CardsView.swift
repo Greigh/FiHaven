@@ -324,32 +324,68 @@ struct CardsView: View {
         let payThisMonth = baseCards.reduce(0.0) { $0 + store.remaining(type: "card", refId: $1.id) }
         let caughtUp = payThisMonth <= 0.005
 
+        // Two zones, matching the web: what you owe, then the credit line. The
+        // itemized amounts use the card rows' own words so the totals and the
+        // rows beneath them can't seem to describe different things.
+        let totalStatement = baseCards.reduce(0.0) { $0 + ($1.type == "loan" ? $1.minPayment : $1.balance) }
+        let totalMin = baseCards.reduce(0.0) { $0 + $1.minPayment }
+        // Grouped rather than evenly spaced: the hero and its caption belong
+        // together, as do the credit figures, so the eye sees two zones.
         return VStack(alignment: .leading, spacing: 10) {
-            // Lead with the one number a user acts on.
-            FieldLabel(text: caughtUp ? "All caught up" : "Pay this month")
-            Text(caughtUp ? "$0.00" : Money.fmt(payThisMonth))
-                .font(Theme.mono(30, weight: .bold))
-                .foregroundStyle(caughtUp ? Theme.green : Theme.text)
-                .minimumScaleFactor(0.6).lineLimit(1)
-            // Secondary context: balance · utilization · card count.
-            HStack(spacing: 6) {
-                Text("Balance \(Money.fmt(totalBalance))").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                Text("Util \(utilPct)%").font(Theme.ui(12)).foregroundStyle(high ? Theme.red : Theme.green)
-                Text("·").font(Theme.ui(12)).foregroundStyle(Theme.muted)
-                Text(totalLimit > 0 ? "of \(Money.fmtShort(totalLimit))" : "\(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
+            VStack(alignment: .leading, spacing: 2) {
+                // Lead with the one number a user acts on.
+                FieldLabel(text: caughtUp ? "All caught up" : "Still owed this period")
+                Text(caughtUp ? "$0.00" : Money.fmt(payThisMonth))
+                    .font(Theme.mono(30, weight: .bold))
+                    .foregroundStyle(caughtUp ? Theme.green : Theme.text)
+                    .minimumScaleFactor(0.6).lineLimit(1)
+                Text("across \(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
-            if totalLimit > 0 {
-                ProgressView(value: min(1, util))
-                    .tint(util > 0.3 ? Theme.red : Theme.accent)
-                    .accessibilityLabel("Total credit utilization")
-                    .accessibilityValue("\(Int(util * 100)) percent")
+            VStack(spacing: 2) {
+                summaryRow("due", Money.fmt(totalStatement))
+                summaryRow("current", Money.fmt(totalBalance))
+                summaryRow("minimums", Money.fmt(totalMin))
+            }
+
+            Divider().overlay(Theme.border)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    FieldLabel(text: "Utilization")
+                    Text(totalLimit > 0 ? "\(utilPct)%" : "—")
+                        .font(Theme.mono(15, weight: .bold))
+                        .foregroundStyle(high ? Theme.red : Theme.green)
+                    Spacer()
+                }
+                if totalLimit > 0 {
+                    Text("\(Money.fmt(totalBalance)) of \(Money.fmt(totalLimit)) used · \(Money.fmt(max(0, totalLimit - totalBalance))) available")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                    ProgressView(value: min(1, util))
+                        .tint(util > 0.3 ? Theme.red : Theme.accent)
+                        .accessibilityLabel("Total credit utilization")
+                        .accessibilityValue("\(Int(util * 100)) percent")
+                } else {
+                    Text("Add credit limits to track this")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                }
             }
         }
         .ctCard(branded: true)
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
+    }
+
+    /// One itemized amount under the summary hero: label left, figure right.
+    private func summaryRow(_ label: String, _ amount: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label.uppercased())
+                .font(Theme.ui(10, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(Theme.muted)
+            Spacer()
+            Text(amount).font(Theme.mono(12, weight: .semibold)).foregroundStyle(Theme.text)
+        }
     }
 
     // ── Payoff plan: lump for interest-bearing cards, monthly for 0% promos
@@ -606,7 +642,7 @@ private struct CardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
-                IconMark(icon: IssuerIcons.iconInfo(for: card), size: 20)
+                IconMark(icon: IssuerIcons.iconInfo(for: card), size: 24)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .center, spacing: 4) {
@@ -622,13 +658,17 @@ private struct CardRow: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(headlineLabel.uppercased())
-                        .font(Theme.ui(9, weight: .bold))
-                        .tracking(0.6)
-                        .foregroundStyle(Theme.muted)
-                    Text(Money.fmt(amounts.value(for: headline)))
-                        .font(Theme.mono(16, weight: .semibold))
-                        .foregroundStyle(headlineColor)
+                    // Label sits on the amount's line; the two companions each
+                    // get their own beneath it.
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(headlineLabel.uppercased())
+                            .font(Theme.ui(9, weight: .bold))
+                            .tracking(0.6)
+                            .foregroundStyle(Theme.muted)
+                        Text(Money.fmt(amounts.value(for: headline)))
+                            .font(Theme.mono(16, weight: .semibold))
+                            .foregroundStyle(headlineColor)
+                    }
                     ForEach(companionAmounts, id: \.key) { companion in
                         Text(companion.text)
                             .font(Theme.ui(10))

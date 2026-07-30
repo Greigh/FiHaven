@@ -743,9 +743,31 @@
   vertical-align: -0.15em;
 }
 .card-row-chip .icon-mark-img {
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   border-radius: 4px;
+}
+/* Full-color official marks: authored for a white page, so they sit on a
+   light plate in both themes rather than being tinted. Height is fixed and
+   width follows the mark's aspect ratio, capped so a 4:1 wordmark can't push
+   the name column around — the 48x32 chip has room for 42px of it. */
+.icon-mark-img.icon-mark-plate {
+  width: auto;
+  height: 1.15em;
+  max-width: 2.01em;
+  background: #fff;
+  border-radius: 3px;
+  padding: 1px;
+  box-sizing: content-box;
+}
+/* Inside a card chip the chip itself is the plate (see .card-row-chip.is-plate),
+   so the mark doesn't carry a second one. */
+.card-row-chip .icon-mark-img.icon-mark-plate {
+  height: 24px;
+  max-width: 42px;
+  background: none;
+  border-radius: 0;
+  padding: 0;
 }
 /* Issuer initials on a brand-colored chip, for issuers with no bundled
    logo. Sized like .icon-mark-img so rows don't shift between the two. */
@@ -764,9 +786,9 @@
   font-family: var(--font-ui, inherit);
 }
 .card-row-chip .icon-mark-monogram {
-  width: 18px;
-  height: 18px;
-  font-size: 10px;
+  width: 21px;
+  height: 21px;
+  font-size: 11px;
 }
 
 .fh-switch { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }

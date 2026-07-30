@@ -209,25 +209,11 @@ public enum Schedule {
         tz: TimeZone,
         now: Date = Date()
     ) -> Double {
-        let paid = paidAmount(payments, type: "card", refId: String(card.id), in: bounds)
-        let startBalance = card.balance + paid
-        // Loans: the monthly obligation is the scheduled payment under every
-        // policy — never the full principal. A per-loan override still wins.
-        if (card.type ?? "card") == "loan" {
-            if let override = card.recommendedPayment, override > 0 { return override }
-            return card.minPayment
-        }
-        switch policy {
-        case .minimum: return card.minPayment
-        case .full:    return startBalance
-        case .recommended:
-            if let override = card.recommendedPayment, override > 0 { return override }
-            if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
-            // 0% interest (no active promo): no interest cost to carry, so the
-            // goal is just the minimum rather than the full balance.
-            if card.regularAPR <= 0 { return card.minPayment }
-            return startBalance
-        }
+        goalAmount(
+            card: card, policy: policy,
+            paid: paidAmount(payments, type: "card", refId: String(card.id), in: bounds),
+            tz: tz, now: now
+        )
     }
 
     /// Cent-level tolerance so a goal met to the penny reads as full.
@@ -313,13 +299,93 @@ public enum Schedule {
         return card.balance
     }
 
+    // ── Pay targets ─────────────────────────────────────────────────
+    /// One target a payment can aim at this period. `payTarget` gives the
+    /// target itself and `payRemaining` what's left of it after the payments
+    /// already recorded. Mirrors payTargetAmount in utils.js.
+    public enum PayTarget: Sendable {
+        /// A bill's whole amount (the only target a bill has).
+        case full
+        /// The card's minimum payment.
+        case minimum
+        /// The payoff-aware recommendation.
+        case recommended
+        /// A loan's scheduled monthly payment.
+        case monthly
+        /// The whole start-of-period balance (a loan's remaining principal).
+        case payoff
+    }
+
+    /// The card as it stood at the start of the period, payments undone. Card
+    /// payments decrement the live balance, so balance-derived targets add
+    /// this period's payments back: the target holds still while the
+    /// remainder shrinks as installments land.
+    static func cardAtPeriodStart(_ card: Card, paid: Double) -> Card {
+        guard paid > 0 else { return card }
+        var start = card
+        start.balance = card.balance + paid
+        if let promo = card.promoBalance { start.promoBalance = promo + paid }
+        return start
+    }
+
+    /// This period's target for one pay preset, before payments are subtracted.
+    public static func payTarget(
+        _ kind: PayTarget,
+        card: Card,
+        paid: Double,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Double {
+        switch kind {
+        case .minimum:
+            return card.minPayment
+        case .monthly:
+            if let override = card.recommendedPayment, override > 0 { return override }
+            return card.minPayment
+        case .payoff, .full:
+            return cardAtPeriodStart(card, paid: paid).balance
+        case .recommended:
+            return recommendedAmount(cardAtPeriodStart(card, paid: paid), tz: tz, now: now)
+        }
+    }
+
+    /// What's left toward a target after this period's payments (never below 0).
+    public static func payRemaining(
+        _ kind: PayTarget,
+        card: Card,
+        paid: Double,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Double {
+        max(0, payTarget(kind, card: card, paid: paid, tz: tz, now: now) - paid)
+    }
+
     /// A bill's fully-paid goal is always its full amount.
     public static func goalAmount(bill: Bill) -> Double { bill.amount }
 
-    /// A card's fully-paid goal under the active policy. For `.full`,
-    /// card payments decrement the live balance, so this month's
-    /// payments are added back to keep the goal stable as installments
-    /// land (mirrors goalAmountFor in utils.js).
+    /// A card's fully-paid goal this period — the pay target the active policy
+    /// names (mirrors goalAmountFor in utils.js). `paid` is what's already been
+    /// paid this period; balance-derived targets add it back so the goal stays
+    /// stable as installments land.
+    public static func goalAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        paid: Double,
+        tz: TimeZone,
+        now: Date = Date()
+    ) -> Double {
+        // Loans: the monthly obligation is the scheduled payment under every
+        // policy — never the full principal. A per-loan override still wins.
+        if (card.type ?? "card") == "loan" {
+            return payTarget(.monthly, card: card, paid: paid, tz: tz, now: now)
+        }
+        switch policy {
+        case .minimum:     return payTarget(.minimum, card: card, paid: paid, tz: tz, now: now)
+        case .full:        return payTarget(.payoff, card: card, paid: paid, tz: tz, now: now)
+        case .recommended: return payTarget(.recommended, card: card, paid: paid, tz: tz, now: now)
+        }
+    }
+
     public static func goalAmount(
         card: Card,
         policy: PaidGoalPolicy,
@@ -328,28 +394,11 @@ public enum Schedule {
         tz: TimeZone,
         now: Date = Date()
     ) -> Double {
-        let paid = paidAmount(payments, type: "card", refId: String(card.id), monthKey: monthKey)
-        // "full" and a non-promo "recommended" both target paying the balance
-        // to zero. Card payments decrement the live balance, so add this
-        // month's payments back to keep that goal stable across installments.
-        let startBalance = card.balance + paid
-        // Loans: the monthly obligation is the scheduled payment under every
-        // policy — never the full principal. A per-loan override still wins.
-        if (card.type ?? "card") == "loan" {
-            if let override = card.recommendedPayment, override > 0 { return override }
-            return card.minPayment
-        }
-        switch policy {
-        case .minimum: return card.minPayment
-        case .full:    return startBalance
-        case .recommended:
-            if let override = card.recommendedPayment, override > 0 { return override }
-            if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
-            // 0% interest (no active promo): no interest cost to carry, so the
-            // goal is just the minimum rather than the full balance.
-            if card.regularAPR <= 0 { return card.minPayment }
-            return startBalance
-        }
+        goalAmount(
+            card: card, policy: policy,
+            paid: paidAmount(payments, type: "card", refId: String(card.id), monthKey: monthKey),
+            tz: tz, now: now
+        )
     }
 }
 

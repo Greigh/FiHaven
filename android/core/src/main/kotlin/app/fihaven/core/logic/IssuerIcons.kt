@@ -20,6 +20,11 @@ object IssuerIcons {
         "usbank" to "🔵", "usb" to "🔵",
         "discover" to "🟠",
         "bilt" to "🏠",
+        "fifththird" to "🔵",
+        "tmobile" to "🟣",
+        "hyatt" to "🔷",
+        "bestbuy" to "🟡",
+        "lowes" to "🔵",
         "apple" to "🍎",
         "robinhood" to "🟢",
         "fidelity" to "🟢",
@@ -35,12 +40,20 @@ object IssuerIcons {
         "jpmorgan" to "chase",
         "jpmorganchase" to "chase",
         "citibank" to "citi",
+        "citicards" to "citi",
+        "citigroup" to "citi",
         "capone" to "capitalone",
         "wells" to "wellsfargo",
         "boa" to "bankofamerica",
         "bofa" to "bankofamerica",
         "usb" to "usbank",
         "goldman" to "goldmansachs",
+        // "barclays" is a logo key, but the card says Barclay / Barclaycard,
+        // and neither contains the plural the substring match needs.
+        "barclay" to "barclays",
+        "barclaycard" to "barclays",
+        // The Centurion Card is Amex's, and it's what the cardholder calls it.
+        "centurion" to "americanexpress",
         // Loyalty programs — what's printed on the card is often the program,
         // not the airline or hotel that backs it.
         "aadvantage" to "americanairlines",
@@ -51,6 +64,15 @@ object IssuerIcons {
         "bonvoy" to "marriott",
         "hiltonhonors" to "hilton",
         "diners" to "dinersclub",
+    )
+
+    /**
+     * Names that contain a shorter brand's key without being that brand:
+     * "Citizens Bank" is not Citi. Only blocks the loose substring match — an
+     * exact key or alias hit still wins. Mirrors web `LOGO_KEY_CONFLICTS`.
+     */
+    private val logoKeyConflicts = mapOf(
+        "citi" to listOf("citizen"),
     )
 
     private val keysByLength = issuerEmoji.keys.sortedByDescending { it.length }
@@ -90,6 +112,10 @@ object IssuerIcons {
         return CTConstants.cardIcon
     }
 
+    /** Whether [name] names a different brand that merely contains [logoKey]. */
+    private fun isConflict(logoKey: String, name: String): Boolean =
+        logoKeyConflicts[logoKey]?.any { name.contains(it) } == true
+
     /** Bundled brand-mark key for a name, or null. Mirrors web `findLogoKey`. */
     fun logoKey(name: String): String? {
         val key = normalize(name)
@@ -98,6 +124,7 @@ object IssuerIcons {
         if (IssuerLogos.all.containsKey(canon)) return canon
         if (IssuerLogos.all.containsKey(key)) return key
         for (k in IssuerLogos.keysByLength) {
+            if (isConflict(k, canon) || isConflict(k, key)) continue
             if (canon.contains(k) || key.contains(k)) return k
         }
         for (a in aliasKeysByLength) {

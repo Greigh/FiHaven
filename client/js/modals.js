@@ -10,7 +10,7 @@
 import { bills, cards, payments, save, setPayments, genId } from './storage.svelte.js';
 import {
   fmt, monthKey, toast, refreshAll,
-  recommendedAmount, goalAmountFor, paidAmount, paidGoalPolicy,
+  goalAmountFor, payTargetAmount, paidAmount, paidGoalPolicy,
   isFullyPaid, remainingForItem, currentPeriodKey, REWARD_CATEGORIES,
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
@@ -760,31 +760,48 @@ function payRecord(type, refId) {
     : cards.find(function (c) { return String(c.id) === String(refId); });
 }
 
-// Build the amount presets shown as chips. Bills offer the full
-// amount; cards offer Minimum and (when it differs) Recommended.
-// Every item also gets an "Other" custom-entry chip.
-function buildPayPresets(type, rec) {
+// Build the amount presets shown as chips. Bills offer the full amount;
+// cards offer Minimum and (when it differs) Recommended. Each chip shows
+// what's *left* toward its target after the payments already recorded this
+// period, so paying part of a card and coming back doesn't re-suggest the
+// whole amount; a target already covered drops out entirely. Every item
+// also gets an "Other" custom-entry chip.
+function buildPayPresets(type, rec, mk) {
   var presets = [];
   if (!rec) return presets;
+  var refId = String(rec.id);
+  var paid  = paidAmount(type, refId, mk);
+  var partly = paid > 0.005;
+
+  // A chip's amount is what's left toward its target; when payments have
+  // shrunk it, the sub says so, so the smaller figure is never a mystery.
+  function add(kind, key, label, sub) {
+    var target = payTargetAmount(kind, type, refId, mk);
+    var left   = Math.max(0, target - paid);
+    if (partly && left <= 0.005) return;
+    presets.push({
+      key: key,
+      label: label,
+      sub: partly ? sub + ' · ' + fmt(paid) + ' of ' + fmt(target) + ' paid' : sub,
+      amount: left,
+    });
+  }
+
   if (type === 'bill') {
-    presets.push({ key: 'full', label: 'Full amount', sub: 'The whole bill', amount: parseFloat(rec.amount || 0) });
+    add('full', 'full', 'Full amount', 'The whole bill');
   } else if ((rec.type || 'card') === 'loan') {
     // Loans offer the scheduled monthly payment, plus paying off the
     // remaining principal in full as an explicit (rarely-used) option.
-    var monthly = parseFloat(rec.minPayment || 0);
-    presets.push({ key: 'monthly', label: 'Monthly payment', sub: 'Your scheduled payment', amount: monthly });
-    var bal = parseFloat(rec.balance || 0);
-    if (bal > monthly + 0.005) {
-      presets.push({ key: 'full', label: 'Pay off in full', sub: 'Clears the remaining principal', amount: bal });
+    add('monthly', 'monthly', 'Monthly payment', 'Your scheduled payment');
+    if (payTargetAmount('payoff', type, refId, mk) > payTargetAmount('monthly', type, refId, mk) + 0.005) {
+      add('payoff', 'full', 'Pay off in full', 'Clears the remaining principal');
     }
   } else {
-    var min = parseFloat(rec.minPayment || 0);
-    var rec2 = recommendedAmount(rec);
-    presets.push({ key: 'minimum', label: 'Minimum', sub: 'Minimum payment', amount: min });
-    if (rec2 > min + 0.005) {
+    add('minimum', 'minimum', 'Minimum', 'Minimum payment');
+    if (payTargetAmount('recommended', type, refId, mk) > payTargetAmount('minimum', type, refId, mk) + 0.005) {
       var recSub = rec.recommendedPayment > 0 ? 'Your set payment'
         : (rec.hasPromo ? 'Clears the 0% promo in time' : 'Pays off the balance');
-      presets.push({ key: 'recommended', label: 'Recommended', sub: recSub, amount: rec2 });
+      add('recommended', 'recommended', 'Recommended', recSub);
     }
   }
   presets.push({ key: 'other', label: 'Other', sub: 'Enter a custom amount', amount: null });
@@ -885,6 +902,15 @@ function updateGoalHint() {
   var projected = already + amt;
   var soFar     = already > 0.005 ? ' Already paid ' + fmt(already) + ' this period.' : '';
 
+  // Already at the goal before this payment: say so instead of claiming the
+  // amount being typed is what marks it paid.
+  if (already >= goal - 0.005) {
+    hint.classList.add('is-full');
+    hint.innerHTML = '✓ <strong>' + escHtml(pendingPayName) + '</strong> is already fully paid this period (' +
+      fmt(already) + ' of ' + fmt(goal) + ' · ' + policyLabel + '). Anything you record here is an extra payment.';
+    return;
+  }
+
   if (projected >= goal - 0.005) {
     hint.classList.add('is-full');
     hint.innerHTML = '✓ This marks <strong>' + escHtml(pendingPayName) + '</strong> fully paid (goal ' + fmt(goal) + ' · ' + policyLabel + ').' + soFar;
@@ -955,19 +981,23 @@ export function openPayModal(type, refId, name, defaultAmt) {
   pendingPayRefId = refId;
   pendingPayName  = name;
 
+  var mk  = currentPeriodKey();
   var rec = payRecord(type, refId);
-  payPresets = buildPayPresets(type, rec);
+  payPresets = buildPayPresets(type, rec, mk);
   renderPayChips();
 
   // Default to whatever still gets the item to its goal: the
-  // remaining-to-goal if partly paid, else the full goal.
-  var mk        = currentPeriodKey();
+  // remaining-to-goal if partly paid, else the full goal. Once the goal is
+  // met the field starts empty — an extra payment is a deliberate amount to
+  // type, not the whole recommendation offered up a second time.
   var goal      = goalAmountFor(type, refId, mk);
   var already   = paidAmount(type, refId, mk);
   var remaining = Math.max(0, goal - already);
-  var initial   = remaining > 0.005 ? remaining : (goal > 0 ? goal : (Number(defaultAmt) || 0));
+  var initial   = remaining > 0.005
+    ? remaining
+    : (already > 0.005 ? 0 : (goal > 0 ? goal : (Number(defaultAmt) || 0)));
 
-  document.getElementById('pay-amount').value = Number(initial).toFixed(2);
+  document.getElementById('pay-amount').value = initial > 0 ? Number(initial).toFixed(2) : '';
   document.getElementById('pay-date').value   = todayISO();
   document.getElementById('pay-note').value   = '';
 
@@ -1006,6 +1036,9 @@ export function closePayModal() {
 
 export function confirmPay() {
   const amt  = parseFloat(document.getElementById('pay-amount').value) || 0;
+  // The field starts empty on an already-paid item, so nothing useful can come
+  // of saving a $0 record (a skip is the way to say "nothing due this period").
+  if (amt <= 0) { toast('Enter an amount greater than $0.'); return; }
   const date = document.getElementById('pay-date').value || todayISO();
   const note = document.getElementById('pay-note').value.trim();
   // Use noon to avoid timezone-shifting the date.

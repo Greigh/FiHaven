@@ -225,6 +225,35 @@ class ScheduleTest {
         assertEquals(2000.0, Schedule.goalAmount(card, PaidGoalPolicy.FULL, none, "2026-06", UTC, NOW), 1e-6)
     }
 
+    @Test fun payTargetHoldsStillWhileRemainderShrinks() {
+        // $500 of a $2,000 balance paid: the payment decremented the balance, so
+        // the card reads 1500 and the target adds the payment back.
+        val card = Card(id = "1", name = "Reg", balance = 1500.0, minPayment = 50.0, regularAPR = 24.0)
+        assertEquals(2000.0, Schedule.payTarget(Schedule.PayTarget.RECOMMENDED, card, 500.0, UTC, NOW), 1e-6)
+        assertEquals(1500.0, Schedule.payRemaining(Schedule.PayTarget.RECOMMENDED, card, 500.0, UTC, NOW), 1e-6)
+        // The minimum is a flat target — paying it leaves nothing toward it.
+        assertEquals(50.0, Schedule.payTarget(Schedule.PayTarget.MINIMUM, card, 500.0, UTC, NOW), 1e-6)
+        assertEquals(0.0, Schedule.payRemaining(Schedule.PayTarget.MINIMUM, card, 500.0, UTC, NOW), 1e-6)
+
+        // An explicit recommendation is spent down, not re-suggested in full.
+        val fixed = card.copy(recommendedPayment = 300.0)
+        assertEquals(100.0, Schedule.payRemaining(Schedule.PayTarget.RECOMMENDED, fixed, 200.0, UTC, NOW), 1e-6)
+        assertEquals(0.0, Schedule.payRemaining(Schedule.PayTarget.RECOMMENDED, fixed, 300.0, UTC, NOW), 1e-6)
+
+        // A 0% promo's monthly target comes off the start-of-period promo
+        // balance: $1,200 over 6 months = $200/mo, $200 of it already paid.
+        val promo = Card(id = "2", name = "Promo", balance = 1000.0, minPayment = 25.0, regularAPR = 24.0,
+            hasPromo = true, promoBalance = 1000.0, promoEndDate = "2026-12-01")
+        assertEquals(200.0, Schedule.payTarget(Schedule.PayTarget.RECOMMENDED, promo, 200.0, UTC, NOW), 1e-6)
+        assertEquals(0.0, Schedule.payRemaining(Schedule.PayTarget.RECOMMENDED, promo, 200.0, UTC, NOW), 1e-6)
+
+        // Loans: the scheduled payment, with payoff as the whole principal.
+        val loan = Card(id = "9", name = "Mortgage", balance = 248_800.0, minPayment = 1200.0, type = "loan")
+        assertEquals(0.0, Schedule.payRemaining(Schedule.PayTarget.MONTHLY, loan, 1200.0, UTC, NOW), 1e-6)
+        assertEquals(250_000.0, Schedule.payTarget(Schedule.PayTarget.PAYOFF, loan, 1200.0, UTC, NOW), 1e-6)
+        assertEquals(248_800.0, Schedule.payRemaining(Schedule.PayTarget.PAYOFF, loan, 1200.0, UTC, NOW), 1e-6)
+    }
+
     @Test fun liveBalancePrefersCurrentWhenTracked() {
         val linked = Card(id = "1", name = "Visa", balance = 2829.0, currentBalance = 2946.18, minPayment = 35.0)
         assertEquals(2946.18, Schedule.liveBalance(linked), 1e-6)
