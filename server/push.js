@@ -129,6 +129,13 @@ async function sendFcm(token, { title, body }) {
   await getMessaging().send({
     token,
     notification: { title, body },
+    // Name the channel here as well as in the app manifest. The manifest's
+    // default_notification_channel_id only helps builds that ship it, whereas
+    // this reaches every already-installed client — and a backgrounded payload
+    // with no channel lands in FCM's own "Miscellaneous" channel, escaping the
+    // user's "Bill reminders" preferences. Must match
+    // NotificationScheduler.CHANNEL_ID on Android.
+    android: { notification: { channelId: 'bill-reminders' } },
   });
 }
 
@@ -158,6 +165,7 @@ async function sendToUser(userId, payload) {
   if (!devices.length) return { sent: 0, skipped: 'no-devices' };
 
   let sent = 0;
+  let unready = 0;
   for (const { platform, token } of devices) {
     try {
       if (platform === 'ios' && apnsClient) {
@@ -169,13 +177,31 @@ async function sendToUser(userId, payload) {
       } else if (platform === 'web' && webPushReady) {
         await sendWeb(token, payload);
         sent += 1;
+      } else {
+        // A registered device we cannot deliver to: `configured()` is true
+        // because SOME transport is up, so the whole send still looks fine while
+        // this platform gets nothing. Count and name it — one platform's
+        // credentials going missing is otherwise invisible next to the others
+        // succeeding.
+        unready += 1;
+        console.warn('push skipped — transport not ready', userId, platform);
       }
     } catch (e) {
-      if (isStaleTokenError(e)) db.deletePushDeviceByToken(token);
-      else console.error('push send failed', userId, platform, e && e.message);
+      // Log the prune too. A dropped token is the one failure that leaves NO
+      // other trace: the row disappears, the send "succeeds" as far as the
+      // caller is concerned, and the device goes quiet until it re-registers.
+      // Silence here is what made a platform-wide push outage undiagnosable
+      // from the server, so say which platform lost a token and why.
+      if (isStaleTokenError(e)) {
+        console.warn('push token pruned (stale)', userId, platform,
+          (e && (e.code || e.reason || e.statusCode)) || (e && e.message));
+        db.deletePushDeviceByToken(token);
+      } else {
+        console.error('push send failed', userId, platform, e && e.message);
+      }
     }
   }
-  return { sent };
+  return unready ? { sent, unready } : { sent };
 }
 
 async function sendBillReminderPush(userId, bills, leadDays, currency) {

@@ -2,12 +2,15 @@
    issuerMonograms.js — initials-in-a-chip marks for issuers with
    no bundled logo.
 
-   Most US card issuers (Citi, Capital One, U.S. Bank, Bilt,
-   CareCredit, SoFi, …) have no CC0 icon to bundle, and drawing our
-   own version of someone's trademark isn't an option. A monogram —
-   the issuer's initials on a brand-colored chip — identifies the
-   card without reproducing a logo, and it degrades gracefully to
-   any issuer a user types.
+   Plenty of US card issuers (CareCredit, Mission Lane, Aven,
+   OpenSky, Indigo, LMCU, SoFi, …) have no logo we can license, and
+   drawing our own version of someone's trademark isn't an option. A
+   monogram — the issuer's initials on a brand-colored chip —
+   identifies the card without reproducing a logo, and it degrades
+   gracefully to any issuer a user types.
+
+   Keep the text overrides to 2–3 characters: the chip is 21px on web
+   and 22pt on native, and only iOS shrinks to fit.
 
    Resolution: bundled logo (issuerLogos.js) → monogram → emoji.
 ═══════════════════════════════════════════════════════════ */
@@ -18,11 +21,12 @@
  * Keyed by the normalized issuer name (see `normalizeIssuer`).
  */
 export const ISSUER_MONOGRAM_COLORS = {
-  citi: '#056DAE',
-  capitalone: '#004977',
-  usbank: '#0C2074',
-  bilt: '#1A1A1A',
   carecredit: '#0057B8',
+  missionlane: '#0F4C4C',
+  aven: '#1C1C1C',
+  opensky: '#0B6BA8',
+  indigo: '#4B3C8C',
+  lmcu: '#004B87',
   synchrony: '#003057',
   sofi: '#00A9E0',
   fidelity: '#368727',
@@ -39,9 +43,7 @@ export const ISSUER_MONOGRAM_COLORS = {
   amazon: '#FF9900',
   costco: '#E31837',
   walmart: '#0071CE',
-  bestbuy: '#0046BE',
   homedepot: '#F96302',
-  lowes: '#004990',
   alaskaairlines: '#01426A',
   macys: '#E21A2C',
   nordstrom: '#1A1A1A',
@@ -53,11 +55,12 @@ export const ISSUER_MONOGRAM_COLORS = {
 
 /** Shorthands a brand uses for itself, where initials would read oddly. */
 export const ISSUER_MONOGRAM_TEXT = {
-  capitalone: 'C1',
-  usbank: 'US',
   navyfederal: 'NF',
   tdbank: 'TD',
   carecredit: 'CC',
+  missionlane: 'ML',
+  lmcu: 'LM',
+  opensky: 'OS',
 };
 
 /** Fallback chip colors — mirrors CARD_COLORS in utils.js. */

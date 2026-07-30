@@ -419,7 +419,7 @@ private fun CardRow(
     CtCard(Modifier.clickable(onClick = onEdit)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconMark(icon = IssuerIcons.iconInfo(card), size = 20.dp, modifier = Modifier.padding(end = 8.dp))
+                IconMark(icon = IssuerIcons.iconInfo(card), size = 24.dp, modifier = Modifier.padding(end = 8.dp))
                 // Name owns the title line; issuer and the network/last-4 share the
                 // subtitle. Keeping the digits out of the title stops a long card
                 // name from squeezing them into a second wrapped line.
@@ -449,10 +449,18 @@ private fun CardRow(
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(headlineLabel.uppercase(), color = Ct.colors.muted, fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
-                    Text(Money.fmt(headlineAmount), color = headlineColor, fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                    // Label sits on the amount's line; the two companions each
+                    // get their own beneath it.
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Text(headlineLabel.uppercase(), color = Ct.colors.muted, fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
+                            modifier = Modifier.padding(bottom = 2.dp))
+                        Text(Money.fmt(headlineAmount), color = headlineColor, fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                    }
                     companionAmounts.forEach { line ->
                         Text(line, color = Ct.colors.muted, fontSize = 10.sp, maxLines = 1)
                     }
@@ -955,43 +963,77 @@ private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
     val totalLimit = cards.sumOf { it.limit }
     val util = if (totalLimit > 0) min(1.0, totalBalance / totalLimit) else 0.0
     val utilPct = (util * 100).toInt()
+    // Two zones, matching the web: what you owe, then the credit line. The
+    // itemized amounts use the card rows' own words so the totals and the rows
+    // beneath them can't seem to describe different things.
+    val totalStatement = cards.sumOf { if (it.type == "loan") it.minPayment else it.balance }
+    val totalMin = cards.sumOf { it.minPayment }
     CtCard(branded = true) {
+        // Grouped rather than evenly spaced: the hero and its caption belong
+        // together, as do the credit figures, so the eye sees two zones.
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Lead with the one number a user acts on: what to pay this month.
-            // Balance / utilization / count are the supporting context below.
-            FieldLabel(if (payThisMonth > Schedule.PAID_EPSILON) "Pay this month" else "All caught up")
-            Text(
-                if (payThisMonth > Schedule.PAID_EPSILON) Money.fmt(payThisMonth) else "$0.00",
-                color = if (payThisMonth > Schedule.PAID_EPSILON) Ct.colors.text else Ct.colors.green,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                fontFamily = PlexMono,
-            )
-            // Secondary context line: balance · utilization · card count.
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Balance ${Money.fmt(totalBalance)}", color = Ct.colors.muted, fontSize = 12.sp)
-                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                // Lead with the one number a user acts on.
+                FieldLabel(if (payThisMonth > Schedule.PAID_EPSILON) "Still owed this period" else "All caught up")
                 Text(
-                    "Util $utilPct%",
-                    color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
-                    fontSize = 12.sp,
+                    if (payThisMonth > Schedule.PAID_EPSILON) Money.fmt(payThisMonth) else "$0.00",
+                    color = if (payThisMonth > Schedule.PAID_EPSILON) Ct.colors.text else Ct.colors.green,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = PlexMono,
                 )
-                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
                 Text(
-                    if (totalLimit > 0) "of ${Money.fmtShort(totalLimit)}"
-                    else "${cards.size} card${if (cards.size == 1) "" else "s"}",
+                    "across ${cards.size} card${if (cards.size == 1) "" else "s"}",
                     color = Ct.colors.muted, fontSize = 12.sp,
                 )
             }
-            if (totalLimit > 0) {
-                LinearProgressIndicator(
-                    progress = { util.toFloat() },
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
-                    color = if (util > 0.3) Ct.colors.red else Ct.colors.accent,
-                    trackColor = Ct.colors.border,
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SummaryAmountRow("due", Money.fmt(totalStatement))
+                SummaryAmountRow("current", Money.fmt(totalBalance))
+                SummaryAmountRow("minimums", Money.fmt(totalMin))
+            }
+
+            HorizontalDivider(color = Ct.colors.border)
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FieldLabel("Utilization")
+                    Text(
+                        if (totalLimit > 0) "$utilPct%" else "—",
+                        color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PlexMono,
+                    )
+                }
+                if (totalLimit > 0) {
+                    Text(
+                        "${Money.fmt(totalBalance)} of ${Money.fmt(totalLimit)} used · " +
+                            "${Money.fmt(maxOf(0.0, totalLimit - totalBalance))} available",
+                        color = Ct.colors.muted, fontSize = 12.sp,
+                    )
+                    LinearProgressIndicator(
+                        progress = { util.toFloat() },
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                        color = if (util > 0.3) Ct.colors.red else Ct.colors.accent,
+                        trackColor = Ct.colors.border,
+                    )
+                } else {
+                    Text("Add credit limits to track this", color = Ct.colors.muted, fontSize = 12.sp)
+                }
             }
         }
+    }
+}
+
+/** One itemized amount under the summary hero: label left, figure right. */
+@Composable
+private fun SummaryAmountRow(label: String, amount: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label.uppercase(), color = Ct.colors.muted, fontSize = 10.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, modifier = Modifier.weight(1f),
+        )
+        Text(amount, color = Ct.colors.text, fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
     }
 }
 

@@ -14,7 +14,7 @@
   },
   "homepage": "https://fihaven.app/",
   "engines": {
-    "node": ">=24.18.0"
+    "node": ">=24.18.1"
   },
   "packageManager": "bun@1.3.14",
   "type": "commonjs",
@@ -78,7 +78,7 @@
     "@parcel/watcher@2.5.1": true,
     "@firebase/util@1.15.1": true,
     "protobufjs@7.6.5": true,
-    "better-sqlite3@13.0.1": true
+    "better-sqlite3@13.0.2": true
   },
   "overrides": {
     "fast-xml-parser": ">=5.10.1",

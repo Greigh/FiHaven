@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -69,11 +70,21 @@ fun IconMark(
 }
 
 /**
+ * Widest a brand mark may render, as a multiple of its height. Matches the
+ * 42px cap the web's 48x32 card chip allows a 24px-tall mark, so a 4:1
+ * wordmark can't push a row's text around.
+ */
+private const val MAX_LOGO_ASPECT = 1.75f
+
+/**
  * Draw a bundled issuer brand mark ([IssuerLogos]) as a vector.
  *
- * The marks are Simple Icons paths on a 24x24 grid — the same `d` data the
- * web renders — which Compose's [addPathNodes] parses directly. Falls back
- * to the emoji stand-in if the key isn't bundled.
+ * The marks are SVG paths on a grid 24 units tall — the same `d` data the web
+ * renders — which Compose's [addPathNodes] parses directly. A monochrome mark
+ * is a square tinted for the current surface; a full-color one keeps its own
+ * colors on a light plate (it was drawn for a white page, and Bilt's black
+ * wordmark would vanish on the dark theme) and takes its natural width.
+ * Falls back to the emoji stand-in if the key isn't bundled.
  */
 @Composable
 fun IssuerLogoMark(
@@ -84,31 +95,60 @@ fun IssuerLogoMark(
 ) {
     val logo = IssuerLogos.logo(key)
     // Nudge the brand color toward the surface's contrast floor: Visa's navy
-    // and Apple's black are otherwise invisible on the dark theme.
+    // and Apple's black are otherwise invisible on the dark theme. A
+    // full-color mark is exempt — it sits on its own plate.
     val surface = Ct.colors.surface
-    val image = remember(logo, size, surface) {
+    val width = if (logo != null && logo.isFullColor) {
+        (size.value * minOf(logo.aspect, MAX_LOGO_ASPECT)).dp
+    } else {
+        size
+    }
+    val image = remember(logo, size, width, surface) {
         logo ?: return@remember null
-        val tint = Color(BrandColor.legible(logo.color, surface.toArgb() and 0xFFFFFF) or (0xFF shl 24))
         runCatching {
-            ImageVector.Builder(
+            val builder = ImageVector.Builder(
                 name = logo.key,
-                defaultWidth = size,
+                defaultWidth = width,
                 defaultHeight = size,
-                viewportWidth = 24f,
+                viewportWidth = logo.width,
                 viewportHeight = 24f,
-            ).addPath(addPathNodes(logo.path), fill = SolidColor(tint)).build()
+            )
+            for (layer in logo.layers) {
+                val argb = if (logo.isFullColor) {
+                    layer.color
+                } else {
+                    BrandColor.legible(layer.color, surface.toArgb() and 0xFFFFFF)
+                }
+                builder.addPath(addPathNodes(layer.path), fill = SolidColor(Color(argb or (0xFF shl 24))))
+            }
+            builder.build()
         }.getOrNull()
     }
 
-    if (image != null) {
+    if (image == null) {
+        Text(fallbackEmoji, fontSize = (size.value * 0.95f).sp, modifier = modifier)
+        return
+    }
+
+    val mark: @Composable (Modifier) -> Unit = { m ->
         Image(
             imageVector = image,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = modifier.size(size),
+            modifier = m.size(width = width, height = size),
         )
+    }
+    if (logo != null && logo.isFullColor) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape((size.value * 0.18f).dp))
+                .background(Ct.colors.logoPlate)
+                .padding(1.dp),
+        ) {
+            mark(Modifier)
+        }
     } else {
-        Text(fallbackEmoji, fontSize = (size.value * 0.95f).sp, modifier = modifier)
+        mark(modifier)
     }
 }
 

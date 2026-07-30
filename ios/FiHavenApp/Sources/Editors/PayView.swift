@@ -47,30 +47,47 @@ struct PayView: View {
     private var bill: Bill? { store.data.bills.first { String($0.id) == target.refId } }
     private var card: Card? { store.data.cards.first { String($0.id) == target.refId } }
 
+    /// Each preset shows what's *left* toward its target after the payments
+    /// already recorded this period, so paying part of a card and coming back
+    /// doesn't re-suggest the whole amount; a target already covered drops out.
     private var presets: [Preset] {
+        let paid = alreadyPaid
+        let partly = paid > Schedule.paidEpsilon
+
+        // The sub notes the payments already counted, so a shrunken figure is
+        // never a mystery.
+        func preset(_ label: String, _ sub: String, target: Double) -> Preset? {
+            let left = max(0, target - paid)
+            if partly && left <= Schedule.paidEpsilon { return nil }
+            let note = partly ? "\(sub) · \(Money.fmt(paid)) of \(Money.fmt(target)) paid" : sub
+            return Preset(label: label, sub: note, amount: left)
+        }
+
         if target.type == "bill" {
-            return [Preset(label: "Full amount", sub: "The whole bill", amount: bill?.amount ?? 0)]
+            return [preset("Full amount", "The whole bill", target: bill?.amount ?? 0)].compactMap { $0 }
         }
         guard let c = card else { return [] }
+        func cardTarget(_ kind: Schedule.PayTarget) -> Double {
+            Schedule.payTarget(kind, card: c, paid: paid, tz: store.tz)
+        }
         if (c.type ?? "card") == "loan" {
             // Loans: scheduled monthly payment, plus paying off the remaining
             // principal in full as an explicit (rarely-used) option.
-            var ps = [Preset(label: "Monthly payment", sub: "Your scheduled payment", amount: c.minPayment)]
-            if c.balance > c.minPayment + Schedule.paidEpsilon {
-                ps.append(Preset(label: "Pay off in full", sub: "Clears the remaining principal", amount: c.balance))
+            var ps = [preset("Monthly payment", "Your scheduled payment", target: cardTarget(.monthly))]
+            if cardTarget(.payoff) > cardTarget(.monthly) + Schedule.paidEpsilon {
+                ps.append(preset("Pay off in full", "Clears the remaining principal", target: cardTarget(.payoff)))
             }
-            return ps
+            return ps.compactMap { $0 }
         }
-        var ps = [Preset(label: "Minimum", sub: "Minimum payment", amount: c.minPayment)]
-        let rec = Schedule.recommendedAmount(c, tz: store.tz)
-        if rec > c.minPayment + Schedule.paidEpsilon {
+        var ps = [preset("Minimum", "Minimum payment", target: cardTarget(.minimum))]
+        if cardTarget(.recommended) > cardTarget(.minimum) + Schedule.paidEpsilon {
             let sub: String
             if let o = c.recommendedPayment, o > 0 { sub = "Your set payment" }
             else if c.hasPromo { sub = "Clears the 0% promo in time" }
             else { sub = "Pays off the balance" }
-            ps.append(Preset(label: "Recommended", sub: sub, amount: rec))
+            ps.append(preset("Recommended", sub, target: cardTarget(.recommended)))
         }
-        return ps
+        return ps.compactMap { $0 }
     }
 
     private var goal: Double { store.goalAmount(type: target.type, refId: target.refId) }
@@ -93,6 +110,13 @@ struct PayView: View {
     private var hint: String {
         guard goal > 0 else { return "" }
         let projected = alreadyPaid + amount
+        // Already at the goal before this payment: say so, instead of claiming
+        // the amount being typed is what marks it paid.
+        if alreadyPaid >= goal - Schedule.paidEpsilon {
+            return "\(target.name) is already fully paid this period "
+                + "(\(Money.fmt(alreadyPaid)) of \(Money.fmt(goal)) · \(policyLabel)). "
+                + "Anything you record here is an extra payment."
+        }
         if projected >= goal - Schedule.paidEpsilon {
             return "Marks \(target.name) fully paid (goal \(Money.fmt(goal)) · \(policyLabel))."
         }
@@ -201,9 +225,15 @@ struct PayView: View {
     private func start() {
         guard !started else { return }
         started = true
-        // Default to whatever still gets the item to its goal.
+        // Default to whatever still gets the item to its goal. Once the goal
+        // is met the field starts at 0 — an extra payment is a deliberate
+        // amount to type, not the whole recommendation offered up again.
         let remaining = max(0, goal - alreadyPaid)
-        amount = remaining > Schedule.paidEpsilon ? remaining : (goal > 0 ? goal : 0)
+        if remaining > Schedule.paidEpsilon {
+            amount = remaining
+        } else {
+            amount = alreadyPaid > Schedule.paidEpsilon ? 0 : max(0, goal)
+        }
     }
 
     private func save() {
