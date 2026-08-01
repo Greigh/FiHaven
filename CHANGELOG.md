@@ -22,8 +22,9 @@ Each release below uses two layers:
 | **Android** | 1.6.1 (versionCode 40) - Account deletion works for Google/Apple sign-ins, Delete account under Settings → Account; 39 was the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
-> If you would like access to anything in Pre-Release/Beta stage, 
-> send an email to daniel@fihaven.app
+> Want the Pre-Release/Beta builds? Join directly:
+> **Android** — [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven) ·
+> **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH)
 
 ### Summary
 
@@ -45,6 +46,22 @@ Each release below uses two layers:
 
 ### Changes
 
+**Pick more than one reminder day, and branded notification emails (Jul 31)**
+
+- **You can be reminded on several days now, not just one.** "Remind me" used to
+  be a single choice — 3 days before, say — plus an on/off switch for the due
+  day itself. It's now a multi-select: pick up to five days (a week out, three
+  days out, *and* the morning it's due, if that's what you want) on the web, on
+  iPhone, and on Android. The days you pick drive everything at once — the
+  reminder emails, push, and on-device notifications — so there's still one
+  place to set them. Whatever you had picked before carries over untouched.
+- **Reminder emails now look like FiHaven.** Every email — bill and trial
+  reminders, the weekly digest, the monthly summary, and the sign-in ones — is
+  headed by the FiHaven logo and now uses the app's own colours, type, and
+  spacing instead of a near-miss of them. Amounts line up in the same
+  monospaced figures the app uses, and the whole thing reads correctly in a dark
+  inbox.
+
 **Code redemption and account deletion, fixed for App Review (Jul 31)**
 
 - **On iPhone, "Redeem an App Store code" opens Apple's own redemption sheet.**
@@ -64,6 +81,20 @@ Each release below uses two layers:
   in Data as well.
 - **"Change password" is hidden when you don't have one** (Apple / Google
   sign-ins), instead of opening a form that could never be submitted.
+
+**Sign-in errors say what actually went wrong (Aug 1)**
+
+- **Mistype your password and the app now says so.** It used to say "Your
+  session expired. Please sign in again" — on the sign-in screen, before you had
+  a session. The same wrong message covered a wrong password when deleting your
+  account, a bad authenticator code, and a passkey that didn't verify. Each of
+  those now says what happened.
+- **After deleting your account you get told it worked**: "Your account with
+  you@example.com has been deleted. No turning back." — instead of being dropped
+  on the sign-in screen with no explanation.
+- **A failed Google sign-in tells you why.** If it failed, the app closed the
+  Google window and returned you to sign-in with no message at all, which was
+  indistinguishable from the button doing nothing.
 
 **Deleting your account now cancels your web subscription (Jul 31)**
 
@@ -682,6 +713,37 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **`reminderOffsets`: reminder lead days become a list.** New synced setting —
+  `number[]` of `0..14`, deduped, clamped, sorted longest-first, capped at 5
+  (`MAX_REMINDER_OFFSETS` / `Settings.maxReminderOffsets`). It supersedes the
+  scalar `reminderLeadDays` + boolean `remindOnDueDay`, which every writer still
+  mirrors (`max(offsets)` and `offsets.includes(0)`) because `PUT /api/data`
+  replaces the whole record — an app build that predates the array would
+  otherwise save its stale scalar back over the list. Read order is the same on
+  all four platforms: the array wins if present; an **empty** array means "no
+  reminders" and deliberately does *not* fall back; absent falls back to the
+  legacy pair. `server/scheduler.js` exports `reminderOffsets(settings)` and
+  drives bill, trial, and card-offer reminders through it;
+  `Settings.reminderOffsets` (iOS, with the mirror in its setter),
+  `JsonObject.reminderOffsets` + `withReminderOffsets` (Android), and
+  `leadsFromSettings` in `client/js/settings.js` are the ports. Native local
+  notifications (`NotificationScheduler.swift` / `.kt`) schedule one request per
+  offset, as before — they just read the list now.
+- **Reminder-day UI, per platform.** Web: a `.lead-chip` multi-select (real
+  checkboxes, visually hidden, `is-active`/`is-disabled` mirrored in JS so the
+  styling doesn't depend on `:has()`) replacing the `<select>` and the due-day
+  switch. iOS: a new `ReminderDaysView` behind a `NavigationLink`, replacing the
+  menu `Picker` + `Toggle`. Android: `LeadDaysDialog` becomes a multi-select
+  with a `leadSummary` on the `NavRow`. All three lock the *unpicked* options at
+  the cap, so a tap is never silently dropped, and warn when the list is empty.
+- **Emails re-skinned onto the product's tokens.** `server/emails.js` swaps its
+  hand-rolled palette for the values in `client/css/tokens.css` (light and the
+  `prefers-color-scheme: dark` block both), adds Manrope via `@import` with the
+  system stack inline as the honest fallback, sets amounts in IBM Plex Mono to
+  match `.mono`, and heads every message with `brandBlock()` — the mark as a
+  hosted PNG (`client/public/email-logo.png`, rasterized from `icon.svg`;
+  no client renders SVG reliably) beside a live-text wordmark, so an inbox with
+  images off still shows the brand.
 - **Guideline 3.1.1: iOS carries no custom promo-code entry.** `RedeemCodeView`
   (the "e.g. FREEPRO30" text field), both `showRedeem` sheets, and the "Have a
   promo code?" / "Redeem a code" buttons are deleted from `Paywall.swift` and
@@ -720,6 +782,32 @@ Each release below uses two layers:
   and wrong-password rejection, and OAuth-account delete with / without the
   confirm phrase. `helpers/testServer.js` now mounts `/api/account` — it wasn't
   mounted before, so nothing in `routes/account.js` had integration coverage.
+- **iOS: a 401 no longer means "session expired" unconditionally.**
+  `APIClient.send` threw `.unauthenticated` for *every* 401 before reading the
+  body, so the twelve distinct 401 codes the server sends — `wrong-password`,
+  `invalid-credentials`, `invalid-totp-code`, `passkey-verify-failed` and the
+  rest — were all rendered as "Your session expired. Please sign in again." It
+  now decodes the code first and only maps a bare 401, or an explicit
+  `unauthenticated`, to session loss; the rest keep their code and get their own
+  message (several added to `APIError.userMessage`, previously unreachable).
+  Android's `ApiClient` already did this — iOS had drifted. Guarded by new
+  checks in `APIChecks.swift`.
+- **`AppEnvironment.authNotice` + `FormNoticeBanner`** carry the post-deletion
+  confirmation ("Your account with <email> has been deleted. No turning back.")
+  to the auth screen in green rather than as a red error, since a successful
+  deletion isn't a failure. `didDeleteAccount(email:)` captures the address
+  before the session is torn down; `runAuth` retires the notice on the next
+  sign-in attempt.
+- **Google sign-in failures are surfaced.** `AuthView.handleGoogle` discarded
+  every `GIDSignIn` error with a bare `guard … else { return }`. It now
+  distinguishes a user cancel (silent), an SDK error (on-screen message, domain
+  + code logged) and a missing ID token. This is what turned a silent dead
+  button into a diagnosable "keychain error" in testing.
+- **Paddle cancel: only "already gone" counts as success.** `entity_not_found`,
+  `subscription_update_when_canceled` and a bare 404 mean there is nothing left
+  to charge; every other 4xx (401/403 on a rotated key, 422 on a bad request)
+  leaves the subscription live and is recorded in `failed` instead of being
+  swallowed.
 - **Paddle subscriptions are cancelled during account deletion.**
   `POST /api/account/delete` now calls
   `billing.cancelPaddleSubscriptionsForUser` (→ new

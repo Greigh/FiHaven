@@ -505,6 +505,24 @@ function recordPaddleSubscription(userId, s) {
   return computeEntitlement(userId);
 }
 
+// Paddle error codes that mean "this subscription is already gone", i.e. the
+// cancel is a no-op rather than a failure. Everything else — auth, validation,
+// server errors — leaves the subscription live and must be surfaced.
+const PADDLE_ALREADY_GONE_CODES = new Set([
+  'entity_not_found',                    // no such subscription (404)
+  'subscription_update_when_canceled',   // already canceled (400/403)
+]);
+
+/** True when a failed cancel means the subscription was already cancelled/gone. */
+function isAlreadyCancelledAtPaddle(err) {
+  if (!err) return false;
+  const code = err.body && err.body.error && err.body.error.code;
+  if (code && PADDLE_ALREADY_GONE_CODES.has(String(code))) return true;
+  // Paddle sends `entity_not_found` with a 404, but treat a bare 404 as gone
+  // too: there is no subscription left at that id to charge.
+  return err.status === 404;
+}
+
 /**
  * Cancel every live Paddle subscription this user has, immediately.
  *
@@ -539,11 +557,12 @@ async function cancelPaddleSubscriptionsForUser(userId) {
       await paddle.cancelSubscription(id, 'immediately');
       out.cancelled.push(id);
     } catch (err) {
-      // Already cancelled at Paddle is the expected 4xx here, and is a success
-      // for our purposes: nothing will be charged again. Anything else is a
-      // real failure worth surfacing, because it means we deleted an account
-      // that may still be billed.
-      if (err && err.status >= 400 && err.status < 500) {
+      // A subscription that is already gone at Paddle is a success for our
+      // purposes: nothing will be charged again. Every OTHER 4xx is a real
+      // failure — a rotated API key (401/403) or a rejected request (422)
+      // means the subscription is still live and the account is about to be
+      // deleted out from under it, which is exactly what `failed` is for.
+      if (isAlreadyCancelledAtPaddle(err)) {
         out.cancelled.push(id);
       } else {
         out.failed.push(id);

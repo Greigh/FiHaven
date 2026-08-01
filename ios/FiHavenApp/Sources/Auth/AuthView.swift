@@ -76,6 +76,9 @@ struct AuthView: View {
                     .accessibilityLabel("Security check")
                     .accessibilityHint("Completes automatically in the background")
 
+                    if let notice = env.authNotice {
+                        FormNoticeBanner(message: notice)
+                    }
                     if let error = env.authError {
                         FormErrorBanner(message: error)
                     }
@@ -241,7 +244,24 @@ struct AuthView: View {
             .flatMap({ $0.windows })
             .first(where: { $0.isKeyWindow })?.rootViewController else { return }
         GIDSignIn.sharedInstance.signIn(withPresenting: root) { result, error in
-            guard error == nil, let idToken = result?.user.idToken?.tokenString else { return }
+            // Every failure here used to `return` silently, so a Google sign-in
+            // that didn't complete looked exactly like the button doing nothing:
+            // the web flow closed and the login screen sat there with no reason
+            // given, on screen or in the log.
+            if let error {
+                let ns = error as NSError
+                // Backing out of the sheet is a deliberate choice, not an error
+                // worth shouting about.
+                if ns.code == GIDSignInError.canceled.rawValue { return }
+                print("[AuthView] Google sign-in failed: \(ns.domain) \(ns.code) — \(ns.localizedDescription)")
+                env.authError = "Google sign-in failed. \(ns.localizedDescription)"
+                return
+            }
+            guard let idToken = result?.user.idToken?.tokenString else {
+                print("[AuthView] Google sign-in returned no ID token")
+                env.authError = "Google didn't return a sign-in token. Please try again."
+                return
+            }
             let name = result?.user.profile?.name
             Task { await env.oauthSignIn(provider: "google", idToken: idToken, name: name) }
         }

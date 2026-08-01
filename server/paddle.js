@@ -89,8 +89,11 @@ async function api(path, { method = 'GET', body } = {}) {
  * Account deletion uses 'immediately' — the account it belongs to is about to
  * cease existing, so there is nothing left to run out.
  *
- * A subscription that is already canceled at Paddle returns 4xx; callers that
- * are offboarding should treat that as success, not as a failure to retry.
+ * A subscription that is already canceled at Paddle throws with `status` 404 or
+ * an `entity_not_found` / `subscription_update_when_canceled` error code;
+ * offboarding callers should treat only those as success. Other 4xx responses
+ * (401/403 on a rotated key, 422 on a bad request) mean the subscription is
+ * still live and must not be swallowed.
  */
 async function cancelSubscription(subscriptionId, effectiveFrom = 'immediately') {
   return api('/subscriptions/' + encodeURIComponent(String(subscriptionId)) + '/cancel', {

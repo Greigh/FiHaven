@@ -204,10 +204,10 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   // to cancel from. Apple/Google subscriptions can't be cancelled server-side;
   // the UI tells those users to cancel in the store first.
   try {
-    const res = await billing.cancelPaddleSubscriptionsForUser(user.id);
-    if (res.failed.length) {
+    const cancelResult = await billing.cancelPaddleSubscriptionsForUser(user.id);
+    if (cancelResult.failed.length) {
       console.error('[account] deleted user', user.id,
-        'with un-cancelled Paddle subscriptions:', res.failed.join(', '));
+        'with un-cancelled Paddle subscriptions:', cancelResult.failed.join(', '));
     }
   } catch (err) {
     console.error('[account] Paddle cancel threw during delete:', err && err.message);

@@ -55,7 +55,14 @@ public final class APIClient: Sendable {
         return req
     }
 
-    /// Sends a request, mapping non-2xx into APIError. 401 → `.unauthenticated`.
+    /// Sends a request, mapping non-2xx into APIError.
+    ///
+    /// A 401 only means `.unauthenticated` — "your session expired" — when the
+    /// server says so. Every other 401 carries a specific code and keeps it:
+    /// the server answers `wrong-password`, `invalid-credentials`,
+    /// `invalid-totp-code`, `passkey-verify-failed` and half a dozen more with
+    /// 401, and flattening them all told a user who mistyped their password on
+    /// the sign-in screen that their session had expired.
     /// `internal` so the account/MFA extension can reuse it.
     @discardableResult
     func send(_ req: URLRequest) async throws -> Data {
@@ -69,9 +76,11 @@ public final class APIClient: Sendable {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("Non-HTTP response")
         }
-        if http.statusCode == 401 { throw APIError.unauthenticated }
         guard (200..<300).contains(http.statusCode) else {
             let code = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
+            if http.statusCode == 401, code == nil || code == "unauthenticated" {
+                throw APIError.unauthenticated
+            }
             throw APIError.http(status: http.statusCode, code: code)
         }
         return data

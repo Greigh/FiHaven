@@ -150,11 +150,12 @@ struct DeleteAccountSheet: View {
     private func delete() async {
         busy = true; defer { busy = false }
         do {
+            let deletedEmail = env.currentUser?.email
             try await env.api.deleteAccount(password: password,
                                             code: code.trimmingCharacters(in: .whitespaces),
                                             confirm: confirmText.trimmingCharacters(in: .whitespaces))
             dismiss()
-            env.didDeleteAccount()
+            env.didDeleteAccount(email: deletedEmail)
         } catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
