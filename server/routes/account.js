@@ -16,6 +16,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 const dbApi = require('../db');
+const billing = require('../billing');
 const emails = require('../emails');
 const mfa = require('../mfa');
 const plaid = require('../plaid');
@@ -163,11 +164,30 @@ async function revokePlaidItems(userId) {
 
 /* ── POST /api/account/delete ────────────────────────────────── */
 
+// The phrase a passwordless (OAuth-only) account types instead of a password.
+// Kept in sync with the clients' confirm field.
+const DELETE_CONFIRM_PHRASE = 'DELETE ACCOUNT DATA';
+
 router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
 
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  // Sign in with Apple / Google accounts have no usable password, so a password
+  // prompt would lock them out of deleting entirely (App Store Guideline
+  // 5.1.1(v) requires in-app deletion for every account we let people create).
+  // They confirm by typing the phrase instead; the session + CSRF header still
+  // authenticate the request, and TOTP is enforced below either way.
+  const row = dbApi.findUserById(req.user.id);
+  if (!row) return sendError(res, 401, 'wrong-password');
+
+  let user;
+  if (dbApi.userHasPassword(row)) {
+    user = await verifyPassword(req.user.id, body.password);
+    if (!user) return sendError(res, 401, 'wrong-password');
+  } else {
+    const typed = String(body.confirm || '').trim().toUpperCase();
+    if (typed !== DELETE_CONFIRM_PHRASE) return sendError(res, 400, 'confirm-required');
+    user = row;
+  }
 
   // Re-confirm the second factor (TOTP) when one is enrolled.
   const sf = checkSecondFactor(user, body.code);
@@ -177,6 +197,21 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   // with the user row, but the Item must be removed AT Plaid to stop billing and
   // delete its data).
   await revokePlaidItems(user.id);
+
+  // Cancel any web subscription at Paddle. The local row cascade-deletes, but
+  // Paddle is the merchant of record — left alone it keeps charging a customer
+  // whose account is gone, and with the account deleted there is no portal left
+  // to cancel from. Apple/Google subscriptions can't be cancelled server-side;
+  // the UI tells those users to cancel in the store first.
+  try {
+    const res = await billing.cancelPaddleSubscriptionsForUser(user.id);
+    if (res.failed.length) {
+      console.error('[account] deleted user', user.id,
+        'with un-cancelled Paddle subscriptions:', res.failed.join(', '));
+    }
+  } catch (err) {
+    console.error('[account] Paddle cancel threw during delete:', err && err.message);
+  }
 
   // Removes the user row; sessions and user_data cascade-delete.
   dbApi.deleteUser(user.id);

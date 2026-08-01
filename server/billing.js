@@ -505,6 +505,55 @@ function recordPaddleSubscription(userId, s) {
   return computeEntitlement(userId);
 }
 
+/**
+ * Cancel every live Paddle subscription this user has, immediately.
+ *
+ * Required on account deletion. Paddle is the merchant of record: the local
+ * `subscriptions` row cascade-deletes with the user, but that is only our
+ * bookkeeping — the subscription itself lives at Paddle and would keep charging
+ * a customer whose account no longer exists, with no portal left to cancel it
+ * from. The store platforms are different: an Apple or Google subscription can
+ * only be cancelled by the user in the store, which is why the delete screens
+ * and /delete-account tell them to do that themselves.
+ *
+ * Best-effort, like Plaid revocation — deletion must never be blocked by a
+ * billing API hiccup. Returns what happened so the caller can log it.
+ *
+ * @returns {Promise<{ cancelled: string[], failed: string[] }>}
+ */
+async function cancelPaddleSubscriptionsForUser(userId) {
+  const out = { cancelled: [], failed: [] };
+  if (!paddleConfigured()) return out;
+
+  let rows;
+  try {
+    rows = dbApi.activeSubscriptions(userId).filter((r) => r.platform === 'paddle');
+  } catch (_) {
+    return out;
+  }
+
+  for (const row of rows || []) {
+    const id = row.txn_id;                       // Paddle subscription id (sub_…)
+    if (!id) continue;
+    try {
+      await paddle.cancelSubscription(id, 'immediately');
+      out.cancelled.push(id);
+    } catch (err) {
+      // Already cancelled at Paddle is the expected 4xx here, and is a success
+      // for our purposes: nothing will be charged again. Anything else is a
+      // real failure worth surfacing, because it means we deleted an account
+      // that may still be billed.
+      if (err && err.status >= 400 && err.status < 500) {
+        out.cancelled.push(id);
+      } else {
+        out.failed.push(id);
+        console.error('[billing] Paddle cancel failed on delete for', id, err && err.message);
+      }
+    }
+  }
+  return out;
+}
+
 /** The Paddle customer id for this user, from their most recent row. */
 function paddleCustomerIdForUser(userId) {
   const rows = dbApi.activeSubscriptions(userId).filter((r) => r.platform === 'paddle');
@@ -763,6 +812,7 @@ module.exports = {
   paddlePriceForPlan,
   paddlePlanForPrice,
   paddleCustomerIdForUser,
+  cancelPaddleSubscriptionsForUser,
   createPaddleCheckout,
   createPaddlePortal,
   canUsePaddlePortal,

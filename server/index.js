@@ -185,6 +185,7 @@ const LEGACY = {
   '/pricing.html':   '/pricing',
   '/security.html':  '/security',
   '/refunds.html':   '/refunds',
+  '/delete-account.html': '/delete-account',
   '/pay.html':       '/pay',
   '/contact.html':   '/contact',
 };

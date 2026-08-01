@@ -39,22 +39,10 @@ public struct Entitlement: Codable, Equatable, Sendable {
     }
 }
 
-/// Native store offer returned when a `store_offer` promo is redeemed —
-/// the client presents it through the App Store / Play to get the
-/// discounted price.
-public struct StoreOffer: Codable, Equatable, Sendable {
-    public var platform: String?
-    public var productId: String?
-    public var offerId: String?
-}
-
-/// Result of redeeming a promo code.
-public struct PromoResult: Codable, Equatable, Sendable {
-    public var ok: Bool
-    public var kind: String?          // "free_sub" | "store_offer"
-    public var offer: StoreOffer?
-    public var entitlement: Entitlement?
-}
+// Server-issued promo codes (`POST /api/billing/promo/redeem`) are redeemable
+// on the web and on Android only. iOS deliberately carries no promo-redemption
+// model or client call: Guideline 3.1.1 allows just Apple's own offer-code
+// sheet (`StoreManager.presentOfferCodeSheet`).
 
 // ── Wire bodies ──────────────────────────────────────────────────
 struct EntitlementResponse: Decodable { let entitlement: Entitlement }
@@ -69,4 +57,3 @@ struct GoogleVerifyBody: Encodable {
     let purchaseToken: String
     let expiryTimeMillis: Int64?
 }
-struct PromoRedeemBody: Encodable { let code: String }

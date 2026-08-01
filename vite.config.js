@@ -47,6 +47,7 @@ const cleanUrls = {
       [BASE + '/pricing.html']:   BASE + '/pricing',
       [BASE + '/security.html']:  BASE + '/security',
       [BASE + '/refunds.html']:   BASE + '/refunds',
+      [BASE + '/delete-account.html']: BASE + '/delete-account',
       [BASE + '/pay.html']:       BASE + '/pay',
       [BASE + '/contact.html']:   BASE + '/contact',
     };
@@ -161,6 +162,7 @@ export default defineConfig({
         pricing:   clientFile('pricing.html'),
         security:  clientFile('security.html'),
         refunds:   clientFile('refunds.html'),
+        deleteAccount: clientFile('delete-account.html'),
         pay:       clientFile('pay.html'),
         contact:   clientFile('contact.html'),
         notFound:  clientFile('404.html'),

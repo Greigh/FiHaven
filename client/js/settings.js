@@ -51,6 +51,8 @@ import {
     switch (code) {
       case 'wrong-password':
         return 'That password is incorrect.';
+      case 'confirm-required':
+        return 'Type DELETE ACCOUNT DATA exactly to confirm.';
       case 'weak-password':
         return 'Password must be at least 10 characters with one letter and one number.';
       case 'password-unchanged':
@@ -146,6 +148,10 @@ import {
     var auth = window.AppAuth;
     if (!auth) return;
 
+    // Flipped false once /api/auth/me reports an Apple/Google account. Those
+    // have no password, so password re-auth prompts are dropped.
+    var hasPassword = true;
+
     // Render the "Signed in as" panel — show the display name (if
     // set) above the email, or the email alone otherwise. Also seed
     // the name input so the user can edit their existing value.
@@ -209,6 +215,21 @@ import {
         } else {
           emailSection.hidden = false;
         }
+      }
+      // Sign in with Apple / Google accounts have no password: hide the
+      // password prompts they could never satisfy. Deletion then rests on the
+      // typed confirm phrase (the server accepts that for these accounts).
+      if (user.hasPassword === false) {
+        hasPassword = false;
+        var pwField = document.getElementById('delete-password');
+        if (pwField) {
+          pwField.required = false;
+          pwField.value = '';
+          var pwWrap = pwField.closest('.auth-field');
+          if (pwWrap) pwWrap.hidden = true;
+        }
+        var pwSection = document.querySelector('[data-change-password-section]');
+        if (pwSection) pwSection.hidden = true;
       }
       // Membership line needs the Pro entitlement (from /api/data).
       fetchData()
@@ -395,7 +416,7 @@ import {
           showMessage('delete', 'Type ' + DELETE_PHRASE + ' exactly to confirm.', true);
           return;
         }
-        if (!password) {
+        if (hasPassword && !password) {
           showMessage('delete', 'Enter your password to confirm.', true);
           return;
         }
@@ -408,7 +429,7 @@ import {
         }
         setBusy(deleteForm, true);
         showMessage('delete', 'Deleting…', false);
-        postJson('delete', { password: password, code: code })
+        postJson('delete', { password: password, code: code, confirm: deleteText.value.trim() })
           .then(function (res) {
             if (res.ok) {
               clearLocalData();

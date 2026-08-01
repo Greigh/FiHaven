@@ -34,6 +34,7 @@ sealed class ApiError : Exception() {
                 "invalid-totp-code" -> "That code wasn't valid."
                 "account-suspended" -> "This account has been suspended. Contact support if you think that's a mistake."
                 "wrong-password" -> "That password is incorrect."
+                "confirm-required" -> "Type DELETE ACCOUNT DATA exactly to confirm."
                 "passkey-verify-failed" -> "Passkey verification failed. Try again."
                 "bad-challenge", "challenge-expired" -> "That setup session expired. Please try again."
                 "bad-passkey-id" -> "Passkey not found."

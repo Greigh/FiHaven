@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (17) - Push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 39) - Push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (18) - App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins); 17 was the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 40) - Account deletion works for Google/Apple sign-ins, Delete account under Settings → Account; 39 was the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > If you would like access to anything in Pre-Release/Beta stage, 
@@ -44,6 +44,48 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Code redemption and account deletion, fixed for App Review (Jul 31)**
+
+- **On iPhone, "Redeem an App Store code" opens Apple's own redemption sheet.**
+  The typed-in FiHaven promo code box is gone from the iPhone app: App Store
+  rules only allow Apple's redemption sheet there, and that's now the single
+  button on the Pro screen and the paywall. FiHaven promo codes still work on the
+  web and on Android, and a code you redeemed there still shows as your Pro
+  source on iPhone.
+- **You can delete your account even if you signed in with Apple or Google.**
+  You couldn't before: deleting asked for a password, and an account created
+  through Sign in with Apple or Google has never had one, so the button could
+  never be completed. Those accounts now confirm by typing DELETE ACCOUNT DATA,
+  which is all that was ever protecting the button anyway. Deleting still wipes
+  the account and every bill, card, payment and linked bank, and signs you out.
+- **"Delete account" now sits under Settings → Account**, not only at the bottom
+  of Data, on iPhone and Android — it's the first place anyone looks. It's still
+  in Data as well.
+- **"Change password" is hidden when you don't have one** (Apple / Google
+  sign-ins), instead of opening a form that could never be submitted.
+
+**Deleting your account now cancels your web subscription (Jul 31)**
+
+- **If you subscribed on fihaven.app, deleting your account stops the billing.**
+  It didn't. Your subscription lives at Paddle, our merchant of record, and
+  deleting the account only removed our own record of it — so the card kept
+  being charged for an account that no longer existed, with no way left to log
+  in and cancel. Deletion now cancels the subscription at Paddle first, and
+  immediately. If you're ever charged after deleting, email support@fihaven.app
+  and we'll refund it.
+- **App Store and Play subscriptions still have to be cancelled by you**, in
+  Settings → Apple ID → Subscriptions or the Play Store — Apple and Google don't
+  let us do it on your behalf. Every delete screen and the deletion page say so.
+
+**A public page for deleting your account (Jul 31)**
+
+- **[fihaven.app/delete-account](https://fihaven.app/delete-account) explains how
+  to delete your account and exactly what goes with it** — and how to ask us to
+  do it if you've already uninstalled the app or can't sign in. Google Play
+  requires a deletion route that works from outside the app, and a settings tab
+  you can only reach by logging in isn't one. Linked from the site footer, the
+  Privacy Policy, and Terms §10.
 
 **Push notifications actually arrive now (Jul 29)**
 
@@ -640,6 +682,72 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Guideline 3.1.1: iOS carries no custom promo-code entry.** `RedeemCodeView`
+  (the "e.g. FREEPRO30" text field), both `showRedeem` sheets, and the "Have a
+  promo code?" / "Redeem a code" buttons are deleted from `Paywall.swift` and
+  `ProView.swift`; the remaining "Redeem an App Store code" button calls
+  `StoreManager.presentOfferCodeSheet()` →
+  `AppStore.presentOfferCodeRedeemSheet(in:)` directly. The plumbing behind it
+  went too — `StoreManager.redeemPromo`/`promoError`, `APIClient.redeemPromo`,
+  `PromoResult`, `StoreOffer`, `PromoRedeemBody` — so no in-app redemption path
+  ships in the binary at all. `POST /api/billing/promo/redeem` is untouched and
+  still serves web + Android; `source == "promo"` still renders as "Promo Code"
+  in the Pro status card, since a code redeemed elsewhere is still the account's
+  Pro source.
+- **Guideline 5.1.1(v): OAuth-only accounts could not delete themselves.**
+  `createOAuthUser` stores `OAUTH_SENTINEL_HASH` (`!oauth-no-password`), so the
+  `verifyPassword` gate on `POST /api/account/delete` was unsatisfiable for every
+  Sign in with Apple / Google account — the in-app delete existed but could not
+  complete. The route now branches on the new `dbApi.userHasPassword(row)`:
+  password accounts re-enter their password as before, passwordless ones must
+  send `confirm: "DELETE ACCOUNT DATA"` (case-insensitive) or get `400
+  confirm-required`. TOTP re-confirmation, Plaid item revocation and the cascade
+  delete are unchanged and apply to both paths.
+- **`hasPassword` on `GET /api/auth/me`** (`dbApi.userHasPassword`) drives the
+  client side of that: iOS `DeleteAccountSheet` and Android
+  `DeleteAccountDialog` drop the password field when it's false and post the
+  typed phrase as `confirm` (`DeleteAccountBody` on both, replacing
+  `PasswordCodeBody` for this call only); `client/js/settings.js` hides the
+  delete-password field and the whole change-password card. Absent flag decodes
+  as `true` on every client, so older payloads keep today's behaviour.
+- **Delete-account entry points.** Added to the Account section of iOS
+  `SettingsView.accountSection` and Android `SettingsScreen`'s ACCOUNT group,
+  alongside the existing Data-section button. "Change password" is now gated on
+  `hasPassword` in both, since `POST /api/account/change-password` re-checks a
+  password these accounts don't have.
+- **`tests/integration/accountDelete.server.integration.test.js`** (5 cases)
+  covers `hasPassword` on `/me` for both account kinds, password-account delete
+  and wrong-password rejection, and OAuth-account delete with / without the
+  confirm phrase. `helpers/testServer.js` now mounts `/api/account` — it wasn't
+  mounted before, so nothing in `routes/account.js` had integration coverage.
+- **Paddle subscriptions are cancelled during account deletion.**
+  `POST /api/account/delete` now calls
+  `billing.cancelPaddleSubscriptionsForUser` (→ new
+  `paddle.cancelSubscription(id, 'immediately')`, `POST
+  /subscriptions/{id}/cancel`) before `deleteUser`. The `subscriptions` row
+  cascade-deletes with the user, but that row is only our bookkeeping — the
+  subscription itself lives at Paddle, and an account deletion left it renewing
+  against a customer who no longer had a portal to cancel from. Best-effort like
+  the Plaid revocation: a 4xx (already cancelled at Paddle) counts as success, a
+  5xx is logged with the subscription id and never blocks the deletion. Store
+  subscriptions are untouched — Apple and Google only allow the user to cancel.
+- **Backup retention is now stated as a number.** `data-retention-policy.md`
+  (v1.2), `/delete-account` and the Privacy Policy all say weekly whole-server
+  snapshots with the 2 most recent retained (≈14 days), disaster-recovery only
+  and never used to restore an individual account — replacing "aged out on a
+  defined cycle", which told a user asking "when is my data actually gone?"
+  nothing.
+- **Public `/delete-account` page** (`client/delete-account.html`, wired into
+  `vite.config.js` rollup inputs + both `.html`→clean-URL redirect maps,
+  `public-footer.js`, `sitemap.xml`, and linked from `privacy.html` and
+  `terms.html#delete-account`). Google Play's account-deletion policy wants an
+  in-app path *and* a web link resource, "prominently featured and easily
+  discoverable", declared in the Data safety form — Play Console's URL field now
+  has something correct to point at. Content is verified against the schema:
+  every table claimed as deleted (`user_data`, `households`,
+  `household_members`, `push_devices`, `user_totp`, `user_backup_codes`,
+  `user_passkeys`, `sessions`, `subscriptions`) is `ON DELETE CASCADE` from
+  `users` with `foreign_keys = ON`.
 - **Push: authorization is requested where it's enabled, not assumed.**
   `AppStore.setPushNotifications(true)` (`AppStore+Edits.swift`) now awaits
   `NotificationScheduler.requestAuthorization()` before
