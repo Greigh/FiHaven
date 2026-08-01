@@ -530,11 +530,12 @@ extension AppStore {
     func setDashboardWidgets(_ ids: [String]) {
         mutate { $0.settings.dashboardWidgets = ids }
     }
-    func setReminderLeadDays(_ days: Int) {
-        mutate { $0.settings.reminderLeadDays = min(14, max(0, days)) }
-    }
-    func setRemindOnDueDay(_ on: Bool) {
-        mutate { $0.settings.remindOnDueDay = on }
+    /// The days a reminder fires on. The only writer for reminder timing —
+    /// the legacy `reminderLeadDays` / `remindOnDueDay` keys are mirrors now,
+    /// and writing either directly would just lose to the array on read.
+    /// Clamping, de-duping, and that mirror all live in the setter.
+    func setReminderOffsets(_ days: [Int]) {
+        mutate { $0.settings.reminderOffsets = days }
     }
     func setNotifyHour(_ hour: Int) {
         mutate { $0.settings.notifyHour = min(23, max(0, hour)) }

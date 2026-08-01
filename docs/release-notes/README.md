@@ -40,6 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.1](v1.6.1/ios19-android41.md) | iOS 19 · Android 41 | 2026-08-01 | Multi-day reminders, branded emails, skips in History, new-month review on phones |
 | [1.6.1](v1.6.1/ios18-android40.md) | iOS 18 · Android 40 | 2026-07-31 | App Review resubmission: App Store code redemption, account deletion for Apple/Google sign-ins |
 | [1.6.1](v1.6.1/ios17-android39.md) | iOS 17 · Android 39 | 2026-07-29 | Push actually arrives; pay what's left; 9 full-color issuer logos |
 | [1.6.1](v1.6.1/ios16-android38.md) | iOS 16 · Android 38 | 2026-07-28 | Income vs. spending; card amounts & logos (38 resubmits 37) |

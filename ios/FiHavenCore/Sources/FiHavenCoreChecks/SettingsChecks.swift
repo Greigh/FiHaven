@@ -77,6 +77,43 @@ func runSettingsChecks() {
         checkEqual(fromWeb.notifyHour, 23, "hour clamps high on get")
     }
 
+    // Multi-day reminders. Must match reminderOffsets() in server/scheduler.js
+    // and the Android JsonObject.reminderOffsets accessor.
+    section("Settings — reminderOffsets") {
+        // Absent: falls back to the legacy single lead + due-day pair.
+        checkEqual(Settings().reminderOffsets, [3], "default falls back to [3]")
+        checkEqual(
+            Settings(["reminderLeadDays": .number(5), "remindOnDueDay": .bool(true)]).reminderOffsets,
+            [5, 0], "legacy lead + due day → [5, 0]")
+        checkEqual(
+            Settings(["reminderLeadDays": .number(0), "remindOnDueDay": .bool(true)]).reminderOffsets,
+            [0], "due day already the lead → no duplicate")
+
+        // Present: deduped, clamped, longest-first, capped.
+        let messy = Settings(["reminderOffsets": .array([
+            .number(3), .number(3), .number(99), .number(-1), .number(0),
+        ])])
+        checkEqual(messy.reminderOffsets, [3, 0], "dedupes and drops out-of-range")
+        let many = Settings(["reminderOffsets": .array(
+            [1, 2, 3, 5, 7, 10, 14].map { .number(Double($0)) })])
+        checkEqual(many.reminderOffsets, [14, 10, 7, 5, 3], "caps at maxReminderOffsets")
+
+        // Empty is a real choice, not a reason to fall back.
+        let none = Settings(["reminderOffsets": .array([]), "reminderLeadDays": .number(3)])
+        checkEqual(none.reminderOffsets, [], "empty array does not fall back")
+
+        // The setter mirrors the legacy pair so older clients stay correct.
+        var s = Settings()
+        s.reminderOffsets = [0, 7, 3]
+        checkEqual(s.reminderOffsets, [7, 3, 0], "setter sorts longest-first")
+        checkEqual(s.reminderLeadDays, 7, "setter mirrors reminderLeadDays")
+        check(s.remindOnDueDay, "setter mirrors remindOnDueDay")
+        s.reminderOffsets = [5]
+        check(!s.remindOnDueDay, "clearing the due day clears the legacy flag")
+        s.reminderOffsets = []
+        checkEqual(s.reminderLeadDays, 3, "empty leaves the legacy lead at its default")
+    }
+
     section("Settings — categoryIcons emoji + image") {
         let emojiOnly = Settings(["categoryIcons": .object([
             "Housing": .string("🏡"),

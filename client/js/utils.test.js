@@ -394,6 +394,24 @@ describe('utils — date helpers', () => {
     expect(daysUntilDate('2000-01-01')).toBe(0);
     expect(daysUntilDate('')).toBe(0);
   });
+
+  /* A stored date is a calendar day. Parsed as UTC and read back locally, the
+     1st of a month falls into the month before west of UTC — which silently
+     shortened every 0% promo by a month. Pinned to a fixed clock because the
+     bug only shows on dates the naive parse rounds down. */
+  it('reads a date-only string as a local calendar day, not UTC midnight', () => {
+    setSettings({});
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 7, 1, 13, 0, 0)); // Aug 1 2026, local
+      expect(monthsUntil('2027-02-01')).toBe(6);
+      expect(monthsUntil('2026-09-01')).toBe(1);
+      expect(daysUntilDate('2026-08-11')).toBe(10);
+      expect(daysUntilDate('2026-08-01')).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('utils — due-date math', () => {

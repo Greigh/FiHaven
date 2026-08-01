@@ -41,7 +41,8 @@
     "deploy:ios": "bash scripts/ios-testflight.sh",
     "deploy:android": "node scripts/play-upload.js --build",
     "promo": "node scripts/promo.js",
-    "indexnow": "node scripts/submit-indexnow.js"
+    "indexnow": "node scripts/submit-indexnow.js",
+    "paddle:webhook": "node scripts/dev/paddle-webhook-check.js"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
@@ -69,14 +70,14 @@
     "jsdom": "^30.0.1",
     "svelte": "^5.56.8",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.1.5",
+    "vite": "^8.2.0",
     "vitest": "^4.1.10"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true,
     "fsevents@2.3.3": true,
     "@parcel/watcher@2.5.1": true,
-    "@firebase/util@1.15.1": true,
+    "@firebase/util@1.15.2": true,
     "protobufjs@7.6.5": true,
     "better-sqlite3@13.0.2": true
   },

@@ -268,6 +268,12 @@ private struct RolloverReviewView: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var amounts: [String: String] = [:]
+    @State private var editingBill: Bill?
+    @State private var lastEditedId: String?
+    // Scanning the schedule per row is too much to redo on every keystroke.
+    @State private var dueLabels: [String: DueLabel] = [:]
+
+    private struct DueLabel { let text: String; let late: Bool }
 
     private var bills: [Bill] { store.rolloverBills() }
 
@@ -281,20 +287,8 @@ private struct RolloverReviewView: View {
                 if bills.isEmpty {
                     Text("No active bills to review.").foregroundStyle(Theme.muted)
                 } else {
-                    ForEach(bills) { bill in
-                        // String binding: a blank field must stay blank so an
-                        // unreviewed bill isn't silently zeroed.
-                        HStack {
-                            Text(bill.name).foregroundStyle(Theme.text)
-                            Spacer(minLength: 8)
-                            HStack(spacing: 2) {
-                                Text("$").foregroundStyle(Theme.muted)
-                                TextField("0.00", text: binding(for: bill))
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.leading)
-                            }
-                            .frame(width: 132, alignment: .leading)
-                        }
+                    Section("\(bills.count) bill\(bills.count == 1 ? "" : "s")") {
+                        ForEach(bills) { bill in row(bill) }
                     }
                 }
             }
@@ -305,15 +299,78 @@ private struct RolloverReviewView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
             }
             .onAppear(perform: seed)
+            .sheet(item: $editingBill, onDismiss: reseedEdited) { bill in BillEditorView(bill: bill) }
         }
+    }
+
+    // String binding on the amount: a blank field must stay blank so an
+    // unreviewed bill isn't silently zeroed.
+    private func row(_ bill: Bill) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bill.name).foregroundStyle(Theme.text)
+                if let due = dueLabels[String(bill.id)] {
+                    Text(due.text)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(due.late ? Theme.red : Theme.muted)
+                }
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                Text("$").foregroundStyle(Theme.muted)
+                TextField("0.00", text: binding(for: bill))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: 104, alignment: .leading)
+            Button {
+                lastEditedId = String(bill.id)
+                editingBill = bill
+            } label: {
+                Image(systemName: "square.and.pencil").foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Edit \(bill.name)")
+        }
+    }
+
+    /// "Due Aug 5" / "Autopays Aug 5" for the month being reviewed, flagged when
+    /// that date has already passed unpaid.
+    private func dueLabel(_ bill: Bill) -> DueLabel? {
+        guard let due = store.rolloverDueDate(bill) else { return nil }
+        let f = DateFormatter()
+        f.timeZone = store.tz
+        f.locale = Locale(identifier: "en_US")
+        f.dateFormat = "MMM d"
+        let paid = Schedule.isPaid(
+            store.data.payments, type: "bill", refId: String(bill.id), monthKey: store.currentMonthKey
+        )
+        return DueLabel(
+            text: "\(bill.autopay ? "Autopays" : "Due") \(f.string(from: due))",
+            late: !paid && due < DateLogic.today(tz: store.tz)
+        )
     }
 
     private func seed() {
         guard amounts.isEmpty else { return }
         for b in bills {
-            let pre = store.rolloverPrefillAmount(b)
-            amounts[String(b.id)] = pre > 0 ? String(format: "%.2f", pre) : ""
+            amounts[String(b.id)] = prefill(b)
+            dueLabels[String(b.id)] = dueLabel(b)
         }
+    }
+
+    private func prefill(_ bill: Bill) -> String {
+        let pre = store.rolloverPrefillAmount(bill)
+        return pre > 0 ? String(format: "%.2f", pre) : ""
+    }
+
+    /// After an edit, the row re-prefills from the bill's new amount rather
+    /// than the stale value that was sitting in the field.
+    private func reseedEdited() {
+        guard let id = lastEditedId, let bill = bills.first(where: { String($0.id) == id }) else { return }
+        amounts[id] = prefill(bill)
+        dueLabels[id] = dueLabel(bill)   // the day may have moved too
+        lastEditedId = nil
     }
 
     private func binding(for bill: Bill) -> Binding<String> {
@@ -331,6 +388,9 @@ private struct RolloverReviewView: View {
             }
         }
         store.applyRolloverAmounts(map)
+        // The review is the whole point of the new-month card, so retire it
+        // once amounts are in rather than making the user dismiss it too.
+        store.dismissRolloverPrompt()
         dismiss()
     }
 }
