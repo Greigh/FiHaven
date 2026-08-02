@@ -795,9 +795,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun deleteAccount(password: String, code: String = "", onError: (String) -> Unit) = viewModelScope.launch {
+    fun deleteAccount(password: String, code: String = "", confirm: String = "", onError: (String) -> Unit) = viewModelScope.launch {
         try {
-            api.deleteAccount(password, code)
+            api.deleteAccount(password, code, confirm)
             tokens.clear()
             _session.value = Session.SignedOut
             _data.value = AppData()

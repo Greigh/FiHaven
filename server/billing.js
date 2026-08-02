@@ -505,6 +505,74 @@ function recordPaddleSubscription(userId, s) {
   return computeEntitlement(userId);
 }
 
+// Paddle error codes that mean "this subscription is already gone", i.e. the
+// cancel is a no-op rather than a failure. Everything else — auth, validation,
+// server errors — leaves the subscription live and must be surfaced.
+const PADDLE_ALREADY_GONE_CODES = new Set([
+  'entity_not_found',                    // no such subscription (404)
+  'subscription_update_when_canceled',   // already canceled (400/403)
+]);
+
+/** True when a failed cancel means the subscription was already cancelled/gone. */
+function isAlreadyCancelledAtPaddle(err) {
+  if (!err) return false;
+  const code = err.body && err.body.error && err.body.error.code;
+  if (code && PADDLE_ALREADY_GONE_CODES.has(String(code))) return true;
+  // Paddle sends `entity_not_found` with a 404, but treat a bare 404 as gone
+  // too: there is no subscription left at that id to charge.
+  return err.status === 404;
+}
+
+/**
+ * Cancel every live Paddle subscription this user has, immediately.
+ *
+ * Required on account deletion. Paddle is the merchant of record: the local
+ * `subscriptions` row cascade-deletes with the user, but that is only our
+ * bookkeeping — the subscription itself lives at Paddle and would keep charging
+ * a customer whose account no longer exists, with no portal left to cancel it
+ * from. The store platforms are different: an Apple or Google subscription can
+ * only be cancelled by the user in the store, which is why the delete screens
+ * and /delete-account tell them to do that themselves.
+ *
+ * Best-effort, like Plaid revocation — deletion must never be blocked by a
+ * billing API hiccup. Returns what happened so the caller can log it.
+ *
+ * @returns {Promise<{ cancelled: string[], failed: string[] }>}
+ */
+async function cancelPaddleSubscriptionsForUser(userId) {
+  const out = { cancelled: [], failed: [] };
+  if (!paddleConfigured()) return out;
+
+  let rows;
+  try {
+    rows = dbApi.activeSubscriptions(userId).filter((r) => r.platform === 'paddle');
+  } catch (_) {
+    return out;
+  }
+
+  for (const row of rows || []) {
+    const id = row.txn_id;                       // Paddle subscription id (sub_…)
+    if (!id) continue;
+    try {
+      await paddle.cancelSubscription(id, 'immediately');
+      out.cancelled.push(id);
+    } catch (err) {
+      // A subscription that is already gone at Paddle is a success for our
+      // purposes: nothing will be charged again. Every OTHER 4xx is a real
+      // failure — a rotated API key (401/403) or a rejected request (422)
+      // means the subscription is still live and the account is about to be
+      // deleted out from under it, which is exactly what `failed` is for.
+      if (isAlreadyCancelledAtPaddle(err)) {
+        out.cancelled.push(id);
+      } else {
+        out.failed.push(id);
+        console.error('[billing] Paddle cancel failed on delete for', id, err && err.message);
+      }
+    }
+  }
+  return out;
+}
+
 /** The Paddle customer id for this user, from their most recent row. */
 function paddleCustomerIdForUser(userId) {
   const rows = dbApi.activeSubscriptions(userId).filter((r) => r.platform === 'paddle');
@@ -763,6 +831,7 @@ module.exports = {
   paddlePriceForPlan,
   paddlePlanForPrice,
   paddleCustomerIdForUser,
+  cancelPaddleSubscriptionsForUser,
   createPaddleCheckout,
   createPaddlePortal,
   canUsePaddlePortal,

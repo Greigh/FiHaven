@@ -194,6 +194,26 @@ struct FormErrorBanner: View {
     }
 }
 
+/// A neutral confirmation on a form — something finished, and it wasn't an
+/// error. Deliberately not red: account deletion succeeding is not a failure,
+/// and the red banner would read as one.
+struct FormNoticeBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Theme.green)
+            Text(message)
+                .font(Theme.ui(13))
+                .foregroundStyle(Theme.text)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
+    }
+}
+
 // MARK: - Semantic amount (icon + value, not color-only)
 
 struct SemanticAmount: View {

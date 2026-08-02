@@ -819,6 +819,16 @@ function createOAuthUser(email, name) {
   return { id, email };
 }
 
+// True when the account can actually be authenticated by password. Accounts
+// created through Sign in with Apple / Google carry the sentinel instead of a
+// bcrypt digest, so every password re-auth prompt is unanswerable for them —
+// callers must offer a different confirmation (see routes/account.js delete).
+function userHasPassword(user) {
+  if (!user) return false;
+  const hash = user.password_hash;
+  return typeof hash === 'string' && hash !== OAUTH_SENTINEL_HASH && hash.startsWith('$2');
+}
+
 // Resolve the local user for a verified provider identity, or null.
 function findUserByOAuth(provider, subject) {
   const row = stmt.findOAuthIdentity.get(provider, String(subject));
@@ -1462,6 +1472,7 @@ module.exports = {
   DB_PATH,
   createUser,
   createOAuthUser,
+  userHasPassword,
   findUserByOAuth,
   linkOAuth,
   listOAuthIdentities,

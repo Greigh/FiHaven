@@ -25,6 +25,10 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var session: SessionState = .loading
     @Published var authError: String?
+    /// A non-error message for the auth screen — currently the confirmation
+    /// that an account was deleted, which the user sees after being returned
+    /// to sign-in. Cleared on the next sign-in attempt.
+    @Published var authNotice: String?
     @Published private(set) var working = false
     @Published private(set) var store: AppStore?
 
@@ -249,11 +253,17 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Called after account deletion: drop straight to signed-out.
-    func didDeleteAccount() {
+    /// Tear down after the server confirmed the account is gone. `email` is
+    /// carried through so the sign-in screen can say *which* account was
+    /// deleted — by this point `currentUser` is already cleared.
+    func didDeleteAccount(email: String? = nil) {
         tokens.clear()
         billing.reset()
         store = nil
         session = .signedOut
+        authError = nil
+        authNotice = email.map { "Your account with \($0) has been deleted. No turning back." }
+            ?? "Your account has been deleted. No turning back."
     }
 
     // ── helpers ──────────────────────────────────────────────────────
@@ -295,6 +305,9 @@ final class AppEnvironment: ObservableObject {
     private func runAuth(_ op: @escaping () async throws -> Void) async {
         working = true
         authError = nil
+        // The deletion confirmation belongs to the account that just went
+        // away; starting a fresh sign-in retires it.
+        authNotice = nil
         defer { working = false }
         do {
             try await op()

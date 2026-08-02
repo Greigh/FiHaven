@@ -633,6 +633,10 @@ router.get('/me', (req, res) => {
       emailVerified: !!req.user.emailVerified,
       onboarded: !!req.user.onboarded,
       createdAt: row ? row.created_at : null,
+      // False for Sign in with Apple / Google accounts: the clients use this to
+      // drop the password field from re-auth prompts those users can't answer
+      // (notably account deletion).
+      hasPassword: dbApi.userHasPassword(row),
       suspended: !!(row && row.suspended),
       suspendedReason: (row && row.suspended_reason) || null,
     },

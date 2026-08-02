@@ -99,6 +99,30 @@ func runAPIChecks() async {
         }
     }
 
+    // A 401 that names a cause must keep it. The server answers wrong-password,
+    // invalid-credentials, invalid-totp-code and more with 401; flattening them
+    // all to .unauthenticated told a user who mistyped their password that
+    // their session had expired.
+    await sectionAsync("APIClient — a 401 with a specific code keeps it") {
+        for (code, expected) in [("wrong-password", "That password is incorrect."),
+                                 ("invalid-credentials", "Incorrect email or password."),
+                                 ("invalid-totp-code", "That code wasn't valid.")] {
+            MockURLProtocol.reset()
+            let client = APIClient(config: cfg, tokens: InMemoryTokenStore("t"),
+                                   session: MockURLProtocol.session())
+            MockURLProtocol.handler = { _ in (401, Data(#"{"error":"\#(code)"}"#.utf8)) }
+            do {
+                _ = try await client.fetchData()
+                check(false, "should have thrown for \(code)")
+            } catch let e as APIError {
+                check(e.serverCode == code, "401 \(code) keeps its code (got \(e))")
+                check(e.userMessage == expected, "401 \(code) → \"\(expected)\" (got \"\(e.userMessage)\")")
+            } catch {
+                check(false, "unexpected error type for \(code)")
+            }
+        }
+    }
+
     await sectionAsync("APIClient — non-401 error carries server code") {
         MockURLProtocol.reset()
         let client = APIClient(config: cfg, tokens: InMemoryTokenStore(),

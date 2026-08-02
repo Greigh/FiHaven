@@ -148,6 +148,12 @@ Support: https://fihaven.app/contact
 - `app.fihaven.pro.yearly`
 - `app.fihaven.pro.family` (if offered on iOS)
 
+Each needs an **App Review Screenshot** on the product itself (not just the
+1024×1024 promotional image), *and* has to be added to the version page under
+"In-App Purchases and Subscriptions" before submitting — missing either one is a
+Guideline 2.1(b) rejection. See
+[`docs/local/app-review-1.6.1-resubmission.md`](../local/app-review-1.6.1-resubmission.md).
+
 ### App Review Information — paste
 
 **Notes for reviewer**
@@ -159,7 +165,9 @@ Privacy Policy: Settings → About → Privacy Policy (also https://fihaven.app/
 Terms of Use: Settings → About → Terms of Use (also https://fihaven.app/terms)
 Paywall (FiHaven Pro): each plan shows title, length, and price; Privacy Policy + Terms of Use (EULA) links in the footer; auto-renew / cancel copy.
 
-Free features work without a subscription. Pro features (Payoff, Calendar, History, bank link, etc.) require FiHaven Pro — use Sign in with Apple sandbox / StoreKit subscription, or the promo/comp grant noted for this review build.
+Free features work without a subscription. Pro features (Payoff, Calendar, History, bank link, etc.) require FiHaven Pro — use the StoreKit sandbox subscription, or the demo account below, which already has Pro. All redemption on iOS goes through Apple's own sheet ("Redeem an App Store code" on the paywall); the app has no code entry of its own.
+
+Account deletion: Settings → Account → Delete account (also under Settings → Data). It permanently deletes the account and all server-side data, and signs out.
 
 Bank linking (Plaid) is optional Pro. If production bank institutions are unavailable in review, skip Settings → Banks; the rest of the app does not require it.
 
@@ -190,6 +198,7 @@ Internal testing → **Closed testing** (recommended short soak) → **Productio
 | Collects / shares user data | Yes — account + user-entered finance data; optional Plaid; purchase tokens |
 | Encrypted in transit | Yes (HTTPS) |
 | Users can request deletion | Yes — in-app account delete + export |
+| Account deletion URL (Data safety form) | `https://fihaven.app/delete-account` — required by Play for any app with account creation; must be entered in the Data safety form on the App content page |
 | Advertising ID | **No** |
 | Third-party advertising / analytics SDKs | **No** |
 | Data types | Personal info (email, name), Financial info (user-entered; optional bank metadata via Plaid), App activity as needed for sync, Purchase history (Play Billing identifiers), Device/push tokens if push enabled |

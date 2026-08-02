@@ -226,24 +226,9 @@ final class StoreManager: ObservableObject {
         await txn.finish()
     }
 
-    /// Redeem a server promo code. `free_sub` grants entitlement directly;
-    /// `store_offer` returns a native offer the caller can present.
-    @discardableResult
-    func redeemPromo(_ code: String) async -> PromoResult? {
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        do {
-            let result = try await api.redeemPromo(code: trimmed)
-            if let ent = result.entitlement { entitlement = ent }
-            return result
-        } catch {
-            message = Self.promoError(error)
-            return nil
-        }
-    }
-
     /// Present Apple's offer-code redemption sheet (App Store promo / offer
-    /// codes — the native discounted-purchase path).
+    /// codes — the native discounted-purchase path, and the only redemption
+    /// path this app offers: Guideline 3.1.1 forbids taking a code in-app).
     func presentOfferCodeSheet() {
         #if os(iOS)
         guard let scene = UIApplication.shared.connectedScenes
@@ -251,18 +236,5 @@ final class StoreManager: ObservableObject {
         else { return }
         Task { try? await StoreKit.AppStore.presentOfferCodeRedeemSheet(in: scene) }
         #endif
-    }
-
-    private static func promoError(_ error: Error) -> String {
-        if case APIError.http(_, let code) = error {
-            switch code {
-            case "already-redeemed": return "You’ve already used that code."
-            case "code-exhausted": return "That code has reached its limit."
-            case "code-expired": return "That code has expired."
-            case "invalid-code": return "That code isn’t valid."
-            default: break
-            }
-        }
-        return "Couldn’t redeem that code."
     }
 }
