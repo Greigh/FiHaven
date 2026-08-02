@@ -3,7 +3,7 @@
    Mounted at /api/admin; every route requires an admin session.
      GET    /users                    — list/search users (+ Pro / suspended; paginated)
      POST   /users/:id/role           — set 'admin' | 'user'
-     POST   /users/:id/pro            — grant/revoke a comp Pro entitlement
+     POST   /users/:id/pro            — grant a comp entitlement / revoke comp + promo grants
      POST   /users/:id/suspend        — soft-suspend / unsuspend login
      POST   /users/:id/reset-password — email a password-reset link
      POST   /users/:id/logout         — kill all sessions
@@ -13,7 +13,7 @@
      PUT    /card-presets/:id         — update rates / metadata
      DELETE /card-presets/:id         — remove a preset
      GET    /promo                    — list active promo codes
-     POST   /promo                    — create a free_sub promo code
+     POST   /promo                    — create a free_sub promo code (any plan, incl. family)
      POST   /promo/:code/deactivate   — soft-disable a promo code
 ═════════════════════════════════════════════════════════════════ */
 
@@ -41,6 +41,12 @@ router.use(requireAuth, requireAdmin);
 
 function serializeUser(u) {
   const ent = billing.computeEntitlement(u.id);
+  // computeEntitlement reports only the entitlement that *wins* (the longest),
+  // so `proSource` alone can't answer "is there anything here to revoke?" — a
+  // store subscription outlasting a comp grant would hide it. Ask the rows.
+  const revocable =
+    (dbApi.activeSubscriptions(u.id) || []).some((s) => s.platform === 'comp')
+    || (dbApi.activePromoGrants(u.id) || []).length > 0;
   return {
     id: u.id,
     email: u.email,
@@ -56,6 +62,8 @@ function serializeUser(u) {
     proSource: ent.source,
     proPlan: ent.plan,
     proExpiresAt: ent.expiresAt,
+    // Whether this console has anything of its own to pull back.
+    revocable,
     suspended: !!u.suspended,
     suspendedAt: u.suspended_at || null,
     suspendedReason: u.suspended_reason || null,
@@ -131,7 +139,11 @@ router.post('/users/:id/pro', requireCsrf, (req, res) => {
       updated_at: now,
     });
   } else {
+    // Revoke everything this console handed out — the comp subscription and
+    // any live promo grant. Real store subscriptions (Apple/Play/Paddle) are
+    // deliberately untouched: they're cancelled at the store, not here.
     dbApi.deleteCompSubscription(id);
+    dbApi.revokePromoGrants(id);
   }
   res.json({ ok: true, entitlement: billing.computeEntitlement(id) });
 });
@@ -213,6 +225,9 @@ function serializePromo(p) {
   return {
     code: p.code,
     kind: p.kind,
+    // Tier the code redeems into — null for older codes minted before plans
+    // were selectable, which grant plain Pro.
+    plan: billing.planFor(p.product_id) || null,
     grantDays: p.grant_days,
     maxRedemptions: p.max_redemptions,
     redeemedCount: p.redeemed_count || 0,
@@ -335,19 +350,23 @@ router.get('/promo', (req, res) => {
   res.json({ promos: rows });
 });
 
-/* ── POST /api/admin/promo  { code?, grantDays, note?, maxRedemptions? } ─ */
+/* ── POST /api/admin/promo  { code?, plan?, grantDays, note?, maxRedemptions? } ─ */
 // Thin wrapper around billing.createPromoCode so admins can mint free_sub
 // codes from the overlay without hitting /api/billing/promo directly.
+// `plan` picks the tier the code grants (family = shared household).
 router.post('/promo', requireCsrf, (req, res) => {
   const body = req.body || {};
   const grantDays = Number(body.grantDays);
   if (!Number.isFinite(grantDays) || grantDays <= 0) return sendError(res, 400, 'bad-days');
+  const plan = body.plan ? String(body.plan) : null;
+  if (plan && !COMP_PLANS.includes(plan)) return sendError(res, 400, 'bad-plan');
   try {
     const code = String(body.code || '').trim()
       || ('FH-' + Math.random().toString(36).slice(2, 8).toUpperCase());
     const promo = billing.createPromoCode({
       code,
       kind: 'free_sub',
+      plan,
       grantDays,
       note: body.note || `Created by ${req.user.email}`,
       maxRedemptions: body.maxRedemptions != null ? Number(body.maxRedemptions) : null,

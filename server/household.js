@@ -43,6 +43,21 @@ function capFor(householdId) {
   return billing.computeEntitlement(hh.owner_user_id).householdMax || 0;
 }
 
+// A household whose owner's Family plan has lapsed goes read-only rather than
+// disappearing: members keep seeing everything already shared, but nothing new
+// can be written to it. Nothing is ever deleted, so paying again thaws it
+// exactly as it was.
+function isActive(householdId) {
+  return capFor(householdId) >= 1;
+}
+
+// Guard for the write paths. Unsharing is deliberately NOT gated — pulling
+// your own data back out of a frozen household is a de-escalation, and
+// trapping it there would be the wrong side to err on.
+function requireActive(householdId) {
+  if (!isActive(householdId)) throw new Error('household-inactive');
+}
+
 // The full client-facing view for a member: household + members + my role
 // and (for the owner) the still-pending invites.
 function viewFor(userId) {
@@ -69,6 +84,8 @@ function viewFor(userId) {
     role: mem.role,
     memberCount: members.length,
     memberMax: capFor(hh.id),
+    // false once the owner's Family plan lapses: read-only, not gone.
+    active: isActive(hh.id),
     pendingCount: pending.length,
     members,
     pendingInvites: pending,
@@ -96,6 +113,7 @@ function create(user, name) {
 function rename(user, name) {
   const mem = membership(user.id);
   if (!mem || mem.role !== 'owner') throw new Error('not-owner');
+  requireActive(mem.household_id);
   dbApi.updateHouseholdName(mem.household_id, cleanName(name));
   return viewFor(user.id);
 }
@@ -109,6 +127,9 @@ function invite(user, email) {
   if (!isValidEmail(target)) throw new Error('invalid-email');
 
   const hhId = mem.household_id;
+  // Checked before the cap so a lapsed owner is told they've lapsed, rather
+  // than that a 1-person household is "full".
+  requireActive(hhId);
   const members = dbApi.listHouseholdMembers(hhId);
   if (members.some((m) => String(m.email).toLowerCase() === target)) throw new Error('already-member');
 
@@ -146,6 +167,7 @@ function acceptInvite(user, rawToken) {
 
   const hh = dbApi.findHouseholdById(row.household_id);
   if (!hh) throw new Error('invalid-invite');
+  requireActive(hh.id);
   if (dbApi.countHouseholdMembers(hh.id) >= capFor(hh.id)) throw new Error('household-full');
 
   dbApi.db.transaction(() => {
@@ -241,6 +263,7 @@ function nextStamp(existing) {
 // Contribute one of your items to the household (or re-share it).
 function shareEntity(user, kind, item) {
   const mem = requireMembership(user.id);
+  requireActive(mem.household_id);
   if (!SHAREABLE_KINDS.has(kind)) throw new Error('invalid-kind');
   if (!item || item.id == null) throw new Error('invalid-item');
   const now = nextStamp(dbApi.getHouseholdEntity(mem.household_id, kind, item.id));
@@ -260,6 +283,7 @@ function shareEntity(user, kind, item) {
 // client refetches.
 function updateEntity(user, kind, id, item, baseUpdatedAt) {
   const mem = requireMembership(user.id);
+  requireActive(mem.household_id);
   const existing = dbApi.getHouseholdEntity(mem.household_id, kind, id);
   if (!existing || existing.deleted) throw new Error('entity-not-found');
   if (baseUpdatedAt != null && existing.updated_at > Number(baseUpdatedAt)) throw new Error('conflict');

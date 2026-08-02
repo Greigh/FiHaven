@@ -30,6 +30,7 @@ var myId = null;
 var entities = [];
 var rollup = null;
 var es = null;
+var frozen = false; // owner's Family plan lapsed → shared set is read-only
 
 function ownerLabel(id) {
   if (id === myId) return 'You';
@@ -55,7 +56,9 @@ function render() {
     '<div class="card" style="padding:16px;">' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
         '<span style="font-weight:600;">Household</span>' +
-        '<span class="badge badge-blue">Live</span>' +
+        (frozen
+          ? '<span class="badge badge-gray">Read-only</span>'
+          : '<span class="badge badge-blue">Live</span>') +
         '<a href="/settings?tab=family" style="margin-left:auto;font-size:13px;">Manage</a>' +
       '</div>' +
       '<div data-household-rollup style="margin-top:10px;font-size:13px;color:var(--muted);"></div>' +
@@ -119,6 +122,7 @@ export function initHouseholdShared() {
     .then(function (info) {
       var view = info && info.household;
       if (!view) return; // not in a household → nothing to show
+      frozen = view.active === false;
       (view.members || []).forEach(function (m) {
         members[m.userId] = m.name || m.email;
         if (myEmail && String(m.email).toLowerCase() === myEmail.toLowerCase()) myId = m.userId;

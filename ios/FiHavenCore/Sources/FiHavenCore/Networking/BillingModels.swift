@@ -46,11 +46,15 @@ public struct Entitlement: Codable, Equatable, Sendable {
 
 // ── Wire bodies ──────────────────────────────────────────────────
 struct EntitlementResponse: Decodable { let entitlement: Entitlement }
+/// `GET /api/billing/status`. The web checkout is Paddle, not Stripe — the
+/// server stopped sending `stripePortal` (and `POST /api/billing/stripe/portal`
+/// no longer exists), so the old field decoded to nil forever and a subscriber
+/// who bought on the web saw no way to manage or cancel from the app.
 public struct BillingStatusResponse: Decodable, Sendable {
     public let entitlement: Entitlement
-    public let stripePortal: Bool?
+    public let paddlePortal: Bool?
 }
-struct StripePortalResponse: Decodable { let url: String }
+struct PortalResponse: Decodable { let url: String }
 struct AppleVerifyBody: Encodable { let signedTransaction: String }
 struct GoogleVerifyBody: Encodable {
     let productId: String

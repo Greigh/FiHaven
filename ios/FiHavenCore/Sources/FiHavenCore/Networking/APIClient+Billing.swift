@@ -9,19 +9,25 @@ extension APIClient {
         try await billingStatusFull().entitlement
     }
 
-    /// Billing status including whether the Stripe portal is available.
+    /// Billing status including whether the web billing portal is available.
     public func billingStatusFull() async throws -> BillingStatusResponse {
         let req = try makeRequest(path: "api/billing/status", method: .GET)
         let data = try await send(req)
         return try decode(BillingStatusResponse.self, from: data)
     }
 
-    /// Open the Stripe billing portal (`POST /api/billing/stripe/portal`).
-    public func createStripePortal() async throws -> URL {
-        let req = try makeRequest(path: "api/billing/stripe/portal", method: .POST)
+    /// Paddle-hosted customer portal (manage payment method, cancel, change
+    /// plan) for a subscription bought on the web
+    /// (`POST /api/billing/paddle/portal`). The dev server answers with a
+    /// site-relative path, so resolve it against the API base.
+    public func createBillingPortal() async throws -> URL {
+        let req = try makeRequest(path: "api/billing/paddle/portal", method: .POST)
         let data = try await send(req)
-        let urlString = try decode(StripePortalResponse.self, from: data).url
-        guard let url = URL(string: urlString) else { throw APIError.decoding("invalid-portal-url") }
+        let urlString = try decode(PortalResponse.self, from: data).url
+        let resolved = urlString.hasPrefix("/")
+            ? URL(string: urlString, relativeTo: config.baseURL)
+            : URL(string: urlString)
+        guard let url = resolved else { throw APIError.decoding("invalid-portal-url") }
         return url
     }
 

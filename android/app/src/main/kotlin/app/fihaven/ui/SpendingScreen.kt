@@ -75,7 +75,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
         .sortedByDescending { it.date }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Spending", onBack = onBack, branded = true)
+        ScreenHeader("Spending", onAdd = { addingTx = true }, onBack = onBack, branded = true)
         ListSearchField(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
@@ -91,10 +91,8 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     if (ent.pro) {
                         Text("Budgets", color = Ct.colors.accent, fontSize = 14.sp,
-                            modifier = Modifier.clickable { editingBudgets = true }.padding(end = 12.dp))
+                            modifier = Modifier.clickable { editingBudgets = true })
                     }
-                    Text("+ Add", color = Ct.colors.accent, fontSize = 14.sp,
-                        modifier = Modifier.clickable { addingTx = true })
                 }
             }
             item {

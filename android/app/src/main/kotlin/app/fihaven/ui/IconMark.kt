@@ -83,7 +83,8 @@ private const val MAX_LOGO_ASPECT = 1.75f
  * renders — which Compose's [addPathNodes] parses directly. A monochrome mark
  * is a square tinted for the current surface; a full-color one keeps its own
  * colors on a light plate (it was drawn for a white page, and Bilt's black
- * wordmark would vanish on the dark theme) and takes its natural width.
+ * wordmark would vanish on the dark theme) and takes its natural width, up to
+ * [MAX_LOGO_ASPECT] — past that it scales down whole rather than squeezing.
  * Falls back to the emoji stand-in if the key isn't bundled.
  */
 @Composable
@@ -98,17 +99,25 @@ fun IssuerLogoMark(
     // and Apple's black are otherwise invisible on the dark theme. A
     // full-color mark is exempt — it sits on its own plate.
     val surface = Ct.colors.surface
-    val width = if (logo != null && logo.isFullColor) {
+    // The box the mark is laid out in, capped so a wordmark can't push the
+    // row's text around…
+    val boxWidth = if (logo != null && logo.isFullColor) {
         (size.value * minOf(logo.aspect, MAX_LOGO_ASPECT)).dp
     } else {
         size
     }
-    val image = remember(logo, size, width, surface) {
+    // …and the mark's true width, which the vector is built at so a mark
+    // wider than the cap is scaled down whole rather than squeezed into the
+    // box. A vector stretches its viewBox to whatever intrinsic size it is
+    // given, so the aspect has to be right here — `ContentScale.Fit` can only
+    // letterbox what it is handed.
+    val markWidth = if (logo != null && logo.isFullColor) (size.value * logo.aspect).dp else size
+    val image = remember(logo, size, markWidth, surface) {
         logo ?: return@remember null
         runCatching {
             val builder = ImageVector.Builder(
                 name = logo.key,
-                defaultWidth = width,
+                defaultWidth = markWidth,
                 defaultHeight = size,
                 viewportWidth = logo.width,
                 viewportHeight = 24f,
@@ -135,7 +144,7 @@ fun IssuerLogoMark(
             imageVector = image,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = m.size(width = width, height = size),
+            modifier = m.size(width = boxWidth, height = size),
         )
     }
     if (logo != null && logo.isFullColor) {

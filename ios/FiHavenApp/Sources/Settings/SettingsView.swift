@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var mfa: MfaStatus?
     @State private var shareItem: ShareItem?
     @State private var busy = false
+    @State private var exportError: String?
 
     private var current: User { env.currentUser ?? user }
 
@@ -52,8 +53,11 @@ struct SettingsView: View {
                 groupRow("Automation", "wand.and.stars", "Autopay, dashboard tidying") {
                     detail("Automation") { autopaySection }
                 }
+                // Straight to the connections themselves — a "Bank" screen whose
+                // only row was "Bank connections" made you tap twice to reach
+                // the one thing it held.
                 groupRow("Bank", "building.columns.fill", "Linked accounts") {
-                    detail("Bank") { bankSection }
+                    BankView()
                 }
                 groupRow("Data", "externaldrive.fill", "Export, clear, delete") {
                     detail("Data") { dataSection }
@@ -542,17 +546,20 @@ struct SettingsView: View {
     private var dataSection: some View {
         Section("Data") {
             Button { Task { await exportData() } } label: {
-                HStack { Text("Export data"); Spacer(); if busy { ProgressView() } }
+                HStack {
+                    Text("Export data")
+                    Spacer()
+                    if busy { ProgressView() }
+                    // A failed export used to do nothing at all, which reads as
+                    // a dead row rather than a problem worth retrying.
+                    else if let err = exportError {
+                        Text(err).font(Theme.ui(12)).foregroundStyle(Theme.red)
+                    }
+                }
             }
             Button("Clear data", role: .destructive) { sheet = .clearData }
             // Also reachable here — the canonical entry point is in Account.
             Button("Delete account", role: .destructive) { sheet = .deleteAccount }
-        }
-    }
-
-    private var bankSection: some View {
-        Section {
-            NavigationLink { BankView() } label: { Text("Bank connections") }
         }
     }
 
@@ -610,6 +617,7 @@ struct SettingsView: View {
 
     private func exportData() async {
         busy = true
+        exportError = nil
         defer { busy = false }
         do {
             let data = try await env.api.exportData()
@@ -618,7 +626,7 @@ struct SettingsView: View {
             try data.write(to: url)
             shareItem = ShareItem(url: url)
         } catch {
-            // best-effort; surfaced as no share sheet
+            exportError = "Couldn’t export — try again"
         }
     }
 }

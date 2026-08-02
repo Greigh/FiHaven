@@ -336,16 +336,25 @@ function redeemPromo(user, codeRaw) {
 }
 
 // Admin: create a promo code. `input` mirrors the JSON request body.
+// A free_sub code may name a tier via `plan`; it is stored as the same
+// `comp:<plan>` product id admin grants use, so planFor() resolves it and
+// a `family` code redeems into a shared household rather than solo Pro.
 function createPromoCode(input) {
   const code = String((input && input.code) || '').trim();
   if (!code) throw new Error('code-required');
   const kind = input.kind === 'store_offer' ? 'store_offer' : 'free_sub';
+  let productId = input.productId || null;
+  if (kind === 'free_sub' && input.plan) {
+    const plan = String(input.plan);
+    if (!Object.prototype.hasOwnProperty.call(COMP_DEFAULT_DAYS, plan)) throw new Error('bad-plan');
+    productId = 'comp:' + plan;
+  }
   const row = {
     code,
     kind,
     grant_days:
       kind === 'free_sub' && input.grantDays != null ? Number(input.grantDays) : null,
-    product_id: input.productId || null,
+    product_id: productId,
     offer_id: kind === 'store_offer' ? input.offerId || null : null,
     platform: input.platform || null,
     max_redemptions: input.maxRedemptions != null ? Number(input.maxRedemptions) : null,

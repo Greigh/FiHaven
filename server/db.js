@@ -186,6 +186,7 @@ db.exec(`
     user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     redeemed_at      INTEGER NOT NULL,
     grant_expires_at INTEGER,             -- free_sub: when the grant lapses; null = lifetime
+    revoked_at       INTEGER,             -- admin pulled the grant; row stays to block re-redemption
     UNIQUE(code, user_id)
   );
   CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(user_id);
@@ -369,6 +370,14 @@ db.exec(`
   if (!cols.includes('last_trial_reminder_day')) db.exec(`ALTER TABLE users ADD COLUMN last_trial_reminder_day TEXT`);
   // The local day card-linked-offer expiry reminders last went out.
   if (!cols.includes('last_offer_reminder_day')) db.exec(`ALTER TABLE users ADD COLUMN last_offer_reminder_day TEXT`);
+})();
+
+// Admin revocation of a promo grant. The row stays so the code can't simply
+// be redeemed a second time; `revoked_at` is what drops it out of
+// activePromoGrants.
+(function migratePromoRedemptionColumns() {
+  const cols = db.prepare(`PRAGMA table_info(promo_redemptions)`).all().map((c) => c.name);
+  if (!cols.includes('revoked_at')) db.exec(`ALTER TABLE promo_redemptions ADD COLUMN revoked_at INTEGER`);
 })();
 
 (function migratePlaidItemColumns() {
@@ -650,8 +659,18 @@ const stmt = {
        FROM promo_redemptions r JOIN promo_codes p ON p.code = r.code
       WHERE r.user_id = ?
         AND p.kind = 'free_sub'
+        AND r.revoked_at IS NULL
         AND (r.grant_expires_at IS NULL OR r.grant_expires_at > ?)
       ORDER BY r.grant_expires_at DESC`
+  ),
+  // Admin revoke: kill every live promo grant a user holds. Revoked rows are
+  // left in place so `findPromoRedemption` still blocks a second redemption.
+  // Scoped to free_sub, the only kind that grants entitlement — a store_offer
+  // redemption isn't ours to revoke, and marking one would be a false record.
+  revokePromoGrants: db.prepare(
+    `UPDATE promo_redemptions SET revoked_at = ?
+      WHERE user_id = ? AND revoked_at IS NULL
+        AND code IN (SELECT code FROM promo_codes WHERE kind = 'free_sub')`
   ),
 
   /* ── Plaid items / accounts ────────────────────────────── */
@@ -1136,6 +1155,9 @@ function insertPromoRedemption(row)     { stmt.insertPromoRedemption.run(row); }
 function findPromoRedemption(code, userId) {
   return stmt.findPromoRedemption.get(code, userId);
 }
+function revokePromoGrants(userId) {
+  return stmt.revokePromoGrants.run(Date.now(), userId).changes;
+}
 
 /* ── Card preset catalog (admin-editable rewards) ───────────── */
 function parseJsonObject(raw, fallback) {
@@ -1559,6 +1581,7 @@ module.exports = {
   bumpPromoRedeemed,
   insertPromoRedemption,
   findPromoRedemption,
+  revokePromoGrants,
   activePromoGrants,
   // Card presets (rewards catalog)
   allCardPresets,

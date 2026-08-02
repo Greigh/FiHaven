@@ -161,7 +161,7 @@ class IssuerIconsTest {
 
     /** The paths are drawn by Compose's vector parser, so bad data is invisible. */
     @Test fun bundledLogosAreWellFormed() {
-        assertEquals(46, IssuerLogos.all.size)
+        assertEquals(47, IssuerLogos.all.size)
         for ((key, logo) in IssuerLogos.all) {
             assertEquals(key, logo.key)
             assertTrue(logo.layers.isNotEmpty(), "$key has at least one layer")
