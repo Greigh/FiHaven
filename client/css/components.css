@@ -558,6 +558,27 @@ main {
 .badge-gold   { background: var(--yellow-bg); color: var(--yellow);
                 border: 1px solid color-mix(in srgb, var(--yellow) 35%, transparent); }
 
+/* Household whose Family plan lapsed: read-only, nothing deleted. Warns
+   without alarming — the data is all still there. */
+.hh-frozen {
+  margin: -4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--yellow-bg);
+  border: 1px solid color-mix(in srgb, var(--yellow) 32%, transparent);
+}
+.hh-frozen-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--yellow);
+}
+.hh-frozen p {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 /* ── Membership card ────────────────────────────────────── */
 .membership-card { padding: 16px; }
 .membership-head { display: flex; align-items: center; gap: 12px; }
@@ -3013,7 +3034,7 @@ main {
 
 .admin-promo-grid {
   display: grid;
-  grid-template-columns: 1.4fr 0.7fr 0.8fr auto;
+  grid-template-columns: 1.2fr 1fr 0.6fr 0.7fr auto;
   gap: 10px;
   align-items: end;
 }
@@ -3207,6 +3228,12 @@ main {
 .admin-sheet-email {
   margin: -4px 0 4px;
   font-size: 13px;
+  color: var(--muted);
+}
+.admin-sheet-note {
+  margin: -2px 0 2px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--muted);
 }
 .admin-sheet-actions {

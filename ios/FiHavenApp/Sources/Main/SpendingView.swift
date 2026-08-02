@@ -35,8 +35,6 @@ struct SpendingView: View {
                         Button { editingBudgets = true } label: { Image(systemName: "slider.horizontal.3") }
                             .accessibilityIconButton("Edit category budgets")
                     }
-                    Button { addingTx = true } label: { Image(systemName: "plus") }
-                        .accessibilityIconButton("Add transaction")
                 }
 
                 VStack(spacing: 8) {
@@ -131,6 +129,12 @@ struct SpendingView: View {
         .background(Theme.bg.ignoresSafeArea())
         .searchable(text: $searchText, prompt: "Search spending")
         .brandedNavigationBar("Spending")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { addingTx = true } label: { Image(systemName: "plus") }
+                    .accessibilityIconButton("Add transaction")
+            }
+        }
         .sheet(isPresented: $addingTx) { TransactionEditorView() }
         .sheet(item: $editingTx) { tx in TransactionEditorView(edit: tx) }
         .sheet(isPresented: $editingBudgets) { CategoryBudgetsView() }

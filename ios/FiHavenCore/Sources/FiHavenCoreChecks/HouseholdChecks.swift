@@ -60,4 +60,27 @@ func runHouseholdChecks() async {
             check(false, "entity data should be an object with name")
         }
     }
+
+    // A lapsed Family plan sends active:false — the household is read-only,
+    // not gone, so it must still decode with all of its members.
+    await sectionAsync("Household — a frozen household decodes as inactive") {
+        MockURLProtocol.reset()
+        let client = APIClient(config: cfg, tokens: InMemoryTokenStore("tk"), session: MockURLProtocol.session())
+        let json = #"{"household":{"household":{"id":1,"name":"Casa","ownerUserId":7,"createdAt":1},"role":"owner","memberCount":2,"memberMax":0,"active":false,"members":[{"userId":7,"email":"o@e.com","name":null,"role":"owner","joinedAt":1},{"userId":8,"email":"m@e.com","name":null,"role":"member","joinedAt":2}],"pendingInvites":[]},"canCreate":false,"memberMax":0}"#
+        MockURLProtocol.handler = { _ in (200, Data(json.utf8)) }
+        let view = try await client.getHousehold().household
+        check(view?.isFrozen == true, "isFrozen when active:false")
+        checkEqual(view?.members.count, 2, "members still decoded")
+        checkEqual(view?.memberMax, 0, "memberMax 0")
+    }
+
+    // Older servers omit `active`; that must never read as frozen.
+    await sectionAsync("Household — a payload with no `active` field is active") {
+        MockURLProtocol.reset()
+        let client = APIClient(config: cfg, tokens: InMemoryTokenStore("tk"), session: MockURLProtocol.session())
+        let json = #"{"household":{"household":{"id":1,"name":"Casa","ownerUserId":7,"createdAt":1},"role":"owner","memberCount":1,"memberMax":3,"members":[],"pendingInvites":[]},"canCreate":false,"memberMax":3}"#
+        MockURLProtocol.handler = { _ in (200, Data(json.utf8)) }
+        let view = try await client.getHousehold().household
+        check(view?.isFrozen == false, "absent active is not frozen")
+    }
 }

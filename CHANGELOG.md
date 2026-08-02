@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (19) - Multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 41) - Multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (21) - Sign-out ends the session for real (reminders stop, a pending save can't overwrite the next account), archived items stop driving reminders and totals, and a subscription bought on the web can be managed again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 43) - Sign-out ends the session for real (reminders stop, a pending save can't overwrite the next account), archived items stop driving reminders and totals, a subscription bought on the web can be managed again, and Export data no longer crashes on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,112 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Sign-out actually ends the session, and archived things stay archived (Aug 2)**
+
+An audit pass over the Android app, then the same checks run against iOS, the web
+app and the server. Most of what follows had been true on more than one platform.
+
+- **Signing out stops your bill reminders.** They were scheduled on the device,
+  not in the session, so they kept firing after you signed out — with the bill
+  name and amount on the lock screen — and on Android were re-armed after every
+  reboot, indefinitely. Deleting your account had the same gap. Both platforms
+  now clear every scheduled reminder when the session ends, including when the
+  app finds a token the server no longer recognises.
+- **Archiving something now actually silences it.** Archived bills and cards are
+  soft-deleted — hidden from every list and total — but the **server** never
+  checked that flag. It kept emailing and pushing reminders for archived bills,
+  counted them in the monthly summary and weekly digest, counted archived cards
+  as debt, sent expiry reminders for their card offers, and — worst — **auto-marked
+  archived autopay items paid**, writing payments you never made into your data
+  and syncing them to every device. Fixed at the source, so all three apps
+  benefit; the Android dashboard's trial alerts and Subscriptions total, and both
+  phones' local reminders, were fixed alongside it.
+- **A subscription you bought somewhere else can be managed again.** If you
+  subscribed on the web, the phone apps showed "You're on FiHaven Pro" with no
+  Manage button and nothing saying where to cancel — they were still asking the
+  server about a payment provider we no longer use. The button is back, and every
+  other case (bought on iPhone, bought on Android, promo, complimentary) now says
+  in plain words where it's managed. The small print no longer tells an iPhone
+  subscriber their money goes through Google Play, or vice versa.
+- **Your data can't be lost between signing out and back in.** A save still
+  retrying in the background wasn't stopped when you signed out; if it woke up
+  during a fresh sign-in it could overwrite the new account with an empty copy.
+  Both platforms now cancel it.
+- **Signing out of the web clears everything it cached.** Sign-out dropped your
+  bills, cards, payments and settings from the browser but left your net-worth
+  accounts, savings goals and spending behind — which the offline fallback then
+  reads back. On a shared computer the next person could have been shown them.
+- **Exporting your data works on a full account.** Android handed the whole export
+  to the share sheet inside an intent, which crashes the app once an account is
+  large enough (a few years of imported bank rows will do it); it now shares a
+  file, like iPhone does. A failed export used to do nothing at all on either
+  platform — it now says so.
+- **Smaller fixes.** Android: a bank-balance prompt for a single card cut its own
+  sentence off mid-way; the transaction editor stamped the device's date rather
+  than your time zone, as could the "Due in N days · Aug 12" line; the Family
+  screen leaked a background connection each time you left it. Both phones: you
+  could remove every tab from the bottom bar and be left with nothing but "More".
+
+**A lapsed Family plan pauses your household instead of quietly doing nothing (Aug 1)**
+
+- **Your shared household is never deleted.** When a Family plan ends, everything
+  you and your household shared stays exactly where it is and stays visible to
+  everyone in it. What pauses is *changing* it: adding something new, editing a
+  shared item, renaming the household, or inviting someone. Settings → Family
+  says so plainly, and resubscribing picks up right where you left off.
+  Previously an ended Family plan changed almost nothing — the household kept
+  working indefinitely, and the one thing that did break said your household was
+  "full", which wasn't true.
+- **You can still take your own things back out.** Unsharing an item, and leaving
+  the household, keep working while a plan is lapsed — nothing of yours is ever
+  stuck in a household you're no longer paying for.
+- **Pending invites stay listed** so you can revoke links that can no longer be
+  accepted.
+- **Admin: Family can be given out, not just Pro.** Granting Family to an account
+  already worked; promo codes couldn't do it at all, and now can — a code can be
+  minted for Pro or for Family (shared household), and the code list says which
+  it is. Revoking a granted plan now also pulls a redeemed promo code, and shows
+  up even when a paid store subscription is sitting on top of it. Revoking a code
+  doesn't let it be redeemed a second time.
+
+**The Pro screen shows the plans, not a button that shows the plans (Aug 1)**
+
+- **FiHaven Pro opens straight onto what you're buying.** On iPhone and Android
+  it was a status card and an "Upgrade to Pro" / "Manage Pro" button, and the
+  perks, prices, and Family plan only appeared once you pressed it. They're on
+  the screen now — along with your current plan, the manage link and restore —
+  so nothing about your subscription is a tap away. (The web already worked
+  this way.)
+- **The small print under the plans sits together**, instead of each line being
+  spaced like a card of its own.
+- **Promo codes are redeemed on the web.** The "Have a promo code?" box is gone
+  from Android; a code you redeem at fihaven.app still applies to your account
+  everywhere, and still shows as your Pro source in the app.
+- **The Family upsell says what Family costs.** Settings → Family offered "Get
+  the Family plan" with no price on it — you had to start the purchase to find
+  out. It now shows the store's own price for your account (e.g. $29.99 / year)
+  above the button, on iPhone and Android.
+
+**Bank connections are on the Bank screen, not one tap further in (Aug 1)**
+
+- **Settings → Bank is the linked-bank screen now.** On iPhone and Android it
+  was a screen holding a single "Bank connections" row, which opened the actual
+  thing — two taps to reach the only content there. Your banks, Connect a bank,
+  and the import switches are on the Bank screen itself. (The web already worked
+  this way: Settings → the Bank tab.)
+
+**U.S. Bank, Bilt and CareCredit show their real marks (Aug 1)**
+
+- **U.S. Bank cards carry the whole logo now, not a blank red shield.** What we
+  shipped was the shield on its own — a red pentagon with nothing inside it,
+  which next to every other issuer's mark read as something we hadn't finished.
+  It's the full **usbank** lockup now, shield and wordmark.
+- **Bilt is the current BILT mark**, white on its own dark plate, rather than the
+  older wordmark — and it's a squarer lockup, so it renders bigger in the same
+  space.
+- **CareCredit has a logo at all.** It used to fall back to a "CC" chip; it now
+  shows the green fan.
 
 **Pick more than one reminder day, and branded notification emails (Jul 31)**
 
@@ -755,6 +861,205 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **Session teardown is now explicit on both phones.** Sign-out cleared auth
+  state but left two things running that outlive it. (1) **Scheduled reminders.**
+  They live with the OS, not the session — Android's survived in
+  `SharedPreferences` and `BootReceiver.rescheduleFromSaved` re-armed them after
+  every reboot, forever; iOS's `UNCalendarNotificationTrigger` requests simply
+  persisted. New `NotificationScheduler.cancelAll` on both. (2) **The debounced
+  save retry.** `AppViewModel.saveJob` / `AppStore.saveTask` re-read the data on
+  every attempt, and a `Task` keeps itself alive regardless of whether anything
+  still holds the store — so a loop that woke between a new sign-in storing its
+  token and `loadData()` returning would `PUT` an empty `AppData` over that
+  account. Both are now torn down by `AppViewModel.endSession()` /
+  `AppStore.endSession()`, called from logout, account deletion, and the
+  bootstrap path where the server rejects a stored token (which never went
+  through `logout()`). The save loop additionally checks the session before each
+  attempt, and skips its trailing `refreshNotifications()` when the session
+  ended — `onSessionExpired` hands off to `logout()`, which suspends before
+  clearing `_session`, so the refresh would otherwise re-arm what `endSession()`
+  had just cancelled.
+- **`server/scheduler.js` never honoured `archived`.** `grep archived` returned
+  nothing: `billActiveOn()` gated on the start/end window only, while every
+  client's `billActive` is `!archived && !notStarted && !ended`. Soft-deleted
+  records therefore drove bill reminders, trial reminders, the monthly summary
+  and the weekly digest, and archived cards leaked into `offersExpiringOn()` and
+  both debt totals — and `markAutopay()` **auto-marked them paid**, pushing
+  phantom `payments` into `u.data` via `upsertUserData` and out to every device.
+  `billActiveOn` now rejects `archived` and a new `activeCards(data)` covers the
+  card paths. 7 regression tests, including two positive controls so the filter
+  can't over-reach. Clients tightened to match: `AppStore.refreshNotifications`
+  and `AppViewModel.refreshNotifications` pass `activeBills`/`activeCards` (bill
+  *due* reminders were already safe via `nextDueDate → billActive`; trial and
+  offer reminders read the raw lists), and Android's dashboard trial alerts and
+  Subscriptions widget switch to `activeBills`.
+- **Both native clients were still on the Stripe billing contract.** The server
+  moved to Paddle: `GET /api/billing/status` returns `paddlePortal` and
+  `POST /api/billing/stripe/portal` no longer exists. `BillingStatusResponse`
+  kept decoding `stripePortal` — permanently `false`/`nil` — so `manageButtonLabel`
+  returned nil for a web subscriber and the paywall rendered "You're on FiHaven
+  Pro" with no button and no explanation. Renamed to `paddlePortal` /
+  `createBillingPortal()` against `api/billing/paddle/portal` on both platforms
+  (resolving the dev server's site-relative `/dev-portal` against the API base),
+  plus `billingNote` cases for every remaining source and a new `storeTerms`
+  so the Apple/Play auto-renewal boilerplate is only shown to subscribers it
+  applies to. Android surfaces a portal failure as a Toast instead of a button
+  that does nothing. **The web was already correct** — it is what got migrated.
+- **Web: `clearLocalData()` and `cacheLocally()` had drifted apart.**
+  `storage.svelte.js` cached seven keys; `auth.js` and `settings.js` each removed
+  a hand-written five, leaving `fh_accounts`, `fh_goals` and `fh_transactions` in
+  `localStorage` after sign-out and account deletion — and `bootstrapData()`'s
+  offline fallback reads exactly those keys. New `client/js/localCache.js` holds
+  the single list; `SYNCED_KEYS` is derived from it so they cannot drift again.
+  3 tests.
+- **Android `ExportRow` put the whole account in `Intent.EXTRA_TEXT`**, which
+  crosses a Binder transaction and throws `TransactionTooLargeException` past
+  ~1MB. Now staged to `cacheDir/export/` and shared through a new `FileProvider`
+  (`@xml/file_paths`, cache-path only) with `ClipData` so the read grant reaches
+  the share sheet — matching iOS, which already wrote a temp file. Both platforms
+  now report a failed export instead of silently doing nothing.
+- **Smaller Android fixes.** `BankConnections`: `"…for $n card" + if (n == 1) ""
+  else "s" + ". …"` — `+` binds tighter than the `if` arms, so the single-card
+  branch swallowed the rest of the sentence. `BudgetScreen.TransactionEditorDialog`
+  and `MainScaffold.dueLabel` used `LocalDate.now()` instead of
+  `DateLogic.today(zone)` (PayDialog and the calendar were already correct).
+  `streamHousehold` used `readTimeout = 0` with a non-cancellable `readLine()`,
+  stranding an IO thread per visit to Settings → Family; now a 30s timeout plus
+  `invokeOnCompletion { conn.disconnect() }`. Both platforms' tab editors let you
+  remove the last bottom tab, persisting an empty `tabs` array.
+- **CodeQL `js/incomplete-url-substring-sanitization` (#50).** The Paddle fetch
+  stub in `accountDelete.server.integration.test.js` matched with
+  `startsWith('https://api.paddle.com')`, which also accepts
+  `https://api.paddle.com.example.net/`. Replaced with an exported `paddleTarget()`
+  that compares the parsed `hostname` (and handles `Request`/`URL` inputs, which
+  the old `String(url)` silently failed to match), plus 3 tests covering six
+  spoofing shapes. A sweep found no other instance — the remaining
+  `startsWith("https://")` calls are scheme checks, and `nextUrl.js` already
+  rebuilds redirect targets from an allowlist.
+
+- **A lapsed Family plan now freezes the household instead of doing nothing.**
+  Expiry used to have almost no consequence: `capFor()` dropped to 0, but every
+  read *and write* path kept working, so an expired Family kept a fully
+  functioning shared household forever — the only thing that broke was
+  inviting, which failed with a "your household is full" message that was
+  simply untrue. Households now go **read-only** when the owner's entitlement
+  lapses. `household.js` gains `isActive()` / `requireActive()` (owner's
+  `householdMax >= 1`), applied to `shareEntity`, `updateEntity`, `rename`,
+  `invite` and `acceptInvite`, all returning a new `household-inactive` → 403.
+  Reads are deliberately untouched: `listSharedData`, `computeRollup` and the
+  SSE stream keep serving everything, and **nothing is ever deleted**, so
+  resubscribing thaws the household exactly as it was. Two paths stay open on
+  purpose — `deleteEntity` (unshare), because trapping your own data in a
+  household you can't manage is the wrong side to err on, and `leave`. The
+  owner's entitlement governs, not the caller's: a member with solo Pro can't
+  write to a lapsed owner's household. `viewFor()` now returns `active`, and
+  the clients render the state rather than letting writes fail: web gets a
+  read-only banner (`.hh-frozen`) with a Resubscribe button, hides the invite
+  box and the share picker but keeps Unshare *and the pending-invite list*
+  (revoking one still works, and links that can no longer be accepted are
+  exactly what a lapsed owner wants to clean up), and the dashboard card's
+  "Live" badge becomes "Read-only"; iOS (`HouseholdView.active` + `isFrozen`) and
+  Android (`HouseholdView.active`, defaulting true so older payloads decode)
+  get the same notice and the same `household-inactive` copy. Covered by
+  `tests/integration/householdFrozen…` (6 cases, including the thaw and the
+  solo-Pro member) and `client/js/householdFrozen.render.test.js`.
+- **Admin can hand out Family, not just Pro — including by promo code.** The
+  per-user grant sheet already offered every comp plan; what it didn't say is
+  that `family` is the one that unlocks a shared household, so the option now
+  reads "Family (shared household)" and the sheet explains the difference when
+  it's selected. Promo codes couldn't reach Family at all: `POST
+  /api/admin/promo` hardcoded a plain `free_sub` with a null `product_id`, and
+  `planFor(null)` resolves to no plan, which means `householdMaxFor()` returns
+  0. `billing.createPromoCode` now takes a `plan` and stores it as the same
+  `comp:<plan>` product id admin grants use, so redemption flows through
+  `planFor` → `computeEntitlement().householdMax` with no new column and no
+  change to `redeemPromo`. The Promos tab gets a Plan picker (Pro / Family,
+  defaulting the day count to 366 on Family), rows label their tier
+  ("366d Family"), and `GET /api/admin/promo` serializes `plan` — null on codes
+  minted before this, which keep granting solo Pro. Unknown plans are rejected
+  with `bad-plan`.
+- **Revoke now reaches promo grants, not just comp rows.** "Revoke comp Pro"
+  called `deleteCompSubscription` alone, so a redeemed code was unrevokable —
+  and the menu item only appeared for `proSource === 'comp'`, so for a
+  promo-entitled user there was no revoke at all. `{ grant: false }` now also
+  calls `dbApi.revokePromoGrants(id)`, and the item shows for either
+  admin-issued source ("Revoke promo Pro" when that's the live one). Whether
+  to offer it is decided by a new row-derived `revocable` flag on the
+  serialized user, not by `proSource`: `computeEntitlement` reports only the
+  entitlement that *wins*, so a store subscription outlasting a comp grant
+  used to hide that grant from the console entirely. Rather
+  than delete the redemption, a new `promo_redemptions.revoked_at` column
+  (idempotent `PRAGMA table_info` migration, NULL on existing rows) drops it
+  out of `activePromoGrants` while leaving it visible to
+  `findPromoRedemption` — so a revoked user can't just redeem the same code
+  again, and `max_redemptions` accounting stays honest. Store subscriptions
+  are still never touched: those get cancelled at Apple/Play/Paddle.
+  Covered by `tests/integration/adminFamilyGrant…` (7 cases, including that
+  revoking leaves a live Apple subscription intact), which also mounts
+  `routes/admin` in the integration harness for the first time.
+- **The paywall body is reusable, and the Pro screen is now made of it.** Both
+  native Pro screens duplicated the paywall's header and status card and then
+  hid the paywall itself behind a button. The scrolling content — perks, plans,
+  Family card, active-subscription card, manage, redeem, restore, legal — is
+  extracted as `PaywallContent` (iOS `Paywall.swift`, Android `Paywall.kt`),
+  with no presentation chrome: `PaywallView` / `PaywallDialog` wrap it in the
+  sheet/dialog with the Close affordance for feature gates, and `ProView` /
+  `ProScreen` render it directly under their own header. Android's takes the
+  scrolling `Modifier` from the caller (`weight(1f).verticalScroll(…)` in the
+  dialog, `fillMaxWidth().verticalScroll(…)` in the screen); iOS's carries the
+  `billing.message` alert and the `loadProducts()` task so both entry points
+  re-fetch — StoreKit can return `[]` at launch. `ProView`'s duplicate status
+  card, plan/provider/renewal formatters and second redeem button are gone
+  (the active card covers them), as are `ProScreen`'s. Feature gates
+  (`ProLockedView` / `ProLockedScreen`), Household, onboarding and the debug
+  trigger keep presenting the sheet/dialog — those interrupt something else.
+- **Paywall footer is one block; Android drops in-app promo entry.** Restore,
+  the store's auto-renew terms and the required 3.1.2 links were separated by
+  the same 18dp/22pt that separates the cards, which read as dead space around
+  three lines of fine print — they're now a single `Column` / `VStack(spacing:
+  6)`. Android's "Have a promo code?" button is gone with its `showRedeem`
+  state, and `RedeemCodeDialog` went with it as the only caller (the
+  out-of-products copy no longer points at it either). **This leaves no in-app
+  promo redemption on Android** — `POST /api/promo/redeem` and
+  `AppViewModel.redeemPromo` are untouched, so the web path and the
+  `source == "promo"` entitlement display still work, and restoring the button
+  is a one-file revert. iOS keeps "Redeem an App Store code": Guideline 3.1.1
+  requires Apple's own sheet there and forbids taking a code by hand.
+- **The Family upsell prices itself from the store.** `HouseholdScreen`'s
+  `familyPriceLabel()` (Compose) and `HouseholdSettingsView.familyPriceLabel`
+  (SwiftUI) read the Family SKU out of the live product list and render
+  "$29.99 / year" above the button, falling back to nothing before the store
+  answers and to a bare price for an unrecognised billing period. Android gains
+  `BillingManager.periodUnit` for the bare unit; iOS reads
+  `Product.subscription.subscriptionPeriod`. Deliberately not hardcoded: Play
+  and the App Store charge $29.99 where the web's Paddle price is $25.99, which
+  `household.js` states literally.
+- **Bank connections render inline in the Bank settings group.** Both native
+  clients put the whole Plaid UI behind one more row: iOS pushed `BankView` from
+  a `bankSection` whose only content was that link, Android opened `BankDialog`
+  from a `NavRow`. iOS's `groupRow("Bank")` now navigates straight to `BankView`
+  (retitled `Bank`, on the branded bar the other detail screens use) and
+  `bankSection` is gone; on Android `BankDialog.kt` became `BankConnections.kt`,
+  the `FormDialog` wrapper is now a plain `Column` carrying the dialog's own
+  16dp/12dp so nothing shifts, and `SettingsScreen` renders
+  `Section("BANK") { BankConnections(vm) }` with the `"bank"` dialog route
+  dropped. Web was already flat (the `bank` tab panel), so it didn't change.
+- **Three issuer marks retraced from the brands' own artwork**
+  (`client/js/issuerLogos.js`, then `npm run sync:issuer-logos`). `usbank` was
+  the bare 2023 shield (1.21:1, one flat path) and is now the full lockup
+  (3.87:1) in three layers — red shield, the "us" knocked out of it, blue
+  "bank"; `bilt` replaces the old wordmark (5.72:1) with the current BILT +
+  brick lockup (4.02:1), white on a `#010912` plate carried as layer 0 so a
+  white-on-dark mark still reads on the light plate the renderers give
+  full-color marks; `carecredit` is new (1.26:1, three blades), so CareCredit
+  resolves to a logo rather than the `ISSUER_MONOGRAM_COLORS` chip. Each was
+  traced from the raster at 4x through a blur-then-threshold — the sources are
+  hard-aliased, and tracing them raw spends a path segment per stair-step —
+  cropped to its artwork bounds and emitted as relative path data rounded to
+  the 0.01 grid, deltas taken between rounded values so nothing drifts. The
+  bundled-mark count is **47** (`SVGPathChecks.swift`, `IssuerIconsTest.kt`),
+  and the web tests that used CareCredit as the no-logo example now use Mission
+  Lane.
 - **History renders skips instead of filtering them out.** A skip is a `payments`
   record flagged `skipped` with `amount 0`; all three clients dropped it before
   grouping, so a period of nothing but skips rendered as empty and the flag was

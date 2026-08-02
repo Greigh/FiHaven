@@ -372,7 +372,11 @@ fun TransactionEditorDialog(
     var category by remember { mutableStateOf(edit?.category ?: "Groceries") }
     var merchant by remember { mutableStateOf(edit?.merchant ?: "") }
     var note by remember { mutableStateOf(edit?.note ?: "") }
-    val today = java.time.LocalDate.now()
+    // The user's time zone, like every other date default in the app (PayDialog,
+    // the calendar). LocalDate.now() reads the device's, so a transaction added
+    // late in the evening could be stamped with the wrong day and land in the
+    // wrong budget period.
+    val today = app.fihaven.core.logic.DateLogic.today(vm.zone())
     var dateIso by remember {
         mutableStateOf(edit?.date?.ifBlank { null }
             ?: "%04d-%02d-%02d".format(today.year, today.monthValue, today.dayOfMonth))

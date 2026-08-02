@@ -46,6 +46,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Serves the account export as a content:// URI. The export is the
+             whole account, which is far too big to hand over in an Intent
+             extra (Binder transaction limit). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Fires on-device bill reminders scheduled via AlarmManager. -->
         <receiver
             android:name=".BillReminderReceiver"

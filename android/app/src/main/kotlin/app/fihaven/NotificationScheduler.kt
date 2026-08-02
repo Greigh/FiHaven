@@ -224,6 +224,23 @@ object NotificationScheduler {
         return "$name free trial $phrase."
     }
 
+    /**
+     * Drop every scheduled reminder and forget the schedule. Called on sign-out
+     * and account deletion: the alarms and the copy they carry (bill names and
+     * amounts) live on the device, not in the session, so without this they
+     * keep firing for a signed-out user — and [rescheduleFromSaved] re-arms
+     * them from SharedPreferences after every reboot, indefinitely.
+     */
+    fun cancelAll(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        context.getSystemService(AlarmManager::class.java)?.let { am ->
+            readSchedule(prefs).forEach { am.cancel(pendingIntent(context, it.code)) }
+        }
+        prefs.edit().remove(KEY_SCHEDULE).apply()
+        // Anything already posted is on-screen copy from the same source.
+        runCatching { androidx.core.app.NotificationManagerCompat.from(context).cancelAll() }
+    }
+
     /** Re-arm the persisted schedule after a reboot (drops past-due entries). */
     fun rescheduleFromSaved(context: Context) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return

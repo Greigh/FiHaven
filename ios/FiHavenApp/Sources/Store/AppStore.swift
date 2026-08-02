@@ -10,7 +10,10 @@ enum SyncState: Equatable {
         case .idle: return ""
         case .saving: return "Saving…"
         case .saved: return "All changes saved"
-        case .offline: return "Offline — saved on this device"
+        // Nothing is written to disk — `data` lives in memory only — so this
+        // must not imply the edit is safe locally. It says "not saved yet"
+        // because `push()` keeps retrying and usually wins.
+        case .offline: return "Can’t reach the cloud — retrying"
         }
     }
 }
@@ -48,6 +51,11 @@ final class AppStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let debounce: Duration = .milliseconds(800)
 
+    /// Called when the server rejects our token. `data` is never written to
+    /// disk, so a dead session must not sit behind an "offline" banner
+    /// pretending edits are safe — the only honest answer is to sign out.
+    var onSessionExpired: (() -> Void)?
+
     init(api: APIClient) {
         self.api = api
         // A settled registration can flip push health, which decides whether
@@ -70,6 +78,10 @@ final class AppStore: ObservableObject {
             await loadCardPresets()
             checkPresetUpdates()
             await syncBanks()
+        } catch APIError.unauthenticated {
+            // An expired/revoked token used to render as "offline", leaving a
+            // permanently empty dashboard that swallowed every later edit.
+            onSessionExpired?()
         } catch {
             // Offline or error: keep whatever we have, flag it.
             syncState = .offline
@@ -257,6 +269,21 @@ final class AppStore: ObservableObject {
         await push()
     }
 
+    /// Tear down everything that outlives this store and would otherwise still
+    /// be acting on behalf of the signed-out user.
+    ///
+    /// Dropping the `AppStore` reference does not stop the retry loop: the task
+    /// holds itself alive until it lands. Left running across a sign-out and a
+    /// *new* sign-in it would `PUT` this session's snapshot over the new
+    /// account. Reminders are separate again — they are scheduled with the
+    /// system and survive the process entirely.
+    func endSession() {
+        saveTask?.cancel()
+        saveTask = nil
+        syncState = .idle
+        NotificationScheduler.cancelAll()
+    }
+
     private func scheduleSave() {
         syncState = .saving
         saveTask?.cancel()
@@ -268,16 +295,39 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Push the current snapshot, retrying while it keeps failing.
+    ///
+    /// A single attempt was all a failed save ever got: the edit stayed in
+    /// memory, the banner claimed it was safe on the device, and it died with
+    /// the process. There is still no on-device copy, so the retry loop is
+    /// what actually gets the edit to the server — it backs off up to a
+    /// minute and keeps going until it lands, the session dies, or a newer
+    /// edit supersedes it (`scheduleSave` cancels this task).
     private func push() async {
-        do {
-            try await api.saveData(data)
-            syncState = .saved
-        } catch {
-            syncState = .offline
+        var delay: Duration = .seconds(2)
+        var sessionEnded = false
+        while !Task.isCancelled {
+            do {
+                try await api.saveData(data)
+                syncState = .saved
+                break
+            } catch APIError.unauthenticated {
+                onSessionExpired?()
+                sessionEnded = true
+                break
+            } catch {
+                syncState = .offline
+                try? await Task.sleep(for: delay)
+                if delay < .seconds(60) { delay = delay * 2 }
+            }
         }
         // Reschedule on-device reminders from the latest data regardless of
         // whether the network save succeeded (notifications are local).
-        refreshNotifications()
+        //
+        // Not when the session just ended: onSessionExpired() hands off to
+        // logout(), whose endSession() cancels the reminders, and re-arming
+        // here would race to put them back.
+        if !sessionEnded { refreshNotifications() }
     }
 
     /// Offer a subscription's manage/cancel link to the shared database.
@@ -325,9 +375,14 @@ final class AppStore: ObservableObject {
     }
 
     /// Re-sync on-device bill reminders to the current bills + settings.
+    ///
+    /// Archived items are excluded here, not inside the scheduler: bill *due*
+    /// reminders were already safe (nextDueDate → billActive), but trial-ending
+    /// and card-offer reminders read the raw lists, so archiving a subscription
+    /// or a card left its reminders firing.
     func refreshNotifications() {
         NotificationScheduler.reschedule(
-            bills: data.bills, cards: data.cards, settings: data.settings, tz: tz,
+            bills: activeBills, cards: activeCards, settings: data.settings, tz: tz,
             pro: data.entitlement?.pro ?? false,
             pushHealthy: PushRegistrar.shared.healthy
         )
