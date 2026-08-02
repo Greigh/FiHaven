@@ -29,6 +29,7 @@ import app.fihaven.core.model.withEnvelopeRollover
 import app.fihaven.core.model.autopayDone
 import app.fihaven.core.model.perkUsage
 import app.fihaven.core.model.withPerkUsage
+import app.fihaven.core.model.withReminderOffsets
 import app.fihaven.core.model.withAutopayDone
 import app.fihaven.core.model.autopayMark
 import app.fihaven.core.model.incomeAdjustments
@@ -48,9 +49,12 @@ import app.fihaven.core.model.withIncomes
 import app.fihaven.core.model.withPaidGoal
 import app.fihaven.core.model.withSetting
 import app.fihaven.core.model.rolloverPrefill
+import app.fihaven.core.model.rolloverPendingFor
+import app.fihaven.core.model.rolloverPrevKey
 import app.fihaven.core.model.lastVisitKey
 import app.fihaven.core.model.withTimezone
 import app.fihaven.core.Money
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
@@ -1033,23 +1037,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val zone = DateLogic.zone(d.settings.timezoneSetting)
         val currentMk = DateLogic.monthKey(DateLogic.today(zone))
         val lastMk = d.settings.lastVisitKey
-        if (!lastMk.isNullOrBlank() && lastMk != currentMk) {
-            val missed = buildList {
-                d.bills.filter { (it.dueDay != null || it.startDate != null) && DateLogic.billActive(it, zone) }
-                    .forEach { if (!Schedule.isPaid(d.payments, "bill", it.id, lastMk)) add(it.name) }
-                d.activeCards.filter { it.dueDay != null }
-                    .forEach { if (!Schedule.isPaid(d.payments, "card", it.id, lastMk)) add(it.name) }
+        // Detection *records* the rollover rather than consuming it: `lastVisitKey`
+        // is written by whichever device opens first each month, so on its own it
+        // swallowed the prompt for every other device. The pending pair below is
+        // cleared only by dismissing or saving amounts — see dismissRolloverPrompt.
+        val opening = !lastMk.isNullOrBlank() && lastMk != currentMk &&
+            d.settings.rolloverPendingFor != currentMk
+        if (opening || lastMk != currentMk) {
+            mutate {
+                var s = it.settings.withSetting("lastVisitKey", JsonPrimitive(currentMk))
+                if (opening) {
+                    s = s.withSetting("rolloverPendingFor", JsonPrimitive(currentMk))
+                        .withSetting("rolloverPrevKey", JsonPrimitive(lastMk))
+                }
+                it.copy(settings = s)
             }
-            _rolloverPrompt.value = RolloverPrompt(
-                DateLogic.monthKeyLabel(lastMk), DateLogic.monthKeyLabel(currentMk), missed,
-            )
         }
-        if (lastMk != currentMk) {
-            mutate { it.copy(settings = it.settings.withSetting("lastVisitKey", JsonPrimitive(currentMk))) }
+
+        if (_data.value.settings.rolloverPendingFor != currentMk) return
+        val prevMk = _data.value.settings.rolloverPrevKey?.takeIf { it.isNotBlank() }
+            ?: previousMonthKey(currentMk)
+        val missed = buildList {
+            d.bills.filter { (it.dueDay != null || it.startDate != null) && DateLogic.billActive(it, zone) }
+                .forEach { if (!Schedule.isPaid(d.payments, "bill", it.id, prevMk)) add(it.name) }
+            d.activeCards.filter { it.dueDay != null }
+                .forEach { if (!Schedule.isPaid(d.payments, "card", it.id, prevMk)) add(it.name) }
         }
+        _rolloverPrompt.value = RolloverPrompt(
+            DateLogic.monthKeyLabel(prevMk), DateLogic.monthKeyLabel(currentMk), missed,
+        )
     }
 
-    fun dismissRolloverPrompt() { _rolloverPrompt.value = null }
+    /** "2026-08" → "2026-07". Only a fallback: `rolloverPrevKey` is written
+     *  alongside `rolloverPendingFor`, so it should always be there. */
+    private fun previousMonthKey(mk: String): String = runCatching {
+        java.time.YearMonth.parse(mk).minusMonths(1).toString()
+    }.getOrDefault(mk)
+
+    /** The rollover has been handled — stop asking, on every device. */
+    fun dismissRolloverPrompt() {
+        _rolloverPrompt.value = null
+        if (_data.value.settings.rolloverPendingFor != null) {
+            mutate { it.copy(settings = it.settings.withSetting("rolloverPendingFor", JsonNull)) }
+        }
+    }
 
     fun setRolloverPrefill(mode: String) =
         mutate { it.copy(settings = it.settings.withSetting("rolloverPrefill", JsonPrimitive(mode))) }
@@ -1066,6 +1097,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val d = _data.value
         val avg = Schedule.recentPaymentAverage(d.payments, "bill", bill.id)
         return Schedule.rolloverAmount(d.settings.rolloverPrefill, bill.amount, avg)
+    }
+
+    /** Pre-fill as the review renders it: blank when there's nothing to carry,
+     *  so an unreviewed bill isn't silently zeroed. */
+    fun rolloverPrefillText(bill: Bill): String {
+        val pre = rolloverPrefillAmount(bill)
+        return if (pre > 0) String.format(java.util.Locale.US, "%.2f", pre) else ""
+    }
+
+    /** The date a bill lands on in the month being reviewed. Anchored to the 1st
+     *  rather than today so a bill due on the 5th still reads "Aug 5" when the
+     *  review is opened on the 20th. */
+    fun rolloverDueDate(bill: Bill): java.time.LocalDate? {
+        val zone = zone()
+        val monthStart = DateLogic.today(zone).withDayOfMonth(1)
+        return BillSchedule.nextDueDate(bill, zone, monthStart)
+    }
+
+    /** True when this bill's date for the reviewed month has already passed
+     *  without a payment — the review flags it so it isn't quietly missed. */
+    fun rolloverIsLate(bill: Bill): Boolean {
+        val due = rolloverDueDate(bill) ?: return false
+        val d = _data.value
+        val zone = zone()
+        val mk = DateLogic.monthKey(DateLogic.today(zone))
+        if (Schedule.isPaid(d.payments, "bill", bill.id, mk)) return false
+        return due.isBefore(DateLogic.today(zone))
     }
 
     /** Apply reviewed amounts (billId → amount) to the matching bills. */
@@ -1324,10 +1382,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         mutate { it.copy(settings = it.settings.withPerkUsage(next)) }
     }
 
-    fun setReminderLeadDays(days: Int) =
-        mutate { it.copy(settings = it.settings.withSetting("reminderLeadDays", JsonPrimitive(days.coerceIn(0, 14)))) }
-    fun setRemindOnDueDay(on: Boolean) =
-        mutate { it.copy(settings = it.settings.withSetting("remindOnDueDay", JsonPrimitive(on))) }
+    /** The days a reminder fires on. The only writer for reminder timing —
+     *  the legacy `reminderLeadDays` / `remindOnDueDay` keys are mirrors now,
+     *  and writing either directly would just lose to the array on read.
+     *  Clamping, de-duping, and that mirror all live in withReminderOffsets. */
+    fun setReminderOffsets(days: List<Int>) =
+        mutate { it.copy(settings = it.settings.withReminderOffsets(days)) }
     fun setNotifyHour(hour: Int) =
         mutate { it.copy(settings = it.settings.withSetting("notifyHour", JsonPrimitive(hour.coerceIn(0, 23)))) }
     /** On-device reminders. Reschedules immediately; the SettingsScreen

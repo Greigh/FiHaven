@@ -307,4 +307,30 @@ describe('emails.js', () => {
     expect(msg.html).toContain('<meta name="color-scheme" content="light dark"/>');
     expect(msg.html).toContain('1 bill due');
   });
+
+  it('heads every email with the logo and the wordmark', async () => {
+    // Both, deliberately: the mark is a hosted PNG, so an inbox with images
+    // off keeps the brand only because the wordmark is live text.
+    for (const send of [
+      () => emails.sendPasswordReset('user@test.com', 'tok'),
+      () => emails.sendVerifyEmail('user@test.com', 'tok'),
+      () => emails.sendMonthlySummary('user@test.com', { month: 'May 2026' }, 'USD', 7),
+    ]) {
+      sendMailMock.mockClear();
+      await send();
+      const html = sendMailMock.mock.calls[0][0].html;
+      expect(html).toContain('src="https://fihaven.app/email-logo.png"');
+      expect(html).toContain('alt="FiHaven"');
+      expect(html).toContain('>FiHaven</span>');
+    }
+  });
+
+  it('uses the app palette, not an email-only one', async () => {
+    await emails.sendVerifyEmail('user@test.com', 'tok');
+    const html = sendMailMock.mock.calls[0][0].html;
+    expect(html).toContain('#3D6FE1');   // --accent
+    expect(html).toContain('#15161A');   // --text
+    expect(html).toContain('#6098F6');   // dark-mode --accent
+    expect(html).toContain('Manrope');   // the product typeface
+  });
 });

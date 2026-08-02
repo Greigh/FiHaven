@@ -79,7 +79,7 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
   delivered as tz-aware **email** (server scheduler) and, on the native apps,
   opt-in **local device notifications** (rescheduled across reboots on Android).
 - **Sign in with Apple / Google** — OAuth on web, iOS, and Android (see
-  [`docs/social-login-setup.md`](docs/social-login-setup.md)), alongside the
+  the maintainer-local social-login setup notes), alongside the
   password + MFA flows.
 - **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate
   limiting (express-rate-limit), MFA (TOTP / passkeys / email codes),
@@ -126,7 +126,7 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
 | **Server** | Node 24 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
-| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) — see [`docs/social-login-setup.md`](docs/social-login-setup.md) |
+| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Paddle](https://paddle.com) (merchant of record), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
@@ -184,8 +184,7 @@ FiHaven Pro subscription. Each has its own README:
 - **[Android](android/README.md)** — Jetpack Compose app on a shared
   Kotlin core (`android/`), Play Billing, encrypted token storage.
 
-The shared API + data + design + billing contract both apps follow lives
-in **[`docs/native-contract.md`](docs/native-contract.md)**. FiHaven Pro
+Both apps follow a shared API + data + design + billing contract. FiHaven Pro
 entitlement is server-authoritative and unified across web (Paddle), iOS
 (StoreKit), and Android (Play) — see [the API section](#api).
 
@@ -513,8 +512,7 @@ CSV / JSON export endpoints and the public `.ics` feed).
 
 The server is the single source of truth for the `pro` entitlement,
 unified across web (Paddle), iOS (StoreKit), and Android (Play) — it's
-also embedded in `GET /api/data`. Full spec:
-[`docs/native-contract.md` §10](docs/native-contract.md).
+also embedded in `GET /api/data`.
 
 Web checkout is **Paddle**, which is the merchant of record for web
 purchases (it takes the payment and handles sales tax / VAT). Stripe was
@@ -991,7 +989,7 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 
 Honest inventory of what is **not shipped yet**, **web-only**, or **intentionally out of
 scope**. Shipped features live in [CHANGELOG.md](CHANGELOG.md). Competitor-driven
-ideas are tracked in [`docs/competitive-roadmap.md`](docs/competitive-roadmap.md)
+ideas are tracked separately by the maintainers
 (note: Tier 1/2 items shipped in **1.4.x**; see checklist below).
 
 ### Store distribution
@@ -1030,7 +1028,7 @@ share (bills, cards, goals), live-syncing via SSE — at parity with web.
 
 - **Remote push notifications** — reminders are **email** (server scheduler),
   **local** on-device (iOS/Android), and optional **server push** (APNs / FCM)
-  when `pushNotifications` is enabled; see `docs/push-setup.md`.
+  when `pushNotifications` is enabled.
 - **User overrides for needs/wants/save category mapping** — per-category overrides in Settings → Category buckets (web + native).
 - **Household rollup views** — shared-entity totals on the dashboard and in Family settings (`GET /api/household/rollup`).
 - **Auto-save / round-up rules** — intentionally skipped (conflicts with manual-first

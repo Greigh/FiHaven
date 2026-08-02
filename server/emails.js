@@ -53,44 +53,77 @@ function money(n, currency) {
 }
 
 /* ── Design tokens ───────────────────────────────────────────
+   These are the app's own tokens from client/css/tokens.css, not a
+   second palette invented for email — an email that lands next to the
+   product should look like the product. Keep the two in step.
+
    Inline styles carry the light palette (they survive every client);
    the <style> block re-colors the same elements by class for dark
    mode. Clients that strip <style> — or that force their own dark
    inversion — still land on a legible light card, which is why the
    inline values stay the source of truth.                          */
-const TEXT = '#111827';
-const BODY = '#1f2430';
-const MUTED = '#6b7280';
-const FAINT = '#9aa1ad';
-const BORDER = '#e6e9f0';
-const PANEL = '#f5f7fc';
-const CARD = '#ffffff';
-const SKY = '#eef1f8';
+const TEXT = '#15161A';        // --text
+const BODY = '#33353D';        // --text, lightened for long-form copy
+const MUTED = '#6C6E77';       // --muted
+const FAINT = '#8A8C95';       // --muted, one step back for the footer
+const BORDER = '#E5E7EB';      // --border
+const PANEL = '#F2F3F6';       // --surface2
+const ACCENT_BG = '#EAF0FE';   // --accent-bg
+const CARD = '#FFFFFF';        // --surface
+const SKY = '#F2F3F6';         // page behind the card
 
+/* Manrope is the product typeface. Apple Mail / iOS Mail honour the
+   @import; everyone else lands on the system stack, which is what the
+   inline font-family says — so the fallback is never a surprise. */
 const FONT =
-  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  "'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+// Amounts are mono in the app (.mono); they line up in a column here too.
+const MONO = "'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
 
 const DARK_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
   a { text-decoration: none; }
   @media (max-width:600px) {
     .gutter { padding-left:22px !important; padding-right:22px !important; }
     .h1 { font-size:21px !important; }
   }
+  /* The CTA keeps the light accent in dark mode on purpose: the dark-theme
+     accent (#6098F6) under white label text is only ~3:1, and the label is
+     15px — below the large-text bar. #3D6FE1 holds 5:1 and is still ours. */
   @media (prefers-color-scheme: dark) {
-    .sky    { background:#0d1016 !important; }
-    .card   { background:#161b23 !important; border-color:#272f3c !important; }
-    .rule   { border-color:#272f3c !important; }
-    .tx     { color:#e9eef7 !important; }
-    .body   { color:#c8d1de !important; }
-    .mut    { color:#98a2b3 !important; }
-    .faint  { color:#7c8797 !important; }
-    .panel  { background:#1b2330 !important; border-color:#2b3543 !important; }
-    .brand, .lnk { color:#8fb0ff !important; }
-    .chip   { background:#22304a !important; color:#a9c4ff !important; }
-    .btn    { background:#4d7cf0 !important; }
-    .btn a  { color:#ffffff !important; }
+    .sky    { background:#0C0D0F !important; }
+    .card   { background:#17181B !important; border-color:#292B31 !important; }
+    .rule   { border-color:#292B31 !important; }
+    .tx     { color:#ECEDF0 !important; }
+    .body   { color:#C6C8CF !important; }
+    .mut    { color:#868892 !important; }
+    .faint  { color:#75777F !important; }
+    .panel  { background:#1F2126 !important; border-color:#292B31 !important; }
+    .brand, .lnk { color:#6098F6 !important; }
+    .chip   { background:#122544 !important; color:#6098F6 !important; }
+    .bar    { background:#6098F6 !important; }
   }`;
+
+/* Brand lockup: the FiHaven mark plus the wordmark, side by side.
+
+   The mark is a hosted PNG rather than the inline SVG the site uses —
+   no mail client renders SVG reliably. The wordmark stays live text, so
+   an inbox with images off (still the default in plenty of clients)
+   loses the tile and keeps the brand. */
+function brandBlock() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="34" style="width:34px;padding-right:10px;vertical-align:middle;">
+        <img src="${origin()}/email-logo.png" width="34" height="34" alt="FiHaven"
+             style="display:block;width:34px;height:34px;border:0;border-radius:8px;"/>
+      </td>
+      <td style="vertical-align:middle;">
+        <span class="brand" style="font-family:${FONT};font-size:18px;font-weight:800;color:${ACCENT};letter-spacing:-.04em;">FiHaven</span>
+      </td>
+    </tr>
+  </table>`;
+}
 
 // Hidden inbox-preview line. The zero-width padding keeps the client
 // from pulling body copy in after it.
@@ -106,8 +139,8 @@ function preheaderBlock(text) {
 function ctaBlock(cta) {
   if (!cta) return '';
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 16px;">
-    <tr><td class="btn" align="center" bgcolor="${ACCENT}" style="border-radius:12px;background:${ACCENT};">
-      <a href="${cta.href}" style="display:inline-block;padding:13px 26px;font-family:${FONT};font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">${cta.label}</a>
+    <tr><td class="btn" align="center" bgcolor="${ACCENT}" style="border-radius:10px;background:${ACCENT};">
+      <a href="${cta.href}" style="display:inline-block;padding:13px 26px;font-family:${FONT};font-size:15px;font-weight:700;letter-spacing:-.01em;color:#ffffff;text-decoration:none;border-radius:10px;">${cta.label}</a>
     </td></tr>
   </table>
   <p class="mut" style="margin:0;color:${MUTED};font-size:12px;line-height:1.6;word-break:break-all;">
@@ -128,7 +161,7 @@ function itemList(items) {
         ${it.meta ? `<br/><span class="mut" style="color:${MUTED};font-size:13px;line-height:1.5;">${it.meta}</span>` : ''}
       </td>
       <td class="rule" align="right" valign="top" style="padding:12px 0;white-space:nowrap;${i ? `border-top:1px solid ${BORDER};` : ''}">
-        ${it.value ? `<span class="tx" style="color:${TEXT};font-size:15px;font-weight:700;">${it.value}</span>` : ''}
+        ${it.value ? `<span class="tx" style="font-family:${MONO};color:${TEXT};font-size:14px;font-weight:600;">${it.value}</span>` : ''}
       </td>
     </tr>`
     )
@@ -138,7 +171,7 @@ function itemList(items) {
 
 // Small pill for relative timing ("due in 3 days").
 function chip(text) {
-  return `<span class="chip" style="display:inline-block;background:#e8eefc;color:${ACCENT};font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;">${text}</span>`;
+  return `<span class="chip" style="display:inline-block;background:${ACCENT_BG};color:${ACCENT};font-size:11px;font-weight:600;letter-spacing:.02em;padding:3px 10px;border-radius:999px;">${text}</span>`;
 }
 
 /* Totals / at-a-glance figures in a tinted panel: label left, value
@@ -148,11 +181,11 @@ function statPanel(stats) {
     .map(
       (s, i) => `<tr>
       <td class="mut" style="padding:${i ? '8px' : '0'} 0 0;color:${MUTED};font-size:14px;">${s.label}</td>
-      <td class="tx" align="right" style="padding:${i ? '8px' : '0'} 0 0;color:${TEXT};font-size:15px;font-weight:700;white-space:nowrap;">${s.value}</td>
+      <td class="tx" align="right" style="padding:${i ? '8px' : '0'} 0 0;font-family:${MONO};color:${TEXT};font-size:14px;font-weight:600;white-space:nowrap;">${s.value}</td>
     </tr>`
     )
     .join('');
-  return `<table role="presentation" class="panel" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;background:${PANEL};border:1px solid ${BORDER};border-radius:12px;margin:18px 0 4px;">
+  return `<table role="presentation" class="panel" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;background:${PANEL};border:1px solid ${BORDER};border-radius:10px;margin:18px 0 4px;">
     <tr><td style="padding:16px 18px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">${rows}</table>
     </td></tr>
@@ -195,12 +228,13 @@ function layout({ heading, lines, cta, footnote, preheader, prefs }) {
   ${preheaderBlock(preheader)}
   <table role="presentation" class="sky" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:${SKY};padding:28px 12px;">
     <tr><td align="center">
-      <table role="presentation" class="card" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background:${CARD};border-radius:18px;border:1px solid ${BORDER};">
+      <table role="presentation" class="card" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background:${CARD};border-radius:20px;border:1px solid ${BORDER};overflow:hidden;">
+        <tr><td class="bar" bgcolor="${ACCENT}" height="4" style="height:4px;line-height:4px;font-size:0;background:${ACCENT};border-radius:19px 19px 0 0;">&nbsp;</td></tr>
         <tr><td class="gutter rule" style="padding:20px 30px;border-bottom:1px solid ${BORDER};">
-          <span class="brand" style="font-size:17px;font-weight:800;color:${ACCENT};letter-spacing:-.02em;">FiHaven</span>
+          ${brandBlock()}
         </td></tr>
         <tr><td class="gutter" style="padding:28px 30px 30px;">
-          <h1 class="h1 tx" style="margin:0 0 14px;font-size:23px;font-weight:800;color:${TEXT};letter-spacing:-.02em;line-height:1.25;">${heading}</h1>
+          <h1 class="h1 tx" style="margin:0 0 14px;font-size:24px;font-weight:800;color:${TEXT};letter-spacing:-.04em;line-height:1.2;">${heading}</h1>
           ${paras}${ctaBlock(cta)}${foot}
         </td></tr>
       </table>

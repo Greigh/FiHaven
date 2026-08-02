@@ -10,9 +10,12 @@ import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.remindOnDueDay
 import app.fihaven.core.model.reminderLeadDays
+import app.fihaven.core.model.reminderOffsets
+import app.fihaven.core.model.theme
 import app.fihaven.core.model.weeklyDigest
 import app.fihaven.core.model.withBudgetBucketOverride
 import app.fihaven.core.model.withEnvelopeAssignCategory
+import app.fihaven.core.model.withReminderOffsets
 import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -57,6 +60,64 @@ class SettingsTest {
         assertEquals(0, settings("""{"reminderLeadDays":-5}""").reminderLeadDays)
         assertEquals(23, settings("""{"notifyHour":99}""").notifyHour)
         assertEquals(0, settings("""{"notifyHour":-1}""").notifyHour)
+    }
+
+    // Multi-day reminders. Must match reminderOffsets() in server/scheduler.js
+    // and the iOS Settings.reminderOffsets accessor.
+    @Test fun reminderOffsetsFallsBackToTheLegacyPair() {
+        assertEquals(listOf(3), settings("{}").reminderOffsets)
+        assertEquals(
+            listOf(5, 0),
+            settings("""{"reminderLeadDays":5,"remindOnDueDay":true}""").reminderOffsets,
+        )
+        // The due day is already the lead — don't list it twice.
+        assertEquals(
+            listOf(0),
+            settings("""{"reminderLeadDays":0,"remindOnDueDay":true}""").reminderOffsets,
+        )
+    }
+
+    @Test fun reminderOffsetsDedupesClampsAndCaps() {
+        assertEquals(
+            listOf(3, 0),
+            settings("""{"reminderOffsets":[3,3,99,-1,0]}""").reminderOffsets,
+        )
+        assertEquals(
+            listOf(14, 10, 7, 5, 3),
+            settings("""{"reminderOffsets":[1,2,3,5,7,10,14]}""").reminderOffsets,
+        )
+    }
+
+    @Test fun emptyReminderOffsetsDoesNotFallBack() {
+        // "Don't remind me" is a real choice, not a missing value.
+        assertEquals(
+            emptyList(),
+            settings("""{"reminderOffsets":[],"reminderLeadDays":3}""").reminderOffsets,
+        )
+    }
+
+    @Test fun withReminderOffsetsMirrorsTheLegacyPair() {
+        val s = settings("{}").withReminderOffsets(listOf(0, 7, 3))
+        assertEquals(listOf(7, 3, 0), s.reminderOffsets)
+        assertEquals(7, s.reminderLeadDays)
+        assertTrue(s.remindOnDueDay)
+
+        val noDueDay = s.withReminderOffsets(listOf(5))
+        assertFalse(noDueDay.remindOnDueDay)
+        assertEquals(5, noDueDay.reminderLeadDays)
+
+        // Emptied: the legacy lead falls back to its default rather than
+        // keeping a value the user just cleared.
+        val cleared = s.withReminderOffsets(emptyList())
+        assertEquals(emptyList(), cleared.reminderOffsets)
+        assertEquals(3, cleared.reminderLeadDays)
+        assertFalse(cleared.remindOnDueDay)
+    }
+
+    @Test fun withReminderOffsetsKeepsUnrelatedKeys() {
+        val s = settings("""{"theme":"dark","notifyHour":19}""").withReminderOffsets(listOf(3))
+        assertEquals("dark", s.theme)
+        assertEquals(19, s.notifyHour)
     }
 
     @Test fun dashboardWidgetsDropsJsonNulls() {

@@ -547,6 +547,74 @@ describe('scheduler — configurable reminders + due-day + weekly digest', () =>
     expect(leads).toEqual([0, 3]);
   });
 
+  it('reminds on every day in reminderOffsets', async () => {
+    // 2026-06-17; bills due today (0 out), the 20th (3 out), and the 24th (7 out).
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: true, reminderOffsets: [7, 3, 0] },
+        bills: [
+          { id: 'today', name: 'Power', amount: 90, dueDay: 17 },
+          { id: 'soon', name: 'Rent', amount: 1450, dueDay: 20 },
+          { id: 'later', name: 'Car', amount: 320, dueDay: 24 },
+        ],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendBillReminder).toHaveBeenCalledTimes(3);
+    const leads = sendBillReminder.mock.calls.map((c) => c[2]).sort((a, b) => a - b);
+    expect(leads).toEqual([0, 3, 7]);
+  });
+
+  it('reminderOffsets wins over the legacy lead + due-day pair', async () => {
+    // Legacy keys say "5 days out, plus the due day"; the array says 3 only.
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: {
+          billReminders: true,
+          reminderOffsets: [3],
+          reminderLeadDays: 5,
+          remindOnDueDay: true,
+        },
+        bills: [
+          { id: 'today', name: 'Power', amount: 90, dueDay: 17 },
+          { id: 'soon', name: 'Rent', amount: 1450, dueDay: 20 },
+          { id: 'five', name: 'Gym', amount: 40, dueDay: 22 },
+        ],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(sendBillReminder.mock.calls[0][2]).toBe(3);
+  });
+
+  it('an empty reminderOffsets array sends nothing, and does not fall back', async () => {
+    db.allUsersWithData.mockReturnValue([
+      makeUser({
+        settings: { billReminders: true, reminderOffsets: [], reminderLeadDays: 3 },
+        bills: [{ id: 'soon', name: 'Rent', amount: 1450, dueDay: 20 }],
+      }),
+    ]);
+
+    await runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: mailer() });
+
+    expect(sendBillReminder).not.toHaveBeenCalled();
+    // Still stamped: nothing failed, so there's nothing to retry today.
+    expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
+  it('drops out-of-range and duplicate offsets, keeping at most five', async () => {
+    const { reminderOffsets } = loadScheduler();
+    expect(reminderOffsets({ reminderOffsets: [3, 3, 99, -1, 0] })).toEqual([3, 0]);
+    expect(reminderOffsets({ reminderOffsets: [1, 2, 3, 5, 7, 10, 14] })).toEqual([14, 10, 7, 5, 3]);
+    // Absent array → the legacy pair.
+    expect(reminderOffsets({ reminderLeadDays: 5, remindOnDueDay: true })).toEqual([5, 0]);
+    expect(reminderOffsets({})).toEqual([3]);
+  });
+
   it('respects a custom notify hour', async () => {
     const user = () => makeUser({
       settings: { billReminders: true, notifyHour: 12 },

@@ -20,6 +20,13 @@ private fun JsonObject.prim(key: String): JsonPrimitive? = this[key] as? JsonPri
 
 val JsonObject.income: Double get() = prim("income")?.doubleOrNull ?: 0.0
 val JsonObject.lastVisitKey: String? get() = prim("lastVisitKey")?.contentOrNull
+/// "YYYY-MM" of a rollover that has opened but not been handled yet, and the
+/// month it closed. A rollover belongs to the account: `lastVisitKey` is written
+/// by whichever device opens first, so it can't say whether the *user* has dealt
+/// with the new month. Dismissing the prompt or saving amounts clears
+/// `rolloverPendingFor` — on every device at once.
+val JsonObject.rolloverPendingFor: String? get() = prim("rolloverPendingFor")?.contentOrNull
+val JsonObject.rolloverPrevKey: String? get() = prim("rolloverPrevKey")?.contentOrNull
 val JsonObject.timezoneSetting: String? get() = prim("timezone")?.contentOrNull
 val JsonObject.theme: String? get() = prim("theme")?.contentOrNull
 
@@ -71,7 +78,34 @@ val JsonObject.reminderLeadDays: Int
 val JsonObject.notifyHour: Int
     get() = (prim("notifyHour")?.doubleOrNull?.toInt() ?: 8).coerceIn(0, 23)
 /// Opt-in: also remind on the day a bill is actually due.
+/// Legacy — kept in sync by [reminderOffsets], which supersedes it.
 val JsonObject.remindOnDueDay: Boolean get() = prim("remindOnDueDay")?.booleanOrNull ?: false
+
+/// How many reminder days a user may pick.
+const val MAX_REMINDER_OFFSETS = 5
+
+/** Every day a reminder should fire, as days before the due date and
+ *  longest-first (e.g. `[7, 3, 0]`). A user can pick several.
+ *
+ *  Absent, it falls back to the single [reminderLeadDays] + [remindOnDueDay]
+ *  pair this replaced, so an account last written by an older build keeps its
+ *  timing. An *empty* array is a real choice ("don't remind me") and does not
+ *  fall back. Writers must mirror the legacy pair — see
+ *  AppViewModel.setReminderOffsets. */
+val JsonObject.reminderOffsets: List<Int>
+    get() {
+        val arr = this["reminderOffsets"] as? JsonArray
+            ?: return if (remindOnDueDay && reminderLeadDays != 0) {
+                listOf(reminderLeadDays, 0)
+            } else {
+                listOf(reminderLeadDays)
+            }
+        return arr.mapNotNull { (it as? JsonPrimitive)?.doubleOrNull?.toInt() }
+            .filter { it in 0..14 }
+            .distinct()
+            .sortedDescending()
+            .take(MAX_REMINDER_OFFSETS)
+    }
 /// Opt-in: weekly digest email (Monday) of upcoming bills + balances.
 val JsonObject.weeklyDigest: Boolean get() = prim("weeklyDigest")?.booleanOrNull ?: false
 /// Opt-in: schedule bill reminders as on-device local notifications. Synced so
@@ -355,6 +389,24 @@ fun JsonObject.withPaidGoal(policy: String): JsonObject = buildJsonObject {
 fun JsonObject.withSetting(key: String, value: JsonElement): JsonObject = buildJsonObject {
     this@withSetting.forEach { (k, v) -> if (k != key) put(k, v) }
     put(key, value)
+}
+
+/** Return a copy with the reminder days replaced.
+ *
+ *  Writes the legacy `reminderLeadDays` + `remindOnDueDay` pair alongside the
+ *  array: the server and older app builds still read those two keys, and
+ *  `PUT /api/data` replaces the whole record, so leaving them stale would let
+ *  an old client save its way back over this. */
+fun JsonObject.withReminderOffsets(days: List<Int>): JsonObject {
+    val clean = days.filter { it in 0..14 }.distinct().sortedDescending().take(MAX_REMINDER_OFFSETS)
+    return buildJsonObject {
+        this@withReminderOffsets.forEach { (k, v) ->
+            if (k != "reminderOffsets" && k != "reminderLeadDays" && k != "remindOnDueDay") put(k, v)
+        }
+        put("reminderOffsets", buildJsonArray { clean.forEach { add(JsonPrimitive(it)) } })
+        put("reminderLeadDays", JsonPrimitive(clean.maxOrNull() ?: 3))
+        put("remindOnDueDay", JsonPrimitive(clean.contains(0)))
+    }
 }
 
 /// Return a copy with the income list replaced.
