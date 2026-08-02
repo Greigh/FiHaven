@@ -48,6 +48,21 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["lastVisitKey"] = newValue.map { .string($0) } ?? .null }
     }
 
+    /// "YYYY-MM" of a rollover that has opened but not been handled yet, and
+    /// the month it closed. A rollover belongs to the account: `lastVisitKey`
+    /// is written by whichever device opens first, so it can't say whether the
+    /// *user* has dealt with the new month. Dismissing the prompt or saving
+    /// amounts clears `rolloverPendingFor` — on every device at once.
+    public var rolloverPendingFor: String? {
+        get { raw["rolloverPendingFor"]?.asString }
+        set { raw["rolloverPendingFor"] = newValue.map { .string($0) } ?? .null }
+    }
+
+    public var rolloverPrevKey: String? {
+        get { raw["rolloverPrevKey"]?.asString }
+        set { raw["rolloverPrevKey"] = newValue.map { .string($0) } ?? .null }
+    }
+
     /// IANA timezone name (or nil/"auto" to follow the device).
     public var timezone: String? {
         get { raw["timezone"]?.asString }
@@ -183,9 +198,43 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["notifyHour"] = .number(Double(min(23, max(0, newValue)))) }
     }
     /// Opt-in: also remind on the day a bill is actually due.
+    /// Legacy — kept in sync by `reminderOffsets`, which supersedes it.
     public var remindOnDueDay: Bool {
         get { raw["remindOnDueDay"]?.asBool ?? false }
         set { raw["remindOnDueDay"] = .bool(newValue) }
+    }
+
+    /// How many reminder days a user may pick.
+    public static let maxReminderOffsets = 5
+
+    /// Every day a reminder should fire, as days before the due date and
+    /// longest-first (e.g. `[7, 3, 0]`). A user can pick several.
+    ///
+    /// Absent, it falls back to the single `reminderLeadDays` +
+    /// `remindOnDueDay` pair this replaced, so an account last written by an
+    /// older build keeps its timing. An *empty* array is a real choice ("don't
+    /// remind me") and does not fall back. The setter writes the legacy pair
+    /// too: the server and older clients still read it, and `PUT /api/data`
+    /// replaces the whole record.
+    public var reminderOffsets: [Int] {
+        get {
+            guard let arr = raw["reminderOffsets"]?.asArray else {
+                let lead = reminderLeadDays
+                return (remindOnDueDay && lead != 0) ? [lead, 0] : [lead]
+            }
+            let days = arr.compactMap { $0.asDouble.map { Int($0) } }.filter { $0 >= 0 && $0 <= 14 }
+            return Array(Array(Set(days)).sorted(by: >).prefix(Settings.maxReminderOffsets))
+        }
+        set {
+            let days = Array(
+                Array(Set(newValue.filter { $0 >= 0 && $0 <= 14 }))
+                    .sorted(by: >)
+                    .prefix(Settings.maxReminderOffsets)
+            )
+            raw["reminderOffsets"] = .array(days.map { .number(Double($0)) })
+            raw["reminderLeadDays"] = .number(Double(days.max() ?? 3))
+            raw["remindOnDueDay"] = .bool(days.contains(0))
+        }
     }
     /// Opt-in: a weekly digest email (Monday) of upcoming bills + balances.
     public var weeklyDigest: Bool {

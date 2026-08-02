@@ -329,23 +329,47 @@ struct CardsView: View {
         // rows beneath them can't seem to describe different things.
         let totalStatement = baseCards.reduce(0.0) { $0 + ($1.type == "loan" ? $1.minPayment : $1.balance) }
         let totalMin = baseCards.reduce(0.0) { $0 + $1.minPayment }
+        // How many cards actually make up the hero: a $0, skipped or fully-paid
+        // card is in the count but owes nothing toward it.
+        let owedCount = baseCards.filter { store.remaining(type: "card", refId: $0.id) > 0.005 }.count
+        // The plan total and the statement total answer different questions and
+        // are free to disagree — a promo card contributes its monthly slice, a
+        // 0%-APR card only its minimum. Naming the gap is what keeps the pair
+        // from reading as one broken sum.
+        let planVsStatement = payThisMonth - totalStatement
+        let statementDiffers = abs(planVsStatement) > 0.005
         // Grouped rather than evenly spaced: the hero and its caption belong
         // together, as do the credit figures, so the eye sees two zones.
         return VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                // Lead with the one number a user acts on.
-                FieldLabel(text: caughtUp ? "All caught up" : "Still owed this period")
+                // Lead with the one number a user acts on — and say whose number
+                // it is: the paid-goal policy's, not a demand from the issuers.
+                FieldLabel(text: caughtUp ? "All caught up" : "Your plan this period")
                 Text(caughtUp ? "$0.00" : Money.fmt(payThisMonth))
                     .font(Theme.mono(30, weight: .bold))
                     .foregroundStyle(caughtUp ? Theme.green : Theme.text)
                     .minimumScaleFactor(0.6).lineLimit(1)
-                Text("across \(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
+                Text(caughtUp
+                     ? "all \(baseCards.count) card\(baseCards.count == 1 ? "" : "s") paid this period"
+                     : "across \(owedCount) of \(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
-            VStack(spacing: 2) {
-                summaryRow("due", Money.fmt(totalStatement))
+            VStack(alignment: .leading, spacing: 2) {
+                // Dropped when it agrees with the hero: then it really is the
+                // same number twice.
+                if statementDiffers {
+                    summaryRow("statement due", Money.fmt(totalStatement))
+                }
                 summaryRow("current", Money.fmt(totalBalance))
                 summaryRow("minimums", Money.fmt(totalMin))
+                if statementDiffers && !caughtUp {
+                    Text(planVsStatement > 0
+                         ? "Your plan pays \(Money.fmt(planVsStatement)) more than the statements ask — promo payoffs run ahead of the balance due."
+                         : "Your plan leaves \(Money.fmt(-planVsStatement)) of the statements to carry — 0% cards only need their minimum.")
+                        .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 3)
+                }
             }
 
             Divider().overlay(Theme.border)

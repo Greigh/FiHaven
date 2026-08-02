@@ -15,7 +15,9 @@ import {
   setMoneyFormat,
 } from './utils.js';
 import { runAutopayMark } from './autopay.js';
-import { openRolloverReview, saveRolloverReview, closeRolloverReview } from './rollover.js';
+import {
+  openRolloverReview, saveRolloverReview, closeRolloverReview, clearRolloverPending,
+} from './rollover.js';
 
 // Side-effect imports — each renderer self-registers via setRenderer,
 // modals.js wires backdrop handlers + exposes window.* for inline
@@ -153,55 +155,89 @@ function seedIfEmpty() {
 }
 
 /* ── Auto-reset: new month detection ─────────────────────── */
+
+// A rollover belongs to the account, and stays open until it is actually
+// handled. `lastVisitKey` alone couldn't express that: it's synced and written
+// on every load, so whichever platform opened first each month consumed the
+// prompt for all the others (open the web on the 1st and the phones never
+// mentioned it). Detection now *records* the pending rollover — `rolloverPendingFor`
+// = the month it opened, `rolloverPrevKey` = the month it closed — and only
+// dismissing or saving amounts clears it, on every device at once.
 function checkNewMonth() {
   var currentMk = monthKey();
   var lastMk    = settings.lastVisitKey || '';
+  var dirty     = false;
 
-  if (lastMk && lastMk !== currentMk) {
-    var allItems  = buildUpcomingItems();
-    var missed    = allItems.filter(function (u) { return !isPaid(u.type, u.refId, lastMk); });
+  if (lastMk && lastMk !== currentMk && settings.rolloverPendingFor !== currentMk) {
+    settings.rolloverPendingFor = currentMk;
+    settings.rolloverPrevKey    = lastMk;
+    dirty = true;
+  }
+  if (settings.lastVisitKey !== currentMk) {
+    settings.lastVisitKey = currentMk;
+    dirty = true;
+  }
+  if (dirty) save('fh_settings', settings);
 
-    var prevLabel = monthKeyLabel(lastMk);
-    var currLabel = monthKeyLabel(currentMk);
+  if (settings.rolloverPendingFor === currentMk) {
+    renderNewMonthBanner(currentMk, settings.rolloverPrevKey || prevMonthKey(currentMk));
+  }
+}
 
-    // Names come from user data, so escape before injecting into innerHTML.
-    var esc = function (s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; };
+// "2026-08" → "2026-07". Only a fallback: `rolloverPrevKey` is written
+// alongside `rolloverPendingFor`, so it should always be there.
+function prevMonthKey(mk) {
+  var parts = String(mk).split('-');
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  if (!y || !m) return '';
+  if (m === 1) { y -= 1; m = 12; } else { m -= 1; }
+  return y + '-' + String(m).padStart(2, '0');
+}
 
-    var missedHtml;
-    if (missed.length) {
-      var names = missed.map(function (u) { return u.name; }).filter(Boolean);
-      var shown = names.slice(0, 8).map(esc).join(', ');
-      var more  = names.length > 8 ? ' and ' + (names.length - 8) + ' more' : '';
-      missedHtml = ' <strong>' + missed.length + ' item' + (missed.length !== 1 ? 's' : '') + '</strong> from ' +
-        prevLabel + ' ' + (missed.length !== 1 ? 'were' : 'was') + ' never marked paid: ' + shown + more + '.';
-    } else {
-      missedHtml = ' Everything from ' + prevLabel + ' was marked paid. Great work!';
-    }
+function renderNewMonthBanner(currentMk, prevMk) {
+  var allItems  = buildUpcomingItems();
+  var missed    = allItems.filter(function (u) { return !isPaid(u.type, u.refId, prevMk); });
 
-    var monthName = currLabel.split(' ')[0];
+  var prevLabel = monthKeyLabel(prevMk);
+  var currLabel = monthKeyLabel(currentMk);
 
-    var banner = document.getElementById('new-month-banner');
-    banner.className = 'new-month-banner';
-    banner.style.display = '';
-    banner.innerHTML =
-      '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:20px;">🗓</span>' +
-        '<div>' +
-          '<strong>Welcome to ' + esc(currLabel) + '!</strong> ' +
-          'All bills have automatically reset to unpaid.' + missedHtml +
-        '</div>' +
-      '</div>' +
-      '<div style="display:flex;gap:8px;flex-shrink:0;">' +
-        '<button class="btn btn-primary btn-sm" onclick="openRolloverReview()">Set ' + esc(monthName) + ' amounts</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="dismissBanner()">Dismiss</button>' +
-      '</div>';
+  // Names come from user data, so escape before injecting into innerHTML.
+  var esc = function (s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; };
+
+  var missedHtml;
+  if (missed.length) {
+    var names = missed.map(function (u) { return u.name; }).filter(Boolean);
+    var shown = names.slice(0, 8).map(esc).join(', ');
+    var more  = names.length > 8 ? ' and ' + (names.length - 8) + ' more' : '';
+    missedHtml = ' <strong>' + missed.length + ' item' + (missed.length !== 1 ? 's' : '') + '</strong> from ' +
+      prevLabel + ' ' + (missed.length !== 1 ? 'were' : 'was') + ' never marked paid: ' + shown + more + '.';
+  } else {
+    missedHtml = ' Everything from ' + prevLabel + ' was marked paid. Great work!';
   }
 
-  settings.lastVisitKey = currentMk;
-  save('fh_settings', settings);
+  var monthName = currLabel.split(' ')[0];
+
+  var banner = document.getElementById('new-month-banner');
+  if (!banner) return;
+  banner.className = 'new-month-banner';
+  banner.style.display = '';
+  banner.innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;">' +
+      '<span style="font-size:20px;">🗓</span>' +
+      '<div>' +
+        '<strong>Welcome to ' + esc(currLabel) + '!</strong> ' +
+        'All bills have automatically reset to unpaid.' + missedHtml +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-shrink:0;">' +
+      '<button class="btn btn-primary btn-sm" onclick="openRolloverReview()">Set ' + esc(monthName) + ' amounts</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="dismissBanner()">Dismiss</button>' +
+    '</div>';
 }
 
 function dismissBanner() {
+  clearRolloverPending();
   var el = document.getElementById('new-month-banner');
   if (el) el.style.display = 'none';
 }

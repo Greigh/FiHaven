@@ -64,8 +64,21 @@ describe('export — exportCSV', () => {
     ]);
     const csv = captureDownload(() => exportCSV('history'));
     const lines = csv.split('\n');
-    expect(lines[0]).toBe('Date,Month,Type,Name,Amount,Note');
+    expect(lines[0]).toBe('Date,Month,Type,Name,Status,Amount,Note');
     expect(lines[1]).toContain('2026-06-01'); // newest first
+    expect(lines[1]).toContain('Paid');
+  });
+
+  it('marks skipped periods as Skipped in the history CSV', () => {
+    setPayments([
+      { id: 'a', type: 'bill', refId: 'B1', name: 'Rent', amount: 1500, date: '2026-06-01', monthKey: '2026-06' },
+      { id: 's', type: 'bill', refId: 'B1', name: 'Rent', amount: 0, date: '2026-07-01', monthKey: '2026-07',
+        note: 'Skipped this period', skipped: true },
+    ]);
+    const csv = captureDownload(() => exportCSV('history'));
+    const lines = csv.split('\n');
+    expect(lines[1]).toContain('Skipped'); // 2026-07 sorts first
+    expect(lines[2]).toContain('Paid');
   });
 
   it('builds a budget CSV for the active month', () => {

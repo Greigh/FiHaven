@@ -384,9 +384,12 @@
     background: var(--accent-bg); color: var(--accent);
     border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   }
+  /* It's a <button>, so font/color must be reclaimed from the UA — otherwise
+     `color-scheme: light dark` paints the inherited text white on a dark OS. */
   .payoff-strat-card {
     text-align: left; cursor: pointer; width: 100%;
     border: 1px solid var(--border);
+    font: inherit; color: var(--text);
   }
   .payoff-strat-card.is-selected {
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border));

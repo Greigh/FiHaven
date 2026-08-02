@@ -500,23 +500,15 @@
               </label>
             </div>
 
-            <!-- Reminder sub-options (shown only when reminders are on) -->
+            <!-- Reminder sub-options (shown only when reminders are on).
+                 Lead days are a multi-select: pick every day you want a
+                 nudge on, up to five. -->
             <div data-reminder-options style="margin:4px 0 8px 0;padding-left:2px;">
-              <div class="auth-field" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <label for="reminder-lead" style="color:var(--muted);font-size:14px;">Remind me</label>
-                <select id="reminder-lead" data-reminder-lead style="width:auto;"></select>
-                <span style="color:var(--muted);font-size:14px;">before the due date.</span>
-              </div>
-              <div class="settings-toggle-row">
-                <div class="settings-toggle-copy">
-                  <div class="settings-toggle-title">Also remind on the due day</div>
-                  <div class="settings-toggle-desc">A second nudge the morning a bill is actually due.</div>
-                </div>
-                <label class="fh-switch">
-                  <input type="checkbox" data-dueday-toggle aria-label="Remind on the due day"/>
-                  <span class="fh-switch-track" aria-hidden="true"></span>
-                </label>
-              </div>
+              <fieldset class="lead-chips-field">
+                <legend>Remind me</legend>
+                <div class="lead-chips" data-reminder-leads></div>
+                <p class="lead-chips-hint" data-reminders-hint></p>
+              </fieldset>
             </div>
 
             <div class="settings-toggle-row">
@@ -544,7 +536,7 @@
             <div class="settings-toggle-row">
               <div class="settings-toggle-copy">
                 <div class="settings-toggle-title">Card offer reminders <span class="badge badge-gray" style="vertical-align:middle;">Pro</span></div>
-                <div class="settings-toggle-desc">Email me before an activated card-linked offer expires, using the same lead time as bill reminders.</div>
+                <div class="settings-toggle-desc">Email me before an activated card-linked offer expires, on the same reminder days as bills.</div>
               </div>
               <label class="fh-switch">
                 <input type="checkbox" data-offer-reminders-toggle aria-label="Card offer reminders"/>

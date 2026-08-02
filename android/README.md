@@ -1,7 +1,7 @@
 # FiHaven — Android
 
-Native Jetpack Compose client over the FiHaven API, sharing the contract
-in [`docs/native-contract.md`](../docs/native-contract.md) with the iOS app.
+Native Jetpack Compose client over the FiHaven API, sharing the same API +
+data + design + billing contract as the iOS app.
 
 ## Layout
 
@@ -130,7 +130,7 @@ Local reminders need `POST_NOTIFICATIONS` (API 33+). A `BootReceiver` re-arms lo
 
 The Dashboard supports **Classic** (fixed) and **Widgets** (reorderable,
 toggleable cards). The nine-widget catalog (`DashboardWidgets`) and its defaults
-match web and iOS — see [`docs/native-contract.md`](../docs/native-contract.md) §6/§9.
+match web and iOS.
 
 ## Hardening, dark mode & fonts
 

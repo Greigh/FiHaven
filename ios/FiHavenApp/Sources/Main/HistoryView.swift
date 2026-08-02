@@ -28,9 +28,12 @@ struct HistoryView: View {
         }
     }
 
+    /// Everything settled — paid AND skipped. A skip is a payment record flagged
+    /// `skipped` (amount 0): not money out, but a decision worth looking back on,
+    /// so it lists as a "Skipped" row and stays out of every total.
     private var grouped: [(month: String, items: [Payment])] {
         let cfg = store.periodConfig
-        return Dictionary(grouping: store.paymentsByDateDesc.filter { !$0.skipped },
+        return Dictionary(grouping: store.paymentsByDateDesc,
                           by: { Period.keyForPayment($0, config: cfg, tz: store.tz) })
             .map { ($0.key, $0.value) }
             .sorted { $0.0 > $1.0 }
@@ -300,7 +303,7 @@ struct HistoryView: View {
 
     private func row(_ p: Payment) -> some View {
         HStack(spacing: 12) {
-            Text(p.type == "card" ? CTConstants.cardIcon : "🧾").font(.system(size: 18))
+            Text(p.skipped ? "⏭" : (p.type == "card" ? CTConstants.cardIcon : "🧾")).font(.system(size: 18))
             VStack(alignment: .leading, spacing: 2) {
                 Text(p.name.isEmpty ? p.type.capitalized : p.name)
                     .font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
@@ -311,23 +314,34 @@ struct HistoryView: View {
                 }
             }
             Spacer()
+            // Nothing left the account on a skip, so it never wears the green
+            // "money moved" treatment.
             HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: p.skipped ? "forward.end.circle.fill" : "checkmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(Theme.green)
-                Text(Money.fmt(p.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.text)
+                    .foregroundStyle(p.skipped ? Theme.muted : Theme.green)
+                Text(p.skipped ? "Skipped" : Money.fmt(p.amount))
+                    .font(p.skipped ? Theme.ui(13, weight: .medium) : Theme.mono(15, weight: .medium))
+                    .foregroundStyle(p.skipped ? Theme.muted : Theme.text)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(p.name.isEmpty ? p.type.capitalized : p.name), paid \(Money.fmt(p.amount)), \(prettyDate(p.date))")
+        .accessibilityLabel(p.skipped
+            ? "\(p.name.isEmpty ? p.type.capitalized : p.name), skipped, \(prettyDate(p.date))"
+            : "\(p.name.isEmpty ? p.type.capitalized : p.name), paid \(Money.fmt(p.amount)), \(prettyDate(p.date))")
         .contextMenu {
-            Button { editing = p } label: {
-                Label("Edit", systemImage: "pencil")
+            // A skip has no amount to edit — the pay editor refuses $0, so editing
+            // one could only turn it into a payment by accident. Deleting is the un-skip.
+            if !p.skipped {
+                Button { editing = p } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
             }
             Button(role: .destructive) { store.deletePayment(p) } label: {
-                Label("Delete", systemImage: "trash")
+                Label(p.skipped ? "Remove skip" : "Delete",
+                      systemImage: p.skipped ? "arrow.uturn.backward" : "trash")
             }
         }
     }

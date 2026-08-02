@@ -60,12 +60,15 @@ export function exportCSV(type) {
     toast('Cards exported to CSV.');
 
   } else if (type === 'history') {
-    rows = [['Date', 'Month', 'Type', 'Name', 'Amount', 'Note']];
+    // Skips ride along with payments (both are `payments` records), so the
+    // Status column is what tells a $0 skip from a $0 payment downstream.
+    rows = [['Date', 'Month', 'Type', 'Name', 'Status', 'Amount', 'Note']];
     var sorted = payments.slice().sort(function (a, b) {
       return new Date(b.date) - new Date(a.date);
     });
     sorted.forEach(function (p) {
-      rows.push([p.date, p.monthKey, p.type, p.name, p.amount, p.note || '']);
+      rows.push([p.date, p.monthKey, p.type, p.name,
+        p.skipped ? 'Skipped' : 'Paid', p.amount, p.note || '']);
     });
     downloadCSV('fihaven-history.csv', toCSV(rows));
     toast('Payment history exported to CSV.');

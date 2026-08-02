@@ -344,26 +344,55 @@ final class AppStore: ObservableObject {
     func checkNewMonth() {
         let currentMk = currentMonthKey
         let lastMk = data.settings.lastVisitKey
-        if let lastMk, !lastMk.isEmpty, lastMk != currentMk {
-            var missed: [String] = []
-            for b in data.bills where (b.dueDay != nil || !(b.startDate ?? "").isEmpty) && DateLogic.billActive(b, tz: tz) {
-                if !Schedule.isPaid(data.payments, type: "bill", refId: String(b.id), monthKey: lastMk) { missed.append(b.name) }
+        // Detection *records* the rollover rather than consuming it: `lastVisitKey`
+        // is written by whichever device opens first each month, so on its own it
+        // swallowed the prompt for every other device. The pending pair below is
+        // cleared only by dismissing or saving amounts — see dismissRolloverPrompt.
+        let opening = (lastMk?.isEmpty == false) && lastMk != currentMk
+            && data.settings.rolloverPendingFor != currentMk
+        if opening || data.settings.lastVisitKey != currentMk {
+            mutate {
+                if opening {
+                    $0.settings.rolloverPendingFor = currentMk
+                    $0.settings.rolloverPrevKey = lastMk
+                }
+                $0.settings.lastVisitKey = currentMk
             }
-            for c in data.cards where c.dueDay != nil {
-                if !Schedule.isPaid(data.payments, type: "card", refId: String(c.id), monthKey: lastMk) { missed.append(c.name) }
-            }
-            rolloverPrompt = RolloverPrompt(
-                prevLabel: DateLogic.monthKeyLabel(lastMk, tz: tz),
-                currLabel: DateLogic.monthKeyLabel(currentMk, tz: tz),
-                missedNames: missed
-            )
         }
-        if data.settings.lastVisitKey != currentMk {
-            mutate { $0.settings.lastVisitKey = currentMk }
+
+        guard data.settings.rolloverPendingFor == currentMk else { return }
+        let stored = data.settings.rolloverPrevKey ?? ""
+        let prevMk = stored.isEmpty ? Self.previousMonthKey(currentMk) : stored
+        var missed: [String] = []
+        for b in data.bills where (b.dueDay != nil || !(b.startDate ?? "").isEmpty) && DateLogic.billActive(b, tz: tz) {
+            if !Schedule.isPaid(data.payments, type: "bill", refId: String(b.id), monthKey: prevMk) { missed.append(b.name) }
         }
+        for c in data.cards where c.dueDay != nil {
+            if !Schedule.isPaid(data.payments, type: "card", refId: String(c.id), monthKey: prevMk) { missed.append(c.name) }
+        }
+        rolloverPrompt = RolloverPrompt(
+            prevLabel: DateLogic.monthKeyLabel(prevMk, tz: tz),
+            currLabel: DateLogic.monthKeyLabel(currentMk, tz: tz),
+            missedNames: missed
+        )
     }
 
-    func dismissRolloverPrompt() { rolloverPrompt = nil }
+    /// "2026-08" → "2026-07". Only a fallback: `rolloverPrevKey` is written
+    /// alongside `rolloverPendingFor`, so it should always be there.
+    static func previousMonthKey(_ mk: String) -> String {
+        let parts = mk.split(separator: "-")
+        guard parts.count >= 2, var y = Int(parts[0]), var m = Int(parts[1]) else { return mk }
+        if m == 1 { y -= 1; m = 12 } else { m -= 1 }
+        return String(format: "%04d-%02d", y, m)
+    }
+
+    /// The rollover has been handled — stop asking, on every device.
+    func dismissRolloverPrompt() {
+        rolloverPrompt = nil
+        if data.settings.rolloverPendingFor != nil {
+            mutate { $0.settings.rolloverPendingFor = nil }
+        }
+    }
 
     func setRolloverPrefill(_ mode: String) { mutate { $0.settings.rolloverPrefill = mode } }
 
@@ -376,6 +405,16 @@ final class AppStore: ObservableObject {
     func rolloverPrefillAmount(_ bill: Bill) -> Double {
         let avg = Schedule.recentPaymentAverage(data.payments, type: "bill", refId: String(bill.id))
         return Schedule.rolloverAmount(mode: data.settings.rolloverPrefill, currentAmount: bill.amount, recentAvg: avg)
+    }
+
+    /// The date a bill lands on in the month being reviewed. Anchored to the 1st
+    /// rather than today so a bill due on the 5th still reads "Aug 5" when the
+    /// review is opened on the 20th.
+    func rolloverDueDate(_ bill: Bill) -> Date? {
+        let cal = DateLogic.calendar(tz: tz)
+        let c = cal.dateComponents([.year, .month], from: DateLogic.today(tz: tz))
+        let monthStart = DateLogic.dateForDay(1, year: c.year ?? 0, month: c.month ?? 1, cal: cal)
+        return BillSchedule.nextDueDate(bill, tz: tz, from: monthStart)
     }
 
     /// Apply reviewed amounts (billId → amount) to the matching bills.

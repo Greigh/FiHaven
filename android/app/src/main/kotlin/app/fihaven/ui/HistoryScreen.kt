@@ -59,9 +59,11 @@ private val prettyDate = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.
 fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Payment?>(null) }
-    val realPayments = data.payments.filterNot { it.skipped }
+    // Everything settled — paid AND skipped. A skip is a payment record flagged
+    // `skipped` (amount 0): not money out, but a decision worth looking back on,
+    // so it lists as a "Skipped" row and stays out of every total.
     val cfg = vm.periodConfig()
-    val groups = realPayments
+    val groups = data.payments
         .sortedByDescending { it.date }
         .groupBy { Period.keyForPayment(it, cfg) }
         .toList()
@@ -76,7 +78,7 @@ fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                     data.payments, data.transactions,
                 )
             }
-            if (realPayments.isEmpty()) {
+            if (data.payments.isEmpty()) {
                 item { CtCard { Text("No payments recorded yet.", color = Ct.colors.muted) } }
             }
             groups.forEach { (monthKey, items) ->
@@ -365,8 +367,8 @@ private fun HistoryRow(p: Payment, onEdit: () -> Unit, onDelete: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (p.type == "card") CTConstants.cardIcon else "🧾", fontSize = 18.sp,
-            modifier = Modifier.padding(end = 12.dp))
+        Text(if (p.skipped) "⏭" else if (p.type == "card") CTConstants.cardIcon else "🧾",
+            fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f)) {
             Text(p.name.ifBlank { p.type.replaceFirstChar { it.uppercase() } },
                 color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
@@ -375,11 +377,25 @@ private fun HistoryRow(p: Payment, onEdit: () -> Unit, onDelete: () -> Unit) {
                 Text(p.note, color = Ct.colors.muted, fontSize = 11.sp, maxLines = 1)
             }
         }
-        Text(Money.fmt(p.amount), color = Ct.colors.green, fontSize = 15.sp,
-            fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+        // Nothing left the account on a skip, so it never wears the green
+        // "money moved" treatment.
+        if (p.skipped) {
+            Text("Skipped", color = Ct.colors.muted, fontSize = 13.sp,
+                fontWeight = FontWeight.Medium)
+        } else {
+            Text(Money.fmt(p.amount), color = Ct.colors.green, fontSize = 15.sp,
+                fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+        }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onEdit() })
-            DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete() })
+            // A skip has no amount to edit — the pay editor refuses $0, so editing
+            // one could only turn it into a payment by accident. Deleting is the un-skip.
+            if (!p.skipped) {
+                DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onEdit() })
+            }
+            DropdownMenuItem(
+                text = { Text(if (p.skipped) "Remove skip" else "Delete") },
+                onClick = { menuOpen = false; onDelete() },
+            )
         }
     }
 }

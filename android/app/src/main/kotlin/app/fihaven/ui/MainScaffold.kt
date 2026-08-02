@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -844,15 +846,31 @@ private fun RolloverPromptCard(
 
 @Composable
 private fun RolloverReviewDialog(vm: AppViewModel, onDismiss: () -> Unit) {
-    val bills = remember { vm.rolloverBills() }
+    val data by vm.data.collectAsStateWithLifecycle()
+    // Re-derived on data change so an edit made from a row shows up here.
+    val bills = remember(data) { vm.rolloverBills() }
     val amounts = remember {
         mutableStateMapOf<String, String>().apply {
-            bills.forEach { b ->
-                val pre = vm.rolloverPrefillAmount(b)
-                put(b.id, if (pre > 0) String.format(Locale.US, "%.2f", pre) else "")
-            }
+            vm.rolloverBills().forEach { b -> put(b.id, vm.rolloverPrefillText(b)) }
         }
     }
+    var editing by remember { mutableStateOf<Bill?>(null) }
+    // Scanning the schedule per row is too much to redo on every keystroke.
+    val dueLabels = remember(bills) {
+        bills.associate { it.id to (rolloverDueLabel(vm, it) to vm.rolloverIsLate(it)) }
+    }
+
+    editing?.let { bill ->
+        BillEditorDialog(bill, vm) {
+            // The edited row re-prefills from the bill's new amount rather than
+            // the stale value that was sitting in the field.
+            vm.rolloverBills().firstOrNull { it.id == bill.id }
+                ?.let { amounts[it.id] = vm.rolloverPrefillText(it) }
+            editing = null
+        }
+        return
+    }
+
     FormDialog(
         title = "Review this month's bills",
         saveLabel = "Save amounts",
@@ -861,6 +879,9 @@ private fun RolloverReviewDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 amounts[b.id]?.trim()?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()?.let { b.id to it }
             }.toMap()
             vm.applyRolloverAmounts(map)
+            // The review is the whole point of the new-month card, so retire it
+            // once amounts are in rather than making the user dismiss it too.
+            vm.dismissRolloverPrompt()
             onDismiss()
         },
         onDismiss = onDismiss,
@@ -872,19 +893,41 @@ private fun RolloverReviewDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         if (bills.isEmpty()) {
             Text("No active bills to review.", color = Ct.colors.muted, fontSize = 14.sp)
         } else {
+            Text(
+                "${bills.size} bill${if (bills.size == 1) "" else "s"} · scroll for all",
+                color = Ct.colors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            )
             bills.forEach { b ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(b.name, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text(b.name, color = Ct.colors.text, fontSize = 15.sp)
+                        dueLabels[b.id]?.let { (label, late) ->
+                            if (label != null) Text(
+                                label,
+                                color = if (late) Ct.colors.red else Ct.colors.muted,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                     OutlinedTextField(
                         value = amounts[b.id] ?: "",
                         onValueChange = { v -> amounts[b.id] = v.filter { it.isDigit() || it == '.' } },
                         prefix = { Text("$") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.width(130.dp),
+                        modifier = Modifier.width(120.dp),
                     )
+                    IconButton(onClick = { editing = b }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${b.name}", tint = Ct.colors.accent)
+                    }
                 }
             }
         }
     }
+}
+
+/** "Due Aug 5" / "Autopays Aug 5" for the month being reviewed. */
+private fun rolloverDueLabel(vm: AppViewModel, bill: Bill): String? {
+    val due = vm.rolloverDueDate(bill) ?: return null
+    return "${if (bill.autopay) "Autopays" else "Due"} ${shortDate.format(due)}"
 }

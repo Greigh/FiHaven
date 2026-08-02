@@ -59,10 +59,9 @@ enum NotificationScheduler {
 
         let cal = DateLogic.calendar(tz: tz)
         let now = Date()
-        let lead = settings.reminderLeadDays
         let hour = settings.notifyHour
-        // One notification per lead-day offset; due-day (0) only when enabled.
-        let offsets = (settings.remindOnDueDay ? Set([lead, 0]) : Set([lead])).sorted(by: >)
+        // One notification per reminder day the user picked, longest lead first.
+        let offsets = settings.reminderOffsets
 
         var scheduled = 0
         // Soonest-due first, so a long bill list still gets the most relevant

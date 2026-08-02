@@ -26,10 +26,34 @@ const SEND_HOUR = 8;            // default local hour (24h) to send
 const REMINDER_LEAD_DAYS = 3;  // default days before a due day to remind
 const DEFAULT_TZ = 'America/New_York';
 
+const MAX_REMINDER_OFFSETS = 5;  // how many lead days a user may pick
+
 // Clamp a user-supplied integer setting, falling back to `def` if unset/invalid.
 function clampInt(v, lo, hi, def) {
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
+}
+
+/* The lead days a user wants reminding on, newest-first (e.g. [7, 3, 0]).
+
+   `reminderOffsets` is the current setting — an array, because a user can pick
+   several. The single `reminderLeadDays` + `remindOnDueDay` pair it replaced is
+   still read as the fallback, and still written alongside it by every client,
+   so an app version that predates the array keeps working against the same
+   account. Only fall back when the array is absent, not when it's empty: an
+   empty array is a real choice on the clients ("don't remind me"), and reading
+   the legacy keys there would resurrect reminders the user just cleared. */
+function reminderOffsets(s) {
+  const raw = s && s.reminderOffsets;
+  if (Array.isArray(raw)) {
+    const days = raw
+      .map((d) => parseInt(d, 10))
+      .filter((d) => Number.isFinite(d) && d >= 0 && d <= 14);
+    return [...new Set(days)].sort((a, b) => b - a).slice(0, MAX_REMINDER_OFFSETS);
+  }
+  const lead = clampInt(s && s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
+  const legacy = (s && s.remindOnDueDay) ? [lead, 0] : [lead];
+  return [...new Set(legacy)].sort((a, b) => b - a);
 }
 
 // ISO-8601 weekday (Mon=0 … Sun=6) and week key ("YYYY-Www") from local parts.
@@ -323,8 +347,7 @@ async function runChecks(now = new Date(), deps = {}) {
       // stays accurate when both fire the same day.
       if (s.billReminders && u.last_reminder_day !== lp.ymd) {
         const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
-        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
-        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        const leads = reminderOffsets(s);
         let delivered = true;
         for (const days of leads) {
           const due = (u.data.bills || []).filter(
@@ -349,8 +372,7 @@ async function runChecks(now = new Date(), deps = {}) {
 
       // Trial-ending reminders — same lead window as bill reminders.
       if (s.billReminders && u.last_trial_reminder_day !== lp.ymd) {
-        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
-        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        const leads = reminderOffsets(s);
         let delivered = true;
         for (const days of leads) {
           const ending = trialsEndingOn(u.data, lp, days);
@@ -371,8 +393,7 @@ async function runChecks(now = new Date(), deps = {}) {
       // feature). Uses the same lead window as bill reminders. Nudges the
       // user to use an activated offer before it lapses.
       if (s.offerReminders && isPro && u.last_offer_reminder_day !== lp.ymd) {
-        const lead = clampInt(s.reminderLeadDays, 0, 14, REMINDER_LEAD_DAYS);
-        const leads = s.remindOnDueDay ? [...new Set([lead, 0])] : [lead];
+        const leads = reminderOffsets(s);
         let delivered = true;
         for (const days of leads) {
           const expiring = offersExpiringOn(u.data, lp, days);
@@ -454,5 +475,6 @@ function start() {
 module.exports = {
   start, runChecks, localParts, daysUntilDue, daysUntilYmd, trialsEndingOn,
   offersExpiringOn, summarize, weeklyDigest, isoWeekKey, isoWeekday,
-  SEND_HOUR, REMINDER_LEAD_DAYS, DEFAULT_TZ,
+  reminderOffsets,
+  SEND_HOUR, REMINDER_LEAD_DAYS, MAX_REMINDER_OFFSETS, DEFAULT_TZ,
 };
