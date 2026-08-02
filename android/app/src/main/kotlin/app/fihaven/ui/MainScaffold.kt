@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -248,13 +249,19 @@ private fun SyncOfflineBanner(onDismiss: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .background(Ct.colors.surface)
+            // Scaffold doesn't inset a plain composable used as `topBar` (only
+            // TopAppBar applies its own), so the banner drew under the status
+            // bar and collided with the clock.
+            .statusBarsPadding()
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text("☁", fontSize = 14.sp)
         Text(
-            "You're offline — changes save on this device, not the cloud.",
+            // Nothing is written to disk, so this must not imply the edit is
+            // safe locally — it isn't until the retry in `mutate` lands.
+            "Can’t reach FiHaven — still trying to save. Keep the app open until this clears.",
             color = Ct.colors.text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
@@ -381,7 +388,10 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
             else -> null
         }
     }
-    val trialAlerts = data.bills.filter { !it.trialEnds.isNullOrBlank() }.mapNotNull { b ->
+    // activeBills, not bills: an archived subscription is meant to be gone from
+    // every list and total, but its trial kept alerting on the dashboard (iOS
+    // reads activeBills here).
+    val trialAlerts = data.activeBills.filter { !it.trialEnds.isNullOrBlank() }.mapNotNull { b ->
         val end = DateLogic.parseDate(b.trialEnds!!) ?: return@mapNotNull null
         val left = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(zone), end)
         if (left < 0 || left > 3) return@mapNotNull null
@@ -407,7 +417,10 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         "Quarterly" -> b.amount / 3; "Annually" -> b.amount / 12; else -> b.amount
     }
     val subs = buildList {
-        data.bills.filter { it.category == "Subscriptions" && !DateLogic.billEnded(it, zone) }
+        // Same archived gate SubscriptionsFinder applies, so the widget's
+        // "$X/mo" total matches the Subscriptions tab instead of quietly
+        // counting bills the user archived.
+        data.activeBills.filter { it.category == "Subscriptions" && !DateLogic.billEnded(it, zone) }
             .forEach { add((it.name.ifBlank { "Subscription" }) to monthlyOfBill(it)) }
         data.transactions.filter { it.merchant.isNotBlank() }
             .groupBy { it.merchant.trim().lowercase() }
@@ -492,6 +505,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                                 goal = vm.goalAmount(item),
                                                 remaining = vm.remainingFor(item),
                                                 skipped = vm.isSkipped(item),
+                                                zone = zone,
                                                 periodNoun = vm.periodNoun(item),
                                                 onPay = { paying = item },
                                                 onSkip = { requestSkip(item) },
@@ -720,6 +734,7 @@ private fun UpcomingRow(
     goal: Double,
     remaining: Double,
     skipped: Boolean,
+    zone: java.time.ZoneId,
     periodNoun: String = "month",
     onPay: () -> Unit,
     onSkip: () -> Unit,
@@ -738,7 +753,7 @@ private fun UpcomingRow(
     val label = when (state) {
         PaidState.FULL -> "Paid this $periodNoun"
         PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-        PaidState.UNPAID -> dueLabel(item, false)
+        PaidState.UNPAID -> dueLabel(item, false, zone)
     }
     // No own card — the dashboard wraps the whole list in one CtCard with
     // dividers (iOS parity). Internal padding matches iOS's row insets.
@@ -792,7 +807,7 @@ private fun UpcomingRow(
 
 private val shortDate = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 
-private fun dueLabel(item: UpcomingItem, paid: Boolean): String {
+private fun dueLabel(item: UpcomingItem, paid: Boolean, zone: java.time.ZoneId): String {
     if (paid) return "Paid this month"
     val base = when {
         item.days < 0 -> "Overdue"
@@ -804,7 +819,10 @@ private fun dueLabel(item: UpcomingItem, paid: Boolean): String {
     // next *forward* occurrence, so an overdue item paired it with next period's
     // date — a Jul 12 due date read as "Overdue · Aug 12".
     if (item.nextDue == null) return base
-    val due = java.time.LocalDate.now().plusDays(item.days.toLong())
+    // `days` is counted in the user's time zone, so the day it's added to has to
+    // be too — LocalDate.now() reads the device's, which put the printed date a
+    // day out of step with "Due today" for anyone who set a zone.
+    val due = DateLogic.today(zone).plusDays(item.days.toLong())
     return "$base · ${shortDate.format(due)}"
 }
 

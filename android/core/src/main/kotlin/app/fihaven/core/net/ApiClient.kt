@@ -290,8 +290,15 @@ class ApiClient(
     suspend fun billingStatusFull(): BillingStatusResponse =
         decode(send(makeRequest("api/billing/status", HttpMethod.GET)))
 
-    suspend fun createStripePortal(): String =
-        decode<StripePortalResponse>(send(makeRequest("api/billing/stripe/portal", HttpMethod.POST))).url
+    /** Paddle-hosted customer portal (manage payment method, cancel, change
+     *  plan) for a subscription bought on the web. The dev server answers with
+     *  a site-relative path, so resolve it against the API base. */
+    suspend fun createBillingPortal(): String {
+        val url = decode<PortalResponse>(
+            send(makeRequest("api/billing/paddle/portal", HttpMethod.POST))
+        ).url
+        return if (url.startsWith("/")) config.baseUrl.trimEnd('/') + url else url
+    }
 
     suspend fun verifyGoogle(productId: String, purchaseToken: String, expiryTimeMillis: Long? = null): Entitlement =
         decode<EntitlementResponse>(

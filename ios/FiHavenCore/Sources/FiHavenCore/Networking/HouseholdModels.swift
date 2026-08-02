@@ -32,8 +32,14 @@ public struct HouseholdView: Codable, Equatable, Sendable {
     public var role: String
     public var memberCount: Int
     public var memberMax: Int
+    /// False once the owner's Family plan lapses: the household goes
+    /// read-only rather than away. Optional so older payloads still decode.
+    public var active: Bool?
     public var members: [HouseholdMember]
     public var pendingInvites: [HouseholdPendingInvite]?
+
+    /// Writes are frozen — everything stays readable, nothing is deleted.
+    public var isFrozen: Bool { active == false }
 }
 
 /// GET /api/household — my household (or nil) + whether I can create one.

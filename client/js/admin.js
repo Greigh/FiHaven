@@ -258,12 +258,19 @@ function build() {
         '<section class="admin-section" data-admin-tab-panel="promos" role="tabpanel" hidden>' +
           '<div class="admin-section-head">' +
             '<h3>Promo codes</h3>' +
-            '<span class="admin-hint">Mint a free_sub code for N days of Pro</span>' +
+            '<span class="admin-hint">Mint a free_sub code for N days of Pro or Family</span>' +
           '</div>' +
           '<div class="admin-promo-grid">' +
             '<label class="admin-field">' +
               '<span>Code</span>' +
               '<input data-promo-code type="text" placeholder="Auto if blank"/>' +
+            '</label>' +
+            '<label class="admin-field">' +
+              '<span>Plan</span>' +
+              '<select data-promo-plan>' +
+                '<option value="">Pro</option>' +
+                '<option value="family">Family (shared household)</option>' +
+              '</select>' +
             '</label>' +
             '<label class="admin-field">' +
               '<span>Days</span>' +
@@ -297,10 +304,13 @@ function build() {
               '<option value="monthly">Monthly</option>' +
               '<option value="three_month">3 months</option>' +
               '<option value="yearly">Yearly</option>' +
-              '<option value="family">Family</option>' +
+              '<option value="family">Family (shared household)</option>' +
               '<option value="lifetime">Lifetime</option>' +
             '</select>' +
           '</label>' +
+          '<p class="admin-sheet-note" data-grant-plan-note hidden>' +
+            'Family is the only plan that unlocks a shared household — everything in Pro plus up to 3 members.' +
+          '</p>' +
           '<label class="admin-field" data-grant-days-wrap>' +
             '<span>Days <em data-grant-days-hint></em></span>' +
             '<input data-grant-days type="number" min="1" placeholder="Default"/>' +
@@ -426,6 +436,12 @@ function build() {
   });
 
   overlay.querySelector('[data-promo-create]').addEventListener('click', createPromo);
+  // Family is a yearly plan; move the day count to match when it's picked.
+  overlay.querySelector('[data-promo-plan]').addEventListener('change', function (e) {
+    var daysEl = overlay.querySelector('[data-promo-days]');
+    var def = PLAN_DEFAULT_DAYS[e.target.value || 'trial'];
+    if (def != null) daysEl.value = String(def);
+  });
 
   overlay.querySelectorAll('[data-grant-cancel]').forEach(function (b) {
     b.addEventListener('click', hideGrant);
@@ -522,6 +538,7 @@ function syncGrantDays() {
   var def = PLAN_DEFAULT_DAYS[plan];
   wrap.hidden = plan === 'lifetime';
   hint.textContent = def != null ? '(default ' + def + ')' : '';
+  overlay.querySelector('[data-grant-plan-note]').hidden = plan !== 'family';
 }
 
 function submitGrant() {
@@ -665,9 +682,16 @@ function render(users, search, meta) {
       openUserMenu(more, menu);
     });
 
-    if (u.pro && u.proSource === 'comp') {
-      menu.appendChild(menuItem('Revoke comp Pro', function () {
-        act('users/' + u.id + '/pro', { grant: false }, search, 'Comp Pro revoked.');
+    // `revocable` is row-derived, not read off proSource: a store subscription
+    // that outlasts a comp/promo grant wins the entitlement but must not hide
+    // the grant sitting behind it. Store subs themselves are never ours to
+    // pull — those are cancelled at Apple/Play/Paddle.
+    if (u.revocable) {
+      var revokeLabel = u.proSource === 'promo' ? 'Revoke promo Pro'
+        : u.proSource === 'comp' ? 'Revoke comp Pro'
+        : 'Revoke admin grant';
+      menu.appendChild(menuItem(revokeLabel, function () {
+        act('users/' + u.id + '/pro', { grant: false }, search, 'Granted Pro revoked.');
       }));
     }
     menu.appendChild(menuItem(u.suspended ? 'Unsuspend account' : 'Suspend account', function () {
@@ -783,8 +807,9 @@ function reload(search) {
 
 function promoMeta(p) {
   var bits = [];
-  if (p.grantDays != null) bits.push(p.grantDays + 'd Pro');
-  else if (p.kind === 'free_sub') bits.push('Lifetime Pro');
+  var tier = p.plan === 'family' ? 'Family' : 'Pro';
+  if (p.grantDays != null) bits.push(p.grantDays + 'd ' + tier);
+  else if (p.kind === 'free_sub') bits.push('Lifetime ' + tier);
   else bits.push(p.kind || 'promo');
   bits.push((p.redeemedCount || 0) + (p.maxRedemptions != null ? '/' + p.maxRedemptions : '') + ' used');
   if (p.expiresAt) bits.push('expires ' + fmtWhen(p.expiresAt));
@@ -874,6 +899,7 @@ function reloadPromos() {
 
 function createPromo() {
   var codeEl = overlay.querySelector('[data-promo-code]');
+  var planEl = overlay.querySelector('[data-promo-plan]');
   var daysEl = overlay.querySelector('[data-promo-days]');
   var maxEl = overlay.querySelector('[data-promo-max]');
   var msgEl = overlay.querySelector('[data-promo-msg]');
@@ -884,6 +910,7 @@ function createPromo() {
     return;
   }
   var body = { grantDays: days };
+  if (planEl && planEl.value) body.plan = planEl.value;
   if (codeEl.value.trim()) body.code = codeEl.value.trim();
   if (maxEl.value.trim()) body.maxRedemptions = parseInt(maxEl.value, 10);
   msgEl.className = 'admin-promo-msg';

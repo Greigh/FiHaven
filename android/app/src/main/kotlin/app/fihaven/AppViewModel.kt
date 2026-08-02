@@ -97,7 +97,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val BIO_KEY = "fh_biometric"
 private const val BIO_LOCK_AFTER_KEY = "fh_bio_lock_after"
@@ -162,8 +164,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _entitlement = MutableStateFlow(Entitlement())
     val entitlement: StateFlow<Entitlement> = _entitlement.asStateFlow()
-    private val _stripePortal = MutableStateFlow(false)
-    val stripePortal: StateFlow<Boolean> = _stripePortal.asStateFlow()
+    private val _billingPortal = MutableStateFlow(false)
+    val billingPortal: StateFlow<Boolean> = _billingPortal.asStateFlow()
 
     // Live save/sync state, surfaced in Settings so users know data
     // auto-syncs to their account. Mirrors the web sync pill + iOS syncState.
@@ -322,6 +324,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) {
                 tokens.clear()
             }
+            // A token that no longer resolves ends the session just as much as
+            // tapping Sign out does — and this path never goes through logout(),
+            // so without this the previous user's reminders stayed armed.
+            endSession()
         }
         _session.value = Session.SignedOut
     }
@@ -382,15 +388,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelMfa() { _session.value = Session.SignedOut; _authError.value = null }
 
     fun logout() = viewModelScope.launch {
+        endSession()
         PushRegistrar.clear()
         runCatching { api.logout() }
         _authError.value = null
         _session.value = Session.SignedOut
         _data.value = AppData()
         _entitlement.value = Entitlement()
-        _stripePortal.value = false
+        _billingPortal.value = false
         _dataLoaded.value = false
         _dataError.value = null
+    }
+
+    /** Tear down everything that outlives the composition and would otherwise
+     *  still be acting on behalf of the signed-out user.
+     *
+     *  The pending save has to go first: `_data` is cleared just below, and the
+     *  retry loop re-reads it on every attempt, so a loop that woke up after a
+     *  *new* sign-in — but before its `loadData()` had returned — would PUT an
+     *  empty snapshot over that account.
+     *
+     *  Reminders are on-device and survive independently of any of this: they
+     *  stayed armed across a sign-out, and BootReceiver re-armed them from
+     *  SharedPreferences after every reboot, so the previous user's bill names
+     *  and amounts kept appearing on a phone nobody was signed into. */
+    private fun endSession() {
+        saveJob?.cancel()
+        saveJob = null
+        _syncState.value = SyncState.Idle
+        runCatching { NotificationScheduler.cancelAll(getApplication()) }
     }
 
     /// DEBUG screenshot helper: log in as the dev demo account.
@@ -638,31 +664,63 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val status = api.billingStatusFull()
             _entitlement.value = status.entitlement
-            _stripePortal.value = status.stripePortal
+            _billingPortal.value = status.paddlePortal
         }
     }
 
+    /** Where this subscription is actually managed. Every paying source needs a
+     *  line here or a button below it: a subscriber who bought elsewhere used to
+     *  land on "You're on FiHaven Pro" with no button and no explanation, and no
+     *  hint about where to go to cancel. */
     fun billingNote(ent: Entitlement): String? = when {
         !ent.pro -> null
         ent.source == "comp" -> "You have complimentary Pro access — no subscription to manage."
         ent.source == "promo" -> "Your Pro access is from a promo code — no subscription to manage."
+        ent.source == "apple" ->
+            "You subscribed on an Apple device. Manage or cancel it there, under Settings → your name → Subscriptions."
+        // A web subscription normally offers the portal button instead; this
+        // covers the case where the server can't open one.
+        ent.source == "paddle" && !_billingPortal.value ->
+            "You subscribed on fihaven.app. Manage or cancel it by signing in there."
         else -> null
+    }
+
+    /** The store terms under the plan list. Play's wording is only true for a
+     *  purchase made through Play — it was shown unconditionally, so an Apple or
+     *  web subscriber was told their money goes through Google Play and to
+     *  cancel somewhere they have no subscription. */
+    fun storeTerms(ent: Entitlement): String? = when {
+        !ent.pro || ent.source == "google" ->
+            "Subscriptions are auto-renewing. Payment is charged through Google Play. " +
+                "Renews unless canceled before the period ends. Manage in Google Play → Subscriptions."
+        ent.source == "comp" || ent.source == "promo" -> null
+        else ->
+            "Subscriptions are auto-renewing and renew unless canceled before the period ends. " +
+                "This one wasn't bought through Google Play, so it's managed where you bought it."
     }
 
     fun manageButtonLabel(ent: Entitlement): String? = when {
         !ent.pro -> null
-        _stripePortal.value -> "Manage subscription"
+        _billingPortal.value -> "Manage subscription"
         ent.source == "google" -> "Manage in Play Store"
         else -> null
     }
 
     fun manageSubscription(context: android.content.Context) = viewModelScope.launch {
         when {
-            _stripePortal.value -> runCatching {
-                val url = api.createStripePortal()
+            _billingPortal.value -> runCatching {
+                val url = api.createBillingPortal()
                 context.startActivity(
                     android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                 )
+            }.onFailure {
+                // Silently doing nothing on a button whose whole job is
+                // "let me cancel" is the worst possible failure mode.
+                android.widget.Toast.makeText(
+                    context,
+                    "Couldn't open the subscription portal. Manage it by signing in at fihaven.app.",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
             }
             _entitlement.value.source == "google" -> {
                 context.startActivity(
@@ -754,15 +812,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 15_000
-            readTimeout = 0 // keep the stream open
+            // Not 0 (block forever). `readLine` is not cancellable, so leaving
+            // the app's Family screen would strand an IO thread on a socket
+            // read until the server next said something — one per visit. A
+            // finite timeout turns that into a loop we can leave.
+            readTimeout = 30_000
             setRequestProperty("Accept", "text/event-stream")
             tokens.get()?.let { setRequestProperty("Authorization", "Bearer $it") }
         }
+        // Cancellation also has to reach the blocked read itself; closing the
+        // connection is what unblocks it.
+        val closer = coroutineContext[Job]?.invokeOnCompletion { runCatching { conn.disconnect() } }
         try {
             if (conn.responseCode != 200) return@withContext
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 while (isActive) {
-                    val line = reader.readLine() ?: break
+                    val line = try {
+                        reader.readLine() ?: break
+                    } catch (_: java.net.SocketTimeoutException) {
+                        continue // idle stream, not a failure
+                    }
                     if (line.startsWith("data:")) {
                         val json = line.substring(5).trim()
                         runCatching {
@@ -774,6 +843,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
             // dropped; caller re-subscribes on next reload
         } finally {
+            closer?.dispose()
             conn.disconnect()
         }
     }
@@ -802,11 +872,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteAccount(password: String, code: String = "", confirm: String = "", onError: (String) -> Unit) = viewModelScope.launch {
         try {
             api.deleteAccount(password, code, confirm)
+            endSession()
             tokens.clear()
             _session.value = Session.SignedOut
             _data.value = AppData()
             _entitlement.value = Entitlement()
-        _stripePortal.value = false
+        _billingPortal.value = false
         } catch (e: ApiError) {
             onError(e.userMessage)
         } catch (e: Exception) {
@@ -838,20 +909,65 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(800.milliseconds)
-            _syncState.value = if (runCatching { api.saveData(_data.value) }.isSuccess)
-                SyncState.Saved else SyncState.Offline
+            // A failed save used to get exactly one attempt. `_data` is never
+            // written to disk, so the edit then sat in memory behind a banner
+            // claiming it was safe on the device and died with the process.
+            // Retry with backoff until it lands, the session dies, or a newer
+            // edit cancels this job.
+            var wait = 2.seconds
+            var sessionEnded = false
+            while (isActive) {
+                // Belt and braces alongside endSession()'s cancel: a save must
+                // never be attempted on behalf of a session that has ended.
+                if (_session.value !is Session.SignedIn) { sessionEnded = true; break }
+                val result = runCatching { api.saveData(_data.value) }
+                if (result.isSuccess) {
+                    _syncState.value = SyncState.Saved
+                    break
+                }
+                if (result.exceptionOrNull() is ApiError.Unauthenticated) {
+                    onSessionExpired()
+                    sessionEnded = true
+                    break
+                }
+                _syncState.value = SyncState.Offline
+                delay(wait)
+                if (wait < 60.seconds) wait *= 2
+            }
             // Reschedule on-device reminders from the latest data (local —
             // independent of whether the network save succeeded).
-            refreshNotifications()
+            //
+            // Not when the session just ended: onSessionExpired() hands off to
+            // logout(), whose endSession() cancels the reminders — but it
+            // suspends before clearing `_session`, so this line resumes first
+            // and would re-arm everything it had just cancelled. A cancelled
+            // job never reaches here at all, so this only guards the expiry path.
+            if (!sessionEnded) refreshNotifications()
         }
     }
 
-    /** Re-sync on-device bill reminders to the current bills + settings. */
+    /** A rejected token can't be recovered from: nothing is cached on disk, so
+     *  sign out rather than leave edits queuing against a dead session. */
+    private fun onSessionExpired() {
+        if (_session.value !is Session.SignedIn) return
+        viewModelScope.launch {
+            // logout() clears authError last, so set the notice after it joins.
+            logout().join()
+            _authError.value = ApiError.Unauthenticated.userMessage
+        }
+    }
+
+    /** Re-sync on-device bill reminders to the current bills + settings.
+     *
+     *  Archived items are excluded here, not inside the scheduler: bill *due*
+     *  reminders were already safe (nextDueDate → billActive), but trial-ending
+     *  and card-offer reminders read the raw lists, so archiving a subscription
+     *  or a card left its reminders firing. */
     fun refreshNotifications() {
         val d = _data.value
         runCatching {
             NotificationScheduler.reschedule(
-                getApplication(), d.bills, d.cards, d.settings, zone(),
+                getApplication(), d.activeBills, d.activeCards, d.settings, zone(),
                 pro = d.entitlement?.pro ?: false,
             )
         }

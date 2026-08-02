@@ -1,6 +1,8 @@
 package app.fihaven.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,8 +52,12 @@ import kotlinx.coroutines.launch
 /// and disconnect all run through the existing /api/plaid endpoints; the
 /// "Connect" button opens Plaid Link with a server-issued link token and
 /// exchanges the resulting public token back to the server.
+///
+/// Rendered inline in Settings › Bank rather than behind a row of its own:
+/// that screen holds nothing else, so the row was a tap between the user and
+/// the only thing there.
 @Composable
-fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
+fun BankConnections(vm: AppViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<PlaidStatus?>(null) }
@@ -65,6 +72,7 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
     // Shown once, right after a bank is linked (see the import-gate note below).
     var showImportPrompt by remember { mutableStateOf(false) }
     var showBalancePrompt by remember { mutableStateOf(false) }
+    var showPaywall by remember { mutableStateOf(false) }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }
@@ -151,7 +159,12 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         }
     }
 
-    FormDialog("Bank connections", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+    // The section card is padding-free, so the content carries its own — the
+    // 16dp/12dp the form dialogs used, kept so nothing shifts visually.
+    Column(
+        Modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             "Optionally link a bank with Plaid to auto-fetch balances. FiHaven works fully by hand, so a dropped connection never breaks your dashboard.",
             color = Ct.colors.muted, fontSize = 13.sp,
@@ -160,8 +173,18 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             null -> Text("Loading…", color = Ct.colors.muted, fontSize = 14.sp)
             else -> when {
                 !s.configured -> Text("Bank linking isn’t enabled on the server this app is connected to. Bank linking needs Plaid credentials configured there; manual entry works regardless.", color = Ct.colors.muted, fontSize = 14.sp)
-                !s.pro -> Text("Linking your bank is a Pro feature. Upgrade from the Get Pro tab to connect an account.",
-                    color = Ct.colors.text, fontSize = 14.sp)
+                // Upgrading is the only thing to do here, so offer it directly
+                // rather than sending the user off to find the Get Pro tab.
+                !s.pro -> {
+                    Text(
+                        "Linking your bank is a Pro feature.",
+                        color = Ct.colors.text, fontSize = 14.sp,
+                    )
+                    Button(
+                        onClick = { showPaywall = true }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+                    ) { Text("Unlock FiHaven Pro") }
+                }
                 else -> {
                     if (s.items.isEmpty()) {
                         Text("No banks linked yet.", color = Ct.colors.muted, fontSize = 14.sp)
@@ -180,9 +203,27 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
                         colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
                     ) { Text("+ Connect a bank") }
                     Text(
-                        "By connecting, you agree to Plaid's End User Privacy Policy. You authenticate with your bank inside Plaid; we never see your bank login.",
+                        "You authenticate with your bank inside Plaid; we never see your bank login.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                     )
+                    // The policy the user is asked to agree to has to be
+                    // readable from here — it was plain text, so there was no
+                    // way to open it.
+                    val uriHandler = LocalUriHandler.current
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "By connecting, you agree to ",
+                            color = Ct.colors.muted, fontSize = 12.sp,
+                        )
+                        Text(
+                            "Plaid's End User Privacy Policy",
+                            color = Ct.colors.accent,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable {
+                                uriHandler.openUri("https://plaid.com/legal/#end-user-privacy-policy")
+                            },
+                        )
+                    }
                     if (s.items.isNotEmpty()) {
                         TextButton(onClick = {
                             msg = BankMessage.info("Syncing…")
@@ -342,9 +383,12 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             onDismissRequest = { showBalancePrompt = false },
             title = { Text("Accept Current Balance suggestions?") },
             text = {
+                // Parenthesised: `+` binds tighter than the if/else arms, so
+                // the else branch used to swallow the rest of the sentence —
+                // a single-card prompt read "…updates for 1 card" and stopped.
                 Text(
-                    "Bank suggested Current Balance updates for ${pending.size} card" +
-                        if (pending.size == 1) "" else "s" +
+                    "Bank suggested Current Balance updates for ${pending.size} " +
+                        (if (pending.size == 1) "card" else "cards") +
                         ". Statement Balance stays manual. Decline individual items from Cards.",
                 )
             },
@@ -362,6 +406,15 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
             },
             containerColor = Ct.colors.surface,
         )
+    }
+
+    // Re-read the status on dismiss: if the user did subscribe, the section
+    // unlocks in place rather than making them leave and come back.
+    if (showPaywall) {
+        PaywallDialog(vm) {
+            showPaywall = false
+            scope.launch { load() }
+        }
     }
 }
 

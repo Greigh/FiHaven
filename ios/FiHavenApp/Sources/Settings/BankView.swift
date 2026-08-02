@@ -29,6 +29,7 @@ struct BankView: View {
     @State private var showImportPrompt = false
     @State private var promptAcceptAll = false
     @State private var pendingPromptCount = 0
+    @State private var showPaywall = false
 
     var body: some View {
         List {
@@ -52,8 +53,13 @@ struct BankView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Bank connections")
+        // Reached straight from Settings › Bank, so it wears that title and the
+        // same branded bar as every other settings detail screen.
+        .brandedNavigationBar("Bank")
         .task { await load() }
+        // Re-read the status on dismiss: if the user did subscribe, the section
+        // unlocks in place rather than making them leave and come back.
+        .sheet(isPresented: $showPaywall, onDismiss: { Task { await load() } }) { PaywallView() }
         .alert("Accept Current Balance suggestions?", isPresented: $promptAcceptAll) {
             Button("Accept all") {
                 guard let store = env.store else { return }
@@ -91,7 +97,16 @@ struct BankView: View {
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         } else if !s.pro {
-            Section { Text("Linking your bank is a Pro feature. Upgrade from the Get Pro tab to connect an account.").font(Theme.ui(14)) }
+            // Upgrading is the only thing to do here, so offer it directly
+            // rather than sending the user off to find the Get Pro tab.
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Linking your bank is a Pro feature.").font(Theme.ui(14))
+                    Button("Unlock FiHaven Pro") { showPaywall = true }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+                .padding(.vertical, 2)
+            }
         } else {
             Section {
                 if s.items.isEmpty {
@@ -169,8 +184,18 @@ struct BankView: View {
                     Button("Sync now") { refresh() }
                 }
             } footer: {
-                Text("By connecting, you agree to Plaid's End User Privacy Policy. You authenticate with your bank inside Plaid; we never see your bank login.")
-                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                // The policy the user is asked to agree to has to be readable
+                // from here — it was plain text, so there was no way to open it.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("You authenticate with your bank inside Plaid; we never see your bank login.")
+                    HStack(spacing: 4) {
+                        Text("By connecting, you agree to")
+                        Link("Plaid's End User Privacy Policy",
+                             destination: URL(string: "https://plaid.com/legal/#end-user-privacy-policy")!)
+                            .foregroundStyle(Theme.accent)
+                    }
+                }
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
     }

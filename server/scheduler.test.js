@@ -1017,3 +1017,89 @@ describe('scheduler — offer reminders', () => {
     expect(sched.offersExpiringOn(data, lp, 5)).toEqual([]);
   });
 });
+
+describe('scheduler — archived items are soft-deleted everywhere', () => {
+  // `archived` is part of the client-side `billActive` gate but was missing
+  // from the server's, so soft-deleted records still drove reminders, totals
+  // and — worst — autopay auto-marks that wrote phantom payments back into
+  // the user's data and synced to every device.
+  const lpFor = (sched) => sched.localParts(new Date('2026-06-17T12:00:00.000Z'), 'America/New_York');
+
+  it('billActiveOn rejects an archived bill that is otherwise in window', () => {
+    const sched = loadScheduler();
+    expect(sched.billActiveOn({ id: 'b1', dueDay: 18 }, '2026-06-17')).toBe(true);
+    expect(sched.billActiveOn({ id: 'b1', dueDay: 18, archived: true }, '2026-06-17')).toBe(false);
+  });
+
+  it('trialsEndingOn skips an archived subscription', () => {
+    const sched = loadScheduler();
+    const lp = lpFor(sched);
+    const live = { id: 'b1', name: 'Netflix', trialEnds: '2026-06-20' };
+    expect(sched.trialsEndingOn({ bills: [live] }, lp, 3).map((b) => b.name)).toEqual(['Netflix']);
+    expect(sched.trialsEndingOn({ bills: [{ ...live, archived: true }] }, lp, 3)).toEqual([]);
+  });
+
+  it('offersExpiringOn skips offers on an archived card', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const card = { id: 'c1', name: 'Amex', offers: [{ merchant: 'Dell', expires: '2026-06-20' }] };
+    expect(sched.offersExpiringOn({ cards: [card] }, lp, 3).map((o) => o.merchant)).toEqual(['Dell']);
+    expect(sched.offersExpiringOn({ cards: [{ ...card, archived: true }] }, lp, 3)).toEqual([]);
+  });
+
+  it('summarize excludes archived bills and archived card debt', () => {
+    const sched = loadScheduler();
+    const lp = lpFor(sched);
+    const data = {
+      bills: [{ id: 'b1', amount: 100, dueDay: 5 }, { id: 'b2', amount: 50, dueDay: 6, archived: true }],
+      cards: [{ id: 'c1', balance: 800 }, { id: 'c2', balance: 400, archived: true }],
+      payments: [],
+    };
+    const out = sched.summarize(data, lp);
+    expect(out.billsTotal).toBe(100);
+    expect(out.billsCount).toBe(1);
+    expect(out.debtTotal).toBe(800);
+  });
+
+  it('weeklyDigest excludes archived bills and archived card debt', () => {
+    const sched = loadScheduler();
+    const lp = lpFor(sched);
+    const data = {
+      bills: [
+        { id: 'b1', name: 'Rent', amount: 1450, dueDay: 18 },
+        { id: 'b2', name: 'Gone', amount: 99, dueDay: 18, archived: true },
+      ],
+      cards: [{ id: 'c1', balance: 800 }, { id: 'c2', balance: 400, archived: true }],
+    };
+    const out = sched.weeklyDigest(data, lp);
+    expect(out.upcoming.map((b) => b.name)).toEqual(['Rent']);
+    expect(out.upcomingTotal).toBe(1450);
+    expect(out.debtTotal).toBe(800);
+  });
+
+  it('markAutopay never auto-marks an archived bill or card', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: lp.d, autopay: true, archived: true }],
+      cards: [{ id: 'c1', name: 'Amex', minPayment: 35, dueDay: lp.d, autopay: true, archived: true }],
+      payments: [],
+      settings: {},
+    };
+    expect(sched.markAutopay(data, lp)).toBe(false);
+    expect(data.payments).toEqual([]);
+  });
+
+  it('markAutopay still marks the live equivalents', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: lp.d, autopay: true }],
+      cards: [{ id: 'c1', name: 'Amex', minPayment: 35, dueDay: lp.d, autopay: true }],
+      payments: [],
+      settings: {},
+    };
+    expect(sched.markAutopay(data, lp)).toBe(true);
+    expect(data.payments.map((p) => p.type).sort()).toEqual(['bill', 'card']);
+  });
+});

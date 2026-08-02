@@ -25,7 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.AppViewModel
+import app.fihaven.billing.BillingManager
 import app.fihaven.core.model.HouseholdInfo
 import app.fihaven.core.model.HouseholdRollup
 import app.fihaven.core.model.HouseholdView
@@ -124,6 +126,11 @@ private fun joinOrCreate(
         LabeledCard("FAMILY SHARING  ·  FAMILY") {
             Text("Start a household and invite up to three people with the Family plan. Already invited? You can join below for free.",
                 color = Ct.colors.muted, fontSize = 14.sp)
+            // What it costs, before the button that starts the purchase. Play
+            // may not have answered yet, so the line is conditional.
+            familyPriceLabel()?.let { price ->
+                Text(price, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
             Button(
                 onClick = onUpgrade,
                 enabled = !busy,
@@ -154,6 +161,21 @@ private fun householdBody(
     busy: Boolean, act: (suspend () -> Unit) -> Unit, vm: AppViewModel,
 ) {
     val isOwner = view.role == "owner"
+
+    // Only the owner's plan drives the cap, so only the owner can thaw it.
+    if (view.isFrozen) {
+        val title = if (isOwner) "READ-ONLY — YOUR FAMILY PLAN ENDED"
+                    else "READ-ONLY — THE OWNER’S FAMILY PLAN ENDED"
+        LabeledCard(title) {
+            Text(
+                "Everything you shared is still here and still visible to everyone in the " +
+                    "household. Adding, editing and inviting are paused until " +
+                    (if (isOwner) "you resubscribe" else "the owner resubscribes") +
+                    " — nothing has been deleted.",
+                color = Ct.colors.muted, fontSize = 13.sp,
+            )
+        }
+    }
 
     LabeledCard(view.household.name.uppercase()) {
         Text(memberCapLabel(view.memberCount, view.memberMax, isOwner),
@@ -189,7 +211,7 @@ private fun householdBody(
                     Text("Send invite")
                 }
             }
-        } else {
+        } else if (!view.isFrozen) {
             LabeledCard("INVITE SOMEONE") {
                 Text(
                     "Inviting more people needs the Family plan. You’re still the owner of this household.",
@@ -280,6 +302,21 @@ private fun applyDelta(list: List<SharedEntity>, e: SharedEntity): List<SharedEn
     }
 }
 
+/**
+ * "$29.99 / year" for the Family SKU, or null before Play has answered (or
+ * outside the signed-in tree, where there is no billing client). The upsell
+ * still stands without it — the paywall repeats the price on the way in.
+ */
+@Composable
+private fun familyPriceLabel(): String? {
+    val billing = LocalBilling.current ?: return null
+    val products by billing.products.collectAsStateWithLifecycle()
+    val family = products.firstOrNull { it.productId == BillingManager.FAMILY } ?: return null
+    val price = BillingManager.formattedPrice(family) ?: return null
+    val unit = BillingManager.periodUnit(family) ?: return price
+    return "$price / $unit"
+}
+
 private fun errMsg(e: Throwable): String = when {
     e is ApiError.Http && e.code != null -> when (e.code) {
         "pro-required" -> "Creating a household is part of the Family plan."
@@ -288,6 +325,8 @@ private fun errMsg(e: Throwable): String = when {
         "invalid-email" -> "Enter a valid email address."
         "already-member" -> "That person is already in your household."
         "household-full" -> "Your household is full."
+        "household-inactive" ->
+            "Your Family plan ended, so this household is read-only. Resubscribe to make changes."
         "invite-email-mismatch" -> "That invite was sent to a different email."
         "invite-expired" -> "That invite has expired."
         "invite-used" -> "That invite was already used."

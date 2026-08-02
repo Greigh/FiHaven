@@ -35,6 +35,8 @@ const STATUS = {
   'invalid-email': 400,
   'already-member': 409,
   'household-full': 403,
+  // Owner's Family plan lapsed: the household is read-only, not gone.
+  'household-inactive': 403,
   'invalid-invite': 400,
   'invite-used': 409,
   'invite-expired': 410,

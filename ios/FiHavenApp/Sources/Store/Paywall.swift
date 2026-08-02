@@ -117,8 +117,27 @@ struct ProLockedView: View {
 /// offer-code sheet. Server-issued FiHaven promo codes are redeemable on the
 /// web and on Android only — this app must never take a code by hand.
 struct PaywallView: View {
-    @EnvironmentObject var billing: StoreManager
     @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView { PaywallContent() }
+                .background(Theme.bg.ignoresSafeArea())
+                .navigationTitle("FiHaven Pro")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                }
+        }
+    }
+}
+
+/// The paywall itself, with no presentation chrome of its own — so the same
+/// perks, plans, and legal footer can be a sheet over a locked feature *or*
+/// the body of the Pro screen, where putting them behind an "Upgrade" button
+/// only added a tap.
+struct PaywallContent: View {
+    @EnvironmentObject var billing: StoreManager
 
     /// Pro perks only. Family sharing is deliberately absent: creating a household
     /// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
@@ -136,53 +155,43 @@ struct PaywallView: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 22) {
-                    header
-                    perksCard
-                    if billing.isPro {
-                        activeCard
-                        // A solo-Pro subscriber previously had no way to reach
-                        // Family from anywhere in the app.
-                        if !onFamily, let family = familyProduct {
-                            familyOption(family, isUpgrade: true)
-                        }
-                    } else {
-                        plansSection
-                        if let family = familyProduct {
-                            familyOption(family, isUpgrade: false)
-                        }
-                    }
-                    if billing.isPro, let note = billing.billingNote {
-                        Text(note)
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
-                    }
-                    if let manageLabel = billing.manageButtonLabel {
-                        Button(manageLabel) { Task { await billing.manageSubscription() } }
-                            .buttonStyle(PlanButtonStyle())
-                    }
-                    footer
+        VStack(spacing: 22) {
+            header
+            perksCard
+            if billing.isPro {
+                activeCard
+                // A solo-Pro subscriber previously had no way to reach
+                // Family from anywhere in the app.
+                if !onFamily, let family = familyProduct {
+                    familyOption(family, isUpgrade: true)
                 }
-                .padding(20)
+            } else {
+                plansSection
+                if let family = familyProduct {
+                    familyOption(family, isUpgrade: false)
+                }
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("FiHaven Pro")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            if billing.isPro, let note = billing.billingNote {
+                Text(note)
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
             }
-            .alert("Notice", isPresented: messageBinding) {
-                Button("OK") { billing.message = nil }
-            } message: {
-                Text(billing.message ?? "")
+            if let manageLabel = billing.manageButtonLabel {
+                Button(manageLabel) { Task { await billing.manageSubscription() } }
+                    .buttonStyle(PlanButtonStyle())
             }
-            // Re-fetch when the sheet opens — launch-time StoreKit can return
-            // [] (agreement / metadata / network), and we never retried before.
-            .task { await billing.loadProducts() }
+            footer
         }
+        .padding(20)
+        .alert("Notice", isPresented: messageBinding) {
+            Button("OK") { billing.message = nil }
+        } message: {
+            Text(billing.message ?? "")
+        }
+        // Re-fetch whenever this appears — launch-time StoreKit can return
+        // [] (agreement / metadata / network), and we never retried before.
+        .task { await billing.loadProducts() }
     }
 
     private var messageBinding: Binding<Bool> {
@@ -257,6 +266,13 @@ struct PaywallView: View {
                                 Text(lengthLabel(product))
                                     .font(Theme.ui(12))
                                     .foregroundStyle(Theme.muted)
+                                // 3.1.2: an introductory offer must state what
+                                // it is, how long it runs, and what it becomes.
+                                if let intro = introLabel(product) {
+                                    Text(intro)
+                                        .font(Theme.ui(12, weight: .semibold))
+                                        .foregroundStyle(Theme.green)
+                                }
                                 if let perUnit = pricePerUnitLabel(product) {
                                     Text(perUnit)
                                         .font(Theme.ui(11))
@@ -297,6 +313,12 @@ struct PaywallView: View {
                     Text(lengthLabel(product))
                         .font(Theme.ui(12))
                         .foregroundStyle(Theme.muted)
+                    // Family carries no trial today, but say so if that changes.
+                    if let intro = introLabel(product) {
+                        Text(intro)
+                            .font(Theme.ui(12, weight: .semibold))
+                            .foregroundStyle(Theme.green)
+                    }
                 }
                 Spacer(minLength: 12)
                 Text(product.displayPrice)
@@ -313,7 +335,7 @@ struct PaywallView: View {
         }
         .ctCard()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(product.displayName), \(product.displayPrice), \(lengthLabel(product))")
+        .accessibilityLabel(planAccessibilityLabel(product))
     }
 
     private var activeCard: some View {
@@ -345,6 +367,7 @@ struct PaywallView: View {
     private var sourceLabel: String? {
         guard let s = billing.entitlement.source else { return nil }
         switch s {
+        case "paddle": return "FiHaven.app"
         case "stripe": return "Stripe"
         case "apple": return "App Store"
         case "google": return "Play Store"
@@ -354,8 +377,10 @@ struct PaywallView: View {
         }
     }
 
+    /// One tight block: the 22pt that separates the cards above read as dead
+    /// space between four lines of fine print.
     private var footer: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             // Opens Apple's own redemption sheet (StoreKit). No in-app code
             // entry — Guideline 3.1.1.
             Button("Redeem an App Store code") { billing.presentOfferCodeSheet() }
@@ -365,10 +390,11 @@ struct PaywallView: View {
             Button("Restore purchases") { Task { await billing.restore() } }
                 .font(Theme.ui(14))
                 .foregroundStyle(Theme.muted)
-            Text("Subscriptions are auto-renewing. Payment is charged to your Apple ID. Renews unless canceled at least 24 hours before the period ends. Manage or cancel in Settings → Apple ID → Subscriptions.")
-                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-                .padding(.top, 4)
+            if let terms = billing.storeTerms {
+                Text(terms)
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+            }
             // Required functional links for Guideline 3.1.2 (also in Settings → About).
             HStack(spacing: 6) {
                 Link("Privacy Policy", destination: URL(string: "https://fihaven.app/privacy")!)
@@ -408,25 +434,77 @@ struct PaywallView: View {
         return "Length: \(unit) · auto-renewing"
     }
 
-    /// Optional price-per-unit line (e.g. yearly → approx. monthly).
-    private func pricePerUnitLabel(_ p: Product) -> String? {
-        guard let period = p.subscription?.subscriptionPeriod,
-              period.unit == .year, period.value == 1,
-              let yearly = decimalPrice(p) else { return nil }
-        let monthly = yearly / 12
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .currency
-        fmt.locale = .current
-        guard let s = fmt.string(from: monthly as NSDecimalNumber) else { return nil }
-        return "\(s)/mo billed annually"
+    /// "7 days", "1 month", "3 months" — the whole length of an intro offer.
+    private func offerLength(_ offer: Product.SubscriptionOffer) -> String {
+        var value = offer.period.value * offer.periodCount
+        var unit = offer.period.unit
+        // App Store Connect models the 7-day trial as one week; say it the way
+        // the store listing and the marketing site do.
+        if unit == .week {
+            value *= 7
+            unit = .day
+        }
+        let noun: String
+        switch unit {
+        case .day: noun = "day"
+        case .week: noun = "week"
+        case .month: noun = "month"
+        case .year: noun = "year"
+        @unknown default: noun = "period"
+        }
+        return "\(value) \(noun)\(value == 1 ? "" : "s")"
     }
 
-    private func decimalPrice(_ p: Product) -> Decimal? {
-        p.price
+    /// "month" / "year" — what the recurring price is charged per.
+    private func billingNoun(_ p: Product) -> String {
+        guard let period = p.subscription?.subscriptionPeriod else { return "period" }
+        switch period.unit {
+        case .day: return period.value == 1 ? "day" : "\(period.value) days"
+        case .week: return period.value == 1 ? "week" : "\(period.value) weeks"
+        case .month: return period.value == 1 ? "month" : "\(period.value) months"
+        case .year: return period.value == 1 ? "year" : "\(period.value) years"
+        @unknown default: return "period"
+        }
+    }
+
+    /// The introductory offer in plain words — required by Guideline 3.1.2 and
+    /// promised by the marketing site ("7-day free trial"), which the paywall
+    /// never used to mention. Nil when this Apple ID isn't eligible, so a
+    /// returning subscriber is never shown a trial they won't get.
+    private func introLabel(_ p: Product) -> String? {
+        guard billing.introEligible.contains(p.id),
+              let offer = p.subscription?.introductoryOffer else { return nil }
+        let then = "then \(p.displayPrice)/\(billingNoun(p))"
+        switch offer.paymentMode {
+        case .freeTrial:
+            return "\(offerLength(offer)) free, \(then)"
+        case .payAsYouGo:
+            return "\(offer.displayPrice)/\(billingNoun(p)) for \(offerLength(offer)), \(then)"
+        case .payUpFront:
+            return "\(offer.displayPrice) for \(offerLength(offer)), \(then)"
+        default:
+            return nil
+        }
+    }
+
+    /// Optional price-per-unit line (e.g. yearly → approx. monthly).
+    ///
+    /// Formatted with the product's own `priceFormatStyle`, which carries the
+    /// storefront's currency. A `NumberFormatter` keyed to `Locale.current`
+    /// takes the currency from the *device region* instead, so someone on the
+    /// US storefront with their region set to Japan saw a dollar price
+    /// relabelled with a yen sign.
+    private func pricePerUnitLabel(_ p: Product) -> String? {
+        guard let period = p.subscription?.subscriptionPeriod,
+              period.unit == .year, period.value == 1 else { return nil }
+        let monthly = p.price / 12
+        return "\(monthly.formatted(p.priceFormatStyle))/mo billed annually"
     }
 
     private func planAccessibilityLabel(_ product: Product) -> String {
-        "\(product.displayName), \(product.displayPrice), \(lengthLabel(product))"
+        [product.displayName, product.displayPrice, lengthLabel(product), introLabel(product)]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 }
 

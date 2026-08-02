@@ -63,7 +63,7 @@ class BillingManager(
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     _ready.value = true
                     queryProducts()
-                    queryActiveSubscription()
+                    replayPurchases()
                 }
             }
             override fun onBillingServiceDisconnected() { _ready.value = false }
@@ -71,16 +71,25 @@ class BillingManager(
     }
 
     /// Cache which subscription is already owned, so a later plan change can be
-    /// launched as a replacement rather than a new purchase.
-    private fun queryActiveSubscription() {
+    /// launched as a replacement rather than a new purchase — and re-present it
+    /// to the server.
+    ///
+    /// The replay is what makes "Restore purchases" mean anything. Asking our
+    /// own server for the entitlement only surfaces subscriptions it has
+    /// already been told about, so a reinstall, a new FiHaven account, or a
+    /// purchase whose original verify call failed would all restore to nothing
+    /// while Play still bills the user. Unlike StoreKit's `finish()`, a Play
+    /// purchase keeps coming back from `queryPurchasesAsync`, so replaying it
+    /// is always possible — we just never did it.
+    fun replayPurchases() {
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.SUBS)
             .build()
         client.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
-            _activeProductId.value = purchases
-                .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-                ?.products?.firstOrNull()
+            val owned = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+            _activeProductId.value = owned.firstOrNull()?.products?.firstOrNull()
+            owned.forEach { handlePurchase(it) }
         }
     }
 
@@ -104,16 +113,7 @@ class BillingManager(
     }
 
     fun launchPurchase(activity: Activity, product: ProductDetails) {
-        // Monthly and yearly carry a free-trial offer alongside the bare base
-        // plan. Play returns both in an unspecified order, so pick the trial
-        // explicitly — taking whatever came first would silently charge some
-        // users on day one despite the advertised 7-day trial.
-        val offers = product.subscriptionOfferDetails.orEmpty()
-        val offerToken = (
-            offers.firstOrNull { offer ->
-                offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
-            } ?: offers.firstOrNull()
-        )?.offerToken ?: return
+        val offerToken = selectedOffer(product)?.offerToken ?: return
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
             .setOfferToken(offerToken)
@@ -170,15 +170,61 @@ class BillingManager(
         /// Console, so a missing product simply doesn't appear in the paywall.
         const val FAMILY = "app.fihaven.pro.family.yearly"
 
+        /// The offer the user will actually be charged under — the one carrying
+        /// a free trial when there is one. `launchPurchase` picks it this way,
+        /// so the paywall has to read prices and trial terms from the *same*
+        /// offer or it would describe a deal the purchase doesn't use.
+        private fun selectedOffer(p: ProductDetails) =
+            p.subscriptionOfferDetails.orEmpty().let { offers ->
+                offers.firstOrNull { offer ->
+                    offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
+                } ?: offers.firstOrNull()
+            }
+
         /// The recurring base-plan phase. A base plan with a free-trial offer
         /// attached reports *two* pricing phases — the $0.00 trial first, then
-        /// the real one — and Play doesn't guarantee which offer comes first in
-        /// `subscriptionOfferDetails`. Reading `.first()` therefore renders the
-        /// plan as "Free" and sorts it to the top; the last phase is always the
+        /// the real one. Reading `.first()` therefore renders the plan as
+        /// "Free" and sorts it to the top; the last phase is always the
         /// recurring one, whichever offer got picked.
         private fun basePhase(p: ProductDetails) =
-            p.subscriptionOfferDetails?.firstOrNull()
-                ?.pricingPhases?.pricingPhaseList?.lastOrNull()
+            selectedOffer(p)?.pricingPhases?.pricingPhaseList?.lastOrNull()
+
+        /// ISO-8601 billing period → a human count, e.g. "P1W" → 7 days.
+        /// Play states the 7-day trial as one week; say it the way the Play
+        /// listing and the marketing site do.
+        private fun periodWords(iso: String?, cycles: Int): String? {
+            val m = Regex("""P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?""")
+                .matchEntire(iso ?: return null) ?: return null
+            val (y, mo, w, d) = m.destructured
+            val repeats = if (cycles > 0) cycles else 1
+            val (value, noun) = when {
+                y.isNotEmpty() -> y.toInt() * repeats to "year"
+                mo.isNotEmpty() -> mo.toInt() * repeats to "month"
+                w.isNotEmpty() -> w.toInt() * 7 * repeats to "day"
+                d.isNotEmpty() -> d.toInt() * repeats to "day"
+                else -> return null
+            }
+            return "$value $noun${if (value == 1) "" else "s"}"
+        }
+
+        /// The introductory offer in plain words. Play's subscription policy —
+        /// like Apple's Guideline 3.1.2 — requires the paywall to state that a
+        /// trial exists, how long it runs, and what it turns into. The offer
+        /// was already being *selected* for purchase but never described, so a
+        /// user was shown "$1.99 / Length: 1 month" for a plan that actually
+        /// starts free.
+        fun introOffer(p: ProductDetails): String? {
+            val phases = selectedOffer(p)?.pricingPhases?.pricingPhaseList ?: return null
+            if (phases.size < 2) return null
+            val intro = phases.first()
+            val base = phases.last()
+            val length = periodWords(intro.billingPeriod, intro.billingCycleCount) ?: return null
+            val unit = periodWords(base.billingPeriod, 1)?.substringAfter(' ')?.removeSuffix("s")
+                ?: return null
+            val then = "then ${base.formattedPrice}/$unit"
+            return if (intro.priceAmountMicros == 0L) "$length free, $then"
+            else "${intro.formattedPrice} for $length, $then"
+        }
 
         fun formattedPrice(p: ProductDetails): String? = basePhase(p)?.formattedPrice
 
@@ -187,6 +233,15 @@ class BillingManager(
                 "P1M" -> "Length: 1 month · auto-renewing"
                 "P1Y" -> "Length: 1 year · auto-renewing"
                 "P1W" -> "Length: 1 week · auto-renewing"
+                else -> null
+            }
+
+        /** Bare billing unit ("year"), for prices written as "$29.99 / year". */
+        fun periodUnit(p: ProductDetails): String? =
+            when (basePhase(p)?.billingPeriod) {
+                "P1M" -> "month"
+                "P1Y" -> "year"
+                "P1W" -> "week"
                 else -> null
             }
 
