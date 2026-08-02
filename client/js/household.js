@@ -34,6 +34,7 @@ var ERR = {
   'invalid-email': 'Enter a valid email address.',
   'already-member': 'That person is already in your household.',
   'household-full': 'Your household is full — upgrade for more members.',
+  'household-inactive': 'Your Family plan ended, so this household is read-only. Resubscribe to make changes.',
   'invalid-invite': 'That invite link is invalid.',
   'invite-used': 'That invite has already been used.',
   'invite-expired': 'That invite has expired.',
@@ -132,12 +133,31 @@ function inviteRowHtml(i) {
 
 function renderHousehold(view) {
   var isOwner = view.role === 'owner';
+  // `active === false` means the owner's Family plan lapsed: everything stays
+  // visible, but the server refuses writes. Older payloads have no `active`
+  // field, so only an explicit false freezes the UI.
+  var frozen = view.active === false;
   var full = view.memberMax > 0 && view.memberCount >= view.memberMax;
   var capLabel = view.memberMax > 0
     ? (view.memberCount + ' of ' + view.memberMax + ' members')
     : (view.memberCount === 1 ? '1 member' : view.memberCount + ' members');
 
   var html = bannerHtml() + '<div class="card" style="padding:16px;">';
+
+  // Only the owner's plan drives the cap, so only the owner can thaw it —
+  // telling a member to resubscribe would be pointing them at a purchase that
+  // wouldn't change anything.
+  if (frozen) {
+    html += '<div class="hh-frozen">' +
+      '<div class="hh-frozen-title">Read-only — ' +
+        (isOwner ? 'your Family plan ended' : 'the household owner’s Family plan ended') + '</div>' +
+      '<p>Everything you shared is still here and still visible to everyone in the household. ' +
+      'Adding, editing and inviting are paused until ' +
+      (isOwner ? 'you resubscribe' : 'the owner resubscribes') +
+      ' — nothing has been deleted.</p>' +
+      (isOwner ? '<button class="btn btn-primary" type="button" data-hh-resub>Resubscribe</button>' : '') +
+    '</div>';
+  }
   html += '<div style="display:flex;align-items:center;gap:10px;">' +
     '<div style="flex:1 1 auto;min-width:0;"><div style="font-weight:600;font-size:16px;">' + esc(view.household.name) + '</div>' +
     '<div style="color:var(--muted);font-size:12.5px;">' + capLabel + (isOwner ? ' · you’re the owner' : '') + '</div></div>' +
@@ -146,8 +166,9 @@ function renderHousehold(view) {
   // Members
   html += '<div style="margin-top:8px;">' + view.members.map(function (m) { return memberRowHtml(m, isOwner); }).join('') + '</div>';
 
-  // Owner: invite + pending
-  if (isOwner) {
+  // Owner: invite box. A frozen household can't take invites, so don't offer
+  // it at all — the banner above already explains why.
+  if (isOwner && !frozen) {
     html += '<div style="margin-top:16px;">' +
       '<div class="section-title" style="font-size:12px;">Invite someone</div>' +
       (full
@@ -157,10 +178,17 @@ function renderHousehold(view) {
             '<button class="btn btn-primary" type="button" data-hh-invite>Send invite</button>' +
           '</div>') +
       '</div>';
-    if (view.pendingInvites && view.pendingInvites.length) {
-      html += '<div style="margin-top:14px;"><div class="section-title" style="font-size:12px;">Pending invites</div>' +
-        view.pendingInvites.map(inviteRowHtml).join('') + '</div>';
-    }
+  }
+
+  // Pending invites stay visible even when frozen: revoking one still works,
+  // and an owner who let their plan lapse should be able to clean up links
+  // that can no longer be accepted.
+  if (isOwner && view.pendingInvites && view.pendingInvites.length) {
+    html += '<div style="margin-top:14px;"><div class="section-title" style="font-size:12px;">Pending invites</div>' +
+      (frozen
+        ? '<p style="margin-top:6px;color:var(--muted);font-size:12.5px;">These can’t be accepted while your plan is lapsed.</p>'
+        : '') +
+      view.pendingInvites.map(inviteRowHtml).join('') + '</div>';
   }
 
   // Shared finances (selective sharing) — filled in by loadShared().
@@ -178,6 +206,9 @@ function renderHousehold(view) {
   // Wire actions
   var upg = root().querySelector('[data-hh-upgrade2]');
   if (upg) upg.addEventListener('click', function (e) { e.preventDefault(); openProDialog(); });
+
+  var resub = root().querySelector('[data-hh-resub]');
+  if (resub) resub.addEventListener('click', function () { openProDialog(); });
 
   var inviteBtn = root().querySelector('[data-hh-invite]');
   if (inviteBtn) {
@@ -308,18 +339,26 @@ function closeStream() {
 
 function renderShared(host, view, shared, personal, currency) {
   var mine = myUserId(view);
+  var frozen = view.active === false;
   var byKind = {};
   shared.forEach(function (e) { (byKind[e.kind] = byKind[e.kind] || []).push(e); });
 
   var html = '<div class="section-title" style="font-size:12px;">Shared finances</div>' +
-    '<p style="margin-top:4px;color:var(--muted);font-size:12.5px;">Choose what to pool with your household. Anything you don’t share stays private.</p>';
+    '<p style="margin-top:4px;color:var(--muted);font-size:12.5px;">' +
+    (frozen
+      ? 'Sharing is paused while ' + (view.role === 'owner' ? 'your' : 'the owner’s') +
+        ' Family plan is lapsed. You can still see everything, and you can still pull your own items back out.'
+      : 'Choose what to pool with your household. Anything you don’t share stays private.') +
+    '</p>';
 
   SHARE_KINDS.forEach(function (k) {
     var items = byKind[k.kind] || [];
     var sharedIds = {};
     items.forEach(function (e) { sharedIds[String(e.id)] = true; });
     var personalItems = Array.isArray(personal[k.coll]) ? personal[k.coll] : [];
-    var available = personalItems.filter(function (it) { return it && it.id != null && !sharedIds[String(it.id)]; });
+    // Nothing new can be shared while frozen, so don't offer the picker —
+    // Unshare stays, since the server still honors it.
+    var available = frozen ? [] : personalItems.filter(function (it) { return it && it.id != null && !sharedIds[String(it.id)]; });
     if (!items.length && !available.length) return;
 
     html += '<div style="margin-top:12px;"><div style="font-size:13px;font-weight:600;">' + esc(k.label) + '</div>';

@@ -68,6 +68,26 @@ class HouseholdApiTest {
         assertEquals(HttpMethod.DELETE, t.last?.method)
     }
 
+    /** A lapsed Family plan sends active:false — the household is read-only,
+     *  not gone, so the view must still decode with all its members. */
+    @Test fun frozenHouseholdDecodesAsInactive() = runTest {
+        val json = """{"household":{"household":{"id":1,"name":"Casa","ownerUserId":7},"role":"owner","memberCount":2,"memberMax":0,"active":false,"members":[{"userId":7,"email":"o@e.com","role":"owner"},{"userId":8,"email":"m@e.com","role":"member"}]},"canCreate":false,"memberMax":0}"""
+        val t = FakeTransport().apply { responder = { HttpResponse(200, json) } }
+        val view = client(t).getHousehold().household!!
+        assertTrue(view.isFrozen)
+        assertEquals(2, view.members.size)
+        assertEquals(0, view.memberMax)
+    }
+
+    /** Older servers omit `active`; that must never read as frozen. */
+    @Test fun missingActiveFieldMeansActive() = runTest {
+        val json = """{"household":{"household":{"id":1,"name":"Casa","ownerUserId":7},"role":"owner","memberCount":1,"memberMax":3,"members":[]},"canCreate":false,"memberMax":3}"""
+        val t = FakeTransport().apply { responder = { HttpResponse(200, json) } }
+        val view = client(t).getHousehold().household!!
+        assertTrue(view.active)
+        assertTrue(!view.isFrozen)
+    }
+
     @Test fun rollupDecodesTotals() = runTest {
         val json = """{"householdId":1,"asOf":9,"totals":{"billsMonthly":1500,"cardDebt":800,"goalsTarget":5000},"byMember":[],"entityCount":{"bill":1}}"""
         val t = FakeTransport().apply { responder = { HttpResponse(200, json) } }

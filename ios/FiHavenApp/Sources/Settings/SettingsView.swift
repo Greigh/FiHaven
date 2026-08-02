@@ -52,8 +52,11 @@ struct SettingsView: View {
                 groupRow("Automation", "wand.and.stars", "Autopay, dashboard tidying") {
                     detail("Automation") { autopaySection }
                 }
+                // Straight to the connections themselves — a "Bank" screen whose
+                // only row was "Bank connections" made you tap twice to reach
+                // the one thing it held.
                 groupRow("Bank", "building.columns.fill", "Linked accounts") {
-                    detail("Bank") { bankSection }
+                    BankView()
                 }
                 groupRow("Data", "externaldrive.fill", "Export, clear, delete") {
                     detail("Data") { dataSection }
@@ -547,12 +550,6 @@ struct SettingsView: View {
             Button("Clear data", role: .destructive) { sheet = .clearData }
             // Also reachable here — the canonical entry point is in Account.
             Button("Delete account", role: .destructive) { sheet = .deleteAccount }
-        }
-    }
-
-    private var bankSection: some View {
-        Section {
-            NavigationLink { BankView() } label: { Text("Bank connections") }
         }
     }
 

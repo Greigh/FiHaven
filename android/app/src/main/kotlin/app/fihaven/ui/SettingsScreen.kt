@@ -403,9 +403,9 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
           }
           if (group == "bank") {
             item {
-                Section("BANK") {
-                    NavRow("Bank connections", null) { dialog = "bank" }
-                }
+                // Inline, not a row into a dialog: Bank holds nothing else, so
+                // the row was a tap between the user and the only thing here.
+                Section("BANK") { BankConnections(vm) }
             }
           }
           if (group == "about") {
@@ -434,7 +434,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Source code", null) { uriHandler.openUri("https://github.com/Greigh/FiHaven") }
                     HorizontalDivider(color = Ct.colors.border)
-                    KeyValueRow("Version", BuildConfig.VERSION_NAME)
+                    KeyValueRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                     Text(
                         "© 2026 Greigh Studios LLC. All rights reserved.",
                         color = Ct.colors.muted, fontSize = 12.sp,
@@ -494,7 +494,6 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "biolock" -> BioLockDialog(vm, activity, lockAfter, close)
         "licenses" -> LicensesDialog(close)
         "tabs" -> TabsDialog(vm, close)
-        "bank" -> BankDialog(vm, close)
     }
 }
 

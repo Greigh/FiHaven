@@ -156,17 +156,6 @@ private val perks = listOf(
 
 @Composable
 fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
-    val ent by vm.entitlement.collectAsStateWithLifecycle()
-    val stripePortal by vm.stripePortal.collectAsStateWithLifecycle()
-    val billing = LocalBilling.current
-    val products: List<ProductDetails> =
-        if (billing != null) billing.products.collectAsStateWithLifecycle().value else emptyList()
-    val activity = LocalContext.current.findActivity()
-    val context = LocalContext.current
-    var showRedeem by remember { mutableStateOf(false) }
-    val billingNote = vm.billingNote(ent)
-    val manageLabel = vm.manageButtonLabel(ent)
-
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -178,115 +167,134 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("Close", color = Ct.colors.muted) }
                 }
-                Column(
+                PaywallContent(
+                    vm,
                     Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The paywall itself, with no presentation chrome of its own — so the same
+ * perks, plans, and legal footer can be a dialog over a locked feature *or*
+ * the body of the Pro screen, where putting them behind an "Upgrade" button
+ * only added a tap. The caller supplies the scrolling [modifier].
+ */
+@Composable
+fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
+    val ent by vm.entitlement.collectAsStateWithLifecycle()
+    val stripePortal by vm.stripePortal.collectAsStateWithLifecycle()
+    val billing = LocalBilling.current
+    val products: List<ProductDetails> =
+        if (billing != null) billing.products.collectAsStateWithLifecycle().value else emptyList()
+    val activity = LocalContext.current.findActivity()
+    val context = LocalContext.current
+    val billingNote = vm.billingNote(ent)
+    val manageLabel = vm.manageButtonLabel(ent)
+
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Wordmark(28)
+        ProBadge()
+        Text(
+            "Unlock the planning tools that turn your bills into a payoff plan.",
+            color = Ct.colors.muted, fontSize = 15.sp, textAlign = TextAlign.Center,
+        )
+        CtCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                perks.forEach { p ->
+                    Row {
+                        Text("•  ", color = Ct.colors.accent, fontWeight = FontWeight.Bold)
+                        Text(p, color = Ct.colors.text, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // Family is a separate subscription, not a Pro tier — so it
+        // gets its own card rather than sitting in the plan list.
+        val familyProduct = products.firstOrNull { it.productId == BillingManager.FAMILY }
+        val proProducts = products.filter { it.productId != BillingManager.FAMILY }
+        val onFamily = ent.plan == "family"
+        val buy = { p: ProductDetails -> activity?.let { billing?.launchPurchase(it, p) }; Unit }
+
+        if (ent.pro) {
+            ActiveCard(ent)
+            billingNote?.let {
+                Text(it, color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+            }
+            // An existing solo-Pro subscriber had no way to reach Family.
+            // Play treats this as a plan change (see BillingManager).
+            if (!onFamily && familyProduct != null) {
+                FamilyOption(familyProduct, isUpgrade = true) { buy(familyProduct) }
+            }
+            manageLabel?.let { label ->
+                OutlinedButton(
+                    onClick = { vm.manageSubscription(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(label, color = Ct.colors.text) }
+            }
+        } else if (products.isEmpty()) {
+            Text(
+                "Subscriptions aren’t available right now. Please check your connection and try again.",
+                color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
+            )
+        } else {
+            proProducts.forEach { product ->
+                OutlinedButton(
+                    onClick = { buy(product) },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Wordmark(28)
-                    ProBadge()
-                    Text(
-                        "Unlock the planning tools that turn your bills into a payoff plan.",
-                        color = Ct.colors.muted, fontSize = 15.sp, textAlign = TextAlign.Center,
-                    )
-                    CtCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            perks.forEach { p ->
-                                Row {
-                                    Text("•  ", color = Ct.colors.accent, fontWeight = FontWeight.Bold)
-                                    Text(p, color = Ct.colors.text, fontSize = 14.sp)
-                                }
-                            }
-                        }
-                    }
-
-                    // Family is a separate subscription, not a Pro tier — so it
-                    // gets its own card rather than sitting in the plan list.
-                    val familyProduct = products.firstOrNull { it.productId == BillingManager.FAMILY }
-                    val proProducts = products.filter { it.productId != BillingManager.FAMILY }
-                    val onFamily = ent.plan == "family"
-                    val buy = { p: ProductDetails -> activity?.let { billing?.launchPurchase(it, p) }; Unit }
-
-                    if (ent.pro) {
-                        ActiveCard(ent)
-                        billingNote?.let {
-                            Text(it, color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
-                        }
-                        // An existing solo-Pro subscriber had no way to reach Family.
-                        // Play treats this as a plan change (see BillingManager).
-                        if (!onFamily && familyProduct != null) {
-                            FamilyOption(familyProduct, isUpgrade = true) { buy(familyProduct) }
-                        }
-                        manageLabel?.let { label ->
-                            OutlinedButton(
-                                onClick = { vm.manageSubscription(context) },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text(label, color = Ct.colors.text) }
-                        }
-                    } else if (products.isEmpty()) {
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            "Subscriptions aren’t available right now. You can still redeem a code below.",
-                            color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
+                            BillingManager.planTitle(product),
+                            color = Ct.colors.text,
+                            fontWeight = FontWeight.SemiBold,
                         )
-                    } else {
-                        proProducts.forEach { product ->
-                            OutlinedButton(
-                                onClick = { buy(product) },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        BillingManager.planTitle(product),
-                                        color = Ct.colors.text,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    BillingManager.period(product)?.let { len ->
-                                        Text(len, color = Ct.colors.muted, fontSize = 12.sp)
-                                    }
-                                }
-                                Text(
-                                    BillingManager.formattedPrice(product) ?: "",
-                                    color = Ct.colors.text,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
+                        BillingManager.period(product)?.let { len ->
+                            Text(len, color = Ct.colors.muted, fontSize = 12.sp)
                         }
-                        familyProduct?.let { p ->
-                            FamilyOption(p, isUpgrade = false) { buy(p) }
-                        }
-                    }
-
-                    TextButton(onClick = { showRedeem = true }) {
-                        Text("Have a promo code?", color = Ct.colors.accent, fontWeight = FontWeight.SemiBold)
-                    }
-                    TextButton(onClick = { vm.restore() }) {
-                        Text("Restore purchases", color = Ct.colors.muted)
                     }
                     Text(
-                        "Subscriptions are auto-renewing. Payment is charged through Google Play. Renews unless canceled before the period ends. Manage in Google Play → Subscriptions.",
-                        color = Ct.colors.muted, fontSize = 11.sp, textAlign = TextAlign.Center,
+                        BillingManager.formattedPrice(product) ?: "",
+                        color = Ct.colors.text,
+                        fontWeight = FontWeight.SemiBold,
                     )
-                    val uriHandler = LocalUriHandler.current
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = { uriHandler.openUri("https://fihaven.app/privacy") }) {
-                            Text("Privacy Policy", color = Ct.colors.accent, fontSize = 12.sp)
-                        }
-                        Text("·", color = Ct.colors.muted, fontSize = 12.sp)
-                        TextButton(onClick = { uriHandler.openUri("https://fihaven.app/terms") }) {
-                            Text("Terms of Use (EULA)", color = Ct.colors.accent, fontSize = 12.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            familyProduct?.let { p ->
+                FamilyOption(p, isUpgrade = false) { buy(p) }
+            }
+        }
+
+        // Restore, the store's terms and the required links are one block: the
+        // 18dp that separates the cards above read as dead space between three
+        // lines of fine print.
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            TextButton(onClick = { vm.restore() }) {
+                Text("Restore purchases", color = Ct.colors.muted)
+            }
+            Text(
+                "Subscriptions are auto-renewing. Payment is charged through Google Play. Renews unless canceled before the period ends. Manage in Google Play → Subscriptions.",
+                color = Ct.colors.muted, fontSize = 11.sp, textAlign = TextAlign.Center,
+            )
+            val uriHandler = LocalUriHandler.current
+            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { uriHandler.openUri("https://fihaven.app/privacy") }) {
+                    Text("Privacy Policy", color = Ct.colors.accent, fontSize = 12.sp)
+                }
+                Text("·", color = Ct.colors.muted, fontSize = 12.sp)
+                TextButton(onClick = { uriHandler.openUri("https://fihaven.app/terms") }) {
+                    Text("Terms of Use (EULA)", color = Ct.colors.accent, fontSize = 12.sp)
                 }
             }
         }
     }
-
-    if (showRedeem) RedeemCodeDialog(vm) { showRedeem = false }
 }
 
 @Composable
@@ -323,55 +331,6 @@ private fun ActiveCard(ent: app.fihaven.core.model.Entitlement) {
             if (line != null) {
                 Spacer(Modifier.height(4.dp))
                 Text(line, color = Ct.colors.muted, fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun RedeemCodeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
-    var code by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var success by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(20.dp), color = Ct.colors.surface,
-            modifier = Modifier.fillMaxWidth(0.92f)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Redeem a code", color = Ct.colors.text, fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("Close", color = Ct.colors.muted) }
-                }
-                OutlinedTextField(
-                    value = code,
-                    onValueChange = { code = it.uppercase() },
-                    label = { Text("Promo code") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Button(
-                    onClick = {
-                        busy = true; error = null; success = null
-                        vm.redeemPromo(code) { result, err ->
-                            busy = false
-                            when {
-                                err != null -> error = err
-                                result?.kind == "store_offer" -> success = "Open Google Play to apply your offer."
-                                result?.entitlement?.pro == true -> success = "You’re now on FiHaven Pro 🎉"
-                            }
-                        }
-                    },
-                    enabled = !busy && code.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = androidx.compose.ui.graphics.Color.White)
-                    else Text("Redeem")
-                }
-                success?.let { Text(it, color = Ct.colors.green, fontSize = 14.sp) }
-                error?.let { Text(it, color = Ct.colors.red, fontSize = 14.sp) }
             }
         }
     }

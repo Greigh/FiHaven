@@ -1,6 +1,7 @@
 package app.fihaven.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,8 +50,12 @@ import kotlinx.coroutines.launch
 /// and disconnect all run through the existing /api/plaid endpoints; the
 /// "Connect" button opens Plaid Link with a server-issued link token and
 /// exchanges the resulting public token back to the server.
+///
+/// Rendered inline in Settings › Bank rather than behind a row of its own:
+/// that screen holds nothing else, so the row was a tap between the user and
+/// the only thing there.
 @Composable
-fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
+fun BankConnections(vm: AppViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<PlaidStatus?>(null) }
@@ -151,7 +156,12 @@ fun BankDialog(vm: AppViewModel, onDone: () -> Unit) {
         }
     }
 
-    FormDialog("Bank connections", saveEnabled = false, onSave = {}, onDismiss = onDone) {
+    // The section card is padding-free, so the content carries its own — the
+    // 16dp/12dp the form dialogs used, kept so nothing shifts visually.
+    Column(
+        Modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             "Optionally link a bank with Plaid to auto-fetch balances. FiHaven works fully by hand, so a dropped connection never breaks your dashboard.",
             color = Ct.colors.muted, fontSize = 13.sp,

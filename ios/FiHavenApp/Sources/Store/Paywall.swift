@@ -117,8 +117,27 @@ struct ProLockedView: View {
 /// offer-code sheet. Server-issued FiHaven promo codes are redeemable on the
 /// web and on Android only — this app must never take a code by hand.
 struct PaywallView: View {
-    @EnvironmentObject var billing: StoreManager
     @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView { PaywallContent() }
+                .background(Theme.bg.ignoresSafeArea())
+                .navigationTitle("FiHaven Pro")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                }
+        }
+    }
+}
+
+/// The paywall itself, with no presentation chrome of its own — so the same
+/// perks, plans, and legal footer can be a sheet over a locked feature *or*
+/// the body of the Pro screen, where putting them behind an "Upgrade" button
+/// only added a tap.
+struct PaywallContent: View {
+    @EnvironmentObject var billing: StoreManager
 
     /// Pro perks only. Family sharing is deliberately absent: creating a household
     /// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
@@ -136,53 +155,43 @@ struct PaywallView: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 22) {
-                    header
-                    perksCard
-                    if billing.isPro {
-                        activeCard
-                        // A solo-Pro subscriber previously had no way to reach
-                        // Family from anywhere in the app.
-                        if !onFamily, let family = familyProduct {
-                            familyOption(family, isUpgrade: true)
-                        }
-                    } else {
-                        plansSection
-                        if let family = familyProduct {
-                            familyOption(family, isUpgrade: false)
-                        }
-                    }
-                    if billing.isPro, let note = billing.billingNote {
-                        Text(note)
-                            .font(Theme.ui(13))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
-                    }
-                    if let manageLabel = billing.manageButtonLabel {
-                        Button(manageLabel) { Task { await billing.manageSubscription() } }
-                            .buttonStyle(PlanButtonStyle())
-                    }
-                    footer
+        VStack(spacing: 22) {
+            header
+            perksCard
+            if billing.isPro {
+                activeCard
+                // A solo-Pro subscriber previously had no way to reach
+                // Family from anywhere in the app.
+                if !onFamily, let family = familyProduct {
+                    familyOption(family, isUpgrade: true)
                 }
-                .padding(20)
+            } else {
+                plansSection
+                if let family = familyProduct {
+                    familyOption(family, isUpgrade: false)
+                }
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("FiHaven Pro")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            if billing.isPro, let note = billing.billingNote {
+                Text(note)
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
             }
-            .alert("Notice", isPresented: messageBinding) {
-                Button("OK") { billing.message = nil }
-            } message: {
-                Text(billing.message ?? "")
+            if let manageLabel = billing.manageButtonLabel {
+                Button(manageLabel) { Task { await billing.manageSubscription() } }
+                    .buttonStyle(PlanButtonStyle())
             }
-            // Re-fetch when the sheet opens — launch-time StoreKit can return
-            // [] (agreement / metadata / network), and we never retried before.
-            .task { await billing.loadProducts() }
+            footer
         }
+        .padding(20)
+        .alert("Notice", isPresented: messageBinding) {
+            Button("OK") { billing.message = nil }
+        } message: {
+            Text(billing.message ?? "")
+        }
+        // Re-fetch whenever this appears — launch-time StoreKit can return
+        // [] (agreement / metadata / network), and we never retried before.
+        .task { await billing.loadProducts() }
     }
 
     private var messageBinding: Binding<Bool> {
@@ -354,8 +363,10 @@ struct PaywallView: View {
         }
     }
 
+    /// One tight block: the 22pt that separates the cards above read as dead
+    /// space between four lines of fine print.
     private var footer: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             // Opens Apple's own redemption sheet (StoreKit). No in-app code
             // entry — Guideline 3.1.1.
             Button("Redeem an App Store code") { billing.presentOfferCodeSheet() }
@@ -368,7 +379,6 @@ struct PaywallView: View {
             Text("Subscriptions are auto-renewing. Payment is charged to your Apple ID. Renews unless canceled at least 24 hours before the period ends. Manage or cancel in Settings → Apple ID → Subscriptions.")
                 .font(Theme.ui(11)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
-                .padding(.top, 4)
             // Required functional links for Guideline 3.1.2 (also in Settings → About).
             HStack(spacing: 6) {
                 Link("Privacy Policy", destination: URL(string: "https://fihaven.app/privacy")!)

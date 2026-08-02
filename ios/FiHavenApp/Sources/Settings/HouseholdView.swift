@@ -107,6 +107,7 @@ final class HouseholdModel: ObservableObject {
         case "invalid-email": return "Enter a valid email address."
         case "already-member": return "That person is already in your household."
         case "household-full": return "Your household is full."
+        case "household-inactive": return "Your Family plan ended, so this household is read-only. Resubscribe to make changes."
         case "invite-email-mismatch": return "That invite was sent to a different email."
         case "invite-expired": return "That invite has expired."
         case "invite-used": return "That invite was already used."
@@ -117,6 +118,7 @@ final class HouseholdModel: ObservableObject {
 }
 
 struct HouseholdSettingsView: View {
+    @EnvironmentObject var billing: StoreManager
     @StateObject private var model: HouseholdModel
     @State private var name = ""
     @State private var inviteEmail = ""
@@ -154,6 +156,26 @@ struct HouseholdSettingsView: View {
         .sheet(isPresented: $showPaywall) { PaywallView() }
     }
 
+    /// "$29.99 / year" for the Family SKU, or nil before StoreKit has answered.
+    /// The upsell still stands without it — the paywall repeats the price on
+    /// the way in.
+    private var familyPriceLabel: String? {
+        guard let product = billing.products.first(where: { $0.id == StoreManager.familyID })
+        else { return nil }
+        guard let period = product.subscription?.subscriptionPeriod, period.value == 1 else {
+            return product.displayPrice
+        }
+        let unit: String
+        switch period.unit {
+        case .day: unit = "day"
+        case .week: unit = "week"
+        case .month: unit = "month"
+        case .year: unit = "year"
+        @unknown default: return product.displayPrice
+        }
+        return "\(product.displayPrice) / \(unit)"
+    }
+
     // ── No household yet ─────────────────────────────────────────────
     @ViewBuilder
     private func joinOrCreateSections() -> some View {
@@ -173,6 +195,11 @@ struct HouseholdSettingsView: View {
                     }
                     Text("Start a household and invite up to three people with the Family plan. Already invited? You can join below for free.")
                         .font(Theme.ui(14)).foregroundStyle(Theme.muted)
+                    // What it costs, before the button that starts the purchase.
+                    // StoreKit may not have answered yet, so it's conditional.
+                    if let price = familyPriceLabel {
+                        Text(price).font(Theme.ui(14, weight: .semibold)).foregroundStyle(Theme.text)
+                    }
                     Button("Get the Family plan") { showPaywall = true }
                         .buttonStyle(PrimaryButtonStyle())
                 }
@@ -193,6 +220,21 @@ struct HouseholdSettingsView: View {
     @ViewBuilder
     private func householdSections(_ view: HouseholdView) -> some View {
         let isOwner = view.role == "owner"
+
+        // Only the owner's plan drives the cap, so only the owner can thaw it.
+        if view.isFrozen {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(isOwner
+                         ? "Read-only — your Family plan ended"
+                         : "Read-only — the household owner’s Family plan ended")
+                        .font(Theme.ui(14, weight: .semibold))
+                    Text("Everything you shared is still here and still visible to everyone in the household. Adding, editing and inviting are paused until \(isOwner ? "you resubscribe" : "the owner resubscribes") — nothing has been deleted.")
+                        .font(Theme.ui(13)).foregroundStyle(Theme.muted)
+                }
+                .padding(.vertical, 2)
+            }
+        }
 
         Section("Household") {
             HStack {
@@ -233,7 +275,7 @@ struct HouseholdSettingsView: View {
                         Task { await model.invite(email: inviteEmail.trimmingCharacters(in: .whitespaces)); inviteEmail = "" }
                     }.disabled(model.busy || inviteEmail.isEmpty)
                 }
-            } else {
+            } else if !view.isFrozen {
                 Section("Invite someone") {
                     Text("Inviting more people needs the Family plan. You’re still the owner of this household.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)

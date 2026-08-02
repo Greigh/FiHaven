@@ -52,7 +52,9 @@ struct BankView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Bank connections")
+        // Reached straight from Settings › Bank, so it wears that title and the
+        // same branded bar as every other settings detail screen.
+        .brandedNavigationBar("Bank")
         .task { await load() }
         .alert("Accept Current Balance suggestions?", isPresented: $promptAcceptAll) {
             Button("Accept all") {

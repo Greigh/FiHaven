@@ -190,6 +190,15 @@ class BillingManager(
                 else -> null
             }
 
+        /** Bare billing unit ("year"), for prices written as "$29.99 / year". */
+        fun periodUnit(p: ProductDetails): String? =
+            when (basePhase(p)?.billingPeriod) {
+                "P1M" -> "month"
+                "P1Y" -> "year"
+                "P1W" -> "week"
+                else -> null
+            }
+
         /** Short title for plan buttons (product name from Play, else period). */
         fun planTitle(p: ProductDetails): String =
             p.name.ifBlank { period(p)?.substringBefore(" ·") ?: "FiHaven Pro" }
