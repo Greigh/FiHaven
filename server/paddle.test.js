@@ -137,3 +137,60 @@ describe('paddle — environment', () => {
     expect(paddle.environment()).toBe('sandbox');
   });
 });
+
+describe('paddle — cancelSubscription', () => {
+  beforeEach(() => { process.env.PADDLE_API_KEY = 'pdl_test_key'; });
+  afterEach(() => { vi.unstubAllGlobals(); delete process.env.PADDLE_API_KEY; });
+
+  const okFetch = () => vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ data: { id: 'sub_1', status: 'canceled' } }),
+  });
+
+  it('posts to the subscription cancel endpoint with the API key', async () => {
+    const f = okFetch();
+    vi.stubGlobal('fetch', f);
+    await paddle.cancelSubscription('sub_1');
+
+    expect(f).toHaveBeenCalledTimes(1);
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe(paddle.API_BASE + '/subscriptions/sub_1/cancel');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer pdl_test_key');
+    // Immediate by default: account deletion has no paid term left to run out.
+    expect(JSON.parse(init.body)).toEqual({ effective_from: 'immediately' });
+  });
+
+  it('can defer to the end of the paid period when asked', async () => {
+    const f = okFetch();
+    vi.stubGlobal('fetch', f);
+    await paddle.cancelSubscription('sub_2', 'next_billing_period');
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({
+      effective_from: 'next_billing_period',
+    });
+  });
+
+  it('escapes the subscription id rather than pasting it into the path', async () => {
+    const f = okFetch();
+    vi.stubGlobal('fetch', f);
+    await paddle.cancelSubscription('sub/../../danger');
+    expect(f.mock.calls[0][0]).toBe(paddle.API_BASE + '/subscriptions/sub%2F..%2F..%2Fdanger/cancel');
+  });
+
+  it('throws with the status attached so callers can tell 4xx from 5xx', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: { code: 'entity_not_found', detail: 'not found' } }),
+    }));
+    await expect(paddle.cancelSubscription('sub_gone')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('refuses to call Paddle at all without an API key', async () => {
+    delete process.env.PADDLE_API_KEY;
+    const f = okFetch();
+    vi.stubGlobal('fetch', f);
+    await expect(paddle.cancelSubscription('sub_1')).rejects.toThrow('paddle-not-configured');
+    expect(f).not.toHaveBeenCalled();
+  });
+});

@@ -115,7 +115,12 @@ struct SettingsView: View {
             }
             Button("Change email") { sheet = .changeEmail }
                 .disabled(!current.emailVerified)
-            Button("Change password") { sheet = .changePassword }
+            // Sign in with Apple / Google accounts have no password, so the
+            // change-password flow (which re-checks the current one) can't
+            // succeed for them.
+            if current.hasPassword {
+                Button("Change password") { sheet = .changePassword }
+            }
             HStack(spacing: 8) {
                 let offline = store.syncState == .offline
                 let saving = store.syncState == .saving
@@ -132,6 +137,9 @@ struct SettingsView: View {
             .accessibilityLabel(
                 "\(A11y.syncStatusWords(offline: store.syncState == .offline, saving: store.syncState == .saving)). \(syncLine)"
             )
+            // Guideline 5.1.1(v): account deletion has to be easy to find, so it
+            // sits right under Account rather than only in the Data section.
+            Button("Delete account", role: .destructive) { sheet = .deleteAccount }
         } header: {
             Text("Account")
         } footer: {
@@ -546,6 +554,7 @@ struct SettingsView: View {
                 HStack { Text("Export data"); Spacer(); if busy { ProgressView() } }
             }
             Button("Clear data", role: .destructive) { sheet = .clearData }
+            // Also reachable here — the canonical entry point is in Account.
             Button("Delete account", role: .destructive) { sheet = .deleteAccount }
         }
     }

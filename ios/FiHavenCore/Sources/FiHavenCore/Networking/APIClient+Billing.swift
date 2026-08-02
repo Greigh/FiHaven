@@ -47,15 +47,4 @@ extension APIClient {
         let data = try await send(req)
         return try decode(EntitlementResponse.self, from: data).entitlement
     }
-
-    /// Redeem a server-issued promo code. A `free_sub` grants entitlement
-    /// directly; a `store_offer` returns the native offer to redeem in the
-    /// store. Throws `APIError.http(409, …)` for invalid/exhausted/already.
-    public func redeemPromo(code: String) async throws -> PromoResult {
-        let body = PromoRedeemBody(code: code)
-        let req = try makeRequest(path: "api/billing/promo/redeem", method: .POST,
-                                  body: AnyEncodable(body))
-        let data = try await send(req)
-        return try decode(PromoResult.self, from: data)
-    }
 }

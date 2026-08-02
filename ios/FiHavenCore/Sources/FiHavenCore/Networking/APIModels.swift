@@ -36,16 +36,21 @@ public struct User: Codable, Equatable, Sendable {
     /// Epoch-ms when the account was created — powers "Member since" on the
     /// profile. nil from older payloads that didn't include it.
     public var createdAt: Double?
+    /// False for Sign in with Apple / Google accounts, which have no password
+    /// to re-enter. Re-auth prompts (account deletion) drop the password field
+    /// when this is false, or those users could never confirm.
+    public var hasPassword: Bool
 
-    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true, createdAt: Double? = nil) {
+    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true, createdAt: Double? = nil, hasPassword: Bool = true) {
         self.email = email
         self.name = name
         self.emailVerified = emailVerified
         self.onboarded = onboarded
         self.createdAt = createdAt
+        self.hasPassword = hasPassword
     }
 
-    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded, createdAt }
+    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded, createdAt, hasPassword }
 
     // Tolerant decode: a missing flag (older payloads) is treated as
     // verified / onboarded so we never falsely lock out or re-onboard a
@@ -57,6 +62,7 @@ public struct User: Codable, Equatable, Sendable {
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? true
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
         createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt)
+        hasPassword = try c.decodeIfPresent(Bool.self, forKey: .hasPassword) ?? true
     }
 }
 

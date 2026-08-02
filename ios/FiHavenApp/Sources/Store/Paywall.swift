@@ -110,12 +110,15 @@ struct ProLockedView: View {
     }
 }
 
-/// The subscription paywall: perks, plan options, promo + offer-code
+/// The subscription paywall: perks, plan options, App Store offer-code
 /// redemption, and restore.
+///
+/// Guideline 3.1.1: on iOS the only code-redemption path is Apple's own
+/// offer-code sheet. Server-issued FiHaven promo codes are redeemable on the
+/// web and on Android only — this app must never take a code by hand.
 struct PaywallView: View {
     @EnvironmentObject var billing: StoreManager
     @Environment(\.dismiss) private var dismiss
-    @State private var showRedeem = false
 
     /// Pro perks only. Family sharing is deliberately absent: creating a household
     /// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
@@ -171,7 +174,6 @@ struct PaywallView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
-            .sheet(isPresented: $showRedeem) { RedeemCodeView() }
             .alert("Notice", isPresented: messageBinding) {
                 Button("OK") { billing.message = nil }
             } message: {
@@ -233,7 +235,7 @@ struct PaywallView: View {
                 ProgressView().padding()
             } else if billing.products.isEmpty {
                 VStack(spacing: 10) {
-                    Text("Subscriptions aren’t available right now. You can still redeem a code below.")
+                    Text("Subscriptions aren’t available right now. Please check your connection and try again.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
                     Button("Try again") { Task { await billing.loadProducts() } }
@@ -354,12 +356,12 @@ struct PaywallView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            Button("Have a promo code?") { showRedeem = true }
+            // Opens Apple's own redemption sheet (StoreKit). No in-app code
+            // entry — Guideline 3.1.1.
+            Button("Redeem an App Store code") { billing.presentOfferCodeSheet() }
                 .font(Theme.ui(15, weight: .semibold))
                 .foregroundStyle(Theme.accent)
-            Button("Redeem an App Store code") { billing.presentOfferCodeSheet() }
-                .font(Theme.ui(14))
-                .foregroundStyle(Theme.accent)
+                .accessibilityHint("Opens the App Store code redemption sheet")
             Button("Restore purchases") { Task { await billing.restore() } }
                 .font(Theme.ui(14))
                 .foregroundStyle(Theme.muted)
@@ -442,86 +444,5 @@ struct PlanButtonStyle: ButtonStyle {
                     .stroke(Theme.accent.opacity(0.5), lineWidth: 1.5)
             )
             .opacity(configuration.isPressed ? 0.85 : 1)
-    }
-}
-
-/// Promo-code entry (server-issued codes). A `free_sub` flips the user to
-/// Pro immediately; a `store_offer` hands off to Apple's offer-code sheet.
-struct RedeemCodeView: View {
-    @EnvironmentObject var billing: StoreManager
-    @Environment(\.dismiss) private var dismiss
-    @State private var code = ""
-    @State private var busy = false
-    @State private var success: String?
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                FieldLabel(text: "Promo code")
-                TextField("e.g. FREEPRO30", text: $code)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .font(Theme.mono(16))
-                    .padding(14)
-                    .background(Theme.surface2)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
-
-                Button {
-                    redeem()
-                } label: {
-                    if busy { ProgressView() } else { Text("Redeem") }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
-
-                if let success {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Theme.green)
-                        Text(success)
-                            .font(Theme.ui(14))
-                            .foregroundStyle(Theme.text)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(success)
-                }
-                if let msg = billing.message {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundStyle(Theme.red)
-                        Text(msg)
-                            .font(Theme.ui(14))
-                            .foregroundStyle(Theme.text)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Error. \(msg)")
-                }
-                Spacer()
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Redeem a code")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-            }
-        }
-    }
-
-    private func redeem() {
-        billing.message = nil
-        success = nil
-        Task {
-            busy = true
-            defer { busy = false }
-            guard let result = await billing.redeemPromo(code) else { return }
-            if result.kind == "store_offer" {
-                billing.presentOfferCodeSheet()
-                dismiss()
-            } else if result.entitlement?.pro == true {
-                success = "You’re now on FiHaven Pro 🎉"
-            }
-        }
     }
 }

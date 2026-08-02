@@ -454,8 +454,8 @@
           </form>
         </section>
 
-        <!-- ── Change password ── -->
-        <section class="auth-card">
+        <!-- ── Change password ── (hidden for Apple/Google accounts, which have none) -->
+        <section class="auth-card" data-change-password-section>
           <h2 style="font-size:20px;letter-spacing:-.03em;">Change password</h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">Changing your password signs out every other session — only this device stays signed in.</p>
           <form class="auth-form" data-form="password" style="margin-top:14px;">
@@ -799,6 +799,8 @@
           <h2 style="font-size:20px;letter-spacing:-.03em;color:var(--red);">Delete account</h2>
           <p style="margin-top:6px;color:var(--muted);font-size:14px;">This permanently deletes your account and all of your data — bills, cards, history, and settings. This cannot be undone.</p>
           <form class="auth-form" data-form="delete" style="margin-top:14px;">
+            <!-- Hidden for Apple/Google accounts: they have no password, and the
+                 typed confirm phrase below authorizes deletion instead. -->
             <div class="auth-field">
               <label for="delete-password">Current password</label>
               <input type="password" id="delete-password" autocomplete="current-password" placeholder="Enter your password" required/>

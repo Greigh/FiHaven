@@ -9,6 +9,7 @@
 | `docs/maintainer/` | Yes | Shared maintainer notes (this file). |
 | [`store-launch-checklist.md`](store-launch-checklist.md) | Yes | Public App Store + Play launch: demo account, review notes, Data safety, go-live flip, ops. |
 | [`store-listing-copy.md`](store-listing-copy.md) | Yes | Paste-ready App Store Connect + Play listing, keywords, Data safety, IAP product IDs. |
+| [`docs/local/app-review-1.6.1-resubmission.md`](../local/app-review-1.6.1-resubmission.md) | **No** (gitignored) | Clearing the 1.6.0 rejection (3.1.1 promo codes, 2.1(b) IAP attach, 5.1.1(v) deletion + video). |
 | `docs/local/` | **No** (gitignored) | Your App Store Connect copy-paste notes, draft listing text, API key paths. Start with `docs/local/app-store-connect.md`. |
 | `docs/testflight-license-agreement.txt` | Yes | Plain-text Terms for TestFlight external testers. Keep in sync with `client/terms.html` + beta notice at top. |
 | `docs/*.md` (policy markdown) | Yes | Source for compliance policies. |

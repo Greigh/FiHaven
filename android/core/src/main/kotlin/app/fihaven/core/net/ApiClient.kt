@@ -351,8 +351,11 @@ class ApiClient(
         send(makeRequest("api/account/change-password", HttpMethod.POST, encode(ChangePasswordBody(currentPassword, newPassword))))
     }
 
-    suspend fun deleteAccount(password: String, code: String = "") {
-        send(makeRequest("api/account/delete", HttpMethod.POST, encode(PasswordCodeBody(password, code))))
+    /** Permanently delete the account. `confirm` is the typed confirmation
+     *  phrase, which is what authorizes deletion for Apple/Google accounts —
+     *  they have no password to re-enter. */
+    suspend fun deleteAccount(password: String, code: String = "", confirm: String = "") {
+        send(makeRequest("api/account/delete", HttpMethod.POST, encode(DeleteAccountBody(password, code, confirm))))
     }
 
     /** Erase selected data groups (subset of bills/cards/payments/bank) while
