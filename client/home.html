@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#3D6FE1"/>
 
   <title>FiHaven — Quiet money. Calm month.</title>
-  <meta name="description" content="FiHaven is a calm bill and debt dashboard — web, iPhone, and iPad in sync. Track bills, cards, loans, budget lenses, card perks, and payoff plans. Optional Pro: bank linking, family sharing, calendar, and rewards optimizer."/>
+  <meta name="description" content="FiHaven is a calm bill and debt dashboard — web, iPhone, iPad, and Android in sync. Track bills, cards, loans, budget lenses, card perks, and payoff plans. Optional Pro: bank linking, family sharing, calendar, and rewards optimizer."/>
   <meta name="robots" content="index,follow,max-image-preview:large"/>
   <link rel="canonical" href="https://fihaven.app/"/>
   <link rel="alternate" hreflang="en" href="https://fihaven.app/"/>
@@ -17,12 +17,12 @@
   <meta property="og:site_name" content="FiHaven"/>
   <meta property="og:url" content="https://fihaven.app/"/>
   <meta property="og:title" content="FiHaven — Quiet money. Calm month."/>
-  <meta property="og:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, and iPad. Optional Pro bank linking, rewards tips, and family sharing."/>
+  <meta property="og:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, iPad, and Android. Optional Pro bank linking, rewards tips, and family sharing."/>
   <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
   <meta property="og:locale" content="en_US"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FiHaven — Quiet money. Calm month."/>
-  <meta name="twitter:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, and iPad. Optional Pro bank linking, rewards tips, and family sharing."/>
+  <meta name="twitter:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, iPad, and Android. Optional Pro bank linking, rewards tips, and family sharing."/>
   <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
 
   <link rel="manifest" href="/site.webmanifest"/>
@@ -42,7 +42,7 @@
         "@type": "WebSite",
         "name": "FiHaven",
         "url": "https://fihaven.app/",
-        "description": "A calm bill and debt dashboard — web, iPhone, and iPad in sync.",
+        "description": "A calm bill and debt dashboard — web, iPhone, iPad, and Android in sync.",
         "inLanguage": "en-US"
       },
       {
@@ -115,7 +115,7 @@
               </li>
               <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
-                Android in Play testing
+                Android on Play open testing
               </li>
               <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
@@ -176,13 +176,12 @@
       <div class="marketing-shipped">
         <span class="marketing-shipped-badge">Just shipped · 1.6.1</span>
         <p>
-          Link a card to the bank account it actually is — with balance
-          suggestions that now work across every bank you've linked, and a
-          "don't link this one" option for the cards you'd rather keep manual.
-          Redesigned reminder emails that read properly in dark mode, with
-          one-click unsubscribe. Push notifications fixed on iPhone and Android.
-          Plus search on every major list, a clearer Pro paywall, and refreshed
-          onboarding.
+          Signing out now ends the session for real — your bill reminders stop
+          with it. Archiving a bill or card genuinely silences it: no reminders,
+          no counting toward your totals. A subscription bought on the web can be
+          managed from the phone apps again. Plus card&#8202;↔&#8202;bank matching
+          across every linked bank, redesigned reminder emails, and search on
+          every major list.
           <a href="https://github.com/Greigh/FiHaven/blob/main/CHANGELOG.md" target="_blank" rel="noopener">See what's new →</a>
         </p>
       </div>
@@ -401,16 +400,22 @@
             <span class="marketing-kicker">Everywhere you are</span>
             <h2 class="marketing-section-title">Web, iPhone, iPad — and Android.</h2>
             <p class="marketing-sub" style="margin:14px auto 0;text-align:center;">
-              One account syncs across the web app and native clients. Add a bill on your phone,
-              mark it paid on your laptop — same data, same calm dashboard. Bank linking and Pro
-              work on web, iPhone, iPad, and Android.
+              One account syncs across the web app and both native clients. Add a bill on your
+              phone, mark it paid on your laptop — same data, same calm dashboard. Bank linking
+              and Pro work everywhere. All three are open to join right now: the web is live,
+              iPhone and iPad run on TestFlight, and Android is in open testing on Google Play.
             </p>
           </div>
           <!--
+            All four badges are real links: Android open testing and iOS TestFlight
+            are both publicly joinable, so the beta pair is no longer a dead
+            aria-disabled <span>.
+
             Go-live flip (Phase 4): set data-store-live="true" on #app-store-badges
-            and put the public store URLs on the ios-live / android-live <a href>
-            attributes below. The script only toggles visibility — it never copies
-            attribute text into .href (CodeQL js/xss-through-dom).
+            and put the real App Store id on the ios-live <a href> below (android-live
+            already points at the same listing the open test uses). The script only
+            toggles visibility — it never copies attribute text into .href
+            (CodeQL js/xss-through-dom).
           -->
           <div
             class="app-badges"
@@ -421,26 +426,28 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm2 0v14h12V5H6zm3 15h6v2H9v-2z"/></svg>
               <span class="app-badge-text"><small>Use it now on the</small><strong>Web</strong></span>
             </a>
-            <span class="app-badge" data-store-badge="ios-beta" aria-disabled="true" role="img" aria-label="FiHaven for iOS — TestFlight beta">
+            <a class="app-badge" data-store-badge="ios-beta" href="https://testflight.apple.com/join/SdN4yuuH" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Join the FiHaven iOS beta on TestFlight">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.36 12.78c.02 2.7 2.37 3.6 2.4 3.61-.02.07-.37 1.28-1.23 2.53-.74 1.08-1.51 2.16-2.73 2.18-1.2.02-1.58-.71-2.95-.71-1.37 0-1.79.69-2.92.73-1.18.04-2.07-1.17-2.82-2.25-1.53-2.2-2.7-6.23-1.13-8.95.78-1.35 2.17-2.2 3.68-2.23 1.15-.02 2.24.79 2.95.79.7 0 2.02-.97 3.41-.83.58.02 2.21.24 3.26 1.78-.08.05-1.95 1.14-1.93 3.4M14.13 5.6c.63-.76 1.05-1.82.93-2.88-.9.04-2 .6-2.65 1.36-.58.67-1.09 1.75-.95 2.78 1.01.08 2.04-.51 2.67-1.26"/></svg>
-              <span class="app-badge-text"><small>iPhone &amp; iPad</small><strong>TestFlight</strong></span>
-            </span>
+              <span class="app-badge-text"><small>iPhone &amp; iPad — beta</small><strong>Join on TestFlight</strong></span>
+            </a>
             <a class="app-badge" data-store-badge="ios-live" hidden href="https://apps.apple.com/app/id0" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Download FiHaven on the App Store">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.36 12.78c.02 2.7 2.37 3.6 2.4 3.61-.02.07-.37 1.28-1.23 2.53-.74 1.08-1.51 2.16-2.73 2.18-1.2.02-1.58-.71-2.95-.71-1.37 0-1.79.69-2.92.73-1.18.04-2.07-1.17-2.82-2.25-1.53-2.2-2.7-6.23-1.13-8.95.78-1.35 2.17-2.2 3.68-2.23 1.15-.02 2.24.79 2.95.79.7 0 2.02-.97 3.41-.83.58.02 2.21.24 3.26 1.78-.08.05-1.95 1.14-1.93 3.4M14.13 5.6c.63-.76 1.05-1.82.93-2.88-.9.04-2 .6-2.65 1.36-.58.67-1.09 1.75-.95 2.78 1.01.08 2.04-.51 2.67-1.26"/></svg>
               <span class="app-badge-text"><small>Download on the</small><strong>App Store</strong></span>
             </a>
-            <span class="app-badge" data-store-badge="android-beta" aria-disabled="true" role="img" aria-label="FiHaven for Android — Google Play closed testing">
+            <a class="app-badge" data-store-badge="android-beta" href="https://play.google.com/store/apps/details?id=app.fihaven" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Join the FiHaven Android open test on Google Play">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3.5v17a1 1 0 0 0 1.5.86l14.5-8.5a1 1 0 0 0 0-1.72L5.5 2.64A1 1 0 0 0 4 3.5z"/></svg>
-              <span class="app-badge-text"><small>Android app</small><strong>Play closed testing</strong></span>
-            </span>
+              <span class="app-badge-text"><small>Android — open testing</small><strong>Get it on Google Play</strong></span>
+            </a>
             <a class="app-badge" data-store-badge="android-live" hidden href="https://play.google.com/store/apps/details?id=app.fihaven" style="text-decoration:none;" target="_blank" rel="noopener" aria-label="Get FiHaven on Google Play">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3.5v17a1 1 0 0 0 1.5.86l14.5-8.5a1 1 0 0 0 0-1.72L5.5 2.64A1 1 0 0 0 4 3.5z"/></svg>
               <span class="app-badge-text"><small>Get it on</small><strong>Google Play</strong></span>
             </a>
           </div>
-          <p data-store-footnote="beta" style="text-align:center;color:var(--muted);font-size:13px;max-width:560px;margin:18px auto 0;">
-            iOS is on TestFlight (not the public App Store yet). Android is in Google Play closed testing.
-            Email <a href="mailto:daniel@fihaven.app">daniel@fihaven.app</a> for tester access. Mac users can run the iPad app on Apple&nbsp;Silicon.
+          <p data-store-footnote="beta" style="text-align:center;color:var(--muted);font-size:13px;max-width:600px;margin:18px auto 0;">
+            No invite needed for either. <strong>Android is in open testing</strong> — install it straight
+            from the Play listing. <strong>iOS is on TestFlight</strong> while the public App Store listing
+            is still on the way; the TestFlight link joins you directly. Mac users can run the iPad app on
+            Apple&nbsp;Silicon. Questions? <a href="mailto:daniel@fihaven.app">daniel@fihaven.app</a>.
           </p>
           <p data-store-footnote="live" hidden style="text-align:center;color:var(--muted);font-size:13px;max-width:560px;margin:18px auto 0;">
             Same account on web, iPhone, iPad, and Android. Mac users can run the iPad app on Apple&nbsp;Silicon.
@@ -480,7 +487,7 @@
     </main>
 
     <footer class="site-footer">
-      <div>
+      <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> · made for people who'd rather not think about money.
       </div>
       <div class="site-footer-links" data-public-footer></div>

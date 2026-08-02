@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark"/>
   <meta name="theme-color" content="#3D6FE1"/>
 
-  <meta name="description" content="Answers about FiHaven — what's free vs Pro, bank linking, data export, mobile apps, bill schedules, and how the calm bill dashboard works."/>
+  <meta name="description" content="Answers about FiHaven — what's free vs Pro, Family sharing, bank linking, reminders, data export, how to get the iPhone and Android apps, and how the calm bill dashboard works."/>
   <meta name="robots" content="index,follow"/>
   <link rel="canonical" href="https://fihaven.app/faq"/>
 
@@ -66,7 +66,7 @@
         "name": "Are the iPhone and Android apps available yet?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Native iOS and Android apps use the same account and API as the website. Public App Store and Google Play listings are not live yet: iOS is on TestFlight; Android is in Google Play closed testing. Email daniel@fihaven.app for tester access, or use the full product on the web today."
+          "text": "Yes, and both are open to join without an invite. Android is in open testing on Google Play, so you can install it straight from the store listing. iPhone and iPad run on TestFlight via a public join link. The public App Store listing is not live yet. All of them use the same account and API as the website."
         }
       },
       {
@@ -75,6 +75,22 @@
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "Pro is $1.99 per month everywhere. Yearly is $14.99 on the web and $16.99 on iOS and Android. Family (household of up to three) is $25.99 per year on the web and $29.99 on the stores. The monthly and yearly Pro plans include a 7-day free trial; Family bills right away. You can cancel anytime."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Family sharing work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The Family plan lets you create a household of up to three people and share bills, cards, and savings goals with them. Joining a household is free — members never need their own subscription. If the Family plan lapses, shared data becomes read-only rather than disappearing."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens when I archive a bill or card?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Archiving keeps the item and its payment history but takes it out of active use: it disappears from your lists and totals, stops producing reminders and emails, and is no longer counted as debt or auto-marked paid. You can archive instead of delete by default, which is on after you finish setup."
         }
       },
       {
@@ -107,7 +123,7 @@
               <summary>What is FiHaven, exactly?</summary>
               <div class="faq-body">
                 <p>A calm workspace for recurring bills, credit cards, loans, spending, and payoff planning. You enter what you owe and when it&rsquo;s due; FiHaven shows what&rsquo;s left this month, what&rsquo;s coming up, and how extra payments would move your debt.</p>
-                <p>It&rsquo;s live on the <strong>web</strong> today. Native iOS and Android apps share the same account and API. Public store listings aren&rsquo;t live yet: iOS is on TestFlight; Android is in Google Play closed testing. Email <a href="mailto:daniel@fihaven.app">daniel@fihaven.app</a> for tester access.</p>
+                <p>It&rsquo;s live on the <strong>web</strong> today, and the native apps are open to anyone: <strong>Android</strong> is in <a href="https://play.google.com/store/apps/details?id=app.fihaven" target="_blank" rel="noopener">open testing on Google Play</a>, and <strong>iPhone / iPad</strong> run on <a href="https://testflight.apple.com/join/SdN4yuuH" target="_blank" rel="noopener">TestFlight</a>. Same account, same data, all three.</p>
               </div>
             </details>
             <details class="faq-item">
@@ -159,10 +175,21 @@
               </div>
             </details>
             <details class="faq-item">
+              <summary>How does Family sharing work?</summary>
+              <div class="faq-body">
+                <p><strong>Family</strong> lets you create a household of <strong>up to three people</strong> and share bills, cards, and savings goals across it. Everyone keeps their own login.</p>
+                <ul>
+                  <li><strong>Joining is free.</strong> Members accept an invite and need no subscription of their own — only the person who creates the household pays.</li>
+                  <li><strong>Free and Pro can&rsquo;t create one.</strong> Creating a household is the Family plan&rsquo;s job; Free and Pro accounts can join someone else&rsquo;s.</li>
+                  <li><strong>If the plan lapses, nothing is deleted.</strong> The shared household goes read-only — everyone can still see it, but it stops accepting changes until the plan is renewed.</li>
+                </ul>
+              </div>
+            </details>
+            <details class="faq-item">
               <summary>How do I upgrade or cancel Pro?</summary>
               <div class="faq-body">
                 <p>On the web, open <strong>FiHaven Pro</strong> from the account menu after you sign in — checkout is handled by Paddle, our merchant of record, and includes the 7-day trial on monthly and yearly. Manage or cancel from the customer portal there.</p>
-                <p>In the iOS or Android apps (TestFlight / Play testing), subscribe through Apple or Google — monthly and yearly Pro carry the same 7-day intro trial there. Manage or cancel in your store subscription settings. Pro follows your account across platforms.</p>
+                <p>In the iOS or Android apps, subscribe through Apple or Google — monthly and yearly Pro carry the same 7-day intro trial there. Manage or cancel in your store subscription settings. Pro follows your account across platforms, and each app tells you where your particular subscription is managed, so a plan bought on one platform is never a dead end on another.</p>
                 <p>Promo codes, when offered, can be redeemed in the same Pro dialog.</p>
               </div>
             </details>
@@ -203,6 +230,24 @@
               </div>
             </details>
             <details class="faq-item">
+              <summary>How do bill reminders reach me?</summary>
+              <div class="faq-body">
+                <p>Two independent routes, both optional and both configured in Settings &rarr; Notifications:</p>
+                <ul>
+                  <li><strong>Email</strong> — reminders ahead of a due date, plus a monthly summary and weekly digest if you want them. Every one carries a one-click unsubscribe.</li>
+                  <li><strong>Push / on-device</strong> — the iPhone and Android apps can schedule reminders on the device itself, so they arrive whether or not the app is open. You can pick more than one lead time (say, three days before and again on the day).</li>
+                </ul>
+                <p>Device reminders belong to the signed-in session: <strong>signing out clears them</strong>, and they come back when you sign in again.</p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Does my data sync between the web and my phone?</summary>
+              <div class="faq-body">
+                <p>Yes. There&rsquo;s one account and one copy of your data behind the web app, iPhone, iPad, and Android — add a bill on your phone and it&rsquo;s on your laptop, and your Pro entitlement is worked out on the server so it applies everywhere no matter where you subscribed.</p>
+                <p>FiHaven needs a connection to load your data, so it isn&rsquo;t an offline-first app. If you lose connectivity while you&rsquo;re working, edits you&rsquo;ve already made are held and retried until they save, rather than being dropped.</p>
+              </div>
+            </details>
+            <details class="faq-item">
               <summary>Can I search my bills, cards, and spending?</summary>
               <div class="faq-body">
                 <p>Yes. Bills, Cards / Loans, Subscriptions, and Spending each have a search field on web, iPhone, and Android so long lists are easier to scan.</p>
@@ -211,7 +256,14 @@
             <details class="faq-item">
               <summary>What happens when I archive a bill or card?</summary>
               <div class="faq-body">
-                <p>Onboarding and settings can prefer <strong>archive instead of delete</strong> (on by default when you finish setup). Retiring an item keeps its history instead of wiping it.</p>
+                <p>Archiving retires an item without destroying it — the payment history stays, but the item stops taking part in your month. Once archived, a bill or card:</p>
+                <ul>
+                  <li>disappears from your lists, dashboard, and upcoming view;</li>
+                  <li>stops counting toward your monthly bill total, card debt, and net worth;</li>
+                  <li>stops sending reminders — on your phone, by email, and by push;</li>
+                  <li>stops being auto-marked paid if it was on autopay.</li>
+                </ul>
+                <p>Onboarding and Settings can prefer <strong>archive instead of delete</strong> (on by default once you finish setup), so retiring something is the normal path and deleting is the exception. You can unarchive at any time.</p>
               </div>
             </details>
           </div>
@@ -248,12 +300,18 @@
         </div>
 
         <div class="legal-section">
-          <h3>Mobile apps</h3>
+          <h3>Apps &amp; platforms</h3>
           <div class="faq-list">
             <details class="faq-item">
               <summary>Are the iPhone and Android apps available yet?</summary>
               <div class="faq-body">
-                <p>Yes — the native apps use the same account and API as the website. Public App Store and Google Play listings aren&rsquo;t live yet: iOS is on TestFlight; Android is in Google Play closed testing. Email <a href="mailto:daniel@fihaven.app">daniel@fihaven.app</a> for tester access, or use FiHaven in your browser — it&rsquo;s the full product today.</p>
+                <p>Yes, and <strong>you don&rsquo;t need an invite for either</strong>.</p>
+                <ul>
+                  <li><strong>Android</strong> — FiHaven is in <strong>open testing</strong> on Google Play. Install it straight from <a href="https://play.google.com/store/apps/details?id=app.fihaven" target="_blank" rel="noopener">the store listing</a>; there&rsquo;s no waitlist.</li>
+                  <li><strong>iPhone &amp; iPad</strong> — join the beta through <a href="https://testflight.apple.com/join/SdN4yuuH" target="_blank" rel="noopener">TestFlight</a>. You&rsquo;ll need Apple&rsquo;s free TestFlight app. Mac users on Apple&nbsp;Silicon can run the iPad build.</li>
+                  <li><strong>Web</strong> — no install at all. <a href="/login">Sign in</a> and you have the full product.</li>
+                </ul>
+                <p>The public <strong>App Store</strong> listing isn&rsquo;t live yet — TestFlight is the route to iOS in the meantime. Every version signs in to the same account and syncs the same data. Problems getting in? <a href="mailto:daniel@fihaven.app">daniel@fihaven.app</a>.</p>
               </div>
             </details>
           </div>
@@ -262,7 +320,7 @@
     </main>
 
     <footer class="site-footer">
-      <div>
+      <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> — quiet money, calm month.
       </div>
       <div class="site-footer-links" data-public-footer></div>

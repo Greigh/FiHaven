@@ -54,9 +54,14 @@
   max-width: 12ch;
 }
 
-.public-copy p,
-.auth-card p,
-.legal-card p {
+/* Direct children only — these are the lede paragraphs under the <h1>, which
+   read as secondary on purpose. Body copy nested in .legal-section / .faq-body
+   must NOT be muted: it sits directly beside <ul> lists that inherit --text,
+   and a muted paragraph next to a full-contrast list looks like two different
+   kinds of content. Everything below keeps the list's color. */
+.public-copy > p,
+.auth-card > p,
+.legal-card > p {
   color: var(--muted);
   line-height: 1.7;
 }
@@ -115,7 +120,28 @@
 .security-card p,
 .legal-section p {
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: var(--text);
+  /* `.hero-shell p` caps measure at 58ch for the lede. On a legal page that
+     also caught every body paragraph, so a long one wrapped at roughly half
+     the width of the <ul> sitting right beneath it. */
+  max-width: none;
+}
+
+/* Lists are the other half of that pairing. Legal/FAQ pages carry per-<ul>
+   inline `font-size`/`line-height` from when this had no rule; matching the
+   values here means the two agree whether or not the inline style is present. */
+.legal-section ul,
+.legal-section ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.legal-section li + li {
+  margin-top: 4px;
 }
 
 .public-panel {
@@ -895,16 +921,24 @@ input[type="file"]::file-selector-button:hover {
   background: var(--surface2);
 }
 
+/* ── Site footer ─────────────────────────────────────────────
+   Two rows on a wide screen (brand | links, then credit | legal),
+   collapsing to one centered column on phones.
+
+   This used to be a wrapping flex row where the credit and legal
+   lines forced their own line with `width: 100%`, and below 600px
+   `.site-footer-links a` was given `width: 100%` as well — which
+   turned the ten public links into ten full-width stacked rows and
+   left the footer taller than most of the pages it sat under. */
 .site-footer {
   width: min(1180px, calc(100% - 24px));
-  margin: 0 auto 18px;
-  padding: 18px 4px 0;
+  margin: 0 auto 22px;
+  padding: 22px 4px 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 16px 28px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -912,27 +946,49 @@ input[type="file"]::file-selector-button:hover {
 .site-footer a {
   color: var(--text);
   text-decoration: none;
+  transition: color .18s ease, border-color .18s ease;
 }
 
 .site-footer a:hover {
   color: var(--accent);
 }
 
+.site-footer-brand {
+  grid-column: 1;
+  line-height: 1.55;
+}
+
 .site-footer-links {
+  grid-column: 2;
+  justify-self: end;
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  justify-content: flex-end;
   align-items: center;
+  gap: 4px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* Vertical padding rather than height: it grows the tap target to a
+   comfortable size without changing where the row sits. */
+.site-footer-links a {
+  padding: 5px 0;
+  border-bottom: 1px solid transparent;
+}
+
+.site-footer-links a:hover {
+  border-bottom-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.site-footer-links a[aria-current="page"] {
+  color: var(--accent);
 }
 
 .site-footer-credit {
-  width: 100%;
-  text-align: center;
+  grid-column: 1;
   font-size: 12px;
   color: var(--muted);
-  padding-top: 12px;
-  margin-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .site-footer-credit a {
@@ -952,11 +1008,11 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .site-footer-legal {
-  width: 100%;
-  text-align: center;
-  font-size: 11px;
+  grid-column: 2;
+  justify-self: end;
+  text-align: right;
+  font-size: 11.5px;
   color: var(--muted);
-  padding-top: 8px;
   letter-spacing: 0.01em;
 }
 
@@ -1060,6 +1116,18 @@ input[type="file"]::file-selector-button:hover {
 }
 .faq-body strong { color: var(--text); font-weight: 700; }
 
+/* Restate on the children: `.legal-section p/ul` matches these too (a .faq-body
+   always sits inside a .legal-section) at the same specificity, so without this
+   an answer's paragraphs and bullets would fall back to the 13px legal scale
+   and disagree with the answer they're part of. */
+.faq-body p,
+.faq-body li {
+  font-size: 13.5px;
+  line-height: 1.72;
+  color: var(--text);
+  max-width: none;
+}
+
 .faq-body p + p,
 .faq-body ul { margin-top: 8px; }
 
@@ -1161,7 +1229,43 @@ input[type="file"]::file-selector-button:hover {
 
   .site-footer {
     width: calc(100% - 16px);
-    padding-top: 16px;
+  }
+}
+
+/* One centered column. The links stay a wrapped inline row — never a
+   stacked full-width list — so a ten-link footer reads as two or three
+   tidy lines instead of ten. */
+@media (max-width: 720px) {
+  .site-footer {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+    gap: 14px;
+    padding-top: 20px;
+  }
+
+  .site-footer-brand,
+  .site-footer-links,
+  .site-footer-credit,
+  .site-footer-legal {
+    grid-column: 1;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .site-footer-links {
+    justify-content: center;
+    gap: 2px 16px;
+    max-width: 30rem;
+  }
+
+  .site-footer-links a {
+    padding: 6px 2px;
+  }
+
+  .site-footer-legal {
+    max-width: 26rem;
+    line-height: 1.6;
   }
 }
 
@@ -1176,12 +1280,8 @@ input[type="file"]::file-selector-button:hover {
     max-width: none;
   }
 
-  .auth-actions .btn,
-  .site-footer-links a {
-    width: 100%;
-  }
-
   .auth-actions .btn {
+    width: 100%;
     justify-content: center;
   }
 }
