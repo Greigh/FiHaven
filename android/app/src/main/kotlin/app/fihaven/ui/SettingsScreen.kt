@@ -87,8 +87,8 @@ import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.cardHeadline
 import app.fihaven.core.model.paidGoal
 import app.fihaven.core.model.rolloverPrefill
-import app.fihaven.core.model.reminderLeadDays
-import app.fihaven.core.model.remindOnDueDay
+import app.fihaven.core.model.MAX_REMINDER_OFFSETS
+import app.fihaven.core.model.reminderOffsets
 import app.fihaven.core.model.weeklyDigest
 import app.fihaven.core.model.periodAnchor
 import app.fihaven.core.model.periodLength
@@ -342,9 +342,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
             item {
                 Section("REMINDER TIMING") {
                     val s = data.settings
-                    NavRow("Remind me", leadLabel(s.reminderLeadDays)) { dialog = "leaddays" }
-                    HorizontalDivider(color = Ct.colors.border)
-                    SwitchRow("Also remind on the due day", s.remindOnDueDay) { vm.setRemindOnDueDay(it) }
+                    NavRow("Remind me", leadSummary(s.reminderOffsets)) { dialog = "leaddays" }
                     HorizontalDivider(color = Ct.colors.border)
                     NavRow("Send at", hourLabel(s.notifyHour)) { dialog = "notifyhour" }
                     HorizontalDivider(color = Ct.colors.border)
@@ -487,7 +485,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "timezone" -> TimezoneDialog(vm, close)
         "period" -> PeriodDialog(vm, data.settings, close)
         "autopayhour" -> AutopayHourDialog(vm, data.settings.autopayMarkHour, close)
-        "leaddays" -> LeadDaysDialog(vm, data.settings.reminderLeadDays, close)
+        "leaddays" -> LeadDaysDialog(vm, data.settings.reminderOffsets, close)
         "notifyhour" -> NotifyHourDialog(vm, data.settings.notifyHour, close)
         "dashboardlayout" -> DashboardLayoutDialog(vm, data.settings, close)
         "currency" -> CurrencyDialog(vm, data.settings.currency ?: "USD", close)
@@ -983,16 +981,51 @@ private fun leadLabel(d: Int): String = when (d) {
     else -> "$d days before"
 }
 
+/** "3 days before" / "7 days before + 2 more" — the NavRow's value. */
+private fun leadSummary(days: List<Int>): String = when {
+    days.isEmpty() -> "None"
+    days.size == 1 -> leadLabel(days.first())
+    else -> "${leadLabel(days.first())} + ${days.size - 1} more"
+}
+
+/** Multi-select: pick every day a reminder should fire. Each tap saves, so
+ *  the dialog stays open until dismissed. */
 @Composable
-private fun LeadDaysDialog(vm: AppViewModel, current: Int, onDone: () -> Unit) {
+private fun LeadDaysDialog(vm: AppViewModel, current: List<Int>, onDone: () -> Unit) {
     FormDialog("Remind me", saveEnabled = false, onSave = {}, onDismiss = onDone) {
-        Text("How far ahead of a bill's due date to remind you.",
-            color = Ct.colors.muted, fontSize = 13.sp)
+        Text(
+            if (current.isEmpty()) {
+                "No reminder days picked — bill, trial, and offer reminders won't fire."
+            } else {
+                "Pick up to $MAX_REMINDER_OFFSETS days. These apply to on-device reminders, push, and email."
+            },
+            color = if (current.isEmpty()) Ct.colors.orange else Ct.colors.muted, fontSize = 13.sp,
+        )
+        val atCap = current.size >= MAX_REMINDER_OFFSETS
         LEAD_DAY_CHOICES.forEach { d ->
-            Text(leadLabel(d),
-                color = if (d == current) Ct.colors.accent else Ct.colors.text, fontSize = 16.sp,
-                modifier = Modifier.fillMaxWidth().clickable { vm.setReminderLeadDays(d); onDone() }
-                    .padding(vertical = 10.dp))
+            val on = current.contains(d)
+            // Only the unpicked rows lock at the cap — deselecting is always open.
+            val locked = atCap && !on
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(enabled = !locked) {
+                        vm.setReminderOffsets(if (on) current - d else current + d)
+                    }
+                    .padding(vertical = 10.dp),
+            ) {
+                Text(
+                    leadLabel(d),
+                    color = when {
+                        on -> Ct.colors.accent
+                        locked -> Ct.colors.muted
+                        else -> Ct.colors.text
+                    },
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                if (on) Text("✓", color = Ct.colors.accent, fontSize = 16.sp)
+            }
         }
     }
 }

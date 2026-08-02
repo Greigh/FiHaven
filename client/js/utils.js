@@ -330,16 +330,29 @@ export function rolloverAmount(mode, currentAmount, recentAvg) {
   }
 }
 
+/* A stored YYYY-MM-DD is a calendar day, not an instant: `new Date(s)` parses
+   the bare form as UTC midnight, so reading it back with the local getters
+   lands on the previous day anywhere west of UTC. A promo ending on the 1st
+   then reads as ending the month before — one month fewer to spread the
+   balance over, which inflates every figure derived from it. Parse the parts
+   into a local midnight instead; anything with a time attached is a real
+   instant and goes through Date untouched. */
+function parseLocalDate(dateStr) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr).trim());
+  if (!m) return new Date(dateStr);
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
 export function monthsUntil(dateStr) {
   if (!dateStr) return 0;
-  var end = new Date(dateStr);
+  var end = parseLocalDate(dateStr);
   var now = new Date();
   return Math.max(0, (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth()));
 }
 
 export function daysUntilDate(dateStr) {
   if (!dateStr) return 0;
-  var target = new Date(dateStr);
+  var target = parseLocalDate(dateStr);
   // Compare midnight-to-midnight so time-of-day can't flip the count.
   var targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate());
   return Math.max(0, Math.round((targetMidnight - todayInTz()) / 864e5));

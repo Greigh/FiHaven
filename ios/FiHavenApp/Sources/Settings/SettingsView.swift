@@ -417,8 +417,6 @@ struct SettingsView: View {
     }
 
     // ── Notifications ────────────────────────────────────────────────
-    private static let leadDayChoices = [0, 1, 2, 3, 5, 7, 10, 14]
-
     private var notificationsSection: some View {
         Group {
             // On-device reminders (local notifications + server push).
@@ -458,19 +456,12 @@ struct SettingsView: View {
 
             // Shared timing — applies to both on-device and email reminders.
             Section("Reminder timing") {
-                Picker("Remind me", selection: Binding(
-                    get: { store.data.settings.reminderLeadDays },
-                    set: { store.setReminderLeadDays($0) }
-                )) {
-                    ForEach(Self.leadDayChoices, id: \.self) { d in
-                        Text(d == 0 ? "On the due day" : (d == 1 ? "1 day before" : "\(d) days before")).tag(d)
-                    }
+                NavigationLink {
+                    ReminderDaysView()
+                } label: {
+                    LabeledContent("Remind me",
+                                   value: ReminderDaysView.summary(store.data.settings.reminderOffsets))
                 }
-                .pickerStyle(.menu)
-                Toggle("Also remind on the due day", isOn: Binding(
-                    get: { store.data.settings.remindOnDueDay },
-                    set: { store.setRemindOnDueDay($0) }
-                )).tint(Theme.accent)
                 Picker("Send at", selection: Binding(
                     get: { store.data.settings.notifyHour },
                     set: { store.setNotifyHour($0) }

@@ -43,6 +43,21 @@ function removePayment(payment) {
 export function deletePayment(id) {
   const target = payments.find((p) => p.id === id);
   if (!target) return;
+  // Removing a skip record IS the un-skip, so say that rather than talking
+  // about deleting a payment that never happened.
+  if (target.skipped) {
+    openConfirm(
+      'Remove this skip?',
+      'The item goes back to owing its usual amount for that period.',
+      () => {
+        removePayment(target);
+        toast('Skip removed.');
+      },
+      'Remove',
+      'btn-danger'
+    );
+    return;
+  }
   openConfirm(
     'Delete this payment?',
     target.type === 'card'
@@ -60,7 +75,8 @@ export function deletePayment(id) {
 export function confirmClearHistory() {
   openConfirm(
     'Clear all payment history?',
-    'Every payment record is removed. Card balances are restored to reflect the cleared payments.',
+    'Every payment and skip record is removed. Card balances are restored to reflect the cleared ' +
+      'payments, and anything skipped goes back to owing its usual amount.',
     () => {
       // Restore balances for every recorded card payment.
       payments.forEach((p) => {

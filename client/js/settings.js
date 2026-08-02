@@ -646,20 +646,40 @@ import {
     var summary   = document.querySelector('[data-summary-toggle]');
     var digest    = document.querySelector('[data-digest-toggle]');
     var offers    = document.querySelector('[data-offer-reminders-toggle]');
-    var dueDay    = document.querySelector('[data-dueday-toggle]');
-    var leadSel   = document.querySelector('[data-reminder-lead]');
+    var leadBox   = document.querySelector('[data-reminder-leads]');
     var hourSel   = document.querySelector('[data-notify-hour]');
     var optsBox   = document.querySelector('[data-reminder-options]');
     var desc      = document.querySelector('[data-reminders-desc]');
+    var hint      = document.querySelector('[data-reminders-hint]');
     if (!reminders && !summary) return;
 
-    // Lead-day choices.
-    if (leadSel && !leadSel.options.length) {
-      [0, 1, 2, 3, 5, 7, 10, 14].forEach(function (d) {
-        var opt = document.createElement('option');
-        opt.value = String(d);
-        opt.textContent = d === 0 ? 'on the due day' : (d === 1 ? '1 day' : d + ' days');
-        leadSel.appendChild(opt);
+    var LEAD_CHOICES = [0, 1, 2, 3, 5, 7, 10, 14];
+    var MAX_LEADS = 5;   // matches MAX_REMINDER_OFFSETS in server/scheduler.js
+    var leadInputs = [];
+
+    function leadLabel(d) {
+      return d === 0 ? 'On the due day' : (d === 1 ? '1 day before' : d + ' days before');
+    }
+    // "7 days", "1 day", "on the due day" — the pieces the sentence joins.
+    function leadPhrase(d) {
+      return d === 0 ? 'on the due day' : (d === 1 ? '1 day before' : d + ' days before');
+    }
+
+    // Lead-day chips — a multi-select, so a user can be reminded a week out
+    // AND the morning of.
+    if (leadBox && !leadInputs.length) {
+      LEAD_CHOICES.forEach(function (d) {
+        var label = document.createElement('label');
+        label.className = 'lead-chip';
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = String(d);
+        var span = document.createElement('span');
+        span.textContent = leadLabel(d);
+        label.appendChild(input);
+        label.appendChild(span);
+        leadBox.appendChild(label);
+        leadInputs.push(input);
       });
     }
     // Hour-of-day choices (12-hour labels).
@@ -676,12 +696,74 @@ import {
     function clampHour(v) { v = parseInt(v, 10); return (v >= 0 && v <= 23) ? v : 8; }
     function clampLead(v) { v = parseInt(v, 10); return (v >= 0 && v <= 14) ? v : 3; }
 
+    // The picked lead days, longest-first. Mirrors reminderOffsets() in
+    // server/scheduler.js.
+    function chosenLeads() {
+      var out = [];
+      leadInputs.forEach(function (i) { if (i.checked) out.push(parseInt(i.value, 10)); });
+      return out.sort(function (a, b) { return b - a; });
+    }
+
+    /* Read the setting the way the scheduler does: the array wins, the old
+       single lead + due-day pair is the fallback for an account last saved by
+       an app version that predates the multi-select. */
+    function leadsFromSettings(s) {
+      if (Array.isArray(s.reminderOffsets)) {
+        var seen = {};
+        return s.reminderOffsets
+          .map(function (d) { return parseInt(d, 10); })
+          .filter(function (d) {
+            if (!(d >= 0 && d <= 14) || seen[d]) return false;
+            seen[d] = true;
+            return true;
+          })
+          .sort(function (a, b) { return b - a; })
+          .slice(0, MAX_LEADS);
+      }
+      var lead = s.reminderLeadDays != null ? clampLead(s.reminderLeadDays) : 3;
+      return (s.remindOnDueDay && lead !== 0) ? [lead, 0] : [lead];
+    }
+
+    function paintLeads(leads) {
+      var atCap = leads.length >= MAX_LEADS;
+      leadInputs.forEach(function (i) {
+        var on = leads.indexOf(parseInt(i.value, 10)) !== -1;
+        i.checked = on;
+        // Only the unpicked chips lock at the cap — you can always deselect.
+        i.disabled = atCap && !on;
+        i.parentNode.classList.toggle('is-active', on);
+        i.parentNode.classList.toggle('is-disabled', i.disabled);
+      });
+    }
+
+    // "Email me 7 days before, 3 days before, and on the due day."
+    function sentence(leads) {
+      // One day reads as a full sentence; several read as a list, where
+      // "before"/"on the due day" already carry the relationship.
+      if (leads.length === 1) {
+        return leads[0] === 0
+          ? 'Email me on the day a bill is due.'
+          : 'Email me ' + leadPhrase(leads[0]) + ' a bill is due.';
+      }
+      var parts = leads.map(leadPhrase);
+      var last = parts.pop();
+      return 'Email me ' + parts.join(', ') + ', and ' + last + '.';
+    }
+
     function syncDesc() {
-      if (!desc) return;
-      var lead = leadSel ? clampLead(leadSel.value) : 3;
-      desc.textContent = lead === 0
-        ? 'Email me on the day a bill is due.'
-        : 'Email me ' + (lead === 1 ? '1 day' : lead + ' days') + ' before a bill is due.';
+      var leads = chosenLeads();
+      if (desc) {
+        desc.textContent = leads.length
+          ? sentence(leads)
+          : 'Pick at least one day below to get bill reminders.';
+      }
+      if (hint) {
+        var warn = leads.length === 0;
+        hint.textContent = warn
+          ? 'No reminder days picked — nothing will send.'
+          : 'Pick up to ' + MAX_LEADS + ' days. These also drive push and on-device reminders.';
+        hint.classList.toggle('is-warn', warn);
+      }
     }
     function syncOptions() {
       if (optsBox) optsBox.style.display = (reminders && reminders.checked) ? '' : 'none';
@@ -693,9 +775,8 @@ import {
       if (summary)   summary.checked   = !!s.monthlySummary;
       if (digest)    digest.checked    = !!s.weeklyDigest;
       if (offers)    offers.checked    = !!s.offerReminders;
-      if (dueDay)    dueDay.checked     = !!s.remindOnDueDay;
-      if (leadSel)   leadSel.value      = String(s.reminderLeadDays != null ? clampLead(s.reminderLeadDays) : 3);
       if (hourSel)   hourSel.value      = String(s.notifyHour != null ? clampHour(s.notifyHour) : 8);
+      paintLeads(leadsFromSettings(s));
       syncDesc();
       syncOptions();
     }).catch(function () { syncDesc(); syncOptions(); });
@@ -729,12 +810,30 @@ import {
     if (offers) offers.addEventListener('change', function () {
       save({ offerReminders: offers.checked }, function () { offers.checked = !offers.checked; });
     });
-    if (dueDay) dueDay.addEventListener('change', function () {
-      save({ remindOnDueDay: dueDay.checked }, function () { dueDay.checked = !dueDay.checked; });
-    });
-    if (leadSel) leadSel.addEventListener('change', function () {
-      syncDesc();
-      save({ reminderLeadDays: clampLead(leadSel.value) });
+    leadInputs.forEach(function (input) {
+      input.addEventListener('change', function () {
+        var picked = chosenLeads();
+        // Safety net — paintLeads disables the unpicked chips at the cap, so
+        // this only fires if that ever slips. Keep the day just clicked.
+        if (picked.length > MAX_LEADS) {
+          var mine = parseInt(input.value, 10);
+          picked = picked.filter(function (d) { return d !== mine; })
+            .slice(0, MAX_LEADS - 1)
+            .concat([mine])
+            .sort(function (a, b) { return b - a; });
+        }
+        paintLeads(picked);
+        syncDesc();
+        /* Write the legacy pair alongside the array. An iOS/Android build
+           that predates the multi-select reads only those two keys, and
+           `PUT /api/data` replaces the whole record — so without the mirror
+           an old client would keep saving a stale single lead over this. */
+        save({
+          reminderOffsets: picked,
+          reminderLeadDays: picked.length ? Math.max.apply(null, picked) : 3,
+          remindOnDueDay: picked.indexOf(0) !== -1,
+        });
+      });
     });
     if (hourSel) hourSel.addEventListener('change', function () {
       save({ notifyHour: clampHour(hourSel.value) });

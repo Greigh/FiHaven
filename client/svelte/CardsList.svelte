@@ -209,6 +209,16 @@
   // "how much do I pay?".
   let payThisMonth = $derived(baseCards.reduce((s, c) => s + remainingForItem('card', String(c.id), currentPeriodKey()), 0));
   let overallUtil  = $derived(totalLimit > 0 ? Math.round((cardBalance / totalLimit) * 100) : 0);
+  // How many cards actually make up that figure. The plain card count described
+  // neither number — a $0, skipped or fully-paid card is in it but owes nothing.
+  let owedCardCount = $derived(baseCards.filter((c) => remainingForItem('card', String(c.id), mk) > 0.005).length);
+
+  /* The plan total and the statement total answer different questions and are
+     free to disagree: a promo card contributes its monthly slice and a 0%-APR
+     card only its minimum, neither of which is that card's statement balance.
+     Naming the gap is what keeps the pair from reading as one broken sum. */
+  let planVsStatement  = $derived(payThisMonth - totalStatement);
+  let statementDiffers = $derived(Math.abs(planVsStatement) > 0.005);
 
   /* ── Payoff snapshot (cards view only) ──────────────────
      Cards without a 0% promo accrue interest now, so their balance is a
@@ -316,17 +326,31 @@
        five equally important numbers, and used words the card rows don't. The
        obligation tile now leads with the one figure you act on and lists the
        rest in the rows' own vocabulary; credit limit and utilization were two
-       halves of one idea, so they're one tile. -->
+       halves of one idea, so they're one tile.
+
+       The hero is what the paid-goal policy says to pay, not a debt the issuers
+       are demanding — "Your plan" says so, and the statement row is named and
+       reconciled rather than sitting there looking like a failed subtotal. When
+       the two agree the row is dropped: then it really is the same number
+       twice. -->
   <div class="cards-summary cards-summary--zones">
     <div class="cards-summary-tile cards-summary-tile-lead">
-      <div class="cards-summary-label">{payThisMonth > 0.005 ? 'Still owed this period' : 'All caught up'}</div>
+      <div class="cards-summary-label">{payThisMonth > 0.005 ? 'Your plan this period' : 'All caught up'}</div>
       <div class="cards-summary-value" style="color:{payThisMonth > 0.005 ? 'var(--text)' : 'var(--green)'};">{payThisMonth > 0.005 ? fmt(payThisMonth) : fmt(0)}</div>
-      <div class="cards-summary-sub">across {baseCards.length} card{baseCards.length === 1 ? '' : 's'}</div>
+      <div class="cards-summary-sub">
+        {#if payThisMonth > 0.005}
+          across {owedCardCount} of {baseCards.length} card{baseCards.length === 1 ? '' : 's'}
+        {:else}
+          all {baseCards.length} card{baseCards.length === 1 ? '' : 's'} paid this period
+        {/if}
+      </div>
       <div class="cards-summary-rows">
-        <div class="cards-summary-row">
-          <span class="cards-summary-row-label">due</span>
-          <span class="cards-summary-row-value">{fmt(totalStatement)}</span>
-        </div>
+        {#if statementDiffers}
+          <div class="cards-summary-row">
+            <span class="cards-summary-row-label">statement due</span>
+            <span class="cards-summary-row-value">{fmt(totalStatement)}</span>
+          </div>
+        {/if}
         <div class="cards-summary-row">
           <span class="cards-summary-row-label">current</span>
           <span class="cards-summary-row-value">{fmt(cardBalance)}</span>
@@ -335,6 +359,15 @@
           <span class="cards-summary-row-label">minimums</span>
           <span class="cards-summary-row-value">{fmt(totalMin)}</span>
         </div>
+        {#if statementDiffers && payThisMonth > 0.005}
+          <div class="cards-summary-hint">
+            {#if planVsStatement > 0}
+              Your plan pays {fmt(planVsStatement)} more than the statements ask — promo payoffs run ahead of the balance due.
+            {:else}
+              Your plan leaves {fmt(-planVsStatement)} of the statements to carry — 0% cards only need their minimum.
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
     <div class="cards-summary-tile">

@@ -688,6 +688,106 @@ main {
 .modal h2 { font-size: 19px; font-weight: 800; margin-bottom: 18px; }
 .modal-footer { display: flex; gap: 9px; margin-top: 20px; justify-content: flex-end; }
 
+/* ── Monthly rollover review ────────────────────────────── */
+.rollover-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted);
+}
+.rollover-hint { font-weight: 600; letter-spacing: .02em; text-transform: none; opacity: .85; }
+
+/* The list scrolls; the wrapper carries the fade that signals more below. */
+.rollover-wrap { position: relative; }
+.rollover-wrap::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 42px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.rollover-wrap.has-more::after { opacity: 1; }
+
+.rollover-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--border) transparent;
+  padding-right: 4px;
+}
+.rollover-list::-webkit-scrollbar { width: 10px; }
+.rollover-list::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 99px;
+  border: 3px solid var(--surface);
+}
+.rollover-empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+
+.rollover-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.rollover-row:last-child { border-bottom: none; }
+.rollover-info { flex: 1; min-width: 0; }
+.rollover-name {
+  font-weight: 600; font-size: 14px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rollover-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  font-size: 12px; color: var(--muted); margin-top: 1px;
+}
+.rollover-due { font-weight: 600; }
+.rollover-due.is-late { color: var(--red); }
+.rollover-dot { opacity: .5; }
+
+/* Amount field: styled with the app's tokens so it doesn't fall back to
+   the browser's own (OS-dark) control chrome inside a light modal. */
+.rollover-field {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 5px 9px;
+  flex-shrink: 0;
+  transition: border-color .2s;
+}
+.rollover-field:focus-within { border-color: var(--accent); }
+.rollover-currency { color: var(--muted); font-size: 13px; }
+.rollover-amt {
+  width: 78px;
+  background: transparent; border: none; outline: none;
+  color: var(--text);
+  font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600;
+  text-align: right;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+.rollover-amt::-webkit-outer-spin-button,
+.rollover-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.rollover-edit {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-family: 'Manrope', sans-serif; font-size: 12.5px; font-weight: 700;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.rollover-edit:hover {
+  border-color: var(--accent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* Mobile bumps inputs to 16px (no iOS zoom), so the amount needs the room —
+   the bill name gives it up rather than the digits truncating. */
+@media (max-width: 520px) {
+  .rollover-amt { width: 84px; }
+  .rollover-edit { padding: 6px 8px; }
+}
+
 /* ── Forms ──────────────────────────────────────────────── */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -865,6 +965,15 @@ main {
 }
 .hist-date { font-size: 11px; color: var(--muted); margin-top: 1px; }
 .hist-actions { display: flex; gap: 6px; margin-left: 6px; flex-shrink: 0; }
+/* A skipped period sits in history alongside payments, but nothing left the
+   account — so it never wears the green "money moved" treatment. */
+.hist-skipped .hist-name { color: var(--muted); }
+.hist-skipped .hist-amount {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.hist-month-total-quiet { color: var(--muted); }
 
 /* ── Surplus Bar ────────────────────────────────────────── */
 .surplus-bar { height: 10px; background: var(--surface2); border-radius: 999px; overflow: hidden; margin: 6px 0; }
@@ -936,7 +1045,7 @@ main {
 /* ── Payoff Calculator ──────────────────────────────────── */
 .payoff-strat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
 }
 
@@ -1892,6 +2001,14 @@ main {
   font-family: 'IBM Plex Mono', monospace;
   font-weight: 600;
   color: var(--text);
+}
+/* Why the hero and the statement total disagree. Sentence case and no mono
+   figures on purpose — it's a note about the numbers, not another number. */
+.cards-summary-hint {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
 }
 
 .cards-summary-bar {

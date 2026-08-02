@@ -17,8 +17,7 @@ import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
 import app.fihaven.core.model.offerReminders
 import app.fihaven.core.model.pushNotifications
-import app.fihaven.core.model.reminderLeadDays
-import app.fihaven.core.model.remindOnDueDay
+import app.fihaven.core.model.reminderOffsets
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -112,9 +111,9 @@ object NotificationScheduler {
         val pushCoversBills = push && settings.billReminders
         val pushCoversOffers = push && settings.offerReminders && pro
 
-        val lead = settings.reminderLeadDays
         val hour = settings.notifyHour
-        val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
+        // One alarm per reminder day the user picked, longest lead first.
+        val offsets = settings.reminderOffsets
         val now = ZonedDateTime.now(zone)
 
         val scheduled = mutableListOf<Scheduled>()
@@ -151,9 +150,9 @@ object NotificationScheduler {
         scheduled: MutableList<Scheduled>,
     ) {
         if (!settings.offerReminders) return
-        val lead = settings.reminderLeadDays
         val hour = settings.notifyHour
-        val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
+        // One alarm per reminder day the user picked, longest lead first.
+        val offsets = settings.reminderOffsets
         val now = ZonedDateTime.now(zone)
         // (card, offer, expiry-date) for unused offers with a parseable expiry.
         val upcoming = cards.flatMap { c ->
@@ -196,9 +195,9 @@ object NotificationScheduler {
         zone: ZoneId,
         scheduled: MutableList<Scheduled>,
     ) {
-        val lead = settings.reminderLeadDays
         val hour = settings.notifyHour
-        val offsets = (if (settings.remindOnDueDay) setOf(lead, 0) else setOf(lead)).sortedDescending()
+        // One alarm per reminder day the user picked, longest lead first.
+        val offsets = settings.reminderOffsets
         val now = ZonedDateTime.now(zone)
         val upcoming = bills.mapNotNull { b -> trialEndDate(b, zone)?.let { b to it } }.sortedBy { it.second }
         for ((bill, end) in upcoming) {

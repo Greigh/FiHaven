@@ -269,7 +269,7 @@ Badge markup is already flip-ready in [`client/home.html`](../../client/home.htm
    | **iOS** | Available on the [App Store](https://apps.apple.com/app/id…) |
    | **Android** | Available on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) |
 
-4. `docs/competitive-roadmap.md` — change Store distribution row to: `App Store (iOS); Google Play (Android)`.
+4. `docs/local/competitive-roadmap.md` — change Store distribution row to: `App Store (iOS); Google Play (Android)`.
 5. `npm run deploy` — confirm `GET /health` → `{"ok":true}`.
 6. Optional: IndexNow if homepage changed materially.
 

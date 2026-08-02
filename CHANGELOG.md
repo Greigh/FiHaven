@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (18) - App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins); 17 was the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 40) - Account deletion works for Google/Apple sign-ins, Delete account under Settings → Account; 39 was the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (19) - Multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 41) - Multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -108,6 +108,48 @@ Each release below uses two layers:
 - **App Store and Play subscriptions still have to be cancelled by you**, in
   Settings → Apple ID → Subscriptions or the Play Store — Apple and Google don't
   let us do it on your behalf. Every delete screen and the deletion page say so.
+
+**Skipped periods show up in History (Aug 1)**
+
+- **Skipping a month is now something you can look back on.** Deciding to skip a
+  bill for a period was recorded but never shown anywhere — History listed only
+  what you'd paid, so a skipped month simply went missing and there was no way to
+  tell "I skipped this" from "I forgot to record it". Skips now list alongside
+  payments on the web, iPhone and Android, marked **Skipped** rather than an
+  amount.
+- **Nothing you skipped counts as money spent.** A skip carries no amount, so it
+  stays out of every total: the month header reads "$120.00 paid · 2 skipped"
+  instead of folding the skip in, and a month of nothing but skips says so
+  instead of claiming "$0.00 paid".
+- **Removing a skip is how you undo it**, and the buttons now say that — "Remove
+  skip", not "Delete payment", and the item goes back to owing its usual amount
+  for that period. There's no Edit on a skip, since there's no amount to edit.
+- **Exported history records it too.** The CSV gains a **Status** column, so a
+  skip is distinguishable from a payment once the file is out of the app.
+
+**The new-month bill review, fixed everywhere (Aug 1)**
+
+- **The amount boxes look like the rest of the app.** They were unstyled, so on a
+  Mac set to dark mode they came out as black boxes with white numbers in the
+  middle of a white dialog.
+- **Every row now says when the bill lands** — "Due Aug 5", or "Autopays Aug 20"
+  if it's on autopay, in red if that date has already passed unpaid — and carries
+  an **Edit** button, so a bill whose day or name is wrong can be fixed without
+  leaving the review. You come back to the review with everything you'd typed.
+- **It's obvious the list keeps going.** The dialog counts the bills, says
+  "scroll for all", and fades the last row instead of relying on a hairline
+  scrollbar you can barely see.
+- **Saving the amounts dismisses the "Welcome to August" banner.** It used to sit
+  there afterwards until you dismissed it separately, as though nothing had
+  happened.
+- **The review now shows up on iPhone and Android**, not only on the web.
+  Whichever device you opened first each month was quietly claiming the prompt for
+  the whole account, so if you checked the web first the phones never mentioned
+  it. The new month now stays open on every device until you actually deal with
+  it — and dismissing it, or saving the amounts, clears it everywhere at once.
+- **The debt-payoff strategy cards are readable on a dark Mac again.** Avalanche
+  and Snowball are buttons, and on an OS set to dark they were drawing white text
+  on the planner's light card.
 
 **A public page for deleting your account (Jul 31)**
 
@@ -713,6 +755,86 @@ Each release below uses two layers:
 
 ### Technical changelog
 
+- **History renders skips instead of filtering them out.** A skip is a `payments`
+  record flagged `skipped` with `amount 0`; all three clients dropped it before
+  grouping, so a period of nothing but skips rendered as empty and the flag was
+  write-only. The filter is gone from `HistoryList.svelte`, `HistoryView.swift`
+  and `HistoryScreen.kt`; rows take a `⏭` icon, a muted "Skipped" in place of the
+  amount (`.hist-skipped` in `components.css`), and lose the Edit affordance —
+  the pay editor refuses `$0`, so editing a skip could only convert it to a
+  payment by accident. Totals key off the **flag, not the amount**
+  (`totalFor`), so a malformed record can't inflate a month; `summaryFor` emits
+  "$120.00 paid · 2 skipped" and drops either half when empty
+  (`.hist-month-total-quiet`). Deleting a skip is the un-skip:
+  `deletePayment` in `history.js` branches to a "Remove this skip?" confirm, and
+  `confirmClearHistory` now says skips are cleared too. `exportCSV('history')`
+  gains a **Status** column (`Skipped`/`Paid`) — otherwise a $0 skip and a $0
+  payment are indistinguishable downstream. Empty state re-keys off
+  `payments.length` now that the visible list is no longer a subset.
+- **`.payoff-strat-card` reclaims `font`/`color` from the UA.** It's a `<button>`,
+  so under `color-scheme: light dark` the inherited text was painted white on the
+  planner's light surface.
+- **Four docs moved to the gitignored `docs/local/`** — `native-contract.md`,
+  `push-setup.md`, `social-login-setup.md`, `competitive-roadmap.md`. They carry
+  unreleased roadmap detail and setup notes that don't belong in a
+  source-available repo. The README links that pointed at them were left
+  dangling by the move and would have 404'd on GitHub; they're now unlinked
+  prose, in the root, iOS and Android READMEs.
+- **`scripts/dev/paddle-webhook-check.js`** (`npm run paddle:webhook`) drives the
+  Paddle webhook handler with a genuinely HMAC-signed payload naming a real local
+  account. Paddle's dashboard "Send a test" proves reachability and signature
+  only — its synthetic payloads carry no `custom_data.userId`, so attribution and
+  fulfillment (resolve user → upsert subscription → recompute entitlement) went
+  untested. Not wired into the app.
+- **The cards summary says whose number the hero is.** "Still owed this period"
+  read as a demand from the issuers, but it's the paid-goal policy's figure —
+  a promo card contributes `promoBalance / monthsLeft`, a 0%-APR card only its
+  minimum — so it can legitimately exceed or undercut the statement total sitting
+  right below it, which made the tile look like a broken sum. The hero is now
+  **"Your plan this period"**; the `due` row is renamed **`statement due`**,
+  dropped entirely when it agrees with the hero (real duplication), and otherwise
+  reconciled by a `.cards-summary-hint` line naming the gap in either direction.
+  The caption counted every card including $0/skipped/paid ones, describing
+  neither figure; it now reads "across N of M cards" (or "all M cards paid this
+  period"). Ported to `CardsView.swift` and `CardsScreen.kt`, which mirror the
+  web tile.
+- **`monthsUntil` / `daysUntilDate` read a stored date as a calendar day.** Both
+  passed a bare `YYYY-MM-DD` to `new Date()`, which parses it as **UTC** midnight,
+  then read it back with the local getters — so anywhere west of UTC a promo
+  ending on the 1st resolved to the month before. `promoNeeded` then divided the
+  balance by one month too few, inflating the recommended payment, the "still
+  owed" hero and the payoff plan. Both now parse the parts into a local midnight
+  via `parseLocalDate`; strings carrying a time still go through `Date` untouched.
+  Native was already correct (`DateLogic.monthsUntil` takes an explicit `tz`).
+- **A rollover is now account state that outlives being *seen*.** `lastVisitKey`
+  is synced and written on every load, so the first platform to open in a new
+  month consumed the prompt: every other platform then saw `lastMk == currentMk`
+  and the review only ever appeared wherever you logged in first (in practice:
+  the web). Detection now *records* the rollover in two new synced settings —
+  `rolloverPendingFor` (the month that opened) and `rolloverPrevKey` (the month
+  that closed, which the "never marked paid" list is computed against) — and only
+  an explicit dismiss or a save clears `rolloverPendingFor`. All three clients
+  render the prompt from `rolloverPendingFor == currentMonthKey`, so it shows up
+  on every device and goes away on every device.  `lastVisitKey` still tracks the
+  last month opened and still drives detection. Ports:
+  `Settings.rolloverPendingFor` / `.rolloverPrevKey` (iOS),
+  `JsonObject.rolloverPendingFor` / `.rolloverPrevKey` (Android),
+  `clearRolloverPending()` in `client/js/rollover.js`.
+- **Rollover review UI.** Web `rollover.js` renders class-based rows
+  (`.rollover-row` / `.rollover-field` / `.rollover-edit` in `components.css`)
+  instead of inline styles with a bare `<input type=number>`, which inherited the
+  UA's `color-scheme: dark` chrome inside a light modal. Each row gains the
+  reviewed month's due date (`nextBillDueDate` anchored to the 1st, so a bill due
+  on the 5th still reads "Aug 5" on the 20th), an autopay/late variant, and an
+  Edit button that stashes the typed values, hands off to `editBillById`, and
+  reopens the review from a `MutationObserver` on `#bill-modal` — the edited row
+  re-prefills from the bill's new amount. The list carries a count, a scroll hint
+  and a `has-more` fade toggled by scroll position. `saveRolloverReview` now
+  hides `#new-month-banner`, `refreshAll()`s and toasts.
+  `AppStore.rolloverDueDate` (iOS) and `AppViewModel.rolloverDueDate` /
+  `rolloverIsLate` / `rolloverPrefillText` (Android) are the ports; both native
+  reviews gained the date line and a per-row edit sheet/dialog, and both dismiss
+  the prompt on save. Covered by `client/js/rollover.render.test.js`.
 - **`reminderOffsets`: reminder lead days become a list.** New synced setting —
   `number[]` of `0..14`, deduped, clamped, sorted longest-first, capped at 5
   (`MAX_REMINDER_OFFSETS` / `Settings.maxReminderOffsets`). It supersedes the

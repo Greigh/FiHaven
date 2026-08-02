@@ -1,9 +1,8 @@
 # FiHaven — Native (iOS / macOS)
 
 Native SwiftUI client over the existing FiHaven API, using token/Bearer
-auth. See [`docs/native-contract.md`](../docs/native-contract.md) for the
-full API + data + design + billing contract both this app and the Android
-app follow.
+auth. It follows the same API + data + design + billing contract as the
+Android app.
 
 ## Layout
 
@@ -99,7 +98,7 @@ Enable **Push Notifications** on the App ID in the Apple Developer portal and us
 
 The Dashboard supports **Classic** (fixed) and **Widgets** (reorderable,
 toggleable cards). The nine-widget catalog (`DashboardWidget`) and its defaults
-match web and Android — see [`docs/native-contract.md`](../docs/native-contract.md) §6/§9.
+match web and Android.
 
 ## Dark mode & fonts
 

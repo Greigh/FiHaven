@@ -193,7 +193,12 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                 // "Pay this month" = what's still owed this period across all cards,
                 // per the user's paid-goal policy (mirrors each card's Pay button).
                 val payThisMonth = creditCards.sumOf { vm.remainingFor("card", it.id.toString()) }
-                item { CardsSummaryCard(creditCards, payThisMonth) }
+                // How many cards actually make up that figure — a $0, skipped or
+                // fully-paid card is in the list but owes nothing toward it.
+                val owedCount = creditCards.count {
+                    vm.remainingFor("card", it.id.toString()) > Schedule.PAID_EPSILON
+                }
+                item { CardsSummaryCard(creditCards, payThisMonth, owedCount) }
                 item { CardsPayoffCard(creditCards, zone) }
             }
             if (cards.isEmpty()) {
@@ -956,7 +961,7 @@ private fun accountIcon(t: String) = when (t) {
 }
 
 @Composable
-private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
+private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double, owedCount: Int) {
     // Live balances, so a card charged since its statement closed still counts
     // toward the total and the utilization it drives at the issuer.
     val totalBalance = cards.sumOf { Schedule.liveBalance(it) }
@@ -968,29 +973,53 @@ private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double) {
     // beneath them can't seem to describe different things.
     val totalStatement = cards.sumOf { if (it.type == "loan") it.minPayment else it.balance }
     val totalMin = cards.sumOf { it.minPayment }
+    val caughtUp = payThisMonth <= Schedule.PAID_EPSILON
+    // The plan total and the statement total answer different questions and are
+    // free to disagree — a promo card contributes its monthly slice, a 0%-APR
+    // card only its minimum. Naming the gap keeps the pair from reading as one
+    // broken sum.
+    val planVsStatement = payThisMonth - totalStatement
+    val statementDiffers = kotlin.math.abs(planVsStatement) > Schedule.PAID_EPSILON
+    val plural = if (cards.size == 1) "" else "s"
     CtCard(branded = true) {
         // Grouped rather than evenly spaced: the hero and its caption belong
         // together, as do the credit figures, so the eye sees two zones.
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                // Lead with the one number a user acts on.
-                FieldLabel(if (payThisMonth > Schedule.PAID_EPSILON) "Still owed this period" else "All caught up")
+                // Lead with the one number a user acts on — and say whose number
+                // it is: the paid-goal policy's, not a demand from the issuers.
+                FieldLabel(if (caughtUp) "All caught up" else "Your plan this period")
                 Text(
-                    if (payThisMonth > Schedule.PAID_EPSILON) Money.fmt(payThisMonth) else "$0.00",
-                    color = if (payThisMonth > Schedule.PAID_EPSILON) Ct.colors.text else Ct.colors.green,
+                    if (caughtUp) "$0.00" else Money.fmt(payThisMonth),
+                    color = if (caughtUp) Ct.colors.green else Ct.colors.text,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold,
                     fontFamily = PlexMono,
                 )
                 Text(
-                    "across ${cards.size} card${if (cards.size == 1) "" else "s"}",
+                    if (caughtUp) "all ${cards.size} card$plural paid this period"
+                    else "across $owedCount of ${cards.size} card$plural",
                     color = Ct.colors.muted, fontSize = 12.sp,
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SummaryAmountRow("due", Money.fmt(totalStatement))
+                // Dropped when it agrees with the hero: then it really is the
+                // same number twice.
+                if (statementDiffers) SummaryAmountRow("statement due", Money.fmt(totalStatement))
                 SummaryAmountRow("current", Money.fmt(totalBalance))
                 SummaryAmountRow("minimums", Money.fmt(totalMin))
+                if (statementDiffers && !caughtUp) {
+                    Text(
+                        if (planVsStatement > 0)
+                            "Your plan pays ${Money.fmt(planVsStatement)} more than the statements ask — " +
+                                "promo payoffs run ahead of the balance due."
+                        else
+                            "Your plan leaves ${Money.fmt(-planVsStatement)} of the statements to carry — " +
+                                "0% cards only need their minimum.",
+                        color = Ct.colors.muted, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
             }
 
             HorizontalDivider(color = Ct.colors.border)
