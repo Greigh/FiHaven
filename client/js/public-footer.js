@@ -12,6 +12,9 @@ var FOOTER_LINKS = [
   { href: '/terms',    label: 'Terms' },
   { href: '/privacy',  label: 'Privacy' },
   { href: '/refunds',  label: 'Refunds' },
+  // Google Play requires a web-accessible account-deletion path for apps that
+  // allow account creation; a footer link keeps it discoverable off-app.
+  { href: '/delete-account', label: 'Delete Account' },
 ];
 
 function renderPublicFooter(container) {

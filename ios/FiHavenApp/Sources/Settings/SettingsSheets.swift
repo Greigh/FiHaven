@@ -96,8 +96,16 @@ struct DeleteAccountSheet: View {
     @State private var errorText: String?
     @State private var busy = false
 
+    /// Sign in with Apple / Google accounts have no password to re-enter, so
+    /// the typed phrase is the whole confirmation for them. Requiring a
+    /// password there would leave them with no way to delete at all
+    /// (App Store Guideline 5.1.1(v)).
+    private var needsPassword: Bool { env.currentUser?.hasPassword ?? true }
+
     private var canDelete: Bool {
-        !busy && !password.isEmpty && confirmText.trimmingCharacters(in: .whitespaces) == deleteConfirmPhrase
+        !busy
+            && (!needsPassword || !password.isEmpty)
+            && confirmText.trimmingCharacters(in: .whitespaces) == deleteConfirmPhrase
     }
 
     var body: some View {
@@ -106,7 +114,9 @@ struct DeleteAccountSheet: View {
                 Section {
                     Text("This permanently deletes your account and all data. This can't be undone.")
                         .font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                    if needsPassword {
+                        RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                    }
                 }
                 Section {
                     TextField("Authenticator code (if 2FA is on)", text: $code)
@@ -140,9 +150,12 @@ struct DeleteAccountSheet: View {
     private func delete() async {
         busy = true; defer { busy = false }
         do {
-            try await env.api.deleteAccount(password: password, code: code.trimmingCharacters(in: .whitespaces))
+            let deletedEmail = env.currentUser?.email
+            try await env.api.deleteAccount(password: password,
+                                            code: code.trimmingCharacters(in: .whitespaces),
+                                            confirm: confirmText.trimmingCharacters(in: .whitespaces))
             dismiss()
-            env.didDeleteAccount()
+            env.didDeleteAccount(email: deletedEmail)
         } catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }

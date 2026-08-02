@@ -5,7 +5,7 @@
 | **Owner** | Greigh Studios LLC — Daniel Hipskind, acting Security Officer |
 | **Operating entity** | Greigh Studios LLC (Michigan, United States), owner of FiHaven |
 | **Security contact** | security@fihaven.app |
-| **Version** | 1.1 |
+| **Version** | 1.2 |
 | **Effective date** | 2026-06-08 |
 | **Review cadence** | Reviewed at least annually and on any material change to data flows or applicable law |
 
@@ -40,7 +40,7 @@ This policy defines how long FiHaven retains the data it holds, how that data is
 | **Single-use email tokens** (verify email, password reset, 2FA recovery) | Until used or expired (minutes–24h); stored only as a SHA-256 hash | Invalidated on use/expiry and purged |
 | **Subscription reference** (Paddle customer/subscription ID or store purchase identifier; status) | While the account is open | Deleted on account deletion (billing records retained by the processor per its own policy) |
 | **Security/operational logs** (app, PM2, nginx) | Short operational window, then rotated/aged out | Rotated and discarded on a defined cycle; contain no Restricted data |
-| **Backups** | Aged out on a defined cycle | Old backups are securely destroyed when superseded |
+| **Backups** | Weekly whole-server snapshots, retained on a rolling basis (currently the 2 most recent — about 14 days) | Superseded snapshots are destroyed automatically by the hosting provider as new ones are taken |
 
 FiHaven does **not** store full payment card numbers or bank login credentials at any time (see the Privacy Policy and Information Security Policy §13).
 
@@ -50,7 +50,8 @@ FiHaven does **not** store full payment card numbers or bank login credentials a
 
 - Records are deleted from the production database; on account deletion the account, sessions, financial data, MFA secrets, and Plaid items/tokens are removed.
 - Encryption-at-rest provides defense in depth: Restricted data (Plaid access tokens, MFA secrets) is stored only in AES-256-GCM-encrypted form, so residual copies are unreadable without the key.
-- Backups containing deleted data are aged out on their cycle; the encryption key is destroyed/rotated when no longer needed for a retained backup.
+- Backups are weekly whole-server snapshots taken by the hosting provider, held for disaster recovery only. They are **not** used to restore individual accounts or records, so a deletion is never undone by a restore.
+- A snapshot taken before a deletion still contains that data until it is superseded — about 14 days at the current weekly cycle with the 2 most recent retained. Restricted data (Plaid access tokens, MFA secrets) is AES-256-GCM encrypted at the application layer, so it remains unreadable inside a snapshot without the key.
 
 ---
 
@@ -87,3 +88,4 @@ The Security Officer reviews this policy at least annually and whenever data flo
 |---|---|---|
 | 1.0 | 2026-06-08 | Initial documented data retention & disposal policy. |
 | 1.1 | 2026-07-25 | Ownership transferred to Greigh Studios LLC; owner and operating entity rows updated. |
+| 1.2 | 2026-07-31 | Backup retention stated concretely (weekly whole-server snapshots, 2 retained ≈14 days) instead of "a defined cycle"; clarified snapshots are disaster-recovery only and never used to restore an individual account. Web (Paddle) subscriptions are now cancelled at the processor during account deletion. |

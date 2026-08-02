@@ -197,8 +197,16 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                         HorizontalDivider(color = Ct.colors.border)
                         NavRow("Change email", null) { dialog = "email" }
                     }
+                    // Apple/Google accounts have no password, so the change flow
+                    // (which re-checks the current one) can't succeed for them.
+                    if (current.hasPassword) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        NavRow("Change password", null) { dialog = "password" }
+                    }
                     HorizontalDivider(color = Ct.colors.border)
-                    NavRow("Change password", null) { dialog = "password" }
+                    // Deletion also lives here, not only under Data, so it's
+                    // easy to find (parity with iOS / Guideline 5.1.1(v)).
+                    NavRow("Delete account", null) { dialog = "delete" }
                     HorizontalDivider(color = Ct.colors.border)
                     val sync by vm.syncState.collectAsStateWithLifecycle()
                     Text(
@@ -469,7 +477,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
         "email" -> ChangeEmailDialog(vm, current, close)
         "password" -> ChangePasswordDialog(vm, close)
         "clear" -> ClearDataDialog(vm, close)
-        "delete" -> DeleteAccountDialog(vm, close)
+        "delete" -> DeleteAccountDialog(vm, current, close)
         "totpSetup" -> TotpSetupDialog(vm, close)
         "totpDisable" -> TotpDisableDialog(vm, close)
         "passkeys" -> PasskeysDialog(vm, mfa?.passkeys.orEmpty(), close)
@@ -1395,18 +1403,21 @@ private fun ChangePasswordDialog(vm: AppViewModel, onDone: () -> Unit) {
 private const val DELETE_CONFIRM_PHRASE = "DELETE ACCOUNT DATA"
 
 @Composable
-private fun DeleteAccountDialog(vm: AppViewModel, onDone: () -> Unit) {
+private fun DeleteAccountDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var confirmText by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val canDelete = password.isNotEmpty() && confirmText.trim() == DELETE_CONFIRM_PHRASE
+    // Apple/Google accounts have no password, so the typed phrase is the whole
+    // confirmation — asking for a password would leave them unable to delete.
+    val needsPassword = user.hasPassword
+    val canDelete = (!needsPassword || password.isNotEmpty()) && confirmText.trim() == DELETE_CONFIRM_PHRASE
     FormDialog("Delete account", saveEnabled = canDelete, onSave = {
-        vm.deleteAccount(password, code.trim()) { error = it }
+        vm.deleteAccount(password, code.trim(), confirmText.trim()) { error = it }
     }, onDismiss = onDone) {
         Text("This permanently deletes your account and all data. This can't be undone.",
             color = Ct.colors.muted, fontSize = 13.sp)
-        PasswordField("Password", password) { password = it }
+        if (needsPassword) PasswordField("Password", password) { password = it }
         OutlinedTextField(code, { code = it }, label = { Text("Authenticator code (if 2FA is on)") },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth())

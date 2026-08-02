@@ -27,6 +27,11 @@ data class User(
     // Epoch-ms when the account was created — powers "Member since" on the
     // profile. null from older payloads that didn't include it.
     val createdAt: Double? = null,
+    // False for Sign in with Apple / Google accounts, which have no password.
+    // Re-auth prompts (account deletion) drop the password field when this is
+    // false, or those users could never confirm. Defaults true for older
+    // payloads that predate the flag.
+    val hasPassword: Boolean = true,
 )
 
 data class AuthSession(val token: String, val user: User)
@@ -81,6 +86,9 @@ data class LoginRequest(
 @Serializable data class ChangePasswordBody(val currentPassword: String, val newPassword: String)
 @Serializable data class CodeBody(val code: String)
 @Serializable data class PasswordCodeBody(val password: String, val code: String)
+// `confirm` is the typed phrase; it is what authorizes deletion for Apple/Google
+// accounts, which have no password to re-enter.
+@Serializable data class DeleteAccountBody(val password: String, val code: String, val confirm: String)
 @Serializable data class EmailConfirmBody(val challengeId: String, val code: String)
 @Serializable data class PasskeyDeleteBody(val passkeyId: Int, val password: String)
 

@@ -25,10 +25,12 @@ public extension APIClient {
     }
 
     /// Permanently delete the account. `code` is the current TOTP code, sent
-    /// when 2FA is enrolled (ignored server-side otherwise).
-    func deleteAccount(password: String, code: String = "") async throws {
+    /// when 2FA is enrolled (ignored server-side otherwise). `confirm` is the
+    /// typed confirmation phrase, which is what authorizes deletion for
+    /// Sign in with Apple / Google accounts — they have no password to re-enter.
+    func deleteAccount(password: String, code: String = "", confirm: String = "") async throws {
         let req = try makeRequest(path: "api/account/delete", method: .POST,
-                                  body: AnyEncodable(PasswordCodeBody(password: password, code: code)))
+                                  body: AnyEncodable(DeleteAccountBody(password: password, code: code, confirm: confirm)))
         try await send(req)
     }
 

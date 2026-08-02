@@ -81,6 +81,27 @@ async function api(path, { method = 'GET', body } = {}) {
   return json.data;
 }
 
+/**
+ * Cancel a subscription at Paddle.
+ *
+ * `effectiveFrom` is Paddle's own vocabulary: 'immediately' stops the
+ * subscription now, 'next_billing_period' lets the paid term run out first.
+ * Account deletion uses 'immediately' — the account it belongs to is about to
+ * cease existing, so there is nothing left to run out.
+ *
+ * A subscription that is already canceled at Paddle throws with `status` 404 or
+ * an `entity_not_found` / `subscription_update_when_canceled` error code;
+ * offboarding callers should treat only those as success. Other 4xx responses
+ * (401/403 on a rotated key, 422 on a bad request) mean the subscription is
+ * still live and must not be swallowed.
+ */
+async function cancelSubscription(subscriptionId, effectiveFrom = 'immediately') {
+  return api('/subscriptions/' + encodeURIComponent(String(subscriptionId)) + '/cancel', {
+    method: 'POST',
+    body: { effective_from: effectiveFrom },
+  });
+}
+
 /* ── webhook signature ───────────────────────────────────────── */
 
 // Paddle-Signature: "ts=1671552777;h1=eb4d0dc8853be…"
@@ -196,6 +217,7 @@ module.exports = {
   API_BASE,
   api,
   apiKey,
+  cancelSubscription,
   clientToken,
   environment,
   paddleConfigured,

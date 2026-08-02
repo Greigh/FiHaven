@@ -28,6 +28,16 @@ public enum APIError: Error, Equatable, Sendable {
         case .http(let status, let code):
             switch code {
             case "invalid-credentials": return "Incorrect email or password."
+            // These all arrive as 401s. Until the client stopped flattening
+            // every 401 into .unauthenticated they were unreachable, and each
+            // one showed "Your session expired" instead.
+            case "wrong-password": return "That password is incorrect."
+            case "passkey-verify-failed": return "Passkey verification failed. Try again."
+            case "passkey-unknown": return "That passkey isn't registered to an account."
+            case "challenge-invalid", "bad-signature": return "That sign-in attempt couldn't be verified. Please try again."
+            case "oauth-verify-failed": return "That sign-in couldn't be verified. Please try again."
+            case "oauth-email-unverified": return "Your Google or Apple account has no verified email."
+            case "confirm-required": return "Type DELETE ACCOUNT DATA exactly to confirm."
             case "invalid-email": return "That email address looks invalid."
             case "weak-password": return "Password must be 10+ characters with a letter and a number."
             case "email-taken": return "An account with that email already exists."

@@ -2,11 +2,10 @@ import SwiftUI
 import FiHavenCore
 
 /// "FiHaven Pro" — a standalone More screen for subscription status,
-/// upgrade/manage, and promo redemption (lifted out of Settings).
+/// upgrade/manage, and App Store code redemption (lifted out of Settings).
 struct ProView: View {
     @EnvironmentObject var billing: StoreManager
     @State private var showPaywall = false
-    @State private var showRedeem = false
 
     var body: some View {
         ScrollView {
@@ -25,10 +24,13 @@ struct ProView: View {
                         .foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
                 }
-                Button("Redeem a code") { showRedeem = true }
+                // Apple's own redemption sheet — the only code path allowed on
+                // iOS (Guideline 3.1.1). No in-app code entry.
+                Button("Redeem an App Store code") { billing.presentOfferCodeSheet() }
                     .font(Theme.ui(15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .frame(maxWidth: .infinity)
+                    .accessibilityHint("Opens the App Store code redemption sheet")
             }
             .padding(20)
         }
@@ -36,7 +38,6 @@ struct ProView: View {
         .navigationTitle("FiHaven Pro")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) { PaywallView() }
-        .sheet(isPresented: $showRedeem) { RedeemCodeView() }
     }
 
     private var header: some View {
