@@ -28,6 +28,16 @@ enum NotificationScheduler {
         await center.notificationSettings().authorizationStatus
     }
 
+    /// Drop every scheduled reminder. Called on sign-out and account deletion:
+    /// the requests and the copy they carry (bill names and amounts) live on
+    /// the device, not in the session, so without this they keep firing on a
+    /// phone nobody is signed into.
+    static func cancelAll() {
+        center.removeAllPendingNotificationRequests()
+        // Anything already sitting in Notification Center is the same copy.
+        center.removeAllDeliveredNotifications()
+    }
+
     /// Cancel existing bill/trial reminders and reschedule from the current data.
     /// Off (or no permission) simply clears everything we'd scheduled.
     ///

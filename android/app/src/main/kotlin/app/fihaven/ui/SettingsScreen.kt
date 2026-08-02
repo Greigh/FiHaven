@@ -212,7 +212,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         when (sync) {
                             SyncState.Saving -> "☁ Saving to your account…"
-                            SyncState.Offline -> "☁ Offline — saved on this device, will sync when back online."
+                            SyncState.Offline -> "☁ Can’t reach FiHaven — still retrying. Nothing is stored on this device, so keep the app open until it clears."
                             else -> "☁ Synced to your account — changes save automatically across devices."
                         },
                         color = Ct.colors.muted, fontSize = 12.5.sp,
@@ -520,6 +520,10 @@ private fun TabsDialog(vm: AppViewModel, onDone: () -> Unit) {
         bottom = bottom.toMutableList().apply { add(i + 1, removeAt(i)) }
     }
     fun removeFromBottom(t: TabId) {
+        // Removing the last one saved an empty `tabs` array, leaving a bottom
+        // bar of nothing but More (plus Get Pro on free) with no highlighted
+        // tab — recoverable, but it reads as a broken app.
+        if (bottom.size <= 1) return
         more = listOf(t) + more
         bottom = bottom - t
     }
@@ -549,8 +553,8 @@ private fun TabsDialog(vm: AppViewModel, onDone: () -> Unit) {
                 TextButton(onClick = { moveDown(i) }, enabled = i < bottom.lastIndex) {
                     Text("↓", color = Ct.colors.accent)
                 }
-                TextButton(onClick = { removeFromBottom(t) }) {
-                    Text("Remove", color = Ct.colors.red)
+                TextButton(onClick = { removeFromBottom(t) }, enabled = bottom.size > 1) {
+                    Text("Remove", color = if (bottom.size > 1) Ct.colors.red else Ct.colors.muted)
                 }
             }
         }
@@ -1261,17 +1265,47 @@ private fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 private fun ExportRow(vm: AppViewModel) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
     Section("DATA") {
-        NavRow("Export data", null) {
+        NavRow("Export data", status) {
+            status = "Preparing…"
             scope.launch {
-                runCatching { vm.api.exportData() }.getOrNull()?.let { json ->
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/json"
-                        putExtra(Intent.EXTRA_TEXT, json)
-                        putExtra(Intent.EXTRA_TITLE, "fihaven-account-data.json")
-                    }
-                    ctx.startActivity(Intent.createChooser(intent, "Export FiHaven data"))
+                val json = runCatching { vm.api.exportData() }.getOrNull()
+                if (json == null) {
+                    // A failed export used to do nothing at all, which reads as
+                    // a dead row rather than a problem worth retrying.
+                    status = "Couldn't export — try again"
+                    return@launch
                 }
+                // Share a file, not EXTRA_TEXT. The export is the whole account,
+                // and an Intent extra crosses a Binder transaction — a few years
+                // of imported bank rows is enough to blow the ~1MB limit and take
+                // the app down with TransactionTooLargeException. Matches iOS,
+                // which writes to a temp file and shares the URL.
+                val uri = runCatching {
+                    val dir = java.io.File(ctx.cacheDir, "export").apply { mkdirs() }
+                    val file = java.io.File(dir, "fihaven-account-data.json")
+                    file.writeText(json)
+                    androidx.core.content.FileProvider.getUriForFile(
+                        ctx, "${ctx.packageName}.fileprovider", file,
+                    )
+                }.getOrNull()
+                if (uri == null) {
+                    status = "Couldn't export — try again"
+                    return@launch
+                }
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_TITLE, "fihaven-account-data.json")
+                    // The read grant only travels with the intent's ClipData —
+                    // the flag alone leaves the share sheet (and anything it
+                    // hands off to) unable to open the URI.
+                    clipData = android.content.ClipData.newRawUri("fihaven-account-data.json", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                status = null
+                ctx.startActivity(Intent.createChooser(intent, "Export FiHaven data"))
             }
         }
     }

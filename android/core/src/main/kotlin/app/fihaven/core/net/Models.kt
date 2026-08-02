@@ -118,11 +118,15 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
 
 // ── Billing ──────────────────────────────────────────────────────
 @Serializable data class EntitlementResponse(val entitlement: Entitlement)
+/** `GET /api/billing/status`. The web checkout is Paddle, not Stripe — the
+ *  server stopped sending `stripePortal` (and `POST /api/billing/stripe/portal`
+ *  no longer exists), so the old field silently defaulted to false forever and
+ *  a web subscriber saw no way to manage their subscription. */
 @Serializable data class BillingStatusResponse(
     val entitlement: Entitlement,
-    val stripePortal: Boolean = false,
+    val paddlePortal: Boolean = false,
 )
-@Serializable data class StripePortalResponse(val url: String)
+@Serializable data class PortalResponse(val url: String)
 @Serializable data class GoogleVerifyBody(
     val productId: String,
     val purchaseToken: String,

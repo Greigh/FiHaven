@@ -10,6 +10,7 @@ import './auth.js';
 import './navbar.js';
 import './passwordToggle.js';
 import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
+import { clearSessionCache } from './localCache.js';
 import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
 import { getDevEntitlement, setDevEntitlement, pullFromServer } from './storage.svelte.js';
@@ -133,15 +134,7 @@ import {
   }
 
   function clearLocalData() {
-    ['fh_bills', 'fh_cards', 'fh_payments', 'fh_settings', 'fh_data_owner'].forEach(
-      function (key) {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          /* ignore */
-        }
-      }
-    );
+    clearSessionCache();
   }
 
   function init() {

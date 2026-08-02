@@ -48,7 +48,9 @@ struct TabsEditorView: View {
                 .foregroundStyle(inBottom ? Theme.red : Theme.green)
             }
             .buttonStyle(.plain)
-            .disabled(!inBottom && bottom.count >= maxBottomTabs)
+            // Removing the last one saves an empty `tabs` array, leaving a bar
+            // of nothing but More (plus Get Pro on free) with no selected tab.
+            .disabled(inBottom ? bottom.count <= 1 : bottom.count >= maxBottomTabs)
             .accessibilityLabel(
                 inBottom
                     ? "Move \(item.title) to More"
@@ -62,6 +64,7 @@ struct TabsEditorView: View {
 
     private func move(_ item: TabItem, inBottom: Bool) {
         if inBottom {
+            guard bottom.count > 1 else { return }
             bottom.removeAll { $0 == item }
             more.insert(item, at: 0)
         } else {

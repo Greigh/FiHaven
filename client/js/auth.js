@@ -7,6 +7,7 @@
 ═════════════════════════════════════════════════════════════════ */
 
 import { nextFromSearch, loginWithNext, SAFE_NAV_TARGET } from './nextUrl.js';
+import { clearSessionCache } from './localCache.js';
 
   var API = '/api/auth';
   var csrfToken = null;
@@ -67,11 +68,7 @@ import { nextFromSearch, loginWithNext, SAFE_NAV_TARGET } from './nextUrl.js';
   // Drop the cached account data so the next user on this browser
   // never inherits it. The server copy is unaffected.
   function clearLocalData() {
-    ['fh_bills', 'fh_cards', 'fh_payments', 'fh_settings', 'fh_data_owner'].forEach(
-      function (key) {
-        localStorage.removeItem(key);
-      }
-    );
+    clearSessionCache();
   }
 
   function logout() {

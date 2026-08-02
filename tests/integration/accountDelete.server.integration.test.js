@@ -28,6 +28,59 @@ function fakeIdToken({ sub, email, aud }) {
   ].join('.');
 }
 
+/**
+ * The Paddle API endpoint a request targets, or '' for anything else.
+ *
+ * Compares the *parsed* hostname rather than prefix-matching the href: a
+ * `startsWith('https://api.paddle.com')` check also matches any host that
+ * merely begins with it — `https://api.paddle.com.example.net/` — because
+ * nothing forces a delimiter after `.com`
+ * (CodeQL js/incomplete-url-substring-sanitization). Here that would have
+ * diverted a look-alike host into the stub and reported it as a genuine
+ * Paddle call.
+ */
+export function paddleTarget(input) {
+  // fetch() accepts a string, a URL, or a Request.
+  const raw = typeof input === 'string' || input instanceof URL
+    ? input
+    : (input && typeof input.url === 'string' ? input.url : '');
+  let parsed;
+  try {
+    parsed = new URL(String(raw));
+  } catch {
+    return ''; // relative or unparseable — never Paddle
+  }
+  return parsed.hostname === 'api.paddle.com' ? parsed.href : '';
+}
+
+describe('paddleTarget — only the real Paddle host is intercepted', () => {
+  it('matches the Paddle API host and returns the full URL', () => {
+    expect(paddleTarget('https://api.paddle.com/subscriptions/sub_1/cancel'))
+      .toBe('https://api.paddle.com/subscriptions/sub_1/cancel');
+    expect(paddleTarget(new URL('https://api.paddle.com/x'))).toBe('https://api.paddle.com/x');
+    expect(paddleTarget({ url: 'https://api.paddle.com/x' })).toBe('https://api.paddle.com/x');
+  });
+
+  it('rejects hosts that merely start with, contain, or spoof it', () => {
+    for (const url of [
+      'https://api.paddle.com.example.net/subscriptions',  // suffixed host
+      'https://api.paddle.comevil.net/subscriptions',      // no delimiter
+      'https://evil.net/https://api.paddle.com/cancel',    // in the path
+      'https://evil.net/?u=https://api.paddle.com',        // in the query
+      'https://sandbox-api.paddle.com/subscriptions',      // different host
+      'http://api.paddle.com.evil.net/',
+    ]) {
+      expect(paddleTarget(url)).toBe('');
+    }
+  });
+
+  it('passes through anything unparseable rather than guessing', () => {
+    expect(paddleTarget('/api/auth/signup')).toBe('');
+    expect(paddleTarget('')).toBe('');
+    expect(paddleTarget(undefined)).toBe('');
+  });
+});
+
 describe('integration — account deletion', () => {
   let ctx;
   let base;
@@ -52,8 +105,9 @@ describe('integration — account deletion', () => {
 
     const realFetch = globalThis.fetch;
     globalThis.fetch = async (url, init) => {
-      if (String(url).startsWith('https://api.paddle.com')) {
-        paddleCalls.push({ url: String(url), init });
+      const target = paddleTarget(url);
+      if (target) {
+        paddleCalls.push({ url: target, init });
         return paddleResponder();
       }
       return realFetch(url, init);

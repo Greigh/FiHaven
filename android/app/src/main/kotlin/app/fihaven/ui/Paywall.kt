@@ -185,7 +185,10 @@ fun PaywallDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 @Composable
 fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
     val ent by vm.entitlement.collectAsStateWithLifecycle()
-    val stripePortal by vm.stripePortal.collectAsStateWithLifecycle()
+    // Collected so the Manage button re-renders once billing status lands;
+    // manageButtonLabel is what actually reads it.
+    @Suppress("UNUSED_VARIABLE")
+    val billingPortal by vm.billingPortal.collectAsStateWithLifecycle()
     val billing = LocalBilling.current
     val products: List<ProductDetails> =
         if (billing != null) billing.products.collectAsStateWithLifecycle().value else emptyList()
@@ -259,6 +262,16 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
                         BillingManager.period(product)?.let { len ->
                             Text(len, color = Ct.colors.muted, fontSize = 12.sp)
                         }
+                        // The trial has to be stated, not just silently applied
+                        // at purchase time.
+                        BillingManager.introOffer(product)?.let { intro ->
+                            Text(
+                                intro,
+                                color = Ct.colors.green,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     Text(
                         BillingManager.formattedPrice(product) ?: "",
@@ -276,13 +289,15 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
         // 18dp that separates the cards above read as dead space between three
         // lines of fine print.
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            TextButton(onClick = { vm.restore() }) {
+            // Re-present Play's own purchases to the server before re-reading
+            // the entitlement — the server only knows what it's been told, so
+            // asking it alone restores nothing after a reinstall.
+            TextButton(onClick = { billing?.replayPurchases(); vm.restore() }) {
                 Text("Restore purchases", color = Ct.colors.muted)
             }
-            Text(
-                "Subscriptions are auto-renewing. Payment is charged through Google Play. Renews unless canceled before the period ends. Manage in Google Play → Subscriptions.",
-                color = Ct.colors.muted, fontSize = 11.sp, textAlign = TextAlign.Center,
-            )
+            vm.storeTerms(ent)?.let { terms ->
+                Text(terms, color = Ct.colors.muted, fontSize = 11.sp, textAlign = TextAlign.Center)
+            }
             val uriHandler = LocalUriHandler.current
             Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { uriHandler.openUri("https://fihaven.app/privacy") }) {
@@ -309,6 +324,7 @@ private fun ActiveCard(ent: app.fihaven.core.model.Entitlement) {
             )
             ent.source?.let { source ->
                 val label = when (source) {
+                    "paddle" -> "FiHaven.app"
                     "stripe" -> "Stripe"
                     "google" -> "Play Store"
                     "promo" -> "Promo Code"

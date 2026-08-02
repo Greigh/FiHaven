@@ -36,7 +36,13 @@
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "D0DB7105-DFBF-49BD-A2C1-4AFB0F699D58",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "displayPrice" : "0.00",
+            "internalID" : "4E1B2A67-9C3D-4F58-B0A1-7D2E5C8F3A94",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
               "description" : "Unlock the payoff planner, calendar, and history.",
@@ -61,7 +67,13 @@
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "22551385-6EDA-465B-BF4E-BADAE5AC5B06",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "displayPrice" : "0.00",
+            "internalID" : "8A5F1D93-2E64-4B07-9C81-6F3A4D0B7E25",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
               "description" : "Unlock the payoff planner, calendar, and history.",

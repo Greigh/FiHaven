@@ -12,7 +12,7 @@ struct SyncOfflineBanner: View {
                     Image(systemName: "icloud.slash")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Theme.orange)
-                    Text("You're offline — changes save on this device, not the cloud.")
+                    Text("Can’t reach FiHaven — still trying to save. Keep the app open until this clears.")
                         .font(Theme.ui(13, weight: .medium))
                         .foregroundStyle(Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
@@ -42,7 +42,7 @@ struct SyncOfflineBanner: View {
                 .padding(.top, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Offline. Changes save on this device, not the cloud.")
+                .accessibilityLabel("Can’t reach FiHaven. Still trying to save. Keep the app open until this clears.")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: store.syncState == .offline)

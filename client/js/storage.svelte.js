@@ -16,7 +16,11 @@
    the runes transform on this file.
 ═══════════════════════════════════════════════════════════ */
 
-const SYNCED_KEYS = { fh_bills: 1, fh_cards: 1, fh_payments: 1, fh_accounts: 1, fh_goals: 1, fh_transactions: 1, fh_settings: 1 };
+import { DATA_CACHE_KEYS } from './localCache.js';
+
+// Derived from the one list, so what we cache and what sign-out clears can
+// never drift apart again (they did: three keys were left behind).
+const SYNCED_KEYS = Object.fromEntries(DATA_CACHE_KEYS.map((k) => [k, 1]));
 const SYNC_DEBOUNCE_MS = 800;
 
 /* One-time migration of legacy keys (ct_*) to the FiHaven

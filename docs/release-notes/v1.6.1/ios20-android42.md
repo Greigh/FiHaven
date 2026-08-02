@@ -32,7 +32,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 459 / 500 characters (counted with newlines, as the console does).
+> 484 / 500 characters (counted with newlines, as the console does).
 
 ```
 FiHaven Pro now opens straight onto the plans and prices instead of a button that reveals them, and the Family plan shows what it costs before you start buying.
@@ -42,6 +42,8 @@ Settings > Bank is the bank screen itself now, not a screen holding one row.
 If a Family plan ends, your shared household turns read-only instead of half-working. Nothing shared is ever deleted, and resubscribing picks up where you left off.
 
 U.S. Bank, Bilt and CareCredit show their real logos.
+
+Bug fixes and security updates.
 ```
 
 ---
@@ -92,7 +94,7 @@ WHAT TO TEST
 - Settings > Bank: confirm your banks and Connect a bank are on that screen directly.
 - Look at a U.S. Bank, Bilt or CareCredit card and confirm the logo.
 
-KNOWN
+KNOWN ISSUES
 
 The household read-only state is enforced by the server. On a build newer than the deployed server you won't see the notice; sharing still works until the server catches up.
 ```

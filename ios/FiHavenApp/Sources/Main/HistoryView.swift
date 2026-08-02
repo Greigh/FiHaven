@@ -128,22 +128,57 @@ struct HistoryView: View {
         return note
     }
 
+    /// A headline figure with its caption, sharing the row evenly with its
+    /// siblings.
+    ///
+    /// Label, figure and caption each hold one line and shrink to fit: three
+    /// five-figure amounts side by side (or a large Dynamic Type setting)
+    /// otherwise wrapped mid-number, and a wrapped label pushed one column's
+    /// number off the others' baseline.
+    @ViewBuilder private func statFigure(
+        _ label: String,
+        _ value: String,
+        _ color: Color,
+        caption: String? = nil,
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Text(value)
+                .font(Theme.mono(20, weight: .semibold)).foregroundStyle(color)
+                .lineLimit(1).minimumScaleFactor(0.6)
+            if let caption {
+                Text(caption)
+                    .font(Theme.ui(11)).foregroundStyle(Theme.muted)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// Table view for the chart — same figures, exact and screen-readable.
+    ///
+    /// The four columns share the row's width rather than taking fixed points:
+    /// a five-figure amount didn't fit 78 and wrapped mid-number, which reads
+    /// as two figures. Each cell holds one line and shrinks instead.
     @ViewBuilder private func cashflowTable(_ s: CashflowHistory.Series) -> some View {
         VStack(spacing: 6) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text("Month").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Income").frame(width: 78, alignment: .trailing)
-                Text("Spending").frame(width: 84, alignment: .trailing)
-                Text("Net").frame(width: 78, alignment: .trailing)
+                Text("Income").frame(maxWidth: .infinity, alignment: .trailing)
+                Text("Spending").frame(maxWidth: .infinity, alignment: .trailing)
+                Text("Net").frame(maxWidth: .infinity, alignment: .trailing)
             }
             .font(Theme.ui(10, weight: .semibold))
             .foregroundStyle(Theme.muted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             Divider().overlay(Theme.border)
 
             // Newest-first for the table; the chart itself reads oldest → newest.
             ForEach(Array(s.rows.reversed()), id: \.mk) { r in
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(DateLogic.monthKeyLabel(r.mk, tz: store.tz))
                         .font(Theme.ui(12))
                         .foregroundStyle(r.blind ? Theme.muted.opacity(0.75) : Theme.muted)
@@ -151,16 +186,18 @@ struct HistoryView: View {
                     Text(Money.fmt(r.income))
                         .font(Theme.mono(12, weight: .semibold))
                         .foregroundStyle(Theme.text)
-                        .frame(width: 78, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     Text(r.blind ? "not recorded" : Money.fmt(r.spending))
                         .font(r.blind ? Theme.ui(10) : Theme.mono(12, weight: .semibold))
                         .foregroundStyle(r.blind ? Theme.muted : Theme.text)
-                        .frame(width: 84, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     Text(r.blind ? "—" : (r.net >= 0 ? "+" : "") + Money.fmt(r.net))
                         .font(r.blind ? Theme.ui(10) : Theme.mono(12, weight: .semibold))
                         .foregroundStyle(r.blind ? Theme.muted : (r.net >= 0 ? Theme.green : Theme.red))
-                        .frame(width: 78, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .accessibilityElement(children: .combine)
             }
         }
@@ -192,22 +229,15 @@ struct HistoryView: View {
                         let acc = accounted(cf)
                         let avgNet = acc.isEmpty ? 0 : acc.reduce(0) { $0 + $1.net } / Double(acc.count)
                         let avgSpend = acc.isEmpty ? 0 : acc.reduce(0) { $0 + $1.spending } / Double(acc.count)
-                        HStack(alignment: .top, spacing: 24) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Avg net / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text((avgNet >= 0 ? "+" : "") + Money.fmt(avgNet))
-                                    .font(Theme.mono(20, weight: .semibold))
-                                    .foregroundStyle(avgNet >= 0 ? Theme.green : Theme.red)
-                                Text("over \(acc.count) recorded mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Avg income").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Avg spending").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text(Money.fmt(avgSpend)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                            }
+                        HStack(alignment: .top, spacing: 12) {
+                            statFigure(
+                                "Avg net / mo",
+                                (avgNet >= 0 ? "+" : "") + Money.fmt(avgNet),
+                                avgNet >= 0 ? Theme.green : Theme.red,
+                                caption: "over \(acc.count) recorded mo",
+                            )
+                            statFigure("Avg income", Money.fmt(avgIncome), Theme.text)
+                            statFigure("Avg spending", Money.fmt(avgSpend), Theme.text)
                         }
                         CashflowChartView(rows: cf.rows)
                         Text(cashflowNote(cf))
@@ -216,21 +246,14 @@ struct HistoryView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         cashflowTable(cf)
                     } else {
-                        HStack(alignment: .top, spacing: 24) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Avg / mo (incl. bonuses)").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text(Money.fmt(avgIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                                Text("last \(months.count) mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Recurring / mo").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                Text(Money.fmt(baseIncome)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.text)
-                            }
+                        HStack(alignment: .top, spacing: 12) {
+                            statFigure(
+                                "Avg / mo (incl. bonuses)", Money.fmt(avgIncome), Theme.text,
+                                caption: "last \(months.count) mo",
+                            )
+                            statFigure("Recurring / mo", Money.fmt(baseIncome), Theme.text)
                             if totalBonus > 0 {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Bonuses").font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                                    Text(Money.fmt(totalBonus)).font(Theme.mono(20, weight: .semibold)).foregroundStyle(Theme.green)
-                                }
+                                statFigure("Bonuses", Money.fmt(totalBonus), Theme.green)
                             }
                         }
                     }

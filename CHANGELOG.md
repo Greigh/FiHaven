@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (20) - A reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 42) - A reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (21) - Sign-out ends the session for real (reminders stop, a pending save can't overwrite the next account), archived items stop driving reminders and totals, and a subscription bought on the web can be managed again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 43) - Sign-out ends the session for real (reminders stop, a pending save can't overwrite the next account), archived items stop driving reminders and totals, a subscription bought on the web can be managed again, and Export data no longer crashes on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,52 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Sign-out actually ends the session, and archived things stay archived (Aug 2)**
+
+An audit pass over the Android app, then the same checks run against iOS, the web
+app and the server. Most of what follows had been true on more than one platform.
+
+- **Signing out stops your bill reminders.** They were scheduled on the device,
+  not in the session, so they kept firing after you signed out — with the bill
+  name and amount on the lock screen — and on Android were re-armed after every
+  reboot, indefinitely. Deleting your account had the same gap. Both platforms
+  now clear every scheduled reminder when the session ends, including when the
+  app finds a token the server no longer recognises.
+- **Archiving something now actually silences it.** Archived bills and cards are
+  soft-deleted — hidden from every list and total — but the **server** never
+  checked that flag. It kept emailing and pushing reminders for archived bills,
+  counted them in the monthly summary and weekly digest, counted archived cards
+  as debt, sent expiry reminders for their card offers, and — worst — **auto-marked
+  archived autopay items paid**, writing payments you never made into your data
+  and syncing them to every device. Fixed at the source, so all three apps
+  benefit; the Android dashboard's trial alerts and Subscriptions total, and both
+  phones' local reminders, were fixed alongside it.
+- **A subscription you bought somewhere else can be managed again.** If you
+  subscribed on the web, the phone apps showed "You're on FiHaven Pro" with no
+  Manage button and nothing saying where to cancel — they were still asking the
+  server about a payment provider we no longer use. The button is back, and every
+  other case (bought on iPhone, bought on Android, promo, complimentary) now says
+  in plain words where it's managed. The small print no longer tells an iPhone
+  subscriber their money goes through Google Play, or vice versa.
+- **Your data can't be lost between signing out and back in.** A save still
+  retrying in the background wasn't stopped when you signed out; if it woke up
+  during a fresh sign-in it could overwrite the new account with an empty copy.
+  Both platforms now cancel it.
+- **Signing out of the web clears everything it cached.** Sign-out dropped your
+  bills, cards, payments and settings from the browser but left your net-worth
+  accounts, savings goals and spending behind — which the offline fallback then
+  reads back. On a shared computer the next person could have been shown them.
+- **Exporting your data works on a full account.** Android handed the whole export
+  to the share sheet inside an intent, which crashes the app once an account is
+  large enough (a few years of imported bank rows will do it); it now shares a
+  file, like iPhone does. A failed export used to do nothing at all on either
+  platform — it now says so.
+- **Smaller fixes.** Android: a bank-balance prompt for a single card cut its own
+  sentence off mid-way; the transaction editor stamped the device's date rather
+  than your time zone, as could the "Due in N days · Aug 12" line; the Family
+  screen leaked a background connection each time you left it. Both phones: you
+  could remove every tab from the bottom bar and be left with nothing but "More".
 
 **A lapsed Family plan pauses your household instead of quietly doing nothing (Aug 1)**
 
@@ -814,6 +860,82 @@ Each release below uses two layers:
   - Prior: list spacing, icons, deps, list search, paywall, Google Custom Tab.
 
 ### Technical changelog
+
+- **Session teardown is now explicit on both phones.** Sign-out cleared auth
+  state but left two things running that outlive it. (1) **Scheduled reminders.**
+  They live with the OS, not the session — Android's survived in
+  `SharedPreferences` and `BootReceiver.rescheduleFromSaved` re-armed them after
+  every reboot, forever; iOS's `UNCalendarNotificationTrigger` requests simply
+  persisted. New `NotificationScheduler.cancelAll` on both. (2) **The debounced
+  save retry.** `AppViewModel.saveJob` / `AppStore.saveTask` re-read the data on
+  every attempt, and a `Task` keeps itself alive regardless of whether anything
+  still holds the store — so a loop that woke between a new sign-in storing its
+  token and `loadData()` returning would `PUT` an empty `AppData` over that
+  account. Both are now torn down by `AppViewModel.endSession()` /
+  `AppStore.endSession()`, called from logout, account deletion, and the
+  bootstrap path where the server rejects a stored token (which never went
+  through `logout()`). The save loop additionally checks the session before each
+  attempt, and skips its trailing `refreshNotifications()` when the session
+  ended — `onSessionExpired` hands off to `logout()`, which suspends before
+  clearing `_session`, so the refresh would otherwise re-arm what `endSession()`
+  had just cancelled.
+- **`server/scheduler.js` never honoured `archived`.** `grep archived` returned
+  nothing: `billActiveOn()` gated on the start/end window only, while every
+  client's `billActive` is `!archived && !notStarted && !ended`. Soft-deleted
+  records therefore drove bill reminders, trial reminders, the monthly summary
+  and the weekly digest, and archived cards leaked into `offersExpiringOn()` and
+  both debt totals — and `markAutopay()` **auto-marked them paid**, pushing
+  phantom `payments` into `u.data` via `upsertUserData` and out to every device.
+  `billActiveOn` now rejects `archived` and a new `activeCards(data)` covers the
+  card paths. 7 regression tests, including two positive controls so the filter
+  can't over-reach. Clients tightened to match: `AppStore.refreshNotifications`
+  and `AppViewModel.refreshNotifications` pass `activeBills`/`activeCards` (bill
+  *due* reminders were already safe via `nextDueDate → billActive`; trial and
+  offer reminders read the raw lists), and Android's dashboard trial alerts and
+  Subscriptions widget switch to `activeBills`.
+- **Both native clients were still on the Stripe billing contract.** The server
+  moved to Paddle: `GET /api/billing/status` returns `paddlePortal` and
+  `POST /api/billing/stripe/portal` no longer exists. `BillingStatusResponse`
+  kept decoding `stripePortal` — permanently `false`/`nil` — so `manageButtonLabel`
+  returned nil for a web subscriber and the paywall rendered "You're on FiHaven
+  Pro" with no button and no explanation. Renamed to `paddlePortal` /
+  `createBillingPortal()` against `api/billing/paddle/portal` on both platforms
+  (resolving the dev server's site-relative `/dev-portal` against the API base),
+  plus `billingNote` cases for every remaining source and a new `storeTerms`
+  so the Apple/Play auto-renewal boilerplate is only shown to subscribers it
+  applies to. Android surfaces a portal failure as a Toast instead of a button
+  that does nothing. **The web was already correct** — it is what got migrated.
+- **Web: `clearLocalData()` and `cacheLocally()` had drifted apart.**
+  `storage.svelte.js` cached seven keys; `auth.js` and `settings.js` each removed
+  a hand-written five, leaving `fh_accounts`, `fh_goals` and `fh_transactions` in
+  `localStorage` after sign-out and account deletion — and `bootstrapData()`'s
+  offline fallback reads exactly those keys. New `client/js/localCache.js` holds
+  the single list; `SYNCED_KEYS` is derived from it so they cannot drift again.
+  3 tests.
+- **Android `ExportRow` put the whole account in `Intent.EXTRA_TEXT`**, which
+  crosses a Binder transaction and throws `TransactionTooLargeException` past
+  ~1MB. Now staged to `cacheDir/export/` and shared through a new `FileProvider`
+  (`@xml/file_paths`, cache-path only) with `ClipData` so the read grant reaches
+  the share sheet — matching iOS, which already wrote a temp file. Both platforms
+  now report a failed export instead of silently doing nothing.
+- **Smaller Android fixes.** `BankConnections`: `"…for $n card" + if (n == 1) ""
+  else "s" + ". …"` — `+` binds tighter than the `if` arms, so the single-card
+  branch swallowed the rest of the sentence. `BudgetScreen.TransactionEditorDialog`
+  and `MainScaffold.dueLabel` used `LocalDate.now()` instead of
+  `DateLogic.today(zone)` (PayDialog and the calendar were already correct).
+  `streamHousehold` used `readTimeout = 0` with a non-cancellable `readLine()`,
+  stranding an IO thread per visit to Settings → Family; now a 30s timeout plus
+  `invokeOnCompletion { conn.disconnect() }`. Both platforms' tab editors let you
+  remove the last bottom tab, persisting an empty `tabs` array.
+- **CodeQL `js/incomplete-url-substring-sanitization` (#50).** The Paddle fetch
+  stub in `accountDelete.server.integration.test.js` matched with
+  `startsWith('https://api.paddle.com')`, which also accepts
+  `https://api.paddle.com.example.net/`. Replaced with an exported `paddleTarget()`
+  that compares the parsed `hostname` (and handles `Request`/`URL` inputs, which
+  the old `String(url)` silently failed to match), plus 3 tests covering six
+  spoofing shapes. A sweep found no other instance — the remaining
+  `startsWith("https://")` calls are scheme checks, and `nextUrl.js` already
+  rebuilds redirect targets from an allowlist.
 
 - **A lapsed Family plan now freezes the household instead of doing nothing.**
   Expiry used to have almost no consequence: `capFor()` dropped to 0, but every

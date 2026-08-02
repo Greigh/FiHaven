@@ -120,7 +120,7 @@ function trialsEndingOn(data, lp, days) {
  *  flattened with the card name for the reminder email. */
 function offersExpiringOn(data, lp, days) {
   const out = [];
-  (data.cards || []).forEach((c) => {
+  activeCards(data).forEach((c) => {
     (c.offers || []).forEach((o) => {
       if (!o || o.used || !o.expires) return;
       if (daysUntilYmd(o.expires, lp) === days) {
@@ -135,11 +135,25 @@ function offersExpiringOn(data, lp, days) {
 // client's billActive). `ymd` is the user's local "YYYY-MM-DD". A
 // not-yet-started or stopped bill is excluded from autopay, reminders,
 // and the monthly summary total.
+//
+// `archived` is part of that gate on every client (`!archived && !notStarted
+// && !ended`) and was missing here, so the server kept treating soft-deleted
+// bills as live: it emailed and pushed reminders for them, counted them in the
+// monthly summary and weekly digest, and — worst — auto-marked them paid,
+// writing phantom payments into the user's data that then synced everywhere.
 function billActiveOn(item, ymd) {
   if (!item) return false;
+  if (item.archived) return false;
   if (item.startDate && ymd < item.startDate) return false;
   if (item.endDate && ymd > item.endDate) return false;
   return true;
+}
+
+/** Non-archived cards — the client's `activeCards`. Archived records stay in
+ *  the blob so they round-trip and can be restored, but must never drive a
+ *  reminder, a total, or an autopay mark. */
+function activeCards(data) {
+  return (data.cards || []).filter((c) => c && !c.archived);
 }
 
 // A web-compatible payment id (base36 timestamp + random), matching the
@@ -209,7 +223,7 @@ function markAutopay(data, lp) {
   };
 
   (data.bills || []).forEach((b) => markIfDue(b, 'bill', b.amount, b.name || 'Bill'));
-  (data.cards || []).forEach((c) => markIfDue(c, 'card', c.minPayment, (c.name || 'Card') + ' (payment)'));
+  activeCards(data).forEach((c) => markIfDue(c, 'card', c.minPayment, (c.name || 'Card') + ' (payment)'));
 
   if (changed) {
     // Persist the memory, keeping per-month buckets for the last 4 months
@@ -227,7 +241,9 @@ function markAutopay(data, lp) {
 // Stats for the monthly summary (covers the month that just ended).
 function summarize(data, lp) {
   const bills = data.bills || [];
-  const cards = data.cards || [];
+  // Archived cards are soft-deleted, so they must not count as debt (the
+  // clients' `liabilities` reads activeCards).
+  const cards = activeCards(data);
   const payments = data.payments || [];
   const prev = new Date(Date.UTC(lp.y, lp.m - 1, 1));
   prev.setUTCMonth(prev.getUTCMonth() - 1);
@@ -256,7 +272,7 @@ function weeklyDigest(data, lp) {
   return {
     upcoming,
     upcomingTotal: upcoming.reduce((s, b) => s + (Number(b.amount) || 0), 0),
-    debtTotal: (data.cards || []).reduce((s, c) => s + (Number(c.balance) || 0), 0),
+    debtTotal: activeCards(data).reduce((s, c) => s + (Number(c.balance) || 0), 0),
   };
 }
 
@@ -475,6 +491,6 @@ function start() {
 module.exports = {
   start, runChecks, localParts, daysUntilDue, daysUntilYmd, trialsEndingOn,
   offersExpiringOn, summarize, weeklyDigest, isoWeekKey, isoWeekday,
-  reminderOffsets,
+  reminderOffsets, billActiveOn, markAutopay,
   SEND_HOUR, REMINDER_LEAD_DAYS, MAX_REMINDER_OFFSETS, DEFAULT_TZ,
 };

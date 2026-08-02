@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the export staging directory is shared. Nothing else in the app's
+     private storage is reachable through the provider. -->
+<paths>
+    <cache-path name="export" path="export/" />
+</paths>

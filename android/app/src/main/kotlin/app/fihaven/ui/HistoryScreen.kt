@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -31,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -199,26 +203,15 @@ private fun IncomeHistoryCard(
         CtCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (hasCashflow) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column {
-                            Text("Avg net / mo", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(
-                                (if (avgNet >= 0) "+" else "") + Money.fmt(avgNet),
-                                color = if (avgNet >= 0) Ct.colors.green else Ct.colors.red,
-                                fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
-                            )
-                            Text("over ${accounted.size} recorded mo", color = Ct.colors.muted, fontSize = 11.sp)
-                        }
-                        Column {
-                            Text("Avg income", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                        }
-                        Column {
-                            Text("Avg spending", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(Money.fmt(avgSpend), color = Ct.colors.text, fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatFigure(
+                            "Avg net / mo",
+                            (if (avgNet >= 0) "+" else "") + Money.fmt(avgNet),
+                            if (avgNet >= 0) Ct.colors.green else Ct.colors.red,
+                            caption = "over ${accounted.size} recorded mo",
+                        )
+                        StatFigure("Avg income", Money.fmt(avg), Ct.colors.text)
+                        StatFigure("Avg spending", Money.fmt(avgSpend), Ct.colors.text)
                     }
 
                     CashflowChart(cf.rows)
@@ -243,72 +236,62 @@ private fun IncomeHistoryCard(
                     )
 
                     // Table view for the chart — same figures, exact and screen-readable.
-                    Row(Modifier.fillMaxWidth()) {
-                        Text("MONTH", color = Ct.colors.muted, fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Text("INCOME", color = Ct.colors.muted, fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
-                            modifier = Modifier.width(72.dp))
-                        Text("SPENDING", color = Ct.colors.muted, fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
-                            modifier = Modifier.width(80.dp))
-                        Text("NET", color = Ct.colors.muted, fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
-                            modifier = Modifier.width(72.dp))
+                    // The columns share the row's width instead of taking fixed dp:
+                    // a five-figure amount didn't fit 72dp and wrapped mid-number.
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TableHead("MONTH", MONTH_COL, TextAlign.Start)
+                        TableHead("INCOME", MONEY_COL)
+                        TableHead("SPENDING", SPEND_COL)
+                        TableHead("NET", MONEY_COL)
                     }
                     HorizontalDivider(color = Ct.colors.border)
                     // Newest-first for the table; the chart reads oldest → newest.
                     cf.rows.reversed().forEach { r ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OneLine(
                                 DateLogic.monthKeyLabel(r.mk),
                                 color = if (r.blind) Ct.colors.muted.copy(alpha = 0.75f) else Ct.colors.muted,
-                                fontSize = 11.sp, modifier = Modifier.weight(1f),
+                                weight = MONTH_COL, maxFontSize = 11.sp, align = TextAlign.Start,
                             )
-                            Text(Money.fmt(r.income), color = Ct.colors.text, fontSize = 12.sp,
+                            OneLine(
+                                Money.fmt(r.income), color = Ct.colors.text, weight = MONEY_COL,
                                 fontFamily = PlexMono, fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
-                            Text(
+                            )
+                            OneLine(
                                 if (r.blind) "not recorded" else Money.fmt(r.spending),
                                 color = if (r.blind) Ct.colors.muted else Ct.colors.text,
-                                fontSize = if (r.blind) 10.sp else 12.sp,
+                                weight = SPEND_COL,
+                                maxFontSize = if (r.blind) 10.sp else 12.sp,
                                 fontFamily = if (r.blind) FontFamily.Default else PlexMono,
                                 fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.End, modifier = Modifier.width(80.dp),
                             )
-                            Text(
+                            OneLine(
                                 if (r.blind) "—" else (if (r.net >= 0) "+" else "") + Money.fmt(r.net),
                                 color = when {
                                     r.blind -> Ct.colors.muted
                                     r.net >= 0 -> Ct.colors.green
                                     else -> Ct.colors.red
                                 },
-                                fontSize = if (r.blind) 10.sp else 12.sp,
+                                weight = MONEY_COL,
+                                maxFontSize = if (r.blind) 10.sp else 12.sp,
                                 fontFamily = if (r.blind) FontFamily.Default else PlexMono,
                                 fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.End, modifier = Modifier.width(72.dp),
                             )
                         }
                     }
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column {
-                            Text("Avg / mo (incl. bonuses)", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                            Text("last ${months.size} mo", color = Ct.colors.muted, fontSize = 11.sp)
-                        }
-                        Column {
-                            Text("Recurring / mo", color = Ct.colors.muted, fontSize = 11.sp)
-                            Text(Money.fmt(base), color = Ct.colors.text, fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatFigure(
+                            "Avg / mo (incl. bonuses)", Money.fmt(avg), Ct.colors.text,
+                            caption = "last ${months.size} mo",
+                        )
+                        StatFigure("Recurring / mo", Money.fmt(base), Ct.colors.text)
                         if (totalBonus > 0) {
-                            Column {
-                                Text("Bonuses", color = Ct.colors.muted, fontSize = 11.sp)
-                                Text(Money.fmt(totalBonus), color = Ct.colors.green, fontSize = 20.sp,
-                                    fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
-                            }
+                            StatFigure("Bonuses", Money.fmt(totalBonus), Ct.colors.green)
                         }
                     }
                     months.forEach { (mk, total, bonus) ->
@@ -338,6 +321,73 @@ private fun IncomeHistoryCard(
                     }
                 }
             }
+        }
+    }
+}
+
+// How the cashflow table splits a row between its four columns. Money needs
+// the most: "-$5,400.06" is wider than the "SPENDING" that heads it.
+private const val MONTH_COL = 1.05f
+private const val MONEY_COL = 1f
+private const val SPEND_COL = 1.05f
+
+/**
+ * Text that shrinks to hold one line rather than wrapping.
+ *
+ * Every figure on this screen shares a row with two or three others, so there
+ * is no width to spare: an amount that wrapped broke across lines mid-number
+ * ("$5,220." / "60"), which reads as two figures. Shrinking a point or two is
+ * the lesser evil, and a large system font scale makes it the common case.
+ */
+@Composable
+private fun RowScope.OneLine(
+    text: String,
+    color: Color,
+    weight: Float,
+    maxFontSize: TextUnit = 12.sp,
+    minFontSize: TextUnit = 9.sp,
+    align: TextAlign = TextAlign.End,
+    fontFamily: FontFamily? = null,
+    fontWeight: FontWeight? = null,
+) {
+    Text(
+        text,
+        color = color,
+        fontFamily = fontFamily,
+        fontWeight = fontWeight,
+        textAlign = align,
+        maxLines = 1,
+        autoSize = TextAutoSize.StepBased(minFontSize, maxFontSize, 0.5.sp),
+        modifier = Modifier.weight(weight),
+    )
+}
+
+/** One column heading in the cashflow table. */
+@Composable
+private fun RowScope.TableHead(text: String, weight: Float, align: TextAlign = TextAlign.End) {
+    OneLine(
+        text, color = Ct.colors.muted, weight = weight, maxFontSize = 10.sp, minFontSize = 8.sp,
+        align = align, fontWeight = FontWeight.SemiBold,
+    )
+}
+
+/**
+ * A headline figure with its caption, sharing the row evenly with its
+ * siblings. Label, figure and caption each hold one line so the three
+ * columns' numbers stay on a common baseline.
+ */
+@Composable
+private fun RowScope.StatFigure(label: String, value: String, color: Color, caption: String? = null) {
+    Column(Modifier.weight(1f)) {
+        Row { OneLine(label, Ct.colors.muted, 1f, maxFontSize = 11.sp, align = TextAlign.Start) }
+        Row {
+            OneLine(
+                value, color, 1f, maxFontSize = 20.sp, minFontSize = 12.sp, align = TextAlign.Start,
+                fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (caption != null) {
+            Row { OneLine(caption, Ct.colors.muted, 1f, maxFontSize = 11.sp, align = TextAlign.Start) }
         }
     }
 }

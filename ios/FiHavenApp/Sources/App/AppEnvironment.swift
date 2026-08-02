@@ -88,6 +88,12 @@ final class AppEnvironment: ObservableObject {
                     print("[AppEnvironment] bootstrap() restored session; entering signed-in")
                     return
                 }
+                // The server answered and said this token belongs to nobody, so
+                // the session is genuinely over — retire it and everything that
+                // outlives it. (A *thrown* error below is transient and must
+                // not discard a working session's reminders.)
+                tokens.clear()
+                NotificationScheduler.cancelAll()
             } catch {
                 // Transient failure with a stored token: fall through to
                 // signed-out rather than trapping on a blank screen.
@@ -216,6 +222,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func logout() async {
+        store?.endSession()
         PushRegistrar.shared.clear()
         try? await api.logout()
         billing.reset()
@@ -257,6 +264,7 @@ final class AppEnvironment: ObservableObject {
     /// carried through so the sign-in screen can say *which* account was
     /// deleted — by this point `currentUser` is already cleared.
     func didDeleteAccount(email: String? = nil) {
+        store?.endSession()
         tokens.clear()
         billing.reset()
         store = nil
@@ -283,6 +291,16 @@ final class AppEnvironment: ObservableObject {
         // launch) stays locked until unlocked.
         if fresh { biometric.markUnlocked() }
         let store = AppStore(api: api)
+        // Nothing is cached on disk, so a rejected token means the session is
+        // unusable: return to sign-in instead of showing an empty dashboard.
+        store.onSessionExpired = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                guard case .signedIn = self.session else { return }
+                await self.logout()
+                self.authError = "Your session expired. Please sign in again."
+            }
+        }
         self.store = store
         session = .signedIn(user)
         await store.load()
