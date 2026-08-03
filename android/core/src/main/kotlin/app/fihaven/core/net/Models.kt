@@ -50,6 +50,10 @@ data class MfaStatus(
     val passkeys: List<PasskeyInfo> = emptyList(),
     val backupCodes: BackupCodes = BackupCodes(),
     val emailMfa: EmailMfa = EmailMfa(),
+    /// False for Sign in with Apple / Google accounts, which have no password to
+    /// re-enter and confirm sensitive changes with an emailed code instead
+    /// (see [ReauthProof]). Defaults true so an older server still decodes.
+    val hasPassword: Boolean = true,
 ) {
     @Serializable data class Totp(val enabled: Boolean = false, val enabledAt: Double? = null, val lastUsedAt: Double? = null)
     @Serializable data class BackupCodes(val total: Int = 0, val unused: Int = 0)
@@ -85,12 +89,73 @@ data class LoginRequest(
 @Serializable data class ChangeEmailBody(val password: String, val newEmail: String)
 @Serializable data class ChangePasswordBody(val currentPassword: String, val newPassword: String)
 @Serializable data class CodeBody(val code: String)
-@Serializable data class PasswordCodeBody(val password: String, val code: String)
+
+/**
+ * How the user proves it's really them before a sensitive account change.
+ *
+ * The server accepts either form on the same endpoints: a password when the
+ * account has one, otherwise a one-time code from
+ * `POST /api/account/mfa/reauth/send`. Modelling it as one type keeps every
+ * call site from branching on the account kind itself.
+ */
+sealed interface ReauthProof {
+    data class Password(val value: String) : ReauthProof
+    data class EmailedCode(val value: String) : ReauthProof
+
+    val isEmpty: Boolean
+        get() = when (this) {
+            is Password -> value.isEmpty()
+            is EmailedCode -> value.trim().isEmpty()
+        }
+}
+
+/**
+ * Wire form of [ReauthProof]. `encodeDefaults = false` (the kotlinx default)
+ * omits the null member, so exactly one of the two keys is sent.
+ */
+@Serializable
+data class ReauthBody(val password: String? = null, val reauthCode: String? = null) {
+    companion object {
+        fun of(proof: ReauthProof): ReauthBody = when (proof) {
+            is ReauthProof.Password -> ReauthBody(password = proof.value)
+            is ReauthProof.EmailedCode -> ReauthBody(reauthCode = proof.value.trim())
+        }
+    }
+}
+
+/** Re-auth plus a second-factor code (TOTP / backup code). */
+@Serializable
+data class ReauthCodeBody(
+    val password: String? = null,
+    val reauthCode: String? = null,
+    val code: String,
+) {
+    companion object {
+        fun of(proof: ReauthProof, code: String): ReauthCodeBody {
+            val b = ReauthBody.of(proof)
+            return ReauthCodeBody(b.password, b.reauthCode, code)
+        }
+    }
+}
+
+/** Re-auth plus a passkey id. */
+@Serializable
+data class PasskeyDeleteReauthBody(
+    val passkeyId: Int,
+    val password: String? = null,
+    val reauthCode: String? = null,
+) {
+    companion object {
+        fun of(passkeyId: Int, proof: ReauthProof): PasskeyDeleteReauthBody {
+            val b = ReauthBody.of(proof)
+            return PasskeyDeleteReauthBody(passkeyId, b.password, b.reauthCode)
+        }
+    }
+}
 // `confirm` is the typed phrase; it is what authorizes deletion for Apple/Google
 // accounts, which have no password to re-enter.
 @Serializable data class DeleteAccountBody(val password: String, val code: String, val confirm: String)
 @Serializable data class EmailConfirmBody(val challengeId: String, val code: String)
-@Serializable data class PasskeyDeleteBody(val passkeyId: Int, val password: String)
 
 @Serializable
 data class DataPutBody(
@@ -134,7 +199,20 @@ data class MfaResponse(val mfaRequired: Boolean? = null, val mfaToken: String? =
 )
 @Serializable data class OAuthSignInBody(val idToken: String, val name: String? = null)
 @Serializable data class OAuthHandoffBody(val handoffCode: String, val state: String? = null)
-@Serializable data class ClearDataBody(val password: String, val code: String, val groups: List<String>)
+@Serializable
+data class ClearDataBody(
+    val password: String? = null,
+    val reauthCode: String? = null,
+    val code: String,
+    val groups: List<String>,
+) {
+    companion object {
+        fun of(proof: ReauthProof, code: String, groups: List<String>): ClearDataBody {
+            val b = ReauthBody.of(proof)
+            return ClearDataBody(b.password, b.reauthCode, code, groups)
+        }
+    }
+}
 @Serializable data class PromoRedeemBody(val code: String)
 @Serializable data class NameResult(val name: String? = null)
 @Serializable data class EmailResult(val email: String? = null, val verificationRequired: Boolean = false)

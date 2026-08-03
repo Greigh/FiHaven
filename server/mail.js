@@ -21,6 +21,22 @@ const nodemailer = require('nodemailer');
 
 let cached = null;
 
+// Collapse anything that could terminate a header line. Subjects are built
+// from user-controlled text (bill names, volunteered service names), and a raw
+// CR/LF there is the classic header-injection primitive — attacker-supplied
+// "\r\nBcc: ..." riding along as a real header. Nodemailer folds and encodes
+// subjects itself, but the guarantee shouldn't rest on a library internal.
+// Control characters go too: they have no business in a subject line.
+// Built from escapes rather than literal characters so the class cannot be
+// silently corrupted in transit: U+0000-U+001F, DEL, and the Unicode line
+// separators that parsers also treat as line breaks.
+const HEADER_UNSAFE = new RegExp("[\\u0000-\\u001f\\u007f\\u2028\\u2029]+", "g");
+
+function sanitizeHeader(value) {
+  if (value == null) return value;
+  return String(value).replace(HEADER_UNSAFE, ' ').trim();
+}
+
 function transporter() {
   if (cached) return cached;
   const host = process.env.SMTP_HOST || 'localhost';
@@ -59,7 +75,9 @@ async function sendMail({ to, subject, text, html, replyTo, listUnsubscribe, hea
   const msg = {
     from: from(),
     to,
-    subject,
+    // Sanitized here rather than at each call site so a new caller can't
+    // forget: every subject in the app interpolates something user-supplied.
+    subject: sanitizeHeader(subject),
     text,
     html,
   };
@@ -73,4 +91,4 @@ async function sendMail({ to, subject, text, html, replyTo, listUnsubscribe, hea
   return transporter().sendMail(msg);
 }
 
-module.exports = { sendMail, transporter, from, verify };
+module.exports = { sendMail, transporter, from, verify, sanitizeHeader };

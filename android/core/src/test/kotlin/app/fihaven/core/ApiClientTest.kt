@@ -3,6 +3,7 @@ package app.fihaven.core
 import app.fihaven.core.net.ApiClient
 import app.fihaven.core.net.ApiConfig
 import app.fihaven.core.net.ApiError
+import app.fihaven.core.net.ReauthProof
 import app.fihaven.core.net.HttpMethod
 import app.fihaven.core.net.HttpRequest
 import app.fihaven.core.net.HttpResponse
@@ -134,7 +135,7 @@ class ApiClientTest {
             responder = { HttpResponse(200, """{"uri":"otpauth://x","qrDataUrl":"data:image/png;base64,AAAA","secret":"ABCD"}""") }
         }
         val c = client(tokens, t)
-        val setup = c.totpSetup("pw")
+        val setup = c.totpSetup(ReauthProof.Password("pw"))
         assertEquals("ABCD", setup.secret)
         assertTrue(setup.qrDataUrl.startsWith("data:image/png"))
 
