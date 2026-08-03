@@ -49,7 +49,8 @@ router.post('/apple/verify', requireAuth, requireCsrf, async (req, res) => {
   const jws = (req.body || {}).signedTransaction;
   if (!jws) return sendError(res, 400, 'missing-transaction');
   try {
-    const txn = await billing.verifyApple(jws);
+    // Optional: builds that predate the app-transaction pin simply omit it.
+    const txn = await billing.verifyApple(jws, (req.body || {}).signedAppTransaction);
     const entitlement = billing.recordPurchase(req.user.id, 'apple', txn);
     res.json({ entitlement });
   } catch (err) {
@@ -78,6 +79,11 @@ router.post('/google/verify', requireAuth, requireCsrf, async (req, res) => {
   } catch (err) {
     if (err.message === 'receipt-already-claimed') {
       return sendError(res, 409, 'receipt-already-claimed');
+    }
+    // Say so plainly: a license tester hitting a shut window is a config
+    // choice, and "verify-failed" would send them hunting a real bug.
+    if (err.message === 'google-test-purchase-rejected') {
+      return sendError(res, 400, 'test-purchase-rejected');
     }
     sendError(res, 400, err.message === 'google-verify-not-configured'
       ? 'verify-not-configured' : 'verify-failed');

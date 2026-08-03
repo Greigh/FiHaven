@@ -10,6 +10,47 @@ function isProduction() {
 }
 
 /**
+ * Log the state of a dated "open for App Review" window at boot.
+ *
+ * Both stores get identical treatment because both mistakes are identical:
+ * a hole you opened for review and never closed looks exactly like a working
+ * system. Silence here means it is shut.
+ */
+function reportReviewWindow(name, what) {
+  const raw = String(process.env[name] || '').trim();
+  if (!raw || raw === '0') return;
+
+  // Required lazily — billing pulls in the database, and this runs before
+  // the app has decided it is safe to start.
+  const billing = require('./billing');
+  const open = name === 'APPLE_ALLOW_SANDBOX'
+    ? billing.sandboxAllowed()
+    : billing.testPurchasesAllowed();
+  const expires = name === 'APPLE_ALLOW_SANDBOX'
+    ? billing.sandboxExpiresAt()
+    : billing.testPurchasesExpireAt();
+
+  if (raw === '1') {
+    console.warn(
+      `[security] ${name}=1 — ${what} grant real Pro, with NO expiry. ` +
+        'Prefer a dated window: deploy with `--allow-sandbox` so it closes itself.'
+    );
+  } else if (!open) {
+    console.log(
+      `[security] ${name} window closed ${expires ? new Date(expires).toISOString() : ''}` +
+        ` — ${what} are being rejected again. Safe to remove the var.`
+    );
+  } else {
+    const daysLeft = Math.max(0, Math.ceil((expires - Date.now()) / 86400000));
+    console.warn(
+      `[security] ${name} open until ${new Date(expires).toISOString()} ` +
+        `(${daysLeft} day${daysLeft === 1 ? '' : 's'} left) — ${what} grant real Pro ` +
+        'until then, after which they are rejected automatically.'
+    );
+  }
+}
+
+/**
  * Validate env before accepting traffic. Throws Error with a
  * human-readable message (caller should log + exit).
  */
@@ -46,33 +87,21 @@ function assertProductionSafe() {
     problems.push('APPLE_BUNDLE_ID is required when APPLE_VERIFY_ENABLED=1 (receipts must be pinned to this app)');
   }
 
-  // Sandbox transactions carry the production signing chain, so this is a
-  // deliberate, temporary hole for App Review — never a standing setting.
-  // A dated window closes itself; a bare "1" does not, and says so loudly.
-  const sandboxRaw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
-  if (sandboxRaw && sandboxRaw !== '0') {
-    // Required lazily — billing pulls in the database, and this runs before
-    // the app has decided it is safe to start.
-    const { sandboxAllowed, sandboxExpiresAt } = require('./billing');
-    const expires = sandboxExpiresAt();
-    if (sandboxRaw === '1') {
-      console.warn(
-        '[security] APPLE_ALLOW_SANDBOX=1 — sandbox StoreKit transactions grant real Pro, ' +
-          'with NO expiry. Prefer a dated window: deploy with `--allow-sandbox` so it closes itself.'
-      );
-    } else if (!sandboxAllowed()) {
-      console.log(
-        `[security] APPLE_ALLOW_SANDBOX window closed ${expires ? new Date(expires).toISOString() : ''}` +
-          ' — sandbox transactions are being rejected again. Safe to remove the var.'
-      );
-    } else {
-      const daysLeft = Math.max(0, Math.ceil((expires - Date.now()) / 86400000));
-      console.warn(
-        `[security] APPLE_ALLOW_SANDBOX open until ${new Date(expires).toISOString()} ` +
-          `(${daysLeft} day${daysLeft === 1 ? '' : 's'} left) — sandbox StoreKit transactions grant real Pro ` +
-          'until then, after which they are rejected automatically.'
-      );
-    }
+  // Test/sandbox store transactions carry the same signing chain and API shape
+  // as real ones, so these are deliberate, temporary holes for App Review —
+  // never standing settings. A dated window closes itself; a bare "1" does not,
+  // and says so loudly.
+  reportReviewWindow('APPLE_ALLOW_SANDBOX', 'sandbox StoreKit transactions');
+  reportReviewWindow('GOOGLE_ALLOW_TEST_PURCHASES', 'Play license-tester purchases');
+
+  // Not a hole that needs closing: the build pin only ever matches the build
+  // the last deploy shipped, so it narrows on its own with each release.
+  const pinned = String(process.env.APPLE_SANDBOX_BUILD || '').trim();
+  if (pinned) {
+    console.log(
+      `[security] APPLE_SANDBOX_BUILD=${pinned} — sandbox StoreKit transactions are accepted ` +
+        'only from an app transaction naming this build.'
+    );
   }
 
   // Play RTDN audience: googlePubSubAuth fails closed without one, which would
