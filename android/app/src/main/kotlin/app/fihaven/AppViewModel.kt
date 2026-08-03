@@ -80,6 +80,7 @@ import app.fihaven.core.net.ApiConfig
 import app.fihaven.core.net.ApiError
 import app.fihaven.core.net.LoginOutcome
 import app.fihaven.core.net.MfaChallenge
+import app.fihaven.core.net.ReauthProof
 import app.fihaven.core.net.User
 import app.fihaven.data.PrefsTokenStore
 import kotlinx.coroutines.Job
@@ -943,10 +944,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Erase selected data groups (bills/cards/payments/bank) while keeping the
      *  account + settings, then reload from the server. */
-    fun clearData(password: String, code: String = "", groups: List<String>, onError: (String) -> Unit, onDone: () -> Unit) =
+    fun clearData(proof: ReauthProof, code: String = "", groups: List<String>, onError: (String) -> Unit, onDone: () -> Unit) =
         viewModelScope.launch {
             try {
-                api.clearData(password, code, groups)
+                api.clearData(proof, code, groups)
                 loadData()
                 onDone()
             } catch (e: ApiError) {

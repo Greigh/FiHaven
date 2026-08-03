@@ -40,6 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.1](v1.6.1/ios22-android44.md) | iOS 22 · Android 44 | 2026-08-03 | Offline-first on all three platforms: data kept on-device, offline edits survive a force-quit and are no longer overwritten |
 | [1.6.1](v1.6.1/ios21-android43.md) | iOS 21 · Android 43 | 2026-08-02 | Sign-out ends the session (reminders stop), archived items stop driving reminders and totals, web subscriptions manageable again |
 | [1.6.1](v1.6.1/ios20-android42.md) | iOS 20 · Android 42 | 2026-08-01 | Pro screen opens on the plans, Bank screen flattened, a lapsed Family plan turns the household read-only |
 | [1.6.1](v1.6.1/ios19-android41.md) | iOS 19 · Android 41 | 2026-08-01 | Multi-day reminders, branded emails, skips in History, new-month review on phones |

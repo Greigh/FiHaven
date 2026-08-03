@@ -367,8 +367,8 @@ class ApiClient(
 
     /** Erase selected data groups (subset of bills/cards/payments/bank) while
      *  keeping the account + settings. */
-    suspend fun clearData(password: String, code: String = "", groups: List<String>) {
-        send(makeRequest("api/account/clear-data", HttpMethod.POST, encode(ClearDataBody(password, code, groups))))
+    suspend fun clearData(proof: ReauthProof, code: String = "", groups: List<String>) {
+        send(makeRequest("api/account/clear-data", HttpMethod.POST, encode(ClearDataBody.of(proof, code, groups))))
     }
 
     suspend fun exportData(): String = send(makeRequest("api/account/export", HttpMethod.GET))
@@ -376,32 +376,46 @@ class ApiClient(
     // ── MFA ───────────────────────────────────────────────────────────
     suspend fun mfaStatus(): MfaStatus = decode(send(makeRequest("api/account/mfa/status", HttpMethod.GET)))
 
-    suspend fun totpSetup(password: String): TotpSetup =
-        decode(send(makeRequest("api/account/mfa/totp/setup", HttpMethod.POST, encode(PasswordBody(password)))))
+    /** Emails a one-time confirmation code for accounts with no password
+     *  (Sign in with Apple / Google). Password accounts get 400
+     *  `password-required` — check [MfaStatus.hasPassword] first. */
+    suspend fun sendReauthCode() {
+        send(makeRequest("api/account/mfa/reauth/send", HttpMethod.POST, "{}"))
+    }
+
+    suspend fun totpSetup(proof: ReauthProof): TotpSetup =
+        decode(send(makeRequest("api/account/mfa/totp/setup", HttpMethod.POST, encode(ReauthBody.of(proof)))))
 
     suspend fun totpConfirm(code: String): List<String> =
         decode<BackupCodesResult>(send(makeRequest("api/account/mfa/totp/confirm", HttpMethod.POST, encode(CodeBody(code))))).backupCodes
 
-    suspend fun totpDisable(password: String, code: String) {
-        send(makeRequest("api/account/mfa/totp/disable", HttpMethod.POST, encode(PasswordCodeBody(password, code))))
+    suspend fun totpDisable(proof: ReauthProof, code: String) {
+        send(makeRequest("api/account/mfa/totp/disable", HttpMethod.POST, encode(ReauthCodeBody.of(proof, code))))
     }
 
-    suspend fun regenerateBackupCodes(password: String, code: String): List<String> =
-        decode<BackupCodesResult>(send(makeRequest("api/account/mfa/backup-codes/regenerate", HttpMethod.POST, encode(PasswordCodeBody(password, code))))).backupCodes
+    suspend fun regenerateBackupCodes(proof: ReauthProof, code: String): List<String> =
+        decode<BackupCodesResult>(send(makeRequest("api/account/mfa/backup-codes/regenerate", HttpMethod.POST, encode(ReauthCodeBody.of(proof, code))))).backupCodes
 
-    suspend fun emailMfaEnable(password: String): String =
-        decode<EmailEnableResult>(send(makeRequest("api/account/mfa/email/enable", HttpMethod.POST, encode(PasswordBody(password))))).challengeId
+    suspend fun emailMfaEnable(proof: ReauthProof): String =
+        decode<EmailEnableResult>(send(makeRequest("api/account/mfa/email/enable", HttpMethod.POST, encode(ReauthBody.of(proof))))).challengeId
 
     suspend fun emailMfaConfirm(challengeId: String, code: String) {
         send(makeRequest("api/account/mfa/email/confirm", HttpMethod.POST, encode(EmailConfirmBody(challengeId, code))))
     }
 
-    suspend fun emailMfaDisable(password: String) {
-        send(makeRequest("api/account/mfa/email/disable", HttpMethod.POST, encode(PasswordBody(password))))
+    suspend fun emailMfaDisable(proof: ReauthProof) {
+        send(makeRequest("api/account/mfa/email/disable", HttpMethod.POST, encode(ReauthBody.of(proof))))
     }
 
-    suspend fun passkeyRegisterStart(): PasskeyRegisterStartResponse =
-        decode(send(makeRequest("api/account/mfa/passkey/register-start", HttpMethod.POST, "{}")))
+    /** [proof] is null on the first attempt: the server waives re-auth for a
+     *  session that was just established (the common case — adding a passkey
+     *  right after signing in). If it declines, retry with a proof. */
+    suspend fun passkeyRegisterStart(proof: ReauthProof? = null): PasskeyRegisterStartResponse =
+        decode(send(makeRequest(
+            "api/account/mfa/passkey/register-start",
+            HttpMethod.POST,
+            if (proof == null) "{}" else encode(ReauthBody.of(proof)),
+        )))
 
     suspend fun passkeyRegisterFinish(challengeId: String, responseJson: String, name: String) {
         val resp = FiHavenJson.parseToJsonElement(responseJson)
@@ -415,8 +429,8 @@ class ApiClient(
     suspend fun listPasskeys(): List<PasskeyInfo> =
         decode<PasskeyListResult>(send(makeRequest("api/account/mfa/passkey/list", HttpMethod.GET))).passkeys
 
-    suspend fun deletePasskey(id: Int, password: String) {
-        send(makeRequest("api/account/mfa/passkey/delete", HttpMethod.POST, encode(PasskeyDeleteBody(id, password))))
+    suspend fun deletePasskey(id: Int, proof: ReauthProof) {
+        send(makeRequest("api/account/mfa/passkey/delete", HttpMethod.POST, encode(PasskeyDeleteReauthBody.of(id, proof))))
     }
 
     companion object {

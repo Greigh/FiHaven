@@ -166,7 +166,7 @@ struct DeleteAccountSheet: View {
 struct ClearDataSheet: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var code = ""
     @State private var groups: Set<String> = []
     @State private var errorText: String?
@@ -179,7 +179,7 @@ struct ClearDataSheet: View {
         ("bank", "Connected bank data"),
     ]
 
-    private var canClear: Bool { !busy && !password.isEmpty && !groups.isEmpty }
+    private var canClear: Bool { !busy && !proof.isEmpty && !groups.isEmpty }
 
     var body: some View {
         NavigationStack {
@@ -197,7 +197,7 @@ struct ClearDataSheet: View {
                     }
                 }
                 Section {
-                    RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                    ReauthField(proof: $proof)
                     TextField("Authenticator code (if 2FA is on)", text: $code)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
@@ -221,7 +221,7 @@ struct ClearDataSheet: View {
         busy = true; defer { busy = false }
         do {
             try await env.api.clearData(
-                password: password,
+                proof: proof,
                 code: code.trimmingCharacters(in: .whitespaces),
                 groups: Array(groups)
             )
@@ -240,7 +240,7 @@ struct TotpSetupSheet: View {
 
     private enum Step { case password, scan, done }
     @State private var step: Step = .password
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var code = ""
     @State private var setup: TotpSetup?
     @State private var backupCodes: [String] = []
@@ -252,8 +252,8 @@ struct TotpSetupSheet: View {
             Form {
                 switch step {
                 case .password:
-                    Section("Confirm your password") {
-                        RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                    Section("Confirm it's you") {
+                        ReauthField(proof: $proof)
                     }
                 case .scan:
                     Section("Scan in your authenticator app") {
@@ -288,7 +288,7 @@ struct TotpSetupSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     switch step {
-                    case .password: Button("Continue") { Task { await beginSetup() } }.disabled(busy || password.isEmpty)
+                    case .password: Button("Continue") { Task { await beginSetup() } }.disabled(busy || proof.isEmpty)
                     case .scan: Button("Verify") { Task { await confirm() } }.disabled(busy || code.count < 6)
                     case .done: EmptyView()
                     }
@@ -299,7 +299,7 @@ struct TotpSetupSheet: View {
 
     private func beginSetup() async {
         busy = true; defer { busy = false }
-        do { setup = try await env.api.totpSetup(password: password); step = .scan; errorText = nil }
+        do { setup = try await env.api.totpSetup(proof: proof); step = .scan; errorText = nil }
         catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
@@ -315,21 +315,21 @@ struct TotpSetupSheet: View {
 struct TotpDisableSheet: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var code = ""
     @State private var errorText: String?
     @State private var busy = false
 
     var body: some View {
         SheetForm(title: "Turn off authenticator", busy: busy, error: errorText, saveTitle: "Turn off", destructive: true, onSave: disable) {
-            RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+            ReauthField(proof: $proof)
             TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
         }
     }
 
     private func disable() async {
         busy = true; defer { busy = false }
-        do { try await env.api.totpDisable(password: password, code: code); dismiss() }
+        do { try await env.api.totpDisable(proof: proof, code: code); dismiss() }
         catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
@@ -338,7 +338,7 @@ struct TotpDisableSheet: View {
 struct BackupCodesSheet: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var code = ""
     @State private var codes: [String] = []
     @State private var errorText: String?
@@ -349,7 +349,7 @@ struct BackupCodesSheet: View {
             Form {
                 if codes.isEmpty {
                     Section("Confirm to regenerate") {
-                        RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+                        ReauthField(proof: $proof)
                         TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
                     }
                 } else {
@@ -376,7 +376,7 @@ struct BackupCodesSheet: View {
 
     private func regen() async {
         busy = true; defer { busy = false }
-        do { codes = try await env.api.regenerateBackupCodes(password: password, code: code); errorText = nil }
+        do { codes = try await env.api.regenerateBackupCodes(proof: proof, code: code); errorText = nil }
         catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
@@ -391,7 +391,7 @@ struct EmailEnableSheet: View {
 
     private enum Step { case password, code }
     @State private var step: Step = .password
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var code = ""
     @State private var challengeId = ""
     @State private var errorText: String?
@@ -402,7 +402,7 @@ struct EmailEnableSheet: View {
             Form {
                 switch step {
                 case .password:
-                    Section("Confirm your password") { RevealableSecureField(placeholder: "Password", text: $password, contentType: .password) }
+                    Section("Confirm it's you") { ReauthField(proof: $proof) }
                 case .code:
                     Section("Enter the code we emailed to \(email)") {
                         TextField("6-digit code", text: $code).keyboardType(.numberPad)
@@ -415,7 +415,7 @@ struct EmailEnableSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     switch step {
-                    case .password: Button("Send code") { Task { await sendCode() } }.disabled(busy || password.isEmpty)
+                    case .password: Button("Send code") { Task { await sendCode() } }.disabled(busy || proof.isEmpty)
                     case .code: Button("Verify") { Task { await confirm() } }.disabled(busy || code.count < 6)
                     }
                 }
@@ -425,7 +425,7 @@ struct EmailEnableSheet: View {
 
     private func sendCode() async {
         busy = true; defer { busy = false }
-        do { challengeId = try await env.api.emailMfaEnable(password: password); step = .code; errorText = nil }
+        do { challengeId = try await env.api.emailMfaEnable(proof: proof); step = .code; errorText = nil }
         catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }
@@ -441,19 +441,19 @@ struct EmailEnableSheet: View {
 struct EmailDisableSheet: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var password = ""
+    @State private var proof: ReauthProof = .password("")
     @State private var errorText: String?
     @State private var busy = false
 
     var body: some View {
         SheetForm(title: "Turn off email codes", busy: busy, error: errorText, saveTitle: "Turn off", destructive: true, onSave: disable) {
-            RevealableSecureField(placeholder: "Password", text: $password, contentType: .password)
+            ReauthField(proof: $proof)
         }
     }
 
     private func disable() async {
         busy = true; defer { busy = false }
-        do { try await env.api.emailMfaDisable(password: password); dismiss() }
+        do { try await env.api.emailMfaDisable(proof: proof); dismiss() }
         catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
     }

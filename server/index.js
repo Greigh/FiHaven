@@ -48,6 +48,7 @@ const pushRouter = require('./routes/push');
 const feedbackRouter = require('./routes/feedback');
 const unsubscribeRouter = require('./routes/unsubscribe');
 const { privatePageGate } = require('./pageGate');
+const { securityHeaders } = require('./securityHeaders');
 const scheduler = require('./scheduler');
 const mail = require('./mail');
 const { healthHandler } = require('./health');
@@ -100,6 +101,8 @@ app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; },
 }));
 app.use(cookieParser());
+// Before every route so error pages and static assets are covered too.
+app.use(securityHeaders());
 app.use(loadSession);
 
 // Everything FiHaven serves lives on a sub-app mounted at BASE.
@@ -302,6 +305,16 @@ app.get('/health', ipLimiter({ windowMs: 60 * 1000, limit: 120, name: 'health' }
 app.use(BASE || '/', sub);
 
 /* ── session housekeeping ───────────────────────────────────── */
+
+/* Back the login throttle with SQLite so failed-attempt counters survive a
+   restart. Attached here rather than inside rateLimit.js so that module stays
+   database-free and directly unit-testable. */
+require('./rateLimit').attachStore({
+  load: () => dbApi.allLoginThrottle(),
+  save: (key, count, windowStart) => dbApi.upsertLoginThrottle(key, count, windowStart),
+  remove: (key) => dbApi.deleteLoginThrottle(key),
+  prune: (before) => dbApi.pruneLoginThrottle(before),
+});
 
 function pruneSessions() {
   const removed = dbApi.deleteExpiredSessions();
