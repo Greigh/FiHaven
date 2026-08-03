@@ -50,6 +50,8 @@ final class StoreManager: ObservableObject {
 
     private let api: APIClient
     private var listener: Task<Void, Never>?
+    /// Fetched once per launch — see signedAppTransaction().
+    private var cachedAppTransaction: String?
 
     init(api: APIClient) { self.api = api }
 
@@ -286,12 +288,33 @@ final class StoreManager: ObservableObject {
         // real StoreKit entitlement overwrite it.
         if Self.devEntitlement(devEntitlementOverride) != nil { return }
         #endif
+        let appTxn = await signedAppTransaction()
         for await result in Transaction.currentEntitlements {
             guard case .verified = result else { continue }
-            if let ent = try? await api.verifyApple(signedTransaction: result.jwsRepresentation) {
+            if let ent = try? await api.verifyApple(signedTransaction: result.jwsRepresentation,
+                                                    signedAppTransaction: appTxn) {
                 entitlement = ent
             }
         }
+    }
+
+    /// StoreKit's signed `AppTransaction`, or nil if it can't be produced.
+    ///
+    /// This names the build the purchase came from, which is what lets the
+    /// server accept sandbox purchases from the build in App Review without
+    /// accepting them from every sandbox tester forever. It never changes for
+    /// an installed build, so fetch it once — the first call can hit the
+    /// network, and a purchase is the worst moment to wait on that.
+    ///
+    /// Failure is not an error worth surfacing: the user still gets their
+    /// purchase, it just falls back to the server's dated review window.
+    private func signedAppTransaction() async -> String? {
+        if let cachedAppTransaction { return cachedAppTransaction }
+        guard let result = try? await AppTransaction.shared,
+              case .verified = result
+        else { return nil }
+        cachedAppTransaction = result.jwsRepresentation
+        return cachedAppTransaction
     }
 
     private func handle(_ result: VerificationResult<Transaction>) async {
@@ -302,7 +325,10 @@ final class StoreManager: ObservableObject {
         // a failed verify (offline, 500, expired session) loses the purchase
         // until something else replays it. Left unfinished, StoreKit
         // re-delivers it on the next launch.
-        guard let ent = try? await api.verifyApple(signedTransaction: result.jwsRepresentation) else {
+        guard let ent = try? await api.verifyApple(
+            signedTransaction: result.jwsRepresentation,
+            signedAppTransaction: await signedAppTransaction()
+        ) else {
             return
         }
         entitlement = ent
