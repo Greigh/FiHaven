@@ -22,6 +22,7 @@ import {
 // Side-effect imports — each renderer self-registers via setRenderer,
 // modals.js wires backdrop handlers + exposes window.* for inline
 // onclick, export.js exposes window.exportAll / exportCSV.
+import './swRegister.js';
 import './modals.js';
 import './dashboard.js';
 import './bills.js';

@@ -9,6 +9,7 @@ import './theme.js';
 import './auth.js';
 import './navbar.js';
 import './passwordToggle.js';
+import './swRegister.js';
 import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
 import { clearSessionCache } from './localCache.js';
 import { mount } from 'svelte';

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+  <title>Offline — FiHaven</title>
+  <!--
+    The last-resort page the service worker serves when a navigation has
+    nothing cached. It has to stand entirely on its own: no bundle, no
+    stylesheet, no webfont, nothing hashed — every one of those is a
+    network request, and the whole reason this page is showing is that
+    the network isn't there.
+  -->
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #FAFAFB; --surface: #FFFFFF; --border: #E5E7EB;
+      --text: #15161A; --muted: #6C6E77; --accent: #3D6FE1;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0C0D0F; --surface: #17181B; --border: #292B31;
+        --text: #ECEDF0; --muted: #868892; --accent: #6098F6;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+    }
+    .card {
+      width: min(30rem, 100%);
+      padding: 32px 28px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      text-align: center;
+    }
+    .mark {
+      width: 48px; height: 48px;
+      margin: 0 auto 18px;
+      border-radius: 12px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 20px; letter-spacing: -.02em;
+    }
+    h1 { font-size: 1.4rem; letter-spacing: -.03em; margin-bottom: 10px; }
+    p { color: var(--muted); font-size: .93rem; }
+    p + p { margin-top: 10px; }
+    button {
+      margin-top: 22px; padding: 11px 20px;
+      border: 0; border-radius: 11px;
+      background: var(--accent); color: #fff;
+      font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button:hover { opacity: .92; }
+    .hint { margin-top: 16px; font-size: .8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">Fi</div>
+    <h1>You're offline</h1>
+    <p>FiHaven couldn't reach the network, and this page isn't one it had saved on your device.</p>
+    <p>Anything you'd already opened is still available, and any changes you made are kept here and sent as soon as you're back online.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+    <p class="hint">This page will reload itself when the connection returns.</p>
+  </div>
+  <script>
+    // Reconnecting is the signal to retry — no need to make the user tap.
+    window.addEventListener('online', function () { location.reload(); });
+  </script>
+</body>
+</html>

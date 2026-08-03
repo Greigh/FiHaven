@@ -10,10 +10,10 @@ enum SyncState: Equatable {
         case .idle: return ""
         case .saving: return "Saving…"
         case .saved: return "All changes saved"
-        // Nothing is written to disk — `data` lives in memory only — so this
-        // must not imply the edit is safe locally. It says "not saved yet"
-        // because `push()` keeps retrying and usually wins.
-        case .offline: return "Can’t reach the cloud — retrying"
+        // Now that every edit is written to the offline cache before the
+        // network is attempted, this can honestly say the edit is safe: it
+        // survives the app being killed and is replayed on the next launch.
+        case .offline: return "Offline — saved on this device"
         }
     }
 }
@@ -50,14 +50,21 @@ final class AppStore: ObservableObject {
     private let api: APIClient
     private var saveTask: Task<Void, Never>?
     private let debounce: Duration = .milliseconds(800)
+    private let cache: OfflineCache
+    /// Account the loaded data belongs to. Every cache read and write is
+    /// scoped to it so one user's snapshot can never be adopted — or pushed —
+    /// into another's account.
+    private var owner: String = ""
 
-    /// Called when the server rejects our token. `data` is never written to
-    /// disk, so a dead session must not sit behind an "offline" banner
-    /// pretending edits are safe — the only honest answer is to sign out.
+    /// Called when the server rejects our token. A dead session can't be
+    /// papered over with the offline banner: the edits are safe on disk, but
+    /// they will never reach the server on this token, so the honest answer
+    /// is still to sign out.
     var onSessionExpired: (() -> Void)?
 
-    init(api: APIClient) {
+    init(api: APIClient, cache: OfflineCache = OfflineCache()) {
         self.api = api
+        self.cache = cache
         // A settled registration can flip push health, which decides whether
         // local reminders stand down — so re-run the schedule whenever it does.
         PushRegistrar.shared.onRegistrationSettled = { [weak self] in
@@ -67,10 +74,31 @@ final class AppStore: ObservableObject {
 
     func load() async {
         do {
-            data = try await api.fetchData()
-            Money.setCurrency(data.settings.currency)
-            loaded = true
-            syncState = .saved
+            let server = try await api.fetchData()
+            let serverOwner = server.email ?? ""
+
+            // Edits this device made but never got onto the server are newer
+            // than anything the server can return, and `PUT /api/data`
+            // replaces the blob wholesale — so adopting the server copy here
+            // would silently delete them. Keep the cached snapshot and push.
+            if let cached = cache.read(owner: serverOwner), cached.pendingWrite {
+                owner = serverOwner
+                data = cached.data
+                // The entitlement is the server's to decide, never the
+                // cache's: a stale snapshot must not confer Pro.
+                data.entitlement = server.entitlement
+                Money.setCurrency(data.settings.currency)
+                loaded = true
+                scheduleSave()
+            } else {
+                owner = serverOwner
+                data = server
+                Money.setCurrency(data.settings.currency)
+                loaded = true
+                syncState = .saved
+                cache.write(data: data, owner: owner, pendingWrite: false)
+            }
+
             runAutopayMark()
             refreshNotifications()
             PushRegistrar.shared.syncIfNeeded(settings: data.settings)
@@ -83,7 +111,18 @@ final class AppStore: ObservableObject {
             // permanently empty dashboard that swallowed every later edit.
             onSessionExpired?()
         } catch {
-            // Offline or error: keep whatever we have, flag it.
+            // Unreachable server. Before the cache existed this kept whatever
+            // was in memory — nothing at all on a cold launch — so the app
+            // opened empty. Fall back to the last snapshot we stored.
+            if let cached = cache.readRaw() {
+                owner = cached.owner
+                data = cached.data
+                Money.setCurrency(data.settings.currency)
+                loaded = true
+                runAutopayMark()
+                refreshNotifications()
+                checkNewMonth()
+            }
             syncState = .offline
         }
     }
@@ -137,6 +176,9 @@ final class AppStore: ObservableObject {
         guard let fresh = try? await api.fetchData() else { return }
         data = fresh
         Money.setCurrency(data.settings.currency)
+        // Adopting a server copy makes the cache stale; re-write it so an
+        // offline launch shows the imported rows too.
+        cache.write(data: data, owner: owner, pendingWrite: false)
     }
 
     /// Opt-in: auto-mark autopay bills/cards paid once their due date in the
@@ -259,6 +301,10 @@ final class AppStore: ObservableObject {
     /// Mutate the in-memory data and schedule a debounced save.
     func mutate(_ block: (inout AppData) -> Void) {
         block(&data)
+        // Disk before network, always. The window between an edit and the
+        // debounced PUT is exactly the window in which a kill, a crash, or a
+        // dead connection used to lose it outright.
+        cache.write(data: data, owner: owner, pendingWrite: true)
         scheduleSave()
     }
 
@@ -282,6 +328,12 @@ final class AppStore: ObservableObject {
         saveTask = nil
         syncState = .idle
         NotificationScheduler.cancelAll()
+        // The cache holds this user's bills, cards and spending. Leaving it on
+        // a device nobody is signed into is the same disclosure the web's
+        // sign-out cache-clear exists to prevent — and it would also offer the
+        // next account a snapshot that isn't theirs.
+        cache.clear()
+        owner = ""
     }
 
     private func scheduleSave() {
@@ -297,12 +349,11 @@ final class AppStore: ObservableObject {
 
     /// Push the current snapshot, retrying while it keeps failing.
     ///
-    /// A single attempt was all a failed save ever got: the edit stayed in
-    /// memory, the banner claimed it was safe on the device, and it died with
-    /// the process. There is still no on-device copy, so the retry loop is
-    /// what actually gets the edit to the server — it backs off up to a
-    /// minute and keeps going until it lands, the session dies, or a newer
-    /// edit supersedes it (`scheduleSave` cancels this task).
+    /// The retry loop backs off up to a minute and keeps going until it lands,
+    /// the session dies, or a newer edit supersedes it (`scheduleSave` cancels
+    /// this task). It is no longer the only thing standing between an edit and
+    /// oblivion — `mutate` has already written the snapshot to disk — so if the
+    /// process dies mid-retry the next launch picks the edit up and pushes it.
     private func push() async {
         var delay: Duration = .seconds(2)
         var sessionEnded = false
@@ -310,6 +361,9 @@ final class AppStore: ObservableObject {
             do {
                 try await api.saveData(data)
                 syncState = .saved
+                // Only an accepted write retires the pending flag. Anything
+                // else leaves it set so the next launch replays the snapshot.
+                cache.markSynced()
                 break
             } catch APIError.unauthenticated {
                 onSessionExpired?()

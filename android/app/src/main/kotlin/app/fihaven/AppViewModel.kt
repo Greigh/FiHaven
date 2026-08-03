@@ -17,6 +17,7 @@ import app.fihaven.core.model.Payment
 import app.fihaven.core.model.PromoResult
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.storage.OfflineCache
 import app.fihaven.core.model.withCategoryBudget
 import app.fihaven.core.model.withBudgetBucketOverride
 import app.fihaven.core.model.withBudgetRule
@@ -145,6 +146,15 @@ enum class SyncState { Idle, Saving, Saved, Offline }
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val tokens = PrefsTokenStore(app)
     val api = ApiClient(ApiConfig(BuildConfig.API_BASE), tokens)
+
+    /** On-device copy of the signed-in user's data, plus the durable record of
+     *  an edit the server hasn't accepted. See OfflineCache. */
+    private val cache = OfflineCache(app.filesDir)
+
+    /** Account the loaded data belongs to. Every cache read and write is
+     *  scoped to it so one user's snapshot can never be adopted — or pushed —
+     *  into another's account. */
+    private var dataOwner: String = ""
 
     init {
         PushRegistrar.configure(app, api)
@@ -417,6 +427,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         saveJob = null
         _syncState.value = SyncState.Idle
         runCatching { NotificationScheduler.cancelAll(getApplication()) }
+        // The cache holds this user's bills, cards and spending. Leaving it on
+        // a phone nobody is signed into is the same disclosure the reminder
+        // cancellation above exists to prevent — and it would also offer the
+        // next account a snapshot that isn't theirs.
+        runCatching { cache.clear() }
+        dataOwner = ""
     }
 
     /// DEBUG screenshot helper: log in as the dev demo account.
@@ -463,13 +479,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _dataError.value = null
         try {
             val fetched = api.fetchData()
-            _data.value = applyEnvelopeRolloverIfNeeded(fetched)
-            Money.setCurrency(fetched.settings.currency)
+            val owner = fetched.email.orEmpty()
+            dataOwner = owner
+
+            // Edits this device made but never got onto the server are newer
+            // than anything the server can return, and `PUT /api/data`
+            // replaces the blob wholesale — so adopting the server copy here
+            // would silently delete them. Keep the cached snapshot and push it.
+            val pending = cache.read(owner)?.takeIf { it.pendingWrite }
+            if (pending != null) {
+                // The entitlement is the server's to decide, never the
+                // cache's: a stale snapshot must not confer Pro.
+                _data.value = pending.data.copy(entitlement = fetched.entitlement)
+                Money.setCurrency(pending.data.settings.currency)
+                scheduleSave()
+            } else {
+                _data.value = applyEnvelopeRolloverIfNeeded(fetched)
+                Money.setCurrency(fetched.settings.currency)
+                _syncState.value = SyncState.Saved
+                cache.write(_data.value, owner, pendingWrite = false)
+            }
+
             fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
             refreshEntitlement()
             _dataLoaded.value = true
-            _syncState.value = SyncState.Saved
             refreshNotifications()
             refreshPush()
             checkNewMonth()
@@ -477,10 +511,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             checkPresetUpdates()
             syncBanks()
         } catch (e: ApiError) {
-            _dataError.value = e.userMessage
+            if (!restoreFromCache()) _dataError.value = e.userMessage
         } catch (e: Exception) {
-            _dataError.value = e.message ?: "Couldn't load your data."
+            if (!restoreFromCache()) _dataError.value = e.message ?: "Couldn't load your data."
         }
+    }
+
+    /** Open on the last snapshot we stored when the server can't be reached.
+     *
+     *  Without this a cold launch offline showed an error and an empty
+     *  dashboard — the data was on the device the whole time, just never
+     *  written anywhere the app could read it back from.
+     *
+     *  @return whether a cached snapshot was adopted. */
+    private fun restoreFromCache(): Boolean {
+        val cached = cache.readRaw() ?: return false
+        dataOwner = cached.owner
+        _data.value = cached.data
+        Money.setCurrency(cached.data.settings.currency)
+        _dataLoaded.value = true
+        _syncState.value = SyncState.Offline
+        runCatching { refreshNotifications() }
+        return true
     }
 
     /** Pull the admin-editable rewards catalog. Best-effort — bundled presets remain if this fails. */
@@ -545,6 +597,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = runCatching { api.fetchData() }.getOrNull() ?: return
         _data.value = fresh
         Money.setCurrency(fresh.settings.currency)
+        // Adopting a server copy makes the cache stale; re-write it so an
+        // offline launch shows the imported rows too.
+        cache.write(fresh, dataOwner, pendingWrite = false)
     }
 
     /** Re-read the server copy (e.g. after a bank sync merged new purchases). */
@@ -552,6 +607,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = runCatching { api.fetchData() }.getOrNull() ?: return@launch
         _data.value = fresh
         Money.setCurrency(fresh.settings.currency)
+        cache.write(fresh, dataOwner, pendingWrite = false)
     }
 
     fun retryDataLoad() = viewModelScope.launch {
@@ -905,15 +961,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun mutate(transform: (AppData) -> AppData) {
         _data.value = transform(_data.value)
+        // Disk before network, always. The window between an edit and the
+        // debounced PUT is exactly the window in which a process death or a
+        // dead connection used to lose it outright.
+        cache.write(_data.value, dataOwner, pendingWrite = true)
+        scheduleSave()
+    }
+
+    private fun scheduleSave() {
         _syncState.value = SyncState.Saving
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(800.milliseconds)
-            // A failed save used to get exactly one attempt. `_data` is never
-            // written to disk, so the edit then sat in memory behind a banner
-            // claiming it was safe on the device and died with the process.
             // Retry with backoff until it lands, the session dies, or a newer
-            // edit cancels this job.
+            // edit cancels this job. This is no longer the only thing standing
+            // between an edit and oblivion — `mutate` has already written the
+            // snapshot to disk — so if the process dies mid-retry the next
+            // launch picks the edit up and pushes it.
             var wait = 2.seconds
             var sessionEnded = false
             while (isActive) {
@@ -923,6 +987,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val result = runCatching { api.saveData(_data.value) }
                 if (result.isSuccess) {
                     _syncState.value = SyncState.Saved
+                    // Only an accepted write retires the pending flag. Anything
+                    // else leaves it set so the next launch replays the snapshot.
+                    cache.markSynced()
                     break
                 }
                 if (result.exceptionOrNull() is ApiError.Unauthenticated) {
@@ -946,8 +1013,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** A rejected token can't be recovered from: nothing is cached on disk, so
-     *  sign out rather than leave edits queuing against a dead session. */
+    /** A rejected token can't be recovered from: the edits are safe on disk,
+     *  but they will never reach the server on this token, so sign out rather
+     *  than leave them queuing against a dead session. */
     private fun onSessionExpired() {
         if (_session.value !is Session.SignedIn) return
         viewModelScope.launch {

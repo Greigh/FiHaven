@@ -23,8 +23,13 @@ export const DATA_CACHE_KEYS = [
   'fh_settings',
 ];
 
-/** Everything to drop when a session ends: the data plus who owned it. */
-export const SESSION_KEYS = DATA_CACHE_KEYS.concat(['fh_data_owner']);
+/** Everything to drop when a session ends: the data plus who owned it.
+ *
+ *  `fh_pending_sync` goes too. It marks edits the server hasn't accepted, and
+ *  sign-out drops the cache holding those edits — so keeping the marker would
+ *  leave a flag pointing at data that no longer exists, and invite the next
+ *  session to push a cache that isn't its own. */
+export const SESSION_KEYS = DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync']);
 
 /** Remove every session-scoped key. Safe when storage is unavailable. */
 export function clearSessionCache() {

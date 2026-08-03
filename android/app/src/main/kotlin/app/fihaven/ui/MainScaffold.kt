@@ -259,9 +259,11 @@ private fun SyncOfflineBanner(onDismiss: () -> Unit) {
     ) {
         Text("☁", fontSize = 14.sp)
         Text(
-            // Nothing is written to disk, so this must not imply the edit is
-            // safe locally — it isn't until the retry in `mutate` lands.
-            "Can’t reach FiHaven — still trying to save. Keep the app open until this clears.",
+            // Every edit is written to the device before the network is
+            // attempted, so this can now say it's safe — and it no longer has
+            // to ask the user to keep the app open, because an unsent snapshot
+            // is replayed on the next launch.
+            "Offline — your changes are saved on this device and will sync when you’re back online.",
             color = Ct.colors.text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
