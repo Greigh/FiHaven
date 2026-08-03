@@ -68,7 +68,7 @@
             </article>
             <article class="security-summary-card">
               <h4>Payments</h4>
-              <p>FiHaven Pro on the web is sold and billed by Paddle, our merchant of record. On iOS and Android (TestFlight / Play testing), in-app purchases go through Apple or Google. Card numbers never touch FiHaven&rsquo;s servers.</p>
+              <p>FiHaven Pro on the web is sold and billed by Paddle, our merchant of record. On iOS and Android, in-app purchases go through Apple or Google. Card numbers never touch FiHaven&rsquo;s servers.</p>
             </article>
           </div>
         </div>
@@ -81,7 +81,7 @@
 
         <div class="legal-section">
           <h3>Native apps</h3>
-          <p>iOS (TestFlight) and Android (Play closed testing) authenticate against the same API. Session tokens live in the platform secure store (Keychain / encrypted storage), not in a browser cookie. Optional biometric app lock is enforced on-device — we never receive biometric data. Sign in with Apple or Google is supported on native builds.</p>
+          <p>iOS (TestFlight) and Android (Play open testing) authenticate against the same API. Session tokens live in the platform secure store (Keychain / encrypted storage), not in a browser cookie. Optional biometric app lock is enforced on-device — we never receive biometric data. Sign in with Apple or Google is supported on native builds.</p>
         </div>
 
         <div class="legal-section">
@@ -114,7 +114,7 @@
     </main>
 
     <footer class="site-footer">
-      <div>
+      <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> — boring security, on purpose.
       </div>
       <div class="site-footer-links" data-public-footer></div>

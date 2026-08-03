@@ -3,6 +3,7 @@ import Foundation
 print("─── FiHavenCore checks ──────────────────────────────\n")
 
 runModelChecks()
+runOfflineCacheChecks()
 runSettingsChecks()
 runIncomeChecks()
 runCashflowHistoryChecks()
