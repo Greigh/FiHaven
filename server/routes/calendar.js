@@ -129,8 +129,13 @@ router.get('/:token.ics', (req, res) => {
     'Content-Disposition',
     'inline; filename="fihaven.ics"'
   );
-  // Subscribers may poll often; allow them to cache for 1h.
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  // Subscribers may poll often, so a 1h cache is worth keeping — but `private`
+  // so only the subscribing client stores it. `public` invited any shared
+  // proxy or CDN in the path to hold a copy of someone's bill amounts and due
+  // dates, keyed by a URL that is itself the credential.
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  // The token is in the URL; don't hand it to whatever the user clicks next.
+  res.setHeader('Referrer-Policy', 'no-referrer');
   res.send(body);
 });
 

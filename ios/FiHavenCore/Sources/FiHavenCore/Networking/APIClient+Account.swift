@@ -36,9 +36,9 @@ public extension APIClient {
 
     /// Erase selected data groups while keeping the account + settings.
     /// `groups` is a subset of ["bills","cards","payments","bank"].
-    func clearData(password: String, code: String = "", groups: [String]) async throws {
+    func clearData(proof: ReauthProof, code: String = "", groups: [String]) async throws {
         let req = try makeRequest(path: "api/account/clear-data", method: .POST,
-                                  body: AnyEncodable(ClearDataBody(password: password, code: code, groups: groups)))
+                                  body: AnyEncodable(ClearDataBody(proof: proof, code: code, groups: groups)))
         try await send(req)
     }
 
@@ -54,10 +54,19 @@ public extension APIClient {
         return try decode(MfaStatus.self, from: try await send(req))
     }
 
+    /// Emails a one-time confirmation code for accounts with no password
+    /// (Sign in with Apple / Google). Password accounts get 400
+    /// `password-required` — check `MfaStatus.hasPassword` first.
+    func sendReauthCode() async throws {
+        let req = try makeRequest(path: "api/account/mfa/reauth/send", method: .POST,
+                                  body: AnyEncodable(EmptyBody()))
+        try await send(req)
+    }
+
     // ── TOTP ─────────────────────────────────────────────────────────
-    func totpSetup(password: String) async throws -> TotpSetup {
+    func totpSetup(proof: ReauthProof) async throws -> TotpSetup {
         let req = try makeRequest(path: "api/account/mfa/totp/setup", method: .POST,
-                                  body: AnyEncodable(PasswordBody(password: password)))
+                                  body: AnyEncodable(ReauthBody(proof)))
         return try decode(TotpSetup.self, from: try await send(req))
     }
 
@@ -68,23 +77,23 @@ public extension APIClient {
         return try decode(BackupCodesResult.self, from: try await send(req)).backupCodes
     }
 
-    func totpDisable(password: String, code: String) async throws {
+    func totpDisable(proof: ReauthProof, code: String) async throws {
         let req = try makeRequest(path: "api/account/mfa/totp/disable", method: .POST,
-                                  body: AnyEncodable(PasswordCodeBody(password: password, code: code)))
+                                  body: AnyEncodable(ReauthCodeBody(proof, code: code)))
         try await send(req)
     }
 
-    func regenerateBackupCodes(password: String, code: String) async throws -> [String] {
+    func regenerateBackupCodes(proof: ReauthProof, code: String) async throws -> [String] {
         let req = try makeRequest(path: "api/account/mfa/backup-codes/regenerate", method: .POST,
-                                  body: AnyEncodable(PasswordCodeBody(password: password, code: code)))
+                                  body: AnyEncodable(ReauthCodeBody(proof, code: code)))
         return try decode(BackupCodesResult.self, from: try await send(req)).backupCodes
     }
 
     // ── Email MFA ────────────────────────────────────────────────────
     /// Starts email-MFA enrolment; returns a challengeId to confirm with.
-    func emailMfaEnable(password: String) async throws -> String {
+    func emailMfaEnable(proof: ReauthProof) async throws -> String {
         let req = try makeRequest(path: "api/account/mfa/email/enable", method: .POST,
-                                  body: AnyEncodable(PasswordBody(password: password)))
+                                  body: AnyEncodable(ReauthBody(proof)))
         return try decode(EmailEnableResult.self, from: try await send(req)).challengeId
     }
 
@@ -94,9 +103,9 @@ public extension APIClient {
         try await send(req)
     }
 
-    func emailMfaDisable(password: String) async throws {
+    func emailMfaDisable(proof: ReauthProof) async throws {
         let req = try makeRequest(path: "api/account/mfa/email/disable", method: .POST,
-                                  body: AnyEncodable(PasswordBody(password: password)))
+                                  body: AnyEncodable(ReauthBody(proof)))
         try await send(req)
     }
 
@@ -106,9 +115,9 @@ public extension APIClient {
         return try decode(PasskeyListResult.self, from: try await send(req)).passkeys
     }
 
-    func deletePasskey(id: Int, password: String) async throws {
+    func deletePasskey(id: Int, proof: ReauthProof) async throws {
         let req = try makeRequest(path: "api/account/mfa/passkey/delete", method: .POST,
-                                  body: AnyEncodable(PasskeyDeleteBody(passkeyId: id, password: password)))
+                                  body: AnyEncodable(PasskeyDeleteReauthBody(passkeyId: id, proof: proof)))
         try await send(req)
     }
 }

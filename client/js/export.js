@@ -9,13 +9,20 @@ import {
 } from './utils.js';
 import { getBudgetMonthOffset } from './budget.js';
 
+// A cell beginning = + - or @ is read as a FORMULA by Excel / Sheets /
+// LibreOffice, so a bill named `=HYPERLINK("http://evil","click")` executes
+// when the export is opened. Prefixing a tab forces text. The importer in
+// settings.js strips it back off, so round-tripping is unaffected. Mirrors
+// csvEscape in server/routes/account.js — keep the two in step.
+var CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
+
 function toCSV(rows) {
   return rows.map(function (row) {
     return row.map(function (cell) {
-      var s = String(cell != null ? cell : '').replace(/"/g, '""');
-      return (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1)
-        ? '"' + s + '"'
-        : s;
+      var s = String(cell != null ? cell : '');
+      if (CSV_FORMULA_LEAD.test(s)) s = '\t' + s;
+      s = s.replace(/"/g, '""');
+      return /[",\n\t\r]/.test(s) ? '"' + s + '"' : s;
     }).join(',');
   }).join('\n');
 }

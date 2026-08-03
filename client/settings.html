@@ -775,6 +775,18 @@
               <label for="clear-password">Current password</label>
               <input type="password" id="clear-password" autocomplete="current-password" placeholder="Enter your password"/>
             </div>
+            <!-- Swapped in for the password field on Apple/Google accounts,
+                 which have no password to confirm. -->
+            <div class="auth-field" data-reauth-code-field hidden>
+              <label for="clear-reauth-code">Confirmation code</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="clear-reauth-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digits" style="flex:1;min-width:0;"/>
+                <button class="btn btn-secondary" type="button" data-send-reauth-code style="flex:0 0 auto;white-space:nowrap;">Send code</button>
+              </div>
+              <p style="font-size:12px;color:var(--muted);margin-top:6px;">
+                You sign in with Apple or Google, so there’s no password to confirm — we’ll email you a code instead.
+              </p>
+            </div>
             <div class="auth-field">
               <label for="clear-code">Authenticator code <span style="color:var(--muted);font-weight:400;">(if 2FA is enabled)</span></label>
               <input type="text" id="clear-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"/>

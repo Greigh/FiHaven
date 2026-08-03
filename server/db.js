@@ -125,15 +125,31 @@ db.exec(`
   -- Short-lived auth challenges: WebAuthn registration / login, and
   -- post-password "MFA pending" tokens. Pruned on lookup; expired
   -- rows can be left until the next housekeeping pass.
+  -- attempts counts failed second-factor guesses against this challenge and
+  -- sends counts emailed codes issued for it. Both live on the row rather
+  -- than in an IP bucket: the challenge is the thing being attacked, and a
+  -- per-IP counter is sidestepped by rotating source addresses.
   CREATE TABLE IF NOT EXISTS mfa_challenges (
     id         TEXT PRIMARY KEY,
     user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
     kind       TEXT NOT NULL,
     payload    TEXT,
     created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL
+    expires_at INTEGER NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    sends      INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_mfa_challenges_expires ON mfa_challenges(expires_at);
+
+  -- Failed-login counters, keyed "<ip>:<email>". Persisted so a restart (or a
+  -- crash loop induced on purpose) doesn't hand an attacker a clean slate on
+  -- the password-guessing throttle. The live copy is still the in-memory map
+  -- in rateLimit.js; this is its durable backing.
+  CREATE TABLE IF NOT EXISTS login_throttle (
+    key          TEXT PRIMARY KEY,
+    count        INTEGER NOT NULL,
+    window_start INTEGER NOT NULL
+  );
 
   -- Store subscription / purchase records (Apple StoreKit, Google Play).
   -- One row per store transaction, keyed by the store's stable id
@@ -380,6 +396,15 @@ db.exec(`
   if (!cols.includes('revoked_at')) db.exec(`ALTER TABLE promo_redemptions ADD COLUMN revoked_at INTEGER`);
 })();
 
+// Per-challenge brute-force counters. Without these a post-password MFA token
+// could be guessed against for its full lifetime, and re-issuing an email code
+// reset nothing — see routes/auth.js.
+(function migrateChallengeColumns() {
+  const cols = db.prepare(`PRAGMA table_info(mfa_challenges)`).all().map((c) => c.name);
+  if (!cols.includes('attempts')) db.exec(`ALTER TABLE mfa_challenges ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0`);
+  if (!cols.includes('sends'))    db.exec(`ALTER TABLE mfa_challenges ADD COLUMN sends INTEGER NOT NULL DEFAULT 0`);
+})();
+
 (function migratePlaidItemColumns() {
   const cols = db.prepare(`PRAGMA table_info(plaid_items)`).all().map((c) => c.name);
   // When we last actually pulled from Plaid for this item. Drives the sync
@@ -474,7 +499,8 @@ const stmt = {
      VALUES (@id, @user_id, @csrf_token, @created_at, @expires_at, @user_agent, @ip)`
   ),
   findSession: db.prepare(
-    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.email, u.name, u.role, u.email_verified, u.onboarded,
+    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, s.created_at,
+            u.email, u.name, u.role, u.email_verified, u.onboarded,
             u.suspended, u.suspended_at, u.suspended_reason
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ?`
@@ -590,14 +616,29 @@ const stmt = {
 
   /* ── MFA challenges ────────────────────────────────────── */
   insertChallenge: db.prepare(
-    `INSERT INTO mfa_challenges (id, user_id, kind, payload, created_at, expires_at)
-     VALUES (@id, @user_id, @kind, @payload, @created_at, @expires_at)`
+    `INSERT INTO mfa_challenges (id, user_id, kind, payload, created_at, expires_at, attempts, sends)
+     VALUES (@id, @user_id, @kind, @payload, @created_at, @expires_at, @attempts, @sends)`
   ),
   findChallenge: db.prepare(
-    `SELECT id, user_id, kind, payload, expires_at FROM mfa_challenges WHERE id = ?`
+    `SELECT id, user_id, kind, payload, expires_at, attempts, sends FROM mfa_challenges WHERE id = ?`
+  ),
+  bumpChallengeAttempts: db.prepare(
+    `UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?`
+  ),
+  bumpChallengeSends: db.prepare(
+    `UPDATE mfa_challenges SET sends = sends + 1 WHERE id = ?`
   ),
   deleteChallenge: db.prepare(`DELETE FROM mfa_challenges WHERE id = ?`),
   pruneChallenges: db.prepare(`DELETE FROM mfa_challenges WHERE expires_at < ?`),
+
+  /* ── Login throttle (durable backing for rateLimit.js) ─── */
+  allLoginThrottle: db.prepare(`SELECT key, count, window_start FROM login_throttle`),
+  upsertLoginThrottle: db.prepare(
+    `INSERT INTO login_throttle (key, count, window_start) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET count = excluded.count, window_start = excluded.window_start`
+  ),
+  deleteLoginThrottle: db.prepare(`DELETE FROM login_throttle WHERE key = ?`),
+  pruneLoginThrottle: db.prepare(`DELETE FROM login_throttle WHERE window_start < ?`),
 
   /* ── Subscriptions ─────────────────────────────────────── */
   upsertSubscription: db.prepare(
@@ -605,7 +646,11 @@ const stmt = {
        (user_id, platform, product_id, txn_id, status, expires_at, environment, auto_renew, raw, created_at, updated_at)
      VALUES (@user_id, @platform, @product_id, @txn_id, @status, @expires_at, @environment, @auto_renew, @raw, @created_at, @updated_at)
      ON CONFLICT(platform, txn_id) DO UPDATE SET
-       user_id     = excluded.user_id,
+       -- user_id is deliberately NOT updated. A store transaction belongs to
+       -- whoever first redeemed it; letting an upsert move it meant replaying
+       -- one signed receipt against a second account both granted that account
+       -- Pro and silently revoked it from the real purchaser. Callers that
+       -- genuinely need a different owner must delete the row first.
        product_id  = excluded.product_id,
        status      = excluded.status,
        expires_at  = excluded.expires_at,
@@ -1128,10 +1173,36 @@ function bumpPasskeyUsage(id, counter)  { stmt.bumpPasskeyUsage.run(counter, Dat
 function countPasskeys(userId)          { return stmt.countPasskeys.get(userId).n; }
 
 /* ── MFA-challenge wrappers ─────────────────────────────────── */
-function insertChallenge(row)           { stmt.insertChallenge.run(row); }
+// attempts/sends default to 0 so callers that only mint a fresh challenge
+// don't have to know about the counters. A caller REPLACING a live challenge
+// (email re-send, passkey re-arm) must carry the existing values forward, or
+// the counters reset and the limit means nothing.
+function insertChallenge(row) {
+  stmt.insertChallenge.run({ attempts: 0, sends: 0, ...row });
+}
 function findChallenge(id)              { return stmt.findChallenge.get(id); }
 function deleteChallenge(id)            { stmt.deleteChallenge.run(id); }
 function pruneChallenges()              { return stmt.pruneChallenges.run(Date.now()).changes; }
+
+/* ── Login-throttle wrappers ────────────────────────────────── */
+function allLoginThrottle()             { return stmt.allLoginThrottle.all(); }
+function upsertLoginThrottle(key, count, windowStart) {
+  stmt.upsertLoginThrottle.run(key, count, windowStart);
+}
+function deleteLoginThrottle(key)       { stmt.deleteLoginThrottle.run(key); }
+function pruneLoginThrottle(before)     { return stmt.pruneLoginThrottle.run(before).changes; }
+// Record a failed second-factor guess and return the new total.
+function bumpChallengeAttempts(id) {
+  stmt.bumpChallengeAttempts.run(id);
+  const row = stmt.findChallenge.get(id);
+  return row ? row.attempts : 0;
+}
+// Record an emailed code and return the new total.
+function bumpChallengeSends(id) {
+  stmt.bumpChallengeSends.run(id);
+  const row = stmt.findChallenge.get(id);
+  return row ? row.sends : 0;
+}
 
 /* ── Subscription wrappers ──────────────────────────────────── */
 function upsertSubscription(row)        { stmt.upsertSubscription.run(row); }
@@ -1568,6 +1639,13 @@ module.exports = {
   insertChallenge,
   findChallenge,
   deleteChallenge,
+  bumpChallengeAttempts,
+  bumpChallengeSends,
+  // Login throttle
+  allLoginThrottle,
+  upsertLoginThrottle,
+  deleteLoginThrottle,
+  pruneLoginThrottle,
   pruneChallenges,
   // Subscriptions
   upsertSubscription,

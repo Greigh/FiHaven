@@ -106,9 +106,12 @@ import app.fihaven.core.CTConstants
 import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.PaidGoalPolicy
 import kotlinx.serialization.json.JsonObject
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import app.fihaven.core.net.ApiError
 import app.fihaven.core.net.MfaStatus
 import app.fihaven.core.net.PasskeyInfo
+import app.fihaven.core.net.ReauthProof
 import app.fihaven.core.net.User
 import androidx.credentials.exceptions.CreateCredentialCancellationException
 import app.fihaven.ui.theme.Ct
@@ -1325,22 +1328,25 @@ private fun PasskeysDialog(vm: AppViewModel, passkeys: List<PasskeyInfo>, onDone
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var deleteId by remember { mutableStateOf<Int?>(null) }
-    var deletePwd by remember { mutableStateOf("") }
+    var deleteProof by remember { mutableStateOf(initialProof(vm)) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    // Set when register-start comes back needing re-auth, i.e. the session is
+    // older than the server's grace window for enrolment.
+    var addProof by remember { mutableStateOf<ReauthProof?>(null) }
 
     if (deleteId != null) {
         FormDialog(
             title = "Remove passkey",
-            saveEnabled = deletePwd.isNotEmpty() && !busy,
+            saveEnabled = !deleteProof.isEmpty && !busy,
             saveLabel = "Remove",
             onSave = {
                 scope.launch {
                     busy = true
                     deleteError = null
                     try {
-                        vm.api.deletePasskey(deleteId!!, deletePwd)
+                        vm.api.deletePasskey(deleteId!!, deleteProof)
                         deleteId = null
-                        deletePwd = ""
+                        deleteProof = initialProof(vm)
                         onDone()
                     } catch (e: ApiError) {
                         deleteError = e.userMessage
@@ -1351,10 +1357,10 @@ private fun PasskeysDialog(vm: AppViewModel, passkeys: List<PasskeyInfo>, onDone
                     }
                 }
             },
-            onDismiss = { deleteId = null; deletePwd = ""; deleteError = null },
+            onDismiss = { deleteId = null; deleteProof = initialProof(vm); deleteError = null },
         ) {
-            Text("Confirm your password to remove this passkey.", color = Ct.colors.muted, fontSize = 13.sp)
-            PasswordField("Current password", deletePwd) { deletePwd = it }
+            Text("Confirm it's you to remove this passkey.", color = Ct.colors.muted, fontSize = 13.sp)
+            ReauthFields(vm, deleteProof) { deleteProof = it }
             deleteError?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
         }
         return
@@ -1362,21 +1368,31 @@ private fun PasskeysDialog(vm: AppViewModel, passkeys: List<PasskeyInfo>, onDone
 
     FormDialog(
         title = "Passkeys",
-        saveEnabled = name.isNotBlank() && !busy,
+        saveEnabled = name.isNotBlank() && !busy && (addProof?.isEmpty != true),
         saveLabel = "Add passkey",
         onSave = {
             scope.launch {
                 busy = true
                 error = null
                 try {
-                    val start = vm.api.passkeyRegisterStart()
+                    // First attempt sends no proof: the server waives re-auth for a
+                    // session that was just established (the common case — adding a
+                    // passkey right after signing in), so prompting up front would be
+                    // pure friction. If it declines, we show the prompt and retry.
+                    val start = vm.api.passkeyRegisterStart(addProof)
                     val responseJson = createPasskeyCredential(context, start.options.toString())
                     vm.api.passkeyRegisterFinish(start.challengeId, responseJson, name.trim())
+                    addProof = null
                     onDone()
                 } catch (_: CreateCredentialCancellationException) {
                     // User dismissed the system sheet.
                 } catch (e: ApiError) {
-                    error = e.userMessage
+                    if (addProof == null && e.serverCode in REAUTH_ERROR_CODES) {
+                        addProof = initialProof(vm)
+                        error = "Confirm it's you to add a passkey."
+                    } else {
+                        error = e.userMessage
+                    }
                 } catch (e: Exception) {
                     error = e.message ?: "Couldn't add passkey."
                 } finally {
@@ -1408,6 +1424,13 @@ private fun PasskeysDialog(vm: AppViewModel, passkeys: List<PasskeyInfo>, onDone
             label = { Text("Label for this device") }, singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         )
+        addProof?.let { p ->
+            Text(
+                "You've been signed in a while, so confirm it's you before adding a passkey.",
+                color = Ct.colors.muted, fontSize = 13.sp,
+            )
+            ReauthFields(vm, p) { addProof = it }
+        }
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
     }
 }
@@ -1508,12 +1531,12 @@ private fun ClearDataDialog(vm: AppViewModel, onDone: () -> Unit) {
         "bank" to "Connected bank data",
     )
     var groups by remember { mutableStateOf(setOf<String>()) }
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val canClear = password.isNotEmpty() && groups.isNotEmpty()
+    val canClear = !proof.isEmpty && groups.isNotEmpty()
     FormDialog("Clear data", saveEnabled = canClear, onSave = {
-        vm.clearData(password, code.trim(), groups.toList(), onError = { error = it }, onDone = onDone)
+        vm.clearData(proof, code.trim(), groups.toList(), onError = { error = it }, onDone = onDone)
     }, onDismiss = onDone) {
         Text("Erase chosen data while keeping your account and settings. This can't be undone.",
             color = Ct.colors.muted, fontSize = 13.sp)
@@ -1531,7 +1554,7 @@ private fun ClearDataDialog(vm: AppViewModel, onDone: () -> Unit) {
                 Text(label, color = Ct.colors.text, fontSize = 14.sp)
             }
         }
-        PasswordField("Password", password) { password = it }
+        ReauthFields(vm, proof) { proof = it }
         OutlinedTextField(code, { code = it }, label = { Text("Authenticator code (if 2FA is on)") },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth())
@@ -1542,7 +1565,7 @@ private fun ClearDataDialog(vm: AppViewModel, onDone: () -> Unit) {
 @Composable
 private fun TotpSetupDialog(vm: AppViewModel, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) } // 0 password, 1 scan, 2 done
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var code by remember { mutableStateOf("") }
     var qr by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var secret by remember { mutableStateOf("") }
@@ -1552,11 +1575,11 @@ private fun TotpSetupDialog(vm: AppViewModel, onDone: () -> Unit) {
 
     FormDialog(
         title = "Authenticator app",
-        saveEnabled = when (step) { 0 -> password.isNotEmpty(); 1 -> code.length >= 6; else -> true },
+        saveEnabled = when (step) { 0 -> !proof.isEmpty; 1 -> code.length >= 6; else -> true },
         onSave = {
             when (step) {
                 0 -> scope.launch {
-                    try { val s = vm.api.totpSetup(password); qr = decodeDataUrl(s.qrDataUrl); secret = s.secret; step = 1; error = null }
+                    try { val s = vm.api.totpSetup(proof); qr = decodeDataUrl(s.qrDataUrl); secret = s.secret; step = 1; error = null }
                     catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
                 }
                 1 -> scope.launch {
@@ -1569,7 +1592,7 @@ private fun TotpSetupDialog(vm: AppViewModel, onDone: () -> Unit) {
         onDismiss = onDone,
     ) {
         when (step) {
-            0 -> { Text("Confirm your password.", color = Ct.colors.muted, fontSize = 13.sp); PasswordField("Password", password) { password = it } }
+            0 -> { Text("Confirm it's you.", color = Ct.colors.muted, fontSize = 13.sp); ReauthFields(vm, proof) { proof = it } }
             1 -> {
                 qr?.let { Image(it, "QR", modifier = Modifier.size(200.dp)) }
                 Text("Secret: $secret", color = Ct.colors.muted, fontSize = 13.sp, fontFamily = PlexMono)
@@ -1587,17 +1610,17 @@ private fun TotpSetupDialog(vm: AppViewModel, onDone: () -> Unit) {
 
 @Composable
 private fun TotpDisableDialog(vm: AppViewModel, onDone: () -> Unit) {
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    FormDialog("Turn off authenticator", saveEnabled = password.isNotEmpty() && code.length >= 6, onSave = {
+    FormDialog("Turn off authenticator", saveEnabled = !proof.isEmpty && code.length >= 6, onSave = {
         scope.launch {
-            try { vm.api.totpDisable(password, code); onDone() }
+            try { vm.api.totpDisable(proof, code); onDone() }
             catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
         }
     }, onDismiss = onDone) {
-        PasswordField("Password", password) { password = it }
+        ReauthFields(vm, proof) { proof = it }
         OutlinedTextField(code, { code = it }, label = { Text("Current 6-digit code") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
@@ -1607,15 +1630,15 @@ private fun TotpDisableDialog(vm: AppViewModel, onDone: () -> Unit) {
 @Composable
 private fun EmailEnableDialog(vm: AppViewModel, email: String, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var code by remember { mutableStateOf("") }
     var challengeId by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    FormDialog("Email codes", saveEnabled = if (step == 0) password.isNotEmpty() else code.length >= 6, onSave = {
+    FormDialog("Email codes", saveEnabled = if (step == 0) !proof.isEmpty else code.length >= 6, onSave = {
         when (step) {
             0 -> scope.launch {
-                try { challengeId = vm.api.emailMfaEnable(password); step = 1; error = null }
+                try { challengeId = vm.api.emailMfaEnable(proof); step = 1; error = null }
                 catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
             }
             else -> scope.launch {
@@ -1624,7 +1647,7 @@ private fun EmailEnableDialog(vm: AppViewModel, email: String, onDone: () -> Uni
             }
         }
     }, onDismiss = onDone) {
-        if (step == 0) { Text("Confirm your password.", color = Ct.colors.muted, fontSize = 13.sp); PasswordField("Password", password) { password = it } }
+        if (step == 0) { Text("Confirm it's you.", color = Ct.colors.muted, fontSize = 13.sp); ReauthFields(vm, proof) { proof = it } }
         else {
             Text("Enter the code emailed to $email.", color = Ct.colors.muted, fontSize = 13.sp)
             OutlinedTextField(code, { code = it }, label = { Text("6-digit code") },
@@ -1636,35 +1659,35 @@ private fun EmailEnableDialog(vm: AppViewModel, email: String, onDone: () -> Uni
 
 @Composable
 private fun EmailDisableDialog(vm: AppViewModel, onDone: () -> Unit) {
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    FormDialog("Turn off email codes", saveEnabled = password.isNotEmpty(), onSave = {
+    FormDialog("Turn off email codes", saveEnabled = !proof.isEmpty, onSave = {
         scope.launch {
-            try { vm.api.emailMfaDisable(password); onDone() }
+            try { vm.api.emailMfaDisable(proof); onDone() }
             catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
         }
     }, onDismiss = onDone) {
-        PasswordField("Password", password) { password = it }
+        ReauthFields(vm, proof) { proof = it }
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
     }
 }
 
 @Composable
 private fun BackupCodesDialog(vm: AppViewModel, onDone: () -> Unit) {
-    var password by remember { mutableStateOf("") }
+    var proof by remember { mutableStateOf(initialProof(vm)) }
     var code by remember { mutableStateOf("") }
     var codes by remember { mutableStateOf<List<String>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    FormDialog("Backup codes", saveEnabled = codes.isEmpty() && password.isNotEmpty() && code.length >= 6, onSave = {
+    FormDialog("Backup codes", saveEnabled = codes.isEmpty() && !proof.isEmpty && code.length >= 6, onSave = {
         scope.launch {
-            try { codes = vm.api.regenerateBackupCodes(password, code); error = null }
+            try { codes = vm.api.regenerateBackupCodes(proof, code); error = null }
             catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
         }
     }, onDismiss = onDone) {
         if (codes.isEmpty()) {
-            PasswordField("Password", password) { password = it }
+            ReauthFields(vm, proof) { proof = it }
             OutlinedTextField(code, { code = it }, label = { Text("Current 6-digit code") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         } else {
@@ -1689,6 +1712,86 @@ private fun TimezoneDialog(vm: AppViewModel, onDone: () -> Unit) {
         }
     }
 }
+
+/** Server responses meaning "re-authenticate and try again", not "this failed". */
+private val REAUTH_ERROR_CODES = setOf(
+    "wrong-password",
+    "reauth-code-required",
+    "invalid-reauth-code",
+    "reauth-code-expired",
+    "reauth-too-many-attempts",
+)
+
+/**
+ * The "prove it's you" control shown before a sensitive account change.
+ *
+ * Accounts with a password re-enter it. Sign in with Apple / Google accounts
+ * have none, so they request a one-time code by email instead — the server
+ * accepts either on the same endpoints (see [ReauthProof]). Every dialog that
+ * gates a sensitive change uses this rather than its own password field, so
+ * the two variants can't drift apart per-flow.
+ */
+@Composable
+private fun ReauthFields(vm: AppViewModel, proof: ReauthProof, onChange: (ReauthProof) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var sending by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+    var sendError by remember { mutableStateOf<String?>(null) }
+
+    when (proof) {
+        is ReauthProof.Password ->
+            PasswordField("Password", proof.value) { onChange(ReauthProof.Password(it)) }
+
+        is ReauthProof.EmailedCode -> {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    proof.value,
+                    { onChange(ReauthProof.EmailedCode(it)) },
+                    label = { Text("6-digit code") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    enabled = !sending,
+                    onClick = {
+                        scope.launch {
+                            sending = true
+                            try {
+                                vm.api.sendReauthCode()
+                                sent = true
+                                sendError = null
+                            } catch (e: ApiError) {
+                                sendError = e.userMessage
+                            } catch (e: Exception) {
+                                sendError = e.message
+                            } finally {
+                                sending = false
+                            }
+                        }
+                    },
+                ) {
+                    Text(if (sending) "Sending…" else if (sent) "Resend" else "Send code")
+                }
+            }
+            Text(
+                "You sign in with Apple or Google, so there's no password to confirm — " +
+                    "we'll email you a code instead.",
+                color = Ct.colors.muted,
+                fontSize = 12.sp,
+            )
+            sendError?.let { Text(it, color = Ct.colors.red, fontSize = 12.sp) }
+        }
+    }
+}
+
+/** The proof shape this account should start with. */
+private fun initialProof(vm: AppViewModel): ReauthProof =
+    if (vm.currentUser?.hasPassword != false) ReauthProof.Password("") else ReauthProof.EmailedCode("")
 
 @Composable
 private fun PasswordField(label: String, value: String, onChange: (String) -> Unit) {

@@ -1,29 +1,38 @@
 /* ═══════════════════════════════════════════════════════════
    routes/mfa.js — authenticated MFA management.
-   Mounted at /api/account/mfa. Every state-changing route
-   requires session + CSRF; sensitive operations (disable,
-   delete passkey) also require password re-entry.
+   Mounted at /api/account/mfa. Every state-changing route requires
+   session + CSRF; every route that ADDS or REMOVES an authentication
+   factor also requires re-auth (see ../reauth.js) — password, or an
+   emailed code for Apple/Google accounts that have no password.
 
-   Endpoints:
+   Re-auth on ENROLMENT matters as much as on removal: a passkey planted
+   through a hijacked session outlives the password change meant to end
+   that session.
+
+   Endpoints ({reauth} = { password } or { reauthCode }):
      GET    /status
-     POST   /totp/setup              { password }
+     POST   /reauth/send             — email a code (password-less accounts)
+     POST   /email/enable            {reauth}
+     POST   /email/confirm           { code }
+     POST   /email/disable           {reauth}
+     POST   /totp/setup              {reauth}
      POST   /totp/confirm            { code }
-     POST   /totp/disable            { password, code }
-     POST   /backup-codes/regenerate { password, code }
-     POST   /passkey/register-start
+     POST   /totp/disable            {reauth, code }
+     POST   /backup-codes/regenerate {reauth, code }
+     POST   /passkey/register-start  {reauth} (waived on a <5min-old session)
      POST   /passkey/register-finish { challengeId, response, name }
      GET    /passkey/list
-     POST   /passkey/delete          { passkeyId, password }
+     POST   /passkey/delete          { passkeyId, ...reauth }
 ═══════════════════════════════════════════════════════════ */
 
 'use strict';
 
 const express = require('express');
-const bcrypt = require('bcrypt');
 
 const dbApi = require('../db');
 const mfa = require('../mfa');
 const mail = require('../mail');
+const reauth = require('../reauth');
 const { requireAuth, requireCsrf } = require('../session');
 const { sendError } = require('../util');
 
@@ -32,17 +41,70 @@ const router = express.Router();
 const SETUP_TTL_MS = 10 * 60 * 1000;       // 10 min to scan QR + enter code
 const REG_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 min for passkey registration
 
-async function verifyPassword(userId, password) {
-  const user = dbApi.findUserById(userId);
-  if (!user) return null;
-  const ok = await bcrypt.compare(String(password || ''), user.password_hash);
-  return ok ? user : null;
+// Re-auth for a sensitive MFA change. Accepts the password, or an emailed
+// code for accounts that have none (Sign in with Apple / Google) — those used
+// to fail every one of these endpoints forever. Returns the user row on
+// success, or sends the error response and returns null.
+async function requireReauth(req, res) {
+  const user = dbApi.findUserById(req.user.id);
+  if (!user) {
+    sendError(res, 401, 'unauthenticated');
+    return null;
+  }
+  const fail = await reauth.verify(user, req.body);
+  if (fail) {
+    sendError(res, fail.status, fail.error);
+    return null;
+  }
+  return user;
+}
+
+// How recently the session must have been established to count as proof of
+// presence on its own. Signing in IS an authentication, so re-prompting
+// seconds later adds friction without adding assurance.
+const FRESH_SESSION_MS = 5 * 60 * 1000;
+
+function sessionIsFresh(req) {
+  const createdAt = req.session && req.session.created_at;
+  return !!createdAt && Date.now() - createdAt < FRESH_SESSION_MS;
+}
+
+// Re-auth for passkey ENROLMENT, which is the flow users hit immediately after
+// signing in (onboarding, "add this device"). A just-created session is its own
+// proof, so it passes; anything older must re-authenticate. That closes the
+// real attack — a stolen long-lived bearer token, which is by definition not
+// fresh, planting a credential that survives the victim's password reset —
+// without breaking already-shipped clients that post no body here.
+async function requireReauthUnlessFresh(req, res) {
+  if (sessionIsFresh(req)) {
+    const user = dbApi.findUserById(req.user.id);
+    if (user) return user;
+  }
+  return requireReauth(req, res);
 }
 
 function isTotpEnabled(userId) {
   const row = dbApi.getTotp(userId);
   return !!(row && row.enabled_at);
 }
+
+/* ── POST /reauth/send ───────────────────────────────────── */
+// Emails a confirmation code for accounts with no password. Password
+// accounts are told to use their password instead, so the client never has to
+// guess which prompt to render — GET /status reports `hasPassword`.
+
+router.post('/reauth/send', requireAuth, requireCsrf, async (req, res) => {
+  const user = dbApi.findUserById(req.user.id);
+  if (!user) return sendError(res, 401, 'unauthenticated');
+  if (reauth.hasPassword(user)) return sendError(res, 400, 'password-required');
+  try {
+    await reauth.sendCode(user);
+  } catch (err) {
+    console.error('reauth code send failed:', err && err.message);
+    return sendError(res, 500, 'mail-send-failed');
+  }
+  res.json({ ok: true });
+});
 
 /* ── GET /status ─────────────────────────────────────────── */
 // Summarizes what the user has enrolled. Safe to call from the
@@ -69,6 +131,9 @@ router.get('/status', requireAuth, (req, res) => {
     })),
     backupCodes: { total: backupAll.length, unused: backupUnused },
     emailMfa: { enabled: !!(u && u.email_mfa_enabled), email: u && u.email },
+    // Tells the client which re-auth prompt to show on sensitive actions:
+    // a password field, or "send me a code" for Apple/Google accounts.
+    hasPassword: dbApi.userHasPassword(u),
   });
 });
 
@@ -78,9 +143,8 @@ router.get('/status', requireAuth, (req, res) => {
 // actually turned on.
 
 router.post('/email/enable', requireAuth, requireCsrf, async (req, res) => {
-  const body = req.body || {};
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
 
   const code = mfa.newEmailCode();
   const hash = await mfa.hashEmailCode(code);
@@ -143,9 +207,8 @@ router.post('/email/confirm', requireAuth, requireCsrf, async (req, res) => {
 /* ── POST /email/disable ──────────────────────────────────── */
 
 router.post('/email/disable', requireAuth, requireCsrf, async (req, res) => {
-  const body = req.body || {};
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
   dbApi.setEmailMfa(req.user.id, false);
   res.json({ ok: true });
 });
@@ -157,8 +220,8 @@ router.post('/email/disable', requireAuth, requireCsrf, async (req, res) => {
 // secret is not active until /confirm verifies a code.
 
 router.post('/totp/setup', requireAuth, requireCsrf, async (req, res) => {
-  const user = await verifyPassword(req.user.id, (req.body || {}).password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
 
   if (isTotpEnabled(req.user.id)) return sendError(res, 409, 'totp-already-enabled');
 
@@ -206,8 +269,8 @@ router.post('/totp/confirm', requireAuth, requireCsrf, async (req, res) => {
 
 router.post('/totp/disable', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
 
   const totp = dbApi.getTotp(req.user.id);
   if (!totp || !totp.enabled_at) return sendError(res, 400, 'totp-not-enabled');
@@ -229,8 +292,8 @@ router.post('/totp/disable', requireAuth, requireCsrf, async (req, res) => {
 
 router.post('/backup-codes/regenerate', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
 
   const totp = dbApi.getTotp(req.user.id);
   if (!totp || !totp.enabled_at) return sendError(res, 400, 'totp-not-enabled');
@@ -253,9 +316,16 @@ router.post('/backup-codes/regenerate', requireAuth, requireCsrf, async (req, re
 /* ── POST /passkey/register-start ────────────────────────── */
 // Returns WebAuthn registration options; the challenge is stored
 // server-side so the matching finish call can replay it.
+//
+// Re-auth required unless the session was just established. Enrolling a
+// passkey is a credential-ADDING operation, so session + CSRF alone let a
+// hijacked session plant a permanent credential — one that survives the
+// password change meant to evict the attacker, since changing a password
+// revokes sessions but not passkeys.
 
 router.post('/passkey/register-start', requireAuth, requireCsrf, async (req, res) => {
-  const user = dbApi.findUserById(req.user.id);
+  const user = await requireReauthUnlessFresh(req, res);
+  if (!user) return undefined;
   const existing = dbApi.listPasskeysForChallenge(req.user.id);
   const options = await mfa.startPasskeyRegistration(user, existing, req);
 
@@ -341,8 +411,8 @@ router.get('/passkey/list', requireAuth, (req, res) => {
 
 router.post('/passkey/delete', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
+  const user = await requireReauth(req, res);
+  if (!user) return undefined;
 
   const id = parseInt(body.passkeyId, 10);
   if (!id) return sendError(res, 400, 'bad-passkey-id');

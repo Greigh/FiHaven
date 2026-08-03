@@ -180,9 +180,25 @@ function decodeJwsPayload(jws) {
   return appleJws.decodePayloadUnsafe(jws);
 }
 
+/** Bundle ids whose transactions we accept. Comma-separated for build variants. */
+function appleBundleIds() {
+  return String(process.env.APPLE_BUNDLE_ID || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 // Apple StoreKit 2 sends a JWS-signed transaction. In production mode
 // with APPLE_VERIFY_ENABLED, the x5c chain + ES256 signature are verified
 // against Apple Root CA - G3 before any claims are trusted.
+//
+// A valid signature only says "Apple issued this" — it says nothing about
+// WHICH app or WHICH environment. Both have to be pinned separately:
+//   • bundleId — every App Store transaction shares the same Apple root, so
+//     without this a signed receipt from any other app on the store verifies
+//     here and grants Pro.
+//   • environment — Sandbox transactions carry the same production signing
+//     chain, so a sandbox tester could mint real entitlements.
 async function verifyApple(signedTransaction) {
   if (verifyMode() === 'production' && !process.env.APPLE_VERIFY_ENABLED) {
     throw new Error('apple-verify-not-configured');
@@ -193,6 +209,7 @@ async function verifyApple(signedTransaction) {
   } else {
     p = decodeJwsPayload(signedTransaction);
   }
+  assertAppleClaims(p);
   const productId = p.productId;
   const txnId = p.originalTransactionId || p.transactionId;
   if (!productId || !txnId) throw new Error('missing-fields');
@@ -205,6 +222,31 @@ async function verifyApple(signedTransaction) {
     status: 'active',
     raw: p,
   };
+}
+
+/**
+ * Enforce the app/environment claims on a decoded Apple payload. Shared by the
+ * client-verify path and the App Store server-notification path, since a forged
+ * notification is worth exactly as much as a forged transaction.
+ */
+function assertAppleClaims(p) {
+  const allowed = appleBundleIds();
+  // Unset is only tolerable off-production; securityConfig makes it a boot
+  // failure in production so this can never silently no-op where it matters.
+  if (allowed.length) {
+    if (!p.bundleId || !allowed.includes(String(p.bundleId))) {
+      throw new Error('apple-bundle-mismatch');
+    }
+  }
+  // Sandbox is the App Review + TestFlight environment, so rejecting it breaks
+  // review. Opt in with APPLE_ALLOW_SANDBOX=1 while a build is in review.
+  if (
+    verifyMode() === 'production' &&
+    String(p.environment || '') === 'Sandbox' &&
+    process.env.APPLE_ALLOW_SANDBOX !== '1'
+  ) {
+    throw new Error('apple-sandbox-rejected');
+  }
 }
 
 const googlePlay = require('./googlePlay');
@@ -244,10 +286,12 @@ async function verifyGoogle({ productId, purchaseToken, expiryTimeMillis } = {})
     if (!activeStates.has(sub.subscriptionState)) {
       throw new Error('subscription-inactive');
     }
-    const line = (sub.lineItems || []).find((l) => l.productId === productId)
-      || sub.lineItems?.[0];
+    // Exact match only. Falling back to lineItems[0] meant ANY live
+    // subscription in the Play account satisfied a request naming one of ours,
+    // so the cheapest product could be redeemed as the most expensive.
+    const line = (sub.lineItems || []).find((l) => l.productId === productId);
     if (!line) throw new Error('product-mismatch');
-    const resolvedProduct = line.productId || productId;
+    const resolvedProduct = line.productId;
     const expiresAt = line.expiryTime ? Date.parse(line.expiryTime) : null;
     return {
       txnId: String(purchaseToken),
@@ -267,7 +311,20 @@ async function verifyGoogle({ productId, purchaseToken, expiryTimeMillis } = {})
 }
 
 // Persist a verified transaction and return the fresh entitlement.
+//
+// A cryptographically valid receipt proves a purchase happened — NOT that the
+// account posting it is the one that made it. Store transactions are bearer
+// credentials, so the first account to redeem one owns it; a second account
+// presenting the same receipt is either receipt-sharing or outright theft.
 function recordPurchase(userId, platform, t) {
+  const claimed = dbApi.findSubscriptionByTxn(platform, String(t.txnId));
+  if (claimed && claimed.user_id !== userId) {
+    console.warn(
+      `[billing] ${platform} txn ${t.txnId} already owned by user ${claimed.user_id};`,
+      `refused replay by user ${userId}`
+    );
+    throw new Error('receipt-already-claimed');
+  }
   const now = Date.now();
   dbApi.upsertSubscription({
     user_id: userId,
@@ -386,6 +443,9 @@ function handleAppleNotification(body) {
       : decodeJwsPayload(payload.data.signedTransactionInfo);
   }
   if (!info) return { ok: true, ignored: 'no-transaction-info' };
+  // Same app/environment pinning as the client-verify path — a notification
+  // that mutates subscription rows is worth forging too.
+  assertAppleClaims(info);
 
   const txnId = info.originalTransactionId || info.transactionId;
   const existing = dbApi.findSubscriptionByTxn('apple', String(txnId));

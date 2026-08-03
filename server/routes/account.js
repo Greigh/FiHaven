@@ -20,6 +20,7 @@ const billing = require('../billing');
 const emails = require('../emails');
 const mfa = require('../mfa');
 const plaid = require('../plaid');
+const reauth = require('../reauth');
 const tokens = require('../tokens');
 const { requireAuth, requireVerified, requireCsrf, requirePro, destroySession } = require('../session');
 const {
@@ -41,20 +42,89 @@ async function verifyPassword(userId, password) {
   return ok ? user : null;
 }
 
-// Second-factor gate for destructive actions. When TOTP is enrolled, a valid
-// current code is required (mirrors the /mfa/totp/disable precedent). When no
-// TOTP is enrolled, the re-entered password alone authorizes the action.
-// Returns null on success, or an { status, error } to send back.
-function checkSecondFactor(user, code) {
+// Second-factor gate for destructive actions (account deletion, data wipe).
+//
+// Any enrolled factor counts, not just TOTP: checking TOTP alone meant an
+// account secured exclusively with a passkey or email codes got NO second
+// factor here at all, so the password by itself deleted everything. The
+// accepted proof, in the order the client should offer it:
+//   • TOTP code, when TOTP is enrolled;
+//   • an unused backup code (same field — they're distinguishable by shape);
+//   • an emailed code, when email MFA is the only factor.
+// Accounts with no second factor at all are still password-only by design.
+//
+// `opts.emailFactorSatisfied` — the caller already consumed an emailed code to
+// re-authenticate, so the email channel is proven and must not be demanded a
+// second time (codes are single-use; asking twice would be unanswerable).
+//
+// Returns null on success, or a { status, error } to send back.
+async function checkSecondFactor(user, code, opts) {
+  const emailProven = !!(opts && opts.emailFactorSatisfied);
   const totp = dbApi.getTotp(user.id);
-  if (!totp || !totp.enabled_at) return null; // no TOTP enrolled → password-only
-  let secret;
-  try { secret = mfa.decrypt(totp.secret_enc); }
-  catch (_) { return { status: 500, error: 'decrypt-failed' }; }
-  if (!mfa.verifyTotpCode(secret, code, user.email)) {
-    return { status: 401, error: 'invalid-totp-code' };
+  const totpEnabled = !!(totp && totp.enabled_at);
+  const hasPasskey = dbApi.countPasskeys(user.id) > 0;
+  const emailEnabled = !!user.email_mfa_enabled;
+  if (!totpEnabled && !hasPasskey && !emailEnabled) return null;
+  // Only TOTP and backup codes are secrets the email channel doesn't already
+  // cover, so once the email is proven they're the only thing left to ask for.
+  if (emailProven && !totpEnabled) return null;
+
+  const supplied = String(code || '').trim();
+  if (!supplied) return { status: 401, error: 'second-factor-required' };
+
+  // Backup codes carry a letter or hyphen; TOTP/email codes are 6 digits.
+  if (/[A-Za-z]/.test(supplied) || supplied.includes('-')) {
+    for (const row of dbApi.listBackupCodes(user.id)) {
+      if (row.used_at) continue;
+      if (await mfa.compareBackupCode(supplied, row.code_hash)) {
+        dbApi.markBackupCodeUsed(row.id);
+        return null;
+      }
+    }
+    return { status: 401, error: 'invalid-second-factor' };
   }
-  return null;
+
+  if (totpEnabled) {
+    let secret;
+    try { secret = mfa.decrypt(totp.secret_enc); }
+    catch (_) { return { status: 500, error: 'decrypt-failed' }; }
+    if (mfa.verifyTotpCode(secret, supplied, user.email)) return null;
+    return { status: 401, error: 'invalid-second-factor' };
+  }
+
+  // No TOTP, but a factor IS enrolled → the emailed re-auth code is the
+  // answer (passkey-only accounts use it too; a WebAuthn assertion round-trip
+  // on a destructive REST call would need its own challenge flow).
+  const fail = await reauth.verify(
+    { ...user, password_hash: null },   // force the emailed-code branch
+    { reauthCode: supplied }
+  );
+  return fail ? { status: fail.status, error: fail.error } : null;
+}
+
+/**
+ * The full gate for a destructive action: prove who you are, then prove the
+ * second factor.
+ *
+ * For a password account those are genuinely independent secrets, so both are
+ * required. For a password-less (Apple / Google) account the only channel we
+ * have is their email, so ONE emailed code covers both — codes are single-use,
+ * and demanding two from the same mailbox would be unanswerable rather than
+ * more secure. A TOTP secret or backup code, if enrolled, is still independent
+ * of email and is still required.
+ *
+ * @returns {Promise<null|{status:number, error:string}>} null on success
+ */
+async function confirmDestructive(user, body) {
+  const passwordless = !dbApi.userHasPassword(user);
+  const proof = passwordless
+    ? { reauthCode: body.reauthCode || body.code }
+    : body;
+
+  const fail = await reauth.verify(user, proof);
+  if (fail) return fail;
+
+  return checkSecondFactor(user, body.code, { emailFactorSatisfied: passwordless });
 }
 
 /* ── POST /api/account/change-password ───────────────────────── */
@@ -175,7 +245,12 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   // prompt would lock them out of deleting entirely (App Store Guideline
   // 5.1.1(v) requires in-app deletion for every account we let people create).
   // They confirm by typing the phrase instead; the session + CSRF header still
-  // authenticate the request, and TOTP is enforced below either way.
+  // authenticate the request, and the second factor below is enforced either
+  // way — for a password-less account that factor (an emailed code, when
+  // email/passkey is what's enrolled) is the real gate, since the phrase is
+  // something anyone holding the session could type. Deliberately NOT routed
+  // through confirmDestructive: deletion must stay reachable even if the user
+  // can no longer receive mail (App Store 5.1.1(v)).
   const row = dbApi.findUserById(req.user.id);
   if (!row) return sendError(res, 401, 'wrong-password');
 
@@ -190,7 +265,7 @@ router.post('/delete', requireAuth, requireCsrf, async (req, res) => {
   }
 
   // Re-confirm the second factor (TOTP) when one is enrolled.
-  const sf = checkSecondFactor(user, body.code);
+  const sf = await checkSecondFactor(user, body.code);
   if (sf) return sendError(res, sf.status, sf.error);
 
   // Revoke any linked banks at Plaid first (the local plaid_items cascade-delete
@@ -230,11 +305,12 @@ const CLEARABLE_GROUPS = ['bills', 'cards', 'payments', 'bank'];
 router.post('/clear-data', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
 
-  const user = await verifyPassword(req.user.id, body.password);
-  if (!user) return sendError(res, 401, 'wrong-password');
-
-  const sf = checkSecondFactor(user, body.code);
-  if (sf) return sendError(res, sf.status, sf.error);
+  // Re-auth rather than a bare password check: Apple/Google accounts have no
+  // password, so a password-only gate made this endpoint unreachable for them.
+  const user = dbApi.findUserById(req.user.id);
+  if (!user) return sendError(res, 401, 'unauthenticated');
+  const gate = await confirmDestructive(user, body);
+  if (gate) return sendError(res, gate.status, gate.error);
 
   const groups = Array.isArray(body.groups)
     ? body.groups.filter((g) => CLEARABLE_GROUPS.includes(g))
@@ -296,9 +372,18 @@ router.get('/export', requireAuth, requireVerified, (req, res) => {
 // dashboard's client-side exportCSV(...) produces so the files
 // round-trip with the importer below.
 
+// Characters that make Excel / Sheets / LibreOffice treat a cell as a formula
+// rather than text. A bill named `=HYPERLINK("http://evil","click")` — or the
+// classic `=cmd|'/c calc'!A1` — executes when the export is opened, so the
+// value is prefixed with a tab to force text interpretation. Tab is used
+// rather than a quote because it survives a round-trip through the importer.
+const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
+
 function csvEscape(cell) {
-  const s = String(cell == null ? '' : cell).replace(/"/g, '""');
-  return /[",\n]/.test(s) ? `"${s}"` : s;
+  let s = String(cell == null ? '' : cell);
+  if (CSV_FORMULA_LEAD.test(s)) s = '\t' + s;
+  s = s.replace(/"/g, '""');
+  return /[",\n\t\r]/.test(s) ? `"${s}"` : s;
 }
 function toCsv(rows) {
   return rows.map((r) => r.map(csvEscape).join(',')).join('\n');

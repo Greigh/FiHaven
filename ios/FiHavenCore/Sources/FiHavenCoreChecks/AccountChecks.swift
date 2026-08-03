@@ -30,7 +30,7 @@ func runAccountChecks() async {
         MockURLProtocol.handler = { _ in
             (200, Data(#"{"uri":"otpauth://totp/x","qrDataUrl":"data:image/png;base64,AAAA","secret":"ABCD"}"#.utf8))
         }
-        let setup = try await client.totpSetup(password: "pw")
+        let setup = try await client.totpSetup(proof: .password("pw"))
         checkEqual(setup.secret, "ABCD", "totp secret parsed")
         check(setup.qrDataUrl.hasPrefix("data:image/png"), "qr data url parsed")
 
