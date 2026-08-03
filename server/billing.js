@@ -239,14 +239,54 @@ function assertAppleClaims(p) {
     }
   }
   // Sandbox is the App Review + TestFlight environment, so rejecting it breaks
-  // review. Opt in with APPLE_ALLOW_SANDBOX=1 while a build is in review.
+  // review — but accepting it forever means anyone with a sandbox tester
+  // account mints real Pro. See sandboxAllowed() for how that window closes.
   if (
     verifyMode() === 'production' &&
     String(p.environment || '') === 'Sandbox' &&
-    process.env.APPLE_ALLOW_SANDBOX !== '1'
+    !sandboxAllowed()
   ) {
     throw new Error('apple-sandbox-rejected');
   }
+}
+
+/**
+ * Is a StoreKit *sandbox* transaction acceptable right now?
+ *
+ * The obvious design — a boolean you flip on for App Review and off after —
+ * has the wrong failure mode: forgetting the second step is silent, and leaves
+ * sandbox receipts granting real Pro indefinitely. Nothing surfaces it, because
+ * everything keeps working.
+ *
+ * So APPLE_ALLOW_SANDBOX carries a DEADLINE and the window shuts by itself:
+ *
+ *   unset / "0"          → rejected (the secure default)
+ *   ISO date / epoch ms  → accepted until that moment, then rejected
+ *   "1"                  → accepted indefinitely (legacy escape hatch; the
+ *                          deploy script never writes this, and
+ *                          securityConfig warns about it at boot)
+ *
+ * Anything unparseable fails closed rather than being read as "allow".
+ *
+ * @param {number} [now] epoch ms, injectable for tests
+ */
+function sandboxAllowed(now = Date.now()) {
+  const raw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
+  if (!raw || raw === '0') return false;
+  if (raw === '1') return true;
+  // Check digits before Date.parse: a bare epoch is unambiguous, and
+  // Date.parse("1785...") would otherwise be read as a year.
+  const until = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
+  if (!Number.isFinite(until)) return false;
+  return now < until;
+}
+
+/** When the sandbox window shuts, or null if it isn't a dated window. */
+function sandboxExpiresAt() {
+  const raw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
+  if (!raw || raw === '0' || raw === '1') return null;
+  const until = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
+  return Number.isFinite(until) ? until : null;
 }
 
 const googlePlay = require('./googlePlay');
@@ -887,6 +927,8 @@ module.exports = {
   computeEntitlement,
   householdMaxFor,
   verifyApple,
+  sandboxAllowed,
+  sandboxExpiresAt,
   verifyGoogle,
   recordPurchase,
   redeemPromo,
