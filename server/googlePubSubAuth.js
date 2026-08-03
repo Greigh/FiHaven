@@ -91,9 +91,14 @@ async function verifyPushRequest(req) {
   if (!ok) throw new Error('pubsub-bad-signature');
 
   if (!GOOGLE_ISS.includes(payload.iss)) throw new Error('pubsub-bad-issuer');
+  // The audience is what ties this token to OUR endpoint. Anyone with a Google
+  // account can mint a Google-signed OIDC token for a service account they
+  // control, so issuer + signature alone prove nothing — skipping the check
+  // when unconfigured let any such token forge Play notifications. Fail closed.
   const audiences = expectedAudiences();
+  if (!audiences.length) throw new Error('pubsub-audience-not-configured');
   const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (audiences.length && !auds.some((a) => audiences.includes(a))) {
+  if (!auds.some((a) => audiences.includes(a))) {
     throw new Error('pubsub-bad-audience');
   }
   const now = Math.floor(Date.now() / 1000);

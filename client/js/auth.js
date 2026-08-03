@@ -152,6 +152,13 @@ import { clearSessionCache } from './localCache.js';
         return 'That sign-in attempt expired — start over.';
       case 'invalid-totp-code':
         return 'That code didn’t match. Try again.';
+      case 'mfa-too-many-attempts':
+        return 'Too many incorrect codes. Sign in again to get a new one.';
+      case 'mfa-too-many-sends':
+        return 'Too many codes requested. Sign in again to start over.';
+      case 'email-unverified-conflict':
+        return 'An unverified account already uses this email. Verify it from ' +
+          'the link we emailed, or sign in with your password instead.';
       case 'totp-not-enabled':
         return 'Authenticator codes aren’t set up on this account.';
       case 'email-mfa-not-enabled':

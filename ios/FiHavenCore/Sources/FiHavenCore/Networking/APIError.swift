@@ -48,6 +48,19 @@ public enum APIError: Error, Equatable, Sendable {
             case "rate-limited": return "Too many attempts. Please wait and try again."
             case "mfa-token-invalid": return "Your verification session expired. Please sign in again."
             case "invalid-totp-code": return "That code wasn't valid."
+            case "mfa-too-many-attempts": return "Too many incorrect codes. Sign in again to get a new one."
+            case "mfa-too-many-sends": return "Too many codes requested. Sign in again to start over."
+            case "email-unverified-conflict":
+                return "An unverified account already uses this email. Verify it from the link we emailed, or sign in with your password."
+            // Re-auth on an account with no password (Sign in with Apple / Google).
+            case "reauth-code-required": return "Send yourself a confirmation code, then enter it to continue."
+            case "invalid-reauth-code": return "That confirmation code is incorrect."
+            case "reauth-code-expired": return "That confirmation code expired. Request a new one."
+            case "reauth-too-many-attempts": return "Too many incorrect codes. Request a new one."
+            case "password-required": return "This account has a password — enter it instead."
+            case "second-factor-required": return "Enter a code from your authenticator, a backup code, or an emailed code."
+            case "invalid-second-factor": return "That code is incorrect or expired."
+            case "receipt-already-claimed": return "That purchase is already linked to a different FiHaven account."
             case "account-suspended": return "This account has been suspended. Contact support if you think that's a mistake."
             default: return code ?? "Request failed (\(status))."
             }

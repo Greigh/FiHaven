@@ -73,6 +73,23 @@ import {
         return 'Names cannot contain line breaks or control characters.';
       case 'invalid-totp-code':
         return 'That authenticator code is incorrect or expired.';
+      case 'second-factor-required':
+        return 'Enter a code from your authenticator, a backup code, or an emailed code.';
+      case 'invalid-second-factor':
+        return 'That code is incorrect or expired.';
+      // Re-auth on an account with no password (Sign in with Apple / Google).
+      case 'reauth-code-required':
+        return 'Send yourself a confirmation code, then enter it to continue.';
+      case 'invalid-reauth-code':
+        return 'That confirmation code is incorrect.';
+      case 'reauth-code-expired':
+        return 'That confirmation code expired. Request a new one.';
+      case 'reauth-too-many-attempts':
+        return 'Too many incorrect codes. Request a new one.';
+      case 'password-required':
+        return 'This account has a password — enter it instead.';
+      case 'receipt-already-claimed':
+        return 'That purchase is already linked to a different FiHaven account.';
       case 'no-groups':
         return 'Choose at least one type of data to clear.';
       case 'bad-csrf-token':
@@ -224,6 +241,17 @@ import {
         }
         var pwSection = document.querySelector('[data-change-password-section]');
         if (pwSection) pwSection.hidden = true;
+        // Clear-data can't fall back to a typed phrase the way deletion does,
+        // so swap its password prompt for the emailed-code prompt.
+        var clearPw = document.getElementById('clear-password');
+        if (clearPw) {
+          clearPw.value = '';
+          var clearPwWrap = clearPw.closest('.auth-field');
+          if (clearPwWrap) clearPwWrap.hidden = true;
+        }
+        document.querySelectorAll('[data-reauth-code-field]').forEach(function (el) {
+          el.hidden = false;
+        });
       }
       // Membership line needs the Pro entitlement (from /api/data).
       fetchData()
@@ -348,6 +376,37 @@ import {
       });
     }
 
+    /* ── Emailed confirmation code (accounts with no password) ── */
+    // Mirrors the control in MfaSection.svelte; both post to the same endpoint.
+    document.querySelectorAll('[data-send-reauth-code]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        csrfToken()
+          .then(function (token) {
+            return fetch('/api/account/mfa/reauth/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+              credentials: 'same-origin',
+              body: '{}',
+            });
+          })
+          .then(function (r) {
+            btn.disabled = false;
+            btn.textContent = r.ok ? 'Resend' : original;
+            showMessage('clear', r.ok
+              ? 'Code sent — check your inbox.'
+              : 'Could not send a code. Try again in a moment.', !r.ok);
+          })
+          .catch(function () {
+            btn.disabled = false;
+            btn.textContent = original;
+            showMessage('clear', errorText('network'), true);
+          });
+      });
+    });
+
     /* ── Clear selected data (keeps the account) ───────────── */
     var clearForm = document.querySelector('[data-form="clear"]');
     if (clearForm) {
@@ -355,6 +414,8 @@ import {
         event.preventDefault();
         var password = document.getElementById('clear-password').value;
         var code = document.getElementById('clear-code').value.trim();
+        var reauthCodeEl = document.getElementById('clear-reauth-code');
+        var reauthCode = reauthCodeEl ? reauthCodeEl.value.trim() : '';
         var groups = Array.prototype.slice
           .call(clearForm.querySelectorAll('[data-clear-group]:checked'))
           .map(function (c) { return c.value; });
@@ -362,15 +423,24 @@ import {
           showMessage('clear', 'Choose at least one type of data to clear.', true);
           return;
         }
-        if (!password) {
+        if (hasPassword && !password) {
           showMessage('clear', 'Enter your password to confirm.', true);
+          return;
+        }
+        if (!hasPassword && !reauthCode) {
+          showMessage('clear', 'Send yourself a confirmation code, then enter it.', true);
           return;
         }
         if (!window.confirm('Permanently erase the selected data? This cannot be undone.')) return;
 
         setBusy(clearForm, true);
         showMessage('clear', 'Clearing…', false);
-        postJson('clear-data', { password: password, code: code, groups: groups })
+        postJson('clear-data', {
+          password: password,
+          reauthCode: reauthCode,
+          code: code,
+          groups: groups,
+        })
           .then(function (res) {
             setBusy(clearForm, false);
             if (res.ok) {
@@ -2068,6 +2138,13 @@ import {
     return rows.filter(function (r) { return r.length > 1 || (r.length === 1 && r[0].length); });
   }
 
+  // Exports prefix a tab to any value starting with = + - or @, so spreadsheet
+  // apps read it as text instead of a formula. Strip that guard on the way
+  // back in so an export/import round-trip returns the original value.
+  function unguard(v) {
+    return String(v == null ? '' : v).replace(/^\t/, '');
+  }
+
   function parseCsvImport(text) {
     var rows = parseCsv(text);
     if (rows.length < 2) throw new Error('CSV file looks empty.');
@@ -2078,7 +2155,7 @@ import {
 
     if (has('credit limit') || (has('balance') && has('regular apr'))) {
       var cards = body.map(function (row) {
-        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        var get = function (k) { return unguard(row[header.indexOf(k)] || ''); };
         return {
           id: Date.now() + Math.floor(Math.random() * 1e6),
           name: get('name'),
@@ -2104,7 +2181,7 @@ import {
 
     if (has('category') && has('due day') && has('frequency')) {
       var bills = body.map(function (row) {
-        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        var get = function (k) { return unguard(row[header.indexOf(k)] || ''); };
         return {
           id: Date.now() + Math.floor(Math.random() * 1e6),
           name: get('name'),
@@ -2125,7 +2202,7 @@ import {
 
     if (has('date') && has('amount') && (has('type') || has('name'))) {
       var payments = body.map(function (row) {
-        var get = function (k) { return row[header.indexOf(k)] || ''; };
+        var get = function (k) { return unguard(row[header.indexOf(k)] || ''); };
         var date = get('date');
         var mk = get('month') || (date ? date.slice(0, 7) : '');
         return {

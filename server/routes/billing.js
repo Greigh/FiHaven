@@ -53,6 +53,11 @@ router.post('/apple/verify', requireAuth, requireCsrf, async (req, res) => {
     const entitlement = billing.recordPurchase(req.user.id, 'apple', txn);
     res.json({ entitlement });
   } catch (err) {
+    // 409: the receipt is genuine but belongs to a different account, so the
+    // client should say "already used" rather than "verification failed".
+    if (err.message === 'receipt-already-claimed') {
+      return sendError(res, 409, 'receipt-already-claimed');
+    }
     sendError(res, 400, err.message === 'apple-verify-not-configured'
       ? 'verify-not-configured' : 'verify-failed');
   }
@@ -71,6 +76,9 @@ router.post('/google/verify', requireAuth, requireCsrf, async (req, res) => {
     const entitlement = billing.recordPurchase(req.user.id, 'google', txn);
     res.json({ entitlement });
   } catch (err) {
+    if (err.message === 'receipt-already-claimed') {
+      return sendError(res, 409, 'receipt-already-claimed');
+    }
     sendError(res, 400, err.message === 'google-verify-not-configured'
       ? 'verify-not-configured' : 'verify-failed');
   }

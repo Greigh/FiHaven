@@ -32,6 +32,15 @@ const MIN_SUBMIT_MS = 2500;
 // How long an MFA continuation token is valid for between
 // password verification and second-factor confirmation.
 const MFA_TOKEN_TTL_MS = 5 * 60 * 1000;
+// Wrong second-factor guesses allowed against a single MFA continuation token
+// before it is destroyed. A 6-digit TOTP/email code is only ~20 bits, so the
+// token — not the code — has to be what runs out: without this an attacker who
+// already has the password can loop login → fresh token → guess indefinitely,
+// and the per-IP limiter is sidestepped by rotating addresses.
+const MAX_MFA_ATTEMPTS = 5;
+// Emailed codes issued per token. Re-sending replaces the code, so an
+// unbounded count is both a mail-bomb and a way to keep a guessing run alive.
+const MAX_MFA_SENDS = 3;
 // A pre-computed hash used to run a dummy bcrypt.compare when an
 // account does not exist, keeping login timing constant.
 const DUMMY_HASH = bcrypt.hashSync('fihaven-dummy-password', BCRYPT_COST);
@@ -356,7 +365,25 @@ function consumeMfaToken(tokenId, expectedUserId) {
     dbApi.deleteChallenge(ch.id);
     return null;
   }
+  // A token that already burned through its guesses is dead even though it
+  // hasn't expired — drop it rather than let another round start.
+  if (ch.attempts >= MAX_MFA_ATTEMPTS) {
+    dbApi.deleteChallenge(ch.id);
+    return null;
+  }
   return ch;
+}
+
+// Record a failed second-factor guess. Destroys the token once the budget is
+// spent, so the client has to start over from the password. Returns the error
+// code to send back.
+function recordMfaFailure(ch) {
+  const attempts = dbApi.bumpChallengeAttempts(ch.id);
+  if (attempts >= MAX_MFA_ATTEMPTS) {
+    dbApi.deleteChallenge(ch.id);
+    return 'mfa-too-many-attempts';
+  }
+  return 'invalid-totp-code';
 }
 
 function finishLogin(res, req, account) {
@@ -382,12 +409,21 @@ router.post('/mfa/email/send', async (req, res) => {
     return sendError(res, 400, 'email-mfa-not-enabled');
   }
 
+  // Re-sending mints a fresh code and pushes the deadline out, so it has to be
+  // capped: uncapped it both mail-bombs the account owner and keeps a guessing
+  // run alive forever.
+  if (ch.sends >= MAX_MFA_SENDS) {
+    dbApi.deleteChallenge(ch.id);
+    return sendError(res, 429, 'mfa-too-many-sends');
+  }
+
   const code = mfa.newEmailCode();
   const hash = await mfa.hashEmailCode(code);
 
   // Replace the existing mfa-login row, keeping the same id so the
   // client's mfaToken still works. payload now carries the bcrypt
-  // hash of the emailed code.
+  // hash of the emailed code. attempts/sends carry over — resetting them
+  // here would hand back a fresh guess budget on every re-send.
   const now = Date.now();
   dbApi.deleteChallenge(ch.id);
   dbApi.insertChallenge({
@@ -397,6 +433,8 @@ router.post('/mfa/email/send', async (req, res) => {
     payload: hash,
     created_at: now,
     expires_at: now + MFA_TOKEN_TTL_MS,
+    attempts: ch.attempts,
+    sends: ch.sends + 1,
   });
 
   try {
@@ -450,7 +488,7 @@ router.post('/mfa/verify', async (req, res) => {
         return finishLogin(res, req, account);
       }
     }
-    return sendError(res, 401, 'invalid-totp-code');
+    return sendError(res, 401, recordMfaFailure(ch));
   }
 
   // Email-code path takes priority when an email code is outstanding.
@@ -459,7 +497,7 @@ router.post('/mfa/verify', async (req, res) => {
       dbApi.deleteChallenge(ch.id);
       return finishLogin(res, req, account);
     }
-    return sendError(res, 401, 'invalid-totp-code');
+    return sendError(res, 401, recordMfaFailure(ch));
   }
 
   const totp = dbApi.getTotp(account.id);
@@ -468,7 +506,7 @@ router.post('/mfa/verify', async (req, res) => {
   try { secret = mfa.decrypt(totp.secret_enc); }
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
   if (!mfa.verifyTotpCode(secret, code, account.email)) {
-    return sendError(res, 401, 'invalid-totp-code');
+    return sendError(res, 401, recordMfaFailure(ch));
   }
   dbApi.touchTotpUsed(account.id);
   dbApi.deleteChallenge(ch.id);
@@ -549,7 +587,8 @@ router.post('/mfa/passkey/start', async (req, res) => {
   const options = await mfa.startPasskeyAuthentication(allowed, req);
   // Stash the WebAuthn challenge on top of the same mfa-login token
   // so passkey/finish can validate it. We keep the row (overwriting
-  // payload) instead of issuing a separate challenge id.
+  // payload) instead of issuing a separate challenge id. Counters carry
+  // over so re-arming the passkey step can't wipe the guess budget.
   const now = Date.now();
   dbApi.deleteChallenge(ch.id);
   dbApi.insertChallenge({
@@ -559,6 +598,8 @@ router.post('/mfa/passkey/start', async (req, res) => {
     payload: options.challenge,
     created_at: now,
     expires_at: now + MFA_TOKEN_TTL_MS,
+    attempts: ch.attempts,
+    sends: ch.sends,
   });
   res.json({ options });
 });
@@ -598,6 +639,7 @@ router.post('/mfa/passkey/finish', async (req, res) => {
   dbApi.deleteChallenge(ch.id);
 
   const account = dbApi.findUserById(ch.user_id);
+  if (!account) return sendError(res, 401, 'mfa-token-invalid');
   return finishLogin(res, req, account);
 });
 
@@ -797,10 +839,22 @@ router.post('/oauth/:provider', async (req, res) => {
     return sendError(res, 401, 'oauth-email-unverified');
   }
 
+  // Attaching a provider identity to an EXISTING local account is only safe
+  // when that account proved it owns the address. Otherwise anyone can sign up
+  // as victim@example.com, never verify, and wait: the victim's first "Sign in
+  // with Google" would be auto-linked straight into the attacker's account,
+  // which the attacker still holds the password to. (Account pre-hijacking —
+  // Microsoft/Marco Squarcina et al.) An unverified collision is refused; the
+  // squatted account has to verify or be cleaned up first.
+  function linkableTo(existing) {
+    return !!(existing && existing.email_verified);
+  }
+
   let account = dbApi.findUserByOAuth(provider, identity.subject);
   if (!account) {
     const existing = dbApi.findUserByEmail(identity.email);
     if (existing) {
+      if (!linkableTo(existing)) return sendError(res, 409, 'email-unverified-conflict');
       dbApi.linkOAuth(existing.id, provider, identity.subject);
       account = existing;
     } else {
@@ -810,8 +864,14 @@ router.post('/oauth/:provider', async (req, res) => {
         account = dbApi.findUserById(created.id);
       } catch (err) {
         if (err && /UNIQUE/.test(String(err.message))) {
-          const again = dbApi.findUserByEmail(identity.email); // raced same-email signup
-          if (again) { dbApi.linkOAuth(again.id, provider, identity.subject); account = again; }
+          // Raced a same-email signup. That row is brand new and therefore
+          // unverified, so the same rule applies — don't adopt it.
+          const again = dbApi.findUserByEmail(identity.email);
+          if (again) {
+            if (!linkableTo(again)) return sendError(res, 409, 'email-unverified-conflict');
+            dbApi.linkOAuth(again.id, provider, identity.subject);
+            account = again;
+          }
         }
         if (!account) {
           console.error('oauth account create failed:', err && err.message);
