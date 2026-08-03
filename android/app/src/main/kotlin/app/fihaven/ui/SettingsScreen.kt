@@ -212,7 +212,12 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     Text(
                         when (sync) {
                             SyncState.Saving -> "☁ Saving to your account…"
-                            SyncState.Offline -> "☁ Can’t reach FiHaven — still retrying. Nothing is stored on this device, so keep the app open until it clears."
+                            // Was "Nothing is stored on this device, so keep the
+                            // app open until it clears" — true when the only
+                            // copy of an edit was the retry loop's. Edits are
+                            // now written to the device first and replayed on
+                            // the next launch, so closing the app is safe.
+                            SyncState.Offline -> "☁ Can’t reach FiHaven — saved on this device and still retrying. Your changes will sync when you’re back online."
                             else -> "☁ Synced to your account — changes save automatically across devices."
                         },
                         color = Ct.colors.muted, fontSize = 12.5.sp,

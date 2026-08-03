@@ -144,6 +144,13 @@
   margin-top: 4px;
 }
 
+/* Legal pages set this inline per paragraph today; the rule means a closing
+   line after a list is spaced whether or not the inline style is there. */
+.legal-section ul + p,
+.legal-section ol + p {
+  margin-top: 8px;
+}
+
 .public-panel {
   display: grid;
   gap: 14px;
@@ -1128,7 +1135,11 @@ input[type="file"]::file-selector-button:hover {
   max-width: none;
 }
 
+/* `ul + p` matters as much as the other two: an answer that ends with a
+   closing line after its bullets had that line butting straight up against
+   the last item, reading as part of it. */
 .faq-body p + p,
+.faq-body ul + p,
 .faq-body ul { margin-top: 8px; }
 
 .faq-body ul {

@@ -18,8 +18,13 @@ describe('localCache', () => {
     ]);
   });
 
-  it('ending a session also drops the owner marker', () => {
-    expect(SESSION_KEYS).toEqual(DATA_CACHE_KEYS.concat(['fh_data_owner']));
+  it('ending a session also drops the owner and pending-sync markers', () => {
+    // `fh_pending_sync` flags edits the server hasn't accepted. Sign-out
+    // deletes the cached edits themselves, so leaving the flag behind would
+    // point the next session at data that no longer exists.
+    expect(SESSION_KEYS).toEqual(
+      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync'])
+    );
   });
 
   it('clearSessionCache removes every session key and leaves others alone', () => {

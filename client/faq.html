@@ -95,6 +95,14 @@
       },
       {
         "@type": "Question",
+        "name": "Does FiHaven work offline?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, on the web, iPhone, iPad and Android. FiHaven keeps a copy of your data on the device you are using, so it opens and works without a connection. Changes you make offline are written to the device before anything is sent, survive closing or force-quitting the app, and are synced automatically the next time you open FiHaven or your connection returns."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Do you sell my data or show ads?",
         "acceptedAnswer": {
           "@type": "Answer",
@@ -244,7 +252,18 @@
               <summary>Does my data sync between the web and my phone?</summary>
               <div class="faq-body">
                 <p>Yes. There&rsquo;s one account and one copy of your data behind the web app, iPhone, iPad, and Android — add a bill on your phone and it&rsquo;s on your laptop, and your Pro entitlement is worked out on the server so it applies everywhere no matter where you subscribed.</p>
-                <p>FiHaven needs a connection to load your data, so it isn&rsquo;t an offline-first app. If you lose connectivity while you&rsquo;re working, edits you&rsquo;ve already made are held and retried until they save, rather than being dropped.</p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Does FiHaven work offline?</summary>
+              <div class="faq-body">
+                <p>Yes, on all three. FiHaven keeps a copy of your data on the device you&rsquo;re using, so it opens and works without a connection.</p>
+                <ul>
+                  <li><strong>You can still read everything</strong> — bills, cards, balances, history — exactly as you left it.</li>
+                  <li><strong>You can still make changes.</strong> They&rsquo;re written to your device first, before anything is sent, and marked as not-yet-synced.</li>
+                  <li><strong>Closing the app is safe.</strong> An unsent change survives the app being closed, force-quit, or the browser being shut down, and is sent the next time you open FiHaven or your connection comes back.</li>
+                </ul>
+                <p>You&rsquo;ll see an <strong>Offline</strong> marker while that&rsquo;s the case, and it clears once your changes have reached your account. One caveat: because a change is synced as a whole snapshot, editing the <em>same</em> account offline on two devices at once means the one that reconnects last wins.</p>
               </div>
             </details>
             <details class="faq-item">

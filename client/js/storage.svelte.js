@@ -17,6 +17,7 @@
 ═══════════════════════════════════════════════════════════ */
 
 import { DATA_CACHE_KEYS } from './localCache.js';
+import { markPending, clearPending, hasPendingFor } from './pendingSync.js';
 
 // Derived from the one list, so what we cache and what sign-out clears can
 // never drift apart again (they did: three keys were left behind).
@@ -221,6 +222,18 @@ export function setSyncStatus(state) {
 
 /* ── Server sync ─────────────────────────────────────────── */
 let syncTimer = null;
+/* The account the loaded data belongs to. Kept so a pending write can be
+   tied to an owner and never replayed into somebody else's account. */
+let dataOwner = '';
+
+function currentOwner() {
+  if (dataOwner) return dataOwner;
+  try {
+    return localStorage.getItem('fh_data_owner') || '';
+  } catch (e) {
+    return '';
+  }
+}
 
 function withoutHouseholdShared(arr) {
   return (arr || []).filter((x) => !x || !x._householdShared);
@@ -252,6 +265,19 @@ function cacheLocally() {
   } catch (e) {
     /* ignore quota errors — the server copy is authoritative */
   }
+}
+
+/* Everything this device has cached, in the shape applyData wants. */
+function cachedData() {
+  return {
+    bills: load('fh_bills', []),
+    cards: load('fh_cards', []),
+    payments: load('fh_payments', []),
+    accounts: load('fh_accounts', []),
+    goals: load('fh_goals', []),
+    transactions: load('fh_transactions', []),
+    settings: load('fh_settings', { income: 0 }),
+  };
 }
 
 function applyData(d) {
@@ -309,6 +335,10 @@ function pushData(keepalive) {
       window.location.replace('/login');
       return;
     }
+    // Only a write the server actually accepted retires the pending marker.
+    // A 5xx leaves it set, so the edits are replayed on the next load or the
+    // next time the connection comes back.
+    if (r.ok) clearPending();
     setSyncStatus(r.ok ? 'saved' : 'offline');
   }
 
@@ -325,6 +355,10 @@ function pushData(keepalive) {
 }
 
 export function scheduleSync() {
+  // Marked before the debounce, not after the request: the window where an
+  // edit exists only in memory is exactly the window a crash or a closed tab
+  // would lose it in.
+  markPending(currentOwner());
   if (syncTimer) clearTimeout(syncTimer);
   setSyncStatus('saving');
   syncTimer = setTimeout(() => {
@@ -345,6 +379,13 @@ export function flushSync() {
 window.addEventListener('pagehide', flushSync);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSync();
+});
+
+/* Coming back online is the moment a write that failed while disconnected can
+   finally land. Without this the edits sit in the cache until the user happens
+   to reload or make another change. */
+window.addEventListener('online', () => {
+  if (hasPendingFor(currentOwner())) pushData(false);
 });
 
 /* ── Startup load ────────────────────────────────────────── */
@@ -376,6 +417,21 @@ export function bootstrapData() {
     .then((server) => {
       applyEntitlement(server);
       const owner = server.email || '';
+      dataOwner = owner;
+
+      // This device is holding edits the server never accepted — made while
+      // offline, or lost when the tab closed mid-save. They are strictly newer
+      // than anything the server can hand back, and `PUT /api/data` replaces
+      // the blob wholesale, so adopting the server copy here would silently
+      // destroy them. Keep what's cached and push it up instead.
+      if (hasPendingFor(owner)) {
+        applyData(cachedData());
+        try { localStorage.setItem('fh_data_owner', owner); } catch (e) { /* ignore */ }
+        scheduleSync();
+        import('./householdMerge.js').then((m) => m.initHouseholdMerge()).catch(() => {});
+        return;
+      }
+
       const serverEmpty =
         !(server.bills && server.bills.length) &&
         !(server.cards && server.cards.length) &&
@@ -417,16 +473,12 @@ export function bootstrapData() {
     })
     .catch((err) => {
       if (err === 'unauth' || err === 'suspended') return Promise.reject(err);
-      // Offline or server error — fall back to this device's cache.
-      applyData({
-        bills: load('fh_bills', []),
-        cards: load('fh_cards', []),
-        payments: load('fh_payments', []),
-        accounts: load('fh_accounts', []),
-        goals: load('fh_goals', []),
-        transactions: load('fh_transactions', []),
-        settings: load('fh_settings', { income: 0 }),
-      });
+      // Offline or server error — fall back to this device's cache. Any
+      // pending marker is deliberately left in place: the edits behind it
+      // still haven't reached the server, and the `online` listener (or the
+      // next successful boot) is what finally pushes them.
+      dataOwner = currentOwner();
+      applyData(cachedData());
       setSyncStatus('offline');
     });
 }
