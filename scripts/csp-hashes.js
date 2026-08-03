@@ -58,7 +58,7 @@ if (process.argv.includes('--check')) {
   if (missing.length) {
     console.error('CSP hash list is out of date. Missing:');
     for (const h of missing) {
-      console.error(`  'sha256-${h}='  (${[...found.get(h)].join(', ')})`);
+      console.error(`  'sha256-${h}'  (${[...found.get(h)].join(', ')})`);
     }
     console.error('\nRun: node scripts/csp-hashes.js');
     process.exit(1);

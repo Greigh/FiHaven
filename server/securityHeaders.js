@@ -33,15 +33,17 @@ const INLINE_SCRIPT_HASHES = [
   // The theme bootstrap that runs before paint (all 22 pages).
   "'sha256-mR59x0idOhjPq9cQO1dF3RJ1JNucX4BsdliBrgLrMZM='",
   // application/ld+json structured data — non-executable, but script-src
-  // still governs the element.
-  "'sha256-Eq/r8cRgwb7nkKuAIvSLEVvbpgu1DbSYGY/Bhg7HOmo='",
+  // still governs the element. (faq.html's FAQPage, home.html's WebSite graph.)
+  "'sha256-PbWbEur8ikvbId6C8XU7Y75h+iDB9j7GI5xIOqge2ik='",
   "'sha256-XA5shDCeaVFBEBuJ3uT+QIigT2wA/AcS/KIjYvjZziI='",
   // home.html app-store badge switcher.
   "'sha256-HDaFQ449HYIS93STaGFZa9VrVx2GQCHO0bGOA+3MJgM='",
-  // client/public/ — copied verbatim into dist, not Vite-processed. These are
-  // the OAuth return pages the Android sign-in flow lands on.
+  // client/public/ — copied verbatim into dist, not Vite-processed: the OAuth
+  // return pages the Android sign-in flow lands on, and the offline fallback
+  // page (its retry script must run with no network).
   "'sha256-U4dw3sAvIlexZIlD+ERF5Ec6xL4tXZAVg28V0G/59eQ='",
   "'sha256-L3r+JZUA0GeWfSDQ7c+BwlOACFyw3apTMGbsYIzHScY='",
+  "'sha256-V/dEI+IH1cOPDZZkdLIkkkA+tIqIxS0o7yQscs0jxM4='",
 ].join(' ');
 
 function buildCsp() {
