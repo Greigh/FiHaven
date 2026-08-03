@@ -435,6 +435,13 @@
   max-width: 880px;
   margin: 0 auto;
 }
+
+/* The pricing page carries Free / Pro / Family. Three 280px minimums don't fit
+   inside the two-plan 880px cap, so auto-fit would drop one to its own row. */
+.marketing-plans-three {
+  max-width: 1060px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
 .marketing-plan {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
@@ -519,6 +526,9 @@
   flex-direction: column;
   gap: 11px;
 }
+/* NB: this is a flex row, so any inline element placed directly in an <li>
+   (a <strong>, a link) becomes its own flex item and is pushed away from the
+   text by `gap`. Wrap the whole label in a <span> when a bullet needs emphasis. */
 .marketing-plan-list li {
   display: flex;
   gap: 9px;
@@ -572,6 +582,15 @@
   min-width: 210px;
 }
 .app-badge[aria-disabled="true"] { cursor: default; opacity: .94; }
+/* Every badge is a live link now (web, TestFlight, Play open testing), so they
+   need to read as clickable rather than as static chips. */
+a.app-badge {
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+a.app-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--text) 22%, transparent);
+}
 .app-badge svg { width: 26px; height: 26px; flex: none; }
 .app-badge-text {
   display: flex;
