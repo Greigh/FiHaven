@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (22) - FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 44) - FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (22) - a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 44) - a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -77,6 +77,53 @@ dashboard. Close it while that banner was up and the change was gone.
 One thing worth knowing: a change is synced as a whole snapshot, so if you edit
 the *same* account offline on two devices at once, whichever reconnects last is
 the one that's kept.
+
+**A security pass over the whole app (Aug 3)**
+
+An audit of the server, the web app and both phone apps. Fourteen things were
+fixed; four of them were exploitable as they stood. None of them are known to
+have been used against anyone, and none involved data leaving FiHaven — but four
+of these are the kind that don't announce themselves, so they're written out
+plainly rather than filed under "security improvements".
+
+- **Two-factor codes can no longer be guessed at.** Entering a wrong code left
+  that sign-in attempt open for its full five minutes, and someone who already
+  had your password could start a fresh attempt as often as they liked — so a
+  six-digit code was guessable given enough tries. Five wrong codes now end the
+  attempt and send you back to the start, and asking for a new emailed code no
+  longer resets the count.
+- **Someone can't claim your email before you first use Sign in with Google or
+  Apple.** If a stranger signed up with your address and never confirmed it,
+  your first federated sign-in was joined to *their* account — and they still
+  knew the password to it. Joining now requires that the existing account
+  confirmed the address, which an impostor can't do.
+- **A subscription can't be moved off the account that bought it.** A receipt is
+  a bearer token: presenting someone else's granted you Pro *and silently took it
+  away from them*. A purchase now belongs to the account that first redeemed it,
+  permanently.
+- **Purchases are checked against FiHaven specifically.** Receipt checks
+  confirmed only that Apple had issued the receipt, not that it came from this
+  app — so a receipt from any other App Store app would have counted.
+- **Sign in with Apple or Google? You can manage your own security again.** Those
+  accounts have no password, and every confirmation prompt asked for one — which
+  meant turning off two-factor, removing a passkey, or clearing your data was
+  impossible for you, on every platform. FiHaven now emails you a confirmation
+  code instead.
+- **Adding a passkey asks you to confirm it's you** unless you've only just
+  signed in. A passkey outlives a password change, so anyone who got into an old
+  session could previously leave themselves a way back in.
+- **Deleting or clearing your data accepts whichever second factor you actually
+  have.** It only ever accepted an authenticator code, so an account secured with
+  a passkey or emailed codes was protected by the password alone at the one
+  moment it mattered most.
+- **Spreadsheet exports are safe to open.** A bill named to look like a formula
+  could run when the file was opened in Excel or Sheets. Exports are now marked
+  as text, and importing one back gives you the original name.
+- **On iPhone, your sign-in no longer travels in device backups**, so restoring a
+  backup onto a different phone doesn't carry your session with it.
+- Also: the calendar feed is no longer stored by shared caches; failed sign-in
+  attempts survive a server restart; and the browser is now told to refuse
+  anything the app doesn't legitimately load.
 
 **A refreshed fihaven.app (Aug 3)**
 
@@ -910,13 +957,95 @@ app and the server. Most of what follows had been true on more than one platform
 
 ### Technical changelog
 
-> **Not yet written up:** a security-audit pass closing 14 findings across the
-> server, web and native apps (re-authentication, rate limiting, MFA, security
-> headers, billing receipt verification, CSP hashes) is on this release train —
-> see the `Close 14 findings from a security audit` commit. It changes server and
-> native auth paths together, so **it must be deployed before or alongside iOS 22
-> / Android 44**, and it still needs its own Changes block, technical entry and
-> store copy. The offline work below is client-side and needs no deploy of its own.
+> **⚠️ Deploy order:** the security pass below changes server and native auth
+> paths together, so **the server must be deployed before or alongside iOS 22 /
+> Android 44**. The offline work is client-side and needs no deploy of its own.
+
+- **Security audit: 14 findings across server, web, iOS and Android.** Four were
+  independently exploitable.
+  - *MFA was brute-forceable.* `mfa_challenges` had no attempt counter and a
+    wrong code didn't consume the row, so a token stayed usable for its full
+    `MFA_TOKEN_TTL_MS`; worse, `rateLimit.reset()` on a correct password meant an
+    attacker holding the password could mint fresh tokens indefinitely. Added
+    `attempts`/`sends` columns (+ migration); 5 failures destroy the challenge.
+    Both counters are now carried through the delete-and-reinsert that
+    `/mfa/email/send` and `/mfa/passkey/start` perform — that reinsert was itself
+    resetting the budget.
+  - *OAuth account pre-hijacking.* `routes/auth.js` linked a provider identity to
+    any local row matching the email, `email_verified` unchecked, so squatting an
+    address and waiting for the victim's first federated sign-in captured them
+    into an attacker-held account. Linking now requires a verified local address;
+    the UNIQUE-race branch applies the same rule. Returns 409
+    `email-unverified-conflict`.
+  - *Store receipts were transferable.* `upsertSubscription`'s
+    `ON CONFLICT(platform, txn_id)` updated `user_id`, so replaying a signed
+    transaction moved the subscription and revoked the original owner's Pro.
+    `user_id` dropped from the conflict update; `recordPurchase` rejects a txn
+    owned by another user with 409 `receipt-already-claimed`.
+  - *Apple receipts weren't bound to the app.* Every App Store receipt chains to
+    Apple Root CA G3, so signature validity said nothing about origin. Pinned via
+    `APPLE_BUNDLE_ID` (enforced on both the client-verify and server-notification
+    paths); Sandbox rejected in production unless `APPLE_ALLOW_SANDBOX=1`.
+    `verifyGoogle` now requires an exact `productId` match instead of falling
+    back to `lineItems[0]`.
+  - *Pub/Sub audience failed open.* `googlePubSubAuth` skipped the `aud` check
+    when unconfigured; any Google-signed OIDC token would then pass. Fails closed.
+    (No behaviour change where `PUBLIC_ORIGIN` is set — the audience already
+    derived from it.)
+  - *No HTTP security headers at all.* New `server/securityHeaders.js` adds CSP,
+    HSTS, X-Frame-Options, nosniff, Referrer-Policy and Permissions-Policy. CSP
+    names each inline script by SHA-256 rather than using `'unsafe-inline'`, and
+    **ships Report-Only** — promote with `CSP_ENFORCE=1` once sign-in, Paddle
+    checkout and Plaid Link are confirmed clean. `npm run ci` fails if a hash
+    drifts (`scripts/csp-hashes.js`); that check caught two `client/public/`
+    pages the first pass missed.
+  - *Credential-adding needed no re-auth.* Passkey enrolment took session + CSRF
+    only, so a stolen session could plant a credential surviving the password
+    change meant to evict it. Now re-authenticates unless the session is under
+    five minutes old — a grace window that keeps already-shipped clients working,
+    since they post no body to `register-start`.
+  - *Destructive actions honoured only TOTP.* `checkSecondFactor` returned "pass"
+    with no TOTP enrolled, so passkey-only and email-only accounts had no second
+    factor on delete/clear-data. Now accepts TOTP, backup codes or an emailed
+    code.
+  - *Password-less accounts couldn't manage MFA at all.* `verifyPassword` compares
+    against the `!oauth-no-password` sentinel, so every re-auth prompt was
+    unanswerable for Apple/Google accounts — `totp/disable`, `passkey/delete`,
+    `backup-codes/regenerate`, `email/enable|disable`, `totp/setup` and
+    `clear-data` were permanently unreachable. New `server/reauth.js` accepts a
+    password *or* a code from `POST /api/account/mfa/reauth/send` (single-use,
+    5-attempt cap, reusing the challenge counters). `GET /mfa/status` now reports
+    `hasPassword` so clients know which prompt to render. All three clients grew
+    the control: one `reauthFields` snippet in `MfaSection.svelte`, `ReauthField`
+    on iOS, `ReauthFields` on Android — each replacing six duplicated password
+    prompts.
+    For a password-less account **one emailed code satisfies both** the re-auth
+    and the second factor on `clear-data` (`confirmDestructive`); codes are
+    single-use, so demanding two from the same mailbox would be unanswerable
+    rather than stronger. Account deletion deliberately keeps its typed-phrase
+    path so it stays reachable without mail (App Store 5.1.1(v)).
+  - *iOS Keychain accessibility.* The bearer token used
+    `kSecAttrAccessibleAfterFirstUnlock`, so a 30-day credential rode along in
+    encrypted device backups. Now `…ThisDeviceOnly`, rewritten on update so
+    already-signed-in users get it too.
+  - *Lower severity:* CSV formula injection in exports (guarded, with a matching
+    strip in the importer so round-trips are unchanged); CR/LF and control
+    characters stripped from mail headers in `sendMail`; the iCal feed is
+    `Cache-Control: private` with `Referrer-Policy: no-referrer` (the token is in
+    the URL); the login throttle persists to SQLite via an injected store, so a
+    restart no longer clears failed-attempt counters.
+  - *Deploy plumbing.* `upload.sh` builds the production `.env` from an
+    allowlist that didn't include the new vars — setting `APPLE_VERIFY_ENABLED=1`
+    would have shipped the flag without `APPLE_BUNDLE_ID` and the new boot check
+    would have killed the server post-cutover. Allowlist extended and a
+    deploy-time guard added mirroring `assertProductionSafe()`, run against the
+    *sanitized* file so a var that never reaches the server fails the deploy
+    instead.
+  - New env: `APPLE_BUNDLE_ID` (required at boot with `APPLE_VERIFY_ENABLED`),
+    `APPLE_ALLOW_SANDBOX`, `CSP_ENFORCE`. All documented in `.env.example`.
+  - Verified: 797 web tests, 1351 iOS core checks, iOS Release/device archive
+    config, Android `:core:test` + `:app:compileDebugKotlin`, plus live runs of
+    the re-auth and passkey-grace flows against a booted server.
 
 - **Offline-first is implemented, on all three platforms.** `docs/native-contract.md`
   §1 ("an on-device cache mirrors the blob for offline reads") and §4 rule 1

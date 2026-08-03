@@ -13,9 +13,8 @@ Much of the rest is the honesty that follows from it — messages that used to t
 people their changes weren't saved anywhere now tell them the opposite, because
 it's now true.
 
-> This file covers the offline work and the fihaven.app refresh. A separate
-> security-audit pass is on the same release train and is **not** documented
-> here; see the warning below.
+> This file covers the offline work, the fihaven.app refresh, and the
+> security-audit pass that shipped on the same train.
 
 **This is a data-loss fix, not only a convenience feature**, and worth saying so
 if review asks what changed. A change made without a connection previously
@@ -33,16 +32,33 @@ copy of what it fetched and remembers what it hasn't sent yet, so old and new
 builds interoperate freely.
 
 > **⚠️ The build as a whole does require a server deploy.** A security-audit pass
-> (14 findings across the server, web and native apps — re-authentication, rate
-> limiting, MFA, security headers, billing receipt verification) landed on this
-> release train alongside the offline work, and it changes the server and the
-> native auth paths together. **That half must be deployed before or with these
-> builds.** It is not described in this file and still needs its own store copy
-> and CHANGELOG entry before this ships — see the `Close 14 findings from a
-> security audit` commit.
+> (14 findings across the server, web and native apps) landed on this release
+> train alongside the offline work, and it changes the server and the native auth
+> paths together. **That half must be deployed before or with these builds.**
+> Mixed versions are safe in one direction only: a new server with an old app is
+> fine, but these builds against an old server will send re-authentication fields
+> it doesn't understand, and Apple/Google accounts will still be unable to manage
+> their own two-factor settings.
 
-Nothing in the offline work touches the App Review guidelines cleared in build
-18. The security pass has not been assessed against them here.
+**Two things in the security pass are worth having ready if review asks.**
+
+*Purchases.* Receipt checking is stricter: a receipt must now be issued for this
+app specifically, and a subscription belongs permanently to the account that
+first redeemed it — previously the same receipt could be presented by a second
+account, which granted it Pro and revoked it from the buyer. No legitimate
+purchase flow changes. **If `APPLE_VERIFY_ENABLED` is turned on for this release,
+set `APPLE_ALLOW_SANDBOX=1` for the duration of review** — reviewers purchase
+against StoreKit sandbox, which is otherwise rejected in production — and unset
+it once the build is approved.
+
+*Account management.* Sign in with Apple / Google accounts previously could not
+turn off two-factor, remove a passkey, or clear their data at all: every
+confirmation prompt asked for a password those accounts don't have. They now get
+an emailed confirmation code. This moves *toward* 5.1.1(v) rather than away —
+account deletion deliberately keeps its typed-phrase confirmation so it stays
+reachable even if the user can no longer receive mail.
+
+Nothing else here touches the App Review guidelines cleared in build 18.
 
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer). **TestFlight "What to Test" is 4000.**
@@ -51,7 +67,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 401 / 500 characters (counted with newlines, as the console does).
+> 486 / 500 characters (counted with newlines, as the console does).
 
 ```
 FiHaven works offline now.
@@ -62,7 +78,7 @@ A change you make offline is saved on your phone straight away and synced when y
 
 The offline message now tells you your changes are safe, because they are.
 
-Bug fixes and stability improvements.
+Plus a security pass over sign-in and purchases. Google and Apple sign-ins can now manage two-factor and clear their data.
 
 ```
 
@@ -70,7 +86,7 @@ Bug fixes and stability improvements.
 
 ## TestFlight — What to Test
 
-> 2688 / 4000 characters.
+> 3960 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 22
@@ -97,6 +113,18 @@ The offline message says your changes are saved on your device and will sync whe
 
 Signing out still erases everything, including the copy on your device.
 
+ALSO IN THIS BUILD: A SECURITY PASS
+
+Fourteen fixes across the server, this app and the web app. Most are invisible, but three you may notice:
+
+If you sign in with Apple or Google, you can manage your own security again. Those accounts have no password, and every confirmation prompt asked for one — so turning off two-factor, removing a passkey, or clearing your data was impossible for you. FiHaven now emails you a confirmation code instead.
+
+Adding a passkey asks you to confirm it's you, unless you've only just signed in.
+
+Deleting or clearing your data now accepts whichever second factor you have — an authenticator code, a backup code, or an emailed one. It previously only accepted an authenticator code, so an account secured with a passkey wasn't asked for anything beyond its password.
+
+On iPhone, your sign-in is no longer included in device backups, so restoring a backup onto another phone doesn't carry your session with it. You'll stay signed in on this device.
+
 WHAT TO TEST
 
 - Open FiHaven, let it load, then turn on Airplane Mode and force-quit. Reopen: your dashboard should be exactly as you left it, with an Offline marker, not empty.
@@ -104,6 +132,8 @@ WHAT TO TEST
 - Do the same but leave the app open when you reconnect — it should sync without you touching anything.
 - Edit something offline on your phone while the same account is open on the web. Reconnect and confirm the phone's change is the one that survives.
 - Sign out and back in on a flaky connection; confirm nothing from the previous session appears.
+- If you use Sign in with Apple or Google: open Settings, try to turn on two-factor, and confirm you're offered an emailed code rather than a password box you can't fill in.
+- Add a passkey right after signing in (should not re-prompt), then again an hour later (should ask you to confirm).
 
 KNOWN LIMITS
 
