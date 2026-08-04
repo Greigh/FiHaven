@@ -1,39 +1,18 @@
 # Store release notes — 1.6.1 · iOS build 21 / Android versionCode 43
 
-Paste-ready copy for the store consoles. Neither upload script reads these —
-[`play-upload.js`](../../../scripts/play-upload.js) and
-[`ios-testflight.sh`](../../../scripts/ios-testflight.sh) push the binary only,
-so the text below goes in by hand.
+Paste-ready copy for the store consoles. Neither upload script reads these — [`play-upload.js`](../../../scripts/play-upload.js) and [`ios-testflight.sh`](../../../scripts/ios-testflight.sh) push the binary only, so the text below goes in by hand.
 
-This is **the copy actually being shipped**, not a reconstruction. Source: the
-`[1.6.1]` section of [CHANGELOG.md](../../../CHANGELOG.md).
+This is **the copy actually being shipped**, not a reconstruction. Source: the `[1.6.1]` section of [CHANGELOG.md](../../../CHANGELOG.md).
 
-A fix build. No new features, no UI to learn — an audit pass over Android, then
-the same checks run against iOS, the web app and the server, with most findings
-turning out to be true on more than one platform.
+A fix build. No new features, no UI to learn — an audit pass over Android, then the same checks run against iOS, the web app and the server, with most findings turning out to be true on more than one platform.
 
-**Two of these are privacy-adjacent and worth calling out in review if asked.**
-Reminders scheduled on the device kept firing after sign-out, showing a bill
-name and amount on the lock screen of a phone nobody was signed into; on the web,
-sign-out left the previous user's savings goals, net-worth accounts and spending
-in the browser. Both are fixed here. Neither was ever a server-side disclosure —
-nothing left the device or the browser it was already on.
+**Two of these are privacy-adjacent and worth calling out in review if asked.** Reminders scheduled on the device kept firing after sign-out, showing a bill name and amount on the lock screen of a phone nobody was signed into; on the web, sign-out left the previous user's savings goals, net-worth accounts and spending in the browser. Both are fixed here. Neither was ever a server-side disclosure — nothing left the device or the browser it was already on.
 
-**The archived-items fix is server-side**, so the **server must be deployed
-before or alongside these builds** for the reminder/summary half of it to take
-effect. The client half (local reminders, the Android dashboard) ships in the
-builds. Mixed versions are safe in both directions: an older server just keeps
-sending the reminders the new apps no longer schedule locally, and an older app
-against the new server simply stops receiving ones it shouldn't have had.
+**The archived-items fix is server-side**, so the **server must be deployed before or alongside these builds** for the reminder/summary half of it to take effect. The client half (local reminders, the Android dashboard) ships in the builds. Mixed versions are safe in both directions: an older server just keeps sending the reminders the new apps no longer schedule locally, and an older app against the new server simply stops receiving ones it shouldn't have had.
 
-No compliance work in this build — the App Review guidelines were cleared in
-build 18 and nothing here touches them. The subscription-management fix moves
-*toward* the guidelines rather than away: a subscriber who bought on the web had
-no Manage button at all, which is exactly what 3.1.1 and Play's Payments policy
-want to see present.
+No compliance work in this build — the App Review guidelines were cleared in build 18 and nothing here touches them. The subscription-management fix moves *toward* the guidelines rather than away: a subscriber who bought on the web had no Manage button at all, which is exactly what 3.1.1 and Play's Payments policy want to see present.
 
-Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
-the console rejects longer). **TestFlight "What to Test" is 4000.**
+Limits: **Google Play "What's new" is 500 characters** per language (hard cap, the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ---
 
@@ -51,6 +30,7 @@ A subscription bought on the web can be managed from the app again.
 Export data no longer fails on a large account.
 
 Bug fixes and security updates.
+
 ```
 
 ---
@@ -102,30 +82,22 @@ WHAT TO TEST
 KNOWN ISSUES
 
 The archived-items fix is enforced by the server for emails and push. On a build newer than the deployed server, archived items stop producing reminders from the phone but may still produce an email until the server catches up.
+
 ```
 
 ---
 
 ## App Store — What's New (if promoting to release)
 
-The App Store allows 4000 characters, so the TestFlight copy's "WHAT'S NEW"
-sections can be used verbatim. Drop the "WHAT TO TEST" and "KNOWN" sections.
+The App Store allows 4000 characters, so the TestFlight copy's "WHAT'S NEW" sections can be used verbatim. Drop the "WHAT TO TEST" and "KNOWN" sections.
 
 ---
 
 ## Web (shipped with the same train)
 
-Not store copy, but part of this release and worth knowing when the notes are
-read back later:
+Not store copy, but part of this release and worth knowing when the notes are read back later:
 
-- **Sign-out now clears everything the browser cached.** It dropped bills, cards,
-  payments and settings but left net-worth accounts, savings goals and spending
-  behind — which the offline fallback then reads back, so on a shared computer
-  the next person could have been shown them. The key list now lives in one
-  place (`client/js/localCache.js`) rather than being written out three times.
-- **The archived-items server fix reaches the web too** — the monthly summary,
-  the weekly digest and the autopay auto-mark are all server-side.
-- The web needed no billing change: it is the platform that was already on the
-  current provider, and the two phone apps had been left behind.
-- A CodeQL alert (`js/incomplete-url-substring-sanitization`) on a test's fetch
-  stub is fixed; it compared a URL by prefix rather than by parsed host.
+* **Sign-out now clears everything the browser cached.** It dropped bills, cards, payments and settings but left net-worth accounts, savings goals and spending behind — which the offline fallback then reads back, so on a shared computer the next person could have been shown them. The key list now lives in one place (`client/js/localCache.js`) rather than being written out three times.
+* **The archived-items server fix reaches the web too** — the monthly summary, the weekly digest and the autopay auto-mark are all server-side.
+* The web needed no billing change: it is the platform that was already on the current provider, and the two phone apps had been left behind.
+* A CodeQL alert (`js/incomplete-url-substring-sanitization`) on a test's fetch stub is fixed; it compared a URL by prefix rather than by parsed host.
