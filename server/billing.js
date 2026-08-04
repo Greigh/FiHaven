@@ -302,7 +302,7 @@ function reviewBuilds() {
 }
 
 /**
- * Does this app transaction belong to the build we most recently shipped?
+ * Is this app transaction from the build we shipped, or a newer one?
  *
  * In the sandbox environment Apple reports CFBundleVersion (the build number)
  * as the app version, where production reports the marketing version. The
@@ -310,9 +310,9 @@ function reviewBuilds() {
  * a fallback to the dated window — never a failed App Review.
  *
  * Scope note: this pins to a *build*, not to Apple's reviewers, who are not
- * identifiable from anything Apple signs. Anyone on TestFlight running that
- * exact build still gets sandbox Pro; with an invite-only TestFlight that is
- * you and the reviewer, but a public link would widen it.
+ * identifiable from anything Apple signs. Anyone on TestFlight running an
+ * accepted build still gets sandbox Pro; with an invite-only TestFlight that
+ * is you and the reviewer, but a public link would widen it.
  */
 function reviewBuildMatches(appTransaction) {
   const builds = reviewBuilds();
@@ -324,7 +324,32 @@ function reviewBuildMatches(appTransaction) {
     const bundleId = String(appTransaction.bundleId || '');
     if (!allowed.includes(bundleId)) return false;
   }
-  return builds.includes(appTransactionVersion(appTransaction));
+  const version = appTransactionVersion(appTransaction);
+  if (!version) return false;
+  return builds.some((pinned) => versionSatisfies(version, pinned));
+}
+
+/**
+ * Does `version` satisfy a stamped pin — exactly, or by being newer?
+ *
+ * Exact matching had an ordering trap: the deploy reads project.yml, and
+ * `ios-testflight.sh --build +1` rewrites project.yml. Deploying the web first
+ * — the natural habit — stamps the OLD build number and then ships a new one,
+ * and App Review hits a rejection nobody would think to look for.
+ *
+ * So numeric build numbers mean "this build or newer". That cannot be gamed:
+ * the version comes from an Apple-SIGNED app transaction, so claiming build
+ * 9999 requires actually building and distributing build 9999. Old builds
+ * still narrow out with each release, which is the property worth keeping.
+ * Non-numeric versions (the marketing string) stay exact — "1.6.1" should not
+ * be satisfied by "1.6.2" through some accident of string comparison.
+ */
+function versionSatisfies(version, pinned) {
+  if (version === pinned) return true;
+  if (/^\d+$/.test(version) && /^\d+$/.test(pinned)) {
+    return Number(version) >= Number(pinned);
+  }
+  return false;
 }
 
 /**

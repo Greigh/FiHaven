@@ -334,6 +334,10 @@ build_production_env() {
   # Both versions go in: Apple reports CFBundleVersion as the app version in
   # sandbox and the marketing version in production, and guessing wrong should
   # cost a fallback to --allow-sandbox, not a failed review.
+  #
+  # The server accepts this build OR NEWER, so deploy order doesn't matter:
+  # deploying web before bumping the iOS build stamps the old number, and the
+  # new build is still accepted.
   local ios_build ios_market
   ios_build="$(sed -n 's/^ *CURRENT_PROJECT_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' \
     "$REPO_ROOT/ios/FiHavenApp/project.yml" | head -1)"

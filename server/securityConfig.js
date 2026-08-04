@@ -94,13 +94,13 @@ function assertProductionSafe() {
   reportReviewWindow('APPLE_ALLOW_SANDBOX', 'sandbox StoreKit transactions');
   reportReviewWindow('GOOGLE_ALLOW_TEST_PURCHASES', 'Play license-tester purchases');
 
-  // Not a hole that needs closing: the build pin only ever matches the build
-  // the last deploy shipped, so it narrows on its own with each release.
+  // Not a hole that needs closing: the pin narrows on its own with each
+  // release, since the next deploy stamps the next build.
   const pinned = String(process.env.APPLE_SANDBOX_BUILD || '').trim();
   if (pinned) {
     console.log(
       `[security] APPLE_SANDBOX_BUILD=${pinned} — sandbox StoreKit transactions are accepted ` +
-        'only from an app transaction naming this build.'
+        'only from an app transaction naming this build or a newer one.'
     );
   }
 
