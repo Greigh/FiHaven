@@ -13,7 +13,7 @@ const oauth = require('../oauth');
 const oauthHandoff = require('../oauthHandoff');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
-const { createSession, destroySession, requireAuth } = require('../session');
+const { createSession, destroySession, requireAuth, requireCsrf } = require('../session');
 const mfa = require('../mfa');
 const mail = require('../mail');
 const tokens = require('../tokens');
@@ -254,7 +254,7 @@ router.post('/verify-email', (req, res) => {
 // Re-send the verification email. Requires a session (signup/login mint
 // one even while unverified) and is rate-limited per IP+email.
 
-router.post('/resend-verification', requireAuth, async (req, res) => {
+router.post('/resend-verification', requireAuth, requireCsrf, async (req, res) => {
   const user = dbApi.findUserById(req.user.id);
   if (!user) return sendError(res, 401, 'unauthenticated');
   if (user.email_verified) return res.json({ ok: true, alreadyVerified: true });

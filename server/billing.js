@@ -504,9 +504,15 @@ async function verifyGoogle({ productId, purchaseToken, expiryTimeMillis } = {})
 function recordPurchase(userId, platform, t) {
   const claimed = dbApi.findSubscriptionByTxn(platform, String(t.txnId));
   if (claimed && claimed.user_id !== userId) {
+    // %s rather than interpolation: console.warn treats its first argument as
+    // a format string, so a txn id containing "%s" would swallow the next
+    // argument and garble the one log line that records a receipt replay.
     console.warn(
-      `[billing] ${platform} txn ${t.txnId} already owned by user ${claimed.user_id};`,
-      `refused replay by user ${userId}`
+      '[billing] %s txn %s already owned by user %s; refused replay by user %s',
+      platform,
+      String(t.txnId),
+      claimed.user_id,
+      userId
     );
     throw new Error('receipt-already-claimed');
   }

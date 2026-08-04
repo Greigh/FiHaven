@@ -31,9 +31,14 @@ function errorMessage(code) {
 }
 
 function postJson(path, payload) {
+  // Read at call time, not module load: getMe() fills csrfToken in, and the
+  // resend button only exists after that has resolved. Pre-auth posts on this
+  // page (/verify-email with a token) have no session and send nothing.
+  var headers = { 'Content-Type': 'application/json' };
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   return fetch(API + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers,
     credentials: 'same-origin',
     body: JSON.stringify(payload || {}),
   })
