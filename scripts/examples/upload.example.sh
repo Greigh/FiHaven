@@ -229,6 +229,67 @@ remote_exec() {
   "${SSH_CMD[@]}" "$@"
 }
 
+# The remote runs `npm ci` and then the server itself, both on whatever Node is
+# installed there. npm only WARNS on an engines mismatch (there is no .npmrc
+# setting engine-strict), so a remote that is too old sails through install and
+# only surfaces later — as a native module refusing to load, or a syntax error
+# at boot, after the deploy has already swung over.
+#
+# This drifted silently once already: package.json asked for >=24 while the VPS
+# ran 22. Nothing failed, so nothing said so.
+check_remote_node() {
+  log_step "Verify remote Node.js satisfies engines"
+
+  local want remote_raw remote_v verdict
+  want="$(node -p "(require('./package.json').engines||{}).node||''" 2>/dev/null || true)"
+  if [ -z "$want" ]; then
+    log_warn "No engines.node in package.json — skipping remote Node check"
+    return 0
+  fi
+
+  remote_raw="$(remote_exec 'node -v 2>/dev/null || true' | tr -d '\r' | tail -1)"
+  remote_v="${remote_raw#v}"
+  if [ -z "$remote_v" ]; then
+    log_fail "No Node.js found on $SSH_HOST — the server cannot start without it."
+    exit 1
+  fi
+
+  # Only the simple ">=X.Y.Z" form is compared. A fancier range is reported and
+  # allowed through rather than guessed at: refusing a deploy over a range this
+  # can't parse would be worse than the drift it's guarding against.
+  verdict="$(node -e '
+    const want = String(process.argv[1]).trim();
+    const have = String(process.argv[2]).trim();
+    const m = want.match(/^>=\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*$/);
+    if (!m) { console.log("UNPARSED"); process.exit(0); }
+    const need = [m[1], m[2] || 0, m[3] || 0].map(Number);
+    const got = have.split(".").map((n) => parseInt(n, 10) || 0);
+    for (let i = 0; i < 3; i++) {
+      if ((got[i] || 0) > need[i]) { console.log("OK"); process.exit(0); }
+      if ((got[i] || 0) < need[i]) { console.log("TOO_OLD"); process.exit(0); }
+    }
+    console.log("OK");
+  ' "$want" "$remote_v")"
+
+  case "$verdict" in
+    OK)
+      log_ok "Remote Node v$remote_v satisfies \"$want\""
+      ;;
+    UNPARSED)
+      log_warn "Remote Node v$remote_v; engines.node is \"$want\" — not a simple >= range, not checked."
+      ;;
+    *)
+      log_fail "Remote Node v$remote_v is older than engines.node \"$want\"."
+      log_fail "  Either upgrade Node on $SSH_HOST, or lower engines.node to what you actually run."
+      log_fail "  Upgrading (Debian/Ubuntu, NodeSource) — note npm ci must rerun afterwards so"
+      log_fail "  better-sqlite3 and bcrypt rebuild against the new ABI:"
+      log_fail "    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt-get install -y nodejs"
+      log_fail "    npm install -g pm2 && pm2 update"
+      exit 1
+      ;;
+  esac
+}
+
 # ─── Backup (remote, before upload) ──────────────────────────────
 
 create_backup() {
@@ -587,6 +648,7 @@ main() {
   echo
 
   setup_ssh_auth
+  check_remote_node
   create_backup
   build_local
   precompress_dist
