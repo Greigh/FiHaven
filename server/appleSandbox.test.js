@@ -257,6 +257,26 @@ describe('reviewBuildMatches', () => {
     expect(reviewBuildMatches(app({ applicationVersion: '21' }))).toBe(false);
   });
 
+  it('accepts a NEWER build than the one stamped', () => {
+    // The deploy reads project.yml and the iOS deploy rewrites it, so deploying
+    // web first stamps the old number. Exact matching turned that ordinary
+    // ordering slip into an App Review rejection; "or newer" cannot.
+    expect(reviewBuildMatches(app({ applicationVersion: '23' }))).toBe(true);
+    expect(reviewBuildMatches(app({ applicationVersion: '400' }))).toBe(true);
+  });
+
+  it('does not let "or newer" leak across marketing versions', () => {
+    // Only build numbers compare numerically; a marketing string must match
+    // exactly, or 1.6.1 would quietly accept every later release forever.
+    expect(reviewBuildMatches(app({ applicationVersion: '1.6.2' }))).toBe(false);
+    expect(reviewBuildMatches(app({ applicationVersion: '1.7' }))).toBe(false);
+  });
+
+  it('rejects an empty or missing version rather than treating it as a match', () => {
+    expect(reviewBuildMatches(app({ applicationVersion: '' }))).toBe(false);
+    expect(reviewBuildMatches({ bundleId: 'app.fihaven', receiptType: 'Sandbox' })).toBe(false);
+  });
+
   it('rejects another app, even signed by Apple with a matching build', () => {
     expect(reviewBuildMatches(app({ bundleId: 'com.someone.else' }))).toBe(false);
   });
