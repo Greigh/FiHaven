@@ -10,6 +10,15 @@ jobs:
   web:
     runs-on: ubuntu-latest
 
+    # 22 is what production runs; 24 is what developers run. Testing only the
+    # newer one meant the version actually serving traffic was never exercised,
+    # which is how package.json came to demand a Node the server didn't have.
+    # Keep the low end matching engines.node in package.json.
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -17,7 +26,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -27,6 +36,11 @@ jobs:
       # fail the build if someone edited the table without regenerating.
       - name: Check issuer logos are in sync
         run: node scripts/sync-issuer-logos.js --check
+
+      # Codecov runs the suite too, but only on one version. The point here is
+      # that the server code runs on the Node production has.
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build
