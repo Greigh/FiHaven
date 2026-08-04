@@ -46,10 +46,11 @@ builds interoperate freely.
 app specifically, and a subscription belongs permanently to the account that
 first redeemed it — previously the same receipt could be presented by a second
 account, which granted it Pro and revoked it from the buyer. No legitimate
-purchase flow changes. **If `APPLE_VERIFY_ENABLED` is turned on for this release,
-set `APPLE_ALLOW_SANDBOX=1` for the duration of review** — reviewers purchase
-against StoreKit sandbox, which is otherwise rejected in production — and unset
-it once the build is approved.
+purchase flow changes. **If `APPLE_VERIFY_ENABLED` is turned on for this
+release, deploy with `./upload.sh --allow-sandbox`** — reviewers and TestFlight
+testers purchase against StoreKit sandbox, which is otherwise rejected in
+production. That opens a dated window (14 days by default) which closes by
+itself, so there is nothing to remember to switch off afterwards.
 
 *Account management.* Sign in with Apple / Google accounts previously could not
 turn off two-factor, remove a passkey, or clear their data at all: every
