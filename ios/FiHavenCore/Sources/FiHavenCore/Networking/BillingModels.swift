@@ -55,7 +55,14 @@ public struct BillingStatusResponse: Decodable, Sendable {
     public let paddlePortal: Bool?
 }
 struct PortalResponse: Decodable { let url: String }
-struct AppleVerifyBody: Encodable { let signedTransaction: String }
+struct AppleVerifyBody: Encodable {
+    let signedTransaction: String
+    /// StoreKit's signed `AppTransaction`. The transaction alone says whether a
+    /// purchase is sandbox but not which build it came from, so the server
+    /// needs this to tell the build in App Review from any sandbox tester.
+    /// Optional: it is omitted when StoreKit can't produce one.
+    let signedAppTransaction: String?
+}
 struct GoogleVerifyBody: Encodable {
     let productId: String
     let purchaseToken: String

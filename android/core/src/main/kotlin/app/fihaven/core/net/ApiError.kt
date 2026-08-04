@@ -47,6 +47,9 @@ sealed class ApiError : Exception() {
                 "second-factor-required" -> "Enter a code from your authenticator, a backup code, or an emailed code."
                 "invalid-second-factor" -> "That code is incorrect or expired."
                 "receipt-already-claimed" -> "That purchase is already linked to a different FiHaven account."
+                // Only reachable for Play Console license testers; ordinary
+                // purchases are never test purchases.
+                "test-purchase-rejected" -> "Test purchases aren't being accepted right now."
                 "confirm-required" -> "Type DELETE ACCOUNT DATA exactly to confirm."
                 "passkey-verify-failed" -> "Passkey verification failed. Try again."
                 "bad-challenge", "challenge-expired" -> "That setup session expired. Please try again."

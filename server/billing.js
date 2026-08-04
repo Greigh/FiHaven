@@ -199,7 +199,7 @@ function appleBundleIds() {
 //     here and grants Pro.
 //   • environment — Sandbox transactions carry the same production signing
 //     chain, so a sandbox tester could mint real entitlements.
-async function verifyApple(signedTransaction) {
+async function verifyApple(signedTransaction, signedAppTransaction) {
   if (verifyMode() === 'production' && !process.env.APPLE_VERIFY_ENABLED) {
     throw new Error('apple-verify-not-configured');
   }
@@ -209,7 +209,7 @@ async function verifyApple(signedTransaction) {
   } else {
     p = decodeJwsPayload(signedTransaction);
   }
-  assertAppleClaims(p);
+  assertAppleClaims(p, decodeAppTransaction(signedAppTransaction));
   const productId = p.productId;
   const txnId = p.originalTransactionId || p.transactionId;
   if (!productId || !txnId) throw new Error('missing-fields');
@@ -229,7 +229,7 @@ async function verifyApple(signedTransaction) {
  * client-verify path and the App Store server-notification path, since a forged
  * notification is worth exactly as much as a forged transaction.
  */
-function assertAppleClaims(p) {
+function assertAppleClaims(p, appTransaction) {
   const allowed = appleBundleIds();
   // Unset is only tolerable off-production; securityConfig makes it a boot
   // failure in production so this can never silently no-op where it matters.
@@ -240,25 +240,127 @@ function assertAppleClaims(p) {
   }
   // Sandbox is the App Review + TestFlight environment, so rejecting it breaks
   // review — but accepting it forever means anyone with a sandbox tester
-  // account mints real Pro. See sandboxAllowed() for how that window closes.
+  // account mints real Pro. Two independent ways to open it, both self-closing:
+  // the build pin (automatic, see reviewBuildMatches) and the dated window
+  // (manual, see sandboxAllowed).
   if (
     verifyMode() === 'production' &&
     String(p.environment || '') === 'Sandbox' &&
-    !sandboxAllowed()
+    !sandboxAllowed() &&
+    !reviewBuildMatches(appTransaction)
   ) {
     throw new Error('apple-sandbox-rejected');
   }
 }
 
 /**
- * Is a StoreKit *sandbox* transaction acceptable right now?
+ * Verify the optional AppTransaction JWS that accompanies a purchase.
+ *
+ * This is a *second* Apple-signed object (StoreKit's `AppTransaction.shared`),
+ * signed by the same Root CA G3 chain as the transaction itself, so it costs
+ * nothing extra to trust. Unlike the transaction it names the app build the
+ * purchase came from — which is the only signal that separates "the build
+ * currently in App Review" from "any sandbox tester, forever".
+ *
+ * Returns null when absent (builds ≤ 22 don't send it) or unverifiable, so a
+ * missing/forged app transaction simply forfeits the build pin.
+ *
+ * Not bound to the transaction it arrives with: Apple's binding field
+ * (deviceVerification) needs a nonce we'd have to issue and track, and it buys
+ * little here. Producing a sandbox transaction for this bundle id already
+ * requires running this app outside the App Store, which is the same bar as
+ * producing the app transaction — so replaying someone else's widens nothing.
+ */
+function decodeAppTransaction(jws) {
+  if (!jws) return null;
+  try {
+    return verifyMode() === 'production'
+      ? appleJws.verifyAndDecode(jws)
+      : decodeJwsPayload(jws);
+  } catch (err) {
+    console.warn('[billing] app transaction rejected:', err && err.message);
+    return null;
+  }
+}
+
+// Apple's own JSON uses receiptType/applicationVersion; StoreKit's Swift type
+// surfaces the same fields as environment/appVersion. Accept either spelling
+// rather than betting the review path on which one arrives.
+function appTransactionEnvironment(a) {
+  return String(a.receiptType || a.environment || '');
+}
+function appTransactionVersion(a) {
+  return String(a.applicationVersion || a.appVersion || '');
+}
+
+/** Versions accepted as "the build under review" — deploy stamps this. */
+function reviewBuilds() {
+  return String(process.env.APPLE_SANDBOX_BUILD || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Is this app transaction from the build we shipped, or a newer one?
+ *
+ * In the sandbox environment Apple reports CFBundleVersion (the build number)
+ * as the app version, where production reports the marketing version. The
+ * deploy stamps both, because being wrong about which one arrives should cost
+ * a fallback to the dated window — never a failed App Review.
+ *
+ * Scope note: this pins to a *build*, not to Apple's reviewers, who are not
+ * identifiable from anything Apple signs. Anyone on TestFlight running an
+ * accepted build still gets sandbox Pro; with an invite-only TestFlight that
+ * is you and the reviewer, but a public link would widen it.
+ */
+function reviewBuildMatches(appTransaction) {
+  const builds = reviewBuilds();
+  if (!builds.length || !appTransaction) return false;
+  // A production app transaction can never justify a sandbox transaction.
+  if (appTransactionEnvironment(appTransaction) !== 'Sandbox') return false;
+  const allowed = appleBundleIds();
+  if (allowed.length) {
+    const bundleId = String(appTransaction.bundleId || '');
+    if (!allowed.includes(bundleId)) return false;
+  }
+  const version = appTransactionVersion(appTransaction);
+  if (!version) return false;
+  return builds.some((pinned) => versionSatisfies(version, pinned));
+}
+
+/**
+ * Does `version` satisfy a stamped pin — exactly, or by being newer?
+ *
+ * Exact matching had an ordering trap: the deploy reads project.yml, and
+ * `ios-testflight.sh --build +1` rewrites project.yml. Deploying the web first
+ * — the natural habit — stamps the OLD build number and then ships a new one,
+ * and App Review hits a rejection nobody would think to look for.
+ *
+ * So numeric build numbers mean "this build or newer". That cannot be gamed:
+ * the version comes from an Apple-SIGNED app transaction, so claiming build
+ * 9999 requires actually building and distributing build 9999. Old builds
+ * still narrow out with each release, which is the property worth keeping.
+ * Non-numeric versions (the marketing string) stay exact — "1.6.1" should not
+ * be satisfied by "1.6.2" through some accident of string comparison.
+ */
+function versionSatisfies(version, pinned) {
+  if (version === pinned) return true;
+  if (/^\d+$/.test(version) && /^\d+$/.test(pinned)) {
+    return Number(version) >= Number(pinned);
+  }
+  return false;
+}
+
+/**
+ * Is a "temporarily accept test purchases" window open right now?
  *
  * The obvious design — a boolean you flip on for App Review and off after —
  * has the wrong failure mode: forgetting the second step is silent, and leaves
- * sandbox receipts granting real Pro indefinitely. Nothing surfaces it, because
+ * test receipts granting real Pro indefinitely. Nothing surfaces it, because
  * everything keeps working.
  *
- * So APPLE_ALLOW_SANDBOX carries a DEADLINE and the window shuts by itself:
+ * So these vars carry a DEADLINE and the window shuts by itself:
  *
  *   unset / "0"          → rejected (the secure default)
  *   ISO date / epoch ms  → accepted until that moment, then rejected
@@ -268,10 +370,11 @@ function assertAppleClaims(p) {
  *
  * Anything unparseable fails closed rather than being read as "allow".
  *
- * @param {number} [now] epoch ms, injectable for tests
+ * @param {string} name    env var holding the deadline
+ * @param {number} [now]   epoch ms, injectable for tests
  */
-function sandboxAllowed(now = Date.now()) {
-  const raw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
+function windowOpen(name, now = Date.now()) {
+  const raw = String(process.env[name] || '').trim();
   if (!raw || raw === '0') return false;
   if (raw === '1') return true;
   // Check digits before Date.parse: a bare epoch is unambiguous, and
@@ -281,15 +384,48 @@ function sandboxAllowed(now = Date.now()) {
   return now < until;
 }
 
-/** When the sandbox window shuts, or null if it isn't a dated window. */
-function sandboxExpiresAt() {
-  const raw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
+function windowExpiresAt(name) {
+  const raw = String(process.env[name] || '').trim();
   if (!raw || raw === '0' || raw === '1') return null;
   const until = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
   return Number.isFinite(until) ? until : null;
 }
 
+function sandboxAllowed(now = Date.now()) {
+  return windowOpen('APPLE_ALLOW_SANDBOX', now);
+}
+
+/** When the sandbox window shuts, or null if it isn't a dated window. */
+function sandboxExpiresAt() {
+  return windowExpiresAt('APPLE_ALLOW_SANDBOX');
+}
+
+/**
+ * Play's answer to the same problem. Purchases made by a Play Console license
+ * tester come back through the ordinary subscriptionsv2 call — same shape, same
+ * signature, no money moved — so without this they granted real Pro silently
+ * and permanently, with no flag to forget.
+ *
+ * Play exposes no app version on the purchase, so there is nothing to pin the
+ * way Apple's app transaction allows; the dated window is the whole mechanism.
+ * The exposure is narrower to begin with, since license testers are an explicit
+ * allowlist in Play Console rather than anyone who can join a TestFlight.
+ */
+function testPurchasesAllowed(now = Date.now()) {
+  return windowOpen('GOOGLE_ALLOW_TEST_PURCHASES', now);
+}
+
+/** When the Play test-purchase window shuts, or null if it isn't dated. */
+function testPurchasesExpireAt() {
+  return windowExpiresAt('GOOGLE_ALLOW_TEST_PURCHASES');
+}
+
 const googlePlay = require('./googlePlay');
+
+const GOOGLE_PASSTHROUGH_ERRORS = new Set([
+  'google-verify-not-configured',
+  'google-test-purchase-rejected',
+]);
 
 // Google Play sends { productId, purchaseToken }. PRODUCTION: confirm
 // the token via purchases.subscriptionsv2.get with a service account
@@ -333,18 +469,27 @@ async function verifyGoogle({ productId, purchaseToken, expiryTimeMillis } = {})
     if (!line) throw new Error('product-mismatch');
     const resolvedProduct = line.productId;
     const expiresAt = line.expiryTime ? Date.parse(line.expiryTime) : null;
+    // Present (as an empty object) only on license-tester purchases. Recorded
+    // as Sandbox so the row says what it is, and gated so it can't quietly
+    // become a permanent free tier. See testPurchasesAllowed().
+    const isTest = !!sub.testPurchase;
+    if (isTest && !testPurchasesAllowed()) {
+      throw new Error('google-test-purchase-rejected');
+    }
     return {
       txnId: String(purchaseToken),
       productId: resolvedProduct,
       expiresAt,
-      environment: 'Production',
+      environment: isTest ? 'Sandbox' : 'Production',
       autoRenew: !!line.autoRenewingPlan?.autoRenewEnabled,
       status: sub.subscriptionState === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD'
         ? 'grace' : 'active',
       raw: sub,
     };
   } catch (err) {
-    if (err.message === 'google-verify-not-configured') throw err;
+    // Config/policy refusals are ours, not Play's — collapsing them into
+    // 'verify-failed' would hide why a tester's purchase was turned down.
+    if (GOOGLE_PASSTHROUGH_ERRORS.has(err.message)) throw err;
     console.error('google verify failed:', err.message);
     throw new Error('verify-failed');
   }
@@ -929,6 +1074,10 @@ module.exports = {
   verifyApple,
   sandboxAllowed,
   sandboxExpiresAt,
+  testPurchasesAllowed,
+  testPurchasesExpireAt,
+  reviewBuilds,
+  reviewBuildMatches,
   verifyGoogle,
   recordPurchase,
   redeemPromo,
