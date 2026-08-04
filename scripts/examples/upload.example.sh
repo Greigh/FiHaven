@@ -41,14 +41,20 @@ set -euo pipefail
 # ── Flags ────────────────────────────────────────────────────────
 # --allow-sandbox[=DAYS]
 #   Open a TIME-LIMITED window in which Apple StoreKit *sandbox* transactions
-#   are accepted (App Review and TestFlight purchase against sandbox, so
-#   without this reviewers and testers cannot buy).
+#   and Play *license-tester* purchases are accepted (App Review and TestFlight
+#   purchase against sandbox, so without this reviewers and testers cannot buy).
 #
 #   The window is stamped as a deadline into the deployed .env, not a boolean,
-#   and APPLE_ALLOW_SANDBOX is deliberately NOT read from your local .env — so
-#   the hole cannot be left open by forgetting to edit a file back. It closes
-#   on its own even if nobody deploys again, and a plain deploy never carries
-#   it forward.
+#   and neither APPLE_ALLOW_SANDBOX nor GOOGLE_ALLOW_TEST_PURCHASES is read from
+#   your local .env — so the hole cannot be left open by forgetting to edit a
+#   file back. It closes on its own even if nobody deploys again, and a plain
+#   deploy never carries it forward.
+#
+#   You mostly should not need this on the Apple side: every deploy stamps
+#   APPLE_SANDBOX_BUILD from ios/FiHavenApp/project.yml, which accepts sandbox
+#   purchases from the build you just shipped and nothing else. Play has no
+#   equivalent — the purchase carries no app version — so the dated window is
+#   the only lever there.
 ALLOW_SANDBOX_DAYS=""
 _args=()
 for _arg in "$@"; do
@@ -59,8 +65,9 @@ for _arg in "$@"; do
       sed -n '2,41p' "$0"
       echo
       echo "Flags:"
-      echo "  --allow-sandbox[=DAYS]  Accept Apple sandbox purchases for DAYS (default 14)."
-      echo "                          For App Review / TestFlight. Expires by itself."
+      echo "  --allow-sandbox[=DAYS]  Accept Apple sandbox + Play test purchases for DAYS"
+      echo "                          (default 14). For App Review / TestFlight."
+      echo "                          Expires by itself; a plain deploy closes it."
       exit 0
       ;;
     *) _args+=("$_arg") ;;
@@ -319,15 +326,41 @@ build_production_env() {
     log_fail "GOOGLE_VERIFY_ENABLED is set but neither GOOGLE_PUBSUB_AUDIENCE nor PUBLIC_ORIGIN is — Play notifications would all be rejected."
     exit 1
   fi
-  # APPLE_ALLOW_SANDBOX is intentionally absent from the allowlist above: it is
-  # set ONLY here, only when --allow-sandbox was passed, and only as a deadline.
-  # That way the window cannot be left open by forgetting to edit .env back, and
-  # a plain deploy always closes it.
+  # Pin sandbox StoreKit purchases to the build we are shipping alongside this
+  # server. Read from project.yml rather than .env so it can never drift from
+  # what TestFlight actually has, and stamped on EVERY deploy so the previous
+  # release's pin is replaced rather than accumulated.
+  #
+  # Both versions go in: Apple reports CFBundleVersion as the app version in
+  # sandbox and the marketing version in production, and guessing wrong should
+  # cost a fallback to --allow-sandbox, not a failed review.
+  #
+  # The server accepts this build OR NEWER, so deploy order doesn't matter:
+  # deploying web before bumping the iOS build stamps the old number, and the
+  # new build is still accepted.
+  local ios_build ios_market
+  ios_build="$(sed -n 's/^ *CURRENT_PROJECT_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' \
+    "$REPO_ROOT/ios/FiHavenApp/project.yml" | head -1)"
+  ios_market="$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' \
+    "$REPO_ROOT/ios/FiHavenApp/project.yml" | head -1)"
+  if [ -n "$ios_build" ]; then
+    echo "APPLE_SANDBOX_BUILD=$ios_build${ios_market:+,$ios_market}" >> "$TMP_ENV"
+    log_ok "Sandbox purchases pinned to iOS build $ios_build${ios_market:+ ($ios_market)}"
+  else
+    log_warn "Could not read CURRENT_PROJECT_VERSION from project.yml — sandbox build pin not set."
+    log_warn "  App Review will need --allow-sandbox until this is fixed."
+  fi
+
+  # APPLE_ALLOW_SANDBOX / GOOGLE_ALLOW_TEST_PURCHASES are intentionally absent
+  # from the allowlist above: they are set ONLY here, only when --allow-sandbox
+  # was passed, and only as deadlines. That way the window cannot be left open
+  # by forgetting to edit .env back, and a plain deploy always closes it.
   if [ -n "$ALLOW_SANDBOX_DAYS" ]; then
     local until_iso
     until_iso="$(node -e 'process.stdout.write(new Date(Date.now()+Number(process.argv[1])*864e5).toISOString())' "$ALLOW_SANDBOX_DAYS")"
     echo "APPLE_ALLOW_SANDBOX=$until_iso" >> "$TMP_ENV"
-    log_warn "Apple SANDBOX purchases accepted until $until_iso (${ALLOW_SANDBOX_DAYS}d) — for App Review / TestFlight."
+    echo "GOOGLE_ALLOW_TEST_PURCHASES=$until_iso" >> "$TMP_ENV"
+    log_warn "Apple SANDBOX + Play TEST purchases accepted until $until_iso (${ALLOW_SANDBOX_DAYS}d) — for App Review / TestFlight."
     log_warn "  Closes itself at that time; any later deploy without --allow-sandbox closes it immediately."
   fi
   log_ok "Production .env ready"
