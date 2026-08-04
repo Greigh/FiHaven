@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (24) - in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 45) - a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (25) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 46) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,22 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**The one-tap ✕ is gone from the Spending list (Aug 4)**
+
+Every row in Spending carried a ✕ that deleted the purchase immediately, with no
+confirmation, sitting a few millimetres from the pencil that opens it for
+editing. On a phone that is not a button, it's a trap — a scroll that lands
+slightly wrong and the transaction is gone.
+
+- **The ✕ is removed on iPhone and Android.** Tapping a row still opens it for
+  editing, exactly as before.
+- **Deleting still works, one step further in.** Open the transaction and use
+  Delete at the bottom of the editor. For a purchase your bank imported, that
+  same button is "Remove bank purchase" and still tells the bank sync not to
+  bring it back.
+- **The ✓ on a pending bank purchase stays.** It only confirms a purchase, so
+  a mis-tap there costs nothing.
 
 **Buying Pro on iPhone works (Aug 4)**
 
@@ -981,6 +997,28 @@ app and the server. Most of what follows had been true on more than one platform
 > **⚠️ Deploy order:** the security pass below changes server and native auth
 > paths together, so **the server must be deployed before or alongside iOS 22 /
 > Android 44**. The offline work is client-side and needs no deploy of its own.
+
+#### iOS 25 / Android 46
+
+> **Client-only.** No server change, no deploy needed. iOS 25 still carries the
+> build-24 purchase fix, which does need the server deployed.
+
+- **The destructive ✕ is gone from the Spending row on both native apps.**
+  `SpendingRow` (`ios/FiHavenApp/Sources/Main/SpendingView.swift`) and
+  `SpendingTxRow` (`android/.../ui/SpendingScreen.kt`) each rendered a 44/48pt
+  delete button immediately beside the edit pencil, firing `deleteTransaction`
+  (or `declineBankTransaction` for imported rows) on a single tap with no
+  confirmation and no undo. Both are removed, along with the now-unused
+  `onDelete`/`onDecline` closures and the `Icons.Filled.Close` import.
+- **Nothing is stranded.** Both transaction editors already carried the same
+  destructive action with the same bank/manual branch — `TransactionEditor`
+  (`BudgetView.swift`) and the `onDelete` passed to `FormDialog`
+  (`BudgetScreen.kt`) — reached by tapping the row or the pencil. The delete
+  path is unchanged; only the number of taps to reach it is.
+- **The `onKeep` ✓ is untouched.** It is non-destructive and only renders for
+  `tx.isBank && tx.pending`.
+- **The web list keeps its ✕** (`client/svelte/SpendingPanel.svelte`). A pointer
+  doesn't mis-hit a 20px control the way a thumb does.
 
 #### iOS 24 / Android 45
 

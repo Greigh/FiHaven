@@ -40,6 +40,8 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.1](v1.6.1/ios25-android46.md) | iOS 25 · Android 46 | 2026-08-04 | The one-tap ✕ is gone from the Spending list; deleting a purchase happens in the editor |
+| [1.6.1](v1.6.1/ios24-android45.md) | iOS 24 · Android 45 | 2026-08-04 | Buying Pro on iPhone works — the server was never switched on to accept Apple receipts (build 23 skipped) |
 | [1.6.1](v1.6.1/ios22-android44.md) | iOS 22 · Android 44 | 2026-08-03 | Offline-first on all three platforms: data kept on-device, offline edits survive a force-quit and are no longer overwritten |
 | [1.6.1](v1.6.1/ios21-android43.md) | iOS 21 · Android 43 | 2026-08-02 | Sign-out ends the session (reminders stop), archived items stop driving reminders and totals, web subscriptions manageable again |
 | [1.6.1](v1.6.1/ios20-android42.md) | iOS 20 · Android 42 | 2026-08-01 | Pro screen opens on the plans, Bank screen flattened, a lapsed Family plan turns the household read-only |
