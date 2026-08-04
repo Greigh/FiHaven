@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (22) - a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 44) - a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (24) - in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 45) - a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,27 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Buying Pro on iPhone works (Aug 4)**
+
+If you tried to buy Pro on iPhone, it failed. Not intermittently — every time,
+on every build. Apple took the purchase and handed us the receipt, and we
+refused it, because the server was never switched on to accept Apple receipts in
+the first place. You'd have watched the purchase succeed in Apple's own sheet and
+then seen nothing change in FiHaven.
+
+- **It is on now.** The fix is a single server setting rather than anything in
+  the app, which is why no earlier build could have rescued it.
+- **If you were charged and never received Pro,** open Settings and tap Restore
+  Purchases once you're on this build. The subscription should arrive without
+  paying again. Nothing was lost — the purchase has been sitting with Apple the
+  whole time.
+- **Android was never affected.** Play purchases verify through a different path
+  that was already switched on.
+
+Everything else in this release is maintenance and has no visible effect:
+updated libraries, a logging fix, and checks that stop a misconfiguration of
+exactly this kind from shipping unnoticed again.
 
 **FiHaven works offline now — properly (Aug 3)**
 
@@ -960,6 +981,63 @@ app and the server. Most of what follows had been true on more than one platform
 > **⚠️ Deploy order:** the security pass below changes server and native auth
 > paths together, so **the server must be deployed before or alongside iOS 22 /
 > Android 44**. The offline work is client-side and needs no deploy of its own.
+
+#### iOS 24 / Android 45
+
+> **iOS 24 is inert without a server deploy.** The purchase fix is entirely
+> server-side. Build 23 was skipped; nothing shipped under that number.
+
+- **`APPLE_VERIFY_ENABLED` was never set in production.** `verifyApple()` throws
+  `apple-verify-not-configured` before decoding anything when the flag is unset,
+  so in `production` verify mode *every* Apple receipt was refused — the purchase
+  completed at Apple and was then dropped on arrival. Set now. Android was
+  unaffected: `verifyGoogle()` gates on `GOOGLE_VERIFY_ENABLED`, which was on.
+- **Sandbox acceptance no longer depends on remembering anything.**
+  `APPLE_ALLOW_SANDBOX` was a boolean you flipped for review and unset after;
+  forgetting the second step was silent and left sandbox receipts minting real
+  Pro indefinitely. It now carries a deadline (`sandboxAllowed()` fails closed on
+  anything unparseable), stamped per-deploy by `upload.sh --allow-sandbox` and
+  deliberately excluded from the deploy allowlist so a local value can never
+  ship.
+- **Sandbox is pinned to the build under review, automatically.** The JWS
+  transaction says *whether* a purchase is sandbox but not *which build* it came
+  from. iOS 24 is the first build to send `AppTransaction.shared` alongside it —
+  a second Apple-signed object, verified through the same Root CA G3 chain — and
+  the deploy stamps `APPLE_SANDBOX_BUILD` from `project.yml`. Matching is "that
+  build or newer": `ios-testflight.sh --build +1` rewrites `project.yml`, so
+  exact matching meant deploying web first stamped the old number and failed
+  review for reasons nobody would trace to deploy order. It can't be gamed —
+  the version arrives inside a signed payload. This pins a *build*, not a
+  reviewer; anyone on TestFlight running an accepted build gets sandbox Pro.
+- **Play license-tester purchases were granting real Pro, permanently.**
+  `verifyGoogle()` stamped every verified purchase `Production`, including ones
+  carrying `testPurchase` from `subscriptionsv2.get`. Recorded as `Sandbox` now
+  and gated by `GOOGLE_ALLOW_TEST_PURCHASES`. Play exposes no app version on a
+  purchase, so there is nothing to pin — the dated window is the only lever.
+  Only affects accounts on the Play Console license-tester list.
+- **CodeQL #51 — tainted format string (`server/billing.js`).** `console.warn`
+  treats its first argument as a format string and the transaction id was
+  interpolated into it, so a txn id of `%s` consumed the following argument and
+  erased the replaying account's id from the only record of a receipt replay.
+  Specifiers moved into the literal.
+- **CodeQL #52 — false positive, but it found a real gap.** The rule only
+  recognises `lusca`/`csurf` and cannot see `requireCsrf`. Rather than dismiss on
+  inspection, `server/csrfCoverage.test.js` walks the real Express router stacks
+  and asserts every state-changing route either includes `requireCsrf` *by
+  function identity* or is exempted with a reason, validated in both directions.
+  Writing it found `POST /api/auth/resend-verification` unprotected — cookie
+  authenticated and forgeable into sending verification mail on a signed-in
+  user's behalf. Guarded; `verify-email.js` now sends the token it already holds.
+- **Node version drift is caught before the deploy swings over.**
+  `package.json` demanded `>=24.19.0` while the VPS ran 22.22.1 and the dev
+  machine 24.18.1 — a floor matching nothing. npm only warns without
+  `engine-strict`, so nothing surfaced it. No dependency needs 24 (highest is
+  `better-sqlite3` `>=22`) and no production code uses a Node 24 API, so the
+  floor is `>=22.11.0`; `upload.sh` reads `node -v` on the remote and refuses to
+  deploy below it; CI matrixes 22 and 24 instead of testing only the version
+  production doesn't run.
+- **Dependencies.** `googleapis` ^173 → ^174. Android: Compose plugin 2.4.10,
+  Kotlin JVM 2.4.10, `plaid:sdk-core` 6.2.0, `firebase-bom` 34.17.0.
 
 - **Security audit: 14 findings across server, web, iOS and Android.** Four were
   independently exploitable.
