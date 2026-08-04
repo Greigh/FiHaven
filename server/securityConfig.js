@@ -48,11 +48,31 @@ function assertProductionSafe() {
 
   // Sandbox transactions carry the production signing chain, so this is a
   // deliberate, temporary hole for App Review — never a standing setting.
-  if (process.env.APPLE_ALLOW_SANDBOX === '1') {
-    console.warn(
-      '[security] APPLE_ALLOW_SANDBOX=1 — sandbox StoreKit transactions will grant real Pro. ' +
-        'Set this only while a build is in App Review, and unset it afterwards.'
-    );
+  // A dated window closes itself; a bare "1" does not, and says so loudly.
+  const sandboxRaw = String(process.env.APPLE_ALLOW_SANDBOX || '').trim();
+  if (sandboxRaw && sandboxRaw !== '0') {
+    // Required lazily — billing pulls in the database, and this runs before
+    // the app has decided it is safe to start.
+    const { sandboxAllowed, sandboxExpiresAt } = require('./billing');
+    const expires = sandboxExpiresAt();
+    if (sandboxRaw === '1') {
+      console.warn(
+        '[security] APPLE_ALLOW_SANDBOX=1 — sandbox StoreKit transactions grant real Pro, ' +
+          'with NO expiry. Prefer a dated window: deploy with `--allow-sandbox` so it closes itself.'
+      );
+    } else if (!sandboxAllowed()) {
+      console.log(
+        `[security] APPLE_ALLOW_SANDBOX window closed ${expires ? new Date(expires).toISOString() : ''}` +
+          ' — sandbox transactions are being rejected again. Safe to remove the var.'
+      );
+    } else {
+      const daysLeft = Math.max(0, Math.ceil((expires - Date.now()) / 86400000));
+      console.warn(
+        `[security] APPLE_ALLOW_SANDBOX open until ${new Date(expires).toISOString()} ` +
+          `(${daysLeft} day${daysLeft === 1 ? '' : 's'} left) — sandbox StoreKit transactions grant real Pro ` +
+          'until then, after which they are rejected automatically.'
+      );
+    }
   }
 
   // Play RTDN audience: googlePubSubAuth fails closed without one, which would
