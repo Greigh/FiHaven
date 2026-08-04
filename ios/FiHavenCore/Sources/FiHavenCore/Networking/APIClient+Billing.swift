@@ -32,8 +32,17 @@ extension APIClient {
     }
 
     /// Verify a StoreKit 2 signed transaction and persist the subscription.
-    public func verifyApple(signedTransaction: String) async throws -> Entitlement {
-        let body = AppleVerifyBody(signedTransaction: signedTransaction)
+    ///
+    /// `signedAppTransaction` is StoreKit's app-level `AppTransaction` JWS. It
+    /// is what lets the server accept a sandbox purchase from the build under
+    /// review without accepting sandbox purchases generally; omitting it just
+    /// forfeits that, so callers that can't get one pass nil.
+    public func verifyApple(
+        signedTransaction: String,
+        signedAppTransaction: String? = nil
+    ) async throws -> Entitlement {
+        let body = AppleVerifyBody(signedTransaction: signedTransaction,
+                                   signedAppTransaction: signedAppTransaction)
         let req = try makeRequest(path: "api/billing/apple/verify", method: .POST,
                                   body: AnyEncodable(body))
         let data = try await send(req)
