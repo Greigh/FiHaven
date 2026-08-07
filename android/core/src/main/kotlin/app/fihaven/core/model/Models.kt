@@ -22,7 +22,12 @@ data class Bill(
     val name: String = "",
     val business: String? = null,
     val category: String = "Other",
-    val amount: Double = 0.0,
+    /** What the bill costs. **null means never filled in**, which is different
+     *  from an explicit 0 ("nothing is due"). A zero goal satisfies
+     *  `remaining <= 0`, so collapsing the two made a blank-amount bill read
+     *  "Paid this month" forever with no payment behind it. Use [amountOrZero]
+     *  for arithmetic. */
+    val amount: Double? = null,
     val dueDay: Int? = null,
     val frequency: String = "Monthly",
     val autopay: Boolean = false,
@@ -34,7 +39,11 @@ data class Bill(
     val trialEnds: String? = null,      // Free trial end — "YYYY-MM-DD"; subscription panel + reminders
     val manageUrl: String? = null,      // User-saved manage/cancel link (subscription panel)
     val archived: Boolean = false,      // Soft delete — hidden from lists/totals, restorable
-)
+) {
+    /** The amount for arithmetic — a blank amount contributes nothing. Use
+     *  [amount] itself (the nullable field) to ask whether one was ever set. */
+    val amountOrZero: Double get() = amount ?: 0.0
+}
 
 @Serializable
 data class Card(
@@ -53,7 +62,10 @@ data class Card(
     val plaidAccountId: String? = null,
     val balance: Double = 0.0, // Statement Balance (Credit Card) or Remaining Principal (Loan)
     val limit: Double = 0.0,
-    val minPayment: Double = 0.0,
+    /** Minimum payment (card) or scheduled monthly payment (loan). **null means
+     *  never filled in**, distinct from an explicit 0 — see [Bill.amount].
+     *  Use [minPaymentOrZero] for arithmetic. */
+    val minPayment: Double? = null,
     val recommendedPayment: Double? = null,   // optional override for the "recommended" payment
     val regularAPR: Double = 0.0,
     val hasPromo: Boolean = false,
@@ -91,6 +103,10 @@ data class Card(
          */
         const val NO_PLAID_LINK = "none"
     }
+
+    /** The minimum/scheduled payment for arithmetic — a blank one contributes
+     *  nothing. Use [minPayment] itself to ask whether one was ever set. */
+    val minPaymentOrZero: Double get() = minPayment ?: 0.0
 }
 
 /**

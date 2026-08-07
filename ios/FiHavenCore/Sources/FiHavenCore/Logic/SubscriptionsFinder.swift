@@ -28,11 +28,11 @@ public enum SubscriptionsFinder {
 
     public static func monthlyOfBill(_ b: Bill) -> Double {
         switch b.frequency {
-        case "Weekly": return b.amount * 52 / 12
-        case "Bi-weekly": return b.amount * 26 / 12
-        case "Quarterly": return b.amount / 3
-        case "Annually": return b.amount / 12
-        default: return b.amount
+        case "Weekly": return b.amountOrZero * 52 / 12
+        case "Bi-weekly": return b.amountOrZero * 26 / 12
+        case "Quarterly": return b.amountOrZero / 3
+        case "Annually": return b.amountOrZero / 12
+        default: return b.amountOrZero
         }
     }
 
@@ -64,7 +64,7 @@ public enum SubscriptionsFinder {
                 merchantKey: mk,
                 name: name,
                 monthly: monthlyOfBill(b),
-                amount: b.amount,
+                amount: b.amountOrZero,
                 source: "bill",
                 lastDate: nil,
                 priceUp: nil,

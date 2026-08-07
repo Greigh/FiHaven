@@ -47,8 +47,8 @@ struct BillsView: View {
             return true
         }
         switch sortKey {
-        case "amount-desc": list.sort { $0.amount > $1.amount }
-        case "amount-asc":  list.sort { $0.amount < $1.amount }
+        case "amount-desc": list.sort { $0.amountOrZero > $1.amountOrZero }
+        case "amount-asc":  list.sort { $0.amountOrZero < $1.amountOrZero }
         case "name":        list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case "unpaid":
             list.sort { a, b in
@@ -187,7 +187,7 @@ struct BillsView: View {
                         HStack(spacing: 10) {
                             Text(bill.name).font(Theme.ui(14)).foregroundStyle(Theme.text).lineLimit(1)
                             Spacer()
-                            Text(Money.fmt(bill.amount)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.muted)
+                            Text(Money.fmt(bill.amountOrZero)).font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.muted)
                             Button("Restore") { store.restoreBill(bill) }
                                 .font(Theme.ui(12, weight: .semibold)).buttonStyle(.borderless).tint(Theme.accent)
                             Button(role: .destructive) { store.deleteBill(bill) } label: { Text("Delete") }
@@ -306,7 +306,7 @@ private struct BillRow: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(Money.fmt(bill.amount)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
+                    Text(Money.fmt(bill.amountOrZero)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
                     if bill.autopay {
                         Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
                             .font(Theme.mono(9)).foregroundStyle(Theme.muted)
@@ -318,8 +318,17 @@ private struct BillRow: View {
                 Spacer()
                 if skipped {
                     quickAction("Undo skip", Theme.accent, onUnskip)
+                } else if nothingDue {
+                    // A $0 row is settled with no payment behind it: Undo deletes
+                    // a payment record and would find none, leaving a button that
+                    // does nothing. There is also nothing to pay.
+                    EmptyView()
                 } else if state == .full {
                     quickAction("Undo", Theme.muted, onUnmark)
+                } else if needsAmount && !isWindowEdge {
+                    // Skip is meaningless without an amount — see UpcomingRow.
+                    quickAction("It's $0", Theme.muted) { store.confirmZeroAmount(type: "bill", refId: String(bill.id)) }
+                    quickAction("Pay", Theme.accent, onPay)
                 } else if !isWindowEdge {
                     quickAction("Skip", Theme.muted, onSkip)
                     quickAction("Pay", Theme.accent, onPay)
@@ -340,7 +349,7 @@ private struct BillRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bill.name), \(Money.fmt(bill.amount)), \(skipped ? "Skipped this \(periodNoun)" : dueText)")
+        .accessibilityLabel("\(bill.name), \(Money.fmt(bill.amountOrZero)), \(skipped ? "Skipped this \(periodNoun)" : dueText)")
         .accessibilityHint("Double tap to edit")
         .contextMenu {
             if state == .full && !skipped {
@@ -368,6 +377,10 @@ private struct BillRow: View {
         if DateLogic.billEnded(bill, tz: store.tz) { return "⏹ Ended \(friendlyDate(bill.endDate))" }
         if DateLogic.billNotStarted(bill, tz: store.tz) { return "Starts \(friendlyDate(bill.startDate))" }
         if skipped { return "⏭ Skipped this \(periodNoun)" }
+        // No amount means nothing to measure a payment against — say so instead
+        // of reading as settled, which is what a $0 goal used to do.
+        if needsAmount { return "No amount set · tap to add one" }
+        if nothingDue { return "Nothing due this \(periodNoun)" }
         return dueText
     }
 
@@ -376,6 +389,14 @@ private struct BillRow: View {
     }
 
     private var statusColor: Color {
+        // Window edges win: an ended / not-yet-started bill shows its window
+        // label, so tinting it orange for a missing amount would flag a row the
+        // user has nothing to do about. Matches BillRow on Android.
+        if isWindowEdge { return Theme.muted }
+        if needsAmount { return Theme.orange }
+        // Settled because nothing is owed, not because a payment landed — the
+        // paid-green would claim credit for a payment that never happened.
+        if nothingDue { return Theme.muted }
         switch state {
         case .full: return Theme.green
         case .partial: return Theme.orange
@@ -385,10 +406,15 @@ private struct BillRow: View {
 
     private var periodNoun: String { BillSchedule.periodNoun(bill.frequency) }
 
+    /// Read from the store rather than passed in, so every call site that builds
+    /// a BillRow picks this up without threading another flag through.
+    private var needsAmount: Bool { store.needsAmount(type: "bill", refId: String(bill.id)) }
+    private var nothingDue: Bool { store.nothingDue(type: "bill", refId: String(bill.id)) }
+
     private var dueText: String {
         switch state {
         case .full: return "Paid this \(periodNoun)"
-        case .partial: return "Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(bill.amount))"
+        case .partial: return "Paid \(Money.fmt(paidSoFar)) of \(Money.fmt(bill.amountOrZero))"
         case .unpaid:
             if let next = BillSchedule.nextDueDate(bill, tz: store.tz) {
                 return "Next: \(friendlyDate(next))"

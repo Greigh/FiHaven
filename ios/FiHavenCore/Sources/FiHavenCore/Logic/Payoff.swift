@@ -78,7 +78,7 @@ public enum Payoff {
                 name: c.name,
                 balance: starting,
                 origBalance: starting,
-                minPayment: max(c.minPayment, 1),
+                minPayment: max(c.minPaymentOrZero, 1),
                 apr: c.regularAPR,
                 monthlyRate: c.regularAPR / 100 / 12,
                 hasPromo: isLoan ? false : c.hasPromo,

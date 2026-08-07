@@ -74,7 +74,7 @@ object Payoff {
                 name = c.name,
                 balance = startingBalance,
                 origBalance = startingBalance,
-                minPayment = max(c.minPayment, 1.0),
+                minPayment = max(c.minPaymentOrZero, 1.0),
                 apr = c.regularAPR,
                 monthlyRate = c.regularAPR / 100.0 / 12.0,
                 hasPromo = if (isLoan) false else c.hasPromo,

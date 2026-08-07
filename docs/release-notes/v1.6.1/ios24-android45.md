@@ -84,49 +84,25 @@ Purchases work. That's the build.
 
 WHAT WAS WRONG
 
-If you tried to buy Pro on iPhone in any earlier build, it failed. Not
-sometimes — always. The purchase itself went through Apple correctly, but our
-server was never switched on to accept Apple receipts, so it rejected every one
-of them the moment the app handed it over. You'd have seen the purchase succeed
-in Apple's sheet and then nothing happen in FiHaven.
+If you tried to buy Pro on iPhone in any earlier build, it failed. Not sometimes — always. The purchase itself went through Apple correctly, but our server was never switched on to accept Apple receipts, so it rejected every one of them the moment the app handed it over. You'd have seen the purchase succeed in Apple's sheet and then nothing happen in FiHaven.
 
-This was a server setting, not an app bug, which is why no previous build could
-have fixed it. It is now on.
+This was a server setting, not an app bug, which is why no previous build could have fixed it. It is now on.
 
-If you were charged for a subscription that FiHaven never gave you, tap Restore
-Purchases in Settings once you're on this build — the entitlement should appear
-without buying anything again. If it doesn't, please say so, and include the
-Apple ID email you bought with.
+If you were charged for a subscription that FiHaven never gave you, tap Restore Purchases in Settings once you're on this build — the entitlement should appear without buying anything again. If it doesn't, please say so, and include the Apple ID email you bought with.
 
 WHAT TO TEST
 
-- Buy Pro (monthly, yearly, or Family). It should complete and Pro should turn
-  on immediately, without restarting the app.
-- If you already bought Pro on an earlier build and never received it: Settings
-  > Restore Purchases. It should arrive.
-- Cancel and resubscribe from Settings > Manage Subscription; confirm the state
-  in FiHaven follows.
-- If you have Pro from the web (Paddle) instead, confirm that still works and
-  that Manage Subscription still opens.
-- Sanity-check the rest of the app briefly. Nothing else changed on purpose, so
-  anything odd is worth reporting.
+- Buy Pro (monthly, yearly, or Family). It should complete and Pro should turn on immediately, without restarting the app. - If you already bought Pro on an earlier build and never received it: Settings > Restore Purchases. It should arrive. - Cancel and resubscribe from Settings > Manage Subscription; confirm the state in FiHaven follows. - If you have Pro from the web (Paddle) instead, confirm that still works and that Manage Subscription still opens. - Sanity-check the rest of the app briefly. Nothing else changed on purpose, so anything odd is worth reporting.
 
 KNOWN LIMITS
 
-TestFlight purchases are sandbox purchases and do not charge you. Sandbox
-subscriptions renew on a compressed clock — a "yearly" plan can expire in an
-hour — so Pro switching itself off after a short while is expected here and not
-a bug.
+TestFlight purchases are sandbox purchases and do not charge you. Sandbox subscriptions renew on a compressed clock — a "yearly" plan can expire in an hour — so Pro switching itself off after a short while is expected here and not a bug.
 
-If a purchase is refused with a verification error, the sandbox window on the
-server has probably lapsed. That's ours to fix, not yours; report it and it
-takes one deploy.
+If a purchase is refused with a verification error, the sandbox window on the server has probably lapsed. That's ours to fix, not yours; report it and it takes one deploy.
 
 NOT IN THIS BUILD
 
-No new features and no visible changes. Everything else in build 24 is
-maintenance: updated libraries, a logging fix, and internal checks that stop a
-misconfiguration like this one from shipping unnoticed again.
+No new features and no visible changes. Everything else in build 24 is maintenance: updated libraries, a logging fix, and internal checks that stop a misconfiguration like this one from shipping unnoticed again.
 ```
 
 ---

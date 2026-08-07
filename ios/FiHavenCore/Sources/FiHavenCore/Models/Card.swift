@@ -74,7 +74,10 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
     public var name: String
     public var balance: Double
     public var limit: Double
-    public var minPayment: Double
+    /// Minimum payment (card) or scheduled monthly payment (loan). **nil means
+    /// never filled in**, distinct from an explicit 0 — see `Bill.amount`. Use
+    /// `minPaymentOrZero` for arithmetic.
+    public var minPayment: Double?
     public var recommendedPayment: Double?   // optional override for the "recommended" payment
     public var regularAPR: Double
     public var hasPromo: Bool
@@ -119,7 +122,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         name: String,
         balance: Double = 0,
         limit: Double = 0,
-        minPayment: Double = 0,
+        minPayment: Double? = nil,
         recommendedPayment: Double? = nil,
         regularAPR: Double = 0,
         hasPromo: Bool = false,
@@ -206,7 +209,7 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         name = c.flexibleString(.name) ?? ""
         balance = c.flexibleDouble(.balance) ?? 0
         limit = c.flexibleDouble(.limit) ?? 0
-        minPayment = c.flexibleDouble(.minPayment) ?? 0
+        minPayment = c.flexibleDouble(.minPayment)
         recommendedPayment = c.flexibleDouble(.recommendedPayment)
         regularAPR = c.flexibleDouble(.regularAPR) ?? 0
         hasPromo = c.flexibleBool(.hasPromo) ?? false
@@ -242,4 +245,8 @@ public struct Card: Codable, Identifiable, Equatable, Sendable {
         rewardsUrl = c.flexibleString(.rewardsUrl)
         archived = c.flexibleBool(.archived) ?? false
     }
+
+    /// The minimum/scheduled payment for arithmetic — a blank one contributes
+    /// nothing. Use `minPayment` itself to ask whether one was ever set.
+    public var minPaymentOrZero: Double { minPayment ?? 0 }
 }

@@ -68,7 +68,7 @@ public enum Schedule {
             items.append(UpcomingItem(
                 name: b.name,
                 business: b.business ?? "",
-                amount: b.amount,
+                amount: b.amountOrZero,
                 days: days,
                 nextDue: BillSchedule.nextDueDate(b, tz: tz, from: now),
                 type: "bill",
@@ -81,8 +81,8 @@ public enum Schedule {
         for c in cards {
             guard let dd = c.dueDay, dd != 0 else { continue }
             let needed = c.hasPromo
-                ? max(c.minPayment, promoNeeded(c, tz: tz, now: now))
-                : c.minPayment
+                ? max(c.minPaymentOrZero, promoNeeded(c, tz: tz, now: now))
+                : c.minPaymentOrZero
             let ref = String(c.id)
             let days: Int
             if let bounds {
@@ -271,7 +271,7 @@ public enum Schedule {
             ? 0
             : remainingForGoal(type: "card", refId: ref, goal: goal, payments: payments, in: bounds)
         return CardAmounts(
-            due: isLoan ? card.minPayment : card.balance,
+            due: isLoan ? card.minPaymentOrZero : card.balance,
             current: liveBalance(card),
             owed: owed
         )
@@ -291,11 +291,11 @@ public enum Schedule {
         if let override = card.recommendedPayment, override > 0 { return override }
         // Loans: the recommended payment is the scheduled monthly payment, never
         // the whole principal (paying it off is still an explicit option).
-        if (card.type ?? "card") == "loan" { return card.minPayment }
-        if card.hasPromo { return max(card.minPayment, promoNeeded(card, tz: tz, now: now)) }
+        if (card.type ?? "card") == "loan" { return card.minPaymentOrZero }
+        if card.hasPromo { return max(card.minPaymentOrZero, promoNeeded(card, tz: tz, now: now)) }
         // 0% interest (no active promo): carrying a balance costs nothing, so the
         // recommended payment is just the minimum — not the whole balance.
-        if card.regularAPR <= 0 { return card.minPayment }
+        if card.regularAPR <= 0 { return card.minPaymentOrZero }
         return card.balance
     }
 
@@ -338,10 +338,10 @@ public enum Schedule {
     ) -> Double {
         switch kind {
         case .minimum:
-            return card.minPayment
+            return card.minPaymentOrZero
         case .monthly:
             if let override = card.recommendedPayment, override > 0 { return override }
-            return card.minPayment
+            return card.minPaymentOrZero
         case .payoff, .full:
             return cardAtPeriodStart(card, paid: paid).balance
         case .recommended:
@@ -361,7 +361,7 @@ public enum Schedule {
     }
 
     /// A bill's fully-paid goal is always its full amount.
-    public static func goalAmount(bill: Bill) -> Double { bill.amount }
+    public static func goalAmount(bill: Bill) -> Double { bill.amountOrZero }
 
     /// A card's fully-paid goal this period — the pay target the active policy
     /// names (mirrors goalAmountFor in utils.js). `paid` is what's already been
@@ -400,6 +400,65 @@ public enum Schedule {
             tz: tz, now: now
         )
     }
+
+    // MARK: - Paid state
+
+    /// True when a bill has no amount to measure against: the field was never
+    /// filled in (nil, not an explicit 0) and nothing has been paid toward it.
+    ///
+    /// This has to be separate from "fully paid", because a zero goal satisfies
+    /// `remaining <= 0` on its own: a bill saved without an amount read "Paid
+    /// this month" every month with no payment record behind it, and the row's
+    /// Unmark had nothing to remove (it deletes a payment record), so the state
+    /// couldn't be cleared from the UI at all. Mirrors needsAmount in utils.js.
+    ///
+    /// A skipped item is excluded — it owes nothing by choice, which is an
+    /// answer rather than a missing one.
+    public static func needsAmount(bill: Bill, payments: [Payment], in bounds: PeriodBounds) -> Bool {
+        let ref = String(bill.id)
+        if isSkipped(payments, type: "bill", refId: ref, in: bounds) { return false }
+        if paidAmount(payments, type: "bill", refId: ref, in: bounds) > paidEpsilon { return false }
+        return bill.amount == nil
+    }
+
+    /// True when a card/loan has no amount to measure against. Only the field
+    /// the active goal actually reads counts: a balance-derived goal (the
+    /// recommended / full policies on a credit card) legitimately reaches 0 once
+    /// the card is paid off, which is "nothing due" rather than missing setup.
+    public static func needsAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: [Payment],
+        in bounds: PeriodBounds
+    ) -> Bool {
+        let ref = String(card.id)
+        if isSkipped(payments, type: "card", refId: ref, in: bounds) { return false }
+        if paidAmount(payments, type: "card", refId: ref, in: bounds) > paidEpsilon { return false }
+        if (card.type ?? "card") == "loan" {
+            // An override only drives the goal while it is above zero (see
+            // PayTarget.monthly); otherwise the scheduled payment does.
+            if (card.recommendedPayment ?? 0) > 0 { return false }
+            return card.minPayment == nil
+        }
+        return policy == .minimum && card.minPayment == nil
+    }
+
+    /// True once nothing remains toward `goal`. An item with no amount set is
+    /// never "paid" — see `needsAmount`. Mirrors isFullyPaid in utils.js.
+    public static func isFullyPaid(goal: Double, paid: Double, skipped: Bool, needsAmount: Bool) -> Bool {
+        if needsAmount { return false }
+        if skipped { return true }
+        return max(0, goal - paid) <= paidEpsilon
+    }
+
+    /// True when an item is settled because there is genuinely nothing to pay —
+    /// an amount deliberately set to 0 — rather than because a payment was
+    /// recorded. Lets a row say "Nothing due" instead of claiming credit for a
+    /// payment that never happened. Mirrors nothingDue in utils.js.
+    public static func nothingDue(goal: Double, paid: Double, skipped: Bool, needsAmount: Bool) -> Bool {
+        if skipped || needsAmount { return false }
+        return paid <= paidEpsilon && isFullyPaid(goal: goal, paid: paid, skipped: false, needsAmount: false)
+    }
 }
 
 /// How much must be paid before a bill/card counts as fully paid.
@@ -414,6 +473,7 @@ public enum PaidGoalPolicy: String, Sendable {
         default:        return .recommended
         }
     }
+
 }
 
 /// Tri-state for badges/rows: nothing paid, some paid, goal reached.

@@ -17,10 +17,12 @@ struct BudgetView: View {
     }
 
     private var obligations: Double {
-        store.activeBills
+        // Split into named steps: as one chain the type-checker times out.
+        let dueBills: [Bill] = store.activeBills
             .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
-            .reduce(0) { $0 + $1.amount }
-            + store.activeCards.reduce(0) { $0 + $1.minPayment }
+        let billTotal: Double = dueBills.reduce(0) { $0 + $1.amountOrZero }
+        let cardTotal: Double = store.activeCards.reduce(0) { $0 + $1.minPaymentOrZero }
+        return billTotal + cardTotal
     }
     private var leftover: Double { store.periodIncome - obligations }
 

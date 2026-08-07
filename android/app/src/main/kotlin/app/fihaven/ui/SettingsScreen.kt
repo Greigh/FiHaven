@@ -1120,9 +1120,13 @@ private fun PeriodDialog(vm: AppViewModel, settings: JsonObject, onDone: () -> U
     )
     FormDialog("Budget period", saveEnabled = true, onSave = {
         vm.setPeriodMode(mode)
-        if (mode == "startDay") vm.setPeriodStartDay(startDay.toIntOrNull() ?: 1)
+        // Clamp here too, not just on read: these are free-text fields, and an
+        // out-of-range value written to synced settings is then normalized by
+        // every client on read — so storing 31 leaves the account carrying a day
+        // no client actually honours. Same bounds as PeriodConfig.normalized.
+        if (mode == "startDay") vm.setPeriodStartDay((startDay.toIntOrNull() ?: 1).coerceIn(1, 28))
         if (mode == "rolling") {
-            vm.setPeriodLength(length.toIntOrNull() ?: 35)
+            vm.setPeriodLength((length.toIntOrNull() ?: 35).coerceIn(7, 90))
             vm.setPeriodAnchor(anchor.ifBlank { null })
         }
         onDone()

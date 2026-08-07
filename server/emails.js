@@ -353,6 +353,16 @@ async function sendRecovery(to, rawToken) {
   });
 }
 
+// True when a bill's amount was actually filled in. A blank one ('' / null /
+// undefined) is unfinished setup, not a $0 bill, and formatting it as "$0.00"
+// tells the reader the opposite of what the app's own rows now say ("No amount
+// set"). Mirrors amountIsSet in client/js/utils.js.
+function hasAmount(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string' && v.trim() === '') return false;
+  return !isNaN(parseFloat(v));
+}
+
 // "due today" / "due tomorrow" / "due in N days" for a lead-day count.
 function leadPhrase(days) {
   const d = parseInt(days, 10) || 0;
@@ -369,15 +379,19 @@ async function sendBillReminder(to, bills, leadDays, currency, userId) {
   const href = link('/dashboard');
   const { prefs, listUnsubscribe } = prefsFor(userId, 'reminders');
   const total = bills.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  // A bill with no amount set says so, rather than reporting "$0.00" — which
+  // would read as "this costs nothing" and contradict the app. It contributes
+  // nothing to the total either way.
+  const amountLabel = (b) => (hasAmount(b.amount) ? money(b.amount, currency) : 'no amount set');
   const items = itemList(
     bills.map((b) => ({
       label: esc(b.name) || 'Bill',
       meta: `Due on the ${ordinal(b.dueDay)}`,
-      value: money(b.amount, currency),
+      value: amountLabel(b),
     }))
   );
   const textItems = bills
-    .map((b) => `• ${b.name || 'Bill'} — ${money(b.amount, currency)} (due on the ${ordinal(b.dueDay)})`)
+    .map((b) => `• ${b.name || 'Bill'} — ${amountLabel(b)} (due on the ${ordinal(b.dueDay)})`)
     .join('\n');
   const why = "You're getting this because bill reminders are on.";
   return mail.sendMail({

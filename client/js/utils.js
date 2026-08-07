@@ -563,9 +563,66 @@ export function remainingForItem(type, refId, mk) {
   return Math.max(0, goalAmountFor(type, refId, mk) - paidAmount(type, refId, mk));
 }
 
-// True once nothing remains toward the goal (covers $0-goal items too).
+// True when a money field has actually been filled in. Blank ('', null,
+// undefined, whitespace) means "not set"; an explicit 0 is a real answer
+// meaning "nothing is due". parseFloat cannot tell those apart — both come out
+// 0 — so this reads the raw stored value instead.
+export function amountIsSet(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string' && v.trim() === '') return false;
+  return !isNaN(parseFloat(v));
+}
+
+// True when an item has no amount to measure against: the field that drives
+// its goal was never filled in, and nothing has been paid toward it. That is
+// unfinished setup — a bill saved without an amount, a loan without its
+// monthly payment — not a settled debt.
+//
+// It has to be separate from "paid", because a zero goal satisfies
+// `remaining <= 0` on its own: a mortgage with a blank monthly payment read
+// "Paid this month" every month, with no payment record behind it, and the
+// row's Undo had nothing to remove (it deletes a payment record), so the state
+// could not be cleared from the UI at all.
+//
+// Only the field the active goal actually reads counts. A balance-derived goal
+// (the recommended / full policies on a credit card) legitimately reaches 0
+// when the card is paid off — that is "nothing due", not missing setup.
+export function needsAmount(type, refId, mk) {
+  mk = mk || currentPeriodKey();
+  if (isSkipped(type, refId, mk)) return false;
+  if (paidAmount(type, refId, mk) > PAID_EPSILON) return false;
+
+  if (type === 'bill') {
+    var b = bills.find(function (x) { return String(x.id) === String(refId); });
+    return !!b && !amountIsSet(b.amount);
+  }
+  var c = cards.find(function (x) { return String(x.id) === String(refId); });
+  if (!c) return false;
+  if ((c.type || 'card') === 'loan') {
+    // An override only drives the goal while it is above zero (see
+    // payTargetAmount 'monthly'); otherwise the scheduled payment does.
+    if (parseFloat(c.recommendedPayment || 0) > 0) return false;
+    return !amountIsSet(c.minPayment);
+  }
+  return paidGoalPolicy() === 'minimum' && !amountIsSet(c.minPayment);
+}
+
+// True once nothing remains toward the goal. An item with no amount set is
+// never "paid" — see needsAmount.
 export function isFullyPaid(type, refId, mk) {
+  mk = mk || currentPeriodKey();
+  if (needsAmount(type, refId, mk)) return false;
   return remainingForItem(type, refId, mk) <= PAID_EPSILON;
+}
+
+// True when an item is settled because there is genuinely nothing to pay — an
+// amount deliberately set to 0 — rather than because a payment was recorded.
+// Lets a row say "Nothing due" instead of claiming credit for a payment that
+// never happened. Derived, so there is no extra state to keep in sync.
+export function nothingDue(type, refId, mk) {
+  mk = mk || currentPeriodKey();
+  if (isSkipped(type, refId, mk)) return false;
+  return isFullyPaid(type, refId, mk) && paidAmount(type, refId, mk) <= PAID_EPSILON;
 }
 
 // State for badges/rows: 'skipped' | 'unpaid' | 'partial' | 'full'.

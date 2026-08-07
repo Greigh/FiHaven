@@ -168,4 +168,36 @@ describe('autopay — runAutopayMark', () => {
     expect(runAutopayMark()).toBe(false);
     expect(payments).toHaveLength(0);
   });
+
+  // A blank amount is unfinished setup, not a $0 charge. Auto-marking it would
+  // invent a payment that never happened, leave a phantom row in History, and
+  // feed a 0 into recentPaymentAverage (which drives the rollover prefill).
+  it('does not auto-mark a bill whose amount was never set', () => {
+    setBills([{ id: 'B1', name: 'Water', amount: null, dueDay: 20, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('still auto-marks a bill deliberately set to $0', () => {
+    // The point of the blank/zero split: an explicit 0 is a real answer, so it
+    // behaves exactly as before. Only "never filled in" is held back.
+    setBills([{ id: 'B1', name: 'Water', amount: 0, dueDay: 20, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({ refId: 'B1', amount: 0 });
+  });
+
+  it('does not auto-mark a loan whose monthly payment was never set', () => {
+    setCards([{
+      id: 'L1', name: 'Mortgage', type: 'loan', balance: 250000,
+      minPayment: null, dueDay: 20, autopay: true,
+    }]);
+    setSettings({ autopayMark: true, paidGoal: 'minimum', periodMode: 'calendar' });
+    setEntitlement({ pro: true });
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
 });

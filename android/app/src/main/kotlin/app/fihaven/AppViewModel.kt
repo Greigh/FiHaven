@@ -624,7 +624,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  Mirrors autopay.js + the server scheduler. */
     fun runAutopayMark() {
         val d = _data.value
-        if (!d.settings.autopayMark) return
+        // Pro-only (Balanced tiering) and opt-in, matching autopay.js
+        // (`entitlement.pro`) and the server scheduler (`isPro`). Without this
+        // the setting still auto-marked for a Free account on Android alone.
+        if (!d.settings.autopayMark || !_entitlement.value.pro) return
         val bounds = currentBounds()
         val todayD = DateLogic.today(zone())
         val mkCal = DateLogic.currentMonthKey(zone())
@@ -660,8 +663,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val refId = b.id.toString()
             if (Schedule.paidAmount(d.payments, "bill", refId, bounds) > Schedule.PAID_EPSILON) return
             if (Schedule.isSkipped(d.payments, "bill", refId, bounds)) return
+            // Nothing to auto-mark when the amount was never filled in: a $0
+            // payment invents one that did not happen, leaves a phantom row in
+            // History, and feeds a 0 into recentPaymentAverage (which drives the
+            // rollover prefill). Blank is unfinished setup, not a $0 charge.
+            if (Schedule.needsAmount(b, d.payments, bounds)) return
             val iso = "%04d-%02d-%02d".format(todayD.year, todayD.monthValue, todayD.dayOfMonth)
-            newPayments.add(Payment(newPaymentId(), "bill", refId, b.name, b.amount, iso, mkCal, "Auto-marked (autopay)", false))
+            newPayments.add(Payment(newPaymentId(), "bill", refId, b.name, b.amountOrZero, iso, mkCal, "Auto-marked (autopay)", false))
             handled.add(refKey); newlyMarked.add(refKey)
         }
         fun considerCard(type: String, refId: String, name: String, dueDay: Int?, autopay: Boolean, amount: Double) {
@@ -678,6 +686,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         d.activeBills.forEach { considerBill(it) }
         d.activeCards.forEach {
+            // Same rule as bills: a card whose driving amount was never set has
+            // nothing to auto-mark.
+            if (Schedule.needsAmount(it, paidGoalPolicy(), d.payments, bounds)) return@forEach
             // Autopay pulls on `autopayDay`; null falls back to the due day.
             val effDay = it.autopayDay?.takeIf { day -> day > 0 } ?: it.dueDay
             considerCard("card", it.id.toString(), it.name + " (payment)", effDay, it.autopay,
@@ -1281,7 +1292,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun rolloverPrefillAmount(bill: Bill): Double {
         val d = _data.value
         val avg = Schedule.recentPaymentAverage(d.payments, "bill", bill.id)
-        return Schedule.rolloverAmount(d.settings.rolloverPrefill, bill.amount, avg)
+        return Schedule.rolloverAmount(d.settings.rolloverPrefill, bill.amountOrZero, avg)
     }
 
     /** Pre-fill as the review renders it: blank when there's nothing to carry,
@@ -1641,10 +1652,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         })
     }
 
-    /** Mark/unmark paid for the current period (row toggles). */
+    /** Answer a "No amount set" row in place: record a deliberate $0.
+     *
+     *  This is the one thing the data can't infer. Every editor used to collapse
+     *  a blank field to 0, so a stored 0 can't be told apart from "never filled
+     *  in" — the user is the only one who knows, and this lets them say so in a
+     *  tap instead of opening the editor to type a zero. */
+    fun confirmZeroAmount(type: String, refId: String) = mutate { d ->
+        if (type == "bill") {
+            d.copy(bills = d.bills.map { if (it.id.toString() == refId) it.copy(amount = 0.0) else it })
+        } else {
+            d.copy(cards = d.cards.map { if (it.id.toString() == refId) it.copy(minPayment = 0.0) else it })
+        }
+    }
+
+    /** Mark/unmark paid for the current period (row toggles).
+     *
+     *  Unmarking matches the payment by the active *period*, the same window
+     *  `paidState` reads. Matching the calendar monthKey instead meant that on a
+     *  startDay/rolling period Undo searched a window the row's paid state was
+     *  never computed from: it found nothing, removed nothing, and the row went
+     *  on claiming to be paid with no way to clear it. */
     fun setPaid(type: String, refId: String, name: String, amount: Double, paid: Boolean) = mutate { d ->
         val mk = DateLogic.currentMonthKey(zone())
-        val i = d.payments.indexOfFirst { it.type == type && it.refId == refId && it.monthKey == mk && !it.skipped }
+        val bounds = currentBounds()
+        val i = d.payments.indexOfFirst {
+            it.type == type && it.refId == refId && !it.skipped && bounds.contains(it)
+        }
         val payments = d.payments.toMutableList()
         var cards = d.cards
         if (paid && i < 0) {
@@ -1716,8 +1750,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (isSkipped(type, refId)) 0.0
         else (goalAmount(type, refId) - paidAmountFor(type, refId)).coerceAtLeast(0.0)
 
-    fun isFullyPaid(type: String, refId: String): Boolean =
-        remainingFor(type, refId) <= Schedule.PAID_EPSILON
+    /** True when an item's amount was never filled in (null, not an explicit 0)
+     *  and nothing has been paid toward it — unfinished setup rather than a
+     *  settled debt. The rule itself lives in [Schedule.needsAmount], which the
+     *  core tests pin; this only resolves the id to a record. */
+    fun needsAmount(item: UpcomingItem) = needsAmount(item.type, item.refId)
+
+    fun needsAmount(type: String, refId: String): Boolean {
+        val d = _data.value
+        val bounds = currentBounds()
+        return if (type == "bill") {
+            d.bills.firstOrNull { it.id.toString() == refId }
+                ?.let { Schedule.needsAmount(it, d.payments, bounds) } ?: false
+        } else {
+            d.cards.firstOrNull { it.id.toString() == refId }
+                ?.let { Schedule.needsAmount(it, paidGoalPolicy(), d.payments, bounds) } ?: false
+        }
+    }
+
+    fun isFullyPaid(type: String, refId: String): Boolean = Schedule.isFullyPaid(
+        goalAmount(type, refId), paidAmountFor(type, refId),
+        isSkipped(type, refId), needsAmount(type, refId),
+    )
+
+    /** True when an item is settled because there is genuinely nothing to pay —
+     *  an amount deliberately set to 0 — rather than because a payment landed.
+     *  Lets a row say "Nothing due" instead of claiming a payment never made. */
+    fun nothingDue(item: UpcomingItem) = nothingDue(item.type, item.refId)
+
+    fun nothingDue(type: String, refId: String): Boolean = Schedule.nothingDue(
+        goalAmount(type, refId), paidAmountFor(type, refId),
+        isSkipped(type, refId), needsAmount(type, refId),
+    )
 
     fun paidState(type: String, refId: String): PaidState = when {
         isFullyPaid(type, refId) -> PaidState.FULL
@@ -1747,7 +1811,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun cardSkipWarning(refId: String, name: String): String? {
         val card = _data.value.cards.firstOrNull { it.id.toString() == refId } ?: return null
         val paid = paidAmountFor("card", refId)
-        val min = card.minPayment
+        val min = card.minPaymentOrZero
         val goal = goalAmount("card", refId)
         return when {
             min > 0 && paid + Schedule.PAID_EPSILON < min ->

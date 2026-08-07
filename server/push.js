@@ -28,6 +28,16 @@ function leadPhrase(days) {
   return `due in ${d} days`;
 }
 
+// True when a bill's amount was actually filled in. A blank one ('' / null /
+// undefined) is unfinished setup, not a $0 bill, and formatting it as "$0.00"
+// tells the user the opposite of what the app's own rows now say ("No amount
+// set"). Mirrors amountIsSet in client/js/utils.js.
+function hasAmount(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string' && v.trim() === '') return false;
+  return !isNaN(parseFloat(v));
+}
+
 function resolvePath(envPath, fallbackEnv) {
   if (envPath && fs.existsSync(envPath)) return envPath;
   const alt = process.env[fallbackEnv];
@@ -209,8 +219,11 @@ async function sendBillReminderPush(userId, bills, leadDays, currency) {
   const phrase = leadPhrase(leadDays);
   const title = n === 1 ? 'Bill reminder' : `${n} bills ${phrase}`;
   const first = bills[0];
+  // A bill with no amount set drops the figure rather than claiming "$0.00".
   const body = n === 1
-    ? `${first.name || 'Bill'} — ${money(first.amount, currency)} (${phrase})`
+    ? (hasAmount(first.amount)
+        ? `${first.name || 'Bill'} — ${money(first.amount, currency)} (${phrase})`
+        : `${first.name || 'Bill'} (${phrase})`)
     : bills.slice(0, 3).map((b) => b.name || 'Bill').join(', ')
       + (n > 3 ? ` +${n - 3} more` : '');
   return sendToUser(userId, { title, body });

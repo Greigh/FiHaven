@@ -295,7 +295,11 @@ object NotificationScheduler {
             else -> "is due in $off days"
         }
         val name = bill.name.ifBlank { "A bill" }
-        return "$name $phrase — ${Money.fmt(bill.amount)}."
+        // A bill with no amount set drops the figure rather than claiming
+        // "$0.00" — that reads as "this costs nothing" and contradicts the row,
+        // which says "No amount set".
+        return if (bill.amount == null) "$name $phrase."
+        else "$name $phrase — ${Money.fmt(bill.amountOrZero)}."
     }
 
     private fun pendingIntent(

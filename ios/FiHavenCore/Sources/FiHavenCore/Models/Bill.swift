@@ -7,7 +7,12 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
     public var id: String
     public var name: String
     public var category: String
-    public var amount: Double
+    /// What the bill costs. **nil means never filled in**, which is different
+    /// from an explicit 0 ("nothing is due"). A zero goal satisfies
+    /// `remaining <= 0`, so collapsing the two made a blank-amount bill read
+    /// "Paid this month" forever with no payment behind it. Use `amountOrZero`
+    /// for arithmetic.
+    public var amount: Double?
     public var dueDay: Int?
     public var frequency: String
     public var autopay: Bool
@@ -25,7 +30,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         id: String,
         name: String,
         category: String = "Other",
-        amount: Double = 0,
+        amount: Double? = nil,
         dueDay: Int? = nil,
         frequency: String = "Monthly",
         autopay: Bool = false,
@@ -67,7 +72,7 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         id = c.flexibleString(.id) ?? ""
         name = c.flexibleString(.name) ?? ""
         category = c.flexibleString(.category) ?? "Other"
-        amount = c.flexibleDouble(.amount) ?? 0
+        amount = c.flexibleDouble(.amount)
         dueDay = c.flexibleInt(.dueDay)
         frequency = c.flexibleString(.frequency) ?? "Monthly"
         autopay = c.flexibleBool(.autopay) ?? false
@@ -81,4 +86,8 @@ public struct Bill: Codable, Identifiable, Equatable, Sendable {
         manageUrl = c.flexibleString(.manageUrl)
         archived = c.flexibleBool(.archived) ?? false
     }
+
+    /// The amount for arithmetic — a blank amount contributes nothing. Use
+    /// `amount` itself to ask whether one was ever set.
+    public var amountOrZero: Double { amount ?? 0 }
 }

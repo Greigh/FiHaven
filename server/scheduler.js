@@ -141,6 +141,15 @@ function offersExpiringOn(data, lp, days) {
 // bills as live: it emailed and pushed reminders for them, counted them in the
 // monthly summary and weekly digest, and — worst — auto-marked them paid,
 // writing phantom payments into the user's data that then synced everywhere.
+// True when a money field was actually filled in. Blank ('' / null / undefined)
+// means "not set", which is different from an explicit 0. Mirrors amountIsSet in
+// client/js/utils.js.
+function hasAmount(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string' && v.trim() === '') return false;
+  return !isNaN(parseFloat(v));
+}
+
 function billActiveOn(item, ymd) {
   if (!item) return false;
   if (item.archived) return false;
@@ -187,6 +196,12 @@ function markAutopay(data, lp) {
 
   const markIfDue = (item, type, amount, name) => {
     if (!item || !item.autopay) return;
+    // Nothing to auto-mark when the amount was never filled in: recording a
+    // $0 payment invents a payment that did not happen, puts a phantom row in
+    // History, and feeds a 0 into recentPaymentAverage (which drives the
+    // rollover prefill). Blank is unfinished setup, not a $0 charge — the row
+    // says "No amount set" and stays that way until the user answers.
+    if (!hasAmount(amount)) return;
     const refId = String(item.id);
     const refKey = `${type}:${refId}`;
     if (handled.has(refKey)) return;                 // already auto-marked this month
