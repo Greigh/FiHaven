@@ -294,7 +294,7 @@ struct PayoffView: View {
             .filter { ($0.type ?? "card") == "card" || $0.type == "loan" }
             .filter { includeMortgage || !Payoff.isHousingLoan($0) }
             .map { c -> (name: String, apr: Double, min: Double, bal: Double, pay: Double) in
-                (c.name, c.regularAPR, c.minPayment, debtOf(c), 0)
+                (c.name, c.regularAPR, c.minPaymentOrZero, debtOf(c), 0)
             }
             .filter { $0.bal > 0 }
             .sorted { $0.apr > $1.apr }

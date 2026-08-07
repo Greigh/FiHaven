@@ -14,6 +14,7 @@
 import { bills, cards, payments, settings, save, entitlement } from './storage.svelte.js';
 import {
   currentPeriodKey, paidAmount, goalAmountFor, isSkipped, monthKey, billActive,
+  needsAmount,
 } from './utils.js';
 import { boundsForKey, monthsInBounds } from './period.js';
 import { billDueOnOrBeforeInPeriod, billDueInPeriod } from './billSchedule.js';
@@ -89,6 +90,11 @@ export function runAutopayMark() {
     const refId = String(item.id);
     if (paidAmount(type, refId, mk) > 0.005) return;     // already has a real payment
     if (isSkipped(type, refId, mk)) return;              // explicitly skipped
+    // Nothing to auto-mark when the field driving the goal was never filled in:
+    // recording a $0 payment invents one that did not happen, leaves a phantom
+    // row in History, and feeds a 0 into recentPaymentAverage (which drives the
+    // rollover prefill). Blank is unfinished setup, not a $0 charge.
+    if (needsAmount(type, refId, mk)) return;
     payments.push({
       id: newId(), type, refId, name,
       amount: Number(amount) || 0, date: todayISO(), monthKey: calKey,

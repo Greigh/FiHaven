@@ -28,6 +28,7 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class IncomeTest {
@@ -529,6 +530,113 @@ class BudgetRulesTest {
         assertEquals(60.0, next.envelopeRolloverBal["Groceries"]!!, 1e-6)
         assertEquals(prev.key, next.envelopeRolloverAppliedFor)
         assertEquals(next, BudgetRules.applyEnvelopeRollover(next, tx, prev))
+    }
+}
+
+/**
+ * A zero goal satisfies `remaining <= 0` on its own, so an item whose amount
+ * was never filled in used to read as fully paid with no payment behind it —
+ * and the row's Undo, which removes a payment record, had nothing to remove.
+ * These pin the blank-vs-explicit-zero distinction the fix rests on.
+ */
+class NeedsAmountTest {
+    private val UTC: java.time.ZoneId = java.time.ZoneId.of("UTC")
+    private val CAL = PeriodConfig.normalized("calendar", null, null)
+    private val bounds = Period.bounds(LocalDate.of(2026, 8, 15), CAL)
+    private fun paid(type: String, ref: String, amount: Double) = listOf(
+        Payment(id = "p1", type = type, refId = ref, name = "x", amount = amount,
+            date = "2026-08-10", monthKey = "2026-08")
+    )
+    private fun skip(type: String, ref: String) = listOf(
+        Payment(id = "s1", type = type, refId = ref, name = "x", amount = 0.0,
+            date = "2026-08-10", monthKey = "2026-08", skipped = true)
+    )
+
+    @Test fun blankBillAmountIsNotPaid() {
+        val bill = Bill(id = "1", name = "Mortgage", dueDay = 1)   // amount never set
+        assertNull(bill.amount)
+        assertEquals(0.0, Schedule.goalAmount(bill), 1e-9)
+        assertTrue(Schedule.needsAmount(bill, emptyList(), bounds))
+        assertFalse(Schedule.isFullyPaid(Schedule.goalAmount(bill), 0.0, false, true))
+        assertFalse(Schedule.nothingDue(Schedule.goalAmount(bill), 0.0, false, true))
+    }
+
+    @Test fun explicitZeroBillIsSettledNotUnfinished() {
+        val bill = Bill(id = "1", name = "Free trial", dueDay = 1, amount = 0.0)
+        assertFalse(Schedule.needsAmount(bill, emptyList(), bounds))
+        assertTrue(Schedule.isFullyPaid(Schedule.goalAmount(bill), 0.0, false, false))
+        assertTrue(Schedule.nothingDue(Schedule.goalAmount(bill), 0.0, false, false))
+    }
+
+    @Test fun payingTowardABlankAmountCountsAsPaid() {
+        val bill = Bill(id = "1", name = "Mortgage", dueDay = 1)
+        val payments = paid("bill", "1", 25.0)
+        assertFalse(Schedule.needsAmount(bill, payments, bounds))
+        assertTrue(Schedule.isFullyPaid(Schedule.goalAmount(bill), 25.0, false, false))
+        assertFalse(Schedule.nothingDue(Schedule.goalAmount(bill), 25.0, false, false))
+    }
+
+    @Test fun skippedItemOwesNothingByChoice() {
+        val bill = Bill(id = "1", name = "Mortgage", dueDay = 1)
+        assertFalse(Schedule.needsAmount(bill, skip("bill", "1"), bounds))
+    }
+
+    @Test fun loanWithoutAMonthlyPaymentNeedsAnAmount() {
+        val loan = Card(id = "9", name = "Mortgage", type = "loan", balance = 250_000.0)
+        assertNull(loan.minPayment)
+        assertTrue(Schedule.needsAmount(loan, PaidGoalPolicy.RECOMMENDED, emptyList(), bounds))
+
+        val set = loan.copy(minPayment = 1800.0)
+        assertFalse(Schedule.needsAmount(set, PaidGoalPolicy.RECOMMENDED, emptyList(), bounds))
+        assertEquals(1800.0, Schedule.goalAmount(set, PaidGoalPolicy.RECOMMENDED, 0.0, UTC), 1e-9)
+    }
+
+    @Test fun loanOverrideOnlyCountsWhileAboveZero() {
+        val loan = Card(id = "9", type = "loan", balance = 250_000.0, recommendedPayment = 0.0)
+        assertTrue(Schedule.needsAmount(loan, PaidGoalPolicy.RECOMMENDED, emptyList(), bounds))
+        val overridden = loan.copy(recommendedPayment = 900.0)
+        assertFalse(Schedule.needsAmount(overridden, PaidGoalPolicy.RECOMMENDED, emptyList(), bounds))
+    }
+
+    // A balance-derived goal reaching zero means the card is paid off — a real
+    // answer, so it must never be mistaken for unfinished setup.
+    @Test fun paidOffCreditCardIsNothingDueNotMissingAnAmount() {
+        val card = Card(id = "1", name = "Visa", balance = 0.0)
+        assertFalse(Schedule.needsAmount(card, PaidGoalPolicy.FULL, emptyList(), bounds))
+        val goal = Schedule.goalAmount(card, PaidGoalPolicy.FULL, 0.0, UTC)
+        assertEquals(0.0, goal, 1e-9)
+        assertTrue(Schedule.nothingDue(goal, 0.0, false, false))
+    }
+
+    @Test fun minimumPolicyWithoutAMinimumNeedsAnAmount() {
+        val card = Card(id = "1", name = "Visa", balance = 500.0)
+        assertTrue(Schedule.needsAmount(card, PaidGoalPolicy.MINIMUM, emptyList(), bounds))
+        // The same card under a balance-derived policy is simply unpaid.
+        assertFalse(Schedule.needsAmount(card, PaidGoalPolicy.FULL, emptyList(), bounds))
+    }
+
+    // The blank/zero distinction is worthless if it doesn't survive a round trip
+    // through the sync payload.
+    @Test fun blankAmountSurvivesJsonRoundTrip() {
+        val blank = Bill(id = "1", name = "Mortgage", dueDay = 1)
+        val json = FiHavenJson.encodeToString(Bill.serializer(), blank)
+        assertFalse(json.contains("\"amount\""))   // omitted, not written as 0
+        assertNull(FiHavenJson.decodeFromString(Bill.serializer(), json).amount)
+
+        val zero = Bill(id = "1", name = "Free", dueDay = 1, amount = 0.0)
+        val zeroJson = FiHavenJson.encodeToString(Bill.serializer(), zero)
+        assertEquals(0.0, FiHavenJson.decodeFromString(Bill.serializer(), zeroJson).amount)
+
+        // A payload from an older client that never had the field at all.
+        assertNull(FiHavenJson.decodeFromString(Bill.serializer(), """{"id":"1","name":"Old"}""").amount)
+    }
+
+    @Test fun blankMinPaymentSurvivesJsonRoundTrip() {
+        val loan = Card(id = "9", name = "Mortgage", type = "loan")
+        val json = FiHavenJson.encodeToString(Card.serializer(), loan)
+        assertFalse(json.contains("\"minPayment\""))
+        assertNull(FiHavenJson.decodeFromString(Card.serializer(), json).minPayment)
+        assertEquals(0.0, FiHavenJson.decodeFromString(Card.serializer(), json).minPaymentOrZero, 1e-9)
     }
 }
 

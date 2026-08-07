@@ -197,6 +197,8 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
                         paidSoFar = vm.paidAmountFor("bill", bill.id.toString()),
                         chargedTo = bill.cardId?.let { id -> data.cards.firstOrNull { it.id.toString() == id }?.name },
                         skipped = vm.isSkipped("bill", bill.id.toString()),
+                        needsAmount = vm.needsAmount("bill", bill.id.toString()),
+                        nothingDue = vm.nothingDue("bill", bill.id.toString()),
                         windowLabel = when {
                             DateLogic.billEnded(bill, zone) -> "⏹ Ended ${friendlyDate(bill.endDate)}"
                             DateLogic.billNotStarted(bill, zone) -> "Starts ${friendlyDate(bill.startDate)}"
@@ -208,6 +210,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
                         },
                         onEdit = { editing = bill },
                         onSkip = { vm.skipMonth("bill", bill.id.toString(), bill.name) },
+                        onConfirmZero = { vm.confirmZeroAmount("bill", bill.id.toString()) },
                         onUnskip = { vm.unskip("bill", bill.id.toString()) },
                     )
                 }
@@ -219,7 +222,7 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
                         expanded = showArchived,
                         onToggle = { showArchived = !showArchived },
                         rows = archivedBills.map { b ->
-                            ArchivedRow(b.name, Money.fmt(b.amount), { vm.restoreBill(b) }, { vm.deleteBill(b) })
+                            ArchivedRow(b.name, Money.fmt(b.amountOrZero), { vm.restoreBill(b) }, { vm.deleteBill(b) })
                         },
                     )
                 }
@@ -256,22 +259,34 @@ private fun BillRow(
     paidSoFar: Double,
     chargedTo: String? = null,
     skipped: Boolean = false,
+    needsAmount: Boolean = false,
+    nothingDue: Boolean = false,
     windowLabel: String? = null,
     onPay: () -> Unit,
     onUnmark: () -> Unit = {},
     onEdit: () -> Unit,
     onSkip: () -> Unit = {},
     onUnskip: () -> Unit = {},
+    onConfirmZero: () -> Unit = {},
 ) {
     val periodNoun = BillSchedule.periodNoun(bill.frequency)
-    val statusText = windowLabel ?: if (skipped) "⏭ Skipped this $periodNoun" else when (state) {
-        PaidState.FULL -> "Paid this $periodNoun"
-        PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amount)}"
-        PaidState.UNPAID -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
+    val statusText = windowLabel ?: when {
+        skipped -> "⏭ Skipped this $periodNoun"
+        // No amount means nothing to measure a payment against — say so instead
+        // of reading as settled, which is what a $0 goal used to do.
+        needsAmount -> "No amount set · tap to add one"
+        nothingDue -> "Nothing due this $periodNoun"
+        state == PaidState.FULL -> "Paid this $periodNoun"
+        state == PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(bill.amountOrZero)}"
+        else -> BillSchedule.nextDueDate(bill, zone)?.let { "Next: ${friendlyDate(it)}" }
             ?: "No due date"
     }
     val statusColor = when {
         skipped || windowLabel != null -> Ct.colors.muted
+        needsAmount -> Ct.colors.orange
+        // Settled because nothing is owed, not because a payment landed — the
+        // paid-green would claim credit for a payment that never happened.
+        nothingDue -> Ct.colors.muted
         state == PaidState.FULL -> Ct.colors.green
         state == PaidState.PARTIAL -> Ct.colors.orange
         else -> Ct.colors.muted
@@ -295,7 +310,7 @@ private fun BillRow(
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(Money.fmt(bill.amount), color = Ct.colors.text, fontSize = 16.sp,
+                    Text(Money.fmt(bill.amountOrZero), color = Ct.colors.text, fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
                     if (bill.autopay) Text(bill.autopayDay?.let { "autopay · day $it" } ?: "autopay",
                         color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
@@ -308,7 +323,16 @@ private fun BillRow(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     when {
                         skipped -> QuickAction("Undo skip", Ct.colors.accent, onUnskip)
+                        // A $0 row is settled with no payment behind it: Undo
+                        // deletes a payment record and would find none, leaving a
+                        // button that does nothing. There is also nothing to pay.
+                        nothingDue -> Unit
                         state == PaidState.FULL -> QuickAction("Undo", Ct.colors.muted, onUnmark)
+                        // Skip is meaningless without an amount — see UpcomingRow.
+                        needsAmount && windowLabel == null -> {
+                            QuickAction("It's $0", Ct.colors.muted, onConfirmZero)
+                            QuickAction("Pay", Ct.colors.accent, onPay)
+                        }
                         windowLabel == null -> {
                             QuickAction("Skip", Ct.colors.muted, onSkip)
                             QuickAction("Pay", Ct.colors.accent, onPay)
@@ -364,7 +388,8 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(bill?.name ?: "") }
     var business by remember { mutableStateOf(bill?.business ?: "") }
     var category by remember { mutableStateOf(bill?.category ?: "Other") }
-    var amount by remember { mutableStateOf(bill?.amount?.takeIf { it != 0.0 }?.toString() ?: "") }
+    // null (never set) shows blank; an explicit 0 shows "0.0" so it survives a re-save.
+    var amount by remember { mutableStateOf(bill?.amount?.toString() ?: "") }
     var dueDay by remember { mutableStateOf(bill?.dueDay?.toString() ?: "1") }
     var frequency by remember { mutableStateOf(bill?.frequency ?: "Monthly") }
     var autopay by remember { mutableStateOf(bill?.autopay ?: false) }
@@ -392,7 +417,10 @@ fun BillEditorDialog(bill: Bill?, vm: AppViewModel, onDismiss: () -> Unit) {
                     name = name.trim(),
                     business = business.trim().takeIf { it.isNotBlank() },
                     category = category,
-                    amount = amount.toDoubleOrNull() ?: 0.0,
+                    // Blank stays null rather than collapsing to 0: a bill with
+                    // no amount is unfinished setup, and a zero goal would make
+                    // the row read as fully paid. An explicit 0 is preserved.
+                    amount = amount.trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull(),
                     dueDay = derivedDueDay,
                     frequency = frequency, autopay = autopay,
                     autopayDay = if (autopay) autopayDay.toIntOrNull()?.coerceIn(1, 31) else null,

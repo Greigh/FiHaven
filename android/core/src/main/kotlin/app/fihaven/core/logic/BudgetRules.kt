@@ -264,8 +264,8 @@ object BudgetRules {
         billDueInPeriod: (Bill) -> Boolean,
         isPro: Boolean,
         zone: java.time.ZoneId,
-        billAmount: (Bill) -> Double = { it.amount },
-        cardAmount: (Card) -> Double = { it.minPayment },
+        billAmount: (Bill) -> Double = { it.amountOrZero },
+        cardAmount: (Card) -> Double = { it.minPaymentOrZero },
     ): Lens? {
         val m = mode(settings)
         if (m == "off") return null
@@ -287,8 +287,8 @@ object BudgetRules {
         settings: JsonObject, income: Double, bills: List<Bill>, cards: List<Card>,
         transactions: List<SpendTransaction>, bounds: PeriodBounds,
         billDueInPeriod: (Bill) -> Boolean,
-        billAmount: (Bill) -> Double = { it.amount },
-        cardAmount: (Card) -> Double = { it.minPayment },
+        billAmount: (Bill) -> Double = { it.amountOrZero },
+        cardAmount: (Card) -> Double = { it.minPaymentOrZero },
     ): Lens? = lens(settings, income, bills, cards, transactions, emptyList(), bounds, billDueInPeriod, false, java.time.ZoneId.systemDefault(), billAmount, cardAmount)
 
     private fun splitLens(

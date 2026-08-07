@@ -197,8 +197,8 @@ public enum BudgetRules {
         billDueInPeriod: (Bill) -> Bool,
         isPro: Bool,
         tz: TimeZone,
-        billAmount: (Bill) -> Double = { $0.amount },
-        cardAmount: (Card) -> Double = { $0.minPayment }
+        billAmount: (Bill) -> Double = { $0.amountOrZero },
+        cardAmount: (Card) -> Double = { $0.minPaymentOrZero }
     ) -> Lens? {
         let m = mode(from: settings)
         guard m != "off" else { return nil }

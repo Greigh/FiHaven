@@ -112,9 +112,7 @@ struct SpendingView: View {
                             SpendingRow(
                                 tx: tx,
                                 onEdit: { editingTx = tx },
-                                onDelete: { store.deleteTransaction(tx) },
-                                onKeep: { store.acceptBankTransaction(tx) },
-                                onDecline: { store.declineBankTransaction(tx) }
+                                onKeep: { store.acceptBankTransaction(tx) }
                             )
                         }
                     }
@@ -203,12 +201,14 @@ struct SpendingView: View {
 
 /// Spending list row: title + bank status under the name (not beside the amount),
 /// amount alone on the trailing edge, and ≥44pt action controls.
+///
+/// No delete affordance in the row itself: a one-tap ✕ sitting next to the edit
+/// pencil was far too easy to hit by accident. Delete/decline lives in the
+/// transaction editor, which the row opens on tap.
 private struct SpendingRow: View {
     let tx: SpendTransaction
     let onEdit: () -> Void
-    let onDelete: () -> Void
     let onKeep: () -> Void
-    let onDecline: () -> Void
 
     private var title: String { tx.merchant.isEmpty ? tx.category : tx.merchant }
 
@@ -265,18 +265,6 @@ private struct SpendingRow: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Keep pending bank transaction")
                 }
-
-                Button(action: { if tx.isBank { onDecline() } else { onDelete() } }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17))
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tx.isBank
-                    ? "Not mine — remove and don’t import again"
-                    : "Delete transaction")
             }
         }
         .contentShape(Rectangle())

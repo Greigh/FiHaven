@@ -23,7 +23,7 @@ class ModelTest {
         assertEquals(2, d.cards.size)
         assertEquals(1, d.payments.size)
         assertEquals("Rent", d.bills[0].name)
-        assertEquals(1450.0, d.bills[0].amount, 1e-6)
+        assertEquals(1450.0, d.bills[0].amountOrZero, 1e-6)
         assertEquals(1, d.bills[0].dueDay)
         assertTrue(d.bills[0].autopay)
         assertEquals("2026-10-01", d.cards[0].promoEndDate)

@@ -39,6 +39,9 @@ import {
   billActive,
   billInPeriod,
   isFullyPaid,
+  needsAmount,
+  nothingDue,
+  amountIsSet,
   paidGoalPolicy,
   hidePaidOnDashboard,
   archiveInsteadOfDelete,
@@ -50,7 +53,7 @@ import {
   periodObligationItems,
   cardForTransaction,
 } from './utils.js';
-import { setCards, setBills, setPayments, setSettings } from './storage.svelte.js';
+import { setCards, setBills, setPayments, setSettings, bills, cards } from './storage.svelte.js';
 import { boundsForKey } from './period.js';
 
 const isoOffsetMonths = (months) => {
@@ -674,6 +677,117 @@ describe('utils — billInPeriod and paid goal helpers', () => {
     expect(isFullyPaid('card', 'C1')).toBe(true);
     setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 50, date: today }]);
     expect(isFullyPaid('card', 'C1')).toBe(false);
+  });
+
+  // A zero goal satisfies `remaining <= 0` on its own, so an item with no
+  // amount set used to read as fully paid with no payment behind it — and the
+  // row's Undo, which removes a payment record, had nothing to remove.
+  it('amountIsSet separates a blank amount from an explicit zero', () => {
+    expect(amountIsSet(undefined)).toBe(false);
+    expect(amountIsSet(null)).toBe(false);
+    expect(amountIsSet('')).toBe(false);
+    expect(amountIsSet('   ')).toBe(false);
+    expect(amountIsSet(0)).toBe(true);
+    expect(amountIsSet('0')).toBe(true);
+    expect(amountIsSet(12.5)).toBe(true);
+  });
+
+  it.each([
+    ['blank string', ''],
+    ['missing', undefined],
+    ['null', null],
+  ])('a bill whose amount is %s is not "paid"', (_label, amount) => {
+    setBills([{ id: 'B9', name: 'Mortgage', dueDay: 1, amount }]);
+    setPayments([]);
+    expect(goalAmountFor('bill', 'B9')).toBe(0);
+    expect(needsAmount('bill', 'B9')).toBe(true);
+    expect(isFullyPaid('bill', 'B9')).toBe(false);
+    expect(nothingDue('bill', 'B9')).toBe(false);
+    expect(paidState('bill', 'B9')).toBe('unpaid');
+  });
+
+  it('a bill deliberately set to $0 is settled, not unfinished', () => {
+    setBills([{ id: 'B9', name: 'Free trial', dueDay: 1, amount: 0 }]);
+    setPayments([]);
+    expect(needsAmount('bill', 'B9')).toBe(false);
+    expect(isFullyPaid('bill', 'B9')).toBe(true);
+    expect(nothingDue('bill', 'B9')).toBe(true);   // "Nothing due", not "Paid"
+  });
+
+  it('a loan with no monthly payment is not "paid"', () => {
+    setCards([{ id: 'L9', name: 'Mortgage', type: 'loan', dueDay: 1, balance: 250000 }]);
+    setPayments([]);
+    expect(needsAmount('card', 'L9')).toBe(true);
+    expect(isFullyPaid('card', 'L9')).toBe(false);
+    setCards([{ id: 'L9', name: 'Mortgage', type: 'loan', dueDay: 1, balance: 250000, minPayment: 1800 }]);
+    expect(needsAmount('card', 'L9')).toBe(false);
+    expect(paidState('card', 'L9')).toBe('unpaid');
+  });
+
+  it('a loan falls back to the scheduled payment when the override is zero', () => {
+    setCards([{ id: 'L9', type: 'loan', dueDay: 1, balance: 250000, recommendedPayment: 0 }]);
+    setPayments([]);
+    expect(needsAmount('card', 'L9')).toBe(true);
+    setCards([{ id: 'L9', type: 'loan', dueDay: 1, balance: 250000, recommendedPayment: 900 }]);
+    expect(needsAmount('card', 'L9')).toBe(false);
+  });
+
+  // A balance-derived goal reaching zero means the card is paid off — that is a
+  // real answer, so it must not be mistaken for unfinished setup.
+  it('a paid-off credit card reads as nothing due, not missing an amount', () => {
+    setSettings({ paidGoal: 'full' });
+    setCards([{ id: 'C9', name: 'Visa', balance: 0, minPayment: 0 }]);
+    setPayments([]);
+    expect(needsAmount('card', 'C9')).toBe(false);
+    expect(nothingDue('card', 'C9')).toBe(true);
+  });
+
+  it('a card on the minimum policy with no minimum set needs an amount', () => {
+    setSettings({ paidGoal: 'minimum' });
+    setCards([{ id: 'C9', name: 'Visa', balance: 500 }]);
+    setPayments([]);
+    expect(needsAmount('card', 'C9')).toBe(true);
+    expect(isFullyPaid('card', 'C9')).toBe(false);
+  });
+
+  it('paying something toward a zero-goal item still reads as paid', () => {
+    setBills([{ id: 'B9', name: 'Freebie', dueDay: 1, amount: '' }]);
+    setPayments([{ id: 'p1', type: 'bill', refId: 'B9', amount: 25, date: localIso() }]);
+    expect(needsAmount('bill', 'B9')).toBe(false);
+    expect(isFullyPaid('bill', 'B9')).toBe(true);
+    expect(nothingDue('bill', 'B9')).toBe(false);  // it was paid, not costless
+  });
+
+  // The one-tap "It's $0" answer on a no-amount row. It has to land as a real
+  // 0 — not stay blank — or the row keeps asking the same question forever.
+  it('confirming $0 settles a blank-amount row for good', () => {
+    setBills([{ id: 'B9', name: 'Free trial', dueDay: 1, amount: '' }]);
+    setPayments([]);
+    expect(needsAmount('bill', 'B9')).toBe(true);
+
+    bills[0].amount = 0;                      // what confirmZeroAmount writes
+    expect(amountIsSet(bills[0].amount)).toBe(true);
+    expect(needsAmount('bill', 'B9')).toBe(false);
+    expect(nothingDue('bill', 'B9')).toBe(true);
+    expect(paidState('bill', 'B9')).toBe('full');
+  });
+
+  it('confirming $0 on a loan settles its monthly payment', () => {
+    setCards([{ id: 'L9', name: 'Paid-off loan', type: 'loan', dueDay: 1, balance: 0 }]);
+    setPayments([]);
+    expect(needsAmount('card', 'L9')).toBe(true);
+
+    cards[0].minPayment = 0;
+    expect(needsAmount('card', 'L9')).toBe(false);
+    expect(nothingDue('card', 'L9')).toBe(true);
+  });
+
+  it('a skipped item owes nothing by choice, not for want of an amount', () => {
+    setBills([{ id: 'B9', name: 'Mortgage', dueDay: 1, amount: '' }]);
+    setPayments([{ id: 's1', type: 'bill', refId: 'B9', amount: 0, skipped: true, date: localIso() }]);
+    expect(needsAmount('bill', 'B9')).toBe(false);
+    expect(nothingDue('bill', 'B9')).toBe(false);
+    expect(paidState('bill', 'B9')).toBe('skipped');
   });
 
   it('hidePaidOnDashboard defaults to true unless explicitly disabled', () => {

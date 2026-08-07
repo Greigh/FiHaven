@@ -61,7 +61,7 @@ struct AlertsWidget: View {
             let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
             let bal = c.promoBalance ?? c.balance
             guard bal > 0 else { continue }
-            let need = max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz))
+            let need = max(c.minPaymentOrZero, Schedule.promoNeeded(c, tz: store.tz))
             if mo <= 0 {
                 out.append("🚨 \(c.name) — 0% promo expired. \(Money.fmt(bal)) is accruing \(Int(c.regularAPR))% APR.")
             } else if mo <= 2 {
@@ -130,11 +130,11 @@ struct SubscriptionsWidget: View {
 
     private func monthlyOfBill(_ b: Bill) -> Double {
         switch b.frequency {
-        case "Weekly": return b.amount * 52 / 12
-        case "Bi-weekly": return b.amount * 26 / 12
-        case "Quarterly": return b.amount / 3
-        case "Annually": return b.amount / 12
-        default: return b.amount
+        case "Weekly": return b.amountOrZero * 52 / 12
+        case "Bi-weekly": return b.amountOrZero * 26 / 12
+        case "Quarterly": return b.amountOrZero / 3
+        case "Annually": return b.amountOrZero / 12
+        default: return b.amountOrZero
         }
     }
 
@@ -216,10 +216,11 @@ struct BudgetStatusWidget: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .ctCard()
         } else if store.periodIncome > 0 {
-            let obligations = store.activeBills
+            let dueBills: [Bill] = store.activeBills
                 .filter { BillSchedule.dueInPeriod($0, bounds: store.currentBounds, tz: store.tz) }
-                .reduce(0) { $0 + $1.amount }
-                + store.activeCards.reduce(0) { $0 + $1.minPayment }
+            let billTotal: Double = dueBills.reduce(0) { $0 + $1.amountOrZero }
+            let cardTotal: Double = store.activeCards.reduce(0) { $0 + $1.minPaymentOrZero }
+            let obligations: Double = billTotal + cardTotal
             let cushion = store.periodIncome - obligations
             VStack(alignment: .leading, spacing: 6) {
                 FieldLabel(text: "Cushion after bills")

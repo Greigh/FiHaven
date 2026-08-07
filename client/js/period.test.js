@@ -46,11 +46,34 @@ describe('period — periodBounds', () => {
 });
 
 describe('period — getPeriodConfig', () => {
-  it('clamps invalid values to safe defaults', () => {
+  // Out-of-range clamps to the nearest valid value, matching Kotlin's
+  // `coerceIn` and Swift's `min(max(…))`. This used to reset to the default
+  // instead, so one account computed a different budget period on web than on
+  // the phone — day 31 read as the 1st here and the 28th on both native
+  // clients, moving every period boundary and with it "due this period", paid
+  // state, and rollover.
+  it('clamps out-of-range values to the nearest valid one, as the native clients do', () => {
     const cfg = getPeriodConfig({ periodMode: 'rolling', periodStartDay: 99, periodLength: 3 });
     expect(cfg.mode).toBe('rolling');
-    expect(cfg.startDay).toBe(1);  // 99 out of [1,28] → 1
-    expect(cfg.length).toBe(35);   // 3 below the 7-day floor → default 35
+    expect(cfg.startDay).toBe(28); // 99 above the ceiling → 28
+    expect(cfg.length).toBe(7);    // 3 below the 7-day floor → 7
+
+    const high = getPeriodConfig({ periodStartDay: 31, periodLength: 200 });
+    expect(high.startDay).toBe(28);
+    expect(high.length).toBe(90);
+
+    const low = getPeriodConfig({ periodStartDay: 0, periodLength: -5 });
+    expect(low.startDay).toBe(1);
+    expect(low.length).toBe(7);
+  });
+
+  // Absent or unparseable is a different case: there is no intent to preserve,
+  // so it falls back to the default the native clients use (1 / 35).
+  it('falls back to the default when the value is missing or unparseable', () => {
+    expect(getPeriodConfig({}).startDay).toBe(1);
+    expect(getPeriodConfig({}).length).toBe(35);
+    expect(getPeriodConfig({ periodStartDay: 'abc', periodLength: null }).startDay).toBe(1);
+    expect(getPeriodConfig({ periodStartDay: 'abc', periodLength: null }).length).toBe(35);
   });
 
   it('defaults an unknown mode to calendar', () => {
