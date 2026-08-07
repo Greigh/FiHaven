@@ -89,6 +89,35 @@ describe('emails.js', () => {
     expect(msg.text).toContain('https://fihaven.app/dashboard');
   });
 
+  // A bill with no amount set must not be reported as "$0.00" — that reads as
+  // "this costs nothing", the opposite of what the app's own rows say ("No
+  // amount set"). An explicit 0 is a real answer and still shows as $0.00.
+  it('sendBillReminder says "no amount set" for a blank amount', async () => {
+    await emails.sendBillReminder(
+      'user@test.com',
+      [{ name: 'Water', amount: null, dueDay: 12 }],
+      3,
+      'USD',
+    );
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.text).toContain('• Water — no amount set (due on the 12th)');
+    expect(msg.text).not.toContain('Water — $0.00');
+    expect(msg.html).toContain('no amount set');
+  });
+
+  it('sendBillReminder still shows $0.00 for a deliberate zero', async () => {
+    await emails.sendBillReminder(
+      'user@test.com',
+      [{ name: 'Water', amount: 0, dueDay: 12 }],
+      3,
+      'USD',
+    );
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.text).toContain('• Water — $0.00 (due on the 12th)');
+  });
+
   it('sendBillReminder uses plural subject for multiple bills', async () => {
     await emails.sendBillReminder(
       'user@test.com',

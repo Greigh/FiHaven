@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -201,9 +200,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                     SpendingTxRow(
                         tx = tx,
                         onEdit = { editingTx = tx },
-                        onDelete = { vm.deleteTransaction(tx) },
                         onKeep = { vm.acceptBankTransaction(tx) },
-                        onDecline = { vm.declineBankTransaction(tx) },
                     )
                 }
             }
@@ -215,13 +212,14 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     if (editingBudgets) CategoryBudgetsDialog(vm, budgets) { editingBudgets = false }
 }
 
+// No delete affordance in the row itself: a one-tap ✕ sitting next to the edit
+// pencil was far too easy to hit by accident. Delete/decline lives in the
+// transaction editor, which the row opens on tap.
 @Composable
 private fun SpendingTxRow(
     tx: SpendTransaction,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
     onKeep: () -> Unit,
-    onDecline: () -> Unit,
 ) {
     val title = tx.merchant.ifBlank { tx.category }
     val subtitle = buildString {
@@ -263,16 +261,6 @@ private fun SpendingTxRow(
             IconButton(onClick = onKeep, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.CheckCircle, contentDescription = "Keep pending bank transaction", tint = Ct.colors.accent)
             }
-        }
-        IconButton(
-            onClick = { if (tx.isBank) onDecline() else onDelete() },
-            modifier = Modifier.size(48.dp),
-        ) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = if (tx.isBank) "Not mine — remove and don’t import again" else "Delete transaction",
-                tint = Ct.colors.muted,
-            )
         }
     }
 }

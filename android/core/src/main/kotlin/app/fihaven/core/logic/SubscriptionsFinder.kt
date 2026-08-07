@@ -32,11 +32,11 @@ object SubscriptionsFinder {
     )
 
     fun monthlyOfBill(b: Bill): Double = when (b.frequency) {
-        "Weekly" -> b.amount * 52 / 12
-        "Bi-weekly" -> b.amount * 26 / 12
-        "Quarterly" -> b.amount / 3
-        "Annually" -> b.amount / 12
-        else -> b.amount
+        "Weekly" -> b.amountOrZero * 52 / 12
+        "Bi-weekly" -> b.amountOrZero * 26 / 12
+        "Quarterly" -> b.amountOrZero / 3
+        "Annually" -> b.amountOrZero / 12
+        else -> b.amountOrZero
     }
 
     /** True when amounts are within [AMOUNT_SIMILARITY] of each other (relative to max). */
@@ -71,7 +71,7 @@ object SubscriptionsFinder {
                     merchantKey = mk,
                     name = name,
                     monthly = monthlyOfBill(b),
-                    amount = b.amount,
+                    amount = b.amountOrZero,
                     source = "bill",
                     lastDate = null,
                     priceUp = null,

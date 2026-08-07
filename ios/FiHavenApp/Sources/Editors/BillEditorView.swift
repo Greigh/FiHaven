@@ -11,7 +11,7 @@ struct BillEditorView: View {
     @State private var name = ""
     @State private var business = ""
     @State private var category = "Other"
-    @State private var amount: Double = 0
+    @State private var amount: Double?
     @State private var dueDay = 1
     @State private var frequency = "Monthly"
     @State private var autopay = false
@@ -45,7 +45,7 @@ struct BillEditorView: View {
                                 .accessibilityLabel(c)
                         }
                     }
-                    CurrencyField(label: "Amount", value: $amount)
+                    OptionalCurrencyField(label: "Amount", value: $amount)
                     Picker("Due day", selection: $dueDay) {
                         ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
                     }

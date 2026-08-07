@@ -189,7 +189,10 @@ final class AppStore: ObservableObject {
     /// every month the period overlaps — to line up with the server.
     /// Mirrors autopay.js + the server scheduler.
     func runAutopayMark() {
-        guard data.settings.autopayMark else { return }
+        // Pro-only (Balanced tiering) and opt-in, matching autopay.js
+        // (`entitlement.pro`) and the server scheduler (`isPro`). Without this
+        // the setting still auto-marked for a Free account on iOS alone.
+        guard data.settings.autopayMark, data.entitlement?.pro == true else { return }
         let bounds = currentBounds
         let cal = DateLogic.calendar(tz: tz)
         let todayDate = DateLogic.today(tz: tz)
@@ -230,9 +233,14 @@ final class AppStore: ObservableObject {
             let refId = String(b.id)
             if Schedule.paidAmount(data.payments, type: "bill", refId: refId, in: bounds) > Schedule.paidEpsilon { return }
             if Schedule.isSkipped(data.payments, type: "bill", refId: refId, in: bounds) { return }
+            // Nothing to auto-mark when the amount was never filled in: a $0
+            // payment invents one that did not happen, leaves a phantom row in
+            // History, and feeds a 0 into recentPaymentAverage (which drives the
+            // rollover prefill). Blank is unfinished setup, not a $0 charge.
+            if Schedule.needsAmount(bill: b, payments: data.payments, in: bounds) { return }
             newPayments.append(Payment(
                 id: Self.newPaymentID(), type: "bill", refId: refId, name: b.name,
-                amount: b.amount, date: todayISO(), monthKey: mkCal, note: "Auto-marked (autopay)"
+                amount: b.amountOrZero, date: todayISO(), monthKey: mkCal, note: "Auto-marked (autopay)"
             ))
             handled.insert(refKey)
             newlyMarked.append(refKey)
@@ -254,6 +262,10 @@ final class AppStore: ObservableObject {
 
         for b in data.bills { considerBill(b) }
         for c in data.cards {
+            // Same rule as bills: a card whose driving amount was never set has
+            // nothing to auto-mark.
+            if Schedule.needsAmount(card: c, policy: paidGoalPolicy,
+                                    payments: data.payments, in: bounds) { continue }
             // Autopay pulls on `autopayDay`; nil falls back to the due day.
             let effDay = (c.autopayDay ?? 0) > 0 ? c.autopayDay : c.dueDay
             considerCard(type: "card", refId: String(c.id), name: c.name + " (payment)",
@@ -513,7 +525,7 @@ final class AppStore: ObservableObject {
     /// Pre-filled amount for a bill under the active rollover policy.
     func rolloverPrefillAmount(_ bill: Bill) -> Double {
         let avg = Schedule.recentPaymentAverage(data.payments, type: "bill", refId: String(bill.id))
-        return Schedule.rolloverAmount(mode: data.settings.rolloverPrefill, currentAmount: bill.amount, recentAvg: avg)
+        return Schedule.rolloverAmount(mode: data.settings.rolloverPrefill, currentAmount: bill.amountOrZero, recentAvg: avg)
     }
 
     /// The date a bill lands on in the month being reviewed. Anchored to the 1st
@@ -654,8 +666,39 @@ final class AppStore: ObservableObject {
         return max(0, goalAmount(type: type, refId: refId) - paidAmount(type: type, refId: refId))
     }
 
+    /// True when an item's amount was never filled in (nil, not an explicit 0)
+    /// and nothing has been paid toward it — unfinished setup rather than a
+    /// settled debt. The rule itself lives in `Schedule.needsAmount`, which the
+    /// core checks pin; this only resolves the id to a record.
+    func needsAmount(type: String, refId: String) -> Bool {
+        if type == "bill" {
+            guard let b = data.bills.first(where: { String($0.id) == refId }) else { return false }
+            return Schedule.needsAmount(bill: b, payments: data.payments, in: currentBounds)
+        }
+        guard let c = data.cards.first(where: { String($0.id) == refId }) else { return false }
+        return Schedule.needsAmount(card: c, policy: paidGoalPolicy,
+                                    payments: data.payments, in: currentBounds)
+    }
+
     func isFullyPaid(type: String, refId: String) -> Bool {
-        remaining(type: type, refId: refId) <= Schedule.paidEpsilon
+        Schedule.isFullyPaid(
+            goal: goalAmount(type: type, refId: refId),
+            paid: paidAmount(type: type, refId: refId),
+            skipped: isSkipped(type: type, refId: refId),
+            needsAmount: needsAmount(type: type, refId: refId)
+        )
+    }
+
+    /// True when an item is settled because there is genuinely nothing to pay —
+    /// an amount deliberately set to 0 — rather than because a payment landed.
+    /// Lets a row say "Nothing due" instead of claiming a payment never made.
+    func nothingDue(type: String, refId: String) -> Bool {
+        Schedule.nothingDue(
+            goal: goalAmount(type: type, refId: refId),
+            paid: paidAmount(type: type, refId: refId),
+            skipped: isSkipped(type: type, refId: refId),
+            needsAmount: needsAmount(type: type, refId: refId)
+        )
     }
 
     func paidState(type: String, refId: String) -> PaidState {
@@ -670,7 +713,7 @@ final class AppStore: ObservableObject {
     func cardSkipWarning(refId: String, name: String) -> String? {
         guard let c = data.cards.first(where: { String($0.id) == refId }) else { return nil }
         let paid = paidAmount(type: "card", refId: refId)
-        let min  = c.minPayment
+        let min  = c.minPaymentOrZero
         let goal = goalAmount(type: "card", refId: refId)
         if min > 0, paid + Schedule.paidEpsilon < min {
             return "You haven’t paid the minimum of \(Money.fmt(min)) on \(name) yet. "
@@ -688,5 +731,7 @@ final class AppStore: ObservableObject {
     func remaining(_ item: UpcomingItem) -> Double { remaining(type: item.type, refId: item.refId) }
     func isSkipped(_ item: UpcomingItem) -> Bool { isSkipped(type: item.type, refId: item.refId) }
     func isFullyPaid(_ item: UpcomingItem) -> Bool { isFullyPaid(type: item.type, refId: item.refId) }
+    func needsAmount(_ item: UpcomingItem) -> Bool { needsAmount(type: item.type, refId: item.refId) }
+    func nothingDue(_ item: UpcomingItem) -> Bool { nothingDue(type: item.type, refId: item.refId) }
     func paidState(_ item: UpcomingItem) -> PaidState { paidState(type: item.type, refId: item.refId) }
 }

@@ -404,7 +404,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
         if (bal <= 0) return@mapNotNull null
-        val need = maxOf(c.minPayment, Schedule.promoNeeded(c, zone))
+        val need = maxOf(c.minPaymentOrZero, Schedule.promoNeeded(c, zone))
         when {
             mo <= 0 -> "🚨 ${c.name} — 0% promo expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
             mo <= 2 -> "🔥 ${c.name} — 0% promo ends in ~$mo mo. Pay ${Money.fmt(need)}/mo to avoid interest."
@@ -415,8 +415,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     val dashboardAlerts = utilAlerts + trialAlerts + promoAlerts
     // Subscriptions: bills flagged Subscriptions + merchants recurring across 2+ months.
     fun monthlyOfBill(b: app.fihaven.core.model.Bill) = when (b.frequency) {
-        "Weekly" -> b.amount * 52 / 12; "Bi-weekly" -> b.amount * 26 / 12
-        "Quarterly" -> b.amount / 3; "Annually" -> b.amount / 12; else -> b.amount
+        "Weekly" -> b.amountOrZero * 52 / 12; "Bi-weekly" -> b.amountOrZero * 26 / 12
+        "Quarterly" -> b.amountOrZero / 3; "Annually" -> b.amountOrZero / 12; else -> b.amountOrZero
     }
     val subs = buildList {
         // Same archived gate SubscriptionsFinder applies, so the widget's
@@ -507,6 +507,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                                 goal = vm.goalAmount(item),
                                                 remaining = vm.remainingFor(item),
                                                 skipped = vm.isSkipped(item),
+                                                needsAmount = vm.needsAmount(item),
+                                                nothingDue = vm.nothingDue(item),
                                                 zone = zone,
                                                 periodNoun = vm.periodNoun(item),
                                                 onPay = { paying = item },
@@ -516,6 +518,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                                     vm.setPaid(item.type, item.refId, item.name,
                                                         vm.goalAmount(item), false)
                                                 },
+                                                onConfirmZero = { vm.confirmZeroAmount(item.type, item.refId) },
                                                 onEdit = {
                                                     if (item.type == "bill")
                                                         editingBill = data.bills.firstOrNull { it.id.toString() == item.refId }
@@ -736,26 +739,37 @@ private fun UpcomingRow(
     goal: Double,
     remaining: Double,
     skipped: Boolean,
+    needsAmount: Boolean,
+    nothingDue: Boolean,
     zone: java.time.ZoneId,
     periodNoun: String = "month",
     onPay: () -> Unit,
     onSkip: () -> Unit,
     onUnskip: () -> Unit,
     onUnmark: () -> Unit,
+    onConfirmZero: () -> Unit,
     onEdit: () -> Unit,
 ) {
     val c = Ct.colors
     val dueTint = when {
+        needsAmount -> c.orange
+        // Settled because nothing is owed, not because a payment landed — the
+        // paid-green would claim credit for a payment that never happened.
+        nothingDue -> c.muted
         state == PaidState.FULL -> c.green
         state == PaidState.PARTIAL -> c.orange
         item.days < 0 -> c.red
         item.days <= 3 -> c.orange
         else -> c.muted
     }
-    val label = when (state) {
-        PaidState.FULL -> "Paid this $periodNoun"
-        PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-        PaidState.UNPAID -> dueLabel(item, false, zone)
+    val label = when {
+        // An item with no amount can't be measured against anything, so say that
+        // rather than showing a due countdown against $0.
+        needsAmount -> "No amount set · tap to add one"
+        nothingDue -> "Nothing due this $periodNoun"
+        state == PaidState.FULL -> "Paid this $periodNoun"
+        state == PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
+        else -> dueLabel(item, false, zone)
     }
     // No own card — the dashboard wraps the whole list in one CtCard with
     // dividers (iOS parity). Internal padding matches iOS's row insets.
@@ -796,7 +810,18 @@ private fun UpcomingRow(
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 when {
                     skipped -> QuickAction("Undo skip", c.accent, onUnskip)
+                    // A $0 row is settled with no payment behind it: Undo deletes
+                    // a payment record and would find none, leaving a button that
+                    // does nothing. There is also nothing to pay.
+                    nothingDue -> Unit
                     state == PaidState.FULL -> QuickAction("Undo", c.muted, onUnmark)
+                    // Skip is meaningless on a row with no amount — it would hide
+                    // the row for one period and leave the real gap unanswered.
+                    // "It's $0" settles it for good, in a tap.
+                    needsAmount -> {
+                        QuickAction("It's $0", c.muted, onConfirmZero)
+                        QuickAction("Pay", c.accent, onPay)
+                    }
                     else -> {
                         QuickAction("Skip", c.muted, onSkip)
                         QuickAction("Pay", c.accent, onPay)

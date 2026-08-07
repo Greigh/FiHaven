@@ -198,7 +198,13 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                 val owedCount = creditCards.count {
                     vm.remainingFor("card", it.id.toString()) > Schedule.PAID_EPSILON
                 }
-                item { CardsSummaryCard(creditCards, payThisMonth, owedCount) }
+                // A card with no minimum set owes 0 under the policy, so it would
+                // otherwise land in the "all caught up" count — the hero claiming
+                // every card is paid while the row below says no amount is set.
+                val needsAmountCount = creditCards.count {
+                    vm.needsAmount("card", it.id.toString())
+                }
+                item { CardsSummaryCard(creditCards, payThisMonth, owedCount, needsAmountCount) }
                 item { CardsPayoffCard(creditCards, zone) }
             }
             if (cards.isEmpty()) {
@@ -267,6 +273,9 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                         amounts = vm.cardAmounts(card),
                         headline = vm.cardHeadline(),
                         skipped = vm.isSkipped("card", card.id.toString()),
+                        needsAmount = vm.needsAmount("card", card.id.toString()),
+                        nothingDue = vm.nothingDue("card", card.id.toString()),
+                        onConfirmZero = { vm.confirmZeroAmount("card", card.id.toString()) },
                         onPay = { paying = card },
                         onEdit = { editing = card },
                         onSkip = { requestSkip(card) },
@@ -376,10 +385,13 @@ private fun CardRow(
     /** Which of [amounts] leads the row — "due" | "current" | "owed". */
     headline: String,
     skipped: Boolean = false,
+    needsAmount: Boolean = false,
+    nothingDue: Boolean = false,
     onPay: () -> Unit,
     onEdit: () -> Unit,
     onSkip: () -> Unit = {},
     onUnskip: () -> Unit = {},
+    onConfirmZero: () -> Unit = {},
 ) {
     val isLoan = card.type == "loan"
     // Utilization is measured against the live balance — charges made since the
@@ -523,22 +535,30 @@ private fun CardRow(
             // show "not paid" (their balance/minimum are already on the row).
             val suggested: Pair<Double, Boolean>? = when {
                 isLoan -> null
-                promoActive -> maxOf(card.minPayment, Schedule.promoNeeded(card, zone)) to true
+                promoActive -> maxOf(card.minPaymentOrZero, Schedule.promoNeeded(card, zone)) to true
                 (card.recommendedPayment ?: 0.0) > 0.0 -> card.recommendedPayment!! to false
                 else -> null
             }
-            val statusText = if (skipped) "⏭ Skipped this month" else when (state) {
-                PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
-                PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
-                PaidState.UNPAID -> when {
-                    isLoan -> "Monthly payment: ${Money.fmt(card.minPayment)}"
-                    suggested != null -> "Suggested ${Money.fmt(suggested.first)}${if (suggested.second) "/mo" else ""}"
-                    else -> "Not paid this month"
-                }
+            val statusText = when {
+                skipped -> "⏭ Skipped this month"
+                // Nothing to measure a payment against. Without this a zero goal
+                // satisfied "remaining <= 0" and the row read as paid outright.
+                needsAmount -> if (isLoan) "No monthly payment set · tap to add one"
+                    else "No minimum payment set · tap to add one"
+                nothingDue -> "Nothing due this month"
+                state == PaidState.FULL -> "Paid ${Money.fmt(paidSoFar)} this month"
+                state == PaidState.PARTIAL -> "Paid ${Money.fmt(paidSoFar)} of ${Money.fmt(goal)}"
+                isLoan -> "Monthly payment: ${Money.fmt(card.minPaymentOrZero)}"
+                suggested != null -> "Suggested ${Money.fmt(suggested.first)}${if (suggested.second) "/mo" else ""}"
+                else -> "Not paid this month"
             }
             val emphasizeStatus = state == PaidState.UNPAID && !skipped && suggested != null
             val statusColor = when {
                 skipped -> Ct.colors.muted
+                needsAmount -> Ct.colors.orange
+                // Settled because nothing is owed, not because a payment landed —
+                // the paid-green would claim credit for a payment never made.
+                nothingDue -> Ct.colors.muted
                 state == PaidState.FULL -> Ct.colors.green
                 state == PaidState.PARTIAL -> Ct.colors.orange
                 emphasizeStatus -> Ct.colors.text
@@ -553,6 +573,11 @@ private fun CardRow(
                 when {
                     skipped -> TextButton(onClick = onUnskip) {
                         Text("Undo skip", color = Ct.colors.accent)
+                    }
+                    // Skip is meaningless without an amount — see UpcomingRow.
+                    needsAmount -> {
+                        TextButton(onClick = onConfirmZero) { Text("It's $0", color = Ct.colors.muted) }
+                        TextButton(onClick = onPay) { Text("Pay", color = Ct.colors.green) }
                     }
                     state != PaidState.FULL -> {
                         TextButton(onClick = onSkip) { Text("Skip", color = Ct.colors.muted) }
@@ -603,7 +628,7 @@ fun CardEditorDialog(
     }
     var balance by remember { mutableStateOf(card?.balance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var limit by remember { mutableStateOf(card?.limit?.takeIf { it != 0.0 }?.toString() ?: "") }
-    var minPayment by remember { mutableStateOf(card?.minPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
+    var minPayment by remember { mutableStateOf(card?.minPayment?.toString() ?: "") }
     var recommendedPayment by remember { mutableStateOf(card?.recommendedPayment?.takeIf { it != 0.0 }?.toString() ?: "") }
     var apr by remember { mutableStateOf(card?.regularAPR?.takeIf { it != 0.0 }?.toString() ?: "") }
     var annualFee by remember { mutableStateOf(card?.annualFee?.takeIf { it != 0.0 }?.toString() ?: "") }
@@ -662,7 +687,10 @@ fun CardEditorDialog(
                     plaidAccountId = plaidAccountId.takeIf { it.isNotBlank() },
                     balance = balance.toDoubleOrNull() ?: 0.0,
                     limit = if (isLoan) 0.0 else (limit.toDoubleOrNull() ?: 0.0),
-                    minPayment = minPayment.toDoubleOrNull() ?: 0.0,
+                    // Blank stays null rather than collapsing to 0 — see the
+                    // bill editor. On a loan this drives the whole goal, so a 0
+                    // would make the row read as fully paid every month.
+                    minPayment = minPayment.trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull(),
                     recommendedPayment = recommendedPayment.toDoubleOrNull()?.takeIf { it > 0.0 },
                     regularAPR = apr.toDoubleOrNull() ?: 0.0,
                     hasPromo = if (isLoan) false else hasPromo,
@@ -961,7 +989,12 @@ private fun accountIcon(t: String) = when (t) {
 }
 
 @Composable
-private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double, owedCount: Int) {
+private fun CardsSummaryCard(
+    cards: List<Card>,
+    payThisMonth: Double,
+    owedCount: Int,
+    needsAmountCount: Int = 0,
+) {
     // Live balances, so a card charged since its statement closed still counts
     // toward the total and the utilization it drives at the issuer.
     val totalBalance = cards.sumOf { Schedule.liveBalance(it) }
@@ -971,9 +1004,12 @@ private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double, owedCount:
     // Two zones, matching the web: what you owe, then the credit line. The
     // itemized amounts use the card rows' own words so the totals and the rows
     // beneath them can't seem to describe different things.
-    val totalStatement = cards.sumOf { if (it.type == "loan") it.minPayment else it.balance }
-    val totalMin = cards.sumOf { it.minPayment }
-    val caughtUp = payThisMonth <= Schedule.PAID_EPSILON
+    val totalStatement = cards.sumOf { if (it.type == "loan") it.minPaymentOrZero else it.balance }
+    val totalMin = cards.sumOf { it.minPaymentOrZero }
+    // Unfinished setup is not being caught up: a card with no minimum set owes 0
+    // under the policy, and without this the hero read "all N cards paid this
+    // period" directly above a row saying no amount was ever entered.
+    val caughtUp = payThisMonth <= Schedule.PAID_EPSILON && needsAmountCount == 0
     // The plan total and the statement total answer different questions and are
     // free to disagree — a promo card contributes its monthly slice, a 0%-APR
     // card only its minimum. Naming the gap keeps the pair from reading as one
@@ -997,8 +1033,17 @@ private fun CardsSummaryCard(cards: List<Card>, payThisMonth: Double, owedCount:
                     fontFamily = PlexMono,
                 )
                 Text(
-                    if (caughtUp) "all ${cards.size} card$plural paid this period"
-                    else "across $owedCount of ${cards.size} card$plural",
+                    when {
+                        caughtUp -> "all ${cards.size} card$plural paid this period"
+                        // Name the gap rather than folding it into the owed count:
+                        // these cards need setup, not a payment.
+                        needsAmountCount > 0 && owedCount == 0 ->
+                            "$needsAmountCount of ${cards.size} card$plural need an amount"
+                        needsAmountCount > 0 ->
+                            "across $owedCount of ${cards.size} card$plural · " +
+                                "$needsAmountCount need an amount"
+                        else -> "across $owedCount of ${cards.size} card$plural"
+                    },
                     color = Ct.colors.muted, fontSize = 12.sp,
                 )
             }

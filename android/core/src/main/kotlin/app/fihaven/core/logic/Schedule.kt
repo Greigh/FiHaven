@@ -61,7 +61,7 @@ object Schedule {
                 UpcomingItem(
                     name = b.name,
                     business = b.business.orEmpty(),
-                    amount = b.amount,
+                    amount = b.amountOrZero,
                     days = days,
                     nextDue = BillSchedule.nextDueDate(b, zone, DateLogic.today(zone, now)),
                     type = "bill",
@@ -75,7 +75,7 @@ object Schedule {
         for (c in cards) {
             val dd = c.dueDay ?: continue
             if (dd == 0) continue
-            val needed = if (c.hasPromo) max(c.minPayment, promoNeeded(c, zone, now)) else c.minPayment
+            val needed = if (c.hasPromo) max(c.minPaymentOrZero, promoNeeded(c, zone, now)) else c.minPaymentOrZero
             val ref = c.id.toString()
             val days = if (bounds != null) {
                 val goal = goalAmount(c, policy, payments, bounds, zone, now)
@@ -215,7 +215,7 @@ object Schedule {
             max(0.0, goalAmount(card, policy, payments, bounds, zone, now) - paidAmount(payments, "card", ref, bounds))
         }
         return CardAmounts(
-            due = if (card.type == "loan") card.minPayment else card.balance,
+            due = if (card.type == "loan") card.minPaymentOrZero else card.balance,
             current = liveBalance(card),
             owed = owed,
         )
@@ -238,11 +238,11 @@ object Schedule {
         card.recommendedPayment?.let { if (it > 0) return it }
         // Loans: the recommended payment is the scheduled monthly payment, never
         // the whole principal (paying it off is still an explicit option).
-        if (card.type == "loan") return card.minPayment
-        if (card.hasPromo) return max(card.minPayment, promoNeeded(card, zone, now))
+        if (card.type == "loan") return card.minPaymentOrZero
+        if (card.hasPromo) return max(card.minPaymentOrZero, promoNeeded(card, zone, now))
         // 0% interest (no active promo): carrying a balance costs nothing, so the
         // recommended payment is just the minimum — not the whole balance.
-        if (card.regularAPR <= 0) return card.minPayment
+        if (card.regularAPR <= 0) return card.minPaymentOrZero
         return card.balance
     }
 
@@ -287,8 +287,8 @@ object Schedule {
         zone: ZoneId,
         now: Instant = Instant.now(),
     ): Double = when (kind) {
-        PayTarget.MINIMUM -> card.minPayment
-        PayTarget.MONTHLY -> card.recommendedPayment?.takeIf { it > 0 } ?: card.minPayment
+        PayTarget.MINIMUM -> card.minPaymentOrZero
+        PayTarget.MONTHLY -> card.recommendedPayment?.takeIf { it > 0 } ?: card.minPaymentOrZero
         PayTarget.PAYOFF, PayTarget.FULL -> cardAtPeriodStart(card, paid).balance
         PayTarget.RECOMMENDED -> recommendedAmount(cardAtPeriodStart(card, paid), zone, now)
     }
@@ -303,7 +303,7 @@ object Schedule {
     ): Double = max(0.0, payTarget(kind, card, paid, zone, now) - paid)
 
     /** A bill's fully-paid goal is always its full amount. */
-    fun goalAmount(bill: Bill): Double = bill.amount
+    fun goalAmount(bill: Bill): Double = bill.amountOrZero
 
     /**
      * A card's fully-paid goal this period — the pay target the active policy names
@@ -342,6 +342,72 @@ object Schedule {
         zone,
         now,
     )
+
+    // ── Paid state ──────────────────────────────────────────────────
+    /**
+     * True when a bill has no amount to measure against: the field was never
+     * filled in (null, not an explicit 0) and nothing has been paid toward it.
+     *
+     * This has to be separate from "fully paid", because a zero goal satisfies
+     * `remaining <= 0` on its own: a bill saved without an amount read "Paid
+     * this month" every month with no payment record behind it, and the row's
+     * Undo had nothing to remove (it deletes a payment record), so the state
+     * couldn't be cleared from the UI at all. Mirrors needsAmount in utils.js.
+     *
+     * A skipped item is excluded — it owes nothing by choice, which is an
+     * answer rather than a missing one.
+     */
+    fun needsAmount(bill: Bill, payments: List<Payment>, bounds: PeriodBounds): Boolean {
+        val ref = bill.id.toString()
+        if (isSkipped(payments, "bill", ref, bounds)) return false
+        if (paidAmount(payments, "bill", ref, bounds) > PAID_EPSILON) return false
+        return bill.amount == null
+    }
+
+    /**
+     * True when a card/loan has no amount to measure against. Only the field the
+     * active goal actually reads counts: a balance-derived goal (the recommended
+     * / full policies on a credit card) legitimately reaches 0 once the card is
+     * paid off, which is "nothing due" rather than missing setup.
+     */
+    fun needsAmount(
+        card: Card,
+        policy: PaidGoalPolicy,
+        payments: List<Payment>,
+        bounds: PeriodBounds,
+    ): Boolean {
+        val ref = card.id.toString()
+        if (isSkipped(payments, "card", ref, bounds)) return false
+        if (paidAmount(payments, "card", ref, bounds) > PAID_EPSILON) return false
+        if (card.type == "loan") {
+            // An override only drives the goal while it is above zero (see
+            // PayTarget.MONTHLY); otherwise the scheduled payment does.
+            if ((card.recommendedPayment ?: 0.0) > 0) return false
+            return card.minPayment == null
+        }
+        return policy == PaidGoalPolicy.MINIMUM && card.minPayment == null
+    }
+
+    /**
+     * True once nothing remains toward [goal]. An item with no amount set is
+     * never "paid" — see [needsAmount]. Mirrors isFullyPaid in utils.js.
+     */
+    fun isFullyPaid(goal: Double, paid: Double, skipped: Boolean, needsAmount: Boolean): Boolean {
+        if (needsAmount) return false
+        if (skipped) return true
+        return max(0.0, goal - paid) <= PAID_EPSILON
+    }
+
+    /**
+     * True when an item is settled because there is genuinely nothing to pay —
+     * an amount deliberately set to 0 — rather than because a payment was
+     * recorded. Lets a row say "Nothing due" instead of claiming credit for a
+     * payment that never happened. Mirrors nothingDue in utils.js.
+     */
+    fun nothingDue(goal: Double, paid: Double, skipped: Boolean, needsAmount: Boolean): Boolean {
+        if (skipped || needsAmount) return false
+        return paid <= PAID_EPSILON && isFullyPaid(goal, paid, false, false)
+    }
 }
 
 /** How much must be paid before a bill/card counts as fully paid. */

@@ -23,7 +23,7 @@ const {
   isValidEmail,
   checkPasswordPolicy,
   sendError,
-  BCRYPT_COST,
+  ACTIVE_BCRYPT_COST,
 } = require('../util');
 
 const router = express.Router();
@@ -43,7 +43,7 @@ const MAX_MFA_ATTEMPTS = 5;
 const MAX_MFA_SENDS = 3;
 // A pre-computed hash used to run a dummy bcrypt.compare when an
 // account does not exist, keeping login timing constant.
-const DUMMY_HASH = bcrypt.hashSync('fihaven-dummy-password', BCRYPT_COST);
+const DUMMY_HASH = bcrypt.hashSync('fihaven-dummy-password', ACTIVE_BCRYPT_COST);
 
 // Native clients send `X-Auth-Mode: token` to request a cookieless,
 // long-lived session whose id comes back as a Bearer token. Web
@@ -98,7 +98,7 @@ router.post('/signup', async (req, res) => {
 
   let user;
   try {
-    const hash = await bcrypt.hash(body.password, BCRYPT_COST);
+    const hash = await bcrypt.hash(body.password, ACTIVE_BCRYPT_COST);
     user = dbApi.createUser(email, hash);
   } catch (err) {
     // Covers the race where the unique constraint fires after the check.
@@ -181,7 +181,7 @@ router.post('/reset', async (req, res) => {
   const pwError = checkPasswordPolicy(body.password, user.email);
   if (pwError) return sendError(res, 400, pwError);
 
-  const hash = await bcrypt.hash(body.password, BCRYPT_COST);
+  const hash = await bcrypt.hash(body.password, ACTIVE_BCRYPT_COST);
   dbApi.updateUserPassword(user.id, hash);
   tokens.consume(found.id);
   dbApi.deleteUserSessions(user.id);

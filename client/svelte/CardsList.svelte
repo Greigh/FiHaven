@@ -14,11 +14,11 @@
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
     cardAmounts, cardHeadlineMode, otherCardAmounts,
-    paidState, paidAmount, goalAmountFor, remainingForItem, payTargetRemaining,
+    paidState, paidAmount, goalAmountFor, remainingForItem, payTargetRemaining, needsAmount, nothingDue,
     paymentStats, archiveInsteadOfDelete,
   } from '../js/utils.js';
   import { issuerIconInfo, issuerIconMark } from '../js/issuerIcons.js';
-  import { askDelete, openPayModal, editCard, skipMonth, unskipMonth } from '../js/modals.js';
+  import { askDelete, openPayModal, editCard, skipMonth, unskipMonth, confirmZeroAmount } from '../js/modals.js';
   import {
     pendingBalanceProposals,
     acceptBalanceProposal,
@@ -441,6 +441,8 @@
            plate it was drawn for instead of carrying the brand color. -->
       {@const chipPlated = !!(issuerIcon.isLogo && issuerIcon.fullColor)}
       {@const state   = paidState('card', String(c.id), mk)}
+      {@const noAmount = needsAmount('card', String(c.id), mk)}
+      {@const noneDue = nothingDue('card', String(c.id), mk)}
       {@const stats   = paymentStats('card', String(c.id), 6)}
       {@const hasPromo = !!(c.hasPromo && c.promoEndDate)}
       {@const neededPayment = hasPromo
@@ -483,9 +485,15 @@
                   {#if c.issuer}<span style="color:var(--muted);font-weight:500;">{c.issuer} · </span>{/if}
                   {c.name}
                 </div>
-                {#if state === 'skipped' || state === 'full' || state === 'partial'}
+                {#if noAmount || noneDue || state === 'skipped' || state === 'full' || state === 'partial'}
                   <div class="card-row-status">
-                    {#if state === 'skipped'}
+                    {#if noAmount}
+                      <span class="badge badge-orange" title="{(c.type || 'card') === 'loan' ? 'This loan has no monthly payment set, so there\'s nothing to track against.' : 'This card has no minimum payment set, so there\'s nothing to track against.'}">
+                        No {(c.type || 'card') === 'loan' ? 'monthly payment' : 'minimum payment'} set
+                      </span>
+                    {:else if noneDue}
+                      <span class="badge badge-gray" title="Nothing is owed on this card this month">Nothing due</span>
+                    {:else if state === 'skipped'}
                       <span class="badge badge-gray" title="No payment expected this month">⏭ Skipped</span>
                     {:else if state === 'full'}
                       <span class="badge badge-green">✓ Paid {fmt(paidAmount('card', String(c.id), mk))}</span>
@@ -549,21 +557,39 @@
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 Pay {fmt(remainingForItem('card', String(c.id), mk))} more
               </button>
-              <button class="btn btn-ghost btn-sm"
-                title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
-                onclick={() => skipMonth('card', String(c.id), c.name)}>
-                Skip
-              </button>
+              {#if noAmount}
+                <!-- Skip is meaningless without an amount — see BillsList. -->
+                <button class="btn btn-ghost btn-sm"
+                  title="This {c.type === 'loan' ? 'loan' : 'card'} really has no payment due — record that and stop asking"
+                  onclick={() => confirmZeroAmount('card', String(c.id))}>
+                  It's $0
+                </button>
+              {:else}
+                <button class="btn btn-ghost btn-sm"
+                  title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
+                  onclick={() => skipMonth('card', String(c.id), c.name)}>
+                  Skip
+                </button>
+              {/if}
             {:else if state !== 'full'}
               <button class="btn btn-green btn-sm"
                 onclick={() => openPayModal('card', String(c.id), c.name, neededPayment)}>
                 ✓ Pay
               </button>
-              <button class="btn btn-ghost btn-sm"
-                title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
-                onclick={() => skipMonth('card', String(c.id), c.name)}>
-                Skip
-              </button>
+              {#if noAmount}
+                <!-- Skip is meaningless without an amount — see BillsList. -->
+                <button class="btn btn-ghost btn-sm"
+                  title="This {c.type === 'loan' ? 'loan' : 'card'} really has no payment due — record that and stop asking"
+                  onclick={() => confirmZeroAmount('card', String(c.id))}>
+                  It's $0
+                </button>
+              {:else}
+                <button class="btn btn-ghost btn-sm"
+                  title="Skip this {c.type === 'loan' ? 'loan' : 'card'} this month — owes nothing, no payment recorded"
+                  onclick={() => skipMonth('card', String(c.id), c.name)}>
+                  Skip
+                </button>
+              {/if}
             {/if}
             <button class="btn btn-ghost btn-sm" onclick={() => editCard(i)} title="Edit card">Edit</button>
             {#if useArchive}

@@ -111,11 +111,16 @@ describe('integration — volunteered links (/api/feedback)', () => {
   it('escapes html in the volunteered name', async () => {
     const u = await makeUser('xss');
     const before = linkMail().length;
-    await post(u, '/api/feedback/rewards-link', {
+    const res = await post(u, '/api/feedback/rewards-link', {
       name: '<img src=x onerror=alert(1)>',
       url: 'https://example.com/offers',
     });
+    // Assert the post landed before reaching into the mail it should have
+    // produced: without this a refused request surfaced as "cannot read
+    // properties of undefined", which says nothing about what went wrong.
+    expect(res.status).toBe(200);
     const mail = linkMail()[before];
+    expect(mail, 'the rewards-link route sent no mail').toBeTruthy();
     expect(mail.html).not.toContain('<img src=x');
     expect(mail.html).toContain('&lt;img src=x');
   });

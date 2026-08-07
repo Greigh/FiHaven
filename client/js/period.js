@@ -26,8 +26,24 @@ const DAY = 864e5;
 // devices so the same calendar day always lands in the same bucket.
 const ROLL_EPOCH = new Date(2020, 0, 1);
 
-function clampDay(v) { v = parseInt(v, 10); return v >= 1 && v <= 28 ? v : 1; }
-function clampLen(v) { v = parseInt(v, 10); return v >= 7 && v <= 90 ? v : 35; }
+// Out-of-range values are clamped to the nearest valid one, not reset to the
+// default — an absent/unparseable value is what falls back. Both native clients
+// clamp (Kotlin `coerceIn`, Swift `min(max(…))`), so resetting here made the
+// same account compute a different budget period on web than on the phone:
+// day 31 read as the 1st on web and the 28th on iOS/Android, moving every
+// period boundary and with it "due this period", paid state, and rollover.
+// The Android period dialog is a free-text field, so an out-of-range day is
+// reachable, not hypothetical.
+function clampDay(v) {
+  v = parseInt(v, 10);
+  if (isNaN(v)) return 1;
+  return Math.min(Math.max(v, 1), 28);
+}
+function clampLen(v) {
+  v = parseInt(v, 10);
+  if (isNaN(v)) return 35;
+  return Math.min(Math.max(v, 7), 90);
+}
 // A valid "YYYY-MM-DD" rolling anchor, or null to fall back to ROLL_EPOCH.
 function validAnchor(v) {
   return (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;

@@ -13,6 +13,7 @@
   import { boundsForKey, paymentInBounds, shiftPeriod } from '../js/period.js';
   import { todayISO } from '../js/tz.js';
   import { computeSpendingInsights } from '../js/spendingInsights.js';
+  import { openConfirm } from '../js/modals.js';
   import { duplicatePairs, unconfirmedManual } from '../js/reconcile.js';
 
   const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
@@ -60,6 +61,9 @@
   let txDate = $state(todayISO());
   // Non-null while editing an existing transaction (manual or bank).
   let editingId = $state(null);
+  // The row being edited, so the editor can offer the right destructive action
+  // (a bank row is declined and remembered, a manual one is deleted outright).
+  let editingTx = $derived(editingId ? transactions.find((t) => t.id === editingId) : null);
   let spendFormEl = $state(null);
 
   function saveTx() {
@@ -107,6 +111,22 @@
     if (i >= 0) transactions.splice(i, 1);
     if (editingId === id) cancelEdit();
     save('fh_transactions', transactions);
+  }
+
+  // The row ✕ asks before it destroys anything. It sits beside Edit and there
+  // is no undo, so a stray click used to cost the purchase outright.
+  function txLabel(t) {
+    const name = (t.merchant || t.category || 'this purchase').trim();
+    return `${name} — ${fmt(t.amount)}`;
+  }
+  function askRemoveTx(t) {
+    openConfirm('Delete this purchase?', `${txLabel(t)}\n\nThis cannot be undone.`,
+      () => removeTx(t.id), 'Delete');
+  }
+  function askDeclineBankTx(t) {
+    openConfirm('Remove this bank purchase?',
+      `${txLabel(t)}\n\nIt will be removed and bank sync won't import it again.`,
+      () => declineBankTx(t), 'Remove');
   }
 
   // ── Bank (Plaid) transaction review ─────────────────────────
@@ -186,7 +206,19 @@
     <input class="spend-add-date" type="date" bind:value={txDate} />
     <input class="spend-add-note" type="text" placeholder="Note (optional)" bind:value={txNote} />
     <button class="btn btn-primary btn-sm" onclick={saveTx}>{editingId ? 'Save' : 'Add'}</button>
-    {#if editingId}<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>Cancel</button>{/if}
+    {#if editingId}
+      <button class="btn btn-ghost btn-sm" onclick={cancelEdit}>Cancel</button>
+      <!-- Destructive actions live here rather than in the row: reaching the
+           editor is already a deliberate step, so this can't be hit by accident
+           on the way to Edit. removeTx clears the edit state itself. -->
+      {#if editingTx && editingTx.source === 'plaid'}
+        <button class="btn btn-danger btn-sm" title="Not mine — remove it and don’t import it again"
+          onclick={() => declineBankTx(editingTx)}>Not mine</button>
+      {:else}
+        <button class="btn btn-danger btn-sm" title="Delete this purchase"
+          onclick={() => removeTx(editingId)}>Delete</button>
+      {/if}
+    {/if}
   </div>
 
   <!-- Per-category budget vs actual (Pro) -->
@@ -291,14 +323,18 @@
             {#if t.note}<span class="spend-tx-sub"> · {t.note}</span>{/if}
           </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
+          <!-- The row ✕ stays on the web, unlike iOS/Android: a pointer does not
+               mis-hit a small control the way a thumb does mid-scroll. It does
+               ask first, though — it used to delete outright, with no
+               confirmation and no undo, from a control sitting beside Edit. -->
           <button class="btn btn-ghost btn-xs" title="Edit" onclick={() => startEdit(t)}>Edit</button>
           {#if t.source === 'plaid'}
             {#if t.pending}
               <button class="btn btn-ghost btn-xs" title="Keep — this is a real purchase" onclick={() => acceptBankTx(t)}>Keep</button>
             {/if}
-            <button class="btn btn-ghost btn-xs" title="Not mine — remove it and don’t import it again" onclick={() => declineBankTx(t)}>✕</button>
+            <button class="btn btn-ghost btn-xs" title="Not mine — remove it and don’t import it again" onclick={() => askDeclineBankTx(t)}>✕</button>
           {:else}
-            <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => removeTx(t.id)}>✕</button>
+            <button class="btn btn-ghost btn-xs" title="Delete" onclick={() => askRemoveTx(t)}>✕</button>
           {/if}
         </div>
       {/each}

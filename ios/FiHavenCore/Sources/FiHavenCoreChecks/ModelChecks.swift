@@ -11,12 +11,12 @@ func runModelChecks() {
 
         let rent = data.bills[0]
         checkEqual(rent.name, "Rent", "bill name")
-        checkClose(rent.amount, 1450, "bill amount")
+        checkClose(rent.amountOrZero, 1450, "bill amount")
         checkEqual(rent.dueDay, 1, "bill dueDay")
         check(rent.autopay, "bill autopay true")
 
         // Lenient: "85" (string) decodes to 85.
-        checkClose(data.bills[1].amount, 85, "string amount → number")
+        checkClose(data.bills[1].amountOrZero, 85, "string amount → number")
 
         let chase = data.cards[0]
         check(chase.hasPromo, "card hasPromo")

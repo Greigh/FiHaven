@@ -598,3 +598,114 @@ func runPresetUpdateChecks() {
         checkClose(shipped.rate ?? -1, 4, "gold dining rate")
     }
 }
+
+/// A zero goal satisfies `remaining <= 0` on its own, so an item whose amount
+/// was never filled in used to read as fully paid with no payment behind it —
+/// and the row's Unmark, which removes a payment record, had nothing to remove.
+/// These pin the blank-vs-explicit-zero distinction the fix rests on.
+func runNeedsAmountChecks() {
+    let tz = utcTZ
+    let bounds = Period.bounds(for: makeDate(2026, 8, 15, tz: tz), config: PeriodConfig(), tz: tz)
+    func paidPayment(_ type: String, _ ref: String, _ amount: Double) -> [Payment] {
+        [Payment(id: "p1", type: type, refId: ref, name: "x", amount: amount,
+                 date: "2026-08-10", monthKey: "2026-08")]
+    }
+    func skipPayment(_ type: String, _ ref: String) -> [Payment] {
+        [Payment(id: "s1", type: type, refId: ref, name: "x", amount: 0,
+                 date: "2026-08-10", monthKey: "2026-08", skipped: true)]
+    }
+
+    section("Paid state — a blank amount is not a payment") {
+        let blank = Bill(id: "1", name: "Mortgage", dueDay: 1)   // amount never set
+        check(blank.amount == nil, "a bill's amount defaults to nil, not 0")
+        checkClose(Schedule.goalAmount(bill: blank), 0, "blank amount → zero goal")
+        check(Schedule.needsAmount(bill: blank, payments: [], in: bounds),
+              "a blank amount needs setting")
+        check(!Schedule.isFullyPaid(goal: 0, paid: 0, skipped: false, needsAmount: true),
+              "a blank-amount bill is never fully paid")
+        check(!Schedule.nothingDue(goal: 0, paid: 0, skipped: false, needsAmount: true),
+              "a blank-amount bill is not 'nothing due' either")
+
+        let zero = Bill(id: "1", name: "Free trial", amount: 0, dueDay: 1)
+        check(!Schedule.needsAmount(bill: zero, payments: [], in: bounds),
+              "an explicit 0 is a real answer")
+        check(Schedule.isFullyPaid(goal: 0, paid: 0, skipped: false, needsAmount: false),
+              "an explicit $0 bill is settled")
+        check(Schedule.nothingDue(goal: 0, paid: 0, skipped: false, needsAmount: false),
+              "an explicit $0 bill reads 'nothing due'")
+
+        check(!Schedule.needsAmount(bill: blank, payments: paidPayment("bill", "1", 25), in: bounds),
+              "paying toward a blank amount settles it")
+        check(!Schedule.nothingDue(goal: 0, paid: 25, skipped: false, needsAmount: false),
+              "a paid item is not 'nothing due'")
+        check(!Schedule.needsAmount(bill: blank, payments: skipPayment("bill", "1"), in: bounds),
+              "a skipped bill owes nothing by choice")
+    }
+
+    section("Paid state — loans and cards") {
+        let loan = Card(id: "9", name: "Mortgage", balance: 250_000, type: "loan")
+        check(loan.minPayment == nil, "a card's minPayment defaults to nil, not 0")
+        check(Schedule.needsAmount(card: loan, policy: .recommended, payments: [], in: bounds),
+              "a loan with no monthly payment needs one")
+
+        var withPayment = loan
+        withPayment.minPayment = 1800
+        check(!Schedule.needsAmount(card: withPayment, policy: .recommended, payments: [], in: bounds),
+              "a loan with a monthly payment is set up")
+        checkClose(Schedule.goalAmount(card: withPayment, policy: .recommended, paid: 0, tz: tz),
+                   1800, "the loan's goal is its scheduled payment")
+
+        var zeroOverride = loan
+        zeroOverride.recommendedPayment = 0
+        check(Schedule.needsAmount(card: zeroOverride, policy: .recommended, payments: [], in: bounds),
+              "a zero override falls through to the scheduled payment")
+        var realOverride = loan
+        realOverride.recommendedPayment = 900
+        check(!Schedule.needsAmount(card: realOverride, policy: .recommended, payments: [], in: bounds),
+              "an override above zero drives the goal")
+
+        // A balance-derived goal reaching zero means the card is paid off — a
+        // real answer, so it must never be mistaken for unfinished setup.
+        let paidOff = Card(id: "1", name: "Visa", balance: 0)
+        check(!Schedule.needsAmount(card: paidOff, policy: .full, payments: [], in: bounds),
+              "a paid-off card is not missing an amount")
+        checkClose(Schedule.goalAmount(card: paidOff, policy: .full, paid: 0, tz: tz), 0,
+                   "a paid-off card's goal is zero")
+        check(Schedule.nothingDue(goal: 0, paid: 0, skipped: false, needsAmount: false),
+              "a paid-off card reads 'nothing due'")
+
+        let noMinimum = Card(id: "1", name: "Visa", balance: 500)
+        check(Schedule.needsAmount(card: noMinimum, policy: .minimum, payments: [], in: bounds),
+              "the minimum policy needs a minimum")
+        check(!Schedule.needsAmount(card: noMinimum, policy: .full, payments: [], in: bounds),
+              "the same card under a balance policy is simply unpaid")
+    }
+
+    // The blank/zero distinction is worthless if it doesn't survive a round trip
+    // through the sync payload.
+    section("Paid state — blank survives a JSON round trip") {
+        let enc = JSONEncoder()
+        let dec = JSONDecoder()
+        let blank = Bill(id: "1", name: "Mortgage", dueDay: 1)
+        let blankJSON = try! enc.encode(blank)
+        let blankText = String(data: blankJSON, encoding: .utf8) ?? ""
+        check(!blankText.contains("\"amount\""), "a blank amount is omitted, not written as 0")
+        check(try! dec.decode(Bill.self, from: blankJSON).amount == nil, "blank decodes back to nil")
+
+        let zero = Bill(id: "1", name: "Free", amount: 0, dueDay: 1)
+        let zeroJSON = try! enc.encode(zero)
+        check(try! dec.decode(Bill.self, from: zeroJSON).amount == 0, "an explicit 0 round-trips as 0")
+
+        // A payload from an older client that never had the field at all.
+        let old = #"{"id":"1","name":"Old"}"#.data(using: .utf8)!
+        check(try! dec.decode(Bill.self, from: old).amount == nil, "a missing key decodes to nil")
+
+        let loan = Card(id: "9", name: "Mortgage", type: "loan")
+        let loanJSON = try! enc.encode(loan)
+        check(!(String(data: loanJSON, encoding: .utf8) ?? "").contains("\"minPayment\""),
+              "a blank minPayment is omitted")
+        let back = try! dec.decode(Card.self, from: loanJSON)
+        check(back.minPayment == nil, "blank minPayment decodes back to nil")
+        checkClose(back.minPaymentOrZero, 0, "minPaymentOrZero still gives 0 for arithmetic")
+    }
+}

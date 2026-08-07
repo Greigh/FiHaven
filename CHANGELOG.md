@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (24) - in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 45) - a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (25) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 46) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,63 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**A bill with no amount no longer says it's paid (Aug 6)**
+
+If you saved a bill without filling in the amount, FiHaven treated it as a bill
+that costs $0 — and a $0 bill is, by definition, already paid. So it sat there
+every month claiming "Paid this month" with no payment behind it, and the Undo
+on the row had nothing to remove, so you couldn't clear it even if you noticed.
+A mortgage with a blank monthly payment did the same thing.
+
+- **Blank and $0 are now different answers.** A blank amount reads "No amount
+  set" and stays in Upcoming until you answer it. An amount you deliberately
+  set to $0 reads "Nothing due" and settles.
+- **One tap to settle it.** A row with no amount offers "It's $0" where Skip
+  used to be — Skip only hid the row for a month and left the real gap. This
+  replaces guessing on your behalf.
+- **Existing bills are corrected too.** Every editor used to turn a blank field
+  into 0, so old data can't tell the two apart. A one-time pass converts those
+  back to "not set". If one of them really was $0, the row says so and "It's $0"
+  fixes it for good in a tap.
+- **Reminders stopped saying "$0.00".** A bill with no amount was emailed and
+  pushed as "— $0.00", which read as "this costs nothing" — the opposite of what
+  the app now says.
+- **Autopay stopped inventing payments.** A bill with autopay on and no amount
+  was auto-marked with a $0 payment that never happened. It left a phantom row
+  in History and dragged down the average FiHaven uses to pre-fill next month.
+
+**Deleting a purchase on the web asks first (Aug 6)**
+
+The web keeps its ✕ — a pointer doesn't mis-hit a small control the way a thumb
+does mid-scroll, which is why it went only from the phone apps. But it deleted
+outright, with no confirmation and no undo, from a button sitting beside Edit.
+It now names the purchase and asks. For a bank-imported one it reads "Remove",
+and it still tells bank sync not to bring it back.
+
+**Your budget period is the same on every device (Aug 6)**
+
+A custom start day outside 1–28 was handled differently on the web than on the
+phone — the web reset it to the 1st, the apps clamped it to the 28th. Same
+account, two different months, so "due this period" and what counted as paid
+disagreed depending on where you looked. All three now agree, and the Android
+setting no longer lets an out-of-range day be saved in the first place.
+
+**The one-tap ✕ is gone from the Spending list (Aug 4)**
+
+Every row in Spending carried a ✕ that deleted the purchase immediately, with no
+confirmation, sitting a few millimetres from the pencil that opens it for
+editing. On a phone that is not a button, it's a trap — a scroll that lands
+slightly wrong and the transaction is gone.
+
+- **The ✕ is removed on iPhone and Android.** Tapping a row still opens it for
+  editing, exactly as before.
+- **Deleting still works, one step further in.** Open the transaction and use
+  Delete at the bottom of the editor. For a purchase your bank imported, that
+  same button is "Remove bank purchase" and still tells the bank sync not to
+  bring it back.
+- **The ✓ on a pending bank purchase stays.** It only confirms a purchase, so
+  a mis-tap there costs nothing.
 
 **Buying Pro on iPhone works (Aug 4)**
 
@@ -981,6 +1038,105 @@ app and the server. Most of what follows had been true on more than one platform
 > **⚠️ Deploy order:** the security pass below changes server and native auth
 > paths together, so **the server must be deployed before or alongside iOS 22 /
 > Android 44**. The offline work is client-side and needs no deploy of its own.
+
+#### iOS 25 / Android 46
+
+> **⚠️ Needs a server deploy.** Earlier drafts of this section called the build
+> client-only; that stopped being true when the blank-amount work landed. The
+> reminder wording (`emails.js`, `push.js`), the autopay guard (`scheduler.js`)
+> and the bcrypt-cost change (`util.js` + the three auth routes) are all
+> server-side. iOS 25 also still carries the build-24 purchase fix, which needs
+> the server deployed regardless.
+
+**Blank vs. zero amounts (`amount`, `minPayment` are now nullable)**
+
+- **`Bill.amount` and `Card.minPayment` are nullable on every platform.** `nil`/
+  `null` means "never filled in"; `0` means "deliberately nothing due". A zero
+  goal satisfies `remaining <= 0`, so collapsing the two made a blank-amount row
+  report `PaidState.full` forever, with an Undo that deletes a payment record
+  and therefore found nothing to delete. Arithmetic goes through
+  `amountOrZero` / `minPaymentOrZero`; the nullable field itself answers "was
+  one ever set?".
+- **`Schedule.needsAmount` / `nothingDue` / `isFullyPaid(goal:paid:skipped:needsAmount:)`**
+  added to all three cores (`utils.js`, `Schedule.swift`, `Schedule.kt`) with
+  matching test sets. Only the field the active goal actually reads counts, so a
+  balance-derived goal (recommended/full on a credit card) legitimately reaching
+  0 stays "nothing due" rather than "missing setup".
+- **`confirmZeroAmount(type:refId:)`** on all three clients writes a real `0` —
+  the one thing the data cannot infer, since every editor previously collapsed a
+  blank field to `0`.
+- **`scripts/migrate-blank-amounts.js`** converts existing `0` values back to
+  `null` (bills' `amount`; loans' `minPayment` only — `0` is legitimate on a
+  credit card). Dry-run by default; `--backup <path>` is written **before** the
+  first mutation so an interrupted run is always recoverable.
+- **Editors preserve the distinction.** `amountOrNull` (`modals.js`) and the
+  native editors keep a blank field blank instead of `parseFloat(x) || 0`.
+
+**Cross-platform consistency fixes found auditing the above**
+
+- **Dashboard Upcoming (web) had none of it.** `DashboardView.svelte` still
+  rendered `$0.00` and a Skip button on a blank-amount row while both native
+  `UpcomingRow`s had been updated.
+- **The cards hero contradicted its own rows.** `caughtUp`/`owedCount` derive
+  from `remaining > 0.005`, which a blank `minPayment` satisfies, so the header
+  read "all N cards paid this period" directly above "No minimum payment set".
+  Both platforms now exclude `needsAmount` cards and name them in the caption.
+- **"Nothing due" wore the paid-green.** `nothingDue` had no colour branch in
+  four of five native row types and fell through to `state == .full`.
+- **"Nothing due" rows offered a dead Undo.** `state == .full` rendered Undo,
+  which removes a payment record — there is none. The branch now precedes the
+  `.full` case on both platforms.
+- **iOS tinted window-edge rows orange.** `statusColor` checked `needsAmount`
+  before the ended/not-started cases; Android checked `windowLabel` first.
+- **`autopayMark` was not Pro-gated on either native client**, while
+  `autopay.js` (`entitlement.pro`) and `scheduler.js` (`isPro`) both gate it.
+- **`setPaid` unmark matched the calendar `monthKey`**, not the active period,
+  so on a startDay/rolling period Undo searched a window the row's paid state
+  was never computed from and removed nothing.
+- **Period config clamping disagreed.** `clampDay`/`clampLen` (`period.js`)
+  reset out-of-range values to the default while Kotlin's `coerceIn` and Swift's
+  `min(max(…))` clamp to the nearest valid one — day 31 read as the 1st on web
+  and the 28th on both apps, moving every period boundary. Web now clamps, and
+  the Android period dialog (a free-text field) clamps on save so an
+  out-of-range value is not written at all.
+- **Reminders formatted a blank amount as `$0.00`** on all four delivery paths
+  (`NotificationScheduler.kt`, `NotificationScheduler.swift`, `push.js`,
+  `emails.js`). Native and push drop the figure; the email says "no amount set".
+- **Autopay auto-marked blank-amount items** with a `$0` payment on all four
+  (`scheduler.js`, `autopay.js`, `AppViewModel.kt`, `AppStore.swift`), leaving a
+  phantom History row and a `0` in `recentPaymentAverage`, which drives the
+  rollover prefill.
+- **The web's row ✕ deleted without confirming.** Keeping it on the web is
+  deliberate (a pointer does not mis-hit the way a thumb does), but it fired
+  `removeTx`/`declineBankTx` outright with no undo. `SpendingPanel.svelte` now
+  routes both through `openConfirm`, naming the purchase and its amount. The
+  editor also carries Delete / Not mine, matching the native editors.
+
+**Security**
+
+- **`ACTIVE_BCRYPT_COST` no longer keys off `NODE_ENV` alone.** The reduced
+  cost (4, for suite runtime) now requires the runner's own `VITEST` marker as
+  well. `NODE_ENV` is among the most commonly set variables in a process
+  manager, and a stray `NODE_ENV=test` in production would have hashed every new
+  password at cost 4 while the `BCRYPT_COST === 12` guard kept passing.
+  `util.test.js` pins that exact case.
+
+- **The destructive ✕ is gone from the Spending row on both native apps.**
+  `SpendingRow` (`ios/FiHavenApp/Sources/Main/SpendingView.swift`) and
+  `SpendingTxRow` (`android/.../ui/SpendingScreen.kt`) each rendered a 44/48pt
+  delete button immediately beside the edit pencil, firing `deleteTransaction`
+  (or `declineBankTransaction` for imported rows) on a single tap with no
+  confirmation and no undo. Both are removed, along with the now-unused
+  `onDelete`/`onDecline` closures and the `Icons.Filled.Close` import.
+- **Nothing is stranded.** Both transaction editors already carried the same
+  destructive action with the same bank/manual branch — `TransactionEditor`
+  (`BudgetView.swift`) and the `onDelete` passed to `FormDialog`
+  (`BudgetScreen.kt`) — reached by tapping the row or the pencil. The delete
+  path is unchanged; only the number of taps to reach it is.
+- **The `onKeep` ✓ is untouched.** It is non-destructive and only renders for
+  `tx.isBank && tx.pending`.
+- **The web list keeps its ✕** (`client/svelte/SpendingPanel.svelte`). A pointer
+  doesn't mis-hit a 20px control the way a thumb does.
 
 #### iOS 24 / Android 45
 
