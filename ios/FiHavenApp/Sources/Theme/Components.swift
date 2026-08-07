@@ -220,6 +220,50 @@ struct CurrencyField: View {
     }
 }
 
+/// A currency input that can be genuinely empty.
+///
+/// Blank writes back nil rather than 0, because the two mean different things:
+/// a bill with no amount is unfinished setup, while an explicit $0 means
+/// nothing is due. Collapsing them made a blank-amount row satisfy
+/// `remaining <= 0` and read "Paid this month" with no payment behind it.
+struct OptionalCurrencyField: View {
+    let label: String
+    @Binding var value: Double?
+    var placeholder: String = "—"
+
+    /// Local text so a half-typed value ("1.") isn't destroyed by reformatting,
+    /// and so clearing the field is distinguishable from typing a 0.
+    @State private var text: String = ""
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                Text("$").foregroundStyle(Theme.muted)
+                TextField(placeholder, text: $text)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.leading)
+                    .onChange(of: text) { _, new in
+                        let trimmed = new.trimmingCharacters(in: .whitespaces)
+                        value = trimmed.isEmpty ? nil : Double(trimmed)
+                    }
+            }
+            .frame(width: amountBoxWidth, alignment: .leading)
+        }
+        .onAppear {
+            // nil stays blank; an explicit 0 shows as "0" so it survives a re-save.
+            if let v = value, text.isEmpty { text = formatted(v) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label), in dollars, blank if not set")
+    }
+
+    private func formatted(_ v: Double) -> String {
+        v == v.rounded() ? String(Int(v)) : String(v)
+    }
+}
+
 /// A labeled percentage input. Percent conventionally *trails* the number,
 /// so this is the one place a suffix is correct.
 struct PercentField: View {

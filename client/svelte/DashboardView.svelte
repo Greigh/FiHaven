@@ -10,13 +10,13 @@
     fmt, currentPeriodKey, periodKeyLabel, shortDate,
     monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
     buildUpcomingItems, isFullyPaid, paidAmount,
-    goalAmountFor, remainingForItem,
+    goalAmountFor, remainingForItem, needsAmount, nothingDue,
     periodObligationItems, hidePaidOnDashboard,
   } from '../js/utils.js';
   import { boundsForKey, paymentInBounds, getPeriodConfig } from '../js/period.js';
   import { periodIncome, incomeLabelFor, owedLabelFor } from '../js/income.js';
   import {
-    openPayModal, editBillById, editCardById, skipMonth,
+    openPayModal, editBillById, editCardById, skipMonth, confirmZeroAmount,
   } from '../js/modals.js';
   import {
     snoozes, isSnoozed, snoozeUntilTomorrow, unsnooze, pruneExpiredSnoozes,
@@ -305,6 +305,8 @@
           {@const paidSoFar = paidAmount(u.type, u.refId, mk)}
           {@const goal = goalAmountFor(u.type, u.refId)}
           {@const rem = remainingForItem(u.type, u.refId, mk)}
+          {@const noAmount = needsAmount(u.type, u.refId, mk)}
+          {@const noneDue = nothingDue(u.type, u.refId, mk)}
           <div class="upcoming-item">
             <div class="upcoming-icon">
               {#if u.brand && u.brand.isLogo}<img
@@ -322,7 +324,12 @@
               <div class="upcoming-meta">
                 {#if u.autopay}<span style="color:var(--green);">✓ Autopay</span>{:else}<span style="color:var(--orange);">Manual</span>{/if}
                 {#if dueDateFor(u)} · {shortDate(dueDateFor(u))}{/if}
-                {#if paidSoFar > 0.005}<span style="color:var(--orange);"> · Paid {fmt(paidSoFar)} of {fmt(goal)}</span>{/if}
+                <!-- No amount means nothing to measure a payment against — say so
+                     rather than counting down against $0. Mirrors UpcomingRow on
+                     iOS/Android. -->
+                {#if noAmount}<span style="color:var(--orange);"> · No amount set</span>
+                {:else if noneDue}<span style="color:var(--muted);"> · Nothing due</span>
+                {:else if paidSoFar > 0.005}<span style="color:var(--orange);"> · Paid {fmt(paidSoFar)} of {fmt(goal)}</span>{/if}
               </div>
             </div>
             <div class="upcoming-amount">
@@ -338,10 +345,21 @@
                 onclick={() => snoozeUntilTomorrow(u.type, u.refId)}>
                 Snooze
               </button>
-              <button class="btn btn-ghost btn-xs" title="Skip this month — owes nothing, no payment recorded"
-                onclick={() => skipMonth(u.type, u.refId, u.name)}>
-                Skip
-              </button>
+              {#if noAmount}
+                <!-- Skip is meaningless on a row with no amount — it would hide
+                     the row for one period and leave the real gap unanswered.
+                     "It's $0" settles it for good, in a tap. -->
+                <button class="btn btn-ghost btn-xs"
+                  title="This really costs $0 — record that and stop asking"
+                  onclick={() => confirmZeroAmount(u.type, u.refId)}>
+                  It's $0
+                </button>
+              {:else}
+                <button class="btn btn-ghost btn-xs" title="Skip this month — owes nothing, no payment recorded"
+                  onclick={() => skipMonth(u.type, u.refId, u.name)}>
+                  Skip
+                </button>
+              {/if}
               <button class="btn btn-ghost btn-xs" title="Edit details"
                 onclick={() => editItem(u)}>
                 ✎

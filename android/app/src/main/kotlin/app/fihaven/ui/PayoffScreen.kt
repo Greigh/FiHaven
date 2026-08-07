@@ -347,7 +347,7 @@ private fun splitPlan(cards: List<Card>, avail: Double, includeMortgage: Boolean
     val list = cards
         .filter { it.type == "card" || it.type == "loan" }
         .filter { includeMortgage || !Payoff.isHousingLoan(it) }
-        .map { Acc(it.name, it.regularAPR, it.minPayment, debtOf(it), 0.0) }
+        .map { Acc(it.name, it.regularAPR, it.minPaymentOrZero, debtOf(it), 0.0) }
         .filter { it.bal > 0 }
         .sortedByDescending { it.apr }
     var remaining = avail

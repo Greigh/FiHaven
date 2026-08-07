@@ -94,7 +94,12 @@ enum NotificationScheduler {
                 let content = UNMutableNotificationContent()
                 content.title = "Bill reminder"
                 let name = bill.name.isEmpty ? "A bill" : bill.name
-                content.body = "\(name) \(phrase(off)) — \(Money.fmt(bill.amount))."
+                // A bill with no amount set drops the figure rather than claiming
+                // "$0.00" — that reads as "this costs nothing" and contradicts the
+                // row, which says "No amount set".
+                content.body = bill.amount == nil
+                    ? "\(name) \(phrase(off))."
+                    : "\(name) \(phrase(off)) — \(Money.fmt(bill.amountOrZero))."
                 content.sound = .default
 
                 let trigger = UNCalendarNotificationTrigger(

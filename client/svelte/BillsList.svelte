@@ -8,7 +8,7 @@
   import { bills, cards, save, settings } from '../js/storage.svelte.js';
   import {
     ICONS, CARD_COLORS, fmt, currentPeriodKey, effectiveDaysUntilBillDue, shortDate,
-    paidState, paidAmount, goalAmountFor, remainingForItem,
+    paidState, paidAmount, goalAmountFor, remainingForItem, needsAmount, nothingDue,
     paymentStats, daysSinceLastPayment, billNotStarted, billEnded,
     nextBillDueDate, daysUntilBillDue, archiveInsteadOfDelete,
     categoryIconInfo,
@@ -16,7 +16,7 @@
 
   // "YYYY-MM-DD" → local Date for friendly display (e.g. "Jul 15").
   const parseYmd = (s) => (s ? new Date(s + 'T00:00:00') : null);
-  import { askDelete, openPayModal, editBillById, skipMonth, unskipMonth } from '../js/modals.js';
+  import { askDelete, openPayModal, editBillById, skipMonth, unskipMonth, confirmZeroAmount } from '../js/modals.js';
   import { billPeriodNoun } from '../js/billSchedule.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
@@ -169,6 +169,8 @@
     <div class="cards-grid">
       {#each visibleBills as b, viewIdx (b.id)}
         {@const state = paidState('bill', String(b.id), mk)}
+        {@const noAmount = needsAmount('bill', String(b.id), mk)}
+        {@const noneDue = nothingDue('bill', String(b.id), mk)}
         {@const notStarted = billNotStarted(b)}
         {@const ended = billEnded(b)}
         {@const days  = b.dueDay || b.startDate ? effectiveDaysUntilBillDue(b, mk) : null}
@@ -188,9 +190,13 @@
                 {#if b.business}
                   <div class="card-row-business">{b.business}</div>
                 {/if}
-                {#if !ended && !notStarted && (state === 'skipped' || state === 'full' || state === 'partial')}
+                {#if !ended && !notStarted && (noAmount || noneDue || state === 'skipped' || state === 'full' || state === 'partial')}
                   <div class="card-row-status">
-                    {#if state === 'skipped'}
+                    {#if noAmount}
+                      <span class="badge badge-orange" title="This bill has no amount, so there's nothing to track against. Add one to see what's owed.">No amount set</span>
+                    {:else if noneDue}
+                      <span class="badge badge-gray" title="This bill is set to $0, so nothing is owed this {billPeriodNoun(b.frequency)}">Nothing due</span>
+                    {:else if state === 'skipped'}
                       <span class="badge badge-gray" title="No payment expected this {billPeriodNoun(b.frequency)}">⏭ Skipped</span>
                     {:else if state === 'full'}
                       <span class="badge badge-green">✓ Paid {fmt(paidAmount('bill', String(b.id), mk))}</span>
@@ -251,13 +257,25 @@
                   >
                     Pay {fmt(remainingForItem('bill', String(b.id), mk))} more
                   </button>
-                  <button
-                    class="btn btn-ghost btn-sm"
-                    title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
-                    onclick={() => skipMonth('bill', String(b.id), b.name)}
-                  >
-                    Skip
-                  </button>
+                  {#if noAmount}
+                    <!-- Skip is meaningless without an amount: it hides the row
+                         for one period and leaves the real gap unanswered. -->
+                    <button
+                      class="btn btn-ghost btn-sm"
+                      title="This bill really costs $0 — record that and stop asking"
+                      onclick={() => confirmZeroAmount('bill', String(b.id))}
+                    >
+                      It's $0
+                    </button>
+                  {:else}
+                    <button
+                      class="btn btn-ghost btn-sm"
+                      title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
+                      onclick={() => skipMonth('bill', String(b.id), b.name)}
+                    >
+                      Skip
+                    </button>
+                  {/if}
                 {:else if state !== 'full'}
                   <button
                     class="btn btn-green btn-sm"
@@ -265,13 +283,25 @@
                   >
                     ✓ Pay
                   </button>
-                  <button
-                    class="btn btn-ghost btn-sm"
-                    title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
-                    onclick={() => skipMonth('bill', String(b.id), b.name)}
-                  >
-                    Skip
-                  </button>
+                  {#if noAmount}
+                    <!-- Skip is meaningless without an amount: it hides the row
+                         for one period and leaves the real gap unanswered. -->
+                    <button
+                      class="btn btn-ghost btn-sm"
+                      title="This bill really costs $0 — record that and stop asking"
+                      onclick={() => confirmZeroAmount('bill', String(b.id))}
+                    >
+                      It's $0
+                    </button>
+                  {:else}
+                    <button
+                      class="btn btn-ghost btn-sm"
+                      title="Skip this bill this {billPeriodNoun(b.frequency)} — owes nothing, no payment recorded"
+                      onclick={() => skipMonth('bill', String(b.id), b.name)}
+                    >
+                      Skip
+                    </button>
+                  {/if}
                 {/if}
               {/if}
               <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
@@ -296,6 +326,12 @@
               <div class="card-row-stat-label">This period</div>
               {#if ended || notStarted}
                 <div class="card-row-stat-value" style="color:var(--muted);">—</div>
+              {:else if noAmount}
+                <div class="card-row-stat-value" style="color:var(--muted);">—</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">no amount set</div>
+              {:else if noneDue}
+                <div class="card-row-stat-value" style="color:var(--muted);">{fmt(0)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">nothing due</div>
               {:else if state === 'skipped'}
                 <div class="card-row-stat-value" style="color:var(--muted);">Skipped</div>
               {:else if state === 'full'}

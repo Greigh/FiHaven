@@ -19,7 +19,7 @@ struct CardEditorView: View {
     @State private var balance: Double = 0
     @State private var currentBalance = ""
     @State private var limit: Double = 0
-    @State private var minPayment: Double = 0
+    @State private var minPayment: Double?
     @State private var recommendedPayment: Double = 0
     @State private var regularAPR: Double = 0
     @State private var dueDay = 1
@@ -119,7 +119,7 @@ struct CardEditorView: View {
                         money("Credit limit", $limit)
                     }
                     
-                    money(type == "loan" ? "Monthly payment" : "Minimum payment", $minPayment)
+                    OptionalCurrencyField(label: type == "loan" ? "Monthly payment" : "Minimum payment", value: $minPayment)
                     
                     if type == "card" {
                         money("Recommended payment", $recommendedPayment)

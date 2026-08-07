@@ -147,7 +147,7 @@ export function openBillModal(idx) {
   document.getElementById('b-name').value      = b.name      || '';
   document.getElementById('b-business').value  = b.business  || '';
   document.getElementById('b-category').value  = b.category  || 'Housing';
-  document.getElementById('b-amount').value    = b.amount    || '';
+  document.getElementById('b-amount').value    = b.amount != null ? b.amount : '';
   document.getElementById('b-dueday').value    = b.dueDay    || '';
   document.getElementById('b-frequency').value = b.frequency || 'Monthly';
   document.getElementById('b-start').value     = b.startDate || '';
@@ -218,6 +218,18 @@ if (typeof document !== 'undefined') {
   });
 }
 
+// A money input's value as stored: blank stays null rather than collapsing to
+// 0. The two mean different things — an amount that was never filled in is
+// unfinished setup, while an explicit 0 means nothing is due — and a zero goal
+// satisfies `remaining <= 0`, so collapsing them made a blank-amount row read
+// "Paid this month" with no payment behind it. See needsAmount in utils.js.
+function amountOrNull(id) {
+  const raw = (document.getElementById(id).value || '').trim();
+  if (raw === '') return null;
+  const n = parseFloat(raw);
+  return isNaN(n) ? null : n;
+}
+
 export function saveBill() {
   var name = document.getElementById('b-name').value.trim();
   if (!name) { alert('Please enter a bill name.'); return; }
@@ -245,7 +257,7 @@ export function saveBill() {
     name:      name,
     business:  business || null,
     category:  document.getElementById('b-category').value,
-    amount:    parseFloat(document.getElementById('b-amount').value) || 0,
+    amount:    amountOrNull('b-amount'),
     dueDay:    dueDay,
     frequency: document.getElementById('b-frequency').value,
     startDate: startDate,
@@ -577,7 +589,7 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-balance').value   = c.balance     || '';
   document.getElementById('c-current-balance').value = c.currentBalance || '';
   document.getElementById('c-limit').value     = c.limit       || '';
-  document.getElementById('c-minpay').value    = c.minPayment  || '';
+  document.getElementById('c-minpay').value    = c.minPayment != null ? c.minPayment : '';
   document.getElementById('c-recommended').value = c.recommendedPayment || '';
   document.getElementById('c-apr').value       = c.regularAPR  || '';
   document.getElementById('c-annualfee').value = c.annualFee   || '';
@@ -657,7 +669,7 @@ export function saveCard() {
     balance:      parseFloat(document.getElementById('c-balance').value) || 0,
     currentBalance: currentBalance,
     limit:        isLoan ? 0 : (parseFloat(document.getElementById('c-limit').value) || 0),
-    minPayment:   parseFloat(document.getElementById('c-minpay').value)  || 0,
+    minPayment:   amountOrNull('c-minpay'),
     recommendedPayment: isLoan ? null : (parseFloat(document.getElementById('c-recommended').value) || null),
     regularAPR:   parseFloat(document.getElementById('c-apr').value)     || 0,
     // Annual fee + its renewal month power the "is this fee worth it?" check.
@@ -963,6 +975,27 @@ export function skipMonth(type, refId, name) {
   save('fh_payments', payments);
   refreshAll();
   toast((name || 'Item') + ' skipped for this period.');
+}
+
+// Answer a "No amount set" row in place: record a deliberate $0.
+//
+// This is the one thing the data can't infer. Every editor used to collapse a
+// blank field to 0, so a stored 0 can't be told apart from "never filled in" —
+// the user is the only one who knows, and this lets them say so in a tap
+// instead of opening the editor to type a zero.
+export function confirmZeroAmount(type, refId) {
+  if (type === 'bill') {
+    const b = bills.find((x) => String(x.id) === String(refId));
+    if (!b) return;
+    b.amount = 0;
+    save('fh_bills', bills);
+  } else {
+    const c = cards.find((x) => String(x.id) === String(refId));
+    if (!c) return;
+    c.minPayment = 0;
+    save('fh_cards', cards);
+  }
+  refreshAll();
 }
 
 export function unskipMonth(type, refId) {

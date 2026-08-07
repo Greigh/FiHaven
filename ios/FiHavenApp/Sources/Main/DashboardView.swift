@@ -184,13 +184,16 @@ struct DashboardView: View {
                             tz: store.tz,
                             periodNoun: store.periodNoun(item),
                             skipped: store.isSkipped(item),
+                            needsAmount: store.needsAmount(item),
+                            nothingDue: store.nothingDue(item),
                             onPay: { paying = PayTarget(item) },
                             onUnmark: {
                                 store.setPaid(type: item.type, refId: item.refId, name: item.name,
                                               amount: store.goalAmount(item), paid: false)
                             },
                             onSkip: { requestSkip(item) },
-                            onUnskip: { store.unskip(type: item.type, refId: item.refId) }
+                            onUnskip: { store.unskip(type: item.type, refId: item.refId) },
+                            onConfirmZero: { store.confirmZeroAmount(type: item.type, refId: item.refId) }
                         )
                         .contentShape(Rectangle())
                         // Tapping the row body opens the editor, never the pay
@@ -404,10 +407,13 @@ private struct UpcomingRow: View {
     let tz: TimeZone
     var periodNoun: String = "month"
     var skipped: Bool = false
+    var needsAmount: Bool = false
+    var nothingDue: Bool = false
     let onPay: () -> Void
     let onUnmark: () -> Void
     let onSkip: () -> Void
     let onUnskip: () -> Void
+    var onConfirmZero: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -466,8 +472,19 @@ private struct UpcomingRow: View {
                 Spacer()
                 if skipped {
                     quickAction("Undo skip", Theme.accent, onUnskip)
+                } else if nothingDue {
+                    // A $0 row is settled with no payment behind it: Undo deletes
+                    // a payment record and would find none, leaving a button that
+                    // does nothing. There is also nothing to pay.
+                    EmptyView()
                 } else if state == .full {
                     quickAction("Undo", Theme.muted, onUnmark)
+                } else if needsAmount {
+                    // Skip is meaningless on a row with no amount — it would hide
+                    // the row for one period and leave the real gap unanswered.
+                    // "It's $0" settles it for good, in a tap.
+                    quickAction("It's $0", Theme.muted, onConfirmZero)
+                    quickAction("Pay", Theme.accent, onPay)
                 } else {
                     quickAction("Skip", Theme.muted, onSkip)
                     quickAction("Pay", Theme.accent, onPay)
@@ -486,10 +503,19 @@ private struct UpcomingRow: View {
     }
 
     private var statusLine: String {
-        skipped ? "⏭ Skipped this \(periodNoun)" : dueLabel
+        if skipped { return "⏭ Skipped this \(periodNoun)" }
+        // No amount means nothing to measure a payment against — say so instead
+        // of counting down against $0.
+        if needsAmount { return "No amount set · tap to add one" }
+        if nothingDue { return "Nothing due this \(periodNoun)" }
+        return dueLabel
     }
 
     private var labelColor: Color {
+        if needsAmount { return Theme.orange }
+        // Settled because nothing is owed, not because a payment landed — the
+        // paid-green would claim credit for a payment that never happened.
+        if nothingDue { return Theme.muted }
         switch state {
         case .full: return Theme.green
         case .partial: return Theme.orange

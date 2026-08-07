@@ -28,7 +28,7 @@ const {
   isValidEmail,
   checkPasswordPolicy,
   sendError,
-  BCRYPT_COST,
+  ACTIVE_BCRYPT_COST,
 } = require('../util');
 
 const router = express.Router();
@@ -142,7 +142,7 @@ router.post('/change-password', requireAuth, requireCsrf, async (req, res) => {
   const same = await bcrypt.compare(String(body.newPassword), user.password_hash);
   if (same) return sendError(res, 400, 'password-unchanged');
 
-  const hash = await bcrypt.hash(body.newPassword, BCRYPT_COST);
+  const hash = await bcrypt.hash(body.newPassword, ACTIVE_BCRYPT_COST);
   dbApi.updateUserPassword(user.id, hash);
   // Log out every other device; keep the current session.
   dbApi.deleteOtherSessions(user.id, req.session.id);

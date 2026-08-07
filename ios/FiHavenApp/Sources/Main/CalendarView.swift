@@ -40,13 +40,13 @@ struct CalendarView: View {
                 let d = cal.date(byAdding: .day, value: day - 1, to: first)!
                 guard BillSchedule.dueOn(b, date: d, tz: store.tz) else { continue }
                 map[day, default: []].append(DayItem(
-                    id: "bill-\(b.id)", name: b.name, amount: b.amount,
+                    id: "bill-\(b.id)", name: b.name, amount: b.amountOrZero,
                     icon: CTConstants.iconInfo(forCategory: b.category, overrides: store.data.settings.categoryIcons), type: "bill", refId: String(b.id)))
             }
         }
         for c in store.activeCards {
             guard let d = c.dueDay else { continue }
-            let amt = c.hasPromo ? max(c.minPayment, Schedule.promoNeeded(c, tz: store.tz)) : c.minPayment
+            let amt = c.hasPromo ? max(c.minPaymentOrZero, Schedule.promoNeeded(c, tz: store.tz)) : c.minPaymentOrZero
             map[d, default: []].append(DayItem(
                 id: "card-\(c.id)", name: c.name + " (payment)", amount: amt,
                 icon: IssuerIcons.iconInfo(for: c), type: "card", refId: String(c.id)))

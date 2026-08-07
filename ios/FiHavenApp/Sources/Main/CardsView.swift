@@ -150,10 +150,13 @@ struct CardsView: View {
                         amounts: store.cardAmounts(card),
                         headline: store.cardHeadline,
                         skipped: store.isSkipped(type: "card", refId: String(card.id)),
+                        needsAmount: store.needsAmount(type: "card", refId: String(card.id)),
+                        nothingDue: store.nothingDue(type: "card", refId: String(card.id)),
                         onPay: { paying = PayTarget(type: "card", refId: String(card.id), name: card.name) },
                         onEdit: { editing = card },
                         onSkip: { requestSkip(card) },
-                        onUnskip: { store.unskip(type: "card", refId: String(card.id)) }
+                        onUnskip: { store.unskip(type: "card", refId: String(card.id)) },
+                        onConfirmZero: { store.confirmZeroAmount(type: "card", refId: String(card.id)) }
                     )
                     .swipeActions(edge: .leading) {
                         Button {
@@ -310,6 +313,23 @@ struct CardsView: View {
         }
     }
 
+    /// The caption under the summary hero. Cards needing an amount are named
+    /// separately rather than folded into the owed count — they need setup, not
+    /// a payment. Mirrors CardsSummaryCard on Android.
+    private func summaryCaption(
+        caughtUp: Bool, owedCount: Int, needsAmountCount: Int, total: Int
+    ) -> String {
+        let plural = total == 1 ? "" : "s"
+        if caughtUp { return "all \(total) card\(plural) paid this period" }
+        if needsAmountCount > 0, owedCount == 0 {
+            return "\(needsAmountCount) of \(total) card\(plural) need an amount"
+        }
+        if needsAmountCount > 0 {
+            return "across \(owedCount) of \(total) card\(plural) · \(needsAmountCount) need an amount"
+        }
+        return "across \(owedCount) of \(total) card\(plural)"
+    }
+
     // ── Cards summary (credit cards tab only) ────────────────────────
     private var cardsSummaryHeader: some View {
         // Live balances, so a card charged since its statement closed still
@@ -322,13 +342,20 @@ struct CardsView: View {
         // "Pay this month" = what's still owed this period across all cards, per
         // the user's paid-goal policy (mirrors each card's Pay button).
         let payThisMonth = baseCards.reduce(0.0) { $0 + store.remaining(type: "card", refId: $1.id) }
-        let caughtUp = payThisMonth <= 0.005
+        // A card with no minimum set owes 0 under the policy, so it would land in
+        // the "all caught up" count — the hero claiming every card is paid while
+        // the row below says no amount was ever entered. Unfinished setup is not
+        // being caught up.
+        let needsAmountCount = baseCards.filter {
+            store.needsAmount(type: "card", refId: String($0.id))
+        }.count
+        let caughtUp = payThisMonth <= 0.005 && needsAmountCount == 0
 
         // Two zones, matching the web: what you owe, then the credit line. The
         // itemized amounts use the card rows' own words so the totals and the
         // rows beneath them can't seem to describe different things.
-        let totalStatement = baseCards.reduce(0.0) { $0 + ($1.type == "loan" ? $1.minPayment : $1.balance) }
-        let totalMin = baseCards.reduce(0.0) { $0 + $1.minPayment }
+        let totalStatement = baseCards.reduce(0.0) { $0 + ($1.type == "loan" ? $1.minPaymentOrZero : $1.balance) }
+        let totalMin = baseCards.reduce(0.0) { $0 + $1.minPaymentOrZero }
         // How many cards actually make up the hero: a $0, skipped or fully-paid
         // card is in the count but owes nothing toward it.
         let owedCount = baseCards.filter { store.remaining(type: "card", refId: $0.id) > 0.005 }.count
@@ -349,9 +376,10 @@ struct CardsView: View {
                     .font(Theme.mono(30, weight: .bold))
                     .foregroundStyle(caughtUp ? Theme.green : Theme.text)
                     .minimumScaleFactor(0.6).lineLimit(1)
-                Text(caughtUp
-                     ? "all \(baseCards.count) card\(baseCards.count == 1 ? "" : "s") paid this period"
-                     : "across \(owedCount) of \(baseCards.count) card\(baseCards.count == 1 ? "" : "s")")
+                Text(summaryCaption(
+                    caughtUp: caughtUp, owedCount: owedCount,
+                    needsAmountCount: needsAmountCount, total: baseCards.count
+                ))
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -558,10 +586,13 @@ private struct CardRow: View {
     /// Which of `amounts` leads the row — "due" | "current" | "owed".
     let headline: String
     var skipped: Bool = false
+    var needsAmount: Bool = false
+    var nothingDue: Bool = false
     let onPay: () -> Void
     let onEdit: () -> Void
     var onSkip: () -> Void = {}
     var onUnskip: () -> Void = {}
+    var onConfirmZero: () -> Void = {}
 
     // Utilization is measured against the live balance — charges made since the
     // statement closed still count against the limit at the issuer.
@@ -658,7 +689,7 @@ private struct CardRow: View {
     // explicit recommended payment. `isMonthly` tags the promo case for a "/mo".
     private var suggestedPayment: (amount: Double, isMonthly: Bool)? {
         if card.type == "loan" { return nil }
-        if promoActive { return (max(card.minPayment, Schedule.promoNeeded(card, tz: tz)), true) }
+        if promoActive { return (max(card.minPaymentOrZero, Schedule.promoNeeded(card, tz: tz)), true) }
         if let rec = card.recommendedPayment, rec > 0 { return (rec, false) }
         return nil
     }
@@ -776,6 +807,28 @@ private struct CardRow: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Un-skip \(card.name) this month")
+                } else if needsAmount {
+                    // Skip is meaningless without an amount — see UpcomingRow.
+                    Button(action: onConfirmZero) {
+                        Text("It's $0")
+                            .font(Theme.ui(13, weight: .semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.surface2).foregroundStyle(Theme.muted)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(card.type == "loan"
+                        ? "Confirm \(card.name) has no monthly payment"
+                        : "Confirm \(card.name) has no minimum payment")
+                    Button(action: onPay) {
+                        Text("Pay")
+                            .font(Theme.ui(13, weight: .semibold))
+                            .padding(.horizontal, 14).padding(.vertical, 6)
+                            .background(Theme.greenBg).foregroundStyle(Theme.text)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Record a payment on \(card.name)")
                 } else if state != .full {
                     Button(action: onSkip) {
                         Text("Skip")
@@ -830,6 +883,18 @@ private struct CardRow: View {
             Label("Skipped this month", systemImage: "forward.end.circle.fill")
                 .font(Theme.ui(12))
                 .foregroundStyle(Theme.muted)
+        } else if needsAmount {
+            // Nothing to measure a payment against. Without this a zero goal
+            // satisfied "remaining <= 0" and the row read as paid outright.
+            Label(card.type == "loan"
+                    ? "No monthly payment set · tap to add one"
+                    : "No minimum payment set · tap to add one",
+                  systemImage: "exclamationmark.circle")
+                .font(Theme.ui(12, weight: .medium))
+                .foregroundStyle(Theme.orange)
+        } else if nothingDue {
+            Text("Nothing due this month")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
         } else {
             switch state {
             case .full:
@@ -842,7 +907,7 @@ private struct CardRow: View {
                     .foregroundStyle(Theme.text)
             case .unpaid:
                 if card.type == "loan" {
-                    Text("Monthly payment: \(Money.fmt(card.minPayment))")
+                    Text("Monthly payment: \(Money.fmt(card.minPaymentOrZero))")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } else if let s = suggestedPayment {
                     Text("Suggested \(Money.fmt(s.amount))\(s.isMonthly ? "/mo" : "")")
@@ -871,12 +936,16 @@ private struct CardRow: View {
 
     private var paymentStatusText: String {
         if skipped { return "skipped this month" }
+        if needsAmount {
+            return card.type == "loan" ? "no monthly payment set" : "no minimum payment set"
+        }
+        if nothingDue { return "nothing due this month" }
         switch state {
         case .full: return "paid \(Money.fmt(paidSoFar)) this month"
         case .partial: return "partially paid, \(Money.fmt(paidSoFar)) of \(Money.fmt(goal))"
         case .unpaid:
             return card.type == "loan"
-                ? "monthly payment \(Money.fmt(card.minPayment))"
+                ? "monthly payment \(Money.fmt(card.minPaymentOrZero))"
                 : "not paid this month"
         }
     }

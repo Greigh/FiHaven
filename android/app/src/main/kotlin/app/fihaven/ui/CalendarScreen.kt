@@ -77,13 +77,13 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 val d = first.plusDays((day - 1).toLong())
                 if (BillSchedule.dueOn(b, d, zone)) {
                     map.getOrPut(day) { mutableListOf() }
-                        .add(DayItem(b.name, b.amount, CTConstants.iconInfoForCategory(b.category, data.settings.categoryIcons), "bill", b.id.toString()))
+                        .add(DayItem(b.name, b.amountOrZero, CTConstants.iconInfoForCategory(b.category, data.settings.categoryIcons), "bill", b.id.toString()))
                 }
             }
         }
         data.activeCards.forEach { c ->
             c.dueDay?.let { d ->
-                val amt = if (c.hasPromo) max(c.minPayment, Schedule.promoNeeded(c, zone)) else c.minPayment
+                val amt = if (c.hasPromo) max(c.minPaymentOrZero, Schedule.promoNeeded(c, zone)) else c.minPaymentOrZero
                 map.getOrPut(d) { mutableListOf() }
                     .add(DayItem(c.name + " (payment)", amt, IssuerIcons.iconInfo(c), "card", c.id.toString()))
             }

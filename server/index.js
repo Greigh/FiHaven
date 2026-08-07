@@ -335,8 +335,8 @@ function ensureDevUser() {
   if (dbApi.findUserByEmail(email)) return;
 
   const bcrypt = require('bcrypt');
-  const { BCRYPT_COST } = require('./util');
-  const hash = bcrypt.hashSync(password, BCRYPT_COST);
+  const { ACTIVE_BCRYPT_COST } = require('./util');
+  const hash = bcrypt.hashSync(password, ACTIVE_BCRYPT_COST);
   dbApi.createUser(email, hash);
   console.log(`seeded dev user ${email}`);
 }

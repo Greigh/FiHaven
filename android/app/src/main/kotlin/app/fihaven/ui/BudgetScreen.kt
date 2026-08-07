@@ -64,8 +64,8 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     val bounds = vm.currentBounds()
     val cfg = vm.periodConfig()
     val income = Income.periodIncome(data.settings, bounds)
-    val obligations = data.bills.filter { BillSchedule.dueInPeriod(it, bounds, vm.zone()) }.sumOf { it.amount } +
-        data.activeCards.sumOf { it.minPayment }
+    val obligations = data.bills.filter { BillSchedule.dueInPeriod(it, bounds, vm.zone()) }.sumOf { it.amountOrZero } +
+        data.activeCards.sumOf { it.minPaymentOrZero }
     val leftover = income - obligations
     val ent by vm.entitlement.collectAsStateWithLifecycle()
     val zone = vm.zone()

@@ -265,11 +265,18 @@ extension AppStore {
     /// Mark a bill/card paid (idempotent helper used by row toggles).
     /// Like the Pay sheet, a card toggle reconciles the card balance:
     /// marking paid decrements it, un-marking restores the recorded amount.
+    ///
+    /// Unmarking matches the payment by the active *period*, the same window
+    /// `paidState` reads. Matching the calendar monthKey instead meant that on a
+    /// startDay/rolling period Unmark searched a window the row's paid state was
+    /// never computed from: it found nothing, removed nothing, and the row went
+    /// on claiming to be paid with no way to clear it.
     func setPaid(type: String, refId: String, name: String, amount: Double, paid: Bool) {
         let mk = currentMonthKey
+        let bounds = currentBounds
         mutate { data in
             let existing = data.payments.firstIndex {
-                $0.type == type && $0.refId == refId && $0.monthKey == mk
+                $0.type == type && $0.refId == refId && !$0.skipped && bounds.contains($0)
             }
             if paid, existing == nil {
                 data.payments.append(Payment(
@@ -282,6 +289,24 @@ extension AppStore {
                 let removed = data.payments[i]
                 data.payments.remove(at: i)
                 if type == "card" { Self.applyCardPaymentDelta(refId, -removed.amount, in: &data) }
+            }
+        }
+    }
+
+    /// Answer a "No amount set" row in place: record a deliberate $0.
+    ///
+    /// This is the one thing the data can't infer. Every editor used to collapse
+    /// a blank field to 0, so a stored 0 can't be told apart from "never filled
+    /// in" — the user is the only one who knows, and this lets them say so in a
+    /// tap instead of opening the editor to type a zero.
+    func confirmZeroAmount(type: String, refId: String) {
+        mutate { data in
+            if type == "bill" {
+                if let i = data.bills.firstIndex(where: { String($0.id) == refId }) {
+                    data.bills[i].amount = 0
+                }
+            } else if let i = data.cards.firstIndex(where: { String($0.id) == refId }) {
+                data.cards[i].minPayment = 0
             }
         }
     }
