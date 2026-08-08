@@ -114,4 +114,36 @@ describe('server billSchedule — helpers', () => {
   it('nextBillDueDate returns null when the bill has no due metadata', () => {
     expect(nextBillDueDate({})).toBeNull();
   });
+
+  /* A bill whose active window already closed never comes due again, so the
+     400-day lookahead runs out rather than looping forever. */
+  it('nextBillDueDate gives up after the lookahead window for an ended bill', () => {
+    const ended = { dueDay: 15, frequency: 'Monthly', endDate: '2020-01-01' };
+    expect(nextBillDueDate(ended, atMidnight(new Date(2026, 5, 1)))).toBeNull();
+    expect(daysUntilBillDue(ended, atMidnight(new Date(2026, 5, 1)))).toBe(9999);
+  });
+
+  it('billDueOn tolerates a malformed or empty date string', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 15));
+    const bill = { dueDay: 15, frequency: 'Monthly' };
+    // Falsy and short "YYYY-MM" strings both fall back to today (Jun 15 2026).
+    expect(billDueOn(bill, '')).toBe(true);
+    expect(billDueOn(bill, '2026-06')).toBe(true);
+    expect(billDueOn({ dueDay: 16, frequency: 'Monthly' }, '')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('billDueOn is false when the bill has neither dueDay nor startDate', () => {
+    expect(billDueOn({ frequency: 'Monthly' }, new Date(2026, 5, 15))).toBe(false);
+  });
+
+  /* startDate-only bills have no dueDay, so the anchor's day-of-month is what
+     the monthly recurrence keys off. */
+  it('a monthly startDate-only bill recurs on the start day-of-month', () => {
+    const bill = { frequency: 'Monthly', startDate: '2026-03-09' };
+    expect(billDueOn(bill, new Date(2026, 5, 9))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 5, 10))).toBe(false);
+    expect(billDueOn(bill, new Date(2026, 1, 9))).toBe(false); // before the start
+  });
 });

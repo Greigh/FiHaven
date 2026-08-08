@@ -11,6 +11,7 @@ import {
   periodDays,
   adjustmentsTotalForPeriod,
   incomeLabelFor,
+  owedLabelFor,
 } from './income.js';
 import { boundsForKey } from './period.js';
 
@@ -140,5 +141,18 @@ describe('income — periodIncome', () => {
   it('incomeLabelFor reflects the period mode', () => {
     expect(incomeLabelFor({ mode: 'calendar' })).toBe('Monthly income');
     expect(incomeLabelFor({ mode: 'rolling' })).toBe('Period income');
+  });
+
+  it('owedLabelFor reflects the period mode', () => {
+    expect(owedLabelFor({ mode: 'calendar' })).toBe('Still owed this month');
+    expect(owedLabelFor({ mode: 'rolling' })).toBe('Still owed this period');
+    expect(owedLabelFor({ mode: 'startDay', startDay: 25 })).toBe('Still owed this period');
+  });
+
+  // No config yet (first load, before settings arrive) reads as calendar.
+  it('both labels fall back to the calendar wording without a config', () => {
+    expect(incomeLabelFor(null)).toBe('Monthly income');
+    expect(owedLabelFor(null)).toBe('Still owed this month');
+    expect(owedLabelFor(undefined)).toBe('Still owed this month');
   });
 });

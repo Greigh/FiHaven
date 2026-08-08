@@ -10,6 +10,7 @@ import {
   formatRateDiff,
   loadCardPresetsFromServer,
   shippedRewardRate,
+  presetRateForCategory,
 } from './cardPresets.js';
 import { effectiveRate } from './rewards.js';
 
@@ -341,5 +342,63 @@ describe('cardPresets — loadCardPresetsFromServer', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     expect(await loadCardPresetsFromServer()).toBe(false);
     expect(CARD_PRESETS.length).toBe(before);
+  });
+});
+
+/* What FiHaven ships for a preset+category — the reference the optimizer
+   compares the user's own edited rates against. */
+describe('cardPresets — presetRateForCategory', () => {
+  const BASE_LABEL = 'Base rate (everything)';
+  const preset = {
+    id: 'test-rotator',
+    rewardBase: 1,
+    rewardCategories: { Dining: 3, Groceries: 'n/a' },
+    rotatingPool: ['Gas', 'Streaming'],
+    rotatingRate: 5,
+  };
+
+  it('returns null without a preset or a category', () => {
+    expect(presetRateForCategory(null, 'Dining')).toBe(null);
+    expect(presetRateForCategory(preset, '')).toBe(null);
+  });
+
+  it('reads the base rate for the base-rate label', () => {
+    expect(presetRateForCategory(preset, BASE_LABEL)).toBe(1);
+  });
+
+  it('returns null when the preset ships no usable base rate', () => {
+    expect(presetRateForCategory({ rewardBase: '' }, BASE_LABEL)).toBe(null);
+    expect(presetRateForCategory({}, BASE_LABEL)).toBe(null);
+  });
+
+  it('reads an explicit category rate', () => {
+    expect(presetRateForCategory(preset, 'Dining')).toBe(3);
+  });
+
+  // The key is present but the value is not a number — "we ship no rate here".
+  it('returns null for a present-but-unparseable category rate', () => {
+    expect(presetRateForCategory(preset, 'Groceries')).toBe(null);
+  });
+
+  /* Rotating / choose-your-category cards advertise one elevated rate for a
+     whole pool rather than listing each category. */
+  it('falls back to the rotating rate for a category in the pool', () => {
+    expect(presetRateForCategory(preset, 'Gas')).toBe(5);
+    expect(presetRateForCategory(preset, 'Streaming')).toBe(5);
+  });
+
+  it('returns null when the rotating rate itself is missing', () => {
+    expect(presetRateForCategory({ rotatingPool: ['Gas'] }, 'Gas')).toBe(null);
+  });
+
+  it('returns null for a category the preset says nothing about', () => {
+    expect(presetRateForCategory(preset, 'Travel')).toBe(null);
+    expect(presetRateForCategory({ rewardBase: 1 }, 'Travel')).toBe(null);
+  });
+
+  it('honors a custom base label', () => {
+    expect(presetRateForCategory(preset, 'Everything', 'Everything')).toBe(1);
+    // …and then the default label is just another unknown category.
+    expect(presetRateForCategory(preset, BASE_LABEL, 'Everything')).toBe(null);
   });
 });
