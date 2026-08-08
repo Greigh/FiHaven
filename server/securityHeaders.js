@@ -11,6 +11,8 @@
 
 'use strict';
 
+const crypto = require('crypto');
+
 /* ── third-party origins the app genuinely loads ─────────────── */
 // Kept as named groups so it's obvious WHY each origin is trusted, and
 // so removing a vendor is a one-line change.
@@ -22,10 +24,14 @@ const GOOGLE_SIGNIN = 'https://accounts.google.com';
 const APPLE_SIGNIN = 'https://appleid.cdn-apple.com https://appleid.apple.com';
 const GOOGLE_FONTS_CSS = 'https://fonts.googleapis.com';
 const GOOGLE_FONTS_FILES = 'https://fonts.gstatic.com';
+// Cloudflare Web Analytics beacon (injected on the proxied edge).
+const CF_INSIGHTS = 'https://static.cloudflareinsights.com';
+const CF_INSIGHTS_CONNECT = 'https://cloudflareinsights.com';
 
 // SHA-256 of every inline <script> we ship, so the CSP can allow exactly
-// those and nothing else — no 'unsafe-inline', no nonce plumbing through
-// what are otherwise static files.
+// those and nothing else — no 'unsafe-inline'. Static HTML keeps working
+// without per-request rewriting; Cloudflare Bot Fight Mode's injected
+// detection script is covered separately via a per-request nonce (below).
 //
 // Regenerate after editing any inline script in client/*.html:
 //   node scripts/csp-hashes.js
@@ -43,13 +49,21 @@ const INLINE_SCRIPT_HASHES = [
   // page (its retry script must run with no network).
   "'sha256-U4dw3sAvIlexZIlD+ERF5Ec6xL4tXZAVg28V0G/59eQ='",
   "'sha256-L3r+JZUA0GeWfSDQ7c+BwlOACFyw3apTMGbsYIzHScY='",
-  "'sha256-V/dEI+IH1cOPDZZkdLIkkkA+tIqIxS0o7yQscs0jxM4='",
+  "'sha256-ExHs1lzkzBKdLeBPRmz8KByACsewCi326efa+s0NKuU='",
 ].join(' ');
 
-function buildCsp() {
+/**
+ * @param {string} [nonce] base64url nonce. When set, script-src includes
+ *   'nonce-…' so Cloudflare can stamp the Bot Fight Mode / JS Detections
+ *   snippet it injects at the edge (that snippet's body changes every
+ *   request, so a hash allowlist can never cover it). Our own inline
+ *   scripts stay on the hash list and do not need the attribute.
+ */
+function buildCsp(nonce) {
+  const nonceSrc = nonce ? `'nonce-${nonce}' ` : '';
   return [
     "default-src 'self'",
-    `script-src 'self' ${INLINE_SCRIPT_HASHES} ${TURNSTILE} ${PLAID} ${PADDLE_CDN} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN}`,
+    `script-src 'self' ${nonceSrc}${INLINE_SCRIPT_HASHES} ${TURNSTILE} ${PLAID} ${PADDLE_CDN} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN} ${CF_INSIGHTS}`,
     // 'unsafe-inline' is load-bearing for styles: the UI is rendered from
     // HTML strings carrying style="" attributes throughout. Removing it is a
     // real refactor, and style injection is a far smaller prize than script.
@@ -57,7 +71,7 @@ function buildCsp() {
     `font-src 'self' ${GOOGLE_FONTS_FILES} data:`,
     // Issuer logos + user-supplied category icons can be data: URIs or remote.
     "img-src 'self' data: https:",
-    `connect-src 'self' ${PLAID} ${PADDLE_CDN} ${PADDLE_BUY} ${GOOGLE_SIGNIN}`,
+    `connect-src 'self' ${PLAID} ${PADDLE_CDN} ${PADDLE_BUY} ${GOOGLE_SIGNIN} ${CF_INSIGHTS_CONNECT}`,
     `frame-src ${TURNSTILE} ${PLAID} https://plaid.com ${PADDLE_BUY} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN}`,
     // Clickjacking: no one frames us. Belt to X-Frame-Options' braces, and the
     // only one of the two that modern browsers actually consult.
@@ -76,9 +90,14 @@ function buildCsp() {
  * CSP is Report-Only unless CSP_ENFORCE=1. Promote it once the browser
  * console is quiet on: sign-in (Turnstile, Google, Apple), Paddle checkout,
  * and Plaid Link — those are the flows with third-party frames and scripts.
+ *
+ * Cloudflare note: Bot Fight Mode injects a per-request inline script for
+ * JavaScript Detections. A hash allowlist can never match it; we emit a
+ * fresh CSP nonce each response so Cloudflare can copy it onto that tag
+ * (documented under JavaScript Detections + CSP). Meta-tag nonces are not
+ * supported — the value must be in the CSP *header*.
  */
 function securityHeaders() {
-  const csp = buildCsp();
   const enforce = process.env.CSP_ENFORCE === '1';
   const cspHeader = enforce
     ? 'Content-Security-Policy'
@@ -86,7 +105,9 @@ function securityHeaders() {
   const isProd = process.env.NODE_ENV === 'production';
 
   return function applySecurityHeaders(req, res, next) {
-    res.setHeader(cspHeader, csp);
+    const nonce = crypto.randomBytes(16).toString('base64url');
+    res.locals.cspNonce = nonce;
+    res.setHeader(cspHeader, buildCsp(nonce));
     // Stops the browser second-guessing a declared Content-Type — the vector
     // for turning an uploaded/echoed file into script.
     res.setHeader('X-Content-Type-Options', 'nosniff');
