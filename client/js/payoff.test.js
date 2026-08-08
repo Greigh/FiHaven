@@ -6,7 +6,7 @@ vi.mock('svelte', () => ({
   mount: mountMock,
 }));
 
-import { runPayoffSim, renderPayoff } from './payoff.js';
+import { runPayoffSim, renderPayoff, isHousingLoan } from './payoff.js';
 import { setCards } from './storage.svelte.js';
 
 describe('payoff — runPayoffSim', () => {
@@ -123,5 +123,43 @@ describe('payoff — renderPayoff', () => {
     document.body.innerHTML = '';
     renderPayoff();
     expect(mountMock).not.toHaveBeenCalled();
+  });
+});
+
+/* Housing debt is excluded from the sim by default: PMI and escrow ride along
+   with the payment, so a plain amortization curve would be misleading. */
+describe('payoff — isHousingLoan', () => {
+  it('is false for anything that is not a loan', () => {
+    expect(isHousingLoan({ name: 'Mortgage rewards card' })).toBe(false);
+    expect(isHousingLoan({ type: 'card', name: 'Mortgage' })).toBe(false);
+    expect(isHousingLoan({ type: 'loan', name: 'Car loan' })).toBe(false);
+  });
+
+  it('matches the housing wordings we see in the wild', () => {
+    for (const name of [
+      'Mortgage',
+      '30-yr Home Loan',
+      'HELOC',
+      'Home Equity Line',
+      'Housing note',
+      'Refinance 2024',
+      'Refi',
+    ]) {
+      expect(isHousingLoan({ type: 'loan', name })).toBe(true);
+    }
+  });
+
+  it('looks at issuer, provider, and category too, case-insensitively', () => {
+    expect(isHousingLoan({ type: 'loan', issuer: 'Rocket Mortgage' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', provider: 'BetterHomeEquity' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', category: 'HOUSING' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', name: null, issuer: undefined, category: 'heloc' })).toBe(true);
+  });
+
+  it('does not match a loan with no housing signal at all', () => {
+    expect(isHousingLoan({ type: 'loan' })).toBe(false);
+    expect(isHousingLoan({ type: 'loan', name: 'Student loan', issuer: 'Nelnet' })).toBe(false);
+    // "refi" is word-bounded, so it must not fire on an unrelated substring.
+    expect(isHousingLoan({ type: 'loan', name: 'Refinery credit union' })).toBe(false);
   });
 });
