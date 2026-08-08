@@ -76,6 +76,12 @@ but still drawn on a full-height white plate, so it sat squashed in the middle
 with white bands above and below it. The plate now shrinks to the mark it holds,
 on the web and in both apps.
 
+**Bilt gets its square logo back.** Cropping its artwork down to the strip its
+letters occupy left it reading as a squashed band beside the square marks around
+it, however the plate was sized. It now uses the square lockup the brand
+publishes — the wordmark inside its own navy tile — so it sits in the row like
+Citi's and Amex's do.
+
 **A bill with no amount no longer says it's paid (Aug 6)**
 
 If you saved a bill without filling in the amount, FiHaven treated it as a bill
@@ -1113,6 +1119,13 @@ app and the server. Most of what follows had been true on more than one platform
   a new `--logo-aspect` custom property (set alongside the existing inline
   `aspect-ratio`) with `height: auto`. Corner radius scales with the shorter
   plate.
+- **`bilt` is re-authored as a 1:1 mark** in `issuerLogos.js` (regenerated into
+  the native tables by `scripts/sync-issuer-logos.js`): the brand's square
+  lockup, wordmark centred at 90% of the tile's width on a full-bleed navy
+  square, rather than the artwork cropped to its letters. At 4.02:1 the cropped
+  version rendered as a ~42x10 strip beside 24x24 marks whatever the plate did.
+  The header's "cropped to its artwork bounds" rule now names it as the
+  deliberate exception.
 
 #### iOS 25 / Android 46
 

@@ -57,7 +57,7 @@ For support, contact daniel@fihaven.app.
 
 ## TestFlight — What to Test
 
-> 2560 / 4000 characters.
+> 2907 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 26
@@ -77,7 +77,8 @@ WHAT CHANGED
 
 ALSO IN THIS BUILD
 
-- Wide issuer logos are not squashed anymore. A wordmark like Bilt, Hyatt, US Bank or Capital One sat on a full-height white plate with the logo shrunk into a band across the middle of it. The plate now fits the logo.
+- Wide issuer logos are not squashed anymore. A wordmark like Hyatt, US Bank or Capital One sat on a full-height white plate with the logo shrunk into a band across the middle of it. The plate now fits the logo.
+- Bilt uses its square logo. Trimming its artwork down to the strip its letters occupy left it looking squashed next to the square marks around it, so it now shows the square lockup the brand publishes — the wordmark inside its own navy tile.
 
 WHAT TO TEST
 
@@ -86,7 +87,8 @@ WHAT TO TEST
 - Switch Settings > payment goal between Minimum, Recommended and Full amount. The big figure on every card should follow it.
 - Set a Recommended payment on one card in its editor. That card should ignore the Settings switch and use your number.
 - Make a partial payment on a card. The big figure should hold still while "still owed" shrinks.
-- Look at a card whose logo is a wordmark (Bilt, Hyatt, US Bank, Capital One). The white plate should fit the logo, with no white bands above and below it.
+- Look at a card whose logo is a wordmark (Hyatt, US Bank, Capital One). The white plate should fit the logo, with no white bands above and below it.
+- Look at a Bilt card. Its logo should be a square navy tile the size of the Citi and Amex marks, not a thin strip.
 
 NOTE
 

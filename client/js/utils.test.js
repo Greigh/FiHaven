@@ -652,9 +652,19 @@ describe('utils — buildUpcomingItems', () => {
     expect(item.brand.isLogo).toBe(true);
     expect(item.brand.key).toBe('bilt');
     expect(item.brand.fullColor).toBe(true);
-    expect(item.brand.aspect).toBeGreaterThan(1);
+    // Bilt's mark is its square lockup, so 1:1 — the plate is sized from the
+    // aspect either way. A wordmark's ratio is covered by the next test.
+    expect(item.brand.aspect).toBe(1);
     // The emoji stand-in survives for text-only contexts.
     expect(item.icon).toBe('🏠');
+  });
+
+  it('carries a wordmark’s aspect ratio so the plate can hug it', () => {
+    setBills([]);
+    setCards([{ id: 'C4', name: 'Quicksilver', issuer: 'Capital One', minPayment: 10, dueDay: 1 }]);
+    const item = buildUpcomingItems()[0];
+    expect(item.brand.fullColor).toBe(true);
+    expect(item.brand.aspect).toBeGreaterThan(2);
   });
 });
 
