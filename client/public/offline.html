@@ -69,12 +69,15 @@
     <h1>You're offline</h1>
     <p>FiHaven couldn't reach the network, and this page isn't one it had saved on your device.</p>
     <p>Anything you'd already opened is still available, and any changes you made are kept here and sent as soon as you're back online.</p>
-    <button type="button" onclick="location.reload()">Try again</button>
+    <button type="button" id="offline-retry">Try again</button>
     <p class="hint">This page will reload itself when the connection returns.</p>
   </div>
   <script>
     // Reconnecting is the signal to retry — no need to make the user tap.
+    // Button uses addEventListener (not onclick) so CSP can stay strict.
     window.addEventListener('online', function () { location.reload(); });
+    var retry = document.getElementById('offline-retry');
+    if (retry) retry.addEventListener('click', function () { location.reload(); });
   </script>
 </body>
 </html>

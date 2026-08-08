@@ -10,18 +10,22 @@
 
    Two strategies, chosen by what breaks worst when it goes stale:
 
-   - **Navigations and same-origin static assets: network first**, then
+   - Navigations and same-origin static assets: network first, then
      cache. Freshness matters more than speed here — a stale bundle
      served against a newer server is how you get a client that can't
      parse a response — and the cache is the fallback, not the default.
-   - **/api/*: never cached.** A cached balance or bill total that looks
+   - /api/ routes: never cached. A cached balance or bill total that looks
      live is worse than an honest failure; the app already has its own
      data cache and its own "Offline" indicator for that.
 
    Bump CACHE_VERSION to retire every previously cached response.
+
+   Note: keep "star-slash" out of this header comment. A markdown-bold
+   "/api/" path once terminated the block comment early and left the
+   rest of the file as a ReferenceError on `api`.
 ═══════════════════════════════════════════════════════════ */
 
-var CACHE_VERSION = 'fihaven-v1';
+var CACHE_VERSION = 'fihaven-v2';
 var OFFLINE_URL = '/offline.html';
 
 /* Shell entries worth having before the first offline load. Deliberately
