@@ -106,3 +106,83 @@ describe('rateLimit.js', () => {
     intervalSpy.mockRestore();
   });
 });
+
+/* A throttle that resets on restart is a throttle an attacker can clear by
+   bouncing the process, so the counters are replayed from a durable store. */
+describe('rateLimit.js — durable store', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function fakeStore(rows = []) {
+    return {
+      load: vi.fn(() => rows),
+      save: vi.fn(),
+      remove: vi.fn(),
+      prune: vi.fn(),
+    };
+  }
+
+  it('attachStore replays a live window so a blocked key stays blocked', () => {
+    const rl = loadRateLimit();
+    const store = fakeStore([
+      { key: '1.2.3.4:blocked@test.com', count: rl.MAX_ATTEMPTS, window_start: Date.now() - 1000 },
+    ]);
+
+    rl.attachStore(store);
+
+    expect(store.load).toHaveBeenCalledOnce();
+    const blocked = rl.check('1.2.3.4', 'blocked@test.com');
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.retryAfter).toBeGreaterThan(0);
+  });
+
+  it('attachStore skips windows that elapsed while the process was down', () => {
+    const rl = loadRateLimit();
+    rl.attachStore(fakeStore([
+      {
+        key: '1.2.3.4:stale@test.com',
+        count: rl.MAX_ATTEMPTS,
+        window_start: Date.now() - rl.WINDOW_MS - 1,
+      },
+    ]));
+
+    expect(rl.check('1.2.3.4', 'stale@test.com')).toEqual({ allowed: true, retryAfter: 0 });
+  });
+
+  it('attachStore(null) detaches and leaves the in-memory behaviour unchanged', () => {
+    const rl = loadRateLimit();
+    const store = fakeStore();
+    rl.attachStore(store);
+    rl.attachStore(null);
+
+    rl.record('1.2.3.4', 'user@test.com');
+    rl.reset('1.2.3.4', 'user@test.com');
+    rl.prune();
+
+    expect(store.load).toHaveBeenCalledOnce();  // only the first attach replayed
+    expect(store.save).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
+    expect(store.prune).not.toHaveBeenCalled();
+  });
+
+  it('mirrors record / reset / prune through to the store', () => {
+    const rl = loadRateLimit();
+    const store = fakeStore();
+    rl.attachStore(store);
+
+    rl.record('1.2.3.4', 'user@test.com');
+    expect(store.save).toHaveBeenCalledWith('1.2.3.4:user@test.com', 1, Date.now());
+
+    rl.reset('1.2.3.4', 'user@test.com');
+    expect(store.remove).toHaveBeenCalledWith('1.2.3.4:user@test.com');
+
+    rl.prune();
+    expect(store.prune).toHaveBeenCalledWith(Date.now() - rl.WINDOW_MS);
+  });
+});

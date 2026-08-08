@@ -24,15 +24,37 @@ function clearModule(modulePath) {
   }
 }
 
-function loadScheduler({ pro = false } = {}) {
+/* Push is required at module scope (not injectable via `deps`), so it is stubbed
+   in the require cache. That also keeps firebase-admin/apns2 out of the test
+   process. Pass `push` to observe the calls. */
+function loadScheduler({ pro = false, push } = {}) {
   clearModule('./scheduler');
   clearModule('./db');
   clearModule('./billing');
   clearModule('./emails');
+  clearModule('./push');
   stubModule('./db', {});
   stubModule('./billing', { computeEntitlement: vi.fn(() => ({ pro })) });
   stubModule('./emails', {});
+  stubModule('./push', push || {
+    sendBillReminderPush: vi.fn(),
+    sendTrialReminderPush: vi.fn(),
+    sendOfferReminderPush: vi.fn(),
+    sendWeeklyDigestPush: vi.fn(),
+    sendMonthlySummaryPush: vi.fn(),
+  });
   return require('./scheduler');
+}
+
+function makePush(overrides = {}) {
+  return {
+    sendBillReminderPush: vi.fn().mockResolvedValue(undefined),
+    sendTrialReminderPush: vi.fn().mockResolvedValue(undefined),
+    sendOfferReminderPush: vi.fn().mockResolvedValue(undefined),
+    sendWeeklyDigestPush: vi.fn().mockResolvedValue(undefined),
+    sendMonthlySummaryPush: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
 }
 
 function makeUser(overrides = {}) {
@@ -1101,5 +1123,274 @@ describe('scheduler — archived items are soft-deleted everywhere', () => {
     };
     expect(sched.markAutopay(data, lp)).toBe(true);
     expect(data.payments.map((p) => p.type).sort()).toEqual(['bill', 'card']);
+  });
+});
+
+/* Push rides alongside every email, but on its own delivery path: a dead token
+   must never gate the email's "already sent" stamp, or the email is re-sent
+   forever. `pushNotifications` is the single opt-in for all five. */
+describe('scheduler — push notifications', () => {
+  const AT_SEND_HOUR = new Date('2026-06-17T12:00:00.000Z');   // 08:00 America/New_York
+  const MONDAY = new Date('2026-06-15T12:00:00.000Z');
+  const FIRST_OF_MONTH = new Date('2026-06-01T12:00:00.000Z');
+
+  function mailer() {
+    return {
+      sendBillReminder: vi.fn().mockResolvedValue({}),
+      sendTrialReminder: vi.fn().mockResolvedValue({}),
+      sendOfferReminder: vi.fn().mockResolvedValue({}),
+      sendWeeklyDigest: vi.fn().mockResolvedValue({}),
+      sendMonthlySummary: vi.fn().mockResolvedValue({}),
+    };
+  }
+
+  function makeDb(users) {
+    return {
+      allUsersWithData: vi.fn(() => users),
+      setReminderDay: vi.fn(),
+      setTrialReminderDay: vi.fn(),
+      setOfferReminderDay: vi.fn(),
+      setDigestWeek: vi.fn(),
+      setSummaryMonth: vi.fn(),
+    };
+  }
+
+  it('sends a bill-reminder push alongside the email', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({
+        settings: { pushNotifications: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+      }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(AT_SEND_HOUR, { db, emails });
+
+    expect(emails.sendBillReminder).toHaveBeenCalledOnce();
+    expect(push.sendBillReminderPush).toHaveBeenCalledWith(
+      1,
+      [expect.objectContaining({ name: 'Rent' })],
+      3,
+      'USD',
+    );
+  });
+
+  it('sends a trial-reminder push alongside the email', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({
+        settings: { pushNotifications: true },
+        bills: [{ id: 'b1', name: 'Netflix', trialEnds: '2026-06-20' }],
+      }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(AT_SEND_HOUR, { db, emails });
+
+    expect(emails.sendTrialReminder).toHaveBeenCalledOnce();
+    expect(push.sendTrialReminderPush).toHaveBeenCalledWith(
+      1,
+      [expect.objectContaining({ name: 'Netflix' })],
+      3,
+    );
+  });
+
+  it('sends an offer-reminder push alongside the email (Pro only)', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ pro: true, push });
+    const db = makeDb([
+      makeUser({
+        settings: { billReminders: false, offerReminders: true, pushNotifications: true },
+        cards: [{
+          id: 'c1',
+          name: 'Amex',
+          offers: [{ merchant: 'Dell', detail: '$50 back', expires: '2026-06-20' }],
+        }],
+      }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(AT_SEND_HOUR, { db, emails });
+
+    expect(emails.sendOfferReminder).toHaveBeenCalledOnce();
+    expect(push.sendOfferReminderPush).toHaveBeenCalledWith(
+      1,
+      [expect.objectContaining({ merchant: 'Dell', cardName: 'Amex' })],
+      3,
+    );
+  });
+
+  it('sends a weekly-digest push alongside the email', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({
+        settings: { billReminders: false, weeklyDigest: true, pushNotifications: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 18 }],
+      }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(MONDAY, { db, emails });
+
+    expect(emails.sendWeeklyDigest).toHaveBeenCalledOnce();
+    expect(push.sendWeeklyDigestPush).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ upcomingTotal: 1450 }),
+      'USD',
+    );
+  });
+
+  it('sends a monthly-summary push alongside the email', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({
+        settings: {
+          billReminders: false,
+          monthlySummary: true,
+          pushNotifications: true,
+        },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500 }],
+        payments: [{ monthKey: '2026-05', amount: 1800 }],
+      }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(FIRST_OF_MONTH, { db, emails });
+
+    expect(emails.sendMonthlySummary).toHaveBeenCalledOnce();
+    expect(push.sendMonthlySummaryPush).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ paid: 1800, billsTotal: 1500 }),
+      'USD',
+    );
+  });
+
+  it('leaves push alone when the user has not opted in', async () => {
+    const push = makePush();
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({ bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }] }),
+    ]);
+    const emails = mailer();
+
+    await runChecks(AT_SEND_HOUR, { db, emails });
+
+    expect(emails.sendBillReminder).toHaveBeenCalledOnce();
+    expect(push.sendBillReminderPush).not.toHaveBeenCalled();
+  });
+
+  /* A push failure is swallowed: it has its own delivery path, so letting it
+     block the email stamp would re-send the email on every later pass. */
+  it('a failing push is logged but still stamps the email as delivered', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const push = makePush({
+      sendBillReminderPush: vi.fn().mockRejectedValue(new Error('token gone')),
+    });
+    const { runChecks } = loadScheduler({ push });
+    const db = makeDb([
+      makeUser({
+        settings: { pushNotifications: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+      }),
+    ]);
+
+    await runChecks(AT_SEND_HOUR, { db, emails: mailer() });
+
+    expect(db.setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+    expect(err).toHaveBeenCalledWith(
+      'push reminder failed', 'user@example.com', 'token gone',
+    );
+    err.mockRestore();
+  });
+});
+
+describe('scheduler — autopayDay overrides the due day', () => {
+  const lpFor = (sched) => sched.localParts(new Date('2026-06-17T12:00:00.000Z'), 'America/New_York');
+
+  it('marks a bill on its autopay day rather than its due day', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);   // the 17th
+    const data = {
+      // Due on the 25th, but the bank pulls on the 17th.
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 25, autopayDay: lp.d, autopay: true }],
+      payments: [],
+      settings: {},
+    };
+
+    expect(sched.markAutopay(data, lp)).toBe(true);
+    expect(data.payments).toEqual([
+      expect.objectContaining({ type: 'bill', refId: 'b1', amount: 1450, date: '2026-06-17' }),
+    ]);
+  });
+
+  it('waits for the autopay day even when the bill is due today', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: lp.d, autopayDay: lp.d + 1, autopay: true }],
+      payments: [],
+      settings: {},
+    };
+
+    expect(sched.markAutopay(data, lp)).toBe(false);
+    expect(data.payments).toEqual([]);
+  });
+
+  /* The autopay day is only the trigger — the bill still has to be scheduled
+     somewhere in this month, or an annual bill would be pulled every month. */
+  it('does not mark on the autopay day when the bill is not scheduled this month', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const data = {
+      bills: [{
+        id: 'b1', name: 'Domain', amount: 18, frequency: 'Annually',
+        startDate: '2026-01-10', autopayDay: lp.d, autopay: true,
+      }],
+      payments: [],
+      settings: {},
+    };
+
+    expect(sched.markAutopay(data, lp)).toBe(false);
+    expect(data.payments).toEqual([]);
+  });
+
+  it('honors an autopayDay on a card too', () => {
+    const sched = loadScheduler({ pro: true });
+    const lp = lpFor(sched);
+    const data = {
+      cards: [{ id: 'c1', name: 'Amex', minPayment: 35, dueDay: 25, autopayDay: lp.d, autopay: true }],
+      payments: [],
+      settings: {},
+    };
+
+    expect(sched.markAutopay(data, lp)).toBe(true);
+    expect(data.payments).toEqual([
+      expect.objectContaining({ type: 'card', refId: 'c1', amount: 35 }),
+    ]);
+  });
+});
+
+describe('scheduler — weeklyDigest ordering', () => {
+  it('sorts upcoming bills soonest-first', () => {
+    const sched = loadScheduler();
+    const lp = sched.localParts(new Date('2026-06-15T12:00:00.000Z'), 'America/New_York');
+    const data = {
+      bills: [
+        { id: 'b1', name: 'Later', amount: 30, dueDay: 20 },
+        { id: 'b2', name: 'Today', amount: 10, dueDay: 15 },
+        { id: 'b3', name: 'Soon', amount: 20, dueDay: 17 },
+        { id: 'b4', name: 'Beyond the window', amount: 99, dueDay: 30 },
+      ],
+    };
+
+    const out = sched.weeklyDigest(data, lp);
+    expect(out.upcoming.map((b) => b.name)).toEqual(['Today', 'Soon', 'Later']);
+    expect(out.upcoming.map((b) => b.daysUntil)).toEqual([0, 2, 5]);
+    expect(out.upcomingTotal).toBe(60);
   });
 });

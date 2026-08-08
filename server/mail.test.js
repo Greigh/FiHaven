@@ -26,11 +26,17 @@ function clearModule(modulePath) {
 
 describe('mail.js', () => {
   const transportSendMail = vi.fn().mockResolvedValue({ messageId: 'transport-id' });
-  const createTransportMock = vi.fn(() => ({ sendMail: transportSendMail }));
+  const transportVerify = vi.fn().mockResolvedValue(true);
+  const createTransportMock = vi.fn(() => ({
+    sendMail: transportSendMail,
+    verify: transportVerify,
+  }));
   let mail;
 
   beforeEach(() => {
     transportSendMail.mockClear();
+    transportVerify.mockClear();
+    transportVerify.mockResolvedValue(true);
     createTransportMock.mockClear();
     clearModule('./mail');
     clearModule('nodemailer');
@@ -123,5 +129,51 @@ describe('mail.js', () => {
   it('sendMail() leaves headers off when there is no unsubscribe URL', async () => {
     await mail.sendMail({ to: 'user@test.com', subject: 'Reset', text: 'Plain' });
     expect(transportSendMail.mock.calls[0][0].headers).toBeUndefined();
+  });
+
+  it('sendMail() merges caller headers with the unsubscribe pair', async () => {
+    await mail.sendMail({
+      to: 'user@test.com',
+      subject: 'Digest',
+      text: 'Plain',
+      headers: { 'X-Entity-Ref-ID': 'abc' },
+      listUnsubscribe: 'https://fihaven.app/unsubscribe?t=1.digest.sig',
+    });
+
+    expect(transportSendMail.mock.calls[0][0].headers).toEqual({
+      'X-Entity-Ref-ID': 'abc',
+      'List-Unsubscribe': '<https://fihaven.app/unsubscribe?t=1.digest.sig>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+  });
+
+  it('verify() probes the transport without sending anything', async () => {
+    await expect(mail.verify()).resolves.toBe(true);
+    expect(transportVerify).toHaveBeenCalledOnce();
+    expect(transportSendMail).not.toHaveBeenCalled();
+  });
+
+  it('verify() rejects with the underlying transport error', async () => {
+    transportVerify.mockRejectedValue(new Error('ECONNREFUSED 127.0.0.1:25'));
+    await expect(mail.verify()).rejects.toThrow('ECONNREFUSED 127.0.0.1:25');
+  });
+
+  /* Subjects interpolate user-supplied text (bill names, service names), so a
+     raw CR/LF there is the classic header-injection primitive. */
+  it('sanitizeHeader collapses CR/LF and control characters', () => {
+    expect(mail.sanitizeHeader('Rent\r\nBcc: attacker@evil.test')).toBe(
+      'Rent Bcc: attacker@evil.test',
+    );
+    expect(mail.sanitizeHeader('   Padded  ')).toBe('Padded');
+  });
+
+  it('sanitizeHeader passes null and undefined straight through', () => {
+    expect(mail.sanitizeHeader(null)).toBe(null);
+    expect(mail.sanitizeHeader(undefined)).toBe(undefined);
+  });
+
+  it('sendMail() sanitizes the subject at the single choke point', async () => {
+    await mail.sendMail({ to: 'user@test.com', subject: 'Gym\nBcc: x@evil.test', text: 'Plain' });
+    expect(transportSendMail.mock.calls[0][0].subject).toBe('Gym Bcc: x@evil.test');
   });
 });

@@ -171,6 +171,27 @@ describe('period — periodLabel', () => {
   });
 });
 
+/* Period keys arrive from saved settings and URLs, so a malformed one must not
+   throw — it falls back to the period containing today. */
+describe('period — unparseable dates fall back to today', () => {
+  it('treats a non-date string as today', () => {
+    const cfg = { mode: 'calendar' };
+    const now = new Date();
+    const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+    expect(periodBounds('not-a-date', cfg).key).toBe(thisMonth);
+    expect(periodBounds('----', cfg).key).toBe(thisMonth);
+    // A year alone has no month, so it is unusable too.
+    expect(periodBounds('2026', cfg).key).toBe(thisMonth);
+  });
+
+  it('accepts a Date as well as a key string', () => {
+    const cfg = { mode: 'calendar' };
+    expect(periodBounds(new Date(2026, 5, 15), cfg).key).toBe('2026-06');
+    expect(periodBounds('2026-06', cfg).key).toBe('2026-06');
+  });
+});
+
 describe('period — periodKeyLabel', () => {
   it('labels a calendar key', () => {
     expect(periodKeyLabel('2026-06', { mode: 'calendar' })).toBe('June 2026');

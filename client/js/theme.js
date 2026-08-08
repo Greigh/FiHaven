@@ -27,5 +27,5 @@ export function toggleTheme() {
   }
 }
 
-// Inline onclick="toggleTheme()" handlers still work.
+// Exposed for the account-menu Theme item (addEventListener, not onclick).
 window.toggleTheme = toggleTheme;
