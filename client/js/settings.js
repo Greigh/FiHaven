@@ -1138,7 +1138,7 @@ import {
     if (!form || !select) return;
 
     var DESCRIPTIONS = {
-      due:     'Cards lead with the statement balance and its due date — the amount with a deadline attached.',
+      due:     'Cards lead with what to pay this period under your payment-goal setting — the minimum, the payoff-aware recommendation, or the full balance — alongside the due date.',
       current: 'Cards lead with the live balance, including charges made since the statement closed. This is the figure utilization is measured against.',
       owed:    'Cards lead with what’s left to pay this period under your payment-goal setting, so it shrinks as you make partial payments.',
     };
