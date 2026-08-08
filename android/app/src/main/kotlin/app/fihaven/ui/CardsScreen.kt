@@ -70,6 +70,7 @@ import app.fihaven.core.logic.Rewards
 import app.fihaven.core.model.Account
 import app.fihaven.core.model.Card
 import app.fihaven.ui.theme.Ct
+import kotlin.math.abs
 import kotlin.math.min
 
 @Composable
@@ -423,7 +424,8 @@ private fun CardRow(
     // The amounts the headline isn't showing — the preference re-ranks the
     // three rather than hiding any of them. One per line: side by side they
     // widened the trailing column enough to ellipsize the card's name on a
-    // narrow phone.
+    // narrow phone. The statement balance joins them only when those three
+    // don't already account for it (see Schedule.CardAmounts.statement).
     val companionAmounts = Schedule.otherAmounts(headline).map { key ->
         val label = when (key) {
             "current" -> if (isLoan) "principal" else "current"
@@ -431,7 +433,7 @@ private fun CardRow(
             else -> if (isLoan) "payment" else "due"
         }
         "$label ${Money.fmtShort(amounts.valueFor(key))}"
-    }
+    } + listOfNotNull(amounts.statement?.let { "statement ${Money.fmtShort(it)}" })
 
     CtCard(Modifier.clickable(onClick = onEdit)) {
         Column {
@@ -533,11 +535,18 @@ private fun CardRow(
             // period on a card that has a distinct recommendation — a 0% promo's
             // monthly payoff, or an explicit recommended payment. Plain cards just
             // show "not paid" (their balance/minimum are already on the row).
+            //
+            // Dropped when the amounts in the corner already state it, which under
+            // the default payment goal is every time — the line was repeating the
+            // headline figure directly above it.
             val suggested: Pair<Double, Boolean>? = when {
                 isLoan -> null
                 promoActive -> maxOf(card.minPaymentOrZero, Schedule.promoNeeded(card, zone)) to true
                 (card.recommendedPayment ?: 0.0) > 0.0 -> card.recommendedPayment!! to false
                 else -> null
+            }?.takeIf { (amount, _) ->
+                abs(amount - amounts.due) > Schedule.PAID_EPSILON &&
+                    abs(amount - amounts.owed) > Schedule.PAID_EPSILON
             }
             val statusText = when {
                 skipped -> "⏭ Skipped this month"

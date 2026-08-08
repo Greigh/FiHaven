@@ -8,6 +8,7 @@ import app.fihaven.core.model.Payment
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.abs
 import kotlin.math.max
 
 data class UpcomingItem(
@@ -181,16 +182,35 @@ object Schedule {
     fun liveBalance(card: Card): Double = card.currentBalance ?: card.balance
 
     /**
-     * The three amounts a card row can lead with, resolved together so the
-     * headline and its companion figures can never disagree.
+     * The amounts a card row shows, resolved together so the headline and its
+     * companion figures can never disagree.
      */
     data class CardAmounts(
-        /** Statement balance — a loan's is its scheduled payment. */
+        /**
+         * What to pay this period: the goal the paid-goal policy names, with a
+         * per-card recommended payment overriding it. A loan's is its
+         * scheduled payment.
+         *
+         * This was the raw statement balance, which read "$0.00" — in the
+         * settled green, no less — on a 0% promo card whose statement is clear
+         * but whose monthly payoff installment still has to land on time.
+         */
         val due: Double,
         /** Live balance, the one utilization is measured against. */
         val current: Double,
-        /** Still owed this period under the paid-goal policy (0 if skipped). */
+        /** [due] less what's been paid this period (0 if skipped). */
         val owed: Double,
+        /**
+         * The statement balance — what the issuer actually billed — or null
+         * when the row already accounts for it.
+         *
+         * Once [due] became the period's goal, the statement had nowhere left
+         * to go whenever the goal isn't the balance: the minimum policy, a
+         * promo card, a per-card override. It's null when it would only repeat
+         * [due] or [current], and on loans, which have a principal rather than
+         * a statement. Deciding it here keeps the three clients from drifting.
+         */
+        val statement: Double? = null,
     ) {
         /** The amount named by a `settings.cardHeadline` value. */
         fun valueFor(headline: String): Double = when (headline) {
@@ -209,15 +229,23 @@ object Schedule {
         now: Instant = Instant.now(),
     ): CardAmounts {
         val ref = card.id.toString()
+        // One goal behind both figures: the target this period, and what's
+        // left of it. Resolved together so they can't disagree.
+        val goal = goalAmount(card, policy, payments, bounds, zone, now)
         val owed = if (isSkipped(payments, "card", ref, bounds)) {
             0.0
         } else {
-            max(0.0, goalAmount(card, policy, payments, bounds, zone, now) - paidAmount(payments, "card", ref, bounds))
+            max(0.0, goal - paidAmount(payments, "card", ref, bounds))
         }
+        val current = liveBalance(card)
+        val redundant = card.type == "loan" ||
+            abs(card.balance - goal) <= PAID_EPSILON ||
+            abs(card.balance - current) <= PAID_EPSILON
         return CardAmounts(
-            due = if (card.type == "loan") card.minPaymentOrZero else card.balance,
-            current = liveBalance(card),
+            due = goal,
+            current = current,
             owed = owed,
+            statement = if (redundant) null else card.balance,
         )
     }
 

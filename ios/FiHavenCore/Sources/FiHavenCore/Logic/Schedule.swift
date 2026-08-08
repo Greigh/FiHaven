@@ -230,20 +230,37 @@ public enum Schedule {
         card.currentBalance ?? card.balance
     }
 
-    /// The three amounts a card row can lead with, resolved together so the
-    /// headline and its companion figures can never disagree.
+    /// The amounts a card row shows, resolved together so the headline and
+    /// its companion figures can never disagree.
     public struct CardAmounts: Equatable {
-        /// Statement balance — a loan's is its scheduled payment.
+        /// What to pay this period: the goal the paid-goal policy names, with
+        /// a per-card recommended payment overriding it. A loan's is its
+        /// scheduled payment.
+        ///
+        /// This was the raw statement balance, which read "$0.00" — in the
+        /// settled green, no less — on a 0% promo card whose statement is
+        /// clear but whose monthly payoff installment still has to land.
         public let due: Double
         /// Live balance, the one utilization is measured against.
         public let current: Double
-        /// Still owed this period under the paid-goal policy (0 if skipped).
+        /// `due` less what's been paid this period (0 if skipped).
         public let owed: Double
+        /// The statement balance — what the issuer actually billed — or nil
+        /// when the row already accounts for it.
+        ///
+        /// Once `due` became the period's goal, the statement had nowhere left
+        /// to go whenever the goal isn't the balance: the minimum policy, a
+        /// promo card, a per-card override. It's nil when it would only repeat
+        /// `due` or `current`, and on loans, which have a principal rather
+        /// than a statement. Deciding it here keeps the three clients from
+        /// drifting.
+        public let statement: Double?
 
-        public init(due: Double, current: Double, owed: Double) {
+        public init(due: Double, current: Double, owed: Double, statement: Double? = nil) {
             self.due = due
             self.current = current
             self.owed = owed
+            self.statement = statement
         }
 
         /// The amount named by a `Settings.cardHeadline` value.
@@ -265,15 +282,21 @@ public enum Schedule {
         now: Date = Date()
     ) -> CardAmounts {
         let ref = String(card.id)
-        let isLoan = (card.type ?? "card") == "loan"
+        // One goal behind both figures: the target this period, and what's
+        // left of it. Resolved together so they can't disagree.
         let goal = goalAmount(card: card, policy: policy, payments: payments, in: bounds, tz: tz, now: now)
         let owed = isSkipped(payments, type: "card", refId: ref, in: bounds)
             ? 0
             : remainingForGoal(type: "card", refId: ref, goal: goal, payments: payments, in: bounds)
+        let current = liveBalance(card)
+        let redundant = (card.type ?? "card") == "loan"
+            || abs(card.balance - goal) <= paidEpsilon
+            || abs(card.balance - current) <= paidEpsilon
         return CardAmounts(
-            due: isLoan ? card.minPaymentOrZero : card.balance,
-            current: liveBalance(card),
-            owed: owed
+            due: goal,
+            current: current,
+            owed: owed,
+            statement: redundant ? nil : card.balance
         )
     }
 

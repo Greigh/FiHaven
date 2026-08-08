@@ -20,7 +20,7 @@
 {#if isImage}
   <img
     class="icon-mark icon-mark-img {plated ? 'icon-mark-plate' : ''} {className}"
-    style={plated && info.aspect ? `aspect-ratio:${info.aspect};` : ''}
+    style={plated && info.aspect ? `aspect-ratio:${info.aspect};--logo-aspect:${info.aspect};` : ''}
     src={info.src}
     alt={alt}
   />
