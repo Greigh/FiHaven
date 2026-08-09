@@ -40,9 +40,10 @@ const INLINE_SCRIPT_HASHES = [
   "'sha256-mR59x0idOhjPq9cQO1dF3RJ1JNucX4BsdliBrgLrMZM='",
   // application/ld+json structured data — non-executable, but script-src
   // still governs the element. One per page that carries a graph:
-  // bill-tracker-app, faq, home, mint-alternative, pricing,
+  // bill-tracker-app, contact, faq, home, mint-alternative, pricing,
   // rocket-money-alternative.
   "'sha256-cOlgc+GH17pvyWW6f1tDQh9ZzNGB1wFfeuSQoE605c8='",
+  "'sha256-pjiHAO+yEFRBqBF5QYb6kW72HUSJ/6gHssWrPjxnKhY='",
   "'sha256-PbWbEur8ikvbId6C8XU7Y75h+iDB9j7GI5xIOqge2ik='",
   "'sha256-hQMC+hDE8KzNW0pL23mnqgrhZt8K9frasA8wkXQR180='",
   "'sha256-UuB16srnzFcaJreOuqElKFG4R2dbS6z8IXF7v8I+4iw='",

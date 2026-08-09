@@ -37,6 +37,72 @@
   <link rel="stylesheet" href="css/styles.css"/>
   <link rel="stylesheet" href="css/tailwind-built.css"/>
   <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+
+  <!-- Cloudflare's Email Address Obfuscation rewrites every mailto: in the
+       body to /cdn-cgi/l/email-protection#<hex>, which a browser decodes with
+       JavaScript. Crawlers that don't run JS — most AI crawlers — therefore
+       see no address at all on the one page whose job is contact routing.
+       Obfuscation deliberately skips <script> blocks, so the addresses below
+       survive intact and stay machine-readable while humans keep the
+       anti-harvesting protection. Verified: the JSON-LD emails come through
+       the edge unrewritten. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "FiHaven", "item": "https://fihaven.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Contact", "item": "https://fihaven.app/contact" }
+        ]
+      },
+      {
+        "@type": "ContactPage",
+        "name": "Contact FiHaven",
+        "url": "https://fihaven.app/contact",
+        "inLanguage": "en-US",
+        "description": "Where to send product, billing, privacy, and security enquiries about FiHaven.",
+        "mainEntity": {
+          "@type": "Organization",
+          "name": "FiHaven",
+          "url": "https://fihaven.app/",
+          "legalName": "Greigh Studios LLC",
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "contactType": "customer support",
+              "email": "support@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Product help, onboarding, promo codes, and billing questions."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "technical support",
+              "email": "daniel@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Trouble joining the Android open test on Google Play or the iOS TestFlight beta."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "privacy",
+              "email": "security@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Privacy questions, data export or deletion, and GDPR/CCPA access requests."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "security",
+              "email": "security@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Suspected vulnerabilities or account compromise. A private GitHub advisory is preferred."
+            }
+          ]
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body class="min-h-screen text-(--text) antialiased" data-auth="public">
   <div class="page-frame">

@@ -47,5 +47,7 @@ them share one account and one API.
 
 ## Contact
 
-- General and billing support: support@fihaven.app
-- Security and vulnerability reports: security@fihaven.app
+- Product, onboarding, promo codes, and billing: support@fihaven.app
+- Trouble joining the Android open test or the iOS TestFlight beta: daniel@fihaven.app
+- Privacy, data export or deletion, GDPR/CCPA requests: security@fihaven.app
+- Security and vulnerability reports: security@fihaven.app (a private GitHub advisory is preferred)

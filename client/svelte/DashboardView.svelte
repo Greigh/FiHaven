@@ -43,7 +43,11 @@
   const periodCfg = getPeriodConfig();
 
   /* ── Top stat tiles ──────────────────────────────────── */
-  let activeCards = $derived(cards.filter((c) => !c.archived));
+  // Loans live in the same list but are not revolving credit — they stay out
+  // of card debt, the card count, utilization alerts and promo deadlines.
+  let activeCards = $derived(
+    cards.filter((c) => !c.archived && (c.type || 'card') !== 'loan')
+  );
   // Live balance (current when tracked, statement otherwise) — a card charged
   // since its statement closed still counts toward debt and utilization.
   let totalDebt = $derived(activeCards.reduce((s, c) => s + liveCardBalance(c), 0));
@@ -95,7 +99,6 @@
   let alerts = $derived.by(() => {
     const out = [];
     activeCards.forEach((c) => {
-      if (c.type === 'loan') return;
       const util = cardUtil(c);
       if (util != null && util >= 80) {
         out.push({

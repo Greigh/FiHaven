@@ -177,5 +177,15 @@ No ads and no data brokerage. FiHaven is funded by optional Pro subscriptions.
 
 ## Contact
 
-- General and billing support: support@fihaven.app
-- Security and vulnerability reports: security@fihaven.app
+FiHaven is built and operated by Greigh Studios LLC, a one-person studio.
+
+- Product, onboarding, promo codes, and billing: support@fihaven.app
+- Trouble joining the Android open test or the iOS TestFlight beta: daniel@fihaven.app
+- Privacy, data export or deletion, GDPR/CCPA access requests: security@fihaven.app
+- Security and vulnerability reports: security@fihaven.app, or a private advisory
+  at https://github.com/Greigh/FiHaven/security/advisories/new (preferred)
+- Bugs and feature requests: https://github.com/Greigh/FiHaven/issues
+
+Many common tasks need no email at all — exporting data as JSON or CSV,
+disconnecting Plaid, managing a Pro subscription, changing password or MFA, and
+deleting an account are all self-service in Settings.

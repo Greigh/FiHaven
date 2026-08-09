@@ -65,6 +65,26 @@ logo mark — is dropped below 360px.
 Verified with device emulation across 320–1440px on all fourteen public
 pages: no horizontal overflow anywhere.
 
+**The contact page tells crawlers nothing — fixed (Aug 9)**
+
+Cloudflare's Email Address Obfuscation rewrites every `mailto:` in the page
+body to `/cdn-cgi/l/email-protection#<hex>`, which a browser decodes with
+JavaScript. Crawlers that don't run JS — most AI crawlers — were therefore
+getting **zero addresses** from `/contact`, the one page whose entire job is
+telling you where to write. Asked "how do I contact FiHaven support?", an
+assistant had nothing to go on.
+
+Obfuscation deliberately skips `<script>` blocks, so `/contact` now carries a
+`ContactPage` graph with a `ContactPoint` per route — support, app access,
+privacy, security. Humans keep the anti-harvesting protection; machines get the
+addresses. `llms.txt` and `llms-full.txt` gained the two routes they were
+missing.
+
+Also audited and found clean while in there: AI Labyrinth is off (crawlers and
+browsers get byte-identical pages, no decoy links), and hotlink protection
+isn't interfering with share cards — Facebook, X, Slack, Discord and LinkedIn
+all fetch `og-image.jpg` with a `200`.
+
 **A check for the AI crawler policy (Aug 9)**
 
 That policy lives in Cloudflare's dashboard, not in this repo, so it can drift
