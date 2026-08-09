@@ -13,6 +13,12 @@
      node scripts/generate-sitemap.js --check  # CI: fail if stale
 
    Re-run after adding a public page or editing one's content.
+
+   Note the one wrinkle when adding a *new* page: until it is
+   committed git knows nothing about it, so it gets today's date.
+   Committing then gives it a real commit date, and --check will
+   correctly report the sitemap as stale. Regenerate once more
+   after that first commit.
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';

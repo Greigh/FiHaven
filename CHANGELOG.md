@@ -46,6 +46,39 @@ Each release below uses two layers:
 
 ### Changes
 
+**The page no longer scrolls sideways (Aug 9)**
+
+Every page could be dragged a few pixels to the right on a phone, and about
+20px on a desktop. The marketing hero's decorative orbs sit at `right`/`left`
+-20…-30px and its preview frame is rotated `-.6deg`, so their boxes reach past
+the page gutter; below 640px the gutter narrows to 16px and stops absorbing
+the bleed. `.page-frame` now carries `overflow-x: clip` — `clip` rather than
+`hidden`, because `hidden` would turn it into a scroll container and break the
+sticky app bar inside it.
+
+Chasing that turned up a real bug underneath: at 320px the app bar's
+burger, wordmark, theme toggle and "Get Started" button don't fit, and the
+button ran off the edge. Clipping alone would have hidden a half-visible
+button, so the wordmark — the one element carrying no function next to the
+logo mark — is dropped below 360px.
+
+Verified with device emulation across 320–1440px on all fourteen public
+pages: no horizontal overflow anywhere.
+
+**A check for the AI crawler policy (Aug 9)**
+
+That policy lives in Cloudflare's dashboard, not in this repo, so it can drift
+without a commit and nothing in CI would notice — which is precisely how every
+AI crawler came to be blocked. `npm run check:crawlers` asserts the matrix
+against production: answer engines and user-triggered assistants must get 200,
+training crawlers must get 403.
+
+It also reports a Cloudflare gap it can't fix: "Configure block response →
+Allowed paths" lists `/llms.txt` and `/llms-full.txt` as reachable by blocked
+crawlers, but only `/robots.txt` actually is. A blocked training crawler gets
+nothing rather than an accurate summary. The block works, so this is a missing
+nicety rather than a policy failure, and it's reported as advisory.
+
 **Asking an AI assistant about FiHaven now gets an answer (Aug 8)**
 
 FiHaven was invisible to every AI assistant, and it was a configuration problem

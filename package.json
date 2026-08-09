@@ -35,6 +35,7 @@
     "csp:check": "node scripts/csp-hashes.js --check",
     "sitemap": "node scripts/generate-sitemap.js",
     "sitemap:check": "node scripts/generate-sitemap.js --check",
+    "check:crawlers": "node scripts/check-crawler-policy.js",
     "generate:og": "node scripts/generate-og.js",
     "ci": "npm run csp:check && npm run sitemap:check && npm run build",
     "generate:icons": "bash ./scripts/generate-icons.sh",

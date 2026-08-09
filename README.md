@@ -323,6 +323,7 @@ fihaven/
 │   ├── generate-icons.sh            iOS/Android icon generation
 │   ├── generate-og.js               Open Graph share cards → client/public/*.jpg
 │   ├── generate-sitemap.js          sitemap.xml from indexnow-urls.js + git lastmod
+│   ├── check-crawler-policy.js      assert live AI-crawler allow/block matrix
 │   ├── indexnow-urls.js             single source of truth for public URLs
 │   ├── submit-indexnow.js           ping IndexNow with those URLs
 │   ├── README.md                    script index
@@ -362,6 +363,7 @@ fihaven/
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
 | `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
 | `npm run sitemap:check` | Fail if the committed sitemap is stale — runs as part of `npm run ci`. |
+| `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
 ---
@@ -1033,6 +1035,21 @@ text are refused (`GPTBot`, `ClaudeBot`, `CCBot`, `Amazonbot`,
 > the site out of Gemini's answers) and duplicated user-agent groups
 > against this repo's file. Verify what is actually served with
 > `curl -s https://fihaven.app/robots.txt`.
+
+Because that policy lives in a dashboard rather than in this repo, it can
+drift without a commit and CI would never notice — which is exactly how
+every AI crawler ended up blocked once. **`npm run check:crawlers`**
+asserts the whole matrix against production: answer engines and
+user-triggered assistants must get `200`, training crawlers must get
+`403`. Run it after any change to the zone's bot settings.
+
+> **Known Cloudflare gap:** "Configure block response → Allowed paths"
+> lists `/llms.txt` and `/llms-full.txt` as reachable by blocked
+> crawlers, but only `/robots.txt` actually is — the list does not bind
+> to the per-crawler blocks. A blocked training crawler therefore gets
+> nothing rather than an accurate summary. The block itself works, so
+> this costs a nicety, not the policy. `check:crawlers` reports it as
+> advisory rather than failing.
 
 Marketing pages are also crawlable **without JavaScript** — the footer
 links are real markup, not injected. Most AI crawlers don't run JS, and
