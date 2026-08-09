@@ -373,12 +373,16 @@
 {/snippet}
 
 {#snippet upcomingBlock()}
-<div class="upcoming-wrap">
-  <div class="section-header" style="margin-bottom:0;">
-    <span class="section-title">Upcoming Payments</span>
-    <span class="mono" style="font-size:11px;color:var(--muted);">{monthName}</span>
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">Upcoming</div>
+      <h3 class="panel-title">Upcoming payments</h3>
+    </div>
+    <span class="mono panel-head-meta">{monthName}</span>
   </div>
 
+  <div class="upcoming-wrap">
   {#if visibleItems.length === 0 && snoozedItems.length === 0}
     <div class="empty">
       <div class="empty-icon">✅</div>
@@ -413,5 +417,6 @@
       </div>
     </div>
   {/if}
+  </div>
 </div>
 {/snippet}
