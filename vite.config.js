@@ -15,6 +15,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { codecovVitePlugin } from "@codecov/vite-plugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientFile = (f) => resolve(__dirname, 'client', f);
@@ -132,7 +133,16 @@ export default defineConfig({
   publicDir: 'public',
   appType: 'mpa',
   base: BASE + '/',
-  plugins: [svelte(), cleanUrls, stripHtmlComments, indexNowKeyFile()],
+  plugins: [    
+    codecovVitePlugin({
+      enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+      bundleName: "FiHaven",
+      uploadToken: process.env.CODECOV_TOKEN}),
+    svelte(),
+    cleanUrls,
+    stripHtmlComments,
+    indexNowKeyFile()
+  ],
   server: {
     port: 5173,
     proxy: {

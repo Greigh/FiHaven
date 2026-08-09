@@ -189,6 +189,93 @@ describe('autopay — runAutopayMark', () => {
     expect(payments[0]).toMatchObject({ refId: 'B1', amount: 0 });
   });
 
+  it('ignores items that are not on autopay', () => {
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopay: false }]);
+    setCards([{ id: 'C1', name: 'Visa', balance: 1000, minPayment: 35, dueDay: 20 }]);
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('ignores a bill with no schedule and a card with no day to pull on', () => {
+    // A bill needs either a due day or a first-due date to be schedulable.
+    setBills([{ id: 'B1', name: 'Someday', amount: 50, autopay: true }]);
+    // A card needs a due day (or an explicit autopay day).
+    setCards([{ id: 'C1', name: 'Visa', balance: 1000, minPayment: 35, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('does not mark a bill on its autopayDay when the bill is not due this period', () => {
+    // Annual bill anchored in January: nothing is scheduled in June, so the
+    // autopay day (the 18th, already past) must not trigger a mark.
+    setBills([{
+      id: 'B1', name: 'Domain renewal', amount: 20,
+      frequency: 'Annually', startDate: '2026-01-10', autopayDay: 18, autopay: true,
+    }]);
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('does not mark a bill before its autopayDay arrives', () => {
+    // Due on the 20th (already here) but autopay pulls on the 25th.
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopayDay: 25, autopay: true }]);
+
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+  });
+
+  it('names an unnamed card in the payment it records', () => {
+    setCards([{ id: 'C1', balance: 1000, minPayment: 35, dueDay: 20, autopay: true }]);
+    setSettings({ autopayMark: true, periodMode: 'calendar', paidGoal: 'minimum' });
+
+    expect(runAutopayMark()).toBe(true);
+    expect(payments[0].name).toBe('Card (payment)');
+  });
+
+  /* A rolling window can start mid-month, so an autopay day earlier in the
+     month than the window's start belongs to the NEXT calendar month's
+     occurrence — not to a day that already passed before the period began. */
+  it('rolls an autopayDay that precedes the period start into the next month', () => {
+    setSettings({
+      autopayMark: true, paidGoal: 'minimum',
+      periodMode: 'rolling', periodLength: 35, periodAnchor: '2026-06-15',
+    });
+    setCards([{ id: 'C1', name: 'Visa', balance: 1000, minPayment: 35, dueDay: 28, autopayDay: 5, autopay: true }]);
+
+    // Window is Jun 15 – Jul 20. On Jun 20 the 5th has not come round again.
+    vi.setSystemTime(new Date(2026, 5, 20));
+    expect(runAutopayMark()).toBe(false);
+    expect(payments).toHaveLength(0);
+
+    // By Jul 6 the July 5th pull is inside the window and in the past.
+    vi.setSystemTime(new Date(2026, 6, 6));
+    expect(runAutopayMark()).toBe(true);
+    expect(payments[0]).toMatchObject({ type: 'card', refId: 'C1', amount: 35 });
+  });
+
+  /* The per-month memory is pruned as it is written: buckets older than the
+     longest rolling window a client may read across are dropped, this month's
+     is merged rather than replaced, and everything in between is kept. */
+  it('merges into this month’s memory and prunes buckets older than four months', () => {
+    setBills([{ id: 'B1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }]);
+    setSettings({
+      autopayMark: true, periodMode: 'calendar',
+      autopayDone: {
+        '2025-11': ['bill:ANCIENT'],  // older than the 4-month window → dropped
+        '2026-04': ['bill:KEEP'],     // inside the window → kept
+        '2026-06': ['bill:EARLIER'],  // this month → merged with the new mark
+      },
+    });
+
+    expect(runAutopayMark()).toBe(true);
+    expect(Object.keys(settings.autopayDone).sort()).toEqual(['2026-04', '2026-06']);
+    expect(settings.autopayDone['2026-04']).toEqual(['bill:KEEP']);
+    expect(settings.autopayDone['2026-06'].sort()).toEqual(['bill:B1', 'bill:EARLIER']);
+  });
+
   it('does not auto-mark a loan whose monthly payment was never set', () => {
     setCards([{
       id: 'L1', name: 'Mortgage', type: 'loan', balance: 250000,

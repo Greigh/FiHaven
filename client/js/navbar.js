@@ -84,8 +84,10 @@ import { openProDialog } from './pro.js';
     if (opts.href) {
       return '<a class="' + cls + '"' + dataTab + ' href="' + opts.href + '">' + ICONS[icon] + '<span>' + label + '</span></a>';
     }
+    // No inline onclick — CSP blocks them when enforced. Clicks are wired
+    // with addEventListener in wireTabButtons / wireMoreMenu.
     return (
-      '<button type="button" class="' + cls + '"' + dataTab + ' onclick="' + (opts.onclick || '') + '">' +
+      '<button type="button" class="' + cls + '"' + dataTab + '>' +
         ICONS[icon] + '<span>' + label + '</span>' +
       '</button>'
     );
@@ -134,7 +136,7 @@ import { openProDialog } from './pro.js';
             ICONS.theme + '<span>Theme</span>' +
             '<span class="appbar-menu-meta" data-theme-label>—</span>' +
           '</button>' +
-          '<button class="appbar-menu-item appbar-menu-danger" type="button" role="menuitem" onclick="logout()">' +
+          '<button class="appbar-menu-item appbar-menu-danger" type="button" role="menuitem" data-logout>' +
             ICONS.logout + '<span>Log out</span>' +
           '</button>' +
         '</div>' +
@@ -153,8 +155,15 @@ import { openProDialog } from './pro.js';
     var adminItem = host.querySelector('[data-admin-menu-item]');
     var proItem = host.querySelector('[data-pro-menu-item]');
     var proStatus = host.querySelector('[data-pro-menu-status]');
+    var logoutBtn = host.querySelector('[data-logout]');
     var proLoaded = false;
     if (!btn || !panel) return;
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function () {
+        if (typeof window.logout === 'function') window.logout();
+      });
+    }
 
     function syncThemeLabel() {
       var t = document.documentElement.dataset.theme || 'light';
@@ -274,21 +283,29 @@ import { openProDialog } from './pro.js';
       e.stopPropagation();
       panel.hidden ? open() : close();
     });
-    Array.prototype.forEach.call(panel.querySelectorAll('[data-tab]'), function (item) {
+    window.addEventListener('fihaven:tab-changed', close);
+  }
+
+  // CSP forbids inline onclick handlers; primary + More tabs share data-tab.
+  function wireTabButtons(host) {
+    Array.prototype.forEach.call(host.querySelectorAll('button[data-tab]'), function (item) {
       item.addEventListener('click', function () {
-        var tab = item.dataset.tab;
-        if (tab && typeof window.showTab === 'function') window.showTab(tab);
-        close();
+        var name = item.dataset.tab;
+        if (name && typeof window.showTab === 'function') window.showTab(name);
+        var panel = host.querySelector('[data-more-panel]');
+        var trigger = host.querySelector('[data-more-trigger]');
+        if (panel && !panel.hidden) {
+          panel.hidden = true;
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        }
       });
     });
-    window.addEventListener('fihaven:tab-changed', close);
   }
 
   /* ── Variant: dashboard ─────────────────────────────────── */
   function buildDashboard(host) {
     var primary = PRIMARY_TABS.map(function (name) {
       return tab(name, TAB_LABELS[name], {
-        onclick: "showTab('" + name + "')",
         active: name === 'dashboard',
         extraClass: 'tab-btn',
         tab: name,
@@ -326,6 +343,7 @@ import { openProDialog } from './pro.js';
 
     wireAccountMenu(host);
     wireMoreMenu(host);
+    wireTabButtons(host);
   }
 
   /* ── Variant: settings page ─────────────────────────────── */

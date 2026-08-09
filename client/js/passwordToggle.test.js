@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { attachPasswordToggles } from './passwordToggle.js';
 
 // Render markup into the body and return the first password input.
@@ -101,5 +101,50 @@ describe('passwordToggle — attachPasswordToggles', () => {
 
     expect(after).toBe(before); // same node, just re-parented
     expect(after.value).toBe('hunter2');
+  });
+});
+
+/* The module attaches itself on import so pages don't each have to call it.
+   Which path it takes depends on whether the parser is still running. */
+describe('passwordToggle — auto-attach on import', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.resetModules();
+  });
+
+  it('attaches immediately when the document has already finished parsing', async () => {
+    document.body.innerHTML = '<input id="ready" type="password">';
+    expect(document.readyState).not.toBe('loading');
+
+    vi.resetModules();
+    await import('./passwordToggle.js');
+
+    expect(document.getElementById('ready').dataset.pwToggle).toBe('1');
+  });
+
+  it('waits for DOMContentLoaded when the document is still loading', async () => {
+    document.body.innerHTML = '<input id="early" type="password">';
+    // Shadow the prototype getter; `delete` puts it back.
+    Object.defineProperty(document, 'readyState', {
+      configurable: true,
+      get: () => 'loading',
+    });
+
+    try {
+      vi.resetModules();
+      await import('./passwordToggle.js');
+      // Still parsing — inputs further down the page may not exist yet.
+      expect(document.getElementById('early').dataset.pwToggle).toBeUndefined();
+
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+      expect(document.getElementById('early').dataset.pwToggle).toBe('1');
+      expect(document.querySelectorAll('.pw-toggle')).toHaveLength(1);
+    } finally {
+      delete document.readyState;
+    }
   });
 });
