@@ -10,8 +10,9 @@
   <meta name="robots" content="noindex,nofollow"/>
 
   <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" href="/favicon.ico" sizes="32x32"/>
   <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
-  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%233D6FE1'/%3E%3Cg fill='white'%3E%3Crect x='16' y='17' width='7' height='30' rx='2'/%3E%3Crect x='16' y='17' width='22' height='7' rx='2'/%3E%3Crect x='16' y='29' width='17' height='6' rx='2'/%3E%3Crect x='41' y='27' width='7' height='20' rx='2'/%3E%3Ccircle cx='44.5' cy='20' r='4'/%3E%3C/g%3E%3C/svg%3E"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 
   <title>FiHaven — Bill Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
@@ -54,8 +55,8 @@
     <div class="section-header">
       <span class="section-title">Credit Cards</span>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV('cards')">⬇ CSV</button>
-        <button class="btn btn-primary" onclick="openCardModal()">+ Add Card</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-fn="exportCSV" data-args='["cards"]'>⬇ CSV</button>
+        <button class="btn btn-primary" type="button" data-fn="openCardModal">+ Add Card</button>
       </div>
     </div>
     <!-- Cards tab is rendered by client/svelte/CardsList.svelte. -->
@@ -74,8 +75,8 @@
     <div class="section-header">
       <span class="section-title">Loans</span>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV('cards')">⬇ CSV</button>
-        <button class="btn btn-primary" onclick="openCardModal(undefined, 'loan')">+ Add Loan</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-fn="exportCSV" data-args='["cards"]'>⬇ CSV</button>
+        <button class="btn btn-primary" type="button" data-fn="openCardModal" data-args='[null,"loan"]'>+ Add Loan</button>
       </div>
     </div>
     <!-- Loans tab reuses CardsList.svelte (kind="loan"). -->
@@ -87,7 +88,7 @@
     <div class="section-header">
       <span class="section-title">Monthly Budget</span>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV('budget')">⬇ CSV</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-fn="exportCSV" data-args='["budget"]'>⬇ CSV</button>
       </div>
     </div>
     <!-- Budget tab is rendered by client/svelte/BudgetView.svelte. -->
@@ -119,8 +120,8 @@
     <div class="section-header">
       <span class="section-title">Payment History</span>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV('history')">⬇ CSV</button>
-        <button class="btn btn-danger btn-sm" onclick="confirmClearHistory()">Clear All</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-fn="exportCSV" data-args='["history"]'>⬇ CSV</button>
+        <button class="btn btn-danger btn-sm" type="button" data-fn="confirmClearHistory">Clear All</button>
       </div>
     </div>
     <!-- History tab is rendered by client/svelte/HistoryList.svelte. -->
@@ -172,7 +173,7 @@
     <a href="/login">Login</a>
     <a href="/terms">Terms of Use</a>
     <a href="/privacy">Privacy</a>
-    <a href="#" onclick="logout();return false;">Log Out</a>
+    <a href="/login" data-fn="logout">Log Out</a>
   </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
@@ -247,8 +248,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeBillModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveBill()">Save Bill</button>
+      <button class="btn btn-ghost" type="button" data-fn="closeBillModal">Cancel</button>
+      <button class="btn btn-primary" type="button" data-fn="saveBill">Save Bill</button>
     </div>
   </div>
 </div>
@@ -403,17 +404,17 @@
       <div class="field" id="c-perks-field" style="grid-column:span 2;">
         <label>Credits &amp; perks <span style="color:var(--muted);font-weight:400;">— recurring statement credits to track on the Rewards tab</span></label>
         <div id="c-perks-list"></div>
-        <button type="button" class="btn btn-ghost btn-sm" id="c-perk-add" onclick="addPerkRow()">+ Add credit</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="c-perk-add" data-fn="addPerkRow">+ Add credit</button>
       </div>
       <div class="field" id="c-offers-field" style="grid-column:span 2;">
         <label>Card-linked offers <span style="color:var(--muted);font-weight:400;">— Amex/Chase/BofA deals you’ve activated; tracked on the Rewards tab</span></label>
         <div id="c-offers-list"></div>
-        <button type="button" class="btn btn-ghost btn-sm" id="c-offer-add" onclick="addOfferRow()">+ Add offer</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="c-offer-add" data-fn="addOfferRow">+ Add offer</button>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeCardModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCard()">Save Card</button>
+      <button class="btn btn-ghost" type="button" data-fn="closeCardModal">Cancel</button>
+      <button class="btn btn-primary" type="button" data-fn="saveCard">Save Card</button>
     </div>
   </div>
 </div>
@@ -442,8 +443,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closePayModal()">Cancel</button>
-      <button class="btn btn-green" id="pay-ok-btn" onclick="confirmPay()">Save Payment</button>
+      <button class="btn btn-ghost" type="button" data-fn="closePayModal">Cancel</button>
+      <button class="btn btn-green" type="button" id="pay-ok-btn" data-fn="confirmPay">Save Payment</button>
     </div>
   </div>
 </div>
@@ -454,7 +455,7 @@
     <h2 id="confirm-title">Are you sure?</h2>
     <p id="confirm-msg" style="color:var(--muted);font-size:14px;margin:10px 0 22px;line-height:1.5;"></p>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-ghost" type="button" data-fn="closeConfirmModal">Cancel</button>
       <button class="btn btn-danger" id="confirm-ok-btn">Confirm</button>
     </div>
   </div>
@@ -475,8 +476,8 @@
       <div id="rollover-body" class="rollover-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" type="button" onclick="closeRolloverReview()">Cancel</button>
-      <button class="btn btn-primary" type="button" onclick="saveRolloverReview()">Save amounts</button>
+      <button class="btn btn-ghost" type="button" data-fn="closeRolloverReview">Cancel</button>
+      <button class="btn btn-primary" type="button" data-fn="saveRolloverReview">Save amounts</button>
     </div>
   </div>
 </div>

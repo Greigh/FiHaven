@@ -6,7 +6,7 @@ vi.mock('svelte', () => ({
   mount: mountMock,
 }));
 
-import { runPayoffSim, renderPayoff } from './payoff.js';
+import { runPayoffSim, renderPayoff, isHousingLoan } from './payoff.js';
 import { setCards } from './storage.svelte.js';
 
 describe('payoff — runPayoffSim', () => {
@@ -67,6 +67,45 @@ describe('payoff — runPayoffSim', () => {
     expect(result.months).toBe(10);
   });
 
+  it('skips archived cards', () => {
+    setCards([
+      { id: 'gone', name: 'Closed', archived: true, balance: 5000, minPayment: 100, regularAPR: 20 },
+      { id: 'live', name: 'Visa', balance: 1000, minPayment: 100, regularAPR: 0 },
+    ]);
+
+    const result = runPayoffSim('none', 0);
+    expect(result.cards.map((c) => c.id)).toEqual(['live']);
+  });
+
+  /* PMI and escrow ride along with a mortgage payment, so a plain amortization
+     curve is misleading — housing debt is out unless the caller asks for it. */
+  it('excludes housing loans by default and includes them on request', () => {
+    setCards([
+      { id: 'home', name: 'Mortgage', type: 'loan', balance: 200000, minPayment: 1500, regularAPR: 6 },
+      { id: 'car', name: 'Auto loan', type: 'loan', balance: 5000, minPayment: 250, regularAPR: 0 },
+    ]);
+
+    expect(runPayoffSim('none', 0).cards.map((c) => c.id)).toEqual(['car']);
+
+    const withHome = runPayoffSim('none', 0, { includeMortgage: true });
+    expect(withHome.cards.map((c) => c.id).sort()).toEqual(['car', 'home']);
+    expect(withHome.cards.find((c) => c.id === 'home').housing).toBe(true);
+  });
+
+  // A loan has no promo window at all, and a card with no minimum still has to
+  // pay something or the sim would never terminate.
+  it('floors a missing minimum payment at $1 and gives a loan no promo window', () => {
+    setCards([
+      { id: 'L1', name: 'Personal loan', type: 'loan', balance: 3, regularAPR: 0, hasPromo: true, promoEndDate: '2099-01-01' },
+    ]);
+
+    const result = runPayoffSim('none', 0);
+    expect(result.cards[0].minPayment).toBe(1);
+    expect(result.cards[0].hasPromo).toBe(false);
+    expect(result.cards[0].promoEndDate).toBeNull();
+    expect(result.months).toBe(3);
+  });
+
   it('promo balances skip interest until the promo ends', () => {
     const future = new Date();
     future.setMonth(future.getMonth() + 6);
@@ -123,5 +162,43 @@ describe('payoff — renderPayoff', () => {
     document.body.innerHTML = '';
     renderPayoff();
     expect(mountMock).not.toHaveBeenCalled();
+  });
+});
+
+/* Housing debt is excluded from the sim by default: PMI and escrow ride along
+   with the payment, so a plain amortization curve would be misleading. */
+describe('payoff — isHousingLoan', () => {
+  it('is false for anything that is not a loan', () => {
+    expect(isHousingLoan({ name: 'Mortgage rewards card' })).toBe(false);
+    expect(isHousingLoan({ type: 'card', name: 'Mortgage' })).toBe(false);
+    expect(isHousingLoan({ type: 'loan', name: 'Car loan' })).toBe(false);
+  });
+
+  it('matches the housing wordings we see in the wild', () => {
+    for (const name of [
+      'Mortgage',
+      '30-yr Home Loan',
+      'HELOC',
+      'Home Equity Line',
+      'Housing note',
+      'Refinance 2024',
+      'Refi',
+    ]) {
+      expect(isHousingLoan({ type: 'loan', name })).toBe(true);
+    }
+  });
+
+  it('looks at issuer, provider, and category too, case-insensitively', () => {
+    expect(isHousingLoan({ type: 'loan', issuer: 'Rocket Mortgage' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', provider: 'BetterHomeEquity' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', category: 'HOUSING' })).toBe(true);
+    expect(isHousingLoan({ type: 'loan', name: null, issuer: undefined, category: 'heloc' })).toBe(true);
+  });
+
+  it('does not match a loan with no housing signal at all', () => {
+    expect(isHousingLoan({ type: 'loan' })).toBe(false);
+    expect(isHousingLoan({ type: 'loan', name: 'Student loan', issuer: 'Nelnet' })).toBe(false);
+    // "refi" is word-bounded, so it must not fire on an unrelated substring.
+    expect(isHousingLoan({ type: 'loan', name: 'Refinery credit union' })).toBe(false);
   });
 });

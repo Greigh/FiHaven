@@ -20,8 +20,8 @@ import {
 } from './rollover.js';
 
 // Side-effect imports — each renderer self-registers via setRenderer,
-// modals.js wires backdrop handlers + exposes window.* for inline
-// onclick, export.js exposes window.exportAll / exportCSV.
+// modals.js wires backdrop handlers + exposes window.* for data-fn clicks,
+// export.js exposes window.exportAll / exportCSV.
 import './swRegister.js';
 import './modals.js';
 import './dashboard.js';
@@ -232,8 +232,8 @@ function renderNewMonthBanner(currentMk, prevMk) {
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-shrink:0;">' +
-      '<button class="btn btn-primary btn-sm" onclick="openRolloverReview()">Set ' + esc(monthName) + ' amounts</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="dismissBanner()">Dismiss</button>' +
+      '<button class="btn btn-primary btn-sm" type="button" data-fn="openRolloverReview">Set ' + esc(monthName) + ' amounts</button>' +
+      '<button class="btn btn-ghost btn-sm" type="button" data-fn="dismissBanner">Dismiss</button>' +
     '</div>';
 }
 
@@ -241,6 +241,26 @@ function dismissBanner() {
   clearRolloverPending();
   var el = document.getElementById('new-month-banner');
   if (el) el.style.display = 'none';
+}
+
+// CSP blocks inline onclick / event handlers. Static markup and
+// dynamically inserted buttons use data-fn (+ optional data-args JSON)
+// instead; this delegate resolves them against window.
+function wireDataFnClicks() {
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-fn]');
+    if (!el) return;
+    var name = el.getAttribute('data-fn');
+    var fn = name && window[name];
+    if (typeof fn !== 'function') return;
+    e.preventDefault();
+    var args = [];
+    var raw = el.getAttribute('data-args');
+    if (raw) {
+      try { args = JSON.parse(raw); } catch (err) { args = []; }
+    }
+    fn.apply(null, args);
+  });
 }
 
 /* ── Init ────────────────────────────────────────────────── */
@@ -260,6 +280,8 @@ Object.assign(window, {
   showTab, dismissBanner, refreshAll,
   openRolloverReview, saveRolloverReview, closeRolloverReview,
 });
+
+wireDataFnClicks();
 
 bootstrapData().then(() => {
   startApp();

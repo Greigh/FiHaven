@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- BIMI logo for fihaven.app, referenced by the default._bimi TXT record.
+
+     This is deliberately NOT the same file as icon.svg: BIMI requires the
+     SVG Tiny 1.2 "Portable/Secure" profile, which is stricter than ordinary
+     SVG. Differences that matter if you ever regenerate this:
+       - version="1.2" baseProfile="tiny-ps" are mandatory
+       - <title> must be present and be the first child
+       - no x/y on the root <svg>, and the viewBox must be square from 0 0
+       - no <script>, <a>, <image>, <foreignObject>, CSS, animation, or any
+         external reference
+       - no role/aria-* attributes (they are not part of the profile)
+       - full-bleed and opaque: mail clients crop the logo to a circle, so
+         rounded corners with transparent gaps render as chipped edges -->
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny-ps" viewBox="0 0 64 64">
+  <title>FiHaven</title>
+  <defs>
+    <linearGradient id="fh-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C7DF0"/>
+      <stop offset="1" stop-color="#3D6FE1"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" fill="url(#fh-bg)"/>
+  <g fill="#ffffff">
+    <rect x="16" y="17" width="7" height="30" rx="2"/>
+    <rect x="16" y="17" width="22" height="7" rx="2"/>
+    <rect x="16" y="29" width="17" height="6" rx="2"/>
+    <rect x="41" y="27" width="7" height="20" rx="2"/>
+    <circle cx="44.5" cy="20" r="4"/>
+  </g>
+</svg>
