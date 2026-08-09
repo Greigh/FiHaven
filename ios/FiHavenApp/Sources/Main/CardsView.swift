@@ -620,11 +620,16 @@ private struct CardRow: View {
     /// The amounts the headline isn't showing — the preference re-ranks the
     /// three rather than hiding any of them. One per line: side by side they
     /// widened the trailing column enough to truncate the card's name on a
-    /// narrow phone.
+    /// narrow phone. The statement balance joins them only when those three
+    /// don't already account for it (see `Schedule.CardAmounts.statement`).
     private var companionAmounts: [(key: String, text: String)] {
-        Schedule.otherAmounts(than: headline).map { key in
-            (key, "\(Self.altLabel(key, isLoan: card.type == "loan")) \(Money.fmtShort(amounts.value(for: key)))")
+        var lines = Schedule.otherAmounts(than: headline).map { key in
+            (key: key, text: "\(Self.altLabel(key, isLoan: card.type == "loan")) \(Money.fmtShort(amounts.value(for: key)))")
         }
+        if let statement = amounts.statement {
+            lines.append((key: "statement", text: "statement \(Money.fmtShort(statement))"))
+        }
+        return lines
     }
 
     private static func altLabel(_ key: String, isLoan: Bool) -> String {
@@ -687,11 +692,23 @@ private struct CardRow: View {
     // The one amount worth showing without tapping Pay: what to pay this period on
     // a card with a distinct recommendation — a 0% promo's monthly payoff, or an
     // explicit recommended payment. `isMonthly` tags the promo case for a "/mo".
+    //
+    // Dropped when the amounts in the corner already state it, which under the
+    // default payment goal is every time — the line was repeating the headline
+    // figure directly above it.
     private var suggestedPayment: (amount: Double, isMonthly: Bool)? {
         if card.type == "loan" { return nil }
-        if promoActive { return (max(card.minPaymentOrZero, Schedule.promoNeeded(card, tz: tz)), true) }
-        if let rec = card.recommendedPayment, rec > 0 { return (rec, false) }
-        return nil
+        var found: (amount: Double, isMonthly: Bool)?
+        if promoActive {
+            found = (max(card.minPaymentOrZero, Schedule.promoNeeded(card, tz: tz)), true)
+        } else if let rec = card.recommendedPayment, rec > 0 {
+            found = (rec, false)
+        }
+        guard let s = found,
+              abs(s.amount - amounts.due) > Schedule.paidEpsilon,
+              abs(s.amount - amounts.owed) > Schedule.paidEpsilon
+        else { return nil }
+        return s
     }
 
     var body: some View {

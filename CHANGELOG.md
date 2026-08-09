@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (25) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 46) - the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (26) - a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 47) - a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,42 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**A card leads with what to pay, not with its statement balance (Aug 7)**
+
+The big figure in the corner of a card was the statement balance, whatever your
+payment-goal setting said. On a 0% promo card that had just cleared its
+statement, that read "$0.00" — in the settled green — while the same row told
+you two lines lower to pay $573.95 this month to clear the balance before the
+promo ends.
+
+- **"Due" now means what this period asks for**, under the payment goal you
+  already choose in Settings (minimum, recommended, or the full balance), with a
+  card's own Recommended payment overriding it as it always has.
+- **"Due" and "Still owed" come from one number now** — the target, and what's
+  left of it after this month's payments — so they can no longer disagree.
+- **The statement balance is still on the row**, listed under the corner figure
+  whenever what's due this period isn't the same number — a promo card, a card
+  on the minimum, one with its own set payment. When they are the same number it
+  isn't repeated.
+- **"Suggested" is gone where it was a duplicate.** It sat two lines under a
+  corner figure that now says the same thing. It stays on the cards where it
+  still differs — the minimum and full-balance goals.
+- Nothing else moved: the live balance is still on the row, and the setting for
+  which amount leads is unchanged.
+
+**Wide issuer logos aren't letterboxed anymore (Aug 7)**
+
+A wordmark-shaped logo — Bilt, Hyatt, US Bank, Capital One — was capped in width
+but still drawn on a full-height white plate, so it sat squashed in the middle
+with white bands above and below it. The plate now shrinks to the mark it holds,
+on the web and in both apps.
+
+**Bilt gets its square logo back.** Cropping its artwork down to the strip its
+letters occupy left it reading as a squashed band beside the square marks around
+it, however the plate was sized. It now uses the square lockup the brand
+publishes — the wordmark inside its own navy tile — so it sits in the row like
+Citi's and Amex's do.
 
 **A bill with no amount no longer says it's paid (Aug 6)**
 
@@ -1038,6 +1074,58 @@ app and the server. Most of what follows had been true on more than one platform
 > **⚠️ Deploy order:** the security pass below changes server and native auth
 > paths together, so **the server must be deployed before or alongside iOS 22 /
 > Android 44**. The offline work is client-side and needs no deploy of its own.
+
+#### iOS 26 / Android 47
+
+> **Client-only.** No server change rides with this build. Builds 25 and 24
+> still need their deploys — skipping them doesn't retire the requirement.
+
+**A card row's `due` amount is the period's goal, not `card.balance`**
+
+- **`cardAmounts` / `Schedule.amounts` return `due = goalAmount(...)`** on all
+  three cores (`utils.js`, `Schedule.swift`, `Schedule.kt`) — the pay target the
+  active `settings.paidGoal` policy names, with `card.recommendedPayment` still
+  overriding it. `owed` is that same goal less the period's payments, so the two
+  are now derived from one number instead of two that could disagree.
+- The old `due` was the raw statement balance, which on a 0% promo card with a
+  cleared statement rendered `$0.00` in `Theme.green` (the `<= PAID_EPSILON`
+  branch) beside a row that was simultaneously suggesting the monthly payoff
+  slice. Client-side only — no schema or API change, and the `cardHeadline`
+  setting still picks which of the three leads.
+- **`CardAmounts.statement`** (nullable) carries the statement balance back onto
+  the row now that `due` no longer always is it. The core resolves it to
+  null/nil when it's within `PAID_EPSILON` of `due` or `current`, and on loans,
+  so the three clients can't drift on when to draw the line. It renders as an
+  extra companion line, never as a headline — `cardHeadline` still takes three
+  values.
+- **The "Suggested" line/tile is suppressed when it matches `due` or `owed`.**
+  Under the default recommended policy the goal *is* the suggestion, so the row
+  was printing the same figure twice; under the minimum/full policies it still
+  differs and still shows. `CardsList.svelte` compares against its net-of-
+  payments `payTargetRemaining`, the native rows against the gross target —
+  hence the check against both amounts.
+- Settings copy on all three clients no longer describes "Due" as the statement
+  balance.
+
+**Full-color issuer marks: the plate hugs the mark**
+
+- A mark wider than `MAX_LOGO_ASPECT` (1.75) was capped in width but still laid
+  out at full row height, so `ContentScale.Fit` (Compose) / a fixed `height`
+  with `object-fit: contain` (CSS) letterboxed it inside its own white plate —
+  Bilt (4.02:1), Hyatt, US Bank, Capital One.
+- The mark's box now carries the mark's own aspect ratio in all three clients:
+  `IconMark.kt` builds the `ImageVector` at `markWidth`/`markHeight`,
+  `IssuerLogoView.swift` frames at the same pair, and the CSS derives width from
+  a new `--logo-aspect` custom property (set alongside the existing inline
+  `aspect-ratio`) with `height: auto`. Corner radius scales with the shorter
+  plate.
+- **`bilt` is re-authored as a 1:1 mark** in `issuerLogos.js` (regenerated into
+  the native tables by `scripts/sync-issuer-logos.js`): the brand's square
+  lockup, wordmark centred at 90% of the tile's width on a full-bleed navy
+  square, rather than the artwork cropped to its letters. At 4.02:1 the cropped
+  version rendered as a ~42x10 strip beside 24x24 marks whatever the plate did.
+  The header's "cropped to its artwork bounds" rule now names it as the
+  deliberate exception.
 
 #### iOS 25 / Android 46
 

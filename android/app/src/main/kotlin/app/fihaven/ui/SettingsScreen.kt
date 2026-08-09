@@ -294,8 +294,8 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     HorizontalDivider(color = Ct.colors.border)
                     CardHeadlinePicker(data.settings.cardHeadline) { vm.setCardHeadline(it) }
                     Text(
-                        "Which amount gets the big figure on each card: the statement balance you owe by the due date, "
-                            + "the live current balance, or what's left to pay this period. The other two stay on the card.",
+                        "Which amount gets the big figure on each card: what to pay this period under your payment goal "
+                            + "above, the live current balance, or what's left of that goal. The other two stay on the card.",
                         color = Ct.colors.muted, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 6.dp, start = 16.dp, end = 16.dp, bottom = 4.dp),
                     )

@@ -248,9 +248,9 @@ export function archiveInsteadOfDelete(s) {
 /* Which of a card's three amounts leads its row (the big figure in the
    top-right corner). The other two always stay on the card, just smaller —
    this picks the headline, it never hides anything.
-     'due'     — statement balance: what the issuer wants by the due date
+     'due'     — what to pay this period under the paid-goal policy
      'current' — live balance including post-statement charges
-     'owed'    — what's still owed this period under the paid-goal policy
+     'owed'    — that same goal less what's already been paid
    Defaults to 'due': the amount with a deadline attached. */
 export function cardHeadlineMode(s) {
   var v = s && s.cardHeadline;
@@ -375,18 +375,39 @@ export function liveCardBalance(card) {
   return parseFloat(card.balance) || 0;
 }
 
-/* The three amounts a card row can lead with, resolved together so the
-   headline and the smaller companion figures can never disagree.
-     due     — statement balance (a loan's is its scheduled payment)
+/* The amounts a card row shows, resolved together so the headline and the
+   smaller companion figures can never disagree.
+     due     — what to pay this period: the goal the paid-goal policy names
+               (minimum / recommended / full), with a per-card recommended
+               payment overriding it. A loan's is its scheduled payment.
      current — live balance, the one utilization is measured against
-     owed    — still owed this period under the paid-goal policy (0 if skipped) */
+     owed    — the same goal less what's been paid (0 if skipped)
+     statement — the statement balance, or null when the row already shows it
+
+   `due` used to be the raw statement balance, which read "$0.00" — in the
+   settled green, no less — on a 0% promo card whose statement is clear but
+   which still needs its monthly payoff installment to land on time. The two
+   now share one goal, so `due` is the target and `owed` is what's left of it.
+
+   That left the statement balance itself with nowhere to go whenever the goal
+   isn't the balance — the minimum policy, a promo card, a per-card override —
+   so `statement` carries it back. It resolves to null when it would only
+   repeat `due` or `current`, and on loans, which have a principal rather than
+   a statement. Deciding that here keeps the three clients from drifting. */
 export function cardAmounts(card, mk) {
-  if (!card) return { due: 0, current: 0, owed: 0 };
-  var isLoan = (card.type || 'card') === 'loan';
+  if (!card) return { due: 0, current: 0, owed: 0, statement: null };
+  mk = mk || currentPeriodKey();
+  var due = goalAmountFor('card', String(card.id), mk);
+  var current = liveCardBalance(card);
+  var statement = parseFloat(card.balance) || 0;
+  var redundant = (card.type || 'card') === 'loan'
+    || Math.abs(statement - due) <= PAID_EPSILON
+    || Math.abs(statement - current) <= PAID_EPSILON;
   return {
-    due: isLoan ? (parseFloat(card.minPayment) || 0) : (parseFloat(card.balance) || 0),
-    current: liveCardBalance(card),
-    owed: remainingForItem('card', String(card.id), mk || currentPeriodKey()),
+    due: due,
+    current: current,
+    owed: remainingForItem('card', String(card.id), mk),
+    statement: redundant ? null : statement,
   };
 }
 

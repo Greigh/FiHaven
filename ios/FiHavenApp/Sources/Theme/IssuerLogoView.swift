@@ -90,8 +90,10 @@ struct IssuerMonogramView: View {
 /// A monochrome mark is a square tinted to stay legible on the current
 /// theme. A full-color mark keeps its own colors on a light plate — it was
 /// drawn for a white page, and Bilt's black wordmark would otherwise vanish
-/// on the dark theme — and takes its natural width, capped so a 4:1 wordmark
-/// can't push the row's text around.
+/// on the dark theme — and keeps its own aspect ratio, capped in width so a
+/// 4:1 wordmark can't push the row's text around. Past the cap the height
+/// comes down with it and the plate shrinks to match, the way the web's
+/// does; a full-height plate left a wordmark floating in white bands.
 struct IssuerLogoView: View {
     let key: String
     var size: CGFloat = 22
@@ -104,17 +106,21 @@ struct IssuerLogoView: View {
     var body: some View {
         if let layers = IssuerLogoCache.lookup(key), let logo = IssuerLogos.logo(key) {
             if logo.isFullColor {
-                let width = min(size * CGFloat(logo.aspect), size * Self.maxAspect)
+                let aspect = CGFloat(logo.aspect)
+                let width = min(size * aspect, size * Self.maxAspect)
+                let height = aspect > Self.maxAspect ? size * Self.maxAspect / aspect : size
                 ZStack {
                     ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
                         IssuerLogoShape(segments: layer.segments, viewBoxWidth: logo.width)
                             .fill(Theme.exact(layer.color), style: FillStyle(eoFill: false))
                     }
                 }
-                .frame(width: width, height: size)
+                .frame(width: width, height: height)
                 .padding(1)
                 .background(
-                    RoundedRectangle(cornerRadius: max(3, size * 0.18), style: .continuous)
+                    // A short, wide plate needs a smaller radius than a square
+                    // one, or the corners eat the mark.
+                    RoundedRectangle(cornerRadius: max(2, min(size * 0.18, height * 0.25)), style: .continuous)
                         .fill(Theme.logoPlate)
                 )
             } else {

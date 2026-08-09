@@ -22,6 +22,7 @@ import {
   remainingForItem,
   daysUntilDue,
   effectiveDaysUntilDue,
+  effectiveDaysUntilBillDue,
   nextDueDate,
   shortDate,
   paymentHistoryFor,
@@ -161,18 +162,38 @@ describe('utils — cardAmounts', () => {
     const card = { id: 'C1', type: 'card', balance: 2829, currentBalance: 2946.18, minPayment: 35 };
     setCards([card]);
     const a = cardAmounts(card);
-    expect(a.due).toBe(2829);
-    expect(a.current).toBe(2946.18);
-    expect(a.owed).toBe(2829);       // paidGoal 'full' targets the statement balance
+    expect(a.due).toBe(2829);        // paidGoal 'full' targets the whole balance
+    expect(a.current).toBe(2946.18); // live balance, including new charges
+    expect(a.owed).toBe(2829);
   });
 
-  it('follows the paid-goal policy for the owed figure', () => {
+  it('follows the paid-goal policy for both the due and owed figures', () => {
     const card = { id: 'C1', type: 'card', balance: 2829, currentBalance: 2946.18, minPayment: 35 };
     setCards([card]);
     setSettings({ paidGoal: 'minimum' });
     const a = cardAmounts(card);
-    expect(a.due).toBe(2829);        // still owed by the due date
-    expect(a.owed).toBe(35);         // but only the minimum counts as "fully paid"
+    expect(a.due).toBe(35);          // what this period actually asks for
+    expect(a.owed).toBe(35);         // none of it paid yet
+  });
+
+  it('leads with the promo installment when the statement is clear', () => {
+    // The case that drove this: a 0% promo card whose statement balance is 0
+    // still owes its monthly payoff slice, and used to lead with a settled
+    // green "$0.00" while telling you to pay $500 two lines lower.
+    const now = new Date();
+    // Four whole months out, mid-month so no end-of-month rollover shifts it.
+    const end = new Date(now.getFullYear(), now.getMonth() + 4, 15);
+    const promoEndDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-15`;
+    const card = {
+      id: 'C1', type: 'card', balance: 0, currentBalance: 9732, minPayment: 0,
+      hasPromo: true, promoBalance: 2000, promoEndDate,
+    };
+    setCards([card]);
+    setSettings({ paidGoal: 'recommended' });
+    const a = cardAmounts(card);
+    expect(a.due).toBeCloseTo(500, 2);
+    expect(a.owed).toBeCloseTo(500, 2);
+    expect(a.current).toBe(9732);
   });
 
   it('shrinks only the owed figure as partial payments land', () => {
@@ -181,9 +202,9 @@ describe('utils — cardAmounts', () => {
     setSettings({ paidGoal: 'minimum' });
     setPayments([{ type: 'card', refId: 'C1', amount: 20, date: localIso() }]);
     const a = cardAmounts(card);
-    expect(a.due).toBe(2829);
+    expect(a.due).toBe(35);          // the target holds still…
     expect(a.current).toBe(2946.18);
-    expect(a.owed).toBe(15);
+    expect(a.owed).toBe(15);         // …while what's left of it shrinks
   });
 
   it('uses the scheduled payment as a loan’s due amount, not its principal', () => {
@@ -200,7 +221,7 @@ describe('utils — cardAmounts', () => {
     setCards([card]);
     setPayments([{ type: 'card', refId: 'C1', skipped: true, date: localIso() }]);
     const a = cardAmounts(card);
-    expect(a.due).toBe(500);
+    expect(a.due).toBe(500);   // a skip doesn't change what the period asked for
     expect(a.owed).toBe(0);
   });
 });
@@ -456,6 +477,66 @@ describe('utils — due-date math', () => {
   });
 });
 
+/* The bill flavour of the same idea: once this period is settled, the row should
+   count down to the NEXT occurrence instead of showing an overdue badge. Unlike
+   effectiveDaysUntilDue it honors the bill's frequency, not just a day-of-month. */
+describe('utils — effectiveDaysUntilBillDue', () => {
+  beforeEach(() => {
+    setSettings({});
+    setBills([]);
+    setPayments([]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 29)); // Mon Jun 29
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('returns null without a bill', () => {
+    expect(effectiveDaysUntilBillDue(null)).toBe(null);
+    expect(effectiveDaysUntilBillDue(undefined)).toBe(null);
+  });
+
+  it('falls through to daysUntilBillDue while the bill is unpaid', () => {
+    const bill = { id: 'B1', name: 'Rent', amount: 100, dueDay: 28, frequency: 'Monthly' };
+    setBills([bill]);
+    // Jun 28 has passed, so the next occurrence is Jul 28 — 29 days out.
+    expect(effectiveDaysUntilBillDue(bill)).toBe(29);
+  });
+
+  it('counts to the next occurrence once the period is fully paid', () => {
+    const bill = { id: 'B1', name: 'Gym', amount: 40, dueDay: 30, frequency: 'Monthly' };
+    setBills([bill]);
+    setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 40, date: '2026-06-29' }]);
+    expect(isFullyPaid('bill', 'B1')).toBe(true);
+    expect(effectiveDaysUntilBillDue(bill)).toBe(1); // Jun 30
+  });
+
+  it('respects a weekly frequency when paid', () => {
+    const bill = { id: 'B1', name: 'Sitter', amount: 60, frequency: 'Weekly', startDate: '2026-06-01' };
+    setBills([bill]);
+    setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 60, date: '2026-06-29' }]);
+    // Jun 1 + 4 weeks = Jun 29, so today is itself an occurrence.
+    expect(effectiveDaysUntilBillDue(bill)).toBe(0);
+  });
+
+  /* A paid bill with nothing to advance to reads as null ("no next due"), not
+     the 9999 sentinel daysUntilBillDue hands back — the row shows no countdown
+     rather than a nonsense one. */
+  it('returns null for a paid bill with no schedule to advance to', () => {
+    const bill = { id: 'B1', name: 'One-off', amount: 25 };
+    setBills([bill]);
+    setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 25, date: '2026-06-29' }]);
+    expect(isFullyPaid('bill', 'B1')).toBe(true);
+    expect(effectiveDaysUntilBillDue(bill)).toBe(null);
+  });
+
+  it('an unscheduled UNPAID bill still reports the 9999 sentinel', () => {
+    const bill = { id: 'B1', name: 'One-off', amount: 25 };
+    setBills([bill]);
+    expect(effectiveDaysUntilBillDue(bill)).toBe(9999);
+  });
+});
+
 describe('utils — payment history & stats', () => {
   beforeEach(() => {
     setPayments([
@@ -571,9 +652,19 @@ describe('utils — buildUpcomingItems', () => {
     expect(item.brand.isLogo).toBe(true);
     expect(item.brand.key).toBe('bilt');
     expect(item.brand.fullColor).toBe(true);
-    expect(item.brand.aspect).toBeGreaterThan(1);
+    // Bilt's mark is its square lockup, so 1:1 — the plate is sized from the
+    // aspect either way. A wordmark's ratio is covered by the next test.
+    expect(item.brand.aspect).toBe(1);
     // The emoji stand-in survives for text-only contexts.
     expect(item.icon).toBe('🏠');
+  });
+
+  it('carries a wordmark’s aspect ratio so the plate can hug it', () => {
+    setBills([]);
+    setCards([{ id: 'C4', name: 'Quicksilver', issuer: 'Capital One', minPayment: 10, dueDay: 1 }]);
+    const item = buildUpcomingItems()[0];
+    expect(item.brand.fullColor).toBe(true);
+    expect(item.brand.aspect).toBeGreaterThan(2);
   });
 });
 

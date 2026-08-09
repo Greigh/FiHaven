@@ -829,13 +829,16 @@
   border-radius: 4px;
 }
 /* Full-color official marks: authored for a white page, so they sit on a
-   light plate in both themes rather than being tinted. Height is fixed and
-   width follows the mark's aspect ratio, capped so a 4:1 wordmark can't push
-   the name column around — the 48x32 chip has room for 42px of it. */
+   light plate in both themes rather than being tinted. Width follows the
+   mark's aspect ratio (--logo-aspect, set inline beside aspect-ratio), capped
+   so a 4:1 wordmark can't push the name column around — the 48x32 chip has
+   room for 42px of it. Height derives from the width rather than being fixed,
+   so a mark past the cap scales down whole and the plate hugs it; a fixed
+   height left a wordmark like Bilt's letterboxed in white bands. */
 .icon-mark-img.icon-mark-plate {
-  width: auto;
-  height: 1.15em;
-  max-width: 2.01em;
+  width: min(2.01em, calc(1.15em * var(--logo-aspect, 1)));
+  height: auto;
+  max-width: none;
   background: #fff;
   border-radius: 3px;
   padding: 1px;
@@ -844,8 +847,8 @@
 /* Inside a card chip the chip itself is the plate (see .card-row-chip.is-plate),
    so the mark doesn't carry a second one. */
 .card-row-chip .icon-mark-img.icon-mark-plate {
-  height: 24px;
-  max-width: 42px;
+  width: min(42px, calc(24px * var(--logo-aspect, 1)));
+  height: auto;
   background: none;
   border-radius: 0;
   padding: 0;
