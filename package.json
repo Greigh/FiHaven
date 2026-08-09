@@ -51,28 +51,29 @@
     "@simplewebauthn/server": "^13.3.2",
     "apns2": "^12.2.0",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^13.0.2",
+    "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.1",
+    "express-rate-limit": "^8.6.2",
     "firebase-admin": "^14.2.0",
-    "googleapis": "^174.0.0",
-    "nodemailer": "^9.0.3",
+    "googleapis": "^174.0.1",
+    "nodemailer": "^9.0.5",
     "otpauth": "^9.5.1",
     "plaid": "^45.0.0",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@codecov/vite-plugin": "^2.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/cli": "^4.3.3",
     "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.4",
     "jsdom": "^30.0.1",
     "svelte": "^5.56.8",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.2.0",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "allowScripts": {
@@ -81,12 +82,15 @@
     "@parcel/watcher@2.5.1": true,
     "@firebase/util@1.15.2": true,
     "protobufjs@7.6.5": true,
-    "better-sqlite3@13.0.2": true
+    "better-sqlite3@13.0.3": true
   },
   "overrides": {
     "fast-xml-parser": ">=5.10.1",
     "shell-quote": ">=1.8.5",
     "uuid": "^11.1.1",
-    "rimraf": "^6.1.3"
+    "rimraf": "^6.1.3",
+    "@codecov/vite-plugin": {
+      "vite": "$vite"
+    }
   }
 }

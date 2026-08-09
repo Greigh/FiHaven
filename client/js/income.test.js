@@ -9,8 +9,11 @@ import {
   monthlyIncomeForMonth,
   periodIncome,
   periodDays,
+  monthOverlaps,
   adjustmentsTotalForPeriod,
   incomeLabelFor,
+  owedLabelFor,
+  AVG_MONTH_DAYS,
 } from './income.js';
 import { boundsForKey } from './period.js';
 
@@ -140,5 +143,71 @@ describe('income — periodIncome', () => {
   it('incomeLabelFor reflects the period mode', () => {
     expect(incomeLabelFor({ mode: 'calendar' })).toBe('Monthly income');
     expect(incomeLabelFor({ mode: 'rolling' })).toBe('Period income');
+  });
+
+  it('owedLabelFor reflects the period mode', () => {
+    expect(owedLabelFor({ mode: 'calendar' })).toBe('Still owed this month');
+    expect(owedLabelFor({ mode: 'rolling' })).toBe('Still owed this period');
+    expect(owedLabelFor({ mode: 'startDay', startDay: 25 })).toBe('Still owed this period');
+  });
+
+  // No config yet (first load, before settings arrive) reads as calendar.
+  it('both labels fall back to the calendar wording without a config', () => {
+    expect(incomeLabelFor(null)).toBe('Monthly income');
+    expect(owedLabelFor(null)).toBe('Still owed this month');
+    expect(owedLabelFor(undefined)).toBe('Still owed this month');
+  });
+});
+
+/* Bounds arrive from callers that may not have resolved a period yet (first
+   paint, a settings screen with no month selected), and adjustments are typed
+   in by hand — so every entry point has to survive missing/garbage input
+   rather than propagating a NaN into the budget. */
+describe('income — missing bounds and unusable amounts', () => {
+  it('normalizeAdjustment tolerates being called with nothing', () => {
+    const a = normalizeAdjustment();
+    expect(a.kind).toBe('once');
+    expect(a.amount).toBe(0);
+    expect(a.label).toBe('');
+    expect(a.monthKey).toBe('');
+    expect(typeof a.id).toBe('string');
+  });
+
+  it('counts an unparseable adjustment amount as 0, not NaN', () => {
+    const settings = {
+      incomeAdjustments: [
+        { kind: 'once', monthKey: '2026-06', amount: 'not a number' },
+        { kind: 'once', monthKey: '2026-06', amount: 75 },
+      ],
+    };
+    expect(adjustmentsTotalForMonth(settings, '2026-06')).toBe(75);
+  });
+
+  it('periodDays falls back to an average month when the bounds are unusable', () => {
+    expect(periodDays(null)).toBe(AVG_MONTH_DAYS);
+    expect(periodDays({})).toBe(AVG_MONTH_DAYS);
+    expect(periodDays({ start: new Date(2026, 5, 1) })).toBe(AVG_MONTH_DAYS); // no end
+    expect(periodDays({ end: new Date(2026, 6, 1) })).toBe(AVG_MONTH_DAYS);   // no start
+  });
+
+  it('monthOverlaps is empty when the bounds are unusable', () => {
+    expect(monthOverlaps(null)).toEqual([]);
+    expect(monthOverlaps({})).toEqual([]);
+    expect(monthOverlaps({ start: new Date(2026, 5, 1) })).toEqual([]);
+  });
+
+  it('adjustmentsTotalForPeriod reads a calendar period whole, and is 0 with no bounds', () => {
+    const settings = {
+      incomeAdjustments: [{ kind: 'once', monthKey: '2026-06', amount: 250 }],
+    };
+    expect(adjustmentsTotalForPeriod(settings, null)).toBe(0);
+    // Calendar mode takes the month's full total — no proration by overlap.
+    const june = boundsForKey('2026-06', { mode: 'calendar', startDay: 1, length: 35 });
+    expect(adjustmentsTotalForPeriod(settings, june)).toBe(250);
+  });
+
+  it('periodIncome without bounds is just the base monthly income', () => {
+    expect(periodIncome({ income: 3000 }, null)).toBe(3000);
+    expect(periodIncome({ income: 3000 }, undefined)).toBe(3000);
   });
 });

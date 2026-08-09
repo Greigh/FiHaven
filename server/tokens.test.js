@@ -69,6 +69,25 @@ describe('tokens.js', () => {
     expect(inserted.expires_at).toBe(inserted.created_at + 24 * 60 * 60 * 1000);
   });
 
+  /* Every shipped purpose has an explicit lifetime; an unrecognised one (a
+     new caller, or an older/newer node in a rolling deploy) gets the short
+     30-minute default rather than a token that never expires. */
+  it('issue() falls back to a 30-minute lifetime for an unknown purpose', () => {
+    tokens.issue(42, 'some-new-purpose');
+
+    const inserted = dbMock.insertEmailToken.mock.calls[0][0];
+    expect(inserted.expires_at).toBe(inserted.created_at + 30 * 60 * 1000);
+  });
+
+  it('issue() uses the short lifetime for the sensitive purposes', () => {
+    tokens.issue(1, 'password-reset');
+    tokens.issue(1, 'recover-2fa');
+
+    for (const call of dbMock.insertEmailToken.mock.calls) {
+      expect(call[0].expires_at).toBe(call[0].created_at + 30 * 60 * 1000);
+    }
+  });
+
   it('check() returns null for missing, wrong-purpose, used, or expired tokens', () => {
     expect(tokens.check('', 'password-reset')).toBeNull();
     expect(tokens.check('missing', 'password-reset')).toBeNull();
