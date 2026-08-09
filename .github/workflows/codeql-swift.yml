@@ -1,0 +1,85 @@
+name: CodeQL (Swift)
+
+# Split out of codeql.yml so the path filter below can apply: on.push.paths is
+# workflow-wide, not per-job. Building the iOS app is by far the slowest part of
+# code scanning, and a web- or server-only commit can't change its results.
+# The weekly cron re-analyses regardless, so alerts never go stale.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/codeql-swift.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  swift:
+    name: Analyze Swift
+    runs-on: macos-latest
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # LinkKit ships a large binary framework in-repo; re-cloning it every run
+      # cost minutes. Keyed on the committed lockfile so a version bump busts it.
+      - name: Cache Swift package checkouts
+        uses: actions/cache@v4
+        with:
+          path: ios/FiHavenApp/.spm-cache
+          key: spm-${{ runner.os }}-${{ hashFiles('ios/FiHavenApp/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate Xcode project
+        working-directory: ios/FiHavenApp
+        run: |
+          xcodegen generate
+          # FiHaven.xcodeproj is git-ignored, so the committed lockfile has to be
+          # copied in after generation — same as ci_scripts/ci_post_clone.sh does
+          # for Xcode Cloud. Without it SPM re-resolves version ranges over the
+          # network on every run.
+          resolved_dir="FiHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
+          mkdir -p "$resolved_dir"
+          cp xcshareddata/swiftpm/Package.resolved "$resolved_dir/Package.resolved"
+
+      # Resolve before CodeQL starts tracing: fetching sources isn't compilation,
+      # so there's nothing to extract from it.
+      - name: Resolve Swift packages
+        working-directory: ios/FiHavenApp
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project FiHaven.xcodeproj -scheme FiHaven \
+            -clonedSourcePackagesDirPath .spm-cache
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+
+      # ARCHS=arm64 halves the build: a generic simulator destination otherwise
+      # compiles arm64 and x86_64, and CodeQL learns nothing from the second pass.
+      # DerivedData is deliberately NOT cached — skipped compiles extract nothing.
+      - name: Build iOS app (traced for CodeQL)
+        working-directory: ios/FiHavenApp
+        run: |
+          xcodebuild -project FiHaven.xcodeproj -scheme FiHaven \
+            -destination 'generic/platform=iOS Simulator' \
+            -clonedSourcePackagesDirPath .spm-cache \
+            -disableAutomaticPackageResolution \
+            -skipMacroValidation -skipPackagePluginValidation \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
