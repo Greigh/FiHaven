@@ -99,6 +99,29 @@ describe('rateLimit.js', () => {
     expect(check('9.9.9.9', 'blocked@test.com')).toEqual({ allowed: true, retryAfter: 0 });
   });
 
+  /* A login POST can arrive with neither field readable — a proxy that strips
+     the client IP, a body with no email. Those must still be throttled (under
+     a shared placeholder key) rather than colliding with a real user's. */
+  it('throttles requests with no IP or email under a placeholder key', () => {
+    const { check, record, MAX_ATTEMPTS } = loadRateLimit();
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) record(undefined, undefined);
+    expect(check(undefined, undefined).allowed).toBe(false);
+    expect(check('', '')).toEqual({ allowed: false, retryAfter: expect.any(Number) });
+
+    // A real caller is unaffected by the placeholder bucket.
+    expect(check('1.2.3.4', 'user@test.com').allowed).toBe(true);
+  });
+
+  it('prune leaves a live window in place', () => {
+    const { check, record, prune, MAX_ATTEMPTS } = loadRateLimit();
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) record('1.2.3.4', 'live@test.com');
+    prune(); // nothing has expired
+
+    expect(check('1.2.3.4', 'live@test.com').allowed).toBe(false);
+  });
+
   it('registers an hourly prune timer when the module loads', () => {
     const intervalSpy = vi.spyOn(global, 'setInterval');
     loadRateLimit();

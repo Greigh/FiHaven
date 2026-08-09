@@ -8,6 +8,7 @@ import {
   periodKeyForPayment,
   periodLabel,
   periodKeyLabel,
+  monthsInBounds,
 } from './period.js';
 
 describe('period — periodBounds', () => {
@@ -117,6 +118,14 @@ describe('period — shiftPeriod', () => {
     expect(shiftPeriod(june, 0, cfg).key).toBe('2026-06');
   });
 
+  it('moves a startDay period to the same day in the next month', () => {
+    const cfg = { mode: 'startDay', startDay: 25 };
+    const b = periodBounds('2026-06-10', cfg); // May 25 – Jun 25
+    expect(b.key).toBe('2026-05-25');
+    expect(shiftPeriod(b, 1, cfg).key).toBe('2026-06-25');
+    expect(shiftPeriod(b, -1, cfg).key).toBe('2026-04-25');
+  });
+
   it('shifts rolling buckets by their length', () => {
     const cfg = { mode: 'rolling', length: 30 };
     const b = periodBounds('2026-06-15', cfg);
@@ -200,5 +209,73 @@ describe('period — periodKeyLabel', () => {
     const cfg = { mode: 'rolling', length: 30 };
     const key = periodBounds('2026-06-15', cfg).key;
     expect(periodKeyLabel(key, cfg)).toContain('–');
+  });
+});
+
+/* A non-calendar period can straddle a month — and a year — boundary, so the
+   per-month bookkeeping that hangs off it (autopay's done-memory) has to see
+   every month the window touches, and the label has to stay unambiguous. */
+describe('period — monthsInBounds', () => {
+  it('lists the single month a calendar period covers', () => {
+    expect(monthsInBounds(periodBounds('2026-06-15', { mode: 'calendar' })))
+      .toEqual(['2026-06']);
+  });
+
+  it('lists every month a rolling window overlaps', () => {
+    const b = periodBounds('2026-05-20', { mode: 'rolling', length: 40, anchor: '2026-05-20' });
+    expect(monthsInBounds(b)).toEqual(['2026-05', '2026-06']);
+  });
+
+  it('rolls the month counter over the new year', () => {
+    const b = periodBounds('2026-12-20', { mode: 'rolling', length: 40, anchor: '2026-12-20' });
+    expect(monthsInBounds(b)).toEqual(['2026-12', '2027-01']);
+  });
+
+  it('is empty without bounds', () => {
+    expect(monthsInBounds(null)).toEqual([]);
+  });
+});
+
+/* The config argument is optional everywhere: most callers rely on the saved
+   settings, and a date-less call means "the period containing today". */
+describe('period — implicit date and config', () => {
+  const thisMonthKey = () => {
+    const now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  };
+
+  it('periodBounds with no date resolves the period containing today', () => {
+    expect(periodBounds(undefined, { mode: 'calendar' }).key).toBe(thisMonthKey());
+    expect(periodBounds(null, { mode: 'calendar' }).key).toBe(thisMonthKey());
+    expect(periodBounds('', { mode: 'calendar' }).key).toBe(thisMonthKey());
+  });
+
+  it('shiftPeriod falls back to the saved config', () => {
+    // No settings.periodMode is set in this suite, so the default is calendar.
+    const june = periodBounds('2026-06-15', { mode: 'calendar' });
+    expect(shiftPeriod(june, 1).key).toBe('2026-07');
+    expect(shiftPeriod(june, -1).key).toBe('2026-05');
+  });
+
+  it('periodKeyForPayment falls back to the saved config', () => {
+    expect(periodKeyForPayment({ date: '2026-06-15' })).toBe('2026-06');
+  });
+});
+
+/* A window that crosses New Year would read as "Dec 20 – Jan 18" with no year
+   on the left, which is genuinely ambiguous — so the start gains one. */
+describe('period — periodLabel across a year boundary', () => {
+  it('includes the year on both ends when they differ', () => {
+    const cfg = { mode: 'rolling', length: 40, anchor: '2026-12-20' };
+    const label = periodLabel(periodBounds('2026-12-25', cfg), cfg);
+    expect(label).toContain('2026');
+    expect(label).toContain('2027');
+  });
+
+  it('omits the start year when both ends share it', () => {
+    const cfg = { mode: 'rolling', length: 30, anchor: '2026-06-10' };
+    const label = periodLabel(periodBounds('2026-06-15', cfg), cfg);
+    expect(label.split('–')[0]).not.toContain('2026');
+    expect(label).toContain('2026');
   });
 });

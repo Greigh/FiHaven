@@ -53,6 +53,7 @@ import {
   refreshAll,
   periodObligationItems,
   cardForTransaction,
+  daysUntilBillDue,
 } from './utils.js';
 import { setCards, setBills, setPayments, setSettings, bills, cards } from './storage.svelte.js';
 import { boundsForKey } from './period.js';
@@ -992,5 +993,211 @@ describe('cardForTransaction', () => {
   it('re-attributes history when a card is re-pointed at another account', () => {
     const tx = { accountId: 'acct-plat' };
     expect(cardForTransaction(tx, [{ ...gold, plaidAccountId: 'acct-plat' }]).id).toBe('C1');
+  });
+
+  it('falls back to the synced card list when no list is passed', () => {
+    setCards([gold, plat]);
+    expect(cardForTransaction({ accountId: 'acct-gold' }).id).toBe('C1');
+    expect(cardForTransaction({ accountId: 'acct-nope' })).toBe(null);
+  });
+});
+
+/* Every one of these reads a field the user may simply not have filled in, or
+   a record that has since been deleted. None of them may return NaN or throw:
+   the values feed straight into totals, badges, and the dashboard sort. */
+describe('utils — missing records and unset amounts', () => {
+  beforeEach(() => {
+    setSettings({});
+    setBills([]);
+    setCards([]);
+    setPayments([]);
+  });
+
+  it('fmtShort and monthLabel work with nothing passed', () => {
+    expect(fmtShort()).toBe('$0');
+    expect(fmtShort(null)).toBe('$0');
+    expect(monthLabel()).toBe(monthLabel(new Date()));
+  });
+
+  it('effectiveDaysUntilDue is null without a due day', () => {
+    expect(effectiveDaysUntilDue(0, 'card', 'C1')).toBe(null);
+    expect(effectiveDaysUntilDue(undefined)).toBe(null);
+  });
+
+  it('effectiveDaysUntilDue keeps this month’s due day when it is still ahead', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 5, 10)); // Jun 10
+      setBills([{ id: 'B1', name: 'Rent', amount: 100, dueDay: 12 }]);
+      setPayments([{ id: 'p1', type: 'bill', refId: 'B1', amount: 100, date: '2026-06-01', monthKey: '2026-06' }]);
+      // Paid, but the 12th has not happened yet — count to it, not to July.
+      expect(effectiveDaysUntilDue(12, 'bill', 'B1')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('billInPeriod excludes archived bills and falls back to the active window', () => {
+    const bounds = boundsForKey('2026-06', { mode: 'calendar', startDay: 1, length: 35 });
+    expect(billInPeriod({ id: 'B1', archived: true }, bounds)).toBe(false);
+    // No usable bounds → the plain active-window check.
+    expect(billInPeriod({ id: 'B2' })).toBe(true);
+    expect(billInPeriod({ id: 'B3', endDate: '2000-01-01' }, null)).toBe(false);
+    expect(billInPeriod({ id: 'B4' }, { start: new Date(2026, 5, 1) })).toBe(true);
+  });
+
+  it('paymentStats and paidAmount treat an unusable amount as 0', () => {
+    setPayments([
+      { id: '1', type: 'card', refId: 'C1', amount: 'oops', date: '2026-01-15' },
+      { id: '2', type: 'card', refId: 'C1', amount: 100, date: '2026-01-16' },
+    ]);
+    const stats = paymentStats('card', 'C1');
+    expect(stats.min).toBe(0);
+    expect(stats.max).toBe(100);
+    expect(stats.avg).toBe(50);
+
+    setPayments([{ id: '3', type: 'bill', refId: 'B1', amount: null, date: localIso(), monthKey: monthKey() }]);
+    expect(paidAmount('bill', 'B1')).toBe(0);
+  });
+
+  it('rolloverAmount treats an unusable current amount as 0', () => {
+    expect(rolloverAmount('carry', 'not a number')).toBe(0);
+    expect(rolloverAmount('average', undefined, null)).toBe(0);
+  });
+
+  /* Anything that is not a bare YYYY-MM-DD is a real instant, not a calendar
+     day, and goes through Date untouched. */
+  it('date math accepts a full timestamp as well as a calendar day', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 7, 1, 13, 0, 0)); // Aug 1 2026, local
+      expect(monthsUntil('2026-10-15T09:30:00')).toBe(2);
+      expect(daysUntilDate('2026-08-11T23:00:00')).toBe(10);
+      // A slash-separated date is likewise handed to Date as-is.
+      expect(monthsUntil('2026/10/15')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cardAmounts is all zeros without a card', () => {
+    expect(cardAmounts(null)).toEqual({ due: 0, current: 0, owed: 0, statement: null });
+  });
+
+  /* The goal is resolved from the synced card list, so a row whose record has
+     since been deleted reports 0 rather than reading a stale balance off the
+     object it was handed. */
+  it('cardAmounts reports 0 for a card that is no longer in the list', () => {
+    setCards([]);
+    const a = cardAmounts({ id: 'GONE', balance: 250, minPayment: 25 }, '2026-06');
+    expect(a.due).toBe(0);
+    expect(a.owed).toBe(0);
+    expect(a.current).toBe(250); // read straight off the object, not the list
+  });
+
+  it('cardAmounts reads blank money fields as 0, never NaN', () => {
+    setSettings({ paidGoal: 'minimum' });
+    setCards([{ id: 'C2' }, { id: 'L1', type: 'loan' }]);
+    expect(cardAmounts({ id: 'C2' }, '2026-06').due).toBe(0);
+    expect(cardAmounts({ id: 'L1', type: 'loan' }, '2026-06').due).toBe(0);
+  });
+
+  it('promoNeeded falls back to the statement balance, then to 0', () => {
+    // No promoBalance → spread the statement balance instead.
+    expect(promoNeeded({ balance: 600, promoEndDate: '2000-01-01' })).toBe(600);
+    // Nothing to spread at all.
+    expect(promoNeeded({ promoEndDate: '2000-01-01' })).toBe(0);
+  });
+
+  it('recommendedAmount is 0 for an interest-bearing card with no balance set', () => {
+    expect(recommendedAmount({ minPayment: 0, regularAPR: 19.99 })).toBe(0);
+  });
+
+  /* A card payment lowers the balance, so a balance-derived target has to add
+     this period's payments back — including onto an unparseable promo
+     balance, which reads as 0 rather than poisoning the target with NaN. */
+  it('rebuilds the start-of-period card from an unusable promo balance', () => {
+    setCards([{
+      id: 'C1', name: 'Visa', balance: 500, promoBalance: 'n/a',
+      hasPromo: true, promoEndDate: isoOffsetMonths(6), minPayment: 10,
+    }]);
+    setPayments([{ id: 'p1', type: 'card', refId: 'C1', amount: 100, date: localIso(), monthKey: monthKey() }]);
+
+    // Start-of-period balance is 500 + 100; the promo balance is 0 + 100.
+    expect(payTargetAmount('payoff', 'card', 'C1')).toBe(600);
+    expect(payTargetAmount('recommended', 'card', 'C1')).toBeGreaterThan(0);
+  });
+
+  it('a card with no minimum payment set targets 0 under the minimum policy', () => {
+    setCards([{ id: 'C1', name: 'Visa', balance: 400 }]);
+    expect(payTargetAmount('minimum', 'card', 'C1')).toBe(0);
+    expect(payTargetAmount('monthly', 'card', 'C1')).toBe(0);
+  });
+
+  it('every goal helper returns a neutral value for a record that is gone', () => {
+    expect(payTargetAmount('full', 'bill', 'missing')).toBe(0);
+    expect(payTargetAmount('minimum', 'card', 'missing')).toBe(0);
+    expect(payTargetRemaining('recommended', 'card', 'missing')).toBe(0);
+    expect(goalAmountFor('card', 'missing')).toBe(0);
+    expect(goalAmountFor('bill', 'missing')).toBe(0);
+    expect(remainingForItem('card', 'missing')).toBe(0);
+    expect(needsAmount('card', 'missing')).toBe(false);
+    expect(isFullyPaid('card', 'missing')).toBe(true); // nothing owed, nothing missing
+  });
+});
+
+/* The dashboard's Upcoming list is built from whatever is on file, including
+   half-configured rows. Anything without a real next due date has to drop out
+   silently rather than sorting to the top with a NaN. */
+describe('utils — buildUpcomingItems with incomplete records', () => {
+  beforeEach(() => {
+    setSettings({});
+    setBills([]);
+    setCards([]);
+    setPayments([]);
+  });
+
+  it('drops a bill whose schedule yields no next occurrence', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 5, 20)); // Jun 20
+      setBills([
+        // Active today, but the next annual occurrence falls after it retires.
+        { id: 'DEAD', name: 'Domain', amount: 20, frequency: 'Annually',
+          startDate: '2025-06-19', endDate: '2026-06-21' },
+        { id: 'LIVE', name: 'Rent', dueDay: 25, frequency: 'Monthly' },
+      ]);
+
+      const items = buildUpcomingItems();
+      expect(items.map((i) => i.refId)).toEqual(['LIVE']);
+      // A bill with no amount set contributes 0, not NaN.
+      expect(items[0].amount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('skips archived cards and cards with no due day', () => {
+    setCards([
+      { id: 'ARCH', name: 'Closed', archived: true, dueDay: 10, minPayment: 20 },
+      { id: 'NODAY', name: 'No day', minPayment: 20 },
+      { id: 'OK', name: 'Visa', dueDay: 10, minPayment: 20 },
+    ]);
+
+    expect(buildUpcomingItems().map((i) => i.refId)).toEqual(['OK']);
+  });
+
+  it('uses the promo spread for a promo card, and 0 when no minimum is set', () => {
+    setCards([
+      { id: 'PROMO', name: 'Promo', dueDay: 10, balance: 1200, promoBalance: 1200,
+        hasPromo: true, promoEndDate: isoOffsetMonths(6) },
+      { id: 'BLANK', name: 'Blank', dueDay: 11 },
+    ]);
+
+    const items = buildUpcomingItems();
+    const promo = items.find((i) => i.refId === 'PROMO');
+    const blank = items.find((i) => i.refId === 'BLANK');
+    expect(promo.amount).toBeGreaterThan(100); // 1200 spread over ~6 months
+    expect(blank.amount).toBe(0);
   });
 });

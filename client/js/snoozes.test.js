@@ -38,6 +38,15 @@ describe('snoozes', () => {
     expect('bill:future' in snoozes).toBe(true);
   });
 
+  it('pruneExpiredSnoozes leaves the store untouched when nothing has expired', () => {
+    snoozes['bill:future'] = Date.now() + 60_000;
+    const writes = vi.spyOn(Storage.prototype, 'setItem');
+    pruneExpiredSnoozes();
+    expect(writes).not.toHaveBeenCalled();
+    expect('bill:future' in snoozes).toBe(true);
+    writes.mockRestore();
+  });
+
   it('persists to localStorage', () => {
     snoozeUntilTomorrow('bill', 'persist');
     const raw = JSON.parse(localStorage.getItem('fh_snoozes'));

@@ -235,6 +235,19 @@ describe('emails.js', () => {
     expect(msg.text).not.toContain('https://staging.fihaven.app//');
   });
 
+  // Links have to be absolute to work from an inbox, so an unset PUBLIC_ORIGIN
+  // falls back to production rather than emitting a relative path.
+  it('falls back to the production origin when PUBLIC_ORIGIN is unset', async () => {
+    delete process.env.PUBLIC_ORIGIN;
+    clearModule('./emails');
+    emails = require('./emails');
+    await emails.sendVerifyEmail('user@test.com', 't');
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.text).toContain('https://fihaven.app/verify-email?token=t');
+    expect(msg.html).toContain('src="https://fihaven.app/email-logo.png"');
+  });
+
   it('falls back to a plain dollar format for invalid currency codes', async () => {
     await emails.sendBillReminder(
       'user@test.com',
@@ -361,5 +374,188 @@ describe('emails.js', () => {
     expect(html).toContain('#15161A');   // --text
     expect(html).toContain('#6098F6');   // dark-mode --accent
     expect(html).toContain('Manrope');   // the product typeface
+  });
+
+  /* Records arrive from the user's own data, where any field can be blank —
+     a bill saved with just a name, an offer synced without a merchant. Every
+     one of those has to render as readable copy, not "undefined". */
+  it('sendBillReminder falls back to generic copy for an unnamed, undated bill', async () => {
+    await emails.sendBillReminder('user@test.com', [{ id: 'b1' }], 3, 'USD');
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('Reminder: a bill is due in 3 days');
+    expect(msg.text).toContain('• Bill — no amount set (due on the 0th)');
+    expect(msg.html).toContain('>Bill<');
+    expect(msg.html).not.toContain('undefined');
+  });
+
+  it('sendBillReminder defaults to USD when no currency is given', async () => {
+    await emails.sendBillReminder('user@test.com', [{ name: 'Rent', amount: 1450, dueDay: 20 }], 3);
+    expect(sendMailMock.mock.calls[0][0].text).toContain('$1,450.00');
+  });
+
+  // The Intl fallback path with a total of exactly zero — `Number(0 || 0)`.
+  it('formats a zero total through the plain-dollar fallback', async () => {
+    await emails.sendBillReminder(
+      'user@test.com',
+      [{ name: 'Water', amount: '', dueDay: 12 }],
+      3,
+      'NOT_A_REAL_CURRENCY',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.text).toContain('Total: $0.00');
+    expect(msg.text).toContain('• Water — no amount set');
+  });
+
+  it('sendWeeklyDigest tolerates a digest with no upcoming array and unnamed bills', async () => {
+    await emails.sendWeeklyDigest('user@test.com', { upcomingTotal: 0, debtTotal: 0 }, 'USD');
+    expect(sendMailMock.mock.calls[0][0].subject)
+      .toBe('FiHaven weekly: nothing due in the next 7 days');
+
+    sendMailMock.mockClear();
+    await emails.sendWeeklyDigest(
+      'user@test.com',
+      { upcoming: [{ amount: 40, daysUntil: 1 }], upcomingTotal: 40, debtTotal: 0 },
+      'USD',
+    );
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.text).toContain('• Bill — $40.00 (due tomorrow)');
+    expect(msg.html).toContain('due tomorrow');
+    expect(msg.html).not.toContain('undefined');
+  });
+
+  it('sendTrialReminder pluralizes and fills in blanks across several trials', async () => {
+    await emails.sendTrialReminder(
+      'user@test.com',
+      [
+        { id: 't1' },                                  // no name, no end date, no amount
+        { id: 't2', name: 'Hulu', trialEnds: '2026-06-25', amount: 7.99 },
+      ],
+      1,
+      'USD',
+    );
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('2 subscription trials ending tomorrow');
+    expect(msg.text).toContain('You have 2 free trials ending tomorrow');
+    expect(msg.text).toContain('• Subscription — trial ends');
+    expect(msg.html).toContain('Review them before the first charge.');
+    expect(msg.html).toContain('>Subscription<');
+    expect(msg.html).not.toContain('undefined');
+  });
+
+  it('sendTrialReminder names a single unnamed trial generically', async () => {
+    await emails.sendTrialReminder('user@test.com', [{ id: 't1' }], 3, 'USD');
+    expect(sendMailMock.mock.calls[0][0].subject).toBe('Trial ending soon: a subscription');
+  });
+
+  it('sendOfferReminder builds copy for a complete offer', async () => {
+    await emails.sendOfferReminder(
+      'user@test.com',
+      [{ merchant: 'Delta', detail: '10% back', expires: '2026-07-01', cardName: 'Amex Gold' }],
+      3,
+      'USD',
+    );
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('Offer expiring in 3 days: Delta');
+    expect(msg.text).toContain('• Delta — 10% back on Amex Gold (expires 2026-07-01)');
+    expect(msg.html).toContain('10% back');
+    expect(msg.html).toContain(' · ');           // detail and card name are joined
+    expect(msg.html).toContain('expires Jul 1');
+  });
+
+  it('sendOfferReminder pluralizes and fills in blanks across several offers', async () => {
+    await emails.sendOfferReminder(
+      'user@test.com',
+      [
+        { id: 'o1' },                                     // nothing at all
+        { id: 'o2', cardName: 'Amex Gold' },              // card only, no detail
+      ],
+      3,
+      'USD',
+    );
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe('2 card offers expiring in 3 days');
+    expect(msg.text).toContain('• Offer (expires )');
+    expect(msg.text).toContain('• Offer on Amex Gold (expires )');
+    expect(msg.html).toContain('>Offer<');
+    // No detail, so no separator dot is invented before the card name.
+    expect(msg.html).not.toContain(' · Amex Gold');
+    expect(msg.html).toContain('Amex Gold');
+    expect(msg.html).not.toContain('undefined');
+  });
+
+  it('sendOfferReminder names a single unnamed offer generically', async () => {
+    await emails.sendOfferReminder('user@test.com', [{ id: 'o1' }], 3, 'USD');
+    expect(sendMailMock.mock.calls[0][0].subject).toBe('Offer expiring in 3 days: a card offer');
+  });
+});
+
+/* An invite is the one email addressed to someone who may not have an account
+   yet, and both names on it are optional — the household may be unnamed, and
+   the inviter's display name may never have been set. */
+describe('emails.js — household invite', () => {
+  const sendMailMock = vi.fn().mockResolvedValue({ messageId: 'test-id' });
+  let emails;
+
+  beforeEach(() => {
+    sendMailMock.mockClear();
+    clearModule('./emails');
+    clearModule('./mail');
+    stubModule('./mail', { sendMail: sendMailMock });
+    process.env.PUBLIC_ORIGIN = 'https://fihaven.app';
+    emails = require('./emails');
+  });
+
+  it('names the inviter and the household when both are known', async () => {
+    await emails.sendHouseholdInvite('invitee@test.com', {
+      rawToken: 'inv+token/1',
+      householdName: 'The Hipskinds',
+      inviterName: 'Dana',
+    });
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.to).toBe('invitee@test.com');
+    expect(msg.subject).toBe("You're invited to join The Hipskinds on FiHaven");
+    expect(msg.text).toContain('Dana invited you to join The Hipskinds on FiHaven.');
+    expect(msg.text).toContain(
+      'https://fihaven.app/login?household=' + encodeURIComponent('inv+token/1'),
+    );
+    expect(msg.html).toContain('<strong>Dana</strong>');
+    expect(msg.html).toContain('<strong>The Hipskinds</strong>');
+    expect(msg.html).toContain('Join the household');
+  });
+
+  it('falls back to neutral wording when neither name is set', async () => {
+    await emails.sendHouseholdInvite('invitee@test.com', { rawToken: 'tok' });
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.subject).toBe("You're invited to join a household on FiHaven");
+    expect(msg.text).toContain('Someone invited you to join their household on FiHaven.');
+    expect(msg.html).toContain('<strong>Someone</strong>');
+    expect(msg.html).toContain('<strong>their household</strong>');
+    expect(msg.html).not.toContain('undefined');
+  });
+
+  it('escapes both names in the HTML body', async () => {
+    await emails.sendHouseholdInvite('invitee@test.com', {
+      rawToken: 'tok',
+      householdName: '<img src=x onerror=alert(1)>',
+      inviterName: '<script>alert(1)</script>',
+    });
+
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.html).not.toContain('<script>');
+    expect(msg.html).not.toContain('<img src=x');
+    expect(msg.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('offers no unsubscribe — an invite is not a notification', async () => {
+    await emails.sendHouseholdInvite('invitee@test.com', { rawToken: 'tok' });
+    const msg = sendMailMock.mock.calls[0][0];
+    expect(msg.listUnsubscribe).toBeUndefined();
+    expect(msg.html).not.toContain('Unsubscribe');
   });
 });

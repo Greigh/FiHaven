@@ -170,6 +170,86 @@ describe('rewards — spend categorization & estimate', () => {
   });
 });
 
+/* The optimizer runs over whatever the user typed in, so every helper has to
+   survive a half-filled card, an empty wallet, and a transaction list that is
+   missing or full of junk dates. */
+describe('rewards — partial cards and empty input', () => {
+  it('ranks the excluded promo cards among themselves too', () => {
+    // Both are set aside, but the UI still shows them in value order.
+    const { excluded } = rankCardsForCategory('Dining', [
+      { id: 'lowPromo', rewardCategories: { Dining: 2 }, hasPromo: true, promoEndDate: future() },
+      { id: 'highPromo', rewardCategories: { Dining: 5 }, hasPromo: true, promoEndDate: future() },
+    ]);
+    expect(excluded.map((e) => e.card.id)).toEqual(['highPromo', 'lowPromo']);
+  });
+
+  it('explains a category bonus on a card with no base rate at all', () => {
+    // No rewardBase → base reads as 0, so any category rate is a bonus.
+    expect(rewardExplanation({ rewardCategories: { Dining: 3 } }, 'Dining'))
+      .toBe('3% back on dining');
+    // No categories object either → the base is all there is.
+    expect(rewardExplanation({ rewardBase: 2 }, 'Dining')).toBe('2% back on everything');
+  });
+
+  it('walletStrategy tolerates a missing category list and a wallet that earns nothing', () => {
+    expect(walletStrategy([{ id: 'x', rewardBase: 1 }])).toEqual([]);
+    // Every card is in a promo, so nothing is eligible for any category.
+    const out = walletStrategy(
+      [{ id: 'p', rewardBase: 5, hasPromo: true, promoEndDate: future() }],
+      ['Dining'],
+    );
+    expect(out[0].best).toBeNull();
+  });
+
+  it('categorySpendAnnual ignores rows with no date or an unusable one', () => {
+    const today = new Date();
+    const out = categorySpendAnnual([
+      { merchant: 'Starbucks', amount: 40, date: '' },
+      { merchant: 'Starbucks', amount: 40, date: 'not-a-date' },
+      { merchant: 'Starbucks', amount: 40, date: '2026' },
+      { merchant: 'Starbucks', amount: 40, date: '0000-01-01' },
+    ], today);
+    expect(out).toEqual({});
+  });
+
+  it('categorySpendAnnual drops rows outside the trailing year', () => {
+    const today = new Date(2026, 5, 15);
+    const out = categorySpendAnnual([
+      { merchant: 'Starbucks', amount: 100, date: '2024-01-01' }, // too old
+      { merchant: 'Starbucks', amount: 100, date: '2026-12-01' }, // in the future
+      { merchant: 'Starbucks', amount: 'oops', date: '2026-06-10' }, // no usable amount
+    ], today);
+    expect(out).toEqual({});
+  });
+
+  it('categorySpendAnnual clamps a same-day window to 30 days before annualizing', () => {
+    const today = new Date(2026, 5, 15);
+    // One transaction dated today → a zero-day span, which must not blow up
+    // into a division by zero or a wild extrapolation.
+    const out = categorySpendAnnual([
+      { merchant: 'Starbucks', amount: 100, date: '2026-06-15' },
+    ], today);
+    expect(out.Dining).toBe(Math.round(100 * (365 / 30)));
+  });
+
+  it('categorySpendAnnual works with no arguments at all', () => {
+    // No list, and no reference date → "now" from the user's time zone.
+    expect(categorySpendAnnual()).toEqual({});
+  });
+
+  it('cardRewardsEstimateAnnual tolerates a bare card and unusable spend', () => {
+    // No rewardBase and no rewardCategories: nothing beats the base, so $0.
+    expect(cardRewardsEstimateAnnual({}, { Dining: 1000 })).toBe(0);
+    // No spend map at all.
+    expect(cardRewardsEstimateAnnual({ rewardBase: 1, rewardCategories: { Dining: 4 } })).toBe(0);
+    // Categories with no usable spend contribute nothing.
+    expect(cardRewardsEstimateAnnual(
+      { rewardBase: 1, rewardCategories: { Dining: 4 } },
+      { Dining: 'lots', Gas: 0, Travel: -50 },
+    )).toBe(0);
+  });
+});
+
 describe('rewards — point value (cash-equivalent ranking)', () => {
   it('pointValue defaults to 1 and reads a positive override', () => {
     expect(pointValue({})).toBe(1);

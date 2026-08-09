@@ -286,6 +286,152 @@ describe('cardPresets — catalog update accept/decline', () => {
     expect(diff).toContain('5');
   });
 
+  it('cardRatesMatchPreset is false without both sides', () => {
+    expect(cardRatesMatchPreset(null, GOLD)).toBe(false);
+    expect(cardRatesMatchPreset({ rewardBase: 1 }, null)).toBe(false);
+  });
+
+  it('cardRatesMatchPreset compares point value and the rotating pool, not just categories', () => {
+    const ROT = {
+      id: 'rot', issuer: 'X', name: 'Rot', rewardBase: 1, rewardCategories: {},
+      rotatingPool: ['Gas', 'Dining'], rotatingRate: 5, pointValue: 1,
+    };
+    const match = { rewardBase: 1, rewardCategories: {}, rotatingPool: ['Gas', 'Dining'], rotatingRate: 5 };
+
+    expect(cardRatesMatchPreset(match, ROT)).toBe(true);
+    // Same rates, different cents-per-point → not a match.
+    expect(cardRatesMatchPreset({ ...match, pointValue: 2 }, ROT)).toBe(false);
+    // Same rates, a pool the user edited → not a match.
+    expect(cardRatesMatchPreset({ ...match, rotatingPool: ['Gas'] }, ROT)).toBe(false);
+    // Same pool, a different elevated rate → not a match.
+    expect(cardRatesMatchPreset({ ...match, rotatingRate: 3 }, ROT)).toBe(false);
+    // A card with no categories object at all compares as "no bonuses".
+    expect(cardRatesMatchPreset(
+      { rewardBase: 2, rotatingPool: [], rotatingRate: 5 },
+      { rewardBase: 2, rotatingPool: [] },
+    )).toBe(true);
+  });
+
+  it('applyPresetRates returns the card untouched without a preset', () => {
+    const card = { id: '1', name: 'Mine', rewardBase: 9 };
+    expect(applyPresetRates(card, null)).toBe(card);
+    expect(applyPresetRates(null, GOLD)).toBeNull();
+  });
+
+  it('applyPresetRates clears point value and rotating fields a preset does not ship', () => {
+    // A bare cash-back preset: no pointValue, no rotating pool, no updatedAt.
+    const plain = { id: 'plain', issuer: 'X', name: 'Plain', rewardBase: 2 };
+    const next = applyPresetRates(
+      { id: '1', name: 'Mine', pointValue: 2.2, rotatingPool: ['Gas'], rotatingRate: 5, acceptedPresetUpdatedAt: 7 },
+      plain,
+    );
+    expect(next.rewardBase).toBe(2);
+    expect(next.rewardCategories).toEqual({});
+    expect(next.pointValue).toBeNull();
+    expect(next.rotatingPool).toBeNull();
+    expect(next.rotatingRate).toBeNull();
+    // No updatedAt on the preset → the prior acceptance stamp is left alone.
+    expect(next.acceptedPresetUpdatedAt).toBe(7);
+  });
+
+  it('applyPresetRates copies a rotating pool and its elevated rate', () => {
+    const rot = { id: 'rot', issuer: 'X', name: 'Rot', rewardBase: 1, rotatingPool: ['Gas', 'Dining'], rotatingRate: 5 };
+    const next = applyPresetRates({ id: '1', name: 'Mine' }, rot);
+    expect(next.rotatingPool).toEqual(['Gas', 'Dining']);
+    expect(next.rotatingPool).not.toBe(rot.rotatingPool); // copied, not shared
+    expect(next.rotatingRate).toBe(5);
+  });
+
+  it('resolveCardPreset returns null for a loan or a missing card', () => {
+    withCatalog([GOLD], () => {
+      expect(resolveCardPreset(null)).toBeNull();
+      expect(resolveCardPreset({ type: 'loan', name: 'Gold Card', issuer: 'American Express' })).toBeNull();
+    });
+  });
+
+  it('findPendingPresetUpdates ignores anything that is not an array', () => {
+    expect(findPendingPresetUpdates(null)).toEqual([]);
+    expect(findPendingPresetUpdates(undefined)).toEqual([]);
+    expect(findPendingPresetUpdates({ 0: {} })).toEqual([]);
+  });
+
+  it('advances a stale acceptance stamp on a card already sitting on catalog rates', () => {
+    withCatalog([GOLD_V2], () => {
+      const card = {
+        id: 'f',
+        name: 'Gold Card',
+        issuer: 'American Express',
+        presetId: 'amex-gold',
+        rewardBase: GOLD_V2.rewardBase,
+        rewardCategories: { ...GOLD_V2.rewardCategories },
+        pointValue: GOLD_V2.pointValue,
+        acceptedPresetUpdatedAt: 100, // older than the catalog's 200
+      };
+      expect(findPendingPresetUpdates([card])).toHaveLength(0);
+      expect(card.acceptedPresetUpdatedAt).toBe(200);
+    });
+  });
+
+  /* The bundled catalog ships no updatedAt, so "declined" is recorded as 0.
+     That still has to suppress the prompt, or a user who chose "Keep mine"
+     gets asked again on every load. */
+  it('honors a Keep mine recorded against an unstamped catalog preset', () => {
+    const UNSTAMPED = { ...GOLD };
+    delete UNSTAMPED.updatedAt;
+    withCatalog([UNSTAMPED], () => {
+      const declined = {
+        id: 'g', name: 'Gold Card', issuer: 'American Express',
+        presetId: 'amex-gold', rewardBase: 9, rewardCategories: {},
+        declinedPresetUpdatedAt: 0,
+      };
+      expect(findPendingPresetUpdates([declined])).toHaveLength(0);
+
+      // Without that record the divergence is still offered.
+      const fresh = { ...declined, id: 'h' };
+      delete fresh.declinedPresetUpdatedAt;
+      expect(findPendingPresetUpdates([fresh])).toHaveLength(1);
+
+      // A matching legacy card gets linked, but there is no stamp to record.
+      const legacy = {
+        id: 'i', name: 'Gold Card', issuer: 'American Express',
+        rewardBase: UNSTAMPED.rewardBase,
+        rewardCategories: { ...UNSTAMPED.rewardCategories },
+        pointValue: UNSTAMPED.pointValue,
+      };
+      expect(findPendingPresetUpdates([legacy])).toHaveLength(0);
+      expect(legacy.presetId).toBe('amex-gold');
+      expect(legacy.acceptedPresetUpdatedAt).toBeUndefined();
+    });
+  });
+
+  it('formatRateDiff reports a base change, a dropped category, and a point-value change', () => {
+    const diff = formatRateDiff(
+      { rewardBase: 2, rewardCategories: { Dining: 4, Gas: 3 } },  // no pointValue → 1
+      { rewardBase: 1, rewardCategories: { Dining: 4 }, pointValue: 2 },
+    );
+    expect(diff).toContain('Base: 2% → 1%');
+    // A category the preset drops renders as an em dash, not "0%".
+    expect(diff).toContain('Gas: 3% → —%');
+    expect(diff).toContain('Point value: 1¢ → 2¢');
+    // Unchanged categories are left out entirely.
+    expect(diff).not.toContain('Dining');
+  });
+
+  it('formatRateDiff caps the list at eight lines and marks the overflow', () => {
+    const cats = {};
+    for (let i = 0; i < 12; i++) cats['Cat' + i] = i + 1;
+    const diff = formatRateDiff(
+      { rewardBase: 1, rewardCategories: cats },
+      { rewardBase: 1, rewardCategories: {} },
+    );
+    expect(diff.split('\n')).toHaveLength(9); // 8 rows + the ellipsis
+    expect(diff.endsWith('\n…')).toBe(true);
+  });
+
+  it('formatRateDiff tolerates cards and presets with no categories object', () => {
+    expect(formatRateDiff({ rewardBase: 1 }, { rewardBase: 3 })).toBe('Base: 1% → 3%');
+  });
+
   it('shippedRewardRate prefers presetId over name suggest', () => {
     withCatalog([
       GOLD,
@@ -295,6 +441,20 @@ describe('cardPresets — catalog update accept/decline', () => {
       const shipped = shippedRewardRate(card, 'Dining');
       expect(shipped.preset.id).toBe('amex-gold');
       expect(shipped.rate).toBe(4);
+    });
+  });
+
+  it('shippedRewardRate falls back to a name match, and reports nothing when there is none', () => {
+    withCatalog([GOLD], () => {
+      // No presetId — resolved by name/issuer instead.
+      const byName = shippedRewardRate({ name: 'Gold Card', issuer: 'American Express' }, 'Dining');
+      expect(byName.preset.id).toBe('amex-gold');
+      expect(byName.rate).toBe(4);
+
+      // Nothing in the catalog looks like this, so we ship no rate at all.
+      expect(shippedRewardRate({ name: 'Homemade Rewards Card' }, 'Dining'))
+        .toEqual({ rate: null, preset: null });
+      expect(shippedRewardRate(null, 'Dining')).toEqual({ rate: null, preset: null });
     });
   });
 });
@@ -340,6 +500,18 @@ describe('cardPresets — loadCardPresetsFromServer', () => {
     expect(CARD_PRESETS.length).toBe(before);
 
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    expect(await loadCardPresetsFromServer()).toBe(false);
+    expect(CARD_PRESETS.length).toBe(before);
+  });
+
+  // A 200 whose body is not JSON (an HTML error page from a proxy, a truncated
+  // response) must not throw — it reads as "no presets" and keeps the bundle.
+  it('keeps the bundled catalog when the body will not parse as JSON', async () => {
+    const before = CARD_PRESETS.length;
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => { throw new SyntaxError('Unexpected token <'); },
+    })));
     expect(await loadCardPresetsFromServer()).toBe(false);
     expect(CARD_PRESETS.length).toBe(before);
   });

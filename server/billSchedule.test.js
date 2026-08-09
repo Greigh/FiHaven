@@ -134,6 +134,37 @@ describe('server billSchedule — helpers', () => {
     vi.useRealTimers();
   });
 
+  /* asOf defaults to "now", which is what the scheduler relies on when it
+     asks "has this bill's due date already passed today?". */
+  it('billDueOnOrBeforeInPeriod defaults asOf to today', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 5, 15));
+      const bounds = monthBoundsFromParts({ y: 2026, m: 6, d: 15 });
+      // The 5th has passed; the 25th has not.
+      expect(billDueOnOrBeforeInPeriod({ dueDay: 5, frequency: 'Monthly' }, bounds)?.getDate()).toBe(5);
+      expect(billDueOnOrBeforeInPeriod({ dueDay: 25, frequency: 'Monthly' }, bounds)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /* A startDate that is not a full YYYY-MM-DD cannot anchor the recurrence,
+     so the cycle keys off dueDay instead of throwing or going silent. */
+  it('falls back to dueDay when the startDate will not parse as a date', () => {
+    const bill = { dueDay: 20, frequency: 'Monthly', startDate: '2026-06' };
+    expect(billDueOn(bill, new Date(2026, 5, 20))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 6, 20))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 5, 21))).toBe(false);
+  });
+
+  it('nextBillDueDate scans from today when the startDate is already past', () => {
+    const bill = { dueDay: 20, frequency: 'Monthly', startDate: '2020-01-20' };
+    const from = atMidnight(new Date(2026, 5, 15));
+    const next = nextBillDueDate(bill, from);
+    expect(ymd(next)).toBe('2026-06-20');
+  });
+
   it('billDueOn is false when the bill has neither dueDay nor startDate', () => {
     expect(billDueOn({ frequency: 'Monthly' }, new Date(2026, 5, 15))).toBe(false);
   });

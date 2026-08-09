@@ -27,15 +27,15 @@ function clearModule(modulePath) {
 /* Push is required at module scope (not injectable via `deps`), so it is stubbed
    in the require cache. That also keeps firebase-admin/apns2 out of the test
    process. Pass `push` to observe the calls. */
-function loadScheduler({ pro = false, push } = {}) {
+function loadScheduler({ pro = false, push, billing, emails } = {}) {
   clearModule('./scheduler');
   clearModule('./db');
   clearModule('./billing');
   clearModule('./emails');
   clearModule('./push');
   stubModule('./db', {});
-  stubModule('./billing', { computeEntitlement: vi.fn(() => ({ pro })) });
-  stubModule('./emails', {});
+  stubModule('./billing', billing || { computeEntitlement: vi.fn(() => ({ pro })) });
+  stubModule('./emails', emails || {});
   stubModule('./push', push || {
     sendBillReminderPush: vi.fn(),
     sendTrialReminderPush: vi.fn(),
@@ -1392,5 +1392,340 @@ describe('scheduler — weeklyDigest ordering', () => {
     expect(out.upcoming.map((b) => b.name)).toEqual(['Today', 'Soon', 'Later']);
     expect(out.upcoming.map((b) => b.daysUntil)).toEqual([0, 2, 5]);
     expect(out.upcomingTotal).toBe(60);
+  });
+
+  /* A startDate-only bill has no dueDay — its recurrence keys off the start
+     day-of-month — so the digest has to accept either as "schedulable". */
+  it('includes a startDate-only bill', () => {
+    const sched = loadScheduler();
+    const lp = sched.localParts(new Date('2026-06-15T12:00:00.000Z'), 'America/New_York');
+    const out = sched.weeklyDigest(
+      { bills: [{ id: 'b1', name: 'Weekly gym', amount: 12, frequency: 'Weekly', startDate: '2026-06-01' }] },
+      lp,
+    );
+    expect(out.upcoming.map((b) => b.name)).toEqual(['Weekly gym']);
+  });
+});
+
+describe('scheduler — daysUntilYmd', () => {
+  it('is null for anything that is not a plain YYYY-MM-DD', () => {
+    const sched = loadScheduler();
+    const lp = sched.localParts(new Date('2026-06-15T12:00:00.000Z'), 'America/New_York');
+
+    expect(sched.daysUntilYmd('', lp)).toBeNull();
+    expect(sched.daysUntilYmd(null, lp)).toBeNull();
+    expect(sched.daysUntilYmd('2026-6-5', lp)).toBeNull();     // unpadded
+    expect(sched.daysUntilYmd('2026-06-15T00:00', lp)).toBeNull(); // has a time
+    expect(sched.daysUntilYmd('2026-06-20', lp)).toBe(5);
+  });
+
+  it('propagates through the trial and offer scans as "never matches"', () => {
+    const sched = loadScheduler();
+    const lp = sched.localParts(new Date('2026-06-15T12:00:00.000Z'), 'America/New_York');
+
+    expect(sched.trialsEndingOn({ bills: [{ id: 'b1', trialEnds: '20260620' }] }, lp, 3)).toEqual([]);
+    expect(sched.offersExpiringOn(
+      { cards: [{ id: 'c1', offers: [{ merchant: 'Dell', expires: 'soon' }] }] }, lp, 3,
+    )).toEqual([]);
+  });
+});
+
+describe('scheduler — offersExpiringOn labels', () => {
+  it('falls back to generic labels for an offer or card with no name', () => {
+    const sched = loadScheduler();
+    const lp = sched.localParts(new Date('2026-06-17T12:00:00.000Z'), 'America/New_York');
+
+    const out = sched.offersExpiringOn(
+      { cards: [{ id: 'c1', offers: [{ id: 'o1', expires: '2026-06-20' }] }] },
+      lp,
+      3,
+    );
+    expect(out).toEqual([
+      { merchant: 'Offer', detail: '', expires: '2026-06-20', cardName: 'Card' },
+    ]);
+  });
+});
+
+describe('scheduler — billActiveOn without an item', () => {
+  it('is false rather than throwing', () => {
+    const sched = loadScheduler();
+    expect(sched.billActiveOn(null, '2026-06-17')).toBe(false);
+    expect(sched.billActiveOn(undefined, '2026-06-17')).toBe(false);
+  });
+});
+
+/* markAutopay is the one place the server writes into a user's data, so its
+   guards matter more than most: everything it declines to mark is a phantom
+   payment that would otherwise sync to every device. */
+describe('scheduler — markAutopay guards', () => {
+  const lpFor = (sched, iso = '2026-06-20T13:00:00.000Z') =>
+    sched.localParts(new Date(iso), 'America/New_York');
+
+  it('creates the payments and settings containers when the blob has none', () => {
+    const sched = loadScheduler();
+    const data = { bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }] };
+
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(true);
+    expect(data.payments).toHaveLength(1);
+    expect(data.settings.autopayDone['2026-06']).toEqual(['bill:b1']);
+  });
+
+  it('ignores items that are not on autopay', () => {
+    const sched = loadScheduler();
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20 }],
+      cards: [{ id: 'c1', name: 'Visa', minPayment: 35, dueDay: 20 }],
+      payments: [], settings: {},
+    };
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(false);
+    expect(data.payments).toEqual([]);
+  });
+
+  /* Blank is unfinished setup, not a $0 charge: marking it would invent a
+     payment that never happened and feed a 0 into the rollover prefill. */
+  it('ignores an item whose amount was never filled in', () => {
+    const sched = loadScheduler();
+    const data = {
+      bills: [
+        { id: 'b1', name: 'Water', amount: null, dueDay: 20, autopay: true },
+        { id: 'b2', name: 'Power', amount: '', dueDay: 20, autopay: true },
+        { id: 'b3', name: 'Gas', amount: '   ', dueDay: 20, autopay: true },
+        { id: 'b4', name: 'Trash', amount: 'n/a', dueDay: 20, autopay: true },
+      ],
+      cards: [{ id: 'c1', name: 'Visa', dueDay: 20, autopay: true }],
+      payments: [], settings: {},
+    };
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(false);
+    expect(data.payments).toEqual([]);
+
+    // An explicit 0 is a real answer and still marks.
+    data.bills = [{ id: 'b5', name: 'Water', amount: 0, dueDay: 20, autopay: true }];
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(true);
+    expect(data.payments[0].amount).toBe(0);
+  });
+
+  it('ignores a bill that is not due today and a card whose day has not come', () => {
+    const sched = loadScheduler();
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 25, autopay: true }],
+      cards: [
+        { id: 'c1', name: 'Visa', minPayment: 35, dueDay: 25, autopay: true },
+        { id: 'c2', name: 'No day', minPayment: 35, autopay: true },
+      ],
+      payments: [], settings: {},
+    };
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(false);
+    expect(data.payments).toEqual([]);
+  });
+
+  it('names an unnamed bill and card in the payments it writes', () => {
+    const sched = loadScheduler();
+    const data = {
+      bills: [{ id: 'b1', amount: 1500, dueDay: 20, autopay: true }],
+      cards: [{ id: 'c1', minPayment: 35, dueDay: 20, autopay: true }],
+      payments: [], settings: {},
+    };
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(true);
+    expect(data.payments.map((p) => p.name)).toEqual(['Bill', 'Card (payment)']);
+  });
+
+  /* The memory is pruned as it is written: buckets older than the longest
+     rolling window a client may read across go, the rest stay. */
+  it('prunes autopayDone buckets older than four months', () => {
+    const sched = loadScheduler();
+    const data = {
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+      payments: [],
+      settings: {
+        autopayDone: {
+          '2025-11': ['bill:ancient'],  // dropped
+          '2026-04': ['bill:keep'],     // kept
+          '2026-06': ['bill:earlier'],  // this month — merged
+        },
+      },
+    };
+
+    expect(sched.markAutopay(data, lpFor(sched))).toBe(true);
+    const done = data.settings.autopayDone;
+    expect(Object.keys(done).sort()).toEqual(['2026-04', '2026-06']);
+    expect(done['2026-04']).toEqual(['bill:keep']);
+    expect(done['2026-06'].sort()).toEqual(['bill:b1', 'bill:earlier']);
+  });
+});
+
+describe('scheduler — runChecks fallbacks and failure paths', () => {
+  const userWith = (overrides = {}) => ({
+    id: 1,
+    email: 'user@example.com',
+    email_verified: 1,
+    last_reminder_day: null,
+    last_summary_month: null,
+    last_offer_reminder_day: null,
+    last_digest_week: null,
+    last_autopay_day: null,
+    ...overrides,
+  });
+
+  it('falls back to the default timezone when the user has not chosen one', async () => {
+    const sendBillReminder = vi.fn().mockResolvedValue(undefined);
+    const setReminderDay = vi.fn();
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { billReminders: true },   // no timezone
+          bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+        },
+      })]),
+      setReminderDay,
+    };
+    const sched = loadScheduler();
+
+    // 12:00 UTC is 08:00 in America/New_York, the default send hour.
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: { sendBillReminder } });
+
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
+  /* Nothing can place a user's local day if the clock itself is unusable, so
+     the pass skips them rather than sending against a NaN date. */
+  it('skips a user when the local day cannot be resolved at all', async () => {
+    const sendBillReminder = vi.fn().mockResolvedValue(undefined);
+    const setReminderDay = vi.fn();
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { timezone: 'Not/AZone', billReminders: true },
+          bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+        },
+      })]),
+      setReminderDay,
+    };
+    const sched = loadScheduler();
+
+    await expect(sched.runChecks(new Date('nonsense'), { db, emails: { sendBillReminder } }))
+      .resolves.toBeUndefined();
+    expect(sendBillReminder).not.toHaveBeenCalled();
+    expect(setReminderDay).not.toHaveBeenCalled();
+  });
+
+  it('treats an entitlement lookup failure as not Pro', async () => {
+    const upsertUserData = vi.fn();
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { timezone: 'America/New_York', autopayMark: true },
+          bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+        },
+      })]),
+      upsertUserData,
+      setAutopayDay: vi.fn(),
+    };
+    const sched = loadScheduler({
+      billing: { computeEntitlement: () => { throw new Error('db unavailable'); } },
+    });
+
+    await sched.runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+
+    // Pro-gated, and the entitlement is unknown → no auto-mark.
+    expect(upsertUserData).not.toHaveBeenCalled();
+  });
+
+  /* Every "already sent" stamp is optional on the db handle so an older
+     deployment (or a partial fake) does not crash the whole pass. */
+  it('runs without the optional stamp helpers on the db handle', async () => {
+    const sched = loadScheduler({ pro: true });
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: {
+            timezone: 'America/New_York',
+            autopayMark: true, offerReminders: true, weeklyDigest: true,
+          },
+          bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 22, autopay: true }],
+          cards: [{ id: 'c1', name: 'Amex', offers: [{ id: 'o1', merchant: 'Dell', expires: '2026-06-25' }] }],
+        },
+      })]),
+      upsertUserData: vi.fn(),
+      // No setAutopayDay / setOfferReminderDay / setDigestWeek.
+    };
+    const emails = {
+      sendOfferReminder: vi.fn().mockResolvedValue(undefined),
+      sendWeeklyDigest: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // Mon 2026-06-22, 08:00 local — autopay hour is 09:00, digest day is Monday.
+    await sched.runChecks(new Date('2026-06-22T12:00:00.000Z'), { db, emails });
+    expect(emails.sendWeeklyDigest).toHaveBeenCalledOnce();
+    expect(emails.sendOfferReminder).toHaveBeenCalledOnce();
+
+    // 09:00 local — the autopay mark runs and has no day-stamp helper to call.
+    await sched.runChecks(new Date('2026-06-22T13:00:00.000Z'), { db, emails });
+    expect(db.upsertUserData).toHaveBeenCalledOnce();
+  });
+
+  it('does not stamp the offer-reminder day when nothing is expiring', async () => {
+    const sendOfferReminder = vi.fn().mockResolvedValue(undefined);
+    const setOfferReminderDay = vi.fn();
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { timezone: 'America/New_York', offerReminders: true },
+          cards: [{ id: 'c1', name: 'Amex', offers: [{ id: 'o1', merchant: 'Dell', expires: '2027-01-01' }] }],
+        },
+      })]),
+      setOfferReminderDay,
+    };
+    const sched = loadScheduler({ pro: true });
+
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), { db, emails: { sendOfferReminder } });
+
+    expect(sendOfferReminder).not.toHaveBeenCalled();
+    // Nothing was due, so the day is still stamped — we should not rescan all day.
+    expect(setOfferReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
+  /* `deps` is a test seam; the production tick calls runChecks(new Date())
+     with nothing, so the real db/mailer modules have to be the defaults. */
+  it('uses the real mailer module when none is injected', async () => {
+    const sendBillReminder = vi.fn().mockResolvedValue(undefined);
+    const setReminderDay = vi.fn();
+    const sched = loadScheduler({ emails: { sendBillReminder } });
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { timezone: 'America/New_York', billReminders: true },
+          bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 }],
+        },
+      })]),
+      setReminderDay,
+    };
+
+    await sched.runChecks(new Date('2026-06-17T12:00:00.000Z'), { db });
+
+    expect(sendBillReminder).toHaveBeenCalledOnce();
+    expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+  });
+
+  it('does not stamp the summary month when the summary email fails', async () => {
+    const sendMonthlySummary = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    const setSummaryMonth = vi.fn();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = {
+      allUsersWithData: vi.fn().mockReturnValue([userWith({
+        data: {
+          settings: { timezone: 'America/New_York', monthlySummary: true },
+          bills: [], cards: [], payments: [],
+        },
+      })]),
+      setSummaryMonth,
+    };
+    const sched = loadScheduler();
+
+    await sched.runChecks(new Date('2026-07-01T12:00:00.000Z'), { db, emails: { sendMonthlySummary } });
+
+    expect(sendMonthlySummary).toHaveBeenCalledOnce();
+    expect(setSummaryMonth).not.toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });

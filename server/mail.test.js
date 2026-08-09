@@ -84,6 +84,23 @@ describe('mail.js', () => {
     });
   });
 
+  /* The documented default is the loopback Postfix relay the VPS runs, so a
+     deployment with no SMTP_* set at all still sends. */
+  it('transporter() defaults to the local Postfix relay on port 25', () => {
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_PORT;
+    clearModule('./mail');
+    mail = require('./mail');
+    mail.transporter();
+
+    expect(createTransportMock.mock.calls[0][0]).toMatchObject({
+      host: 'localhost',
+      port: 25,
+      secure: false,      // 465 only
+      requireTLS: false,  // 587 only
+    });
+  });
+
   it('transporter() caches the transport instance', () => {
     const first = mail.transporter();
     const second = mail.transporter();

@@ -45,6 +45,17 @@ describe('util — checkPasswordPolicy', () => {
     expect(checkPasswordPolicy('user123456', 'user123456@example.com')).toBe('weak-password');
   });
 
+  /* A signup body can arrive with either field absent — the policy check runs
+     before anything else validates the shape, so it has to answer rather than
+     throw on `undefined.length`. */
+  it('rejects a missing password and tolerates a missing email', () => {
+    expect(checkPasswordPolicy()).toBe('weak-password');
+    expect(checkPasswordPolicy(null, null)).toBe('weak-password');
+    // A valid password with no email to compare against is still acceptable.
+    expect(checkPasswordPolicy('correcthorse1')).toBeNull();
+    expect(checkPasswordPolicy('correcthorse1', null)).toBeNull();
+  });
+
   it('exports password constants', () => {
     expect(MIN_PASSWORD).toBe(10);
     expect(MAX_PASSWORD).toBe(128);

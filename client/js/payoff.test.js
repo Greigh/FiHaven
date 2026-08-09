@@ -67,6 +67,45 @@ describe('payoff — runPayoffSim', () => {
     expect(result.months).toBe(10);
   });
 
+  it('skips archived cards', () => {
+    setCards([
+      { id: 'gone', name: 'Closed', archived: true, balance: 5000, minPayment: 100, regularAPR: 20 },
+      { id: 'live', name: 'Visa', balance: 1000, minPayment: 100, regularAPR: 0 },
+    ]);
+
+    const result = runPayoffSim('none', 0);
+    expect(result.cards.map((c) => c.id)).toEqual(['live']);
+  });
+
+  /* PMI and escrow ride along with a mortgage payment, so a plain amortization
+     curve is misleading — housing debt is out unless the caller asks for it. */
+  it('excludes housing loans by default and includes them on request', () => {
+    setCards([
+      { id: 'home', name: 'Mortgage', type: 'loan', balance: 200000, minPayment: 1500, regularAPR: 6 },
+      { id: 'car', name: 'Auto loan', type: 'loan', balance: 5000, minPayment: 250, regularAPR: 0 },
+    ]);
+
+    expect(runPayoffSim('none', 0).cards.map((c) => c.id)).toEqual(['car']);
+
+    const withHome = runPayoffSim('none', 0, { includeMortgage: true });
+    expect(withHome.cards.map((c) => c.id).sort()).toEqual(['car', 'home']);
+    expect(withHome.cards.find((c) => c.id === 'home').housing).toBe(true);
+  });
+
+  // A loan has no promo window at all, and a card with no minimum still has to
+  // pay something or the sim would never terminate.
+  it('floors a missing minimum payment at $1 and gives a loan no promo window', () => {
+    setCards([
+      { id: 'L1', name: 'Personal loan', type: 'loan', balance: 3, regularAPR: 0, hasPromo: true, promoEndDate: '2099-01-01' },
+    ]);
+
+    const result = runPayoffSim('none', 0);
+    expect(result.cards[0].minPayment).toBe(1);
+    expect(result.cards[0].hasPromo).toBe(false);
+    expect(result.cards[0].promoEndDate).toBeNull();
+    expect(result.months).toBe(3);
+  });
+
   it('promo balances skip interest until the promo ends', () => {
     const future = new Date();
     future.setMonth(future.getMonth() + 6);
