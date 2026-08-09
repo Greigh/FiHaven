@@ -313,7 +313,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            Text("Which amount gets the big figure on each card: the statement balance you owe by the due date, the live current balance, or what's left to pay this period. The other two stay on the card in smaller type.")
+            Text("Which amount gets the big figure on each card: what to pay this period under your payment goal above, the live current balance, or what's left of that goal. The other two stay on the card in smaller type.")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
 
             VStack(alignment: .leading, spacing: 8) {

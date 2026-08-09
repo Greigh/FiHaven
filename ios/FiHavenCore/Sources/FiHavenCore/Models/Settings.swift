@@ -83,9 +83,10 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["paidGoal"] = newValue.map { .string($0) } ?? .null }
     }
 
-    /// Which of a card's three amounts leads its row: "due" (default —
-    /// the statement balance), "current" (live balance), or "owed" (what's
-    /// left this period). The other two stay on the card either way.
+    /// Which of a card's three amounts leads its row: "due" (default — what
+    /// to pay this period under `paidGoal`), "current" (live balance), or
+    /// "owed" (what's left of that goal). The other two stay on the card
+    /// either way.
     public var cardHeadline: String {
         get {
             let v = raw["cardHeadline"]?.asString

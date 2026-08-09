@@ -1820,11 +1820,12 @@ main {
 .upcoming-icon { font-size: 18px; line-height: 1; display: inline-flex; align-items: center; }
 .upcoming-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 5px; }
 /* A full-color mark keeps its own colors on a light plate, and its own aspect
-   ratio — capped at 35px so a wordmark can't shove the row's text over. */
+   ratio — capped at 35px so a wordmark can't shove the row's text over. Past
+   the cap the height comes down with the width so the plate hugs the mark
+   instead of letterboxing it (see .icon-mark-plate). */
 .upcoming-logo.is-plate {
-  width: auto;
-  height: 20px;
-  max-width: 35px;
+  width: min(35px, calc(20px * var(--logo-aspect, 1)));
+  height: auto;
   background: #fff;
   border-radius: 3px;
   padding: 1px;

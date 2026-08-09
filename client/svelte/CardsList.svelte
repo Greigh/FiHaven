@@ -448,22 +448,26 @@
       {@const neededPayment = hasPromo
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0)}
+      {@const paidSoFar = paidAmount('card', String(c.id), mk)}
+      {@const isPromoOpen = !!openPromos[c.id]}
+      <!-- The row's amounts. `headline` leads in the top-right corner per the
+           user's preference; the others ride along underneath it, so switching
+           the preference re-ranks them but never hides one. -->
+      {@const amounts = cardAmounts(c, mk)}
+      {@const amountDue = amounts[headline]}
       <!-- What's still to pay this period when the card has a distinct
            recommendation — a 0% promo's monthly payoff, or an explicit
            recommended payment — so it's readable without opening Pay. Net of
            this period's payments: null = nothing beyond the min, or nothing
-           left to pay. -->
-      {@const paidSoFar = paidAmount('card', String(c.id), mk)}
+           left to pay. Suppressed when the amounts block already states it,
+           which under the default payment goal is every time — the tile was
+           repeating the figure two inches above it. -->
       {@const suggestedLeft = (hasPromo || parseFloat(c.recommendedPayment || 0) > 0)
         ? payTargetRemaining('recommended', 'card', String(c.id), mk)
         : 0}
-      {@const suggested = suggestedLeft > 0.005 ? suggestedLeft : null}
-      {@const isPromoOpen = !!openPromos[c.id]}
-      <!-- The row's three amounts. `headline` leads in the top-right corner
-           per the user's preference; the other two ride along underneath it,
-           so switching the preference re-ranks them but never hides one. -->
-      {@const amounts = cardAmounts(c, mk)}
-      {@const amountDue = amounts[headline]}
+      {@const suggested = (suggestedLeft > 0.005
+        && Math.abs(suggestedLeft - amounts.due) > 0.005
+        && Math.abs(suggestedLeft - amounts.owed) > 0.005) ? suggestedLeft : null}
       {@const dueTone = amountDue <= 0.005 ? 'var(--green)'
         : headline === 'current' ? 'var(--text)'
         : days === null ? 'var(--text)'
@@ -544,6 +548,16 @@
                   <span>{fmt(amounts[key])}</span>
                 </div>
               {/each}
+              <!-- The statement balance, when the three above don't already
+                   account for it — a promo card or the minimum policy makes
+                   what's due this period something other than the balance,
+                   and the statement is what the issuer actually billed. -->
+              {#if amounts.statement != null}
+                <div class="card-row-duebox-alt">
+                  <span class="card-row-duebox-alt-label">statement</span>
+                  <span>{fmt(amounts.statement)}</span>
+                </div>
+              {/if}
             </div>
           </div>
 

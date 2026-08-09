@@ -262,26 +262,44 @@ func runScheduleChecks() {
         var paidOff = plain; paidOff.currentBalance = 0
         checkClose(Schedule.liveBalance(paidOff), 0, "a current balance of zero is honored", tol: 0.001)
 
-        // The three amounts are distinct: due (statement), current (live),
-        // owed (this period's goal under the policy).
+        // The three amounts are distinct: due (this period's goal under the
+        // policy), current (live balance), owed (what's left of the goal).
         let a = Schedule.amounts(card: linked, policy: .minimum, payments: [], in: bounds, tz: tz)
-        checkClose(a.due, 2829, "due = statement balance", tol: 0.001)
+        checkClose(a.due, 35, "due = this period's goal under the policy", tol: 0.001)
         checkClose(a.current, 2946.18, "current = live balance", tol: 0.001)
-        checkClose(a.owed, 35, "owed follows the minimum policy", tol: 0.001)
+        checkClose(a.owed, 35, "owed is the goal, none of it paid yet", tol: 0.001)
         checkClose(a.value(for: "current"), 2946.18, "value(for:) picks the headline", tol: 0.001)
-        checkClose(a.value(for: "nonsense"), 2829, "unknown headline falls back to due", tol: 0.001)
+        checkClose(a.value(for: "nonsense"), 35, "unknown headline falls back to due", tol: 0.001)
+
+        // The full-balance policy leads with the balance instead.
+        let full = Schedule.amounts(card: linked, policy: .full, payments: [], in: bounds, tz: tz)
+        checkClose(full.due, 2829, "the full policy's goal is the balance", tol: 0.001)
 
         // Partial payments shrink only the owed figure.
         let part = [Payment(id: "1", type: "card", refId: "1", amount: 20, date: "2026-06-10", monthKey: "2026-06")]
         let b = Schedule.amounts(card: linked, policy: .minimum, payments: part, in: bounds, tz: tz)
-        checkClose(b.due, 2829, "a partial payment leaves the statement balance alone", tol: 0.001)
+        checkClose(b.due, 35, "a partial payment leaves the target alone", tol: 0.001)
         checkClose(b.owed, 15, "owed shrinks by what's been paid", tol: 0.001)
 
         // A skip owes nothing; the balances stay put.
         let skip = [Payment(id: "2", type: "card", refId: "1", date: "2026-06-10", monthKey: "2026-06", skipped: true)]
         let c = Schedule.amounts(card: linked, policy: .minimum, payments: skip, in: bounds, tz: tz)
         checkClose(c.owed, 0, "a skipped card owes nothing", tol: 0.001)
-        checkClose(c.due, 2829, "a skip doesn't touch the statement balance", tol: 0.001)
+        checkClose(c.due, 35, "a skip doesn't change what the period asked for", tol: 0.001)
+
+        // A 0% promo card with a clear statement still leads with the monthly
+        // payoff slice it owes — it used to read a settled "$0.00".
+        var promo = Card(id: "5", name: "Diamond", balance: 0, minPayment: 0, regularAPR: 32.99)
+        promo.currentBalance = 9732
+        promo.hasPromo = true
+        promo.promoBalance = 2000
+        promo.promoEndDate = "2026-10-15"
+        // `now` is pinned here: the payoff slice is the promo balance spread
+        // over the months left, so a default of "today" would drift.
+        let p = Schedule.amounts(card: promo, policy: .recommended, payments: [], in: bounds,
+                                 tz: tz, now: makeDate(2026, 6, 15, tz: tz))
+        checkClose(p.due, 500, "promo due = the monthly payoff slice", tol: 0.001)
+        checkClose(p.owed, 500, "promo owed matches it before any payment", tol: 0.001)
 
         // A loan's "due" is its scheduled payment, not its principal.
         var loan = Card(id: "9", name: "Mortgage", balance: 250_000, minPayment: 1600)

@@ -270,23 +270,37 @@ class ScheduleTest {
             minPayment = 35.0, limit = 13_500.0, regularAPR = 0.0)
 
         val a = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, emptyList(), bounds, UTC, NOW)
-        assertEquals(2829.0, a.due, 1e-6)        // statement balance
+        assertEquals(35.0, a.due, 1e-6)          // this period's goal under the policy
         assertEquals(2946.18, a.current, 1e-6)   // live balance (drives utilization)
-        assertEquals(35.0, a.owed, 1e-6)         // this period's goal under the policy
+        assertEquals(35.0, a.owed, 1e-6)         // none of it paid yet
         assertEquals(2946.18, a.valueFor("current"), 1e-6)
-        assertEquals(2829.0, a.valueFor("nonsense"), 1e-6)
+        assertEquals(35.0, a.valueFor("nonsense"), 1e-6)
 
-        // A partial payment shrinks only the owed figure.
+        // The full-balance policy leads with the balance instead.
+        val full = Schedule.amounts(card, PaidGoalPolicy.FULL, emptyList(), bounds, UTC, NOW)
+        assertEquals(2829.0, full.due, 1e-6)
+
+        // A partial payment shrinks only the owed figure — the target holds still.
         val part = listOf(Payment(id = "1", type = "card", refId = "1", amount = 20.0, date = "2026-06-10"))
         val b = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, part, bounds, UTC, NOW)
-        assertEquals(2829.0, b.due, 1e-6)
+        assertEquals(35.0, b.due, 1e-6)
         assertEquals(15.0, b.owed, 1e-6)
 
-        // A skip owes nothing but leaves the balances alone.
+        // A skip owes nothing but doesn't change what the period asked for.
         val skip = listOf(Payment(id = "2", type = "card", refId = "1", date = "2026-06-10", skipped = true))
         val c = Schedule.amounts(card, PaidGoalPolicy.MINIMUM, skip, bounds, UTC, NOW)
         assertEquals(0.0, c.owed, 1e-6)
-        assertEquals(2829.0, c.due, 1e-6)
+        assertEquals(35.0, c.due, 1e-6)
+
+        // A 0% promo card with a clear statement still leads with the monthly
+        // payoff slice it owes — it used to read a settled "$0.00".
+        val promo = Card(
+            id = "5", name = "Diamond", balance = 0.0, currentBalance = 9732.0, minPayment = 0.0,
+            hasPromo = true, promoBalance = 2000.0, promoEndDate = "2026-10-15", regularAPR = 32.99,
+        )
+        val p = Schedule.amounts(promo, PaidGoalPolicy.RECOMMENDED, emptyList(), bounds, UTC, NOW)
+        assertEquals(500.0, p.due, 1e-6)         // 2000 over the 4 months left
+        assertEquals(500.0, p.owed, 1e-6)
 
         // A loan's "due" is its scheduled payment, never its principal.
         val loan = Card(id = "9", name = "Mortgage", type = "loan", balance = 250_000.0, minPayment = 1600.0)

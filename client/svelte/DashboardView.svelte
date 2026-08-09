@@ -311,7 +311,7 @@
             <div class="upcoming-icon">
               {#if u.brand && u.brand.isLogo}<img
                   class="upcoming-logo {u.brand.fullColor ? 'is-plate' : ''}"
-                  style={u.brand.fullColor && u.brand.aspect ? `aspect-ratio:${u.brand.aspect};` : ''}
+                  style={u.brand.fullColor && u.brand.aspect ? `aspect-ratio:${u.brand.aspect};--logo-aspect:${u.brand.aspect};` : ''}
                   src={u.brand.logo}
                   alt=""
                 />{:else if u.brand && u.brand.isMonogram}<span class="upcoming-monogram" style="background:{u.brand.color};">{u.brand.text}</span>{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
