@@ -210,7 +210,7 @@
 .stat-tile,
 .stat-sub,
 .cashflow-card,
-.cashflow-head > div,
+.panel-block-head > div,
 .cashflow-sub,
 .cashflow-foot,
 .upcoming-body { min-width: 0; }

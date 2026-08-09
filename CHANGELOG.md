@@ -93,11 +93,20 @@ AI crawler came to be blocked. `npm run check:crawlers` asserts the matrix
 against production: answer engines and user-triggered assistants must get 200,
 training crawlers must get 403.
 
-It also reports a Cloudflare gap it can't fix: "Configure block response →
-Allowed paths" lists `/llms.txt` and `/llms-full.txt` as reachable by blocked
-crawlers, but only `/robots.txt` actually is. A blocked training crawler gets
-nothing rather than an accurate summary. The block works, so this is a missing
-nicety rather than a policy failure, and it's reported as advisory.
+**Blocked crawlers can read llms.txt again (Aug 9)**
+
+A blocked training crawler was getting a 403 on `/llms.txt` too, so it learned
+nothing about FiHaven rather than reading an accurate summary. The cause was
+not the "Configure block response → Allowed paths" panel, which belongs to a
+different feature and never applied: the real enforcement is a WAF custom rule
+matching on `http.user_agent contains "…"`, and its expression opened with a
+path guard that exempted `/robots.txt` and nothing else.
+
+The guard now reads
+`not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}`,
+with all fifteen user-agents left untouched. `check:crawlers` now treats those
+paths as a hard requirement rather than an advisory note, so the rule and the
+repo can't drift apart silently.
 
 **Asking an AI assistant about FiHaven now gets an answer (Aug 8)**
 

@@ -188,22 +188,27 @@
   }
 </script>
 
-<!-- ─── Slim header ─────────────────────────────────────── -->
-<div class="dash-header">
-  <div class="dash-header-text">
-    <div class="dash-header-kicker">Dashboard · {monthName}</div>
-    <h1>Today at a glance</h1>
+<!-- ─── Hero: header + stat strip in one framed block ───── -->
+<!-- Classic layout keeps the strip here, under the title it
+     summarises. Widgets layout lets the strip be reordered, so
+     there it carries its own block (see statsTiles). -->
+<div class="panel-block">
+  <div class="dash-header">
+    <div class="dash-header-text">
+      <div class="dash-header-kicker">Dashboard · {monthName}</div>
+      <h1>Today at a glance</h1>
+    </div>
+    <div class="dash-header-actions">
+      <button class="btn btn-primary btn-sm" onclick={() => window.openBillModal()}>+ Add Bill</button>
+      <button class="btn btn-ghost btn-sm" onclick={() => window.openCardModal()}>+ Add Card</button>
+      <button class="btn btn-ghost btn-sm" onclick={() => window.showTab('payoff')}>Payoff plan</button>
+    </div>
   </div>
-  <div class="dash-header-actions">
-    <button class="btn btn-primary btn-sm" onclick={() => window.openBillModal()}>+ Add Bill</button>
-    <button class="btn btn-ghost btn-sm" onclick={() => window.openCardModal()}>+ Add Card</button>
-    <button class="btn btn-ghost btn-sm" onclick={() => window.showTab('payoff')}>Payoff plan</button>
-  </div>
+  {#if layout === 'classic'}{@render statStrip()}{/if}
 </div>
 
 <!-- ─── Layout dispatch: classic (fixed) or widgets (configurable) ─── -->
 {#if layout === 'classic'}
-  {@render statsTiles()}
   {@render cashflowBar()}
   {@render alertsBlock()}
   {@render upcomingBlock()}
@@ -224,7 +229,21 @@
 {/if}
 
 <!-- ─── Stat tiles ──────────────────────────────────────── -->
+<!-- Widgets layout only: the strip needs its own rectangle when
+     it floats free of the hero. -->
 {#snippet statsTiles()}
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">At a glance</div>
+      <h3 class="panel-title">Where you stand</h3>
+    </div>
+  </div>
+  {@render statStrip()}
+</div>
+{/snippet}
+
+{#snippet statStrip()}
 <div class="stat-strip">
   <div class="stat-tile {unpaidAmt > 0 ? 'is-warn' : 'is-good'}">
     <div class="stat-label">{owedLabel}</div>
@@ -257,10 +276,11 @@
 <!-- ─── Cash-flow progress bar ──────────────────────────── -->
 {#snippet cashflowBar()}
 {#if monthBudgeted > 0}
-  <div class="cashflow-card">
-    <div class="cashflow-head">
+  <div class="panel-block cashflow-card">
+    <div class="panel-block-head">
       <div>
-        <div class="cashflow-title">This period's payments</div>
+        <div class="panel-kicker">This period</div>
+        <h3 class="panel-title">Payments</h3>
         <div class="cashflow-sub">
           <span style="color:var(--green);">{fmt(paidThisMo)} paid</span>
           <span style="opacity:.5;"> · </span>
@@ -285,10 +305,20 @@
 <!-- ─── Alerts ──────────────────────────────────────────── -->
 {#snippet alertsBlock()}
 {#if alerts.length > 0}
-  <div class="alert-stack">
-    {#each alerts as a, i (i)}
-      <div class="alert {a.type}"><div>{@html a.html}</div></div>
-    {/each}
+  <div class="panel-block">
+    <div class="panel-block-head">
+      <div>
+        <div class="panel-kicker">Needs attention</div>
+        <h3 class="panel-title">
+          {alerts.length} thing{alerts.length === 1 ? '' : 's'} to look at
+        </h3>
+      </div>
+    </div>
+    <div class="alert-stack">
+      {#each alerts as a, i (i)}
+        <div class="alert {a.type}"><div>{@html a.html}</div></div>
+      {/each}
+    </div>
   </div>
 {/if}
 {/snippet}

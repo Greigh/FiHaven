@@ -60,12 +60,21 @@ const MUST_BLOCK = [
   ['Bytespider',         'Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)'],
 ];
 
-/* Cloudflare's "Configure block response → Allowed paths" is meant to
-   keep these reachable even for a blocked crawler, so a training bot
-   still reads an accurate description instead of nothing. As of
-   2026-08-09 only /robots.txt actually is; the rest 403. Reported as
-   a warning, not a failure — the block itself is working correctly,
-   and this is a Cloudflare-side nicety we do not control. */
+/* Paths a blocked crawler should still reach, so a training bot reads
+   an accurate description of FiHaven rather than nothing at all.
+
+   These are NOT governed by the "Configure block response → Allowed
+   paths" panel, which turned out to belong to a different feature.
+   The real enforcement is a WAF custom rule ("AI Crawl Control - Block
+   AI bots by User Agent", phase http_request_firewall_custom) whose
+   expression opens with a path guard. It originally exempted only
+   /robots.txt, which is exactly why everything else 403'd. The guard
+   is now:
+
+     not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}
+
+   Add a path here and to that expression together, or this check will
+   start failing. */
 const SHOULD_EXEMPT = ['/robots.txt', '/llms.txt', '/llms-full.txt'];
 
 function arg(name, fallback) {
@@ -108,21 +117,20 @@ async function main() {
     console.log(`    ${ok ? '✓' : '✗'} ${name.padEnd(20)} ${code}${ok ? '' : '   expected 403'}`);
   }
 
-  console.log('\n  Cloudflare "Allowed paths" for a blocked crawler (advisory):');
+  console.log('\n  Still reachable while blocked (machine-readable summaries):');
   const blockedUa = MUST_BLOCK[0][1];
   const notExempt = [];
   for (const path of SHOULD_EXEMPT) {
     const code = await status(origin, path, blockedUa);
     const ok = code === 200;
-    if (!ok) notExempt.push(path);
-    console.log(`    ${ok ? '✓' : '·'} ${path.padEnd(20)} ${code}`);
+    if (!ok) { notExempt.push(path); failures++; }
+    console.log(`    ${ok ? '✓' : '✗'} ${path.padEnd(20)} ${code}${ok ? '' : '   expected 200'}`);
   }
   if (notExempt.length) {
-    console.log(`\n  note: ${notExempt.join(', ')} not exempt. The allowed-paths list in`);
-    console.log('        Cloudflare → AI Crawl Control → Configure block response is not');
-    console.log('        binding to the per-crawler blocks. Blocked crawlers get nothing');
-    console.log('        rather than a summary — the block still works, so this is a');
-    console.log('        missing nicety, not a policy failure.');
+    console.log(`\n  ${notExempt.join(', ')} is not exempt. Fix the path guard on the WAF`);
+    console.log('  rule "AI Crawl Control - Block AI bots by User Agent" — its expression');
+    console.log('  must open with:');
+    console.log('    not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}');
   }
 
   console.log('');

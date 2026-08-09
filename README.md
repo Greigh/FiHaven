@@ -1043,13 +1043,26 @@ asserts the whole matrix against production: answer engines and
 user-triggered assistants must get `200`, training crawlers must get
 `403`. Run it after any change to the zone's bot settings.
 
-> **Known Cloudflare gap:** "Configure block response → Allowed paths"
-> lists `/llms.txt` and `/llms-full.txt` as reachable by blocked
-> crawlers, but only `/robots.txt` actually is — the list does not bind
-> to the per-crawler blocks. A blocked training crawler therefore gets
-> nothing rather than an accurate summary. The block itself works, so
-> this costs a nicety, not the policy. `check:crawlers` reports it as
-> advisory rather than failing.
+**Where the block actually lives.** Not in the "Block AI bots" toggle and
+not in "Configure block response" — it's a WAF custom rule named
+*AI Crawl Control - Block AI bots by User Agent*, in the
+`http_request_firewall_custom` phase, matching on `http.user_agent
+contains "…"`. Its expression opens with a path guard listing what stays
+reachable even for a blocked crawler:
+
+```
+not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}
+```
+
+That guard originally exempted `/robots.txt` alone, which is why a blocked
+crawler got a 403 on `llms.txt` and read nothing about FiHaven at all. **If
+you publish another machine-readable file, add it to that expression and to
+`SHOULD_EXEMPT` in [`check-crawler-policy.js`](scripts/check-crawler-policy.js)
+together** — the check fails if they disagree.
+
+> Edits to that rule propagate unevenly across edge PoPs for a minute or
+> two, so a single `curl` right after a change can report either state.
+> Sample it a few times before believing it.
 
 Marketing pages are also crawlable **without JavaScript** — the footer
 links are real markup, not injected. Most AI crawlers don't run JS, and
