@@ -1,0 +1,181 @@
+# FiHaven — full reference
+
+> A focused bill and debt dashboard for web, iPhone, iPad, and Android. Track
+> bills, credit cards, loans, budgets, and payoff plans in one calm view, synced
+> across every platform. Free to use by hand; an optional Pro subscription adds
+> automation.
+
+Canonical site: https://fihaven.app/
+Last updated: 2026-08-08
+
+---
+
+## What FiHaven is
+
+FiHaven is a personal bill and debt tracking application. It is aimed at people
+who want a single, quiet place to see what is due, what is owed, and what the
+month looks like — without the noise of a full personal-finance suite.
+
+The design premise is that the app should be useful with zero integrations. Every
+feature works with manually entered data. Bank linking exists, but it is optional,
+off by default, and additive: imported transactions never overwrite manual
+entries.
+
+FiHaven is built and run by a single independent developer. It is funded entirely
+by optional Pro subscriptions. There are no ads and no sale of user data to
+brokers.
+
+## Platform availability
+
+- **Web** — live at https://fihaven.app/. The full app.
+- **Android** — in open testing on Google Play. Installable directly from the
+  store listing without an invite: https://play.google.com/store/apps/details?id=app.fihaven
+- **iPhone / iPad** — available on TestFlight through a public join link:
+  https://testflight.apple.com/join/SdN4yuuH. The public App Store listing is not
+  live yet.
+
+All platforms use the same account and the same API, and data syncs between them.
+
+## Offline behavior
+
+FiHaven works offline on web, iPhone, iPad, and Android. Each platform keeps a
+local copy of the data, so the app opens and remains usable without a connection.
+Changes made offline are written to the device before anything is sent to the
+server, survive closing or force-quitting the app, and sync automatically once
+connectivity returns.
+
+## Feature list
+
+### Included free
+
+- Unlimited bills, credit cards, and loans
+- Dashboard with the current month's picture
+- Budget and runway view
+- Manual spending log
+- Savings goals
+- Net worth tracking
+- Income sources and rolling pay periods
+- Bill schedules from weekly through annual, with active date windows
+- Mark paid, record partial payments, and skip a single month
+- Archiving: keeps an item and its payment history but removes it from active
+  lists, totals, reminders, emails, debt figures, and auto-marking
+- Sync across web, iPhone, iPad, and Android
+- JSON and CSV export
+- Full account deletion
+- Joining a Family household by invite (members never need their own plan)
+
+### Added by Pro
+
+- Payoff planner with snowball, avalanche, and minimum-payment strategies
+- Calendar view and a private iCal feed
+- Full payment history
+- Subscription finder
+- Rewards optimizer, including card perks and offers
+- Category budgets
+- Optional bank linking via Plaid, on both web and native
+- Autopay auto-mark on due dates
+
+### Added by Family
+
+- Every Pro feature for the subscriber
+- A household of up to three people
+- Shared bills, cards, and savings goals across the household
+- Household members join free and never need their own subscription
+- If the Family plan lapses, shared data becomes read-only rather than being
+  deleted
+
+## Pricing
+
+| Plan | Web | iOS / Android | Trial |
+|---|---|---|---|
+| Free | $0 forever | $0 forever | n/a |
+| Pro monthly | $1.99 / month | $1.99 / month | 7-day free trial |
+| Pro yearly | $14.99 / year | $16.99 / year | 7-day free trial |
+| Family yearly | $25.99 / year | $29.99 / year | none — bills immediately |
+
+Yearly prices are lower on the web because the app stores take a cut of in-app
+purchases. No credit card is required to create a free account, and there is no
+trial clock on the Free tier. Pro and Family can be cancelled at any time.
+
+One subscription covers every platform.
+
+## Security posture
+
+- **Passwords** — hashed with bcrypt, never stored in plain text.
+- **Sessions** — HttpOnly, Secure, SameSite cookies with per-session CSRF tokens.
+  Changing a password signs out every other device.
+- **Multi-factor** — optional TOTP authenticator apps, email one-time codes, or
+  WebAuthn passkeys. MFA secrets are encrypted at rest.
+- **Social sign-in** — Sign in with Apple and Google are supported. If MFA is
+  enabled, the second factor still runs after social sign-in.
+- **Transport** — all traffic served over HTTPS.
+- **Encryption at rest** — synced app data, Plaid access tokens, and MFA material
+  are encrypted with AES-256-GCM. Secrets live in environment configuration, not
+  source control.
+- **Vulnerability reports** — security@fihaven.app
+
+Full detail: https://fihaven.app/security
+
+## Data practices
+
+- No advertising.
+- No sale of personal data to data brokers.
+- Revenue comes only from optional Pro and Family subscriptions.
+- Bank linking is optional; the app is fully usable without it.
+- Users can export their data as JSON or CSV at any time.
+- Users can permanently delete their account and data.
+
+Full detail: https://fihaven.app/privacy
+
+## Common questions
+
+**Do I need to link my bank?**
+No. FiHaven works fully by hand. Bank linking through Plaid is an optional Pro
+feature, and imported transactions never overwrite manual entries.
+
+**What is included for free?**
+Unlimited bills, cards, and loans; dashboard; budget; manual spending log;
+savings goals; net worth; export; and full account deletion.
+
+**What does Pro add?**
+Payoff planner, calendar and iCal feed, payment history, rewards optimizer,
+subscription finder, category budgets, optional Plaid bank linking, and autopay
+auto-mark on due dates.
+
+**Are the iPhone and Android apps available?**
+Yes, and both are open to join without an invite. Android is in open testing on
+Google Play. iPhone and iPad run on TestFlight via a public join link. The public
+App Store listing is not live yet.
+
+**How does Family sharing work?**
+The Family plan creates a household of up to three people who share bills, cards,
+and savings goals. Joining is free — members never need their own subscription.
+If the plan lapses, shared data becomes read-only rather than disappearing.
+
+**What happens when I archive a bill or card?**
+Archiving keeps the item and its payment history but takes it out of active use.
+It disappears from lists and totals, stops producing reminders and emails, and is
+no longer counted as debt or auto-marked paid.
+
+**Does FiHaven work offline?**
+Yes, on every platform. See "Offline behavior" above.
+
+**Do you sell my data or show ads?**
+No ads and no data brokerage. FiHaven is funded by optional Pro subscriptions.
+
+## Page index
+
+- https://fihaven.app/ — home and feature overview
+- https://fihaven.app/pricing — plans and prices
+- https://fihaven.app/faq — frequently asked questions
+- https://fihaven.app/security — security detail
+- https://fihaven.app/contact — support, billing, privacy, security contacts
+- https://fihaven.app/privacy — privacy policy
+- https://fihaven.app/terms — terms of use
+- https://fihaven.app/refunds — refund and cancellation policy
+- https://fihaven.app/delete-account — account deletion instructions
+
+## Contact
+
+- General and billing support: support@fihaven.app
+- Security and vulnerability reports: security@fihaven.app

@@ -4,7 +4,9 @@
 |---|---|
 | [`promo.js`](promo.js) | Create and manage FiHaven promo codes (`npm run promo`). Deployed to production. |
 | [`submit-indexnow.js`](submit-indexnow.js) | Notify Bing/Yandex after marketing deploys (`npm run indexnow`). |
-| [`indexnow-urls.js`](indexnow-urls.js) | Public URL list shared with sitemap (used by submit-indexnow). |
+| [`indexnow-urls.js`](indexnow-urls.js) | Single source of truth for public URLs — read by both the sitemap generator and submit-indexnow. |
+| [`generate-sitemap.js`](generate-sitemap.js) | Write `client/public/sitemap.xml` from that list, `lastmod` from git (`npm run sitemap`, `--check` in CI). |
+| [`generate-og.js`](generate-og.js) | Render the 1200×630 Open Graph share cards to JPEG via headless Chrome (`npm run generate:og`). |
 | [`generate-icons.sh`](generate-icons.sh) | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (`npm run generate:icons`). |
 | [`ios-testflight.sh`](ios-testflight.sh) | Archive FiHaven for iOS and upload to App Store Connect / TestFlight (`./scripts/ios-testflight.sh`). |
 | [`mail-check.js`](mail-check.js) | Outbound-email smoke test — verifies SMTP reachability and (with a recipient arg) sends a test message. Reads `SMTP_*` / `MAIL_FROM` / `MAIL_CHECK_TO` from `.env`; `upload.sh` runs it post-deploy. |

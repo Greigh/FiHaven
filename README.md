@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="client/public/icon.svg" alt="FiHaven logo" width="96" height="96" />
+<img src="client/public/icon.svg" alt="FiHaven logo" width="120" height="120" />
+<img src="docs/maintainer/iap-promo/feature-graphic.png" alt="FiHaven Promo" />
 
 # FiHaven
 
@@ -10,7 +11,7 @@ A calm, manual-first money dashboard — bills, cards, loans, budget, and
 debt payoff — with full native iOS/macOS and Android apps on a shared
 backend.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
+[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL (JS/TS)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL%20%28JS%2FTS%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![CodeQL (Swift)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-swift.yml?branch=main&label=CodeQL%20%28Swift%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-swift.yml) [![CodeQL (Kotlin)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-android.yml?branch=main&label=CodeQL%20%28Kotlin%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-android.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
 [![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
@@ -257,10 +258,12 @@ fihaven/
 │   │   └── MfaSection.svelte        Settings → 2FA UI (TOTP/passkey/email)
 │   ├── public/                      copied verbatim to dist root
 │   │   ├── robots.txt
-│   │   ├── sitemap.xml
+│   │   ├── sitemap.xml              generated — npm run sitemap
 │   │   ├── site.webmanifest
+│   │   ├── llms.txt                 product summary for LLM agents
+│   │   ├── llms-full.txt
 │   │   ├── icon.svg
-│   │   └── og-image.svg
+│   │   └── og-image.jpg             share cards — npm run generate:og
 │   └── svelte.config.js
 ├── server/
 │   ├── index.js                     Express entry — env, routes, static,
@@ -318,6 +321,10 @@ fihaven/
 ├── scripts/
 │   ├── promo.js                     promo-code admin CLI (deployed to production)
 │   ├── generate-icons.sh            iOS/Android icon generation
+│   ├── generate-og.js               Open Graph share cards → client/public/*.jpg
+│   ├── generate-sitemap.js          sitemap.xml from indexnow-urls.js + git lastmod
+│   ├── indexnow-urls.js             single source of truth for public URLs
+│   ├── submit-indexnow.js           ping IndexNow with those URLs
 │   ├── README.md                    script index
 │   ├── examples/upload.example.sh   deploy template — copy to upload.sh at repo root
 │   ├── examples/rollback.example.sh restore a pre-deploy backup on the VPS
@@ -351,7 +358,10 @@ fihaven/
 | `npm run deploy:android` | `bundleRelease` + upload AAB (and mapping/native symbols) to Play; default track `beta` (Open testing) — `--track alpha` for Closed testing. |
 | `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
 | `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
+| `npm run generate:og` | Regenerate the 1200×630 Open Graph share cards into `client/public/` (headless Chrome + ImageMagick; needs network for the webfont). |
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
+| `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
+| `npm run sitemap:check` | Fail if the committed sitemap is stale — runs as part of `npm run ci`. |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
 ---
@@ -425,6 +435,9 @@ the Vite dev middleware.
 | `/login` | Log-in / sign-up | public | ✅ |
 | `/pricing` | Plans & FiHaven Pro pricing | public | ✅ |
 | `/faq` | Frequently asked questions | public | ✅ |
+| `/bill-tracker-app` | Guide: how to pick a bill tracker (`Article` + `FAQPage`) | public | ✅ |
+| `/mint-alternative` | Comparison for people arriving from Mint | public | ✅ |
+| `/rocket-money-alternative` | Comparison for people arriving from Rocket Money | public | ✅ |
 | `/security` | Security & privacy overview | public | ✅ |
 | `/contact` | Contact / support | public | ✅ |
 | `/terms` | Terms of Use | public | ✅ |
@@ -975,13 +988,56 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 - `robots.txt` allows everything except the authenticated/utility
   routes (`/dashboard`, `/settings`, `/welcome`, `/verify-email`,
   `/reset`, `/recover`, `/plaid-oauth`, `/dev-portal`) and `/api/*`,
-  and points to the sitemap.
-- `sitemap.xml` lists the eight public pages (`/`, `/pricing`, `/faq`,
-  `/login`, `/security`, `/contact`, `/terms`, `/privacy`).
+  and points to the sitemap. It also carries a `Content-Signal`
+  declaration (`search=yes, ai-input=yes, ai-train=no`) and a
+  per-class AI crawler policy — see below.
+- `sitemap.xml` is **generated**, not hand-written: `npm run sitemap`
+  builds it from `PUBLIC_PAGES` in [`scripts/indexnow-urls.js`](scripts/indexnow-urls.js),
+  taking each `<lastmod>` from the last git commit that touched the
+  page. That list is the single source of truth for both the sitemap
+  and the IndexNow submitter, so the two can't drift.
+  `npm run sitemap:check` fails the build if it's stale, and runs in `npm run ci`.
 - Every public page carries Open Graph + Twitter cards, a canonical
-  URL, and a description. The home page also ships a JSON-LD
-  `WebApplication` schema. Private pages set `noindex,nofollow`.
+  URL, and a description. Private pages set `noindex,nofollow`.
+- **Share cards are JPEG, deliberately.** `og:image` was an SVG for a
+  while, which X, Facebook, LinkedIn, Slack, Discord and iMessage all
+  refuse — every shared link rendered as bare text. `npm run generate:og`
+  ([`scripts/generate-og.js`](scripts/generate-og.js)) renders 1200×630
+  JPEGs through headless Chrome so the real webfont is used.
+- **Structured data**: `SoftwareApplication` (with `featureList` and every
+  priced offer) + `WebSite` + `Organization` on the home page, `Product` +
+  `AggregateOffer` on `/pricing`, and `BreadcrumbList` + `FAQPage` on `/faq`
+  and the comparison pages. Adding a JSON-LD block changes the CSP hash
+  list — run `npm run csp:hashes` and paste into
+  [`server/securityHeaders.js`](server/securityHeaders.js).
 - A web manifest + maskable SVG icon make the app installable.
+
+### AI crawlers
+
+`llms.txt` and `llms-full.txt` at the site root state what FiHaven is,
+what each tier costs, and where it isn't the right tool — written to be
+read directly by an assistant rather than scraped out of marketing copy.
+
+The policy is **answerable, not trainable**: crawlers that let an
+assistant find and cite FiHaven are allowed (`OAI-SearchBot`,
+`Claude-SearchBot`, `PerplexityBot`, and the user-triggered
+`ChatGPT-User` / `Claude-User` / `Perplexity-User` that fire when a real
+person asks a question); crawlers that exist to bulk-collect training
+text are refused (`GPTBot`, `ClaudeBot`, `CCBot`, `Amazonbot`,
+`meta-externalagent`, `Bytespider`).
+
+> **robots.txt is advisory — Cloudflare is the enforcing layer.** The
+> zone's AI Crawl Control settings decide what actually gets a 403.
+> Keep Cloudflare's **"Manage your robots.txt"** feature **off**: when on,
+> it prepends a managed block that disallowed `Google-Extended` (opting
+> the site out of Gemini's answers) and duplicated user-agent groups
+> against this repo's file. Verify what is actually served with
+> `curl -s https://fihaven.app/robots.txt`.
+
+Marketing pages are also crawlable **without JavaScript** — the footer
+links are real markup, not injected. Most AI crawlers don't run JS, and
+when the nav and footer were JS-only the served homepage linked to just
+`/login` and `/pricing`. Keep it that way when editing page templates.
 
 ---
 

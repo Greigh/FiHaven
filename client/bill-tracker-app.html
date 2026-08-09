@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="What to look for in a bill tracker app: manual vs bank-linked, how recurring schedules should work, debt payoff planning, offline support, and export. Plus where FiHaven fits and where it doesn't."/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <link rel="canonical" href="https://fihaven.app/bill-tracker-app"/>
+
+  <meta property="og:type" content="article"/>
+  <meta property="og:site_name" content="FiHaven"/>
+  <meta property="og:url" content="https://fihaven.app/bill-tracker-app"/>
+  <meta property="og:title" content="How to pick a bill tracker app — FiHaven"/>
+  <meta property="og:description" content="The seven things that actually matter in a bill tracker: schedules, partial payments, debt payoff, offline support, export, sharing, and whether bank linking is required."/>
+  <meta property="og:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
+  <meta property="og:locale" content="en_US"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="How to pick a bill tracker app — FiHaven"/>
+  <meta name="twitter:description" content="The seven things that actually matter in a bill tracker, and where FiHaven fits."/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta name="twitter:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" href="/favicon.ico" sizes="32x32"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+
+  <title>How to pick a bill tracker app — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "FiHaven", "item": "https://fihaven.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Bill tracker apps", "item": "https://fihaven.app/bill-tracker-app" }
+        ]
+      },
+      {
+        "@type": "Article",
+        "headline": "How to pick a bill tracker app",
+        "description": "The seven things that actually matter in a bill tracker: recurring schedules, partial payments, debt payoff planning, offline support, export, household sharing, and whether bank linking is required.",
+        "image": "https://fihaven.app/og-image.jpg",
+        "inLanguage": "en-US",
+        "author": { "@type": "Organization", "name": "FiHaven", "url": "https://fihaven.app/" },
+        "publisher": {
+          "@type": "Organization",
+          "name": "FiHaven",
+          "url": "https://fihaven.app/",
+          "logo": { "@type": "ImageObject", "url": "https://fihaven.app/icon.svg" }
+        },
+        "mainEntityOfPage": "https://fihaven.app/bill-tracker-app"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Do bill tracker apps need access to my bank account?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Some do and some do not. Aggregator-style apps are built around a bank connection and lose most of their value without one. Manual-first apps, including FiHaven, let you type in your bills and work fully without linking anything — bank linking is then an optional convenience rather than a requirement."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the difference between a bill tracker and a budgeting app?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A budgeting app is mainly concerned with where your money goes by category. A bill tracker is concerned with what is due, when, and whether it has been paid. Many tools do some of both. FiHaven leads with bills, cards, and loans, and adds budgeting, a spending log, and savings goals around them."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can a bill tracker handle irregular bills?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It should. Look for schedules beyond simple monthly — weekly, fortnightly, quarterly, and annual — plus active date windows for bills that only run part of the year, partial payments for when you pay some now and some later, and a skip-this-month option for cycles you genuinely owe nothing."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a free bill tracker app?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. FiHaven's manual workspace is free forever with no credit card and no trial clock: unlimited bills, cards, and loans, plus dashboard, budget, spending log, savings goals, net worth, and export. Paid tiers exist for automation such as payoff planning, calendar feeds, and optional bank linking."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="public">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="marketing-frame marketing-main">
+
+      <section class="marketing-section" style="padding-top:8px;">
+        <div class="marketing-section-head">
+          <span class="marketing-kicker">Guide</span>
+          <h1 class="marketing-section-title" style="font-size:clamp(2rem,5vw,2.75rem);">How to pick a<br/>bill tracker app.</h1>
+          <p class="marketing-sub" style="margin:14px auto 0;text-align:center;max-width:660px;">
+            Most bill trackers look identical on a feature list and feel completely different after a month of real use. These are the seven things that actually decide it — and an honest note on where FiHaven lands on each.
+          </p>
+        </div>
+      </section>
+
+      <section class="marketing-section">
+        <div class="marketing-feature-grid">
+          <article class="marketing-feature">
+            <h3>1. Is bank linking required?</h3>
+            <p>This is the biggest fork in the road. Aggregators are near-useless without a connection; manual-first apps work the moment you type something in. Neither is wrong — but decide before you sign up, because it's hard to switch camps later. <strong>FiHaven is manual-first;</strong> Plaid linking is an optional Pro extra.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>2. Do the schedules match real life?</h3>
+            <p>Real bills aren't all monthly. Look for weekly through annual, active date windows for seasonal bills, and a way to say "not this cycle" without deleting the bill. <strong>FiHaven</strong> covers all three, on the free tier.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>3. Can you pay part of something?</h3>
+            <p>Plenty of trackers treat a bill as paid or unpaid and nothing between. If you ever split a payment across two paydays, you need partial payments or your totals will lie to you. <strong>FiHaven</strong> supports partial payments free.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>4. Does it think about debt, not just bills?</h3>
+            <p>A bill is due once. A balance compounds. If you carry card or loan debt, you want payoff strategies — snowball, avalanche, minimums — and visibility into promo-rate windows. <strong>FiHaven</strong> has the payoff planner in Pro; cards and loans themselves are free.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>5. Does it work with no signal?</h3>
+            <p>You will open this app in a basement, on a plane, in a car park. If it's a thin web wrapper it'll show you a spinner. <strong>FiHaven</strong> keeps a local copy on every platform; offline edits are saved to the device first and sync later.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>6. Can you get your data out?</h3>
+            <p>Mint's shutdown taught everyone this one. Check for real export — JSON or CSV — before you enter two years of history. <strong>FiHaven</strong> exports both, any time, on the free tier.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>7. Does anyone else need to see it?</h3>
+            <p>If you split rent or run a household, single-user tools get old fast. Look at whether sharing costs everyone a subscription. <strong>FiHaven's</strong> Family plan covers a household of three, and members join free.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3>The quiet eighth: how it's funded</h3>
+            <p>Free apps are usually paid for with ads, partner offers, or data. That's not automatically bad, but it shapes what the app nudges you toward. <strong>FiHaven</strong> takes no ads and sells no data — only optional subscriptions.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="marketing-section">
+        <div class="compare-honest">
+          <h3>Where FiHaven isn't the answer</h3>
+          <p>
+            FiHaven is a bill, card, and loan dashboard with budgeting around the edges. It is not an investment tracker, not a tax tool, and not a full financial aggregator that pulls every account into one automatically categorised feed. If that's the job, tools like Monarch Money, Copilot, or Quicken Simplifi are built for it. If you want a calm, manual-first view of what's due and what you owe — on every device, offline, without ads — that's the thing FiHaven is actually good at.
+          </p>
+        </div>
+      </section>
+
+      <section class="marketing-section">
+        <div class="marketing-section-head">
+          <h2 class="marketing-section-title">Compare specifically</h2>
+          <p class="marketing-sub" style="margin:14px auto 0;text-align:center;max-width:620px;">
+            Coming from something in particular?
+          </p>
+        </div>
+        <div class="marketing-feature-grid">
+          <article class="marketing-feature">
+            <h3><a href="/mint-alternative">Coming from Mint</a></h3>
+            <p>Intuit shut Mint down and pointed users at Credit Karma. Here's what carries over and what doesn't.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3><a href="/rocket-money-alternative">Comparing to Rocket Money</a></h3>
+            <p>Bank-linked negotiation service versus a manual-first tracker with flat pricing.</p>
+          </article>
+          <article class="marketing-feature">
+            <h3><a href="/pricing">Free vs Pro vs Family</a></h3>
+            <p>Exact prices and what each tier includes, on web and through the app stores.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="marketing-cta-band">
+        <div class="marketing-cta-text">
+          <h2>Try the manual-first version.</h2>
+          <p>Free forever, no credit card, and your data exports whenever you want it.</p>
+        </div>
+        <a class="btn btn-primary btn-lg" href="/login" data-login-cta>Get started — it's free</a>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer-brand">
+        <strong style="color:var(--text);">FiHaven</strong> · made for people who'd rather not think about money.
+      </div>
+      <div class="site-footer-links" data-public-footer>
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/faq">FAQ</a>
+        <a href="/bill-tracker-app">Bill Tracker Guide</a>
+        <a href="/security">Security</a>
+        <a href="/contact">Contact</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/refunds">Refunds</a>
+        <a href="/delete-account">Delete Account</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+      <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/public-entry.js"></script>
+</body>
+</html>
