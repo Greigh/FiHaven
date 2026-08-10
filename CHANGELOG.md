@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (26) - a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 47) - a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (27) - loans stop being counted as card debt: Settings → Household separates **Loan debt** from card debt (a shared mortgage had been sitting in the household's card total), and the 0%-promo alerts no longer fire for loans. **Needs the server deploy** for the household split. 26 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 48) - loans stop being counted as card debt: the dashboard's **Card debt** widget counts revolving credit only (net worth still counts every liability), Settings → Household separates **Loan debt** from card debt, and the 0%-promo alerts no longer fire for loans. **Needs the server deploy** for the household split. 47 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,179 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Card debt counted your loans (Aug 9)**
+
+The dashboard's **Card debt** tile summed every card that wasn't archived — and
+loans live in the same list as cards, separated only by `type`. Anyone tracking
+a mortgage saw "card debt" in the hundreds of thousands, next to a card count
+that included their auto loan. The number was never wrong about *debt*; it was
+wrong about *whose*.
+
+Loans now drop out of that tile, its count, the credit-utilization alerts and
+the 0%-promo deadlines — the four things on the dashboard that only mean
+something for revolving credit. The alerts had been carrying a hand-rolled
+`if (c.type === 'loan') return;` to patch the same leak locally; filtering once
+at the source let that go.
+
+Two totals deliberately still count loans: **Net worth**, where a loan is a
+genuine liability, and the **Payoff planner**, which is supposed to plan them.
+
+**The same bug was in all three clients and on the server**, so it's fixed
+across the board rather than on the web alone:
+
+- **Android** — the dashboard's Card debt widget summed `activeCards`. It also
+  fed `netWorth`, so the two are now computed separately: card debt from
+  revolving credit, net worth from every liability. The 0%-promo alerts were
+  missing the loan filter too.
+- **iOS** — no card-debt tile to fix, but the 0%-promo alerts had the same gap.
+- **Household** (Settings → Household, iOS and Android) — the server's rollup
+  counted every shared `card` entity into `cardDebt`, so a shared mortgage
+  became household card debt. Loans are now split into their own **`loanDebt`**
+  total, per household and per member, and both apps show a **Loan debt** row
+  when there is one. Splitting rather than dropping keeps the debt visible.
+
+Each platform grew the same helper next to `activeCards` — `activeCreditCards`
+on iOS and Android — so "revolving credit only" is expressed once per codebase
+instead of re-derived at each call site. Three places that already hand-rolled
+the filter (Android Cards and Rewards, iOS Rewards) now read it too.
+
+The new `loanDebt` field is optional on iOS and defaulted on Android, so an app
+build that reaches a server predating the split still decodes its rollup.
+**The server must be deployed for the household split to take effect.**
+
+**The dashboard is framed like the rest of the app (Aug 9)**
+
+Every other tab builds its sections from a bordered rectangle with an accent
+kicker over a title. The dashboard didn't: its stat tiles were framed, but
+"Upcoming Payments" was a bare heading with day groups and rows floating
+directly on the panel background, so the tab read as a different app from
+Budget or Cards.
+
+Header, cash-flow bar, alerts and upcoming are each a framed block now. The
+chrome behind them was Budget's `.budget-card`, promoted out of `budget.css`
+into `components.css` as `.panel-block` with `.budget-card` listed alongside
+every rule — Budget's markup is untouched, there's one definition, and the tabs
+can't drift apart. Two follow-on changes: the header kicker moved from grey
+uppercase Manrope to the accent mono every other kicker uses, and the stat
+tiles took a recessed `surface2` fill because a surface-on-surface tile
+disappeared against the block now containing it.
+
+Verified over CDP against the built `dist` in light and dark, in both Classic
+and Widgets layouts, with Budget re-checked for regressions from the CSS move.
+Horizontal overflow stays at 0.
+
+**The page no longer scrolls sideways (Aug 9)**
+
+Every page could be dragged a few pixels to the right on a phone, and about
+20px on a desktop. The marketing hero's decorative orbs sit at `right`/`left`
+-20…-30px and its preview frame is rotated `-.6deg`, so their boxes reach past
+the page gutter; below 640px the gutter narrows to 16px and stops absorbing
+the bleed. `.page-frame` now carries `overflow-x: clip` — `clip` rather than
+`hidden`, because `hidden` would turn it into a scroll container and break the
+sticky app bar inside it.
+
+Chasing that turned up a real bug underneath: at 320px the app bar's
+burger, wordmark, theme toggle and "Get Started" button don't fit, and the
+button ran off the edge. Clipping alone would have hidden a half-visible
+button, so the wordmark — the one element carrying no function next to the
+logo mark — is dropped below 360px.
+
+Verified with device emulation across 320–1440px on all fourteen public
+pages: no horizontal overflow anywhere.
+
+**The contact page tells crawlers nothing — fixed (Aug 9)**
+
+Cloudflare's Email Address Obfuscation rewrites every `mailto:` in the page
+body to `/cdn-cgi/l/email-protection#<hex>`, which a browser decodes with
+JavaScript. Crawlers that don't run JS — most AI crawlers — were therefore
+getting **zero addresses** from `/contact`, the one page whose entire job is
+telling you where to write. Asked "how do I contact FiHaven support?", an
+assistant had nothing to go on.
+
+Obfuscation deliberately skips `<script>` blocks, so `/contact` now carries a
+`ContactPage` graph with a `ContactPoint` per route — support, app access,
+privacy, security. Humans keep the anti-harvesting protection; machines get the
+addresses. `llms.txt` and `llms-full.txt` gained the two routes they were
+missing.
+
+Also audited and found clean while in there: AI Labyrinth is off (crawlers and
+browsers get byte-identical pages, no decoy links), and hotlink protection
+isn't interfering with share cards — Facebook, X, Slack, Discord and LinkedIn
+all fetch `og-image.jpg` with a `200`.
+
+**A check for the AI crawler policy (Aug 9)**
+
+That policy lives in Cloudflare's dashboard, not in this repo, so it can drift
+without a commit and nothing in CI would notice — which is precisely how every
+AI crawler came to be blocked. `npm run check:crawlers` asserts the matrix
+against production: answer engines and user-triggered assistants must get 200,
+training crawlers must get 403.
+
+**Blocked crawlers can read llms.txt again (Aug 9)**
+
+A blocked training crawler was getting a 403 on `/llms.txt` too, so it learned
+nothing about FiHaven rather than reading an accurate summary. The cause was
+not the "Configure block response → Allowed paths" panel, which belongs to a
+different feature and never applied: the real enforcement is a WAF custom rule
+matching on `http.user_agent contains "…"`, and its expression opened with a
+path guard that exempted `/robots.txt` and nothing else.
+
+The guard now reads
+`not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}`,
+with all fifteen user-agents left untouched. `check:crawlers` now treats those
+paths as a hard requirement rather than an advisory note, so the rule and the
+repo can't drift apart silently.
+
+**Asking an AI assistant about FiHaven now gets an answer (Aug 8)**
+
+FiHaven was invisible to every AI assistant, and it was a configuration problem
+rather than a content one. Cloudflare was returning 403 to every AI crawler that
+asked for fihaven.app — including the *user-triggered* ones that fire when a real
+person asks a question. In a single day, **267 requests from `ChatGPT-User` were
+refused**, alongside `PerplexityBot` (107), `OAI-SearchBot` (100), `Claude-User`
+and `Perplexity-User`. Anyone who asked an assistant "what is FiHaven?" was told
+the site could not be reached. Googlebot, Bingbot and Applebot were never
+affected, which is why ordinary search looked healthy the whole time.
+
+- **Answer engines and assistants are allowed through** — ChatGPT, Claude,
+  Perplexity, DuckDuckGo and Mistral, both their search indexes and the fetchers
+  that act on behalf of a person asking a question.
+- **Training-only crawlers are still refused** — `GPTBot`, `ClaudeBot`, `CCBot`,
+  `Amazonbot`, `meta-externalagent`, `Bytespider` and the rest. Being answerable
+  is not the same as donating the corpus.
+- **Cloudflare's managed robots.txt is off.** It had been prepending a block that
+  disallowed `Google-Extended` — quietly opting FiHaven out of Gemini's answers —
+  and duplicated nine user-agent groups against the repo's own file, leaving the
+  served policy genuinely ambiguous. `client/public/robots.txt` is authoritative
+  again and declares `Content-Signal: search=yes, ai-input=yes, ai-train=no`.
+- **`llms.txt` and `llms-full.txt`** are published at the site root: a plain-text
+  statement of what FiHaven is, what each tier costs, and what it does not do.
+
+**Shared links show a preview image again (Aug 8)**
+
+Every page pointed `og:image` at an SVG. X, Facebook, LinkedIn, Slack, Discord
+and iMessage all refuse SVG for preview cards, so every share of fihaven.app had
+been rendering as a bare text link. There are now real 1200×630 JPEG cards
+(default, pricing, security) rendered from an HTML template through headless
+Chrome so they use the actual brand font, plus the `og:image:width`, `height` and
+`alt` tags that were missing entirely. `npm run generate:og` rebuilds them.
+
+**The site is readable without JavaScript (Aug 8)**
+
+The nav and footer were injected by client-side JS, so the homepage's served HTML
+linked only to `/login` and `/pricing`. Search engines render JavaScript, but most
+AI crawlers do not — they were seeing a site with essentially no link graph. The
+footer is now real markup on every public page (11–13 internal links), and
+`public-footer.js` became progressive enhancement: it marks the active page when
+the links are already there and only renders from scratch when they are not.
+
+**Three new pages for people arriving from somewhere else (Aug 8)**
+
+`/bill-tracker-app` is a guide to choosing a bill tracker; `/mint-alternative`
+and `/rocket-money-alternative` are comparisons for the two products people most
+often arrive from. Each carries `FAQPage` schema and, deliberately, a section
+saying where FiHaven is the wrong tool and naming what to use instead.
 
 **A card leads with what to pay, not with its statement balance (Aug 7)**
 

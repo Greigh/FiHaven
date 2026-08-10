@@ -610,11 +610,17 @@ requires Pro; **joining** one is free. Shared entities live-sync via SSE.
 | `DELETE` | `/api/household/members/:userId` | Remove a member |
 | `POST` | `/api/household/leave` | Leave the household |
 | `GET` | `/api/household/data` | Shared-entities snapshot |
+| `GET` | `/api/household/rollup` | Shared totals — `billsMonthly`, `cardDebt`, `loanDebt`, `goalsTarget`, per household and per member |
 | `POST` | `/api/household/entities` | Share a bill / card / goal |
 | `PUT` | `/api/household/entities/:kind/:id` | Update a shared entity |
 | `DELETE` | `/api/household/entities/:kind/:id` | Unshare an entity |
 | `PUT` | `/api/household/share-prefs` | Update share/unshare preferences |
 | `GET` | `/api/household/stream[/:since]` | SSE stream of live household changes |
+
+Loans are shared as `card` entities and told apart by `type`, so the rollup
+splits them into `loanDebt` rather than summing them into `cardDebt` — a shared
+mortgage is household debt, but it isn't card debt. `loanDebt` is optional on
+iOS and defaulted on Android, so a client predating the split still decodes.
 
 All mutating routes (every `POST` / `PUT` / `DELETE` above) require
 the session cookie **and** the `X-CSRF-Token` header — its value is
@@ -732,9 +738,18 @@ invalidates any existing subscription instantly.
 
 ### Live snapshot + variance + cushion + audit
 
-- **DashboardView.svelte** renders the "Overview tiles" at the top of
-  the dashboard — monthly income, due-this-month bills, cushion, and the
-  next bill due, all derived live from `$state` proxies.
+- **DashboardView.svelte** renders the stat strip at the top of the
+  dashboard — still owed this period, cushion after bills, card debt,
+  and 0% promos ending within three months, all derived live from
+  `$state` proxies. Loans are excluded from the card-debt tile and its
+  count: they share the `cards` list but aren't revolving credit, so
+  they'd otherwise put a mortgage into "card debt". Net worth and the
+  payoff planner still count them. The same split exists natively as
+  `activeCreditCards` beside `activeCards` (`AppStore.swift`,
+  `Models.kt`) — reach for it whenever a total means "credit card".
+- Each dashboard section — header, cash-flow bar, alerts, upcoming — is
+  a `.panel-block`, the framed rectangle defined in `components.css` and
+  shared with Budget's `.budget-card`.
 - **Sparkline.svelte** is rendered next to each bill, showing the
   amount actually paid each of the last 6 months — a quick visual on
   variable bills.

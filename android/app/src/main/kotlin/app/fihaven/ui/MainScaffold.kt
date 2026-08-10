@@ -373,8 +373,11 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     }
 
     // Net worth / debt / spending for the optional widgets.
-    val debt = data.activeCards.sumOf { it.balance }
-    val netWorth = data.accounts.sumOf { it.balance } - debt
+    // Card debt is revolving credit only — loans live in the same list and
+    // would put a mortgage in the card total. Net worth is the opposite case:
+    // every liability counts, loans included.
+    val cardDebt = data.activeCreditCards.sumOf { it.balance }
+    val netWorth = data.accounts.sumOf { it.balance } - data.activeCards.sumOf { it.balance }
     val spent = data.transactions
         .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
@@ -382,7 +385,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
-    val utilAlerts = data.activeCards.filter { it.type != "loan" && it.limit > 0 }.mapNotNull { c ->
+    val utilAlerts = data.activeCreditCards.filter { it.limit > 0 }.mapNotNull { c ->
         val util = ((c.balance / c.limit) * 100).toInt()
         when {
             util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
@@ -400,7 +403,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         val dayWord = when (left) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $left days" }
         "⏳ ${b.name} — free trial ends $dayWord."
     }
-    val promoAlerts = data.activeCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
+    val promoAlerts = data.activeCreditCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
         if (bal <= 0) return@mapNotNull null
@@ -481,8 +484,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                             if (netWorth >= 0) Ct.colors.green else Ct.colors.red, Modifier.fillMaxWidth())
                     }
                     "debt" -> item {
-                        StatCard("Card debt", Money.fmt(debt),
-                            if (debt > 0) Ct.colors.accent else Ct.colors.green, Modifier.fillMaxWidth())
+                        StatCard("Card debt", Money.fmt(cardDebt),
+                            if (cardDebt > 0) Ct.colors.accent else Ct.colors.green, Modifier.fillMaxWidth())
                     }
                     "spending" -> item {
                         StatCard("Spent this period", Money.fmt(spent), Ct.colors.accent, Modifier.fillMaxWidth())

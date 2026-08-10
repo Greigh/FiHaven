@@ -225,6 +225,9 @@ private fun householdBody(
         LabeledCard("HOUSEHOLD TOTALS") {
             totalRow("Bills (monthly)", Money.fmt(t.billsMonthly) + "/mo")
             totalRow("Card debt", Money.fmt(t.cardDebt))
+            // Only worth a line when the household actually shares a loan;
+            // an older server leaves this at its 0.0 default.
+            if (t.loanDebt > 0) totalRow("Loan debt", Money.fmt(t.loanDebt))
             totalRow("Goals (target)", Money.fmt(t.goalsTarget))
         }
     }
