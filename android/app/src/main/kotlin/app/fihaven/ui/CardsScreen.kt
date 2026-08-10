@@ -114,7 +114,10 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
     val cards = when (sortKey) {
         "balance" -> filtered.sortedByDescending { it.balance }
         "apr" -> filtered.sortedByDescending { it.regularAPR }
-        "util" -> filtered.sortedByDescending { if (it.limit > 0) it.balance / it.limit else 0.0 }
+        // Live balance, matching the utilization each row displays.
+        "util" -> filtered.sortedByDescending {
+            if (it.limit > 0) Schedule.liveBalance(it) / it.limit else 0.0
+        }
         "name" -> filtered.sortedBy { it.name.lowercase() }
         "promo" -> filtered.sortedBy {
             if (it.hasPromo && !it.promoEndDate.isNullOrEmpty()) DateLogic.monthsUntil(it.promoEndDate, zone) else 9999

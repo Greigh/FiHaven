@@ -376,7 +376,10 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     // Card debt is revolving credit only — loans live in the same list and
     // would put a mortgage in the card total. Net worth is the opposite case:
     // every liability counts, loans included.
-    val cardDebt = data.activeCreditCards.sumOf { it.balance }
+    // Live balance, like the Cards tab and web: a card charged since its
+    // statement closed still counts toward what's owed. Net worth stays on the
+    // statement balance, which is what web's Net Worth panel reports.
+    val cardDebt = data.activeCreditCards.sumOf { Schedule.liveBalance(it) }
     val netWorth = data.accounts.sumOf { it.balance } - data.activeCards.sumOf { it.balance }
     val spent = data.transactions
         .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
@@ -385,11 +388,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
+    // Live balance, so the alert can't disagree with the utilization the card's
+    // own row shows (that reads CardAmounts.current, which is liveBalance).
     val utilAlerts = data.activeCreditCards.filter { it.limit > 0 }.mapNotNull { c ->
-        val util = ((c.balance / c.limit) * 100).toInt()
+        val bal = Schedule.liveBalance(c)
+        val util = ((bal / c.limit) * 100).toInt()
         when {
-            util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
-            util >= 80 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
+            util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
+            util >= 80 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
             else -> null
         }
     }

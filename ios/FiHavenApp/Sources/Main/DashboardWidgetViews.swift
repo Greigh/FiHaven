@@ -45,10 +45,13 @@ struct AlertsWidget: View {
     @EnvironmentObject var store: AppStore
     private var alerts: [String] {
         var out: [String] = []
+        // Live balance, so the alert can't disagree with the utilization the
+        // card's own row shows (that reads CardAmounts.current = liveBalance).
         for c in store.activeCreditCards where c.limit > 0 {
-            let util = Int((c.balance / c.limit) * 100)
+            let bal = Schedule.liveBalance(c)
+            let util = Int((bal / c.limit) * 100)
             if util >= 80 {
-                out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(c.balance)) of \(Money.fmt(c.limit))).")
+                out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(bal)) of \(Money.fmt(c.limit))).")
             }
         }
         for b in store.activeBills where !(b.trialEnds ?? "").isEmpty {
