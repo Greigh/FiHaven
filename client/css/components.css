@@ -1577,23 +1577,84 @@ main {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Dashboard — slim header, stat strip, cash-flow bar, grouped
-   upcoming list with inline actions, snooze chips.
+   Panel blocks — the framed rectangle every tab builds its
+   sections from: an accent kicker over a title, an optional
+   blurb, actions on the right, content below. Budget reaches
+   for the same chrome under its original `.budget-card` name.
+═══════════════════════════════════════════════════════════ */
+.panel-block,
+.budget-card {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.panel-block-head,
+.budget-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.panel-kicker,
+.budget-card-kicker {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.panel-title,
+.budget-card-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  margin-top: 4px;
+}
+.panel-sub,
+.budget-card-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+  max-width: 540px;
+}
+/* Right-hand side of a head — a month label, a count, a total. */
+.panel-head-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  align-self: flex-end;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Dashboard — framed sections: header + stat strip, cash-flow
+   bar, alerts, grouped upcoming list with inline actions.
 ═══════════════════════════════════════════════════════════ */
 
+/* The header is the hero block's head. It keeps the page-title
+   h1 rather than .panel-title, but wears the same accent kicker
+   as every other section so the family reads as one. */
 .dash-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
   padding-bottom: 0;
 }
+/* Only pad off the stat strip when one follows. */
+.dash-header:not(:last-child) { margin-bottom: 20px; }
 .dash-header-text { display: flex; flex-direction: column; gap: 2px; }
 .dash-header-kicker {
-  font-size: 11px; font-weight: 800;
-  letter-spacing: .14em; text-transform: uppercase;
-  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent);
 }
 .dash-header h1 {
   font-size: clamp(1.4rem, 2.2vw, 1.85rem);
@@ -1674,12 +1735,15 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
+/* Tiles now sit *inside* the hero block, so they take a recessed
+   surface2 fill — a surface-on-surface tile would vanish against
+   the panel it's nested in. */
 .stat-tile {
   position: relative;
   padding: 14px 16px 13px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
-  background: color-mix(in srgb, var(--surface) 96%, white);
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--surface2) 55%, transparent);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1722,33 +1786,21 @@ main {
 }
 
 /* ── Cash-flow progress bar ─────────────────────────────── */
-.cashflow-card {
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
-  background: color-mix(in srgb, var(--surface) 96%, white);
-  padding: 16px 18px;
-  display: grid; gap: 10px;
-}
-.cashflow-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-.cashflow-title {
-  font-size: 11px; font-weight: 800;
-  letter-spacing: .12em; text-transform: uppercase;
-  color: var(--muted);
-}
+/* Chrome comes from .panel-block; this only sets the inner rhythm.
+   The head owns the gap below it, so it drops its own margin. */
+.cashflow-card { display: grid; gap: 10px; }
+.cashflow-card .panel-block-head { margin-bottom: 0; }
 .cashflow-sub {
   font-size: 14px; font-weight: 700;
-  margin-top: 2px;
+  margin-top: 6px;
   letter-spacing: -.01em;
 }
 .cashflow-pct {
   font-family: 'Manrope', sans-serif;
   font-size: 24px; font-weight: 800;
   letter-spacing: -.04em; color: var(--green);
+  margin-left: auto;
+  align-self: center;
 }
 .cashflow-bar {
   height: 10px;

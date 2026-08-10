@@ -1,0 +1,53 @@
+# FiHaven
+
+> A focused bill and debt dashboard for web, iPhone, iPad, and Android. Track bills, credit cards, loans, budgets, and payoff plans in one calm view, synced across every platform. Free to use by hand; an optional Pro subscription adds automation.
+
+FiHaven is built and run by one independent developer. It is funded entirely by
+optional Pro subscriptions — there are no ads and no data brokerage. Bank linking
+is optional and off by default: the app is designed to work fully by hand, and
+imported transactions never overwrite manual entries.
+
+Platform status: the web app is live. Android is in open testing on Google Play
+(installable straight from the store listing). iPhone and iPad run on TestFlight
+via a public join link — the public App Store listing is not live yet. All of
+them share one account and one API.
+
+## Product
+
+- [Home](https://fihaven.app/): What FiHaven does, the feature set, and how the month-to-month flow works.
+- [Pricing](https://fihaven.app/pricing): Free vs Pro vs Family, with exact prices and what each tier includes.
+- [FAQ](https://fihaven.app/faq): Bank linking, offline behavior, archiving, app availability, and data practices.
+- [Security](https://fihaven.app/security): Sign-in protection, encryption at rest, session handling, and vulnerability reporting.
+
+## Guides and comparisons
+
+- [How to pick a bill tracker app](https://fihaven.app/bill-tracker-app): The criteria that matter — manual vs bank-linked, recurring schedules, partial payments, debt payoff, offline support, export, and household sharing — with an honest note on where FiHaven does not fit.
+- [Mint alternative](https://fihaven.app/mint-alternative): For people migrating after Intuit discontinued Mint. Covers what carries over and what does not.
+- [Rocket Money alternative](https://fihaven.app/rocket-money-alternative): Manual-first tracking with flat pricing, compared to a bank-linked negotiation service.
+
+## Pricing summary
+
+- Free — $0 forever, no credit card. Unlimited bills, cards, and loans; dashboard, budget, manual spending log, savings goals, net worth, income sources, pay periods; mark paid, partial payments, skip-this-month; sync across web, iPhone, iPad, and Android; JSON/CSV export; join a Family household by invite.
+- Pro — $1.99/month everywhere. Yearly is $14.99 on the web, $16.99 on iOS and Android (the stores take a cut). Includes a 7-day free trial. Adds payoff planner (snowball, avalanche, minimums), calendar view and private iCal feed, full payment history, subscription finder, rewards optimizer with card perks and offers, category budgets, optional Plaid bank linking, and autopay auto-mark on due dates.
+- Family — $25.99/year on the web, $29.99/year on iOS and Android. Yearly only, no free trial. Everything in Pro plus a household of up to three people sharing bills, cards, and savings goals. Members join free and never need their own plan. If the plan lapses, shared data becomes read-only rather than being deleted.
+
+## Legal and account
+
+- [Privacy Policy](https://fihaven.app/privacy): What is collected, how it is used, and the third parties involved.
+- [Terms of Use](https://fihaven.app/terms): The terms governing use of the service.
+- [Refund & Cancellation Policy](https://fihaven.app/refunds): How to cancel and how refunds are handled per platform.
+- [Delete Your Account](https://fihaven.app/delete-account): How to permanently delete an account and what is removed.
+- [Contact](https://fihaven.app/contact): Support, billing, privacy, and security contacts.
+
+## Optional
+
+- [llms-full.txt](https://fihaven.app/llms-full.txt): The same information expanded into a single document, including the full feature list and security posture.
+- [Google Play listing](https://play.google.com/store/apps/details?id=app.fihaven): Android open testing.
+- [TestFlight](https://testflight.apple.com/join/SdN4yuuH): Public iPhone and iPad beta.
+
+## Contact
+
+- Product, onboarding, promo codes, and billing: support@fihaven.app
+- Trouble joining the Android open test or the iOS TestFlight beta: daniel@fihaven.app
+- Privacy, data export or deletion, GDPR/CCPA requests: security@fihaven.app
+- Security and vulnerability reports: security@fihaven.app (a private GitHub advisory is preferred)

@@ -11,7 +11,7 @@ struct RewardsView: View {
     @State private var merchantQuery = ""
     @State private var showRateReport = false
 
-    private var creditCards: [Card] { store.activeCards.filter { ($0.type ?? "card") != "loan" } }
+    private var creditCards: [Card] { store.activeCreditCards }
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.

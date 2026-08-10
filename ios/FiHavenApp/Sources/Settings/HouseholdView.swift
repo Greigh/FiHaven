@@ -302,6 +302,11 @@ struct HouseholdSettingsView: View {
             Section("Household totals") {
                 rollupRow("Bills (monthly)", rollup.totals.billsMonthly)
                 rollupRow("Card debt", rollup.totals.cardDebt)
+                // Only worth a line when the household actually shares a loan;
+                // an older server sends no value at all.
+                if let loans = rollup.totals.loanDebt, loans > 0 {
+                    rollupRow("Loan debt", loans)
+                }
                 rollupRow("Goals (target)", rollup.totals.goalsTarget)
             }
             if !rollup.byMember.isEmpty {

@@ -230,6 +230,30 @@ public enum Schedule {
         card.currentBalance ?? card.balance
     }
 
+    /// Credit utilization as a 0..1 ratio, or nil when there is nothing to
+    /// measure against — a loan (no revolving limit) or a card with no limit
+    /// set. Always from `liveBalance`, because that is the figure the issuer
+    /// reports. Mirrors utilizationOf in utils.js.
+    ///
+    /// One helper for every caller on purpose: the row, the dashboard alert
+    /// and the "highest utilization" sort each derived this separately, and
+    /// drifted apart — a row could read 91% while the alert naming it
+    /// computed less.
+    public static func utilization(_ card: Card) -> Double? {
+        guard (card.type ?? "card") != "loan", card.limit > 0 else { return nil }
+        return liveBalance(card) / card.limit
+    }
+
+    /// What's owed on revolving credit: non-archived, non-loan, at live
+    /// balance. Loans share the cards list, so summing it raw puts a mortgage
+    /// in the card total. Net worth is the opposite case and counts every
+    /// liability.
+    public static func cardDebt(_ cards: [Card]) -> Double {
+        cards
+            .filter { !$0.archived && ($0.type ?? "card") != "loan" }
+            .reduce(0) { $0 + liveBalance($1) }
+    }
+
     /// The amounts a card row shows, resolved together so the headline and
     /// its companion figures can never disagree.
     public struct CardAmounts: Equatable {

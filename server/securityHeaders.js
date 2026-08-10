@@ -36,12 +36,19 @@ const CF_INSIGHTS_CONNECT = 'https://cloudflareinsights.com';
 // Regenerate after editing any inline script in client/*.html:
 //   node scripts/csp-hashes.js
 const INLINE_SCRIPT_HASHES = [
-  // The theme bootstrap that runs before paint (all 22 pages).
+  // The theme bootstrap that runs before paint (all 25 pages).
   "'sha256-mR59x0idOhjPq9cQO1dF3RJ1JNucX4BsdliBrgLrMZM='",
   // application/ld+json structured data — non-executable, but script-src
-  // still governs the element. (faq.html's FAQPage, home.html's WebSite graph.)
+  // still governs the element. One per page that carries a graph:
+  // bill-tracker-app, contact, faq, home, mint-alternative, pricing,
+  // rocket-money-alternative.
+  "'sha256-cOlgc+GH17pvyWW6f1tDQh9ZzNGB1wFfeuSQoE605c8='",
+  "'sha256-pjiHAO+yEFRBqBF5QYb6kW72HUSJ/6gHssWrPjxnKhY='",
   "'sha256-PbWbEur8ikvbId6C8XU7Y75h+iDB9j7GI5xIOqge2ik='",
-  "'sha256-XA5shDCeaVFBEBuJ3uT+QIigT2wA/AcS/KIjYvjZziI='",
+  "'sha256-hQMC+hDE8KzNW0pL23mnqgrhZt8K9frasA8wkXQR180='",
+  "'sha256-UuB16srnzFcaJreOuqElKFG4R2dbS6z8IXF7v8I+4iw='",
+  "'sha256-Pgu8v+o7MsmXMXOMXOyvTw3Nekrm8vhv73lvNIGcVfk='",
+  "'sha256-IJhy48F3Yo5ThnZe8BjrGbxyk9zm1po4trcq0P+/ikM='",
   // home.html app-store badge switcher.
   "'sha256-HDaFQ449HYIS93STaGFZa9VrVx2GQCHO0bGOA+3MJgM='",
   // client/public/ — copied verbatim into dist, not Vite-processed: the OAuth

@@ -210,7 +210,7 @@
 .stat-tile,
 .stat-sub,
 .cashflow-card,
-.cashflow-head > div,
+.panel-block-head > div,
 .cashflow-sub,
 .cashflow-foot,
 .upcoming-body { min-width: 0; }
@@ -462,5 +462,21 @@
   }
   .hist-actions {
     margin-left: auto;
+  }
+}
+
+/* ── Very narrow phones (iPhone SE 1st gen, folded devices) ──
+   At 320px the app bar's burger + wordmark + theme toggle + CTA
+   don't fit, and the "Get Started" button ran off the edge — 16px
+   of horizontal page scroll before `.page-frame` started clipping,
+   and a half-visible button after. The wordmark is the one piece
+   that carries no function: the logo mark beside it already says
+   whose site this is, so it goes first. */
+@media (max-width: 360px) {
+  .appbar-brand-text {
+    display: none !important;
+  }
+  .appbar-cta {
+    padding: 8px 11px;
   }
 }

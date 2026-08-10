@@ -51,6 +51,9 @@ const cleanUrls = {
       [BASE + '/delete-account.html']: BASE + '/delete-account',
       [BASE + '/pay.html']:       BASE + '/pay',
       [BASE + '/contact.html']:   BASE + '/contact',
+      [BASE + '/mint-alternative.html']:        BASE + '/mint-alternative',
+      [BASE + '/rocket-money-alternative.html']: BASE + '/rocket-money-alternative',
+      [BASE + '/bill-tracker-app.html']:        BASE + '/bill-tracker-app',
     };
     server.middlewares.use((req, res, next) => {
       const path = (req.url || '/').split('?')[0];
@@ -175,6 +178,10 @@ export default defineConfig({
         deleteAccount: clientFile('delete-account.html'),
         pay:       clientFile('pay.html'),
         contact:   clientFile('contact.html'),
+        // Comparison / guide pages — public, indexable, no auth.
+        mintAlternative:        clientFile('mint-alternative.html'),
+        rocketMoneyAlternative: clientFile('rocket-money-alternative.html'),
+        billTrackerApp:         clientFile('bill-tracker-app.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
         devPortal: clientFile('dev-portal.html'),

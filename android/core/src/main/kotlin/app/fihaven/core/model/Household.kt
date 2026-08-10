@@ -86,6 +86,10 @@ data class HouseholdSharedData(
 data class HouseholdRollupTotals(
     val billsMonthly: Double = 0.0,
     val cardDebt: Double = 0.0,
+    /** Loans are stored as cards and split out of [cardDebt] server-side.
+     *  Defaulted so a build that reaches a server predating the split still
+     *  decodes. */
+    val loanDebt: Double = 0.0,
     val goalsTarget: Double = 0.0,
 )
 
@@ -97,6 +101,7 @@ data class HouseholdRollupMember(
     val role: String? = null,
     val billsMonthly: Double = 0.0,
     val cardDebt: Double = 0.0,
+    val loanDebt: Double = 0.0,
     val goalsTarget: Double = 0.0,
 )
 

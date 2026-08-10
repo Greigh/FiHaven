@@ -337,7 +337,7 @@ function computeRollup(userId) {
     memberNames[m.userId] = m.name || m.email || 'Member';
   });
 
-  const totals = { billsMonthly: 0, cardDebt: 0, goalsTarget: 0 };
+  const totals = { billsMonthly: 0, cardDebt: 0, loanDebt: 0, goalsTarget: 0 };
   const byMember = {};
   const entityCount = { bill: 0, card: 0, goal: 0, account: 0, transaction: 0 };
 
@@ -348,6 +348,7 @@ function computeRollup(userId) {
         name: memberNames[uid] || 'Member',
         billsMonthly: 0,
         cardDebt: 0,
+        loanDebt: 0,
         goalsTarget: 0,
       };
     }
@@ -363,9 +364,17 @@ function computeRollup(userId) {
       row.billsMonthly += amt;
       totals.billsMonthly += amt;
     } else if (e.kind === 'card') {
+      // Loans are stored as cards and told apart by `type`. Summing them into
+      // cardDebt put a shared mortgage in the household's card total, so they
+      // get their own line rather than being dropped.
       const bal = parseFloat(d.balance) || 0;
-      row.cardDebt += bal;
-      totals.cardDebt += bal;
+      if ((d.type || 'card') === 'loan') {
+        row.loanDebt += bal;
+        totals.loanDebt += bal;
+      } else {
+        row.cardDebt += bal;
+        totals.cardDebt += bal;
+      }
     } else if (e.kind === 'goal') {
       const tgt = parseFloat(d.target) || 0;
       row.goalsTarget += tgt;

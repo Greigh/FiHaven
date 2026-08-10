@@ -15,6 +15,10 @@ var products: [Product] = [
 
 var targets: [Target] = [
     .target(name: "FiHavenCore"),
+    // XCTest suite, run with `swift test` from ios/FiHavenCore. Test targets
+    // are built only by `swift test`, never by the app that links this
+    // package, so this stays outside the FH_INCLUDE_CHECKS gate below.
+    .testTarget(name: "FiHavenCoreTests", dependencies: ["FiHavenCore"]),
 ]
 
 if includeChecks {

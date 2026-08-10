@@ -373,8 +373,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     }
 
     // Net worth / debt / spending for the optional widgets.
-    val debt = data.activeCards.sumOf { it.balance }
-    val netWorth = data.accounts.sumOf { it.balance } - debt
+    // Card debt is revolving credit only — loans live in the same list and
+    // would put a mortgage in the card total. Net worth is the opposite case:
+    // every liability counts, loans included.
+    // Live balance, like the Cards tab and web: a card charged since its
+    // statement closed still counts toward what's owed. Net worth stays on the
+    // statement balance, which is what web's Net Worth panel reports.
+    val cardDebt = Schedule.cardDebt(data.cards)
+    val netWorth = data.accounts.sumOf { it.balance } - data.activeCards.sumOf { it.balance }
     val spent = data.transactions
         .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
@@ -382,13 +388,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
-    val utilAlerts = data.activeCards.filter { it.type != "loan" && it.limit > 0 }.mapNotNull { c ->
-        val util = ((c.balance / c.limit) * 100).toInt()
-        when {
-            util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
-            util >= 80 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(c.balance)} of ${Money.fmt(c.limit)})."
-            else -> null
-        }
+    // Schedule.utilization, so the alert can't disagree with the percentage the
+    // card's own row shows.
+    val utilAlerts = data.activeCards.mapNotNull { c ->
+        val ratio = Schedule.utilization(c) ?: return@mapNotNull null
+        val util = (ratio * 100).toInt()
+        if (util < 80) return@mapNotNull null
+        val bal = Schedule.liveBalance(c)
+        "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
     }
     // activeBills, not bills: an archived subscription is meant to be gone from
     // every list and total, but its trial kept alerting on the dashboard (iOS
@@ -400,7 +407,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         val dayWord = when (left) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $left days" }
         "⏳ ${b.name} — free trial ends $dayWord."
     }
-    val promoAlerts = data.activeCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
+    val promoAlerts = data.activeCreditCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
         val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
         val bal = c.promoBalance ?: c.balance
         if (bal <= 0) return@mapNotNull null
@@ -454,10 +461,20 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                 DashboardWidgets.enabled(data.settings) else listOf("stats", "upcoming")
             widgetIds.forEach { id ->
                 when (id) {
+                    // Overview tiles. Card debt rides along here as well as
+                    // being its own widget, so Classic shows it too — web's
+                    // overview strip has carried it all along.
                     "stats" -> item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
-                            StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
+                                StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                            }
+                            StatCard(
+                                "Card debt", Money.fmt(cardDebt),
+                                if (cardDebt > 0) Ct.colors.accent else Ct.colors.green,
+                                Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                     "cashflow" -> if (paidThisPeriod + remaining > 0) item {
@@ -481,8 +498,8 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                             if (netWorth >= 0) Ct.colors.green else Ct.colors.red, Modifier.fillMaxWidth())
                     }
                     "debt" -> item {
-                        StatCard("Card debt", Money.fmt(debt),
-                            if (debt > 0) Ct.colors.accent else Ct.colors.green, Modifier.fillMaxWidth())
+                        StatCard("Card debt", Money.fmt(cardDebt),
+                            if (cardDebt > 0) Ct.colors.accent else Ct.colors.green, Modifier.fillMaxWidth())
                     }
                     "spending" -> item {
                         StatCard("Spent this period", Money.fmt(spent), Ct.colors.accent, Modifier.fillMaxWidth())
@@ -715,6 +732,7 @@ object DashboardWidgets {
         "alerts" to "Alerts",
         "upcoming" to "Upcoming payments",
         "networth" to "Net worth",
+        "debt" to "Card debt",
         "spending" to "Spending",
         "goals" to "Savings goals",
         "subscriptions" to "Subscriptions",

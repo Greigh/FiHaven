@@ -3,6 +3,15 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* Decorative bleed must never produce a horizontal scrollbar. The
+     marketing hero's blurred orbs sit at right/left -20…-30px and its
+     preview frame is rotated -.6deg, so their boxes reach past the page
+     gutter — 4px of sideways scroll on a phone, ~20px on a desktop.
+     `clip` rather than `hidden` on purpose: hidden would make this a
+     scroll container and break `position: sticky` inside it. Pairing
+     clip on one axis with visible on the other is legal and leaves
+     overflow-y alone, so nothing below the fold is affected. */
+  overflow-x: clip;
 }
 
 .page-main {

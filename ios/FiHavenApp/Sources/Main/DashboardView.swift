@@ -88,6 +88,8 @@ struct DashboardView: View {
         case "upcoming":      upcomingSection
         case "networth":
             netWorthCard
+        case "debt":
+            statCard("Card debt", Money.fmt(store.cardDebt), store.cardDebt > 0 ? Theme.accent : Theme.green)
         case "spending":      statCard("Spent this period", Money.fmt(store.totalSpent), Theme.accent)
         case "goals":         GoalsWidget()
         case "subscriptions": SubscriptionsWidget()
@@ -125,10 +127,16 @@ struct DashboardView: View {
     }
 
     // ── Summary cards ────────────────────────────────────────────────
+    // Overview tiles. Card debt rides along here as well as being its own
+    // widget, so Classic shows it too — web's overview strip has carried it
+    // all along.
     private var summary: some View {
-        HStack(spacing: 12) {
-            incomeStat
-            stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                incomeStat
+                stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
+            }
+            statCard("Card debt", Money.fmt(store.cardDebt), store.cardDebt > 0 ? Theme.accent : Theme.green)
         }
     }
 

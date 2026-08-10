@@ -375,6 +375,21 @@ export function liveCardBalance(card) {
   return parseFloat(card.balance) || 0;
 }
 
+/* Credit utilization as a 0..1 ratio, or null when there's nothing to measure
+   against — a loan (no revolving limit) or a card with no limit set. Always
+   from the live balance, because that's the figure the issuer reports.
+
+   One helper for every caller on purpose: the row, the dashboard alert and the
+   "highest utilization" sort each derived this separately, and on iOS/Android
+   they drifted apart. Mirrors Schedule.utilization on both. */
+export function utilizationOf(card) {
+  if (!card) return null;
+  if ((card.type || 'card') === 'loan') return null;
+  var lim = parseFloat(card.limit) || 0;
+  if (lim <= 0) return null;
+  return liveCardBalance(card) / lim;
+}
+
 /* The amounts a card row shows, resolved together so the headline and the
    smaller companion figures can never disagree.
      due     — what to pay this period: the goal the paid-goal policy names

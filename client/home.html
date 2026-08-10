@@ -18,12 +18,17 @@
   <meta property="og:url" content="https://fihaven.app/"/>
   <meta property="og:title" content="FiHaven — Quiet money. Calm month."/>
   <meta property="og:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, iPad, and Android. Optional Pro bank linking, rewards tips, and family sharing."/>
-  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta property="og:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
   <meta property="og:locale" content="en_US"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FiHaven — Quiet money. Calm month."/>
   <meta name="twitter:description" content="Track bills, cards, and loans in one calm dashboard — synced on web, iPhone, iPad, and Android. Optional Pro bank linking, rewards tips, and family sharing."/>
-  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta name="twitter:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
 
   <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" href="/favicon.ico" sizes="32x32"/>
@@ -48,24 +53,111 @@
       },
       {
         "@type": "Organization",
+        "@id": "https://fihaven.app/#organization",
         "name": "FiHaven",
         "url": "https://fihaven.app/",
         "logo": "https://fihaven.app/icon.svg",
-        "contactPoint": {
-          "@type": "ContactPoint",
-          "contactType": "customer support",
-          "email": "support@fihaven.app",
-          "availableLanguage": "en"
-        }
+        "description": "Independent developer of FiHaven, a bill and debt dashboard for web, iPhone, iPad, and Android.",
+        "sameAs": [
+          "https://play.google.com/store/apps/details?id=app.fihaven"
+        ],
+        "contactPoint": [
+          {
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "email": "support@fihaven.app",
+            "availableLanguage": "en"
+          },
+          {
+            "@type": "ContactPoint",
+            "contactType": "security",
+            "email": "security@fihaven.app",
+            "availableLanguage": "en"
+          }
+        ]
       },
       {
-        "@type": "WebApplication",
+        "@type": "SoftwareApplication",
+        "@id": "https://fihaven.app/#app",
         "name": "FiHaven",
-        "description": "Track bills, cards, loans, spending, and payoff plans in one calm view — synced across web and native apps.",
+        "description": "Track bills, cards, loans, spending, and payoff plans in one calm view — synced across web and native apps. Works fully by hand; bank linking is optional.",
         "url": "https://fihaven.app/",
         "applicationCategory": "FinanceApplication",
-        "operatingSystem": "Web, iOS, Android",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        "applicationSubCategory": "Bill and debt tracker",
+        "operatingSystem": "Web, iOS, iPadOS, Android",
+        "publisher": { "@id": "https://fihaven.app/#organization" },
+        "softwareHelp": "https://fihaven.app/faq",
+        "featureList": [
+          "Unlimited bills, credit cards, and loans",
+          "Budget, runway, and manual spending log",
+          "Savings goals, net worth, and income sources",
+          "Bill schedules from weekly through annual",
+          "Partial payments and skip-this-month",
+          "Offline support with automatic sync",
+          "JSON and CSV export",
+          "Payoff planner — snowball, avalanche, and minimums (Pro)",
+          "Calendar view and private iCal feed (Pro)",
+          "Rewards optimizer, card perks, and offers (Pro)",
+          "Optional bank linking via Plaid (Pro)",
+          "Family household sharing for up to three people (Family)"
+        ],
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Unlimited bills, cards, and loans with dashboard, budget, spending log, savings goals, net worth, and export. No credit card required."
+          },
+          {
+            "@type": "Offer",
+            "name": "FiHaven Pro — monthly",
+            "price": "1.99",
+            "priceCurrency": "USD",
+            "category": "subscription",
+            "description": "Adds payoff planner, calendar and iCal feed, payment history, subscription finder, rewards optimizer, category budgets, optional Plaid bank linking, and autopay auto-mark. Includes a 7-day free trial.",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "1.99",
+              "priceCurrency": "USD",
+              "billingDuration": 1,
+              "billingIncrement": 1,
+              "unitCode": "MON"
+            }
+          },
+          {
+            "@type": "Offer",
+            "name": "FiHaven Pro — yearly (web)",
+            "price": "14.99",
+            "priceCurrency": "USD",
+            "category": "subscription",
+            "description": "Pro billed yearly on the web. $16.99 per year when purchased through iOS or Android. Includes a 7-day free trial.",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "14.99",
+              "priceCurrency": "USD",
+              "billingDuration": 1,
+              "billingIncrement": 1,
+              "unitCode": "ANN"
+            }
+          },
+          {
+            "@type": "Offer",
+            "name": "FiHaven Family — yearly (web)",
+            "price": "25.99",
+            "priceCurrency": "USD",
+            "category": "subscription",
+            "description": "Every Pro feature plus a household of up to three people sharing bills, cards, and savings goals. $29.99 per year through iOS or Android. Yearly only, billed immediately with no free trial.",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "25.99",
+              "priceCurrency": "USD",
+              "billingDuration": 1,
+              "billingIncrement": 1,
+              "unitCode": "ANN"
+            }
+          }
+        ]
       }
     ]
   }
@@ -137,20 +229,24 @@
                 <span class="marketing-preview-path">fihaven.app / dashboard</span>
               </div>
               <div class="marketing-preview-body">
-                <div class="marketing-preview-month">
-                  <div>
-                    <div class="marketing-preview-label">Dashboard</div>
-                    <div class="marketing-preview-title" id="hero-preview-month">June 2026</div>
+                <div class="marketing-preview-block">
+                  <div class="marketing-preview-month">
+                    <div>
+                      <div class="marketing-preview-label">Dashboard</div>
+                      <div class="marketing-preview-title" id="hero-preview-month">June 2026</div>
+                    </div>
+                    <span class="sync-status" data-state="saved">All changes saved</span>
                   </div>
-                  <span class="sync-status" data-state="saved">All changes saved</span>
+                  <div class="sum-grid marketing-preview-stats">
+                    <div class="sum-card"><div class="slabel">Monthly Bills</div><div class="svalue">$1,633</div><div class="ssub">5 bills tracked</div></div>
+                    <div class="sum-card"><div class="slabel">Card Debt</div><div class="svalue" style="color:var(--red);">$3,680</div><div class="ssub">3 cards</div></div>
+                    <div class="sum-card"><div class="slabel">Still Owed</div><div class="svalue" style="color:var(--orange);">$245</div><div class="ssub">4 of 5 paid</div></div>
+                    <div class="sum-card"><div class="slabel">0% APR Ending</div><div class="svalue" style="color:var(--red);">1</div><div class="ssub">card needs attention</div></div>
+                  </div>
                 </div>
-                <div class="sum-grid marketing-preview-stats">
-                  <div class="sum-card"><div class="slabel">Monthly Bills</div><div class="svalue">$1,633</div><div class="ssub">5 bills tracked</div></div>
-                  <div class="sum-card"><div class="slabel">Card Debt</div><div class="svalue" style="color:var(--red);">$3,680</div><div class="ssub">3 cards</div></div>
-                  <div class="sum-card"><div class="slabel">Still Owed</div><div class="svalue" style="color:var(--orange);">$245</div><div class="ssub">4 of 5 paid</div></div>
-                  <div class="sum-card"><div class="slabel">0% APR Ending</div><div class="svalue" style="color:var(--red);">1</div><div class="ssub">card needs attention</div></div>
-                </div>
-                <div class="marketing-preview-list">
+                <div class="marketing-preview-block">
+                  <div class="marketing-preview-label">Upcoming</div>
+                  <div class="marketing-preview-list">
                   <div class="upcoming-item is-paid">
                     <div style="font-size:18px;">🏠</div>
                     <div style="flex:1;min-width:0;"><div class="item-name">Rent</div><div style="font-size:11px;color:var(--muted);"><span style="color:var(--green);">✓ Paid $1,450.00</span></div></div>
@@ -166,6 +262,7 @@
                     <div style="flex:1;min-width:0;"><div class="item-name">Chase Freedom (payment)</div><div style="font-size:11px;color:var(--muted);"><span style="color:var(--orange);">0% promo · $245 / mo to clear</span></div></div>
                     <div style="text-align:right;"><div class="marketing-preview-amount">$245</div><div class="due-days due-soon">Due 8d</div></div>
                   </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -177,12 +274,12 @@
       <div class="marketing-shipped">
         <span class="marketing-shipped-badge">Just shipped · 1.6.1</span>
         <p>
-          Signing out now ends the session for real — your bill reminders stop
-          with it. Archiving a bill or card genuinely silences it: no reminders,
-          no counting toward your totals. A subscription bought on the web can be
-          managed from the phone apps again. Plus card&#8202;↔&#8202;bank matching
-          across every linked bank, redesigned reminder emails, and search on
-          every major list.
+          Card debt no longer counts your loans — a tracked mortgage had been
+          landing in the card total on every platform. The dashboard is laid out
+          like the rest of the app, and a shared household now separates card
+          debt from loan debt. Plus signing out ends the session for real,
+          archiving genuinely silences a bill or card, and asking an AI assistant
+          about FiHaven finally gets a real answer.
           <a href="https://github.com/Greigh/FiHaven/blob/main/CHANGELOG.md" target="_blank" rel="noopener">See what's new →</a>
         </p>
       </div>
@@ -491,7 +588,19 @@
       <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> · made for people who'd rather not think about money.
       </div>
-      <div class="site-footer-links" data-public-footer></div>
+      <div class="site-footer-links" data-public-footer>
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/faq">FAQ</a>
+        <a href="/bill-tracker-app">Bill Tracker Guide</a>
+        <a href="/security">Security</a>
+        <a href="/contact">Contact</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/refunds">Refunds</a>
+        <a href="/delete-account">Delete Account</a>
+      </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
     </footer>

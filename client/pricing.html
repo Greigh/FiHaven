@@ -15,12 +15,17 @@
   <meta property="og:url" content="https://fihaven.app/pricing"/>
   <meta property="og:title" content="FiHaven — Pricing"/>
   <meta property="og:description" content="Free forever to start. Pro from $1.99/mo with a 7-day free trial, Family $25.99/yr for a household of three."/>
-  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta property="og:image" content="https://fihaven.app/og-pricing.jpg"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="FiHaven pricing — free to start, Pro when you want it."/>
   <meta property="og:locale" content="en_US"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FiHaven — Pricing"/>
   <meta name="twitter:description" content="Free forever to start. Pro from $1.99/mo with a 7-day free trial, Family $25.99/yr for a household of three."/>
-  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+  <meta name="twitter:image" content="https://fihaven.app/og-pricing.jpg"/>
+  <meta name="twitter:image:alt" content="FiHaven pricing — free to start, Pro when you want it."/>
 
   <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" href="/favicon.ico" sizes="32x32"/>
@@ -32,6 +37,74 @@
   <link rel="stylesheet" href="css/styles.css"/>
   <link rel="stylesheet" href="css/tailwind-built.css"/>
   <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "FiHaven", "item": "https://fihaven.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Pricing", "item": "https://fihaven.app/pricing" }
+        ]
+      },
+      {
+        "@type": "Product",
+        "name": "FiHaven",
+        "description": "A bill and debt dashboard for web, iPhone, iPad, and Android. Free to use by hand; Pro adds payoff planning, calendar feeds, rewards optimization, and optional bank linking.",
+        "url": "https://fihaven.app/pricing",
+        "image": "https://fihaven.app/og-pricing.jpg",
+        "brand": { "@type": "Brand", "name": "FiHaven" },
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "USD",
+          "lowPrice": "0",
+          "highPrice": "29.99",
+          "offerCount": 4,
+          "offers": [
+            {
+              "@type": "Offer",
+              "name": "Free",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock",
+              "url": "https://fihaven.app/pricing",
+              "description": "Unlimited bills, cards, and loans with dashboard, budget, spending log, savings goals, net worth, and export. No credit card required."
+            },
+            {
+              "@type": "Offer",
+              "name": "FiHaven Pro — monthly",
+              "price": "1.99",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock",
+              "url": "https://fihaven.app/pricing",
+              "description": "Pro billed monthly on every platform. Includes a 7-day free trial."
+            },
+            {
+              "@type": "Offer",
+              "name": "FiHaven Pro — yearly (web)",
+              "price": "14.99",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock",
+              "url": "https://fihaven.app/pricing",
+              "description": "Pro billed yearly on the web. $16.99 per year through iOS or Android. Includes a 7-day free trial."
+            },
+            {
+              "@type": "Offer",
+              "name": "FiHaven Family — yearly (web)",
+              "price": "25.99",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock",
+              "url": "https://fihaven.app/pricing",
+              "description": "Every Pro feature plus a household of up to three people. $29.99 per year through iOS or Android. Yearly only, no free trial."
+            }
+          ]
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body class="min-h-screen text-(--text) antialiased" data-auth="public">
   <div class="page-frame">
@@ -143,7 +216,19 @@
       <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> — no ads, no data sales.
       </div>
-      <div class="site-footer-links" data-public-footer></div>
+      <div class="site-footer-links" data-public-footer>
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/faq">FAQ</a>
+        <a href="/bill-tracker-app">Bill Tracker Guide</a>
+        <a href="/security">Security</a>
+        <a href="/contact">Contact</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/refunds">Refunds</a>
+        <a href="/delete-account">Delete Account</a>
+      </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
     </footer>

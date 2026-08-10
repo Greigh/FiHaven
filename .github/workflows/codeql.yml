@@ -1,5 +1,9 @@
 name: CodeQL
 
+# The Swift and Java/Kotlin analyses live in codeql-swift.yml and
+# codeql-android.yml so each can carry its own on.push.paths filter — path
+# filters apply per workflow, not per job. JavaScript/TypeScript stays
+# unfiltered: it's the largest surface here and the analysis takes ~2 minutes.
 on:
   push:
     branches: [main]
@@ -17,11 +21,6 @@ jobs:
       contents: read
       security-events: write
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [javascript-typescript]
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -29,85 +28,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v4
-
-  java-kotlin:
-    name: Analyze Java / Kotlin
-    runs-on: ubuntu-latest
-
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [java-kotlin]
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          # Trace a real Gradle build: build-mode:none sees no Kotlin source for
-          # this Android project, and autobuild can't drive it — so build manually.
-          build-mode: manual
-
-      - name: Build Android app (traced for CodeQL)
-        working-directory: android
-        # Requires Kotlin < 2.3.30 in android/build.gradle.kts until CodeQL supports 2.4+
-        # (github.com/github/codeql/issues/21938).
-        run: ./gradlew :app:assembleDebug
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v4
-
-  swift:
-    name: Analyze Swift
-    runs-on: macos-latest
-
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [swift]
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-
-      - name: Generate Xcode project
-        working-directory: ios/FiHavenApp
-        run: xcodegen generate
-
-      - name: Build iOS app
-        working-directory: ios/FiHavenApp
-        run: xcodebuild -project FiHaven.xcodeproj -scheme FiHaven -destination 'generic/platform=iOS Simulator' build
+          languages: javascript-typescript
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4

@@ -12,7 +12,7 @@
   import { cards, save, settings, transactions } from '../js/storage.svelte.js';
   import {
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
-    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
+    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance, utilizationOf,
     cardAmounts, cardHeadlineMode, otherCardAmounts,
     paidState, paidAmount, goalAmountFor, remainingForItem, payTargetRemaining, needsAmount, nothingDue,
     paymentStats, archiveInsteadOfDelete,
@@ -127,7 +127,7 @@
   ]);
   // Utilization follows the live balance (current when tracked, statement
   // otherwise) — that's the figure the issuer reports to the bureaus.
-  const utilOf = (c) => { const b = liveCardBalance(c), l = parseFloat(c.limit) || 0; return l > 0 ? b / l : 0; };
+  const utilOf = (c) => utilizationOf(c) ?? 0;
 
   /* ── Helpers ─────────────────────────────────────────── */
   function deleteCard(i) {
