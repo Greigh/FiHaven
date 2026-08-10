@@ -599,6 +599,11 @@ final class AppStore: ObservableObject {
     var liabilities: Double { activeCards.reduce(0) { $0 + $1.balance } }
     var netWorth: Double { assets - liabilities }
 
+    /// What's owed on revolving credit — loans excluded, at live balance.
+    /// Distinct from `liabilities` above, which counts every liability
+    /// (loans included) at the statement balance, matching web's Net Worth.
+    var cardDebt: Double { Schedule.cardDebt(data.cards) }
+
     // ── Spending (transactions in the current period) ───────────────
     var periodTransactions: [SpendTransaction] {
         let b = currentBounds

@@ -461,10 +461,20 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                 DashboardWidgets.enabled(data.settings) else listOf("stats", "upcoming")
             widgetIds.forEach { id ->
                 when (id) {
+                    // Overview tiles. Card debt rides along here as well as
+                    // being its own widget, so Classic shows it too — web's
+                    // overview strip has carried it all along.
                     "stats" -> item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
-                            StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                StatCard(Income.incomeLabel(cfg), Money.fmt(income), Ct.colors.green, Modifier.weight(1f))
+                                StatCard(Income.owedLabel(cfg), Money.fmt(remaining), Ct.colors.accent, Modifier.weight(1f))
+                            }
+                            StatCard(
+                                "Card debt", Money.fmt(cardDebt),
+                                if (cardDebt > 0) Ct.colors.accent else Ct.colors.green,
+                                Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                     "cashflow" -> if (paidThisPeriod + remaining > 0) item {
@@ -722,6 +732,7 @@ object DashboardWidgets {
         "alerts" to "Alerts",
         "upcoming" to "Upcoming payments",
         "networth" to "Net worth",
+        "debt" to "Card debt",
         "spending" to "Spending",
         "goals" to "Savings goals",
         "subscriptions" to "Subscriptions",

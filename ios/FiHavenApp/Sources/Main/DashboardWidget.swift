@@ -12,6 +12,7 @@ enum DashboardWidget {
         ("alerts", "Alerts"),
         ("upcoming", "Upcoming payments"),
         ("networth", "Net worth"),
+        ("debt", "Card debt"),
         ("spending", "Spending"),
         ("goals", "Savings goals"),
         ("subscriptions", "Subscriptions"),

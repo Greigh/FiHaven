@@ -51,7 +51,7 @@ For support, contact daniel@fihaven.app.
 
 ## TestFlight — What to Test
 
-> 3869 / 4000 characters.
+> 3443 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 27
@@ -63,6 +63,7 @@ Loans are stored alongside credit cards and told apart internally by type. Sever
 - Settings > Household now shows Loan debt as its own line, separated from card debt, for the household and for each member. A shared mortgage had been sitting in the household's card total. This part needs the server deploy to take effect.
 - 0% promo alerts no longer fire for loans.
 - Credit utilization now reads the live balance everywhere it appears. A card charged since its statement closed was warning you based on the older figure, so a card at 90% of its limit could stay silent. Net worth is unchanged and still counts every liability, loans included — that one is correct as it stands.
+- The dashboard shows Card debt. The web version has always had that tile; on the phones the figure was missing, and the Card debt widget on Android could never actually appear. It is now an Overview tile and a widget you can reorder or switch off.
 
 Net worth and the debt payoff planner deliberately still include loans. A loan is a real liability and the planner exists to plan it; only "card debt" was wrong.
 
@@ -74,26 +75,18 @@ If you have a 0% promo card, confirm its alerts still appear — only loans shou
 
 WHAT ALSO SHIPPED (ON THE WEB)
 
-FiHaven was invisible to AI assistants, and it turned out to be a configuration problem rather than a content one.
+Cloudflare was returning "blocked" to every AI crawler that asked for fihaven.app — including the ones that fire when a real person asks a question. In a single day, 267 requests from ChatGPT on behalf of actual users were refused, along with Perplexity and Claude. Google and Bing were never affected, so search looked fine the whole time.
 
-Cloudflare was returning "blocked" to every AI crawler that asked for fihaven.app. That included the ones that fire when a real person asks a question — in a single day, 267 requests from ChatGPT on behalf of actual users were refused, along with Perplexity and Claude. Anyone who asked an assistant "what is FiHaven?" was told the site could not be reached. Google and Bing were never affected, so search looked fine the whole time.
-
-WHAT CHANGED
-
-- Assistants and AI search engines are allowed through: ChatGPT, Claude, Perplexity, DuckDuckGo and Mistral can read the site and answer questions about it.
-- Crawlers that only exist to collect text for training AI models are still refused. That distinction is the whole point: being answerable is not the same as donating the content.
-- fihaven.app/llms.txt is a plain-text summary of what FiHaven is, what the tiers cost, and what is in each — written for assistants to read directly.
-- Sharing a FiHaven link shows a preview image again. The old one was an SVG, which every major platform refuses, so links had been posting as bare text for a while.
-- Three new pages: a guide to picking a bill tracker, and honest comparisons for people arriving from Mint or Rocket Money. Each says plainly where FiHaven is the wrong tool.
-- The site's own navigation is now readable without JavaScript. Most AI crawlers do not run it, and they had been seeing a site with almost no internal links.
-
-ALSO ON THE WEB: THE DASHBOARD
-
-The web dashboard has been reframed to match every other tab. Its sections — the header, the payments bar, alerts, and Upcoming Payments — now each sit in a bordered block with a heading, instead of Upcoming Payments floating loose on the background. This is where the loan bug above was first spotted; signed in on the web, the dashboard should now look like the Budget and Cards tabs.
+- Assistants and AI search engines are allowed through; crawlers that exist only to collect text for model training are still refused. Being answerable is not the same as donating the content.
+- fihaven.app/llms.txt is a plain-text summary of what FiHaven is and what the tiers cost, written for assistants to read directly.
+- Sharing a FiHaven link shows a preview image again. The old one was an SVG, which every major platform refuses.
+- Three new pages: a guide to picking a bill tracker, and honest comparisons for people arriving from Mint or Rocket Money.
+- The site's navigation is readable without JavaScript, which most AI crawlers do not run.
+- The web dashboard has been reframed so each section sits in a bordered block with a heading, matching the Budget and Cards tabs. That is where the loan bug above was first spotted.
 
 CHECKING THE WEB WORK
 
-Ask ChatGPT or Claude what FiHaven is and see whether the answer matches reality. Or paste a fihaven.app link into Slack, Discord or iMessage and confirm the preview card appears.
+Ask ChatGPT or Claude what FiHaven is and see whether the answer matches reality. Or paste a fihaven.app link into Slack or iMessage and confirm the preview card appears.
 
 NOTE
 
@@ -125,11 +118,11 @@ rest of the app.
 
 ## Web / server (shipped with the same train)
 
-**No server deploy is needed for this build** beyond the web deploy that has
-already gone out. The outstanding deploys from builds 25 and 24 are unaffected
-by it — see the note at the top.
+**This build does need a server deploy** — `server/household.js` computes the
+`loanDebt` split the apps now render. The outstanding deploys from builds 25 and
+24 are unaffected by it — see the note at the top.
 
-The web is where all of this landed:
+The web is where the rest of this landed:
 
 - **Cloudflare AI bot policy rewritten.** The zone was returning 403 to every AI
   crawler, including the user-triggered fetchers (`ChatGPT-User`, `Claude-User`,
@@ -193,8 +186,14 @@ The web is where all of this landed:
   executable), and Android's `:app` module gained a JVM unit-test source set
   (`:app:testDebugUnitTest`) where it had none. Both, plus `:core:test` and
   `client/js/utils.test.js`, assert the same card-debt and utilization cases.
-- **Known, not fixed:** Android's `"debt"` dashboard widget is unreachable —
-  the branch exists in `MainScaffold.kt` but the id is missing from
-  `DashboardWidgets.catalog`, so `enabled()` filters it out. Web and iOS have
-  no such widget. Adding the id to Android alone would be dropped by web's
-  settings editor on the next save.
+- **Card debt reaches the phone dashboards.** Android rendered a `"debt"`
+  widget whose id was missing from `DashboardWidgets.catalog`, so `enabled()`
+  filtered it out and it could never appear; iOS and web had no such widget.
+  `debt` is now in all three catalogs in the same position with a renderer on
+  each, and it also joins the Overview tiles on iOS and Android so Classic
+  shows it — web's overview strip has always had the tile.
+- **A parity test for the widget catalog.** The enabled/ordered list syncs
+  across platforms and each drops ids it doesn't know, so a one-platform id is
+  silently stripped by whichever platform saves last. `dashboardWidgets.test.js`
+  now parses `DashboardWidget.swift` and `MainScaffold.kt` and asserts all
+  three catalogs and default sets match.

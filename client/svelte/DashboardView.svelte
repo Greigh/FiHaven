@@ -218,6 +218,7 @@
     {:else if id === 'alerts'}{@render alertsBlock()}
     {:else if id === 'upcoming'}{@render upcomingBlock()}
     {:else if id === 'networth'}<NetWorthPanel />
+    {:else if id === 'debt'}{@render debtBlock()}
     {:else if id === 'spending'}<SpendingPanel />
     {:else if id === 'goals'}<GoalsPanel />
     {:else if id === 'subscriptions'}<SubscriptionsPanel />
@@ -268,6 +269,28 @@
     <div class="stat-label">0% APR ≤ 3 mo</div>
     <div class="stat-value">{urgentPromo}</div>
     <div class="stat-sub">{urgentPromo === 0 ? 'No urgent deadlines' : (urgentPromo + ' need' + (urgentPromo === 1 ? 's' : '') + ' attention')}</div>
+  </div>
+</div>
+{/snippet}
+
+<!-- ─── Card debt (widgets layout only) ─────────────────── -->
+<!-- Classic already carries this as one of the four stat tiles; as a
+     widget it's a block of its own so it can be reordered or switched
+     off. Loans are excluded — see totalDebt. -->
+{#snippet debtBlock()}
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">Card debt</div>
+      <h3 class="panel-title">What you owe on cards</h3>
+    </div>
+  </div>
+  <div class="stat-strip">
+    <div class="stat-tile {totalDebt > 0 ? 'is-bad' : 'is-good'}">
+      <div class="stat-label">Card debt</div>
+      <div class="stat-value">{fmt(totalDebt)}</div>
+      <div class="stat-sub">{activeCards.length} card{activeCards.length === 1 ? '' : 's'} tracked</div>
+    </div>
   </div>
 </div>
 {/snippet}

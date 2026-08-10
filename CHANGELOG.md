@@ -87,15 +87,24 @@ The new `loanDebt` field is optional on iOS and defaulted on Android, so an app
 build that reaches a server predating the split still decodes its rollup.
 **The server must be deployed for the household split to take effect.**
 
-**Found while verifying this on the emulator, not fixed:** Android's Card debt
-widget is unreachable. `MainScaffold.kt` renders a `"debt"` branch, but `"debt"`
-isn't in `DashboardWidgets.catalog`, so `enabled()` filters the id out and the
-widget can never appear. Web has no `debt` id either (its card-debt figure is
-one of the four tiles in `stats`), and iOS has no such widget at all. Adding the
-id to Android alone would round-trip badly: web's settings editor reseeds from
-its own catalog, so saving dashboard settings on web would silently drop it.
-Either delete the dead branch or add the widget to all three — a product call,
-left open deliberately.
+**Card debt is on the phone dashboards now, and the widget catalogs match
+again.** Verifying the above on an emulator turned up that Android's Card debt
+widget could never appear: `MainScaffold.kt` rendered a `"debt"` branch, but the
+id was missing from `DashboardWidgets.catalog`, so `enabled()` filtered it out.
+Web and iOS had no such widget at all — and web's overview strip has carried a
+Card debt tile all along, so the phones were simply missing the figure.
+
+`debt` is now a real widget in all three catalogs, in the same position, with a
+renderer on each. It also joins the **Overview tiles** on iOS and Android, so
+Classic shows it too, matching the web strip. Fixing this on Android alone would
+have been worse than leaving it: the enabled/ordered widget list syncs between
+platforms and each drops ids it doesn't recognise, so saving dashboard settings
+on web would have silently stripped an Android-only id.
+
+That failure mode is now a test rather than a comment —
+`client/js/dashboardWidgets.test.js` parses `DashboardWidget.swift` and
+`MainScaffold.kt` and asserts all three catalogs and default sets agree, so a
+platform can't quietly grow an id the others lack.
 
 **Utilization and card debt now read the live balance on iOS and Android.** Both
 apps already used `Schedule.liveBalance` for their Cards-tab headline but fell
