@@ -254,6 +254,13 @@ data class AppData(
      *  and can be restored) but are hidden from active views. */
     val activeBills: List<Bill> get() = bills.filter { !it.archived }
     val activeCards: List<Card> get() = cards.filter { !it.archived }
+
+    /** Non-archived *revolving credit* only. Loans share the `cards` list and
+     *  are told apart by `type`, so anything that means "credit card" —
+     *  card debt, utilization, promo deadlines — must read this instead of
+     *  [activeCards], or a tracked mortgage lands in the card total.
+     *  Payoff, net worth and calendar want loans and keep [activeCards]. */
+    val activeCreditCards: List<Card> get() = activeCards.filter { it.type != "loan" }
     val archivedBills: List<Bill> get() = bills.filter { it.archived }
     val archivedCards: List<Card> get() = cards.filter { it.archived }
 }

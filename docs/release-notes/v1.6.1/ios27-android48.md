@@ -8,15 +8,17 @@ so the text below goes in by hand.
 This is **the copy actually being shipped**, not a reconstruction. Source: the
 `[1.6.1]` section of [CHANGELOG.md](../../../CHANGELOG.md).
 
-**This build has no app-facing changes.** The work this round was entirely on
-the web: making fihaven.app discoverable by search engines and readable by AI
-assistants. Builds 27 / 48 exist so the native version numbers stay in step with
-the web deploy — there is nothing new to look at in the apps.
+**This build fixes one thing in the apps: loans were being counted as card
+debt.** Alongside it ships a web release — making fihaven.app readable by AI
+assistants, and reframing the web dashboard to match the rest of the app.
 
-## This build is client-only
+## ⚠️ This build needs a server deploy
 
-Nothing here is server-side beyond the ordinary web deploy, which has already
-gone out.
+The household **Loan debt** split is computed server-side
+(`server/household.js`). Until the server is deployed, both apps keep showing a
+household card-debt total that includes shared loans — the app-side change is
+in place and simply has nothing to read yet. The dashboard and promo-alert
+fixes are client-side and work immediately.
 
 **The outstanding server requirements from earlier builds still stand.** Build
 25's bill-reminder wording and autopay guard are server-side, and so is
@@ -33,14 +35,14 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 395 / 500 characters (counted with newlines, as the console does).
+> 447 / 500 characters (counted with newlines, as the console does).
 
 ```
-No app-facing changes in this build — this round of work was on the web.
+Loans are no longer counted as card debt.
 
-Ask ChatGPT, Claude or Perplexity about FiHaven and they can now reach the site and answer accurately. Cloudflare had been refusing every AI assistant, so those questions went unanswered. Training crawlers are still refused.
+If you track a mortgage or auto loan, it was being added to your card debt total — so "card debt" read far higher than what you actually owe on cards. Loans now stay out of that figure, and a shared household separates loan debt from card debt. Net worth and the payoff planner still include them, as they should.
 
-Links to fihaven.app also show a preview image again.
+Also: 0% promo alerts no longer fire for loans.
 
 For support, contact daniel@fihaven.app.
 ```
@@ -49,14 +51,28 @@ For support, contact daniel@fihaven.app.
 
 ## TestFlight — What to Test
 
-> 2296 / 4000 characters.
+> 3869 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 27
 
-Nothing in the app. This build exists to keep the iOS build number in step with a web release, and carries no app-facing changes.
+Loans were being counted as card debt, and that is fixed everywhere it appeared.
 
-WHAT ACTUALLY SHIPPED (ON THE WEB)
+Loans are stored alongside credit cards and told apart internally by type. Several totals forgot to make that distinction, so if you track a mortgage or an auto loan it was being added to "card debt" — a figure that is supposed to mean revolving credit. Anyone with a mortgage saw a card-debt number in the hundreds of thousands.
+
+- Settings > Household now shows Loan debt as its own line, separated from card debt, for the household and for each member. A shared mortgage had been sitting in the household's card total. This part needs the server deploy to take effect.
+- 0% promo alerts no longer fire for loans.
+- On Android, the dashboard's Card debt widget counts revolving credit only. Net worth is unchanged and still counts every liability, loans included — that one is correct as it stands.
+
+Net worth and the debt payoff planner deliberately still include loans. A loan is a real liability and the planner exists to plan it; only "card debt" was wrong.
+
+WHAT TO TEST
+
+If you track a loan or mortgage: check that its balance no longer appears in any card-debt figure, and that Net worth and the Payoff tab are unchanged. If you share a household, check Settings > Household for a separate Loan debt row.
+
+If you have a 0% promo card, confirm its alerts still appear — only loans should have stopped alerting.
+
+WHAT ALSO SHIPPED (ON THE WEB)
 
 FiHaven was invisible to AI assistants, and it turned out to be a configuration problem rather than a content one.
 
@@ -71,15 +87,17 @@ WHAT CHANGED
 - Three new pages: a guide to picking a bill tracker, and honest comparisons for people arriving from Mint or Rocket Money. Each says plainly where FiHaven is the wrong tool.
 - The site's own navigation is now readable without JavaScript. Most AI crawlers do not run it, and they had been seeing a site with almost no internal links.
 
-WHAT TO TEST
+ALSO ON THE WEB: THE DASHBOARD
 
-Nothing in the app — please test as normal and report anything that looks off, but no behaviour has changed.
+The web dashboard has been reframed to match every other tab. Its sections — the header, the payments bar, alerts, and Upcoming Payments — now each sit in a bordered block with a heading, instead of Upcoming Payments floating loose on the background. This is where the loan bug above was first spotted; signed in on the web, the dashboard should now look like the Budget and Cards tabs.
 
-If you want to check the web work: ask ChatGPT or Claude what FiHaven is and see whether the answer matches reality. Or paste a fihaven.app link into Slack, Discord or iMessage and confirm the preview card appears.
+CHECKING THE WEB WORK
+
+Ask ChatGPT or Claude what FiHaven is and see whether the answer matches reality. Or paste a fihaven.app link into Slack, Discord or iMessage and confirm the preview card appears.
 
 NOTE
 
-Build 27 needs no server deploy of its own, but it still carries build 25's (reminder wording, autopay) and build 24's (Apple purchases). If those deploys have not gone out, those fixes are still inactive.
+Build 27 needs a server deploy for the household Loan debt split, and it still carries build 25's (reminder wording, autopay) and build 24's (Apple purchases). If those deploys have not gone out, those fixes are still inactive.
 ```
 
 ---
@@ -87,16 +105,20 @@ Build 27 needs no server deploy of its own, but it still carries build 25's (rem
 ## App Store — What's New (if promoting to release)
 
 ```
-No app-facing changes in this build. The work this round was on the web.
+Loans were being counted as card debt. If you track a mortgage or an auto loan,
+its balance was added to a figure meant to describe revolving credit — so "card
+debt" read far higher than what you owe on cards.
 
-Asking an AI assistant about FiHaven now gets a real answer. Cloudflare had been
-refusing every AI assistant that tried to read fihaven.app, so questions about
-the app went unanswered while ordinary search worked fine. Assistants and AI
-search engines can now reach the site; crawlers that exist only to collect text
-for model training are still refused.
+Loans now stay out of every card-debt total, and a shared household shows loan
+debt as its own line rather than folding it into card debt. Net worth and the
+debt payoff planner still include loans, which is correct — a loan is a real
+liability, and the planner exists to plan it.
 
-Links to fihaven.app also show a preview image again, and the site has new
-guides comparing FiHaven to the tools people arrive from.
+0% promo alerts no longer fire for loans.
+
+On the web, asking an AI assistant about FiHaven now gets a real answer, links
+show a preview image again, and the dashboard has been reframed to match the
+rest of the app.
 ```
 
 ---
@@ -139,3 +161,25 @@ The web is where all of this landed:
 - **The sitemap generates itself** from `scripts/indexnow-urls.js` with `lastmod`
   read from git history, so it can no longer drift from the IndexNow list the way
   it had (it was missing `/refunds` and `/delete-account`).
+- **The dashboard is framed like every other tab.** Header, cash-flow bar,
+  alerts and Upcoming Payments are each a `.panel-block` now — Budget's
+  `.budget-card` chrome promoted out of `budget.css` into `components.css`,
+  with `.budget-card` listed alongside every rule so Budget's markup is
+  untouched and the two can't drift.
+- **Card debt stopped counting loans — everywhere.** `DashboardView.svelte`'s
+  `activeCards` filtered on `archived` only, and loans share the `cards` list,
+  so a tracked mortgage read as card debt. The same shape was in
+  `MainScaffold.kt` (Android's Card debt widget, which also fed `netWorth` —
+  now computed separately), in both clients' 0%-promo alerts, and in
+  `server/household.js`, where every shared `card` entity's balance landed in
+  `cardDebt`.
+- **`loanDebt` added to the household rollup.** `GET /api/household/rollup`
+  now returns `totals.loanDebt` and `byMember[].loanDebt`; loans are split out
+  of `cardDebt` rather than dropped, and both apps render a **Loan debt** row
+  when it's non-zero. Optional on iOS (`Double?`) and defaulted on Android so a
+  client that reaches an older server still decodes. Covered by
+  `tests/integration/householdEntities.server.integration.test.js`.
+- **`activeCreditCards`** added beside `activeCards` in `AppStore.swift` and
+  `Models.kt` (mirroring the web filter), so "revolving credit only" is stated
+  once per codebase. Android Cards/Rewards and iOS Rewards, which had each
+  hand-rolled the filter, now read it.

@@ -63,7 +63,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
     // the rewards estimate in the fee check and the offer-use detection.
     val spendByCategory = Rewards.categorySpendAnnual(data.transactions, DateLogic.today(vm.zone()))
 
-    val creditCards = data.activeCards.filter { it.type != "loan" }
+    val creditCards = data.activeCreditCards
     val anyRewards = creditCards.any { it.rewardBase > 0 || it.rewardCategories.values.any { v -> v > 0 } }
     val ranking = Rewards.rank(data.activeCards, category, vm.zone())
 

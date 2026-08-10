@@ -74,6 +74,10 @@ public struct HouseholdSharedData: Codable, Equatable, Sendable {
 public struct HouseholdRollupTotals: Codable, Equatable, Sendable {
     public var billsMonthly: Double
     public var cardDebt: Double
+    /// Loans are stored as cards and split out of `cardDebt` server-side.
+    /// Optional so a build that reaches a server predating the split still
+    /// decodes instead of failing the whole rollup.
+    public var loanDebt: Double?
     public var goalsTarget: Double
 }
 
@@ -82,6 +86,7 @@ public struct HouseholdMemberRollup: Codable, Equatable, Sendable {
     public var name: String
     public var billsMonthly: Double
     public var cardDebt: Double
+    public var loanDebt: Double?
     public var goalsTarget: Double
 }
 

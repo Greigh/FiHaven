@@ -137,6 +137,30 @@ describe('integration — household shared entities', () => {
     expect(after.entities).toHaveLength(0);
   });
 
+  // Loans are shared as `card` entities and told apart by `type`. Summing them
+  // into cardDebt put a shared mortgage in the household's card total.
+  it('keeps shared loans out of cardDebt and counts them as loanDebt', async () => {
+    const { owner, partner } = await couple('loansplit');
+    await fetch(`${base}/api/household/entities`, J(owner, 'POST', {
+      kind: 'card', item: { id: 'c1', name: 'Visa', balance: 500 },
+    }));
+    await fetch(`${base}/api/household/entities`, J(partner, 'POST', {
+      kind: 'card', item: { id: 'l1', name: 'Mortgage', type: 'loan', balance: 250000 },
+    }));
+
+    const rollup = await (await fetch(`${base}/api/household/rollup`, GET(owner))).json();
+    expect(rollup.totals.cardDebt).toBe(500);
+    expect(rollup.totals.loanDebt).toBe(250000);
+
+    // And per member, so neither total borrows from the other's row.
+    const ownerRow = rollup.byMember.find((m) => m.userId === owner.id);
+    const partnerRow = rollup.byMember.find((m) => m.userId === partner.id);
+    expect(ownerRow.cardDebt).toBe(500);
+    expect(ownerRow.loanDebt).toBe(0);
+    expect(partnerRow.cardDebt).toBe(0);
+    expect(partnerRow.loanDebt).toBe(250000);
+  });
+
   it('round-trips selective-sharing preferences', async () => {
     const { partner } = await couple('prefs');
     const res = await fetch(`${base}/api/household/share-prefs`, J(partner, 'PUT', { prefs: { bills: true, cards: false } }));

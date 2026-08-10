@@ -95,7 +95,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
     var showArchived by remember { mutableStateOf(false) }
     val zone = vm.zone()
 
-    val creditCards = data.activeCards.filter { it.type != "loan" }
+    val creditCards = data.activeCreditCards
     val useArchive = data.settings.archiveInsteadOfDelete
     val archivedForKind = data.archivedCards.filter { (it.type == "loan") == isLoanView }
 

@@ -40,7 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
-| [1.6.1](v1.6.1/ios27-android48.md) | iOS 27 · Android 48 | 2026-08-08 | No app-facing changes — a web release: AI assistants can read the site again, share previews work, three new comparison pages |
+| [1.6.1](v1.6.1/ios27-android48.md) | iOS 27 · Android 48 | 2026-08-09 | Loans stop counting as card debt on every platform; household splits out Loan debt (**needs server deploy**). Ships with a web release: AI assistants can read the site, share previews work, three comparison pages, reframed dashboard |
 | [1.6.1](v1.6.1/ios26-android47.md) | iOS 26 · Android 47 | 2026-08-07 | Cards lead with what to pay this period, not the statement balance; wide issuer logos stop being letterboxed |
 | [1.6.1](v1.6.1/ios25-android46.md) | iOS 25 · Android 46 | 2026-08-04 | The one-tap ✕ is gone from the Spending list; deleting a purchase happens in the editor |
 | [1.6.1](v1.6.1/ios24-android45.md) | iOS 24 · Android 45 | 2026-08-04 | Buying Pro on iPhone works — the server was never switched on to accept Apple receipts (build 23 skipped) |

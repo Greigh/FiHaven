@@ -167,8 +167,21 @@
   font-size: 11px;
   color: var(--muted);
 }
+/* The body plays the page background so the blocks on it read the way the
+   real dashboard's .panel-block sections do. */
 .marketing-preview-body {
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg);
+}
+/* Scaled-down .panel-block — same framed-rectangle language as the app. */
+.marketing-preview-block {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -179,12 +192,14 @@
   justify-content: space-between;
   gap: 12px;
 }
+/* Matches the app's .panel-kicker: accent, mono, not grey. */
 .marketing-preview-label {
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .09em;
+  font-weight: 500;
+  letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   margin-bottom: 2px;
 }
 .marketing-preview-title {
