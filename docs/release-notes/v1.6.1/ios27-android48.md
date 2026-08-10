@@ -8,17 +8,19 @@ so the text below goes in by hand.
 This is **the copy actually being shipped**, not a reconstruction. Source: the
 `[1.6.1]` section of [CHANGELOG.md](../../../CHANGELOG.md).
 
-**This build fixes one thing in the apps: loans were being counted as card
-debt.** Alongside it ships a web release — making fihaven.app readable by AI
-assistants, and reframing the web dashboard to match the rest of the app.
+**The theme of this build is that loans were being counted as card debt** — in
+the household rollup, in the promo alerts, and in the figures the phones show.
+Credit utilization also started reading the live balance, and Card debt reached
+the phone dashboards for the first time. Alongside it ships a web release:
+making fihaven.app readable by AI assistants, and reframing the web dashboard to
+match the rest of the app.
 
-## ⚠️ This build needs a server deploy
+## Server deploy: done
 
 The household **Loan debt** split is computed server-side
-(`server/household.js`). Until the server is deployed, both apps keep showing a
-household card-debt total that includes shared loans — the app-side change is
-in place and simply has nothing to read yet. The dashboard and promo-alert
-fixes are client-side and work immediately.
+(`server/household.js`) and **that deploy has gone out**, so the apps have
+something to read as soon as the build lands. The dashboard, utilization and
+promo-alert fixes are client-side and work regardless.
 
 **The outstanding server requirements from earlier builds still stand.** Build
 25's bill-reminder wording and autopay guard are server-side, and so is
@@ -27,6 +29,11 @@ refused. If either deploy has not gone out, see
 [ios25-android46.md](ios25-android46.md) and
 [ios24-android45.md](ios24-android45.md) — the requirements do not expire by
 being skipped.
+
+**Build tooling:** versionCode 48's APK builds on **Gradle 9.7.0** (bumped from
+9.6.1 after this file was first written). Verified against `main`: `:core:test`,
+`:app:testDebugUnitTest`, `:app:compileDebugKotlin` and `:app:assembleDebug` all
+pass, no new deprecations. Nothing in the app changes as a result.
 
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer). **TestFlight "What to Test" is 4000.**
@@ -51,7 +58,7 @@ For support, contact daniel@fihaven.app.
 
 ## TestFlight — What to Test
 
-> 3443 / 4000 characters.
+> 3452 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 27
@@ -60,7 +67,7 @@ Loans were being counted as card debt, and that is fixed everywhere it appeared.
 
 Loans are stored alongside credit cards and told apart internally by type. Several totals forgot to make that distinction, so if you track a mortgage or an auto loan it was being added to "card debt" — a figure that is supposed to mean revolving credit. Anyone with a mortgage saw a card-debt number in the hundreds of thousands.
 
-- Settings > Household now shows Loan debt as its own line, separated from card debt, for the household and for each member. A shared mortgage had been sitting in the household's card total. This part needs the server deploy to take effect.
+- Settings > Household now shows Loan debt as its own line, separated from card debt, for the household and for each member. A shared mortgage had been sitting in the household's card total.
 - 0% promo alerts no longer fire for loans.
 - Credit utilization now reads the live balance everywhere it appears. A card charged since its statement closed was warning you based on the older figure, so a card at 90% of its limit could stay silent. Net worth is unchanged and still counts every liability, loans included — that one is correct as it stands.
 - The dashboard shows Card debt. The web version has always had that tile; on the phones the figure was missing, and the Card debt widget on Android could never actually appear. It is now an Overview tile and a widget you can reorder or switch off.
@@ -90,7 +97,7 @@ Ask ChatGPT or Claude what FiHaven is and see whether the answer matches reality
 
 NOTE
 
-Build 27 needs a server deploy for the household Loan debt split, and it still carries build 25's (reminder wording, autopay) and build 24's (Apple purchases). If those deploys have not gone out, those fixes are still inactive.
+The server side of the Loan debt split is already deployed, so it works as soon as you install this build. Build 27 still carries build 25's server requirement (reminder wording, autopay) and build 24's (Apple purchases); if those deploys have not gone out, those fixes remain inactive.
 ```
 
 ---
@@ -118,9 +125,9 @@ rest of the app.
 
 ## Web / server (shipped with the same train)
 
-**This build does need a server deploy** — `server/household.js` computes the
-`loanDebt` split the apps now render. The outstanding deploys from builds 25 and
-24 are unaffected by it — see the note at the top.
+**The server deploy for this build has gone out** — `server/household.js`
+computes the `loanDebt` split the apps now render. The outstanding deploys from
+builds 25 and 24 are unaffected by it — see the note at the top.
 
 The web is where the rest of this landed:
 
@@ -176,6 +183,13 @@ The web is where the rest of this landed:
   `Models.kt` (mirroring the web filter), so "revolving credit only" is stated
   once per codebase. Android Cards/Rewards and iOS Rewards, which had each
   hand-rolled the filter, now read it.
+- **PM2 cluster mode now warns at boot.** `householdEvents.js`'s SSE subscriber
+  registry is per-process, which is correct for the current fork-mode deploy.
+  A future `pm2 scale` or `-i` would silently split household members across
+  instances so they stopped seeing each other's live edits, while every request
+  still returned 200. `warnIfMultiProcess()` names that symptom in the log
+  rather than refusing to boot, which would turn a degraded feature into an
+  outage. No behaviour change on the current deploy.
 - **Utilization moved behind one helper** — `Schedule.utilization` (iOS,
   Android) and `utilizationOf` (web), returning nil/null for a loan or a card
   with no limit. The row, the dashboard alert and the "highest utilization"

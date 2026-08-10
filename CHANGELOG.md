@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — testing build (TestFlight / Play) |
-| **iOS** | 1.6.1 (27) - loans stop being counted as card debt: Settings → Household separates **Loan debt** from card debt (a shared mortgage had been sitting in the household's card total), and the 0%-promo alerts no longer fire for loans. **Needs the server deploy** for the household split. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 26 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
-| **Android** | 1.6.1 (versionCode 48) - loans stop being counted as card debt: the dashboard's **Card debt** widget counts revolving credit only (net worth still counts every liability), Settings → Household separates **Loan debt** from card debt, and the 0%-promo alerts no longer fire for loans. **Needs the server deploy** for the household split. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 47 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
+| **iOS** | 1.6.1 (27) - loans stop being counted as card debt: Settings → Household separates **Loan debt** from card debt (a shared mortgage had been sitting in the household's card total), and the 0%-promo alerts no longer fire for loans. The server deploy this needed **has gone out**. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 26 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
+| **Android** | 1.6.1 (versionCode 48) - loans stop being counted as card debt: the dashboard's **Card debt** widget counts revolving credit only (net worth still counts every liability), Settings → Household separates **Loan debt** from card debt, and the 0%-promo alerts no longer fire for loans. The server deploy this needed **has gone out**. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 47 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
 > Want the Pre-Release/Beta builds? Join directly:
@@ -45,6 +45,35 @@ Each release below uses two layers:
 > instead of drawn as zero.
 
 ### Changes
+
+**Gradle 9.7.0 for the Android build (Aug 10)**
+
+Wrapper bump from 9.6.1, via Dependabot (#252). Verified against `main` rather
+than on the PR's own green checks: the branch predated the merge that added the
+`:app` unit-test source set, so CI there never ran `:app:testDebugUnitTest` —
+precisely the task a Gradle bump is most likely to break. `:core:test` (11),
+`:app:testDebugUnitTest` (7), `:app:compileDebugKotlin` and `:app:assembleDebug`
+all pass on 9.7.0, with no new deprecations under `--warning-mode all`.
+
+**PM2 cluster mode is a loud failure for live household sync now (Aug 9)**
+
+The SSE subscriber registry in `householdEvents.js` is per-process, which is
+correct for the current deploy — `pm2 start server/index.js --name fihaven` with
+no `-i` is fork mode, one instance, so every connection and every write share
+one map. Nothing is broken today.
+
+The risk is a future `pm2 scale` or `-i`. A write on instance A would reach only
+subscribers attached to instance A, so household members split across instances
+would stop seeing each other's edits — while every request still returned 200
+and the durable event log still recorded everything. That presents as flaky sync
+rather than an outage, the kind of fault that survives for months because
+nothing ever looks broken enough to chase.
+
+`warnIfMultiProcess()` now runs at boot beside `mfa.warnIfProductionFileKey()`
+and names the symptom first, because someone reading the logs is searching for
+"sync is flaky", not "cluster worker". `cluster.isWorker` distinguishes the two
+modes without depending on PM2's env vars. It warns rather than exits
+deliberately: refusing to boot would turn a degraded feature into a site outage.
 
 **Card debt counted your loans (Aug 9)**
 
@@ -85,7 +114,7 @@ the filter (Android Cards and Rewards, iOS Rewards) now read it too.
 
 The new `loanDebt` field is optional on iOS and defaulted on Android, so an app
 build that reaches a server predating the split still decodes its rollup.
-**The server must be deployed for the household split to take effect.**
+The server deploy this needed **has gone out**, so the household split is live.
 
 **Card debt is on the phone dashboards now, and the widget catalogs match
 again.** Verifying the above on an emulator turned up that Android's Card debt
@@ -1281,9 +1310,13 @@ app and the server. Most of what follows had been true on more than one platform
 
 #### iOS 27 / Android 48
 
-> **Web-only.** No native code changed; the build numbers move to stay in step
-> with the web deploy. `securityHeaders.js` gains CSP hashes for the new
-> `ld+json` blocks, so the server does need the deploy — which has gone out.
+> **Server deploy: done.** `securityHeaders.js` gained CSP hashes for the new
+> `ld+json` blocks, and `server/household.js` now splits `loanDebt` out of the
+> rollup's `cardDebt`. Both are deployed, so the apps have something to read on
+> day one. Everything else here is client-side.
+>
+> This build started web-only and no longer is: the loan/card-debt work below
+> changes iOS and Android too.
 
 **Discoverability (`client/`, `scripts/`)**
 
@@ -1322,6 +1355,47 @@ app and the server. Most of what follows had been true on more than one platform
 - `server/securityHeaders.js` — `INLINE_SCRIPT_HASHES` updated for the six
   `ld+json` blocks. Regenerate with `npm run csp:hashes` (it prints for paste;
   it does not write the file).
+
+**Card debt vs loans (`client/`, `ios/`, `android/`, `server/`)**
+
+- `activeCreditCards` joins `activeCards` in `AppStore.swift` and `Models.kt`;
+  web filters inline in `DashboardView.svelte`. Anything meaning "revolving
+  credit" reads it; payoff, net worth and calendar keep `activeCards`.
+- `Schedule.utilization` (iOS, Android) and `utilizationOf` (`utils.js`) —
+  one definition each, returning nil/null for a loan or a card with no limit,
+  always measured from `liveBalance`. Replaces three per-platform copies that
+  had drifted onto the statement balance in the alert and the sort.
+- `Schedule.cardDebt` — non-archived, non-loan, at live balance.
+- `server/household.js` — `computeRollup` splits loans into `totals.loanDebt`
+  and `byMember[].loanDebt` instead of summing them into `cardDebt`. Field is
+  `Double?` on iOS and defaulted on Android so a client predating the split
+  still decodes. Covered by `householdEntities.server.integration.test.js`.
+- `MainScaffold.kt` — card debt and `netWorth` are computed separately now;
+  net worth still counts every liability at the statement balance.
+
+**Dashboard widgets + layout (`client/`, `ios/`, `android/`)**
+
+- `debt` added to all three widget catalogs in the same position, with a
+  renderer on each, and to the Overview tiles on iOS/Android so Classic shows
+  it. Android had rendered a `"debt"` branch whose id was missing from its
+  catalog, so `enabled()` filtered it out and it could never appear.
+- `dashboardWidgets.test.js` parses `DashboardWidget.swift` and
+  `MainScaffold.kt` and asserts all three catalogs and default sets match — the
+  list syncs across platforms and each drops ids it doesn't know, so a
+  one-platform id is silently stripped by whichever saves last.
+- `.panel-block` promoted out of `budget.css` into `components.css`, with
+  `.budget-card` listed alongside every rule. Dashboard sections are framed
+  blocks; Budget's markup is untouched.
+
+**Test suites (`ios/`, `android/`)**
+
+- `ios/FiHavenCore` gains an XCTest target (`swift test`) — previously only the
+  `FiHavenCoreChecks` executable existed. Test targets build only under
+  `swift test`, so the app linking the package is unaffected.
+- `android :app` gains a JVM unit-test source set (`:app:testDebugUnitTest`)
+  on JUnit 5 with `isReturnDefaultValues`; it had none.
+- `server/householdEvents.js` — `warnIfMultiProcess()` at boot; see the
+  summary above.
 
 #### iOS 26 / Android 47
 
