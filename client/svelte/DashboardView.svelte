@@ -8,7 +8,7 @@
   import { bills, cards, payments, settings } from '../js/storage.svelte.js';
   import {
     fmt, currentPeriodKey, periodKeyLabel, shortDate,
-    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
+    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance, utilizationOf,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem, needsAmount, nothingDue,
     periodObligationItems, hidePaidOnDashboard,
@@ -86,9 +86,8 @@
   let owedLabel     = $derived(owedLabelFor(periodCfg));
 
   function cardUtil(c) {
-    const bal = liveCardBalance(c);
-    const lim = parseFloat(c.limit) || 0;
-    return lim > 0 ? Math.round((bal / lim) * 100) : null;
+    const ratio = utilizationOf(c);
+    return ratio == null ? null : Math.round(ratio * 100);
   }
 
   let trialAlerts = $derived(

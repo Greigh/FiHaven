@@ -189,6 +189,24 @@ Both apps follow a shared API + data + design + billing contract. FiHaven Pro
 entitlement is server-authoritative and unified across web (Paddle), iOS
 (StoreKit), and Android (Play) — see [the API section](#api).
 
+### Running the tests
+
+The same finance logic is mirrored across all three platforms, so a change to
+one usually means a change to all three — and to each of their suites.
+
+| Platform | Command | Covers |
+|---|---|---|
+| Web | `npx vitest run` | `client/js/*.test.js`, `server/*.test.js`, `tests/integration/` |
+| iOS core | `cd ios/FiHavenCore && swift test` | XCTest suite (`Tests/FiHavenCoreTests`) |
+| iOS core (checks) | `FH_INCLUDE_CHECKS=1 swift run FiHavenCoreChecks` | the older hand-rolled check executable |
+| Android core | `android/gradlew -p android :core:test` | shared Kotlin logic |
+| Android app | `android/gradlew -p android :app:testDebugUnitTest` | app-module pure logic (search, formatting) |
+
+Compile checks — `npx vite build`, `:app:compileDebugKotlin`, and an iOS
+`xcodebuild … CODE_SIGNING_ALLOWED=NO` — round out local validation. Neither app
+module has an instrumented (device) suite; UI behaviour is verified by driving
+an emulator/simulator by hand.
+
 ---
 
 ## Project structure

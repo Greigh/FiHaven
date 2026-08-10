@@ -52,10 +52,7 @@ struct CardsView: View {
         (fBalance ? 1 : 0) + (fPromo ? 1 : 0) + (fOverdue ? 1 : 0)
     }
 
-    // Live balance, matching the utilization each row displays.
-    private func util(_ c: Card) -> Double {
-        c.limit > 0 ? Schedule.liveBalance(c) / c.limit : 0
-    }
+    private func util(_ c: Card) -> Double { Schedule.utilization(c) ?? 0 }
     private func dueDays(_ c: Card) -> Int {
         guard let dd = c.dueDay else { return 9999 }
         let ref = String(c.id)

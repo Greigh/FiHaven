@@ -91,6 +91,19 @@ android {
         }
     }
     buildFeatures { buildConfig = true }
+
+    // JVM unit tests for the app module's pure logic. `returnDefaultValues`
+    // keeps a stray android.jar call (Log, TextUtils) from throwing "not
+    // mocked" instead of failing on the assertion you care about.
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            all {
+                it.useJUnitPlatform()
+                it.testLogging { events("passed", "failed", "skipped") }
+            }
+        }
+    }
 }
 
 kotlin {
@@ -99,6 +112,10 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.compose.ui:ui")

@@ -69,7 +69,8 @@ across the board rather than on the web alone:
 - **Android** — the dashboard's Card debt widget summed `activeCards`. It also
   fed `netWorth`, so the two are now computed separately: card debt from
   revolving credit, net worth from every liability. The 0%-promo alerts were
-  missing the loan filter too.
+  missing the loan filter too. (That widget turns out to be unreachable — see
+  the note below — so only the alerts change is visible on Android today.)
 - **iOS** — no card-debt tile to fix, but the 0%-promo alerts had the same gap.
 - **Household** (Settings → Household, iOS and Android) — the server's rollup
   counted every shared `card` entity into `cardDebt`, so a shared mortgage
@@ -85,6 +86,27 @@ the filter (Android Cards and Rewards, iOS Rewards) now read it too.
 The new `loanDebt` field is optional on iOS and defaulted on Android, so an app
 build that reaches a server predating the split still decodes its rollup.
 **The server must be deployed for the household split to take effect.**
+
+**Found while verifying this on the emulator, not fixed:** Android's Card debt
+widget is unreachable. `MainScaffold.kt` renders a `"debt"` branch, but `"debt"`
+isn't in `DashboardWidgets.catalog`, so `enabled()` filters the id out and the
+widget can never appear. Web has no `debt` id either (its card-debt figure is
+one of the four tiles in `stats`), and iOS has no such widget at all. Adding the
+id to Android alone would round-trip badly: web's settings editor reseeds from
+its own catalog, so saving dashboard settings on web would silently drop it.
+Either delete the dead branch or add the widget to all three — a product call,
+left open deliberately.
+
+**Utilization and card debt now read the live balance on iOS and Android.** Both
+apps already used `Schedule.liveBalance` for their Cards-tab headline but fell
+back to the raw statement balance in the dashboard alert and the "highest
+utilization" sort, so a card's own row could read 91% while the alert naming it
+computed 13% — and, below the 80% threshold, didn't fire at all. All three
+platforms now route every utilization through one helper (`Schedule.utilization`
+/ `utilizationOf`), which returns null for a loan or a card with no limit.
+Verified on the emulator: a card with a $1,200 statement and an $8,100 live
+balance against a $9,000 limit now alerts at **90%**, where before it was
+silent. Net worth deliberately stays on the statement balance, matching web.
 
 **The dashboard is framed like the rest of the app (Aug 9)**
 

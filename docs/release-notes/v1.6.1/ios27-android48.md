@@ -62,7 +62,7 @@ Loans are stored alongside credit cards and told apart internally by type. Sever
 
 - Settings > Household now shows Loan debt as its own line, separated from card debt, for the household and for each member. A shared mortgage had been sitting in the household's card total. This part needs the server deploy to take effect.
 - 0% promo alerts no longer fire for loans.
-- On Android, the dashboard's Card debt widget counts revolving credit only. Net worth is unchanged and still counts every liability, loans included — that one is correct as it stands.
+- Credit utilization now reads the live balance everywhere it appears. A card charged since its statement closed was warning you based on the older figure, so a card at 90% of its limit could stay silent. Net worth is unchanged and still counts every liability, loans included — that one is correct as it stands.
 
 Net worth and the debt payoff planner deliberately still include loans. A loan is a real liability and the planner exists to plan it; only "card debt" was wrong.
 
@@ -183,3 +183,18 @@ The web is where all of this landed:
   `Models.kt` (mirroring the web filter), so "revolving credit only" is stated
   once per codebase. Android Cards/Rewards and iOS Rewards, which had each
   hand-rolled the filter, now read it.
+- **Utilization moved behind one helper** — `Schedule.utilization` (iOS,
+  Android) and `utilizationOf` (web), returning nil/null for a loan or a card
+  with no limit. The row, the dashboard alert and the "highest utilization"
+  sort each derived it separately and had drifted onto the statement balance
+  on both native platforms.
+- **Test suites added.** `swift test` now runs an XCTest target in
+  `ios/FiHavenCore` (previously only the custom `FiHavenCoreChecks`
+  executable), and Android's `:app` module gained a JVM unit-test source set
+  (`:app:testDebugUnitTest`) where it had none. Both, plus `:core:test` and
+  `client/js/utils.test.js`, assert the same card-debt and utilization cases.
+- **Known, not fixed:** Android's `"debt"` dashboard widget is unreachable —
+  the branch exists in `MainScaffold.kt` but the id is missing from
+  `DashboardWidgets.catalog`, so `enabled()` filters it out. Web and iOS have
+  no such widget. Adding the id to Android alone would be dropped by web's
+  settings editor on the next save.

@@ -182,6 +182,29 @@ object Schedule {
     fun liveBalance(card: Card): Double = card.currentBalance ?: card.balance
 
     /**
+     * Credit utilization as a 0..1 ratio, or null when there is nothing to
+     * measure against — a loan (no revolving limit) or a card with no limit
+     * set. Always from [liveBalance], because that is the figure the issuer
+     * reports. Mirrors utilizationOf in utils.js.
+     *
+     * One helper for every caller on purpose: the row, the dashboard alert and
+     * the "highest utilization" sort each derived this separately, and drifted
+     * apart — a row could read 91% while the alert naming it computed less.
+     */
+    fun utilization(card: Card): Double? {
+        if (card.type == "loan" || card.limit <= 0) return null
+        return liveBalance(card) / card.limit
+    }
+
+    /**
+     * What's owed on revolving credit: non-archived, non-loan, at live balance.
+     * Loans share the cards list, so summing it raw puts a mortgage in the card
+     * total. Net worth is the opposite case and counts every liability.
+     */
+    fun cardDebt(cards: List<Card>): Double =
+        cards.filter { !it.archived && it.type != "loan" }.sumOf { liveBalance(it) }
+
+    /**
      * The amounts a card row shows, resolved together so the headline and its
      * companion figures can never disagree.
      */

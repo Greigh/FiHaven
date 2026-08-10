@@ -45,12 +45,13 @@ struct AlertsWidget: View {
     @EnvironmentObject var store: AppStore
     private var alerts: [String] {
         var out: [String] = []
-        // Live balance, so the alert can't disagree with the utilization the
-        // card's own row shows (that reads CardAmounts.current = liveBalance).
-        for c in store.activeCreditCards where c.limit > 0 {
-            let bal = Schedule.liveBalance(c)
-            let util = Int((bal / c.limit) * 100)
+        // Schedule.utilization, so the alert can't disagree with the percentage
+        // the card's own row shows.
+        for c in store.activeCards {
+            guard let ratio = Schedule.utilization(c) else { continue }
+            let util = Int(ratio * 100)
             if util >= 80 {
+                let bal = Schedule.liveBalance(c)
                 out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(bal)) of \(Money.fmt(c.limit))).")
             }
         }

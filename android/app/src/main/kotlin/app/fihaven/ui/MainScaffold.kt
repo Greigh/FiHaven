@@ -379,7 +379,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     // Live balance, like the Cards tab and web: a card charged since its
     // statement closed still counts toward what's owed. Net worth stays on the
     // statement balance, which is what web's Net Worth panel reports.
-    val cardDebt = data.activeCreditCards.sumOf { Schedule.liveBalance(it) }
+    val cardDebt = Schedule.cardDebt(data.cards)
     val netWorth = data.accounts.sumOf { it.balance } - data.activeCards.sumOf { it.balance }
     val spent = data.transactions
         .filter { it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
@@ -388,16 +388,14 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         .filter { !it.skipped && it.date.isNotEmpty() && it.date >= periodBounds.startKey && it.date < periodBounds.endKey }
         .sumOf { it.amount }
     // 0% promo / overdue alerts — mirrors the web dashboard alert logic.
-    // Live balance, so the alert can't disagree with the utilization the card's
-    // own row shows (that reads CardAmounts.current, which is liveBalance).
-    val utilAlerts = data.activeCreditCards.filter { it.limit > 0 }.mapNotNull { c ->
+    // Schedule.utilization, so the alert can't disagree with the percentage the
+    // card's own row shows.
+    val utilAlerts = data.activeCards.mapNotNull { c ->
+        val ratio = Schedule.utilization(c) ?: return@mapNotNull null
+        val util = (ratio * 100).toInt()
+        if (util < 80) return@mapNotNull null
         val bal = Schedule.liveBalance(c)
-        val util = ((bal / c.limit) * 100).toInt()
-        when {
-            util >= 90 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
-            util >= 80 -> "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
-            else -> null
-        }
+        "💳 ${c.name} — $util% credit utilization (${Money.fmt(bal)} of ${Money.fmt(c.limit)})."
     }
     // activeBills, not bills: an archived subscription is meant to be gone from
     // every list and total, but its trial kept alerting on the dashboard (iOS
