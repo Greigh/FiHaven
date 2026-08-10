@@ -33,6 +33,7 @@ const cookieParser = require('cookie-parser');
 
 const dbApi = require('./db');
 const mfa = require('./mfa');
+const householdEvents = require('./householdEvents');
 const { loadSession, requireVerified } = require('./session');
 const { assertProductionSafe } = require('./securityConfig');
 const authRouter = require('./routes/auth');
@@ -370,6 +371,9 @@ app.listen(PORT, () => {
   console.log(`FiHaven server listening on http://localhost:${PORT}`);
   console.log(`database: ${dbApi.DB_PATH}`);
   mfa.warnIfProductionFileKey();
+  // Live household sync degrades silently under PM2 cluster mode — see the
+  // header of server/householdEvents.js.
+  householdEvents.warnIfMultiProcess();
   // Non-fatal SMTP health probe so "emails aren't working" is visible in the
   // boot logs instead of only surfacing as swallowed per-send errors.
   mail.verify()

@@ -786,6 +786,43 @@ invalidates any existing subscription instantly.
 4. Offline writes get flushed on `pagehide` /
    `visibilitychange:hidden` via `fetch(keepalive: true)`.
 
+### Live household sync is SSE, not WebSockets
+
+Shared-household changes are pushed live over **Server-Sent Events** —
+`GET /api/household/stream`, fanned out by
+[`server/householdEvents.js`](server/householdEvents.js). All three clients
+consume the same endpoint: web via `EventSource`, iOS via
+`APIClient+Household.swift`, Android via `AppViewModel.kt`. Every change is
+also appended to the durable `household_events` table, so a client that
+reconnects replays what it missed via `?since=` / `Last-Event-ID`.
+
+This is **only** for shared entities: the route is gated by
+`household.requireMembership`. A solo user's own web ↔ phone sync is the
+request/response flow in *Per-user data flow* above — on boot, on save, on
+`pagehide` — not a live channel.
+
+Three things about that are easy to get wrong later:
+
+- **Cloudflare's WebSockets toggle is deliberately off, and that is safe.**
+  SSE is an ordinary long-lived HTTP response, not an `Upgrade:` handshake,
+  so the toggle has no bearing on it. Nothing in the codebase speaks
+  WebSocket. Turning it on would not help live sync; turning it off does not
+  hurt it.
+- **`Cache-Control: no-cache, no-transform` on the stream is load-bearing.**
+  The `no-transform` stops Cloudflare compressing the response. Without it a
+  CDN can buffer events until the compression window flushes, which turns
+  "live" into "every 30 seconds or so" — working, just wrong, and miserable
+  to diagnose. The 25-second `: ping` keeps the connection inside
+  Cloudflare's idle timeout.
+- **The subscriber registry is per-process, and PM2 must stay in fork mode.**
+  The deploy runs `pm2 start server/index.js --name fihaven` with no `-i`,
+  so there is exactly one instance and the fan-out is complete. Under cluster
+  mode a write on instance A reaches only subscribers attached to instance A;
+  every request still returns 200, so it presents as flaky sync rather than an
+  outage. `householdEvents.warnIfMultiProcess()` runs at boot and says so
+  loudly. Scaling out means moving the registry to Redis pub/sub — the durable
+  log already makes that a drop-in.
+
 ### Time zones
 
 All due-date math (`utils.js`: `daysUntilDue`, `nextDueDate`, …) goes
