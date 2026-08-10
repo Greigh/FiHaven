@@ -13,6 +13,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'alerts',        label: 'Alerts' },
   { id: 'upcoming',      label: 'Upcoming payments' },
   { id: 'networth',      label: 'Net worth' },
+  { id: 'debt',          label: 'Card debt' },
   { id: 'spending',      label: 'Spending' },
   { id: 'goals',         label: 'Savings goals' },
   { id: 'subscriptions', label: 'Subscriptions' },

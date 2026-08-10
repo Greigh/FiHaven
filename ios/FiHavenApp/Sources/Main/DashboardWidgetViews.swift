@@ -45,10 +45,14 @@ struct AlertsWidget: View {
     @EnvironmentObject var store: AppStore
     private var alerts: [String] {
         var out: [String] = []
-        for c in store.activeCards where c.type != "loan" && c.limit > 0 {
-            let util = Int((c.balance / c.limit) * 100)
+        // Schedule.utilization, so the alert can't disagree with the percentage
+        // the card's own row shows.
+        for c in store.activeCards {
+            guard let ratio = Schedule.utilization(c) else { continue }
+            let util = Int(ratio * 100)
             if util >= 80 {
-                out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(c.balance)) of \(Money.fmt(c.limit))).")
+                let bal = Schedule.liveBalance(c)
+                out.append("💳 \(c.name) — \(util)% credit utilization (\(Money.fmt(bal)) of \(Money.fmt(c.limit))).")
             }
         }
         for b in store.activeBills where !(b.trialEnds ?? "").isEmpty {
@@ -57,7 +61,7 @@ struct AlertsWidget: View {
                 out.append("⏳ \(b.name) — free trial ends \(dayWord).")
             }
         }
-        for c in store.activeCards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
+        for c in store.activeCreditCards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
             let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
             let bal = c.promoBalance ?? c.balance
             guard bal > 0 else { continue }

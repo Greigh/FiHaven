@@ -8,7 +8,7 @@
   import { bills, cards, payments, settings } from '../js/storage.svelte.js';
   import {
     fmt, currentPeriodKey, periodKeyLabel, shortDate,
-    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance,
+    monthsUntil, daysUntilDate, promoNeeded, liveCardBalance, utilizationOf,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem, needsAmount, nothingDue,
     periodObligationItems, hidePaidOnDashboard,
@@ -43,7 +43,11 @@
   const periodCfg = getPeriodConfig();
 
   /* ── Top stat tiles ──────────────────────────────────── */
-  let activeCards = $derived(cards.filter((c) => !c.archived));
+  // Loans live in the same list but are not revolving credit — they stay out
+  // of card debt, the card count, utilization alerts and promo deadlines.
+  let activeCards = $derived(
+    cards.filter((c) => !c.archived && (c.type || 'card') !== 'loan')
+  );
   // Live balance (current when tracked, statement otherwise) — a card charged
   // since its statement closed still counts toward debt and utilization.
   let totalDebt = $derived(activeCards.reduce((s, c) => s + liveCardBalance(c), 0));
@@ -82,9 +86,8 @@
   let owedLabel     = $derived(owedLabelFor(periodCfg));
 
   function cardUtil(c) {
-    const bal = liveCardBalance(c);
-    const lim = parseFloat(c.limit) || 0;
-    return lim > 0 ? Math.round((bal / lim) * 100) : null;
+    const ratio = utilizationOf(c);
+    return ratio == null ? null : Math.round(ratio * 100);
   }
 
   let trialAlerts = $derived(
@@ -95,7 +98,6 @@
   let alerts = $derived.by(() => {
     const out = [];
     activeCards.forEach((c) => {
-      if (c.type === 'loan') return;
       const util = cardUtil(c);
       if (util != null && util >= 80) {
         out.push({
@@ -185,22 +187,27 @@
   }
 </script>
 
-<!-- ─── Slim header ─────────────────────────────────────── -->
-<div class="dash-header">
-  <div class="dash-header-text">
-    <div class="dash-header-kicker">Dashboard · {monthName}</div>
-    <h1>Today at a glance</h1>
+<!-- ─── Hero: header + stat strip in one framed block ───── -->
+<!-- Classic layout keeps the strip here, under the title it
+     summarises. Widgets layout lets the strip be reordered, so
+     there it carries its own block (see statsTiles). -->
+<div class="panel-block">
+  <div class="dash-header">
+    <div class="dash-header-text">
+      <div class="dash-header-kicker">Dashboard · {monthName}</div>
+      <h1>Today at a glance</h1>
+    </div>
+    <div class="dash-header-actions">
+      <button class="btn btn-primary btn-sm" onclick={() => window.openBillModal()}>+ Add Bill</button>
+      <button class="btn btn-ghost btn-sm" onclick={() => window.openCardModal()}>+ Add Card</button>
+      <button class="btn btn-ghost btn-sm" onclick={() => window.showTab('payoff')}>Payoff plan</button>
+    </div>
   </div>
-  <div class="dash-header-actions">
-    <button class="btn btn-primary btn-sm" onclick={() => window.openBillModal()}>+ Add Bill</button>
-    <button class="btn btn-ghost btn-sm" onclick={() => window.openCardModal()}>+ Add Card</button>
-    <button class="btn btn-ghost btn-sm" onclick={() => window.showTab('payoff')}>Payoff plan</button>
-  </div>
+  {#if layout === 'classic'}{@render statStrip()}{/if}
 </div>
 
 <!-- ─── Layout dispatch: classic (fixed) or widgets (configurable) ─── -->
 {#if layout === 'classic'}
-  {@render statsTiles()}
   {@render cashflowBar()}
   {@render alertsBlock()}
   {@render upcomingBlock()}
@@ -211,6 +218,7 @@
     {:else if id === 'alerts'}{@render alertsBlock()}
     {:else if id === 'upcoming'}{@render upcomingBlock()}
     {:else if id === 'networth'}<NetWorthPanel />
+    {:else if id === 'debt'}{@render debtBlock()}
     {:else if id === 'spending'}<SpendingPanel />
     {:else if id === 'goals'}<GoalsPanel />
     {:else if id === 'subscriptions'}<SubscriptionsPanel />
@@ -221,7 +229,21 @@
 {/if}
 
 <!-- ─── Stat tiles ──────────────────────────────────────── -->
+<!-- Widgets layout only: the strip needs its own rectangle when
+     it floats free of the hero. -->
 {#snippet statsTiles()}
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">At a glance</div>
+      <h3 class="panel-title">Where you stand</h3>
+    </div>
+  </div>
+  {@render statStrip()}
+</div>
+{/snippet}
+
+{#snippet statStrip()}
 <div class="stat-strip">
   <div class="stat-tile {unpaidAmt > 0 ? 'is-warn' : 'is-good'}">
     <div class="stat-label">{owedLabel}</div>
@@ -251,13 +273,36 @@
 </div>
 {/snippet}
 
+<!-- ─── Card debt (widgets layout only) ─────────────────── -->
+<!-- Classic already carries this as one of the four stat tiles; as a
+     widget it's a block of its own so it can be reordered or switched
+     off. Loans are excluded — see totalDebt. -->
+{#snippet debtBlock()}
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">Card debt</div>
+      <h3 class="panel-title">What you owe on cards</h3>
+    </div>
+  </div>
+  <div class="stat-strip">
+    <div class="stat-tile {totalDebt > 0 ? 'is-bad' : 'is-good'}">
+      <div class="stat-label">Card debt</div>
+      <div class="stat-value">{fmt(totalDebt)}</div>
+      <div class="stat-sub">{activeCards.length} card{activeCards.length === 1 ? '' : 's'} tracked</div>
+    </div>
+  </div>
+</div>
+{/snippet}
+
 <!-- ─── Cash-flow progress bar ──────────────────────────── -->
 {#snippet cashflowBar()}
 {#if monthBudgeted > 0}
-  <div class="cashflow-card">
-    <div class="cashflow-head">
+  <div class="panel-block cashflow-card">
+    <div class="panel-block-head">
       <div>
-        <div class="cashflow-title">This period's payments</div>
+        <div class="panel-kicker">This period</div>
+        <h3 class="panel-title">Payments</h3>
         <div class="cashflow-sub">
           <span style="color:var(--green);">{fmt(paidThisMo)} paid</span>
           <span style="opacity:.5;"> · </span>
@@ -282,10 +327,20 @@
 <!-- ─── Alerts ──────────────────────────────────────────── -->
 {#snippet alertsBlock()}
 {#if alerts.length > 0}
-  <div class="alert-stack">
-    {#each alerts as a, i (i)}
-      <div class="alert {a.type}"><div>{@html a.html}</div></div>
-    {/each}
+  <div class="panel-block">
+    <div class="panel-block-head">
+      <div>
+        <div class="panel-kicker">Needs attention</div>
+        <h3 class="panel-title">
+          {alerts.length} thing{alerts.length === 1 ? '' : 's'} to look at
+        </h3>
+      </div>
+    </div>
+    <div class="alert-stack">
+      {#each alerts as a, i (i)}
+        <div class="alert {a.type}"><div>{@html a.html}</div></div>
+      {/each}
+    </div>
   </div>
 {/if}
 {/snippet}
@@ -373,12 +428,16 @@
 {/snippet}
 
 {#snippet upcomingBlock()}
-<div class="upcoming-wrap">
-  <div class="section-header" style="margin-bottom:0;">
-    <span class="section-title">Upcoming Payments</span>
-    <span class="mono" style="font-size:11px;color:var(--muted);">{monthName}</span>
+<div class="panel-block">
+  <div class="panel-block-head">
+    <div>
+      <div class="panel-kicker">Upcoming</div>
+      <h3 class="panel-title">Upcoming payments</h3>
+    </div>
+    <span class="mono panel-head-meta">{monthName}</span>
   </div>
 
+  <div class="upcoming-wrap">
   {#if visibleItems.length === 0 && snoozedItems.length === 0}
     <div class="empty">
       <div class="empty-icon">✅</div>
@@ -413,5 +472,6 @@
       </div>
     </div>
   {/if}
+  </div>
 </div>
 {/snippet}

@@ -39,6 +39,13 @@ final class AppStore: ObservableObject {
     var archivedBills: [Bill] { data.bills.filter { $0.archived } }
     var archivedCards: [Card] { data.cards.filter { $0.archived } }
 
+    /// Non-archived *revolving credit* only. Loans share the `cards` list and
+    /// are told apart by `type`, so anything that means "credit card" — card
+    /// debt, utilization, promo deadlines — must read this instead of
+    /// `activeCards`. Payoff, net worth and calendar want loans and keep
+    /// `activeCards`. Mirrors web and Android.
+    var activeCreditCards: [Card] { activeCards.filter { ($0.type ?? "card") != "loan" } }
+
     /// A pending "new month started" prompt, shown once per month on the dashboard.
     struct RolloverPrompt: Identifiable {
         let id = UUID()
@@ -591,6 +598,11 @@ final class AppStore: ObservableObject {
     // Archived cards are soft-deleted, so they must not count as debt.
     var liabilities: Double { activeCards.reduce(0) { $0 + $1.balance } }
     var netWorth: Double { assets - liabilities }
+
+    /// What's owed on revolving credit — loans excluded, at live balance.
+    /// Distinct from `liabilities` above, which counts every liability
+    /// (loans included) at the statement balance, matching web's Net Worth.
+    var cardDebt: Double { Schedule.cardDebt(data.cards) }
 
     // ── Spending (transactions in the current period) ───────────────
     var periodTransactions: [SpendTransaction] {

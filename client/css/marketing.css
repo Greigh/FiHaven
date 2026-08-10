@@ -167,8 +167,21 @@
   font-size: 11px;
   color: var(--muted);
 }
+/* The body plays the page background so the blocks on it read the way the
+   real dashboard's .panel-block sections do. */
 .marketing-preview-body {
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg);
+}
+/* Scaled-down .panel-block — same framed-rectangle language as the app. */
+.marketing-preview-block {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -179,12 +192,14 @@
   justify-content: space-between;
   gap: 12px;
 }
+/* Matches the app's .panel-kicker: accent, mono, not grey. */
 .marketing-preview-label {
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .09em;
+  font-weight: 500;
+  letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   margin-bottom: 2px;
 }
 .marketing-preview-title {
@@ -601,6 +616,63 @@ a.app-badge:hover {
 .app-badge-text small { font-size: 10px; opacity: .72; letter-spacing: .02em; }
 .app-badge-text strong { font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
 
+/* ── Comparison pages ───────────────────────────────────── */
+/* Used by the "alternative to X" pages. The table has to stay
+   readable on a phone, so it scrolls inside its own box rather
+   than forcing the page to scroll sideways. */
+.compare-scroll {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.compare-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.compare-table th,
+.compare-table td {
+  padding: 14px 18px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.compare-table tr:last-child th,
+.compare-table tr:last-child td { border-bottom: 0; }
+.compare-table thead th {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* The FiHaven column is the point of the table — tint it. */
+.compare-table thead th.is-us { color: var(--accent); }
+.compare-table td.is-us {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  font-weight: 600;
+}
+.compare-table tbody th {
+  font-weight: 600;
+  color: var(--text);
+  width: 30%;
+}
+
+/* Honest-tradeoff callout — the "pick them instead if…" block. */
+.compare-honest {
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  padding: 20px 22px;
+}
+.compare-honest h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -.01em; }
+.compare-honest p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 980px) {
   .marketing-hero-grid {
@@ -616,5 +688,6 @@ a.app-badge:hover {
   .marketing-section-soft { padding: 36px 18px; }
   .marketing-cta-band { padding: 28px 22px; }
   .marketing-preview-stats { grid-template-columns: 1fr !important; }
+  .compare-table th, .compare-table td { padding: 12px 14px; }
 }
 

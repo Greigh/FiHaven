@@ -15,12 +15,17 @@
   <meta property="og:url" content="https://fihaven.app/contact"/>
   <meta property="og:title" content="FiHaven — Contact"/>
   <meta property="og:description" content="Where to send billing, privacy, and security notes — and what to try first in the app."/>
-  <meta property="og:image" content="https://fihaven.app/og-image.svg"/>
+  <meta property="og:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
   <meta property="og:locale" content="en_US"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FiHaven — Contact"/>
   <meta name="twitter:description" content="Where to send billing, privacy, and security notes — and what to try first in the app."/>
-  <meta name="twitter:image" content="https://fihaven.app/og-image.svg"/>
+  <meta name="twitter:image" content="https://fihaven.app/og-image.jpg"/>
+  <meta name="twitter:image:alt" content="FiHaven — quiet money, calm month. A focused bill and debt dashboard."/>
 
   <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" href="/favicon.ico" sizes="32x32"/>
@@ -32,6 +37,72 @@
   <link rel="stylesheet" href="css/styles.css"/>
   <link rel="stylesheet" href="css/tailwind-built.css"/>
   <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+
+  <!-- Cloudflare's Email Address Obfuscation rewrites every mailto: in the
+       body to /cdn-cgi/l/email-protection#<hex>, which a browser decodes with
+       JavaScript. Crawlers that don't run JS — most AI crawlers — therefore
+       see no address at all on the one page whose job is contact routing.
+       Obfuscation deliberately skips <script> blocks, so the addresses below
+       survive intact and stay machine-readable while humans keep the
+       anti-harvesting protection. Verified: the JSON-LD emails come through
+       the edge unrewritten. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "FiHaven", "item": "https://fihaven.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Contact", "item": "https://fihaven.app/contact" }
+        ]
+      },
+      {
+        "@type": "ContactPage",
+        "name": "Contact FiHaven",
+        "url": "https://fihaven.app/contact",
+        "inLanguage": "en-US",
+        "description": "Where to send product, billing, privacy, and security enquiries about FiHaven.",
+        "mainEntity": {
+          "@type": "Organization",
+          "name": "FiHaven",
+          "url": "https://fihaven.app/",
+          "legalName": "Greigh Studios LLC",
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "contactType": "customer support",
+              "email": "support@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Product help, onboarding, promo codes, and billing questions."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "technical support",
+              "email": "daniel@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Trouble joining the Android open test on Google Play or the iOS TestFlight beta."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "privacy",
+              "email": "security@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Privacy questions, data export or deletion, and GDPR/CCPA access requests."
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "security",
+              "email": "security@fihaven.app",
+              "availableLanguage": "en",
+              "description": "Suspected vulnerabilities or account compromise. A private GitHub advisory is preferred."
+            }
+          ]
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body class="min-h-screen text-(--text) antialiased" data-auth="public">
   <div class="page-frame">
@@ -107,7 +178,19 @@
       <div class="site-footer-brand">
         <strong style="color:var(--text);">FiHaven</strong> — one inbox at a time.
       </div>
-      <div class="site-footer-links" data-public-footer></div>
+      <div class="site-footer-links" data-public-footer>
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/faq">FAQ</a>
+        <a href="/bill-tracker-app">Bill Tracker Guide</a>
+        <a href="/security">Security</a>
+        <a href="/contact">Contact</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/refunds">Refunds</a>
+        <a href="/delete-account">Delete Account</a>
+      </div>
       <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
       <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
     </footer>

@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="client/public/icon.svg" alt="FiHaven logo" width="96" height="96" />
+<img src="client/public/icon.svg" alt="FiHaven logo" width="120" height="120" />
+<img src="docs/maintainer/iap-promo/feature-graphic.png" alt="FiHaven Promo" />
 
 # FiHaven
 
@@ -10,7 +11,7 @@ A calm, manual-first money dashboard — bills, cards, loans, budget, and
 debt payoff — with full native iOS/macOS and Android apps on a shared
 backend.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
+[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL (JS/TS)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL%20%28JS%2FTS%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![CodeQL (Swift)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-swift.yml?branch=main&label=CodeQL%20%28Swift%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-swift.yml) [![CodeQL (Kotlin)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-android.yml?branch=main&label=CodeQL%20%28Kotlin%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-android.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
 [![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
@@ -188,6 +189,24 @@ Both apps follow a shared API + data + design + billing contract. FiHaven Pro
 entitlement is server-authoritative and unified across web (Paddle), iOS
 (StoreKit), and Android (Play) — see [the API section](#api).
 
+### Running the tests
+
+The same finance logic is mirrored across all three platforms, so a change to
+one usually means a change to all three — and to each of their suites.
+
+| Platform | Command | Covers |
+|---|---|---|
+| Web | `npx vitest run` | `client/js/*.test.js`, `server/*.test.js`, `tests/integration/` |
+| iOS core | `cd ios/FiHavenCore && swift test` | XCTest suite (`Tests/FiHavenCoreTests`) |
+| iOS core (checks) | `FH_INCLUDE_CHECKS=1 swift run FiHavenCoreChecks` | the older hand-rolled check executable |
+| Android core | `android/gradlew -p android :core:test` | shared Kotlin logic |
+| Android app | `android/gradlew -p android :app:testDebugUnitTest` | app-module pure logic (search, formatting) |
+
+Compile checks — `npx vite build`, `:app:compileDebugKotlin`, and an iOS
+`xcodebuild … CODE_SIGNING_ALLOWED=NO` — round out local validation. Neither app
+module has an instrumented (device) suite; UI behaviour is verified by driving
+an emulator/simulator by hand.
+
 ---
 
 ## Project structure
@@ -257,10 +276,12 @@ fihaven/
 │   │   └── MfaSection.svelte        Settings → 2FA UI (TOTP/passkey/email)
 │   ├── public/                      copied verbatim to dist root
 │   │   ├── robots.txt
-│   │   ├── sitemap.xml
+│   │   ├── sitemap.xml              generated — npm run sitemap
 │   │   ├── site.webmanifest
+│   │   ├── llms.txt                 product summary for LLM agents
+│   │   ├── llms-full.txt
 │   │   ├── icon.svg
-│   │   └── og-image.svg
+│   │   └── og-image.jpg             share cards — npm run generate:og
 │   └── svelte.config.js
 ├── server/
 │   ├── index.js                     Express entry — env, routes, static,
@@ -318,6 +339,11 @@ fihaven/
 ├── scripts/
 │   ├── promo.js                     promo-code admin CLI (deployed to production)
 │   ├── generate-icons.sh            iOS/Android icon generation
+│   ├── generate-og.js               Open Graph share cards → client/public/*.jpg
+│   ├── generate-sitemap.js          sitemap.xml from indexnow-urls.js + git lastmod
+│   ├── check-crawler-policy.js      assert live AI-crawler allow/block matrix
+│   ├── indexnow-urls.js             single source of truth for public URLs
+│   ├── submit-indexnow.js           ping IndexNow with those URLs
 │   ├── README.md                    script index
 │   ├── examples/upload.example.sh   deploy template — copy to upload.sh at repo root
 │   ├── examples/rollback.example.sh restore a pre-deploy backup on the VPS
@@ -351,7 +377,11 @@ fihaven/
 | `npm run deploy:android` | `bundleRelease` + upload AAB (and mapping/native symbols) to Play; default track `beta` (Open testing) — `--track alpha` for Closed testing. |
 | `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
 | `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
+| `npm run generate:og` | Regenerate the 1200×630 Open Graph share cards into `client/public/` (headless Chrome + ImageMagick; needs network for the webfont). |
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
+| `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
+| `npm run sitemap:check` | Fail if the committed sitemap is stale — runs as part of `npm run ci`. |
+| `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
 ---
@@ -425,6 +455,9 @@ the Vite dev middleware.
 | `/login` | Log-in / sign-up | public | ✅ |
 | `/pricing` | Plans & FiHaven Pro pricing | public | ✅ |
 | `/faq` | Frequently asked questions | public | ✅ |
+| `/bill-tracker-app` | Guide: how to pick a bill tracker (`Article` + `FAQPage`) | public | ✅ |
+| `/mint-alternative` | Comparison for people arriving from Mint | public | ✅ |
+| `/rocket-money-alternative` | Comparison for people arriving from Rocket Money | public | ✅ |
 | `/security` | Security & privacy overview | public | ✅ |
 | `/contact` | Contact / support | public | ✅ |
 | `/terms` | Terms of Use | public | ✅ |
@@ -610,11 +643,17 @@ requires Pro; **joining** one is free. Shared entities live-sync via SSE.
 | `DELETE` | `/api/household/members/:userId` | Remove a member |
 | `POST` | `/api/household/leave` | Leave the household |
 | `GET` | `/api/household/data` | Shared-entities snapshot |
+| `GET` | `/api/household/rollup` | Shared totals — `billsMonthly`, `cardDebt`, `loanDebt`, `goalsTarget`, per household and per member |
 | `POST` | `/api/household/entities` | Share a bill / card / goal |
 | `PUT` | `/api/household/entities/:kind/:id` | Update a shared entity |
 | `DELETE` | `/api/household/entities/:kind/:id` | Unshare an entity |
 | `PUT` | `/api/household/share-prefs` | Update share/unshare preferences |
 | `GET` | `/api/household/stream[/:since]` | SSE stream of live household changes |
+
+Loans are shared as `card` entities and told apart by `type`, so the rollup
+splits them into `loanDebt` rather than summing them into `cardDebt` — a shared
+mortgage is household debt, but it isn't card debt. `loanDebt` is optional on
+iOS and defaulted on Android, so a client predating the split still decodes.
 
 All mutating routes (every `POST` / `PUT` / `DELETE` above) require
 the session cookie **and** the `X-CSRF-Token` header — its value is
@@ -732,9 +771,18 @@ invalidates any existing subscription instantly.
 
 ### Live snapshot + variance + cushion + audit
 
-- **DashboardView.svelte** renders the "Overview tiles" at the top of
-  the dashboard — monthly income, due-this-month bills, cushion, and the
-  next bill due, all derived live from `$state` proxies.
+- **DashboardView.svelte** renders the stat strip at the top of the
+  dashboard — still owed this period, cushion after bills, card debt,
+  and 0% promos ending within three months, all derived live from
+  `$state` proxies. Loans are excluded from the card-debt tile and its
+  count: they share the `cards` list but aren't revolving credit, so
+  they'd otherwise put a mortgage into "card debt". Net worth and the
+  payoff planner still count them. The same split exists natively as
+  `activeCreditCards` beside `activeCards` (`AppStore.swift`,
+  `Models.kt`) — reach for it whenever a total means "credit card".
+- Each dashboard section — header, cash-flow bar, alerts, upcoming — is
+  a `.panel-block`, the framed rectangle defined in `components.css` and
+  shared with Budget's `.budget-card`.
 - **Sparkline.svelte** is rendered next to each bill, showing the
   amount actually paid each of the last 6 months — a quick visual on
   variable bills.
@@ -755,6 +803,43 @@ invalidates any existing subscription instantly.
    fine-grained reactivity handles re-renders. No event bridge.
 4. Offline writes get flushed on `pagehide` /
    `visibilitychange:hidden` via `fetch(keepalive: true)`.
+
+### Live household sync is SSE, not WebSockets
+
+Shared-household changes are pushed live over **Server-Sent Events** —
+`GET /api/household/stream`, fanned out by
+[`server/householdEvents.js`](server/householdEvents.js). All three clients
+consume the same endpoint: web via `EventSource`, iOS via
+`APIClient+Household.swift`, Android via `AppViewModel.kt`. Every change is
+also appended to the durable `household_events` table, so a client that
+reconnects replays what it missed via `?since=` / `Last-Event-ID`.
+
+This is **only** for shared entities: the route is gated by
+`household.requireMembership`. A solo user's own web ↔ phone sync is the
+request/response flow in *Per-user data flow* above — on boot, on save, on
+`pagehide` — not a live channel.
+
+Three things about that are easy to get wrong later:
+
+- **Cloudflare's WebSockets toggle is deliberately off, and that is safe.**
+  SSE is an ordinary long-lived HTTP response, not an `Upgrade:` handshake,
+  so the toggle has no bearing on it. Nothing in the codebase speaks
+  WebSocket. Turning it on would not help live sync; turning it off does not
+  hurt it.
+- **`Cache-Control: no-cache, no-transform` on the stream is load-bearing.**
+  The `no-transform` stops Cloudflare compressing the response. Without it a
+  CDN can buffer events until the compression window flushes, which turns
+  "live" into "every 30 seconds or so" — working, just wrong, and miserable
+  to diagnose. The 25-second `: ping` keeps the connection inside
+  Cloudflare's idle timeout.
+- **The subscriber registry is per-process, and PM2 must stay in fork mode.**
+  The deploy runs `pm2 start server/index.js --name fihaven` with no `-i`,
+  so there is exactly one instance and the fan-out is complete. Under cluster
+  mode a write on instance A reaches only subscribers attached to instance A;
+  every request still returns 200, so it presents as flaky sync rather than an
+  outage. `householdEvents.warnIfMultiProcess()` runs at boot and says so
+  loudly. Scaling out means moving the registry to Redis pub/sub — the durable
+  log already makes that a drop-in.
 
 ### Time zones
 
@@ -975,13 +1060,84 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 - `robots.txt` allows everything except the authenticated/utility
   routes (`/dashboard`, `/settings`, `/welcome`, `/verify-email`,
   `/reset`, `/recover`, `/plaid-oauth`, `/dev-portal`) and `/api/*`,
-  and points to the sitemap.
-- `sitemap.xml` lists the eight public pages (`/`, `/pricing`, `/faq`,
-  `/login`, `/security`, `/contact`, `/terms`, `/privacy`).
+  and points to the sitemap. It also carries a `Content-Signal`
+  declaration (`search=yes, ai-input=yes, ai-train=no`) and a
+  per-class AI crawler policy — see below.
+- `sitemap.xml` is **generated**, not hand-written: `npm run sitemap`
+  builds it from `PUBLIC_PAGES` in [`scripts/indexnow-urls.js`](scripts/indexnow-urls.js),
+  taking each `<lastmod>` from the last git commit that touched the
+  page. That list is the single source of truth for both the sitemap
+  and the IndexNow submitter, so the two can't drift.
+  `npm run sitemap:check` fails the build if it's stale, and runs in `npm run ci`.
 - Every public page carries Open Graph + Twitter cards, a canonical
-  URL, and a description. The home page also ships a JSON-LD
-  `WebApplication` schema. Private pages set `noindex,nofollow`.
+  URL, and a description. Private pages set `noindex,nofollow`.
+- **Share cards are JPEG, deliberately.** `og:image` was an SVG for a
+  while, which X, Facebook, LinkedIn, Slack, Discord and iMessage all
+  refuse — every shared link rendered as bare text. `npm run generate:og`
+  ([`scripts/generate-og.js`](scripts/generate-og.js)) renders 1200×630
+  JPEGs through headless Chrome so the real webfont is used.
+- **Structured data**: `SoftwareApplication` (with `featureList` and every
+  priced offer) + `WebSite` + `Organization` on the home page, `Product` +
+  `AggregateOffer` on `/pricing`, and `BreadcrumbList` + `FAQPage` on `/faq`
+  and the comparison pages. Adding a JSON-LD block changes the CSP hash
+  list — run `npm run csp:hashes` and paste into
+  [`server/securityHeaders.js`](server/securityHeaders.js).
 - A web manifest + maskable SVG icon make the app installable.
+
+### AI crawlers
+
+`llms.txt` and `llms-full.txt` at the site root state what FiHaven is,
+what each tier costs, and where it isn't the right tool — written to be
+read directly by an assistant rather than scraped out of marketing copy.
+
+The policy is **answerable, not trainable**: crawlers that let an
+assistant find and cite FiHaven are allowed (`OAI-SearchBot`,
+`Claude-SearchBot`, `PerplexityBot`, and the user-triggered
+`ChatGPT-User` / `Claude-User` / `Perplexity-User` that fire when a real
+person asks a question); crawlers that exist to bulk-collect training
+text are refused (`GPTBot`, `ClaudeBot`, `CCBot`, `Amazonbot`,
+`meta-externalagent`, `Bytespider`).
+
+> **robots.txt is advisory — Cloudflare is the enforcing layer.** The
+> zone's AI Crawl Control settings decide what actually gets a 403.
+> Keep Cloudflare's **"Manage your robots.txt"** feature **off**: when on,
+> it prepends a managed block that disallowed `Google-Extended` (opting
+> the site out of Gemini's answers) and duplicated user-agent groups
+> against this repo's file. Verify what is actually served with
+> `curl -s https://fihaven.app/robots.txt`.
+
+Because that policy lives in a dashboard rather than in this repo, it can
+drift without a commit and CI would never notice — which is exactly how
+every AI crawler ended up blocked once. **`npm run check:crawlers`**
+asserts the whole matrix against production: answer engines and
+user-triggered assistants must get `200`, training crawlers must get
+`403`. Run it after any change to the zone's bot settings.
+
+**Where the block actually lives.** Not in the "Block AI bots" toggle and
+not in "Configure block response" — it's a WAF custom rule named
+*AI Crawl Control - Block AI bots by User Agent*, in the
+`http_request_firewall_custom` phase, matching on `http.user_agent
+contains "…"`. Its expression opens with a path guard listing what stays
+reachable even for a blocked crawler:
+
+```
+not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}
+```
+
+That guard originally exempted `/robots.txt` alone, which is why a blocked
+crawler got a 403 on `llms.txt` and read nothing about FiHaven at all. **If
+you publish another machine-readable file, add it to that expression and to
+`SHOULD_EXEMPT` in [`check-crawler-policy.js`](scripts/check-crawler-policy.js)
+together** — the check fails if they disagree.
+
+> Edits to that rule propagate unevenly across edge PoPs for a minute or
+> two, so a single `curl` right after a change can report either state.
+> Sample it a few times before believing it.
+
+Marketing pages are also crawlable **without JavaScript** — the footer
+links are real markup, not injected. Most AI crawlers don't run JS, and
+when the nav and footer were JS-only the served homepage linked to just
+`/login` and `/pricing`. Keep it that way when editing page templates.
 
 ---
 

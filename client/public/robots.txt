@@ -1,7 +1,28 @@
 # FiHaven — crawler rules for https://fihaven.app/
 # Public marketing and legal pages are indexable; the signed-in app is not.
+#
+# Machine-readable product summary for LLM agents:
+#   https://fihaven.app/llms.txt
+#   https://fihaven.app/llms-full.txt
+#
+# ── Cloudflare note ────────────────────────────────────────────
+# Cloudflare's "Manage your robots.txt" feature, when enabled,
+# PREPENDS its own managed block to this file at the edge — so
+# the served file is not what you see here. Its list disallowed
+# Google-Extended, which contradicts the policy below.
+#
+# Keep that feature OFF so this file is the single source of
+# truth. If you turn it back on, re-check the served file with:
+#   curl -s https://fihaven.app/robots.txt
 
+# Content signals (contentsignals.org) — an explicit statement of
+# what our content may be used for, independent of which bot is
+# asking. search: indexing and returning links/excerpts.
+# ai-input: grounding and retrieval for generative answers — we
+# want to be citable. ai-train: model training — we do not
+# consent to that.
 User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 Allow: /
 
 # Authenticated app, onboarding, and account flows (also noindex in HTML).
@@ -16,5 +37,66 @@ Disallow: /dev-portal
 
 # API and machine endpoints — not web pages.
 Disallow: /api/
+
+# ── AI crawlers ────────────────────────────────────────────────
+# Policy: allow the crawlers that let an assistant find and cite
+# FiHaven; refuse the ones that exist to bulk-collect text for
+# model training. The distinction matters — a blocked answer bot
+# means someone asking "what is FiHaven?" is told the site can't
+# be reached.
+#
+# NOTE: robots.txt is advisory. The enforcing layer is the
+# Cloudflare bot configuration for this zone; these rules only
+# state intent to crawlers that choose to honour it.
+
+# Answer engines — index the site so it can be cited in AI search.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# User-triggered fetchers — these fire when a real person asks an
+# assistant about FiHaven or pastes a link. Always allow.
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Google-Extended is allowed deliberately. It gates Gemini
+# grounding as well as training, so disallowing it would drop
+# FiHaven out of Gemini's answers.
+User-agent: Google-Extended
+Allow: /
+
+# Training-only scrapers — no. These collect text for model
+# training and return no discovery value.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
 
 Sitemap: https://fihaven.app/sitemap.xml

@@ -3,6 +3,7 @@ import {
   recommendedAmount,
   promoNeeded,
   liveCardBalance,
+  utilizationOf,
   cardAmounts,
   cardHeadlineMode,
   otherCardAmounts,
@@ -130,6 +131,37 @@ describe('utils — liveCardBalance', () => {
     expect(liveCardBalance({ currentBalance: '75' })).toBe(75);
     expect(liveCardBalance(null)).toBe(0);
     expect(liveCardBalance({})).toBe(0);
+  });
+});
+
+// Mirrors Schedule.utilization on iOS/Android — see CardTotalsTest.kt and
+// CardTotalsTests.swift, which assert the same cases.
+describe('utils — utilizationOf', () => {
+  it('measures against the live balance, not the statement', () => {
+    // The bug this guards: a card charged since its statement closed read 30%
+    // in one place and 91% in another.
+    expect(utilizationOf({ balance: 3000, limit: 10000, currentBalance: 9100 }))
+      .toBeCloseTo(0.91, 10);
+  });
+
+  it('is null when there is no limit to measure against', () => {
+    expect(utilizationOf({ balance: 500, limit: 0 })).toBe(null);
+    expect(utilizationOf({ balance: 500 })).toBe(null);
+    expect(utilizationOf(null)).toBe(null);
+  });
+
+  it('is null for a loan, which has a principal rather than a limit', () => {
+    expect(utilizationOf({ balance: 250000, limit: 300000, type: 'loan' })).toBe(null);
+  });
+
+  it('is not clamped when the card is over its limit', () => {
+    // Callers that draw a bar clamp for display; the sort and the alert want
+    // the true ratio.
+    expect(utilizationOf({ balance: 1200, limit: 1000 })).toBeCloseTo(1.2, 10);
+  });
+
+  it('handles string amounts', () => {
+    expect(utilizationOf({ balance: '500', limit: '1000' })).toBeCloseTo(0.5, 10);
   });
 });
 
