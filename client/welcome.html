@@ -29,6 +29,19 @@
     .onboard-goal .blurb{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;}
     .onboard-feature{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--text);}
     .onboard-feature .emoji{font-size:17px;width:24px;text-align:center;flex:none;}
+    /* Pro step. Borrows the check-mark list and price treatment from the
+       pricing page so the paywall reads as the same product, not a
+       differently-drawn one-off. */
+    .onboard-price{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-top:16px;}
+    .onboard-price-amount{font-size:32px;font-weight:800;letter-spacing:-.02em;color:var(--text);line-height:1;}
+    .onboard-price-cycle{font-size:14px;color:var(--muted);}
+    .onboard-price-badge{font-size:12px;font-weight:600;color:var(--accent,#3D6FE1);background:var(--accent-bg,rgba(61,111,225,.08));border-radius:999px;padding:4px 10px;}
+    .onboard-pro-list{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-direction:column;gap:11px;}
+    .onboard-pro-list li{display:flex;align-items:flex-start;gap:10px;font-size:14.5px;line-height:1.45;color:var(--text);}
+    .onboard-pro-list svg{width:17px;height:17px;flex:none;margin-top:2px;color:var(--accent,#3D6FE1);}
+    .onboard-family{margin-top:14px;padding:12px 14px;border:1px dashed var(--border);border-radius:12px;font-size:13px;line-height:1.5;color:var(--muted);}
+    .onboard-family strong{color:var(--text);}
+    .onboard-fineprint{font-size:12px;color:var(--muted);margin-top:12px;}
     .onboard-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;min-height:40px;}
     .onboard-back{background:none;border:0;color:var(--text);font:inherit;font-weight:600;cursor:pointer;padding:8px 4px;}
     .onboard-back[hidden]{visibility:hidden;}
@@ -121,20 +134,38 @@
         <div data-step="4" hidden>
           <div class="hero-badge">FiHaven Pro</div>
           <h1 style="margin-top:14px;">Go further with Pro.</h1>
-          <p style="margin-top:12px;">Free covers the basics. Pro unlocks planning tools that keep working across web, iOS, and Android.</p>
-          <ul style="list-style:none;padding:0;margin:16px 0 0;display:flex;flex-direction:column;gap:10px;" class="onboard-card">
-            <li class="onboard-feature"><span class="emoji" aria-hidden="true">📉</span><span>Payoff planner &amp; debt-free date</span></li>
-            <li class="onboard-feature"><span class="emoji" aria-hidden="true">👪</span><span>Family sharing for your household</span></li>
-            <li class="onboard-feature"><span class="emoji" aria-hidden="true">📅</span><span>Due-date calendar &amp; full history</span></li>
-            <li class="onboard-feature"><span class="emoji" aria-hidden="true">⭐</span><span>Rewards &amp; subscription finder</span></li>
-            <li class="onboard-feature"><span class="emoji" aria-hidden="true">🥧</span><span>Category budgets &amp; bank linking</span></li>
+          <p style="margin-top:12px;">Free keeps every bill, card, and loan you track. Pro adds the automated overlay — planning, history, and rewards — on web, iOS, and Android.</p>
+
+          <div class="onboard-price">
+            <span class="onboard-price-amount">$1.99</span>
+            <span class="onboard-price-cycle">/ month · or $14.99 a year</span>
+            <span class="onboard-price-badge">7-day free trial</span>
+          </div>
+
+          <!-- Kept in step with the Pro column on /pricing — the two lists
+               describe the same entitlement and must not drift. Household
+               sharing is deliberately NOT here: that is the Family plan. -->
+          <ul class="onboard-pro-list onboard-card" style="margin-top:14px;">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Payoff planner — snowball, avalanche &amp; minimums</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Calendar view &amp; private iCal feed</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Full payment history &amp; subscription finder</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Rewards optimizer, perks, offers &amp; category budgets</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Optional bank linking via Plaid</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Autopay auto-mark on due dates</span></li>
           </ul>
+
+          <div class="onboard-family">
+            Sharing with someone? <strong>Family</strong> is $25.99 a year and adds a household of
+            up to three people — every Pro feature for you, and members join free.
+          </div>
+
           <div class="auth-actions" style="margin-top:18px;">
             <button class="btn btn-primary" type="button" data-start-trial>Start free trial</button>
-            <button class="btn btn-secondary" type="button" data-get-premium>See Premium plans</button>
+            <button class="btn btn-secondary" type="button" data-get-premium>Compare plans</button>
             <button class="btn btn-ghost" type="button" data-not-now>Not now</button>
             <button class="btn btn-ghost" type="button" data-finish hidden>Continue with Free</button>
           </div>
+          <div class="onboard-fineprint">Cancel anytime. Yearly is $16.99 on iOS and Android — the stores take a cut, so the web price is lower.</div>
         </div>
 
         <div class="auth-error" data-onboard-message aria-live="polite" style="margin-top:12px;"></div>

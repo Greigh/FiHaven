@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Stars
@@ -104,6 +105,7 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     LOANS("loans", "Loans", Icons.Filled.AccountBalance),
     PAYOFF("payoff", "Payoff", Icons.AutoMirrored.Filled.ShowChart),
     REWARDS("rewards", "Rewards", Icons.Filled.Stars),
+    INCOME("income", "Income", Icons.Filled.Paid),
     BUDGET("budget", "Budget", Icons.Filled.PieChart),
     SPENDING("spending", "Spending", Icons.Filled.Payments),
     // Short nav labels — Material bottom bars with 4–5 slots wrap long words
@@ -324,6 +326,7 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.LOANS -> CardsScreen(vm, padding, kind = "loan", onBack = onBack)
         TabId.PAYOFF -> ProGate(vm, ProFeature.PAYOFF, padding, onBack) { PayoffScreen(vm, padding, onBack) }
         TabId.REWARDS -> ProGate(vm, ProFeature.REWARDS, padding, onBack) { RewardsScreen(vm, padding, onBack) }
+        TabId.INCOME -> IncomeScreen(vm, padding, onBack)
         TabId.BUDGET -> BudgetScreen(vm, padding, onBack)
         TabId.SPENDING -> SpendingScreen(vm, padding, onBack)
         TabId.SUBSCRIPTIONS -> ProGate(vm, ProFeature.SUBSCRIPTIONS, padding, onBack) { SubscriptionsScreen(vm, padding, onBack) }

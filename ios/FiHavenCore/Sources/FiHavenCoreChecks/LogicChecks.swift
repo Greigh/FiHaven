@@ -25,6 +25,45 @@ func runIncomeChecks() {
         both.incomes = [IncomeSource(id: "a", label: "Pay", amount: 1000, frequency: "monthly")]
         checkClose(Income.monthlyIncome(from: both), 1000, "sources beat legacy field")
     }
+
+    section("Income — adjustments key on months, not period keys") {
+        let tz = utcTZ
+        // Outside calendar mode a period is keyed by its START DATE. Handing
+        // that to applies(to:) used to match nothing, so a one-time adjustment
+        // created under a rolling period was invisible and counted for nothing.
+        let once = IncomeAdjustment(id: "a", amount: 500, kind: "once", monthKey: "2026-07")
+        check(once.applies(to: "2026-07-08"), "a period key still finds its month")
+        check(once.applies(to: "2026-07"), "a month key matches")
+        check(!once.applies(to: "2026-08-08"), "another month does not")
+
+        // Records an older build stamped with a date heal on read.
+        let legacy = IncomeAdjustment(id: "b", amount: 500, kind: "once", monthKey: "2026-07-08")
+        check(legacy.applies(to: "2026-07"), "a date-stamped record heals")
+
+        // A date-keyed window bound no longer sorts after the month it names.
+        let ending = IncomeAdjustment(id: "c", amount: 100, kind: "recurring",
+                                      startMonth: "2026-06-15", endMonth: "2026-08-15")
+        check(ending.applies(to: "2026-08"), "the end month is inclusive")
+        check(!ending.applies(to: "2026-09"), "past the window is excluded")
+
+        var s = Settings()
+        s.incomeAdjustments = [
+            IncomeAdjustment(id: "jul", amount: 500, kind: "once", monthKey: "2026-07"),
+            IncomeAdjustment(id: "aug", amount: 200, kind: "once", monthKey: "2026-08"),
+            IncomeAdjustment(id: "sep", amount: 900, kind: "once", monthKey: "2026-09"),
+        ]
+        // A 35-day window straddles July and August.
+        let rolling = Period.bounds(for: makeDate(2026, 7, 20, tz: tz),
+                                    config: PeriodConfig(mode: "rolling", length: 35), tz: tz)
+        checkEqual(Income.adjustmentsForPeriod(from: s, bounds: rolling, tz: tz).map { $0.id },
+                   ["jul", "aug"], "every overlapped month is listed")
+        checkEqual(Income.periodAnchorMonth(rolling).count, 7, "a new adjustment anchors to a month")
+
+        let cal = Period.bounds(for: makeDate(2026, 7, 20, tz: tz), config: PeriodConfig(), tz: tz)
+        checkEqual(Income.adjustmentsForPeriod(from: s, bounds: cal, tz: tz).map { $0.id },
+                   ["jul"], "calendar mode is unchanged")
+        checkEqual(Income.periodAnchorMonth(cal), "2026-07", "calendar keys are months already")
+    }
 }
 
 func runDateLogicChecks() {
@@ -261,6 +300,23 @@ func runScheduleChecks() {
         checkClose(Schedule.liveBalance(plain), 300, "live balance falls back to statement", tol: 0.001)
         var paidOff = plain; paidOff.currentBalance = 0
         checkClose(Schedule.liveBalance(paidOff), 0, "a current balance of zero is honored", tol: 0.001)
+
+        // Bank balance review: more debt is "up" (the row paints it red),
+        // less is "down", and float noise from a re-reported figure is not a
+        // change at all. A missing current leaves nothing to compare against.
+        func change(_ cur: Double?, _ proposed: Double,
+                    _ curLimit: Double? = nil, _ propLimit: Double? = nil) -> Schedule.BalanceChange {
+            Schedule.balanceProposalChange(current: cur, proposed: proposed,
+                                           currentLimit: curLimit, proposedLimit: propLimit)
+        }
+        checkEqual(change(2336.64, 2400).direction, "up", "a rising balance reads as up")
+        checkEqual(change(2336.64, 1900).direction, "down", "a falling balance reads as down")
+        checkEqual(change(2336.64, 2336.641).direction, "same", "sub-cent noise is not a change")
+        checkEqual(change(nil, 500).direction, "same", "no current means nothing to compare")
+        check(!change(1, 1, 40900, 40900).limitChanged, "a re-reported limit is not news")
+        check(change(1, 1, 40900, 45000).limitChanged, "a moved limit is news")
+        check(!change(1, 1, 40900, nil).limitChanged, "no limit reported, nothing to say")
+        check(change(1, 1, nil, 5000).limitChanged, "a first limit is news")
 
         // The three amounts are distinct: due (this period's goal under the
         // policy), current (live balance), owed (what's left of the goal).

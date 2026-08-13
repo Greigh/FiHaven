@@ -21,6 +21,7 @@ import { openProDialog } from './pro.js';
     loans:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9.5L12 4l9 5.5"/><path d="M5 10v8M19 10v8M9.5 10v8M14.5 10v8"/><path d="M3.5 21h17"/></svg>',
     rewards:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="5.5"/><path d="M9 13.5L7.5 21l4.5-2.5L16.5 21 15 13.5"/></svg>',
     subscriptions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9h18"/><path d="M8 14a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0z"/><path d="M11 14l4.5-3"/></svg>',
+    income:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.2a3 3 0 0 0-2.5-1.2c-1.4 0-2.5.8-2.5 1.9 0 2.6 5 1.4 5 4 0 1.1-1.1 1.9-2.5 1.9a3 3 0 0 1-2.5-1.2"/><path d="M12 6v12"/></svg>',
     budget:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 1 0 9 9h-9V3z"/></svg>',
     spending:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/><path d="M4 10h16"/><path d="M8 15h3"/></svg>',
     history:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>',
@@ -44,11 +45,11 @@ import { openProDialog } from './pro.js';
   };
 
   // Primary bar tabs vs overflow "More" menu (order matches app.js TABS).
-  var PRIMARY_TABS = ['dashboard', 'bills', 'cards', 'loans', 'budget', 'spending'];
+  var PRIMARY_TABS = ['dashboard', 'bills', 'cards', 'loans', 'income', 'budget', 'spending'];
   var MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
   var TAB_LABELS = {
     dashboard: 'Dashboard', bills: 'Bills', cards: 'Cards', loans: 'Loans',
-    budget: 'Budget', spending: 'Spending', subscriptions: 'Subscriptions',
+    income: 'Income', budget: 'Budget', spending: 'Spending', subscriptions: 'Subscriptions',
     calendar: 'Calendar', history: 'History', payoff: 'Payoff', rewards: 'Rewards',
     networth: 'Net Worth',
   };

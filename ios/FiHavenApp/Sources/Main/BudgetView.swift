@@ -1,20 +1,13 @@
 import SwiftUI
 import FiHavenCore
 
-/// Income sources editor + monthly budget summary.
+/// Budget lens + savings goals for the active period. Income itself is
+/// edited on the Income tab; this screen only consumes the total.
 struct BudgetView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var billing: StoreManager
-    @State private var editing: IncomeSource?
-    @State private var creating = false
-    @State private var editingAdj: IncomeAdjustment?
-    @State private var creatingAdj = false
     @State private var editingGoal: SavingsGoal?
     @State private var creatingGoal = false
-
-    private var periodAdjustments: [IncomeAdjustment] {
-        store.data.settings.incomeAdjustments.filter { $0.applies(to: store.currentPeriodKey) }
-    }
 
     private var obligations: Double {
         // Split into named steps: as one chain the type-checker times out.
@@ -58,39 +51,6 @@ struct BudgetView: View {
                 }
 
                 HStack {
-                    Text("Income sources")
-                        .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
-                    Spacer()
-                    Button { creating = true } label: { Image(systemName: "plus") }
-                        .accessibilityIconButton("Add income source")
-                }
-
-                if store.data.settings.incomes.isEmpty {
-                    Text("No income sources yet. Tap + to add your paycheck.")
-                        .font(Theme.ui(15)).foregroundStyle(Theme.muted).ctCard()
-                }
-                ForEach(store.data.settings.incomes) { src in
-                    incomeRow(src).onTapGesture { editing = src }
-                }
-
-                HStack {
-                    Text("Adjustments · this month")
-                        .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
-                    Spacer()
-                    Button { creatingAdj = true } label: { Image(systemName: "plus") }
-                        .accessibilityIconButton("Add income adjustment")
-                }
-                .padding(.top, 4)
-
-                if periodAdjustments.isEmpty {
-                    Text("Bonus, unpaid time off, or a raise? Tap + to add a one-time or recurring change.")
-                        .font(Theme.ui(13)).foregroundStyle(Theme.muted).ctCard()
-                }
-                ForEach(periodAdjustments) { adj in
-                    adjustmentRow(adj).onTapGesture { editingAdj = adj }
-                }
-
-                HStack {
                     Text("Savings goals")
                         .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.muted)
                     Spacer()
@@ -111,11 +71,6 @@ struct BudgetView: View {
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Budget")
-        .task { store.applyEnvelopeRolloverIfNeeded() }
-        .sheet(isPresented: $creating) { IncomeEditorView(source: nil) }
-        .sheet(item: $editing) { src in IncomeEditorView(source: src) }
-        .sheet(isPresented: $creatingAdj) { IncomeAdjustmentEditorView(adjustment: nil, monthKey: store.currentPeriodKey) }
-        .sheet(item: $editingAdj) { adj in IncomeAdjustmentEditorView(adjustment: adj, monthKey: store.currentPeriodKey) }
         .sheet(isPresented: $creatingGoal) { GoalEditorView(goal: nil) }
         .sheet(item: $editingGoal) { goal in GoalEditorView(goal: goal) }
     }
@@ -155,27 +110,6 @@ struct BudgetView: View {
         guard !g.targetDate.isEmpty, g.remaining > 0 else { return nil }
         let m = max(1, DateLogic.monthsUntil(g.targetDate, tz: tz))
         return g.remaining / Double(m)
-    }
-
-    private func adjustmentRow(_ adj: IncomeAdjustment) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(adj.label.isEmpty ? (adj.amount < 0 ? "Reduction" : "Extra income") : adj.label)
-                    .font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
-                Text(adj.kind == "recurring"
-                     ? "Monthly from \(DateLogic.monthKeyLabel(adj.startMonth, tz: store.tz))"
-                     : "Just \(DateLogic.monthKeyLabel(adj.monthKey, tz: store.tz))")
-                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-            }
-            Spacer()
-            SemanticAmount(
-                value: "\(adj.amount >= 0 ? "+" : "")\(Money.fmt(adj.amount))",
-                tone: adj.amount < 0 ? .negative : .positive,
-                font: Theme.mono(15, weight: .medium)
-            )
-        }
-        .ctCard()
-        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -286,176 +220,6 @@ struct BudgetView: View {
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
 
-    private func incomeRow(_ src: IncomeSource) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(src.label.isEmpty ? "Income" : src.label)
-                    .font(Theme.ui(15, weight: .medium)).foregroundStyle(Theme.text)
-                Text(frequencyLabel(src.frequency))
-                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Money.fmt(src.amount)).font(Theme.mono(15, weight: .medium)).foregroundStyle(Theme.text)
-                Text("\(Money.fmt(Income.monthly(of: src)))/mo")
-                    .font(Theme.mono(10)).foregroundStyle(Theme.muted)
-            }
-        }
-        .ctCard()
-        .contentShape(Rectangle())
-    }
-
-    private func frequencyLabel(_ key: String) -> String {
-        Income.frequencies.first { $0.key == key }?.label ?? key.capitalized
-    }
-}
-
-/// Add/edit an income source.
-struct IncomeEditorView: View {
-    @EnvironmentObject var store: AppStore
-    @Environment(\.dismiss) private var dismiss
-    let source: IncomeSource?
-
-    @State private var label = ""
-    @State private var amount: Double = 0
-    @State private var frequency = "biweekly"
-    @State private var hoursPerWeek: Double = 0
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Label (e.g. Paycheck)", text: $label)
-                    CurrencyField(label: frequency == "hourly" ? "Hourly rate" : "Amount", value: $amount)
-                    Picker("Frequency", selection: $frequency) {
-                        ForEach(Income.frequencies, id: \.key) { f in
-                            Text(f.label).tag(f.key)
-                        }
-                    }
-                    if frequency == "hourly" {
-                        HStack {
-                            Text("Hours / week")
-                            Spacer()
-                            TextField("40", value: $hoursPerWeek, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                        }
-                    }
-                }
-                if source != nil {
-                    Section {
-                        Button("Delete source", role: .destructive) {
-                            if let source { store.deleteIncome(source) }
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .navigationTitle(source == nil ? "New Income" : "Edit Income")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .accessibilityHint("Saves this income source")
-                }
-            }
-            .onAppear {
-                if let source {
-                    label = source.label; amount = source.amount; frequency = source.frequency
-                    hoursPerWeek = source.hoursPerWeek
-                }
-            }
-        }
-    }
-
-    private func save() {
-        let saved = IncomeSource(
-            id: source?.id ?? "src-\(AppStore.newID())",
-            label: label.trimmingCharacters(in: .whitespaces),
-            amount: amount,
-            frequency: frequency,
-            hoursPerWeek: frequency == "hourly" ? hoursPerWeek : 0
-        )
-        store.upsertIncome(saved)
-        dismiss()
-    }
-}
-
-/// Add/edit an income adjustment (bonus / unpaid time off / raise).
-struct IncomeAdjustmentEditorView: View {
-    @EnvironmentObject var store: AppStore
-    @Environment(\.dismiss) private var dismiss
-    let adjustment: IncomeAdjustment?
-    /// The period this is created for (one-time → that month; recurring → from
-    /// that month onward).
-    let monthKey: String
-
-    @State private var label = ""
-    @State private var amount: Double = 0
-    @State private var kind = "once"
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Label (e.g. Bonus, Unpaid PTO)", text: $label)
-                    HStack {
-                        Text("Amount")
-                        Spacer()
-                        TextField("0", value: $amount, format: .number)
-                            .keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
-                    }
-                    Picker("Applies", selection: $kind) {
-                        Text("Just this month").tag("once")
-                        Text("Every month from now").tag("recurring")
-                    }
-                } footer: {
-                    Text("Use a negative amount to reduce income (e.g. unpaid time off). Recurring covers a raise or new ongoing income.")
-                }
-                if adjustment != nil {
-                    Section {
-                        Button("Delete adjustment", role: .destructive) {
-                            if let adjustment { store.deleteAdjustment(adjustment) }
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .navigationTitle(adjustment == nil ? "New Adjustment" : "Edit Adjustment")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .accessibilityHint("Saves this income adjustment")
-                }
-            }
-            .onAppear {
-                if let adjustment {
-                    label = adjustment.label; amount = adjustment.amount; kind = adjustment.kind
-                }
-            }
-        }
-    }
-
-    private func save() {
-        let isRecurring = kind == "recurring"
-        // Preserve the original anchor month when editing; use the view's
-        // month when creating.
-        let onceMonth = adjustment?.monthKey.isEmpty == false ? adjustment!.monthKey : monthKey
-        let startMonth = adjustment?.startMonth.isEmpty == false ? adjustment!.startMonth : monthKey
-        let saved = IncomeAdjustment(
-            id: adjustment?.id ?? "adj-\(AppStore.newID())",
-            label: label.trimmingCharacters(in: .whitespaces),
-            amount: amount,
-            kind: kind,
-            monthKey: isRecurring ? "" : onceMonth,
-            startMonth: isRecurring ? startMonth : "",
-            endMonth: isRecurring ? (adjustment?.endMonth ?? "") : ""
-        )
-        store.upsertAdjustment(saved)
-        dismiss()
-    }
 }
 
 /// Add/edit a savings goal.

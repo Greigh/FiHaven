@@ -19,6 +19,7 @@ import {
   acceptAllBalanceProposals,
   pendingBalanceProposals,
   plaidBalanceMode,
+  proposalComparison,
 } from './plaidBalanceReview.js';
 import { fmt } from './utils.js';
 import { DASHBOARD_WIDGETS, dashboardLayout, enabledWidgets } from './dashboardWidgets.js';
@@ -56,7 +57,7 @@ import {
       case 'confirm-required':
         return 'Type DELETE ACCOUNT DATA exactly to confirm.';
       case 'weak-password':
-        return 'Password must be at least 10 characters with one letter and one number.';
+        return 'Password must be at least 8 characters with a letter, a number, and a symbol.';
       case 'password-unchanged':
         return 'That is already your current password.';
       case 'invalid-email':
@@ -2705,8 +2706,15 @@ import {
         var lines = list.map(function (p) {
           var c = cardList.find(function (x) { return String(x.id) === String(p.id); });
           var name = (c && c.name) || ('Card ' + p.id);
-          return '• ' + name + ': Current → ' + fmt(p.proposedCurrent)
-            + (p.limit != null ? ' (limit ' + fmt(p.limit) + ')' : '');
+          // Same shape as the Cards review row: where the balance stands now,
+          // where the bank says it's going, and the limit only if it moved.
+          var cmp = proposalComparison(p, cardList);
+          var limitText = cmp.limitChanged
+            ? ' (limit ' + (cmp.currentLimit != null ? fmt(cmp.currentLimit) + ' → ' : '') + fmt(cmp.limit) + ')'
+            : '';
+          return '• ' + name + ': Current '
+            + (cmp.current != null ? fmt(cmp.current) + ' ' : '')
+            + '→ ' + fmt(cmp.proposed) + limitText;
         }).join('\n');
         var accept = window.confirm(
           'Bank suggested Current Balance updates:\n\n' + lines

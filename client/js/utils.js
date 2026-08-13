@@ -390,6 +390,38 @@ export function utilizationOf(card) {
   return liveCardBalance(card) / lim;
 }
 
+/* How a bank's suggested figures compare with what's on the card today, for
+   the balance-review row.
+
+   `direction` is which way the debt moves — 'up' is more owed, so the UI
+   paints it red. It's measured against the LIVE balance because that's the
+   field Accept overwrites; comparing against the statement would report the
+   move from a figure the suggestion never touches.
+
+   `limitChanged` is false when the bank re-reports the limit already on file,
+   which keeps unchanged limits out of the row. A first limit on a card that
+   has none counts as a change.
+
+   Both use PAID_EPSILON, the same cent tolerance the paid-state maths uses —
+   a re-reported figure differing in float noise is not a change. Mirrors
+   Schedule.balanceProposalChange on iOS/Android. */
+export function balanceProposalChange(current, proposed, currentLimit, proposedLimit) {
+  var now = current == null ? null : Number(current);
+  var next = Number(proposed) || 0;
+  var direction = 'same';
+  if (now != null && Math.abs(next - now) > PAID_EPSILON) {
+    direction = next > now ? 'up' : 'down';
+  }
+  var lim = proposedLimit == null ? null : Number(proposedLimit);
+  var haveLim = lim != null && isFinite(lim);
+  var oldLim = currentLimit == null ? null : Number(currentLimit);
+  return {
+    direction: direction,
+    limitChanged: haveLim
+      && (oldLim == null || !isFinite(oldLim) || Math.abs(lim - oldLim) > PAID_EPSILON),
+  };
+}
+
 /* The amounts a card row shows, resolved together so the headline and the
    smaller companion figures can never disagree.
      due     — what to pay this period: the goal the paid-goal policy names

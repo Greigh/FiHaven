@@ -30,7 +30,7 @@ describe('integration — PUT /api/data must not drop omitted lists', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email, password: 'partialsave1', loginStartedAt: Date.now() - 5000, captchaToken: 'test',
+        email, password: 'partialsave1!', loginStartedAt: Date.now() - 5000, captchaToken: 'test',
       }),
     });
     const session = await r.json();

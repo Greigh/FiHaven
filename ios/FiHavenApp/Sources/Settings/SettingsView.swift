@@ -62,6 +62,14 @@ struct SettingsView: View {
                 groupRow("Data", "externaldrive.fill", "Export, clear, delete") {
                     detail("Data") { dataSection }
                 }
+                // Only an admin sees this row. It is a courtesy, not a lock:
+                // every /api/admin route enforces the role server-side, so a
+                // client that showed it anyway would just collect 403s.
+                if current.isAdmin {
+                    groupRow("Admin", "shield.lefthalf.filled", "Users, rewards, promo codes") {
+                        AdminView()
+                    }
+                }
                 #if DEBUG
                 groupRow("Developer", "hammer.fill", "Simulate subscription states") {
                     detail("Developer") { developerSection }

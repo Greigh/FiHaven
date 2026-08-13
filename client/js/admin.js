@@ -145,18 +145,52 @@ function fmtRelative(ms, neverLabel) {
   } catch (_) { return fmtWhen(ms); }
 }
 
+var LOGIN_METHOD_LABELS = {
+  password: 'password',
+  passkey: 'passkey',
+  'oauth-google': 'Google',
+  'oauth-apple': 'Apple',
+  signup: 'signup',
+};
+
+function fmtCreated(ms) {
+  // users.created_at. An absolute date beats "8mo ago" here: account age is
+  // read against other dates (a subscription, a support thread), not against
+  // now. Very new accounts still get the relative form, where it's the more
+  // useful read.
+  if (!ms) return 'Unknown';
+  if (Date.now() - ms < 14 * 24 * 60 * 60 * 1000) return fmtRelative(ms, 'Unknown');
+  return fmtWhen(ms) || 'Unknown';
+}
+
 function fmtLastLogin(ms, opts) {
   // last_login_at is only set on auth completion. Long-lived sessions and
   // accounts created before tracking can leave it NULL even when the user
   // has synced data — don't claim "Never logged in" in that case.
-  if (ms) return fmtRelative(ms, 'Never signed in');
-  if (opts && (opts.lastUsedAt || opts.createdAt)) return 'Unknown (pre-tracking)';
-  return 'Never signed in';
+  if (!ms) {
+    // Only claim "pre-tracking" with evidence the account has actually been
+    // used; every signup now stamps last_login_at, so a row with no activity
+    // at all really has never signed in. (createdAt is no evidence — every
+    // row has one, which used to make "Never signed in" unreachable.)
+    if (opts && (opts.lastSeenAt || opts.lastUsedAt)) return 'Unknown (pre-tracking)';
+    return 'Never signed in';
+  }
+  var when = fmtRelative(ms, 'Never signed in');
+  var how = opts && LOGIN_METHOD_LABELS[opts.lastLoginMethod];
+  return how ? when + ' · ' + how : when;
+}
+
+function fmtLastSeen(ms, opts) {
+  // users.last_seen_at — any authenticated request, so it moves on an app
+  // open or a background sync with a session that's already signed in.
+  if (ms) return fmtRelative(ms, 'Never');
+  if (opts && (opts.lastLoginAt || opts.lastUsedAt)) return 'Unknown (pre-tracking)';
+  return 'Never';
 }
 
 function fmtLastUsed(ms) {
-  // user_data.updated_at — last data sync write, not last app open.
-  return fmtRelative(ms, 'No sync yet');
+  // user_data.updated_at — last write that changed the saved blob.
+  return fmtRelative(ms, 'No changes yet');
 }
 
 function initials(u) {
@@ -635,10 +669,15 @@ function render(users, search, meta) {
       pills += pill('Free', 'free');
     }
 
-    // Last sign-in = users.last_login_at (auth only). Last data sync =
-    // user_data.updated_at (any PUT /api/data, Plaid, scheduler) — not app open.
-    var metaHtml = '<div class="admin-user-login">Last sign-in · ' + esc(fmtLastLogin(u.lastLoginAt, u)) + '</div>' +
-      '<div class="admin-user-login">Last data sync · ' + esc(fmtLastUsed(u.lastUsedAt)) + '</div>';
+    // The account's life in order, each line a different question:
+    //   Created      — users.created_at: when the account came into being.
+    //   Last sign-in — users.last_login_at: a credential was presented.
+    //   Last active  — users.last_seen_at: any request on an existing session.
+    //   Last change  — user_data.updated_at: the saved blob actually changed.
+    var metaHtml = '<div class="admin-user-login">Created · ' + esc(fmtCreated(u.createdAt)) + '</div>' +
+      '<div class="admin-user-login">Last sign-in · ' + esc(fmtLastLogin(u.lastLoginAt, u)) + '</div>' +
+      '<div class="admin-user-login">Last active · ' + esc(fmtLastSeen(u.lastSeenAt, u)) + '</div>' +
+      '<div class="admin-user-login">Last data change · ' + esc(fmtLastUsed(u.lastUsedAt)) + '</div>';
     if (u.suspendedReason) {
       metaHtml += '<div class="admin-user-reason">' + esc(u.suspendedReason) + '</div>';
     }

@@ -386,6 +386,14 @@ db.exec(`
   if (!cols.includes('last_trial_reminder_day')) db.exec(`ALTER TABLE users ADD COLUMN last_trial_reminder_day TEXT`);
   // The local day card-linked-offer expiry reminders last went out.
   if (!cols.includes('last_offer_reminder_day')) db.exec(`ALTER TABLE users ADD COLUMN last_offer_reminder_day TEXT`);
+  // Last time an existing session was used against the API — i.e. the app
+  // talked to the server without anyone re-entering a credential. Distinct
+  // from `last_login_at` (credential entry) and from user_data.updated_at
+  // (only moves when the saved blob actually changes).
+  if (!cols.includes('last_seen_at'))       db.exec(`ALTER TABLE users ADD COLUMN last_seen_at INTEGER`);
+  // How the last sign-in was proven: 'password' | 'passkey' | 'oauth-google'
+  // | 'oauth-apple' | 'signup'. NULL for logins that predate the column.
+  if (!cols.includes('last_login_method'))  db.exec(`ALTER TABLE users ADD COLUMN last_login_method TEXT`);
 })();
 
 // Admin revocation of a promo grant. The row stays so the code can't simply
@@ -448,7 +456,10 @@ const stmt = {
     `SELECT provider, subject, created_at FROM oauth_identities WHERE user_id = ?`
   ),
   findUserByEmail: db.prepare(
-    `SELECT id, email, password_hash, name, email_mfa_enabled, email_verified, onboarded, suspended, suspended_at, suspended_reason FROM users WHERE email = ?`
+    // `role` belongs here as well as on findUserById: the login/signup reply
+    // is built from this row, and without it every sign-in told the client it
+    // was an ordinary user — hiding the admin console until the next /me.
+    `SELECT id, email, password_hash, name, role, email_mfa_enabled, email_verified, onboarded, suspended, suspended_at, suspended_reason FROM users WHERE email = ?`
   ),
   findUserById: db.prepare(
     `SELECT id, email, password_hash, name, ical_token, email_mfa_enabled, role, email_verified, onboarded, created_at, suspended, suspended_at, suspended_reason FROM users WHERE id = ?`
@@ -458,7 +469,11 @@ const stmt = {
     `SELECT id, email, name FROM users WHERE ical_token = ?`
   ),
   touchLastLogin: db.prepare(
-    `UPDATE users SET last_login_at = ? WHERE id = ?`
+    `UPDATE users SET last_login_at = ?, last_login_method = ? WHERE id = ?`
+  ),
+  // Only moves forward: a stale request racing a newer one must not rewind it.
+  touchLastSeen: db.prepare(
+    `UPDATE users SET last_seen_at = ? WHERE id = ? AND COALESCE(last_seen_at, 0) < ?`
   ),
   updateUserPassword: db.prepare(
     `UPDATE users SET password_hash = ? WHERE id = ?`
@@ -476,6 +491,7 @@ const stmt = {
   ),
   listUsers: db.prepare(
     `SELECT u.id, u.email, u.name, u.role, u.created_at, u.last_login_at,
+            u.last_login_method, u.last_seen_at,
             u.suspended, u.suspended_at, u.suspended_reason,
             ud.updated_at AS data_updated_at
        FROM users u
@@ -1056,8 +1072,23 @@ function setDigestWeek(userId, week) { stmt.setDigestWeek.run(week, userId); }
 function setTrialReminderDay(userId, ymd) { stmt.setTrialReminderDay.run(ymd, userId); }
 function setOfferReminderDay(userId, ymd) { stmt.setOfferReminderDay.run(ymd, userId); }
 
-function touchLastLogin(userId) {
-  stmt.touchLastLogin.run(Date.now(), userId);
+// Stamped only when a credential was actually presented (password, passkey,
+// OAuth provider, or the signup that created the account). Resuming a stored
+// session never lands here — that's what touchLastSeen records.
+function touchLastLogin(userId, method) {
+  const now = Date.now();
+  stmt.touchLastLogin.run(now, method || null, userId);
+  // A sign-in is also contact with the server, so keep the two consistent
+  // rather than leaving "last active" behind a fresher "last sign-in".
+  stmt.touchLastSeen.run(now, userId, now);
+}
+
+// Any authenticated request: app open, background sync, a GET that changes
+// nothing. Called from loadSession, throttled there so it isn't a write per
+// request.
+function touchLastSeen(userId, at) {
+  const ts = at || Date.now();
+  stmt.touchLastSeen.run(ts, userId, ts);
 }
 
 function insertSession(row) {
@@ -1573,6 +1604,7 @@ module.exports = {
   findUserById,
   findUserByIcalToken,
   touchLastLogin,
+  touchLastSeen,
   updateUserPassword,
   updateUserEmail,
   updateUserName,

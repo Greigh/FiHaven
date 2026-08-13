@@ -181,6 +181,44 @@ object Schedule {
      */
     fun liveBalance(card: Card): Double = card.currentBalance ?: card.balance
 
+    /** Which way a bank's suggested balance moves the debt, and whether its
+     *  limit is actually news. See [balanceProposalChange]. */
+    data class BalanceChange(val direction: String, val limitChanged: Boolean)
+
+    /**
+     * How a bank's suggested figures compare with what's on the card today,
+     * for the balance-review row.
+     *
+     * [direction] is which way the debt moves — "up" is more owed, so the UI
+     * paints it red. Callers pass [current] from [liveBalance], because that
+     * is the field accepting a proposal overwrites; comparing against the
+     * statement would report the move from a figure the suggestion never
+     * touches.
+     *
+     * [BalanceChange.limitChanged] is false when the bank re-reports the limit
+     * already on file, which keeps unchanged limits out of the row. A first
+     * limit on a card that has none counts as a change.
+     *
+     * Both use [PAID_EPSILON], the same cent tolerance the paid-state maths
+     * uses — a re-reported figure differing in float noise is not a change.
+     * Mirrors balanceProposalChange in utils.js.
+     */
+    fun balanceProposalChange(
+        current: Double?,
+        proposed: Double,
+        currentLimit: Double?,
+        proposedLimit: Double?,
+    ): BalanceChange {
+        val direction = when {
+            current == null || abs(proposed - current) <= PAID_EPSILON -> "same"
+            proposed > current -> "up"
+            else -> "down"
+        }
+        val limitChanged = proposedLimit != null &&
+            (currentLimit == null || abs(proposedLimit - currentLimit) > PAID_EPSILON)
+        return BalanceChange(direction, limitChanged)
+    }
+
     /**
      * Credit utilization as a 0..1 ratio, or null when there is nothing to
      * measure against — a loan (no revolving limit) or a card with no limit

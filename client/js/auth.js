@@ -136,7 +136,7 @@ import { clearSessionCache } from './localCache.js';
       case 'invalid-email':
         return 'Enter a valid email address.';
       case 'weak-password':
-        return 'Password must be 10+ characters with at least one letter and one number.';
+        return 'Password must be at least 8 characters with a letter, a number, and a symbol.';
       case 'captcha-failed':
         return 'Captcha check failed — please try again.';
       case 'missing-captcha':

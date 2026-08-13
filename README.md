@@ -13,7 +13,7 @@ backend.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL (JS/TS)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL%20%28JS%2FTS%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![CodeQL (Swift)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-swift.yml?branch=main&label=CodeQL%20%28Swift%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-swift.yml) [![CodeQL (Kotlin)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-android.yml?branch=main&label=CodeQL%20%28Kotlin%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-android.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
-[![Version](https://img.shields.io/badge/version-1.6.1-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+[![Version](https://img.shields.io/badge/version-1.6.2-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
 </div>
 
@@ -61,9 +61,13 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
   credit cards with 0% promo tracking, and loans/mortgages in their own
   tab (recommended payment is the minimum, not the whole balance —
   payoff-in-full stays an option).
-- **Budget suite** — income sources, period-aware budgeting (calendar,
-  start-day, or rolling K-day periods), and a "cushion after bills"
-  runway.
+- **Income tab** — every paycheck with its own frequency, plus one-off and
+  recurring adjustments (a bonus, unpaid time off, a raise) that move a single
+  period's total. Its own tab on web, iOS, and Android; it used to live inside
+  Budget.
+- **Budget suite** — period-aware budgeting (calendar, start-day, or rolling
+  K-day periods) and a "cushion after bills" runway, reading the income total
+  the Income tab owns.
 - **Transactions** — log individual spend, grouped and categorized;
   optionally augmented (never replaced) by Plaid bank sync.
 - **Rewards optimizer** — per-category multipliers, a built-in preset
@@ -1153,12 +1157,9 @@ ideas are tracked separately by the maintainers
 | Platform | Status |
 |---|---|
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | TestFlight beta — **1.6.1 (6)** — not on the public App Store yet |
-| **Android** | Closed testing on Google Play — **1.6.1 (29)** — public listing coming soon |
+| **iOS** | Live on the [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (id `6781084347`); TestFlight is the pre-release track |
+| **Android** | Live on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`); Open testing is the pre-release track |
 | **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
-
-Marketing copy on some public pages still says mobile apps are “coming soon” until
-store listings go live.
 
 ### Platform parity
 
@@ -1176,6 +1177,9 @@ Budget lens, envelope editor, spending insights, and household rollup are now on
 | Passkey **registration** | Settings → Security | — (list/delete on web) | Settings → Security |
 | Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
 | Plaid bank linking (Pro) | Yes | Yes | Yes |
+| **Income tab** (sources + adjustments) | Income tab | Income tab | Income tab |
+| **Admin console** (users, rewards, promo codes) | Admin panel | Settings → Admin | Settings → Admin |
+| Correct a mistyped signup address | Verify screen | Verify screen | Verify screen |
 
 Native Family screens now create/join households, invite members, and choose what to
 share (bills, cards, goals), live-syncing via SSE — at parity with web.

@@ -37,6 +37,13 @@ fun VerifyEmailScreen(vm: AppViewModel, user: User) {
     var notYet by remember { mutableStateOf(false) }
     var resending by remember { mutableStateOf(false) }
     var resendLabel by remember { mutableStateOf("Resend the email") }
+    var changingEmail by remember { mutableStateOf(false) }
+
+    // On success this re-enters Session.Unverified with the corrected address,
+    // so the screen redraws pointing at the inbox the user actually has.
+    if (changingEmail) {
+        ChangeEmailDialog(vm, user) { changingEmail = false }
+    }
 
     Column(
         Modifier.authScreen().padding(28.dp),
@@ -85,8 +92,14 @@ fun VerifyEmailScreen(vm: AppViewModel, user: User) {
             },
         ) { Text(resendLabel, color = Ct.colors.accent) }
 
+        // A mistyped address at signup is otherwise a dead end: the only way
+        // off this screen is a mail nobody will receive.
+        TextButton(onClick = { changingEmail = true }) {
+            Text("Wrong email? Change it", color = Ct.colors.accent)
+        }
+
         TextButton(onClick = { vm.logout() }) {
-            Text("Use a different account", color = Ct.colors.muted)
+            Text("Sign out", color = Ct.colors.muted)
         }
     }
 }

@@ -18,9 +18,12 @@ const emails = require('./emails');
 const push = require('./push');
 const billing = require('./billing');
 const {
-  billDueOn, daysUntilBillDue, billDueOnOrBeforeInPeriod,
-  monthBoundsFromParts, atMidnight,
+  daysUntilBillDue, billDueInPeriod, billDueOnOrBeforeInPeriod, atMidnight,
 } = require('./billSchedule');
+const {
+  getPeriodConfig, periodBounds, monthsInBounds, paymentInBounds,
+} = require('./period');
+const { paidGoalPolicy, goalAmountForCard, cardNeedsAmount } = require('./paidGoal');
 
 const SEND_HOUR = 8;            // default local hour (24h) to send
 const REMINDER_LEAD_DAYS = 3;  // default days before a due day to remind
@@ -165,6 +168,64 @@ function activeCards(data) {
   return (data.cards || []).filter((c) => c && !c.archived);
 }
 
+/* ── Already-paid suppression ────────────────────────────────────
+   A reminder for a bill the user already paid is noise. "Paid" is per billing
+   period, so the check must run against the period the UPCOMING due date falls
+   in — NOT the one today sits in. At a 7-day lead on Aug 28 the due date is in
+   September; matching on today's period would read the August payment and
+   silence a September reminder that should fire.
+
+   Placement mirrors the clients exactly (see server/period.js, which is
+   parity-tested against client/js/period.js): a payment is located by its
+   `date` inside the period's [start, end), falling back to `monthKey` for
+   legacy date-less rows. */
+
+// Cent-level tolerance so a goal met to the penny reads as full — the
+// clients' Schedule.PAID_EPSILON / isFullyPaid.
+const PAID_EPSILON = 0.005;
+
+function addDays(d, n) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+/* Payments of one type for one item, inside `bounds`. */
+function paymentsForItem(data, type, refId, bounds) {
+  return (data.payments || []).filter(
+    (p) => p && p.type === type && String(p.refId) === String(refId) &&
+      paymentInBounds(p, bounds)
+  );
+}
+
+function paidAmountIn(data, type, refId, bounds) {
+  return paymentsForItem(data, type, refId, bounds)
+    .filter((p) => !p.skipped)
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+}
+
+function isSkippedIn(data, type, refId, bounds) {
+  return paymentsForItem(data, type, refId, bounds).some((p) => p.skipped);
+}
+
+/* True when `bill` needs no reminder for the period containing `dueDate`:
+   either explicitly skipped, or paid up to its full amount.
+
+   A PARTIAL payment still reminds — money is still owed that period.
+
+   The `paid > 0` gate matters for a bill with no amount set: its goal is 0,
+   which `paid >= goal` satisfies trivially, so without the gate every
+   amount-less bill would count as paid forever and go silent. That's the same
+   zero-goal trap `needsAmount` guards against on the clients. */
+function billSettledForDue(data, bill, dueDate, cfg) {
+  const refId = String(bill.id);
+  const bounds = periodBounds(dueDate, cfg || getPeriodConfig(data.settings));
+  if (!bounds) return false;
+  if (isSkippedIn(data, 'bill', refId, bounds)) return true;
+  const paid = paidAmountIn(data, 'bill', refId, bounds);
+  if (paid <= 0) return false;
+  const goal = hasAmount(bill.amount) ? Number(bill.amount) : 0;
+  return paid >= goal - PAID_EPSILON;
+}
+
 // A web-compatible payment id (base36 timestamp + random), matching the
 // client's format so ids round-trip.
 function newPaymentId() {
@@ -178,82 +239,148 @@ function shiftMonthKey(ym, delta) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Auto-mark autopay bills/cards paid on their due day (opt-in). Mutates
-// `data.payments`; returns true if anything was added. Marks each item at
-// most once per calendar month, tracked in `settings.autopayDone` so a
-// user's undo isn't reverted and $0 items behave (the same per-month
-// memory the clients keep — see autopay.js). Bills mark their full amount;
-// cards mark the minimum payment (what an autopay typically covers) — the
-// client reconciles to the policy goal.
+/* Auto-mark autopay bills/cards paid once their pull day has arrived (opt-in).
+   Mutates `data.payments`; returns true if anything was added. Mirrors
+   runAutopayMark in client/js/autopay.js.
+
+   Marks each item at most once per PERIOD. The done-memory is still bucketed by
+   CALENDAR MONTH — that's the stored format the clients read and write, and a
+   non-calendar period can straddle two months, so the read side unions every
+   month the period overlaps (monthsInBounds) while new marks go into the
+   current calendar month's bucket. Same for the payment's own `monthKey`: it
+   stays calendar so records round-trip byte-identically with the clients.
+
+   Bills mark their full amount; cards mark the minimum payment (what an
+   autopay typically covers) — the client reconciles to the policy goal. */
 function markAutopay(data, lp) {
   const payments = data.payments || (data.payments = []);
   const settings = data.settings || (data.settings = {});
-  const monthKey = lp.ym;
+  const cfg = getPeriodConfig(settings);
+  const policy = paidGoalPolicy(settings);
+  const now = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
+  const bounds = periodBounds(now, cfg);
+  if (!bounds) return false;
+  const calKey = lp.ym;                              // stored bucket / payment monthKey
   const done = (settings.autopayDone && typeof settings.autopayDone === 'object')
     ? settings.autopayDone : {};
-  const handled = new Set(Array.isArray(done[monthKey]) ? done[monthKey] : []);
+
+  // Items autopay has already acted on, read across every calendar month the
+  // current period overlaps, so a long rolling window's earlier marks still
+  // count. Membership — not a payment amount — is what stops a second mark, so
+  // an undo sticks and $0 items behave.
+  const handled = new Set();
+  for (const m of monthsInBounds(bounds)) {
+    const arr = done[m];
+    if (Array.isArray(arr)) arr.forEach((k) => handled.add(k));
+  }
+  const newlyMarked = [];
   let changed = false;
 
-  const markIfDue = (item, type, amount, name) => {
+  /* The day-of-month an autopay item's pull day lands on within the current
+     period — true once that day has arrived. Note this is "on or after", not
+     "exactly today": under a custom period the pull day is a day INSIDE the
+     period, not a day-of-month equal to today's. The handled-set is what holds
+     it to one mark, so a late pass (downtime, a timezone change) catches up
+     instead of skipping the period entirely. */
+  const autopayDayReached = (day) => {
+    let d = new Date(bounds.start.getFullYear(), bounds.start.getMonth(), day);
+    if (d < bounds.start) d = new Date(bounds.start.getFullYear(), bounds.start.getMonth() + 1, day);
+    return d < bounds.end && d <= now;
+  };
+
+  /* Gate order mirrors `mark` in client/js/autopay.js: due → already-paid →
+     skipped → nothing-to-measure → write. The amount is resolved LAST because
+     a card's goal depends on what's already been paid this period. */
+  const markIfDue = (item, type, name) => {
     if (!item || !item.autopay) return;
-    // Nothing to auto-mark when the amount was never filled in: recording a
-    // $0 payment invents a payment that did not happen, puts a phantom row in
-    // History, and feeds a 0 into recentPaymentAverage (which drives the
-    // rollover prefill). Blank is unfinished setup, not a $0 charge — the row
-    // says "No amount set" and stays that way until the user answers.
-    if (!hasAmount(amount)) return;
     const refId = String(item.id);
     const refKey = `${type}:${refId}`;
-    if (handled.has(refKey)) return;                 // already auto-marked this month
+    if (handled.has(refKey)) return;                 // already auto-marked this period
     // Explicit autopay pull day; blank → falls back to the due day.
     const apDay = parseInt(item.autopayDay, 10) || 0;
     if (type === 'bill') {
       if (!item.dueDay && !item.startDate) return;
       if (!billActiveOn(item, lp.ymd)) return;
       if (apDay) {
-        // Autopay pulls on its own day; the bill must still be scheduled
-        // this month, but the trigger is the autopay day, not the due date.
-        if (apDay !== lp.d) return;
-        const mb = monthBoundsFromParts(lp);
-        if (!billDueOnOrBeforeInPeriod(item, mb, mb.end)) return;
+        // Autopay pulls on its own day; the bill must still be scheduled in
+        // this period, but the trigger is the autopay day, not the due date.
+        if (!billDueInPeriod(item, bounds)) return;
+        if (!autopayDayReached(apDay)) return;
       } else {
-        const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
-        if (!billDueOn(item, today)) return;
+        if (!billDueOnOrBeforeInPeriod(item, bounds, now)) return;
       }
     } else {
       const dd = apDay || parseInt(item.dueDay, 10);
-      if (!dd || dd !== lp.d) return;
+      if (!dd) return;
+      if (!autopayDayReached(dd)) return;
     }
-    const already = payments.some(
-      (p) => !p.skipped && p.type === type && String(p.refId) === refId && p.monthKey === monthKey
-    );
-    if (already) { handled.add(refKey); return; }
+    /* A real payment already covers it. Deliberately NOT recorded in
+       `handled`: only newly-marked keys are persisted, and each item is
+       visited once per run, so noting it here would do nothing. The paid
+       check re-runs every pass and is what keeps this idempotent — same as
+       `mark` in client/js/autopay.js. */
+    const paid = paidAmountIn(data, type, refId, bounds);
+    if (paid > PAID_EPSILON) return;
+    // Explicitly skipped for this period. Auto-marking it paid would overrule
+    // the user's own answer with a payment that never happened.
+    if (isSkippedIn(data, type, refId, bounds)) return;
+
+    /* Nothing to auto-mark when the field the goal actually reads was never
+       filled in: recording a $0 payment invents a payment that did not happen,
+       puts a phantom row in History, and feeds a 0 into recentPaymentAverage
+       (which drives the rollover prefill). Blank is unfinished setup, not a $0
+       charge — the row says "No amount set" and stays that way.
+
+       For a card that question depends on the policy: a balance-derived goal
+       never reads minPayment, so a card without one is fine under
+       recommended/full and unfinished under minimum. */
+    let amount;
+    if (type === 'bill') {
+      if (!hasAmount(item.amount)) return;
+      amount = Number(item.amount) || 0;
+    } else {
+      if (cardNeedsAmount(item, policy)) return;
+      // The policy goal, NOT a flat minPayment — what every client marks.
+      amount = goalAmountForCard(item, policy, paid, now);
+    }
     payments.push({
       id: newPaymentId(), type, refId, name,
-      amount: Number(amount) || 0, date: lp.ymd, monthKey,
+      amount: Number(amount) || 0, date: lp.ymd, monthKey: calKey,
       note: 'Auto-marked (autopay)',
     });
     handled.add(refKey);
+    newlyMarked.push(refKey);
     changed = true;
   };
 
-  (data.bills || []).forEach((b) => markIfDue(b, 'bill', b.amount, b.name || 'Bill'));
-  activeCards(data).forEach((c) => markIfDue(c, 'card', c.minPayment, (c.name || 'Card') + ' (payment)'));
+  (data.bills || []).forEach((b) => markIfDue(b, 'bill', b.name || 'Bill'));
+  activeCards(data).forEach((c) => markIfDue(c, 'card', (c.name || 'Card') + ' (payment)'));
 
   if (changed) {
-    // Persist the memory, keeping per-month buckets for the last 4 months
-    // (covers the longest rolling window a client may read across) and
-    // dropping anything older.
-    const minKey = shiftMonthKey(monthKey, -3);
+    /* New marks go in THIS calendar month's bucket. `handled` can hold keys
+       unioned in from a neighbouring month's bucket, so writing it wholesale
+       would migrate those keys into this month and resurrect them once the old
+       bucket ages out — push only what we actually marked. Keep the last 4
+       months (covers the longest rolling window a client may read across) and
+       drop anything older. */
+    const calBucket = new Set(Array.isArray(done[calKey]) ? done[calKey] : []);
+    newlyMarked.forEach((k) => calBucket.add(k));
+    const minKey = shiftMonthKey(calKey, -3);
     const keep = {};
-    Object.keys(done).forEach((k) => { if (k >= minKey && k !== monthKey) keep[k] = done[k]; });
-    keep[monthKey] = Array.from(handled);
+    Object.keys(done).forEach((k) => { if (k >= minKey && k !== calKey) keep[k] = done[k]; });
+    keep[calKey] = Array.from(calBucket);
     settings.autopayDone = keep;
   }
   return changed;
 }
 
-// Stats for the monthly summary (covers the month that just ended).
+/* Stats for the monthly summary (covers the month that just ended).
+
+   Deliberately still CALENDAR-based while the reminders, digest and autopay are
+   period-aware: this email is titled "Your FiHaven summary — August 2026" and
+   fires on the 1st, so the calendar month IS the subject. Making it follow a
+   custom period would put a range in a mail that names a month. Not an
+   oversight — leave it. */
 function summarize(data, lp) {
   const bills = data.bills || [];
   // Archived cards are soft-deleted, so they must not count as debt (the
@@ -279,10 +406,15 @@ function summarize(data, lp) {
 // content of the opt-in weekly digest.
 function weeklyDigest(data, lp) {
   const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
+  const cfg = getPeriodConfig(data.settings);
   const upcoming = (data.bills || [])
     .filter((b) => billActiveOn(b, lp.ymd) && (b.dueDay || b.startDate))
     .map((b) => ({ ...b, daysUntil: daysUntilBillDue(b, today) }))
     .filter((b) => b.daysUntil >= 0 && b.daysUntil <= 7)
+    // Already paid (or skipped) for the period it's about to hit — listing it
+    // under "due in the next 7 days" is the same false alarm the per-bill
+    // reminder used to send.
+    .filter((b) => !billSettledForDue(data, b, addDays(today, b.daysUntil), cfg))
     .sort((a, b) => a.daysUntil - b.daysUntil);
   return {
     upcoming,
@@ -379,12 +511,15 @@ async function runChecks(now = new Date(), deps = {}) {
       if (s.billReminders && u.last_reminder_day !== lp.ymd) {
         const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
         const leads = reminderOffsets(s);
+        const cfg = getPeriodConfig(s);
         let delivered = true;
         for (const days of leads) {
+          const dueDate = addDays(today, days);
           const due = (u.data.bills || []).filter(
             (b) => billActiveOn(b, lp.ymd) &&
               (b.dueDay || b.startDate) &&
-              daysUntilBillDue(b, today) === days
+              daysUntilBillDue(b, today) === days &&
+              !billSettledForDue(u.data, b, dueDate, cfg)
           );
           if (due.length) {
             const ok = await trySend('reminder', u.email,

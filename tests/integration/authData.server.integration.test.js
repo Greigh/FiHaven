@@ -18,7 +18,7 @@ describe('integration — auth signup and data sync', () => {
 
   it('signs up, verifies email, saves data, and reads it back', async () => {
     const email = `integration-${Date.now()}@test.com`;
-    const password = 'integration1';
+    const password = 'integration1!';
 
     const signup = await fetch(`${base}/api/auth/signup`, {
       method: 'POST',
@@ -79,7 +79,7 @@ describe('integration — auth signup and data sync', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'integration1',
+        password: 'integration1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),

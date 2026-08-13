@@ -572,7 +572,7 @@
 }
 .marketing-plan .btn { margin-top: auto; }
 
-/* ── App-store badges (pre-launch / coming soon) ────────── */
+/* ── App-store badges (App Store + Google Play) ─────────── */
 .marketing-apps {
   display: flex;
   flex-direction: column;
@@ -596,9 +596,8 @@
   color: var(--surface);
   min-width: 210px;
 }
-.app-badge[aria-disabled="true"] { cursor: default; opacity: .94; }
-/* Every badge is a live link now (web, TestFlight, Play open testing), so they
-   need to read as clickable rather than as static chips. */
+/* Both badges are live store links (App Store, Google Play), so they need to
+   read as clickable rather than as static chips. */
 a.app-badge {
   transition: transform .2s ease, box-shadow .2s ease;
 }

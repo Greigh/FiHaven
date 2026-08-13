@@ -11,6 +11,9 @@ import {
   periodDays,
   monthOverlaps,
   adjustmentsTotalForPeriod,
+  adjustmentsForPeriod,
+  periodAnchorMonth,
+  monthOf,
   incomeLabelFor,
   owedLabelFor,
   AVG_MONTH_DAYS,
@@ -209,5 +212,65 @@ describe('income — missing bounds and unusable amounts', () => {
   it('periodIncome without bounds is just the base monthly income', () => {
     expect(periodIncome({ income: 3000 }, null)).toBe(3000);
     expect(periodIncome({ income: 3000 }, undefined)).toBe(3000);
+  });
+});
+
+describe('income — adjustments key on months, not period keys', () => {
+  // Outside calendar mode a period is keyed by its START DATE. Handing that to
+  // adjustmentAppliesTo used to match nothing, so a one-time adjustment created
+  // under a rolling period was invisible and counted toward no income total.
+  const ROLLING = { mode: 'rolling', startDay: 1, length: 35 };
+
+  it('monthOf reduces any date key to its month', () => {
+    expect(monthOf('2026-07-08')).toBe('2026-07');
+    expect(monthOf('2026-07')).toBe('2026-07');
+    expect(monthOf('')).toBe('');
+    expect(monthOf(undefined)).toBe('');
+  });
+
+  it('matches a one-time adjustment through a period key', () => {
+    const once = { kind: 'once', monthKey: '2026-07', amount: 500 };
+    expect(adjustmentAppliesTo(once, '2026-07-08')).toBe(true);
+    expect(adjustmentAppliesTo(once, '2026-07')).toBe(true);
+    expect(adjustmentAppliesTo(once, '2026-08-08')).toBe(false);
+  });
+
+  it('heals a record an older build stamped with a date', () => {
+    const legacy = { kind: 'once', monthKey: '2026-07-08', amount: 500 };
+    expect(adjustmentAppliesTo(legacy, '2026-07')).toBe(true);
+    expect(adjustmentsTotalForMonth({ incomeAdjustments: [legacy] }, '2026-07')).toBe(500);
+    // …and normalizing rewrites it, so the next save persists a clean key.
+    expect(normalizeAdjustment(legacy).monthKey).toBe('2026-07');
+  });
+
+  it('keeps a date-keyed recurring window from excluding its own end month', () => {
+    const ending = { kind: 'recurring', startMonth: '2026-06-15', endMonth: '2026-08-15', amount: 100 };
+    expect(adjustmentAppliesTo(ending, '2026-06')).toBe(true);
+    expect(adjustmentAppliesTo(ending, '2026-08')).toBe(true);
+    expect(adjustmentAppliesTo(ending, '2026-09')).toBe(false);
+  });
+
+  it('lists every adjustment a straddling period overlaps', () => {
+    const settings = {
+      incomeAdjustments: [
+        { id: 'jul', kind: 'once', monthKey: '2026-07', amount: 500 },
+        { id: 'aug', kind: 'once', monthKey: '2026-08', amount: 200 },
+        { id: 'sep', kind: 'once', monthKey: '2026-09', amount: 900 },
+      ],
+    };
+    const rolling = boundsForKey('2026-07-20', ROLLING);
+    expect(adjustmentsForPeriod(settings, rolling).map((a) => a.id)).toEqual(['jul', 'aug']);
+    expect(adjustmentsForPeriod(settings, null)).toEqual([]);
+
+    // Calendar mode is unchanged.
+    const cal = boundsForKey('2026-07', { mode: 'calendar', startDay: 1, length: 35 });
+    expect(adjustmentsForPeriod(settings, cal).map((a) => a.id)).toEqual(['jul']);
+  });
+
+  it('anchors a new one-time adjustment to a month in every mode', () => {
+    expect(periodAnchorMonth(boundsForKey('2026-07-20', ROLLING))).toHaveLength(7);
+    expect(periodAnchorMonth(boundsForKey('2026-07', { mode: 'calendar', startDay: 1, length: 35 })))
+      .toBe('2026-07');
+    expect(periodAnchorMonth(null)).toBe('');
   });
 });

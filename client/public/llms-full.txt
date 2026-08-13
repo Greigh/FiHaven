@@ -28,11 +28,8 @@ brokers.
 ## Platform availability
 
 - **Web** — live at https://fihaven.app/. The full app.
-- **Android** — in open testing on Google Play. Installable directly from the
-  store listing without an invite: https://play.google.com/store/apps/details?id=app.fihaven
-- **iPhone / iPad** — available on TestFlight through a public join link:
-  https://testflight.apple.com/join/SdN4yuuH. The public App Store listing is not
-  live yet.
+- **iPhone / iPad** — live on the App Store: https://apps.apple.com/us/app/fihaven/id6781084347
+- **Android** — live on Google Play: https://play.google.com/store/apps/details?id=app.fihaven
 
 All platforms use the same account and the same API, and data syncs between them.
 
@@ -143,9 +140,9 @@ subscription finder, category budgets, optional Plaid bank linking, and autopay
 auto-mark on due dates.
 
 **Are the iPhone and Android apps available?**
-Yes, and both are open to join without an invite. Android is in open testing on
-Google Play. iPhone and iPad run on TestFlight via a public join link. The public
-App Store listing is not live yet.
+Yes. Both are live in the public stores — iPhone and iPad on the App Store
+(https://apps.apple.com/us/app/fihaven/id6781084347), Android on Google Play
+(https://play.google.com/store/apps/details?id=app.fihaven).
 
 **How does Family sharing work?**
 The Family plan creates a household of up to three people who share bills, cards,
@@ -180,7 +177,7 @@ No ads and no data brokerage. FiHaven is funded by optional Pro subscriptions.
 FiHaven is built and operated by Greigh Studios LLC, a one-person studio.
 
 - Product, onboarding, promo codes, and billing: support@fihaven.app
-- Trouble joining the Android open test or the iOS TestFlight beta: daniel@fihaven.app
+- Trouble installing or signing in to the iOS or Android app: daniel@fihaven.app
 - Privacy, data export or deletion, GDPR/CCPA access requests: security@fihaven.app
 - Security and vulnerability reports: security@fihaven.app, or a private advisory
   at https://github.com/Greigh/FiHaven/security/advisories/new (preferred)

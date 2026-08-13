@@ -177,6 +177,14 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                     GroupRow("Data", "Export, clear, delete") { group = "data" }
                     HorizontalDivider(color = Ct.colors.border)
                     GroupRow("Help & about", "Links, licenses, version") { group = "about" }
+                    // Only an admin sees this row. It is a courtesy, not a
+                    // lock: every /api/admin route enforces the role
+                    // server-side, so a client that showed it anyway would
+                    // just collect 403s.
+                    if (current.isAdmin) {
+                        HorizontalDivider(color = Ct.colors.border)
+                        GroupRow("Admin", "Users, rewards, promo codes") { group = "admin" }
+                    }
                     if (BuildConfig.DEBUG) {
                         HorizontalDivider(color = Ct.colors.border)
                         GroupRow("Developer", "Simulate subscription states") { group = "developer" }
@@ -365,6 +373,11 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
           }
           if (group == "family") {
             item { HouseholdSection(vm) }
+          }
+          if (group == "admin") {
+            // Fills the rest of the screen: the console brings its own tabs
+            // and lists rather than sitting inside a settings section.
+            item { Box(Modifier.fillParentMaxHeight()) { AdminScreen(vm) } }
           }
           if (group == "budget") {
             item {
@@ -1201,6 +1214,7 @@ private fun groupTitle(group: String): String = when (group) {
     "bank" -> "Bank"
     "data" -> "Data"
     "about" -> "Help & about"
+    "admin" -> "Admin"
     "developer" -> "Developer"
     else -> "Settings"
 }
@@ -1446,7 +1460,9 @@ private fun ChangeNameDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     FormDialog("Name", onSave = {
         scope.launch {
-            try { val n = vm.api.changeName(name.trim()); vm.applyUser(User(user.email, n)); onDone() }
+            // copy(), not a fresh User: flags this dialog doesn't know about
+            // (verified, onboarded, role) must survive a name change.
+            try { val n = vm.api.changeName(name.trim()); vm.applyUser(user.copy(name = n)); onDone() }
             catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
         }
     }, onDismiss = onDone) {
@@ -1455,8 +1471,11 @@ private fun ChangeNameDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
     }
 }
 
+/** Not private: [VerifyEmailScreen] shows the same dialog, so someone who
+ *  mistyped their address at signup can fix it from the one screen an
+ *  unverified account can reach. */
 @Composable
-private fun ChangeEmailDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
+fun ChangeEmailDialog(vm: AppViewModel, user: User, onDone: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1486,14 +1505,14 @@ private fun ChangePasswordDialog(vm: AppViewModel, onDone: () -> Unit) {
     var next by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    FormDialog("Change password", saveEnabled = current.isNotEmpty() && next.length >= 10, onSave = {
+    FormDialog("Change password", saveEnabled = current.isNotEmpty() && meetsPasswordPolicy(next), onSave = {
         scope.launch {
             try { vm.api.changePassword(current, next); onDone() }
             catch (e: ApiError) { error = e.userMessage } catch (e: Exception) { error = e.message }
         }
     }, onDismiss = onDone) {
         PasswordField("Current password", current) { current = it }
-        PasswordField("New password (10+ chars)", next) { next = it }
+        PasswordField("New password (8+ chars, symbol)", next) { next = it }
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
     }
 }

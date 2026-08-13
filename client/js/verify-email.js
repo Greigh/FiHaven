@@ -31,12 +31,20 @@ function errorMessage(code) {
 }
 
 function postJson(path, payload) {
+  return postTo(API + path, payload);
+}
+
+function postAccount(path, payload) {
+  return postTo('/api/account' + path, payload);
+}
+
+function postTo(url, payload) {
   // Read at call time, not module load: getMe() fills csrfToken in, and the
   // resend button only exists after that has resolved. Pre-auth posts on this
   // page (/verify-email with a token) have no session and send nothing.
   var headers = { 'Content-Type': 'application/json' };
   if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  return fetch(API + path, {
+  return fetch(url, {
     method: 'POST',
     headers: headers,
     credentials: 'same-origin',
@@ -85,14 +93,81 @@ function showPending(user, note) {
     };
   }
 
-  var switchBtn = document.querySelector('[data-switch-account]');
-  if (switchBtn) {
-    switchBtn.onclick = function () {
+  var signOutBtn = document.querySelector('[data-sign-out]');
+  if (signOutBtn) {
+    signOutBtn.onclick = function () {
       var headers = csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
       fetch(API + '/logout', { method: 'POST', credentials: 'same-origin', headers: headers })
         .catch(function () {})
         .then(function () { go('/login'); });
     };
+  }
+
+  wireChangeEmail(user);
+}
+
+/* Correcting a mistyped signup address. The session stays valid — only the
+   address moves — so the page just re-renders with the new one pending. */
+function wireChangeEmail(user) {
+  var toggle = document.querySelector('[data-change-email]');
+  var form = document.querySelector('[data-change-email-form]');
+  var cancel = document.querySelector('[data-change-email-cancel]');
+  var statusEl = document.querySelector('[data-change-email-status]');
+  var emailInput = document.getElementById('verify-new-email');
+  var passwordInput = document.getElementById('verify-password');
+  if (!toggle || !form) return;
+
+  function close() {
+    form.hidden = true;
+    toggle.hidden = false;
+    show(statusEl, '', false);
+    if (passwordInput) passwordInput.value = '';
+  }
+
+  toggle.onclick = function () {
+    form.hidden = false;
+    toggle.hidden = true;
+    if (emailInput) { emailInput.value = user.email || ''; emailInput.focus(); emailInput.select(); }
+  };
+  if (cancel) cancel.onclick = close;
+
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    var submitBtn = form.querySelector('[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    show(statusEl, 'Updating…', false);
+
+    // /account, not /auth — this is the same endpoint Settings uses, which the
+    // server now allows an unverified session to call.
+    postAccount('/change-email', {
+      newEmail: emailInput ? emailInput.value.trim() : '',
+      password: passwordInput ? passwordInput.value : '',
+    }).then(function (res) {
+      if (submitBtn) submitBtn.disabled = false;
+      if (!res.ok) {
+        show(statusEl, changeEmailError(res.data && res.data.error), true);
+        return;
+      }
+      var emailEl = document.querySelector('[data-verify-email]');
+      if (emailEl) emailEl.textContent = res.data.email;
+      close();
+      show(
+        document.querySelector('[data-resend-status]'),
+        'Address updated — we sent a new link to ' + res.data.email + '.',
+        false
+      );
+    });
+  };
+}
+
+function changeEmailError(code) {
+  switch (code) {
+    case 'wrong-password': return 'That password is incorrect.';
+    case 'invalid-email': return 'Enter a valid email address.';
+    case 'email-unchanged': return 'That is already your email address.';
+    case 'email-taken': return 'An account with that email already exists.';
+    case 'rate-limited': return 'Too many changes. Please wait a few minutes and try again.';
+    default: return errorMessage(code);
   }
 }
 

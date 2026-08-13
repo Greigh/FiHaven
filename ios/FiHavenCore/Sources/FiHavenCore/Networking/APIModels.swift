@@ -40,17 +40,26 @@ public struct User: Codable, Equatable, Sendable {
     /// to re-enter. Re-auth prompts (account deletion) drop the password field
     /// when this is false, or those users could never confirm.
     public var hasPassword: Bool
+    /// `"user"` or `"admin"`, straight from the server. The admin console is
+    /// hidden unless this says admin — and that is only cosmetic: every
+    /// `/api/admin/*` route enforces the role itself, so a client that lied
+    /// about it would get 403s and nothing else.
+    public var role: String
 
-    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true, createdAt: Double? = nil, hasPassword: Bool = true) {
+    /// Whether to offer the admin console. Never a security boundary.
+    public var isAdmin: Bool { role == "admin" }
+
+    public init(email: String, name: String?, emailVerified: Bool = true, onboarded: Bool = true, createdAt: Double? = nil, hasPassword: Bool = true, role: String = "user") {
         self.email = email
         self.name = name
         self.emailVerified = emailVerified
         self.onboarded = onboarded
         self.createdAt = createdAt
         self.hasPassword = hasPassword
+        self.role = role
     }
 
-    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded, createdAt, hasPassword }
+    enum CodingKeys: String, CodingKey { case email, name, emailVerified, onboarded, createdAt, hasPassword, role }
 
     // Tolerant decode: a missing flag (older payloads) is treated as
     // verified / onboarded so we never falsely lock out or re-onboard a
@@ -63,6 +72,9 @@ public struct User: Codable, Equatable, Sendable {
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
         createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt)
         hasPassword = try c.decodeIfPresent(Bool.self, forKey: .hasPassword) ?? true
+        // Absent on older payloads — default to the unprivileged role so a
+        // stale server can never surface the console by omission.
+        role = try c.decodeIfPresent(String.self, forKey: .role) ?? "user"
     }
 }
 

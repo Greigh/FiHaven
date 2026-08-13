@@ -110,6 +110,11 @@ final class AppStore: ObservableObject {
             refreshNotifications()
             PushRegistrar.shared.syncIfNeeded(settings: data.settings)
             checkNewMonth()
+            // On the data path, not on a screen: this used to ride on
+            // BudgetView appearing, so once income moved to its own tab a user
+            // could go a long time without opening the one view that applied
+            // the rollover. Android has always done it here. Idempotent.
+            applyEnvelopeRolloverIfNeeded()
             await loadCardPresets()
             checkPresetUpdates()
             await syncBanks()
@@ -457,7 +462,8 @@ final class AppStore: ObservableObject {
         NotificationScheduler.reschedule(
             bills: activeBills, cards: activeCards, settings: data.settings, tz: tz,
             pro: data.entitlement?.pro ?? false,
-            pushHealthy: PushRegistrar.shared.healthy
+            pushHealthy: PushRegistrar.shared.healthy,
+            payments: data.payments
         )
     }
 

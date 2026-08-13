@@ -29,7 +29,7 @@ describe('integration — email verification token flow', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'integration1',
+        password: 'integration1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),
@@ -66,7 +66,7 @@ describe('integration — email verification token flow', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'integration1',
+        password: 'integration1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),

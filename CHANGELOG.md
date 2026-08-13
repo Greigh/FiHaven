@@ -13,18 +13,377 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.1] Current Pre-Release — 2026-07-21
+## [1.6.2] Current Pre-Release — 2026-08-13
 
 | | |
 |---|---|
-| **Status** | Pre-release — testing build (TestFlight / Play) |
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.2 (49) - **Income is its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that move a single period's total. Two long-standing bugs died with the move: an adjustment stamped with a full date instead of a month was invisible to every income figure, and on a non-calendar period (start-day or rolling) adjustments matched nothing at all. **Reminders stop nagging about bills you have already paid** — measured over the period the due date falls in, so a reminder that should fire still fires, and a partial payment still reminds because money is still owed. **The Pro screen shows real prices** in your own currency, with the yearly plan's saving stated as a percentage and restated per month. Mistyping your address at signup is **no longer a dead end** — the verify screen can now correct it. Admins get the console on the phone (Settings → Admin). A security check that stalls now says so and offers a retry instead of leaving Sign in disabled with no explanation. **Needs the server deploy.** |
+| **Android** | 1.6.2 (versionCode 49) - **Income is its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that move a single period's total. Two long-standing bugs died with the move: an adjustment stamped with a full date instead of a month was invisible to every income figure, and on a non-calendar period (start-day or rolling) adjustments matched nothing at all. **Reminders stop nagging about bills you have already paid**, on the device as well as by email. **The Pro screen shows real prices** from Play in the storefront's own currency, with the yearly plan's saving as a percentage and restated per month. Mistyping your address at signup is **no longer a dead end** — the verify screen can now correct it. Admins get the console on the phone (Settings → Admin). The status and navigation bars finally follow the **in-app** theme rather than the phone's, so Dark mode on a Light phone no longer draws dark icons on a dark bar. Tapping **Open FiHaven** in a reminder email lands in the app instead of the browser. **Needs the server deploy.** |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — Income tab, live plan pricing on the paywall, a rebuilt Pro step in onboarding, and the store go-live: the home page now links to the App Store and Google Play |
+
+> **Get FiHaven:**
+> **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
+> **Android** — [Google Play](https://play.google.com/store/apps/details?id=app.fihaven)
+>
+> Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
+> **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
+
+### Summary
+
+> Income stops being a section inside Budget and becomes a tab of its own on all
+> three platforms — and in the move, adjustments finally work on every period
+> mode and every stored date format. Reminders stop firing for bills you already
+> paid, without silencing the ones you haven't. The Pro screen learns what the
+> plans actually cost, in your currency, with the yearly saving stated rather
+> than implied. Typing your email wrong at signup is no longer a trap you can't
+> get out of. Admins can run the product from a phone. Password rules are shorter
+> but stricter — 8 characters with a symbol, instead of 10 without. And FiHaven
+> is on the App Store and Google Play, so the site stops advertising a beta.
+
+### Changes
+
+**Income has its own tab (Aug 12)**
+
+Income lived inside the Budget tab, sharing a screen with the bill and card
+breakdown it was supposed to be measured against. It is now a destination of its
+own on web, iOS, and Android. On the web it sits in the main bar between Loans
+and Budget; on the phones it arrives in the **More** list, so it doesn't displace
+a tab you already had — move it into the bar from tab customization if you want
+it there. Budget keeps the totals and the cushion-after-bills runway; it just
+reads the period's income rather than owning the editor for it.
+
+The move surfaced two bugs that had been quietly wrong for a long time, both in
+`adjustmentAppliesTo` — the function that decides whether a bonus or a deduction
+touches the period you're looking at.
+
+The first: adjustments are keyed by **month** (`"2026-08"`), but a *period* is
+only keyed by month in calendar mode. On a start-day or rolling period the key
+is the period's start **date** (`"2026-08-15"`), which never equals a month key,
+so every adjustment matched nothing. Anyone not on calendar months had an Income
+section that silently ignored every bonus and every unpaid day they had entered.
+
+The second: an older build stamped one-time adjustments with a full date rather
+than a month. Those rows were invisible to the same comparison — and so to every
+income total that has ever been drawn since.
+
+Both heal in the same place. Every key is now coerced to a month before it is
+compared, which fixes the period modes and retroactively rescues the date-stamped
+rows without a migration. A new `adjustmentsForPeriod` returns the list behind
+the total that `adjustmentsTotalForPeriod` computes, so the adjustments a period
+lists and the number it adds up can no longer disagree.
+
+**Reminders stopped nagging about bills you already paid (Aug 11)**
+
+A reminder for a bill you settled last week is the kind of noise that teaches
+people to swipe notifications away without reading them. Both the email scheduler
+and the on-device Android reminders now skip a bill whose cycle is already
+settled — explicitly skipped, or paid up to its full amount.
+
+The subtlety is *which* cycle to measure. "Paid" is per billing period, and at a
+seven-day lead the due date can easily sit in the **next** period: on Aug 28 a
+reminder for a Sept 2 bill is about September. Matching on today's period would
+read the August payment and silence a September reminder that ought to fire. The
+check therefore runs against the period containing the **due date**, not today's.
+
+Two deliberate non-behaviours. A **partial** payment still reminds — money is
+still owed that period. And a bill with **no amount set** still reminds: its goal
+is zero, which `paid >= goal` satisfies with no payment at all, so without an
+explicit `paid > 0` gate every amount-less bill would have gone silent forever.
+That is the same zero-goal trap the clients guard against in the UI.
+
+Autopay's auto-marking moved onto the same footing. It marked each item once per
+**calendar month**; it now marks once per **period**. On a start-day or rolling
+account those are different spans, and the mismatch let autopay mark the same
+bill twice in one period. The stored done-memory stays bucketed by calendar month
+— that's the format the clients read and write — so the read side unions every
+month the period overlaps while new marks go into the current month's bucket, and
+records still round-trip byte-identically with the clients.
+
+**The Pro screen shows what the plans actually cost (Aug 13)**
+
+The server only ever knows each plan's Paddle price ID, never its amount, so the
+web paywall listed plans by name with no price anywhere on the row. You picked a
+plan to find out what it cost.
+
+Paddle.js now prices the plans in the visitor's own currency, and it is the same
+figure checkout will charge — which a hardcoded table in the client would drift
+from the first time a price moved in Paddle. Rows fall back to name-only if the
+call fails, exactly as before. The billing cycle Paddle reports is preferred over
+the local table throughout, so a new interval added server-side needs no client
+change, which is the promise `billing.js` already made.
+
+The native paywalls got the same treatment from their own stores: a **Save N%**
+badge on the yearly plan measured against twelve months of the monthly one, and a
+yearly price restated per month. The badge only appears when both plans exist on
+that storefront, are priced in the same currency, and the saving is at least 5% —
+it must always be derivable from the two prices on screen. The per-month figure
+is formatted with the offer's **own** currency code rather than the device
+locale's, so someone on the US store with their phone set to Japan is no longer
+shown a dollar amount wearing a yen sign.
+
+The pitch above the price was eight bullets deep, which meant scrolling past a
+wall of text to learn the cost. Three bullets now carry it and the rest sit
+behind "See everything in Pro". Onboarding's Pro step was rebuilt to match the
+pricing page — real prices, the same check-mark list, and the Family plan called
+out as the separate subscription it actually is.
+
+**A mistyped email at signup is no longer a dead end (Aug 11)**
+
+Type your address wrong when you sign up and there was no way out. The verify
+screen is the only thing an unverified session can reach, nothing on it could
+correct the address, and the confirmation mail was on its way to an inbox you
+don't own. The account was unreachable and unrecoverable by its owner.
+
+All three platforms now offer **Wrong email? Change it** on that screen, and the
+server allows an unverified session to call `change-email`. Re-entering the
+password is what makes that safe to permit — and since an OAuth account is
+verified the moment it is created, every unverified account has a password to
+re-enter. Each accepted change is rate-limited on the same per-IP-and-address
+budget the resend button spends from, because an account walking addresses is
+otherwise a way to make FiHaven send mail to strangers. The limit is checked
+after the cheap rejections, so a typo or an already-taken address costs nothing.
+
+Android's "Use a different account" button, which signed you out, is now labelled
+**Sign out** — what it always did.
+
+**Password rules: shorter, and stricter (Aug 11)**
+
+The minimum drops from 10 characters to 8, and a symbol joins the letter and
+digit already required. Anything that is not a letter, a digit, or whitespace
+counts — deliberately open-ended rather than a fixed `!@#$` list, so a password
+manager's output is not rejected for reaching a character this app didn't think
+of, and non-ASCII symbols count as the perfectly good entropy they are.
+
+This applies at signup, change, and reset only. **Existing passwords keep
+working**, so nobody is locked out by the tightening.
+
+**The admin console runs from a phone (Aug 11)**
+
+Settings → Admin on iOS and Android, shown only to accounts with the admin role.
+It is a courtesy rather than a lock: every `/api/admin` route enforces the role
+server-side, so a client that displayed the row anyway would just collect 403s.
+
+Getting there needed a server fix. The login and signup replies were built from a
+database row that didn't select `role`, so **every sign-in told the client it was
+an ordinary user** — the Admin row stayed hidden until the next `/me` refreshed
+it. The role now rides on the sign-in response as well.
+
+The console also learned to tell three different things apart, where it used to
+show two and conflate them. **Last sign-in** is credential entry — and now names
+which credential (password, passkey, Google, Apple, or the signup itself). **Last
+seen** is any authenticated request: an app open, a background sync, a read that
+changed nothing. That is the one that moves while a long-lived native session
+keeps working without anyone signing in again, and there was previously no way to
+see it at all. **Last data sync** stays what it always was, the last write that
+actually changed the saved blob. The liveness stamp is throttled to one write per
+five minutes per account, because this is an "is the account still in use" signal
+for the console, not an audit log.
+
+One consequence worth stating: "Never signed in" is reachable again. It used to
+be unreachable, because the check treated `createdAt` as evidence of activity and
+every row has one.
+
+**A stalled security check can be retried (Aug 11)**
+
+The Turnstile widget renders nothing when it succeeds, so a challenge that never
+completed looked like nothing at all: Sign in sat disabled, with no reason given
+and no way to retry. Errors alone aren't the signal — Turnstile retries those on
+its own — so the whole attempt now gets a twelve-second deadline, after which the
+screen says the check couldn't be completed and offers **Try again**, and points
+out that the federated sign-in buttons don't need it. Same deadline on iOS and
+Android.
+
+**Android's system bars follow the in-app theme (Aug 12)**
+
+`enableEdgeToEdge()` picks the status- and navigation-bar icon colours from the
+**system** dark-mode setting. FiHaven's theme follows the user's **in-app**
+preference, which is free to disagree with it — so running the app in Dark on a
+Light phone drew dark status-bar icons onto a dark background, and the reverse
+drew light on light. Either way the icons vanished. The bar styles are now bound
+explicitly to the in-app preference and re-applied whenever it flips.
+
+**Bank balance suggestions say which way the debt moved (Aug 11)**
+
+A balance-review row said what the bank proposed, but not how it compared to what
+was on the card. It now carries the direction — red for more owed, green for less,
+with an arrow so colour isn't doing that work alone — and shows the limit only
+when the limit actually changed, rather than restating a figure already on file.
+
+The comparison is measured against the **live** balance, because that is the
+field Accept overwrites; comparing against the statement would report a move from
+a number the suggestion never touches. It uses the same cent-level tolerance as
+the paid-state maths, so a re-reported figure differing by float noise is not a
+change. One helper per platform, so the three clients can't drift apart on it.
+
+**FiHaven is on the App Store and Google Play (Aug 13)**
+
+Both listings are public. The home page's badge pair, the `data-store-live`
+toggle and its switcher script are gone, replaced by two plain links to the two
+listings; FAQ, Contact, Pricing, Security, Terms and both `llms.txt` files say
+"available on the App Store and Google Play" rather than advertising a beta.
+TestFlight and Play open testing remain the pre-release tracks — the upload
+scripts are unchanged.
+
+On Android, the **Open FiHaven** button in reminder emails now opens the app
+instead of the browser, via a verified App Link on `/dashboard`. Deliberately not
+the whole host: `/reset`, `/verify-email`, `/unsubscribe` and the marketing pages
+are web-only flows and must keep opening in a browser.
+
+**Also in this build**
+
+- The Pro upsell shown on a locked tab opened `/settings`, which dropped you on a
+  settings page with no purchase in sight. It opens the plan dialog in place now.
+- A name change on Android rebuilt the user object from scratch, dropping the
+  flags the dialog didn't know about — verified, onboarded, role. It copies now.
+- Gradle 9.7.0 for the Android build, verified against `main` rather than the
+  Dependabot branch's own checks: that branch predated the `:app` unit-test source
+  set, so its CI never ran the task a Gradle bump is most likely to break.
+- CSP gained Paddle's REST API and Retain endpoints, without which the live plan
+  pricing above cannot load.
+
+### Technical changelog
+
+#### iOS 49 / Android 49 — one build number
+
+> **iOS jumped 27 → 49.** Nothing shipped as builds 28–48; the number was moved
+> to meet Android's versionCode, which had always run ahead, so a single "build
+> 49" now identifies the release on both stores. `CURRENT_PROJECT_VERSION` in
+> `ios/FiHavenApp/project.yml` is the only place it changes — the `.xcodeproj` is
+> xcodegen-generated and gitignored. The jump is **one-way**: App Store Connect
+> refuses a `CFBundleVersion` at or below one already uploaded, so from here both
+> platforms bump together. `upload.sh` reads the number straight out of
+> `project.yml` for `APPLE_SANDBOX_BUILD`, so the sandbox pin follows on its own.
+
+> **⚠️ This build needs the server deploy.** Four things in it are inert or
+> broken without it: the Admin row on the phones (the sign-in reply must carry
+> `role`), correcting a mistyped address (the server must let an unverified
+> session call `change-email`), the live plan prices on the web paywall (CSP must
+> allow Paddle's API), and the already-paid reminder suppression (it runs in the
+> server scheduler). The DB migration is additive and runs at boot.
+
+**Income (`client/`, `ios/`, `android/`)**
+
+- `monthOf(key)` in `income.js`, `IncomeAdjustment.swift` and `Models.kt` —
+  coerces any key (`"YYYY-MM"` or `"YYYY-MM-DD"`) to a month. Every comparison in
+  `adjustmentAppliesTo` now goes through it, which fixes non-calendar periods
+  (whose `bounds.key` is a start date) and retroactively rescues one-time
+  adjustments an older build stamped with a full date. No migration needed.
+- `adjustmentsForPeriod(settings, bounds)` — the display counterpart to
+  `adjustmentsTotalForPeriod`, so a listed set and its total cannot disagree. A
+  non-calendar period can straddle two calendar months, so it returns every
+  adjustment applying to any month the period overlaps.
+- `periodAnchorMonth(bounds)` — the month a one-time adjustment created in this
+  period belongs to.
+- `baseIncomeLabelFor` / `adjustmentsLabelFor` join `incomeLabelFor` and
+  `owedLabelFor` in the period-aware label set.
+- New views: `client/svelte/IncomeView.svelte` (mounted by `client/js/incomeTab.js`),
+  `ios/.../Main/IncomeView.swift`, `android/.../ui/IncomeScreen.kt`. `income` is
+  added to `TABS` and `PRIMARY_TABS` in the web navbar, and to `TabItem` in
+  `TabCatalog.swift` / `TabId` on Android. Declaration order puts it between
+  `rewards` and `budget`; the native default bars are deliberately unchanged, so
+  it resolves into the More overflow rather than displacing an existing tab —
+  asserted by `TabCatalogTests.swift` and `TabCatalogTest.kt`.
+- `BudgetView.svelte` / `BudgetView.swift` / `BudgetScreen.kt` shed the income
+  editor (−307 / −240 / −166 lines) and now read the period's effective total.
+
+**Reminder suppression + period-aware autopay (`server/`, `android/`)**
+
+- `server/period.js` — `getPeriodConfig`, `periodBounds`, `monthsInBounds`,
+  `paymentInBounds`; parity-tested against `client/js/period.js`.
+- `server/paidGoal.js` — `paidGoalPolicy`, `goalAmountForCard`, `cardNeedsAmount`.
+- `scheduler.js` `billSettledForDue(data, bill, dueDate, cfg)` — bounds are built
+  from the **due date**, not today. Partial payments still remind; the `paid > 0`
+  gate keeps amount-less bills (goal 0) from satisfying `paid >= goal` trivially.
+- `NotificationScheduler.kt` `settled(...)` mirrors it for on-device reminders and
+  takes a new `payments` argument.
+- `markAutopay` is per-period rather than per-calendar-month. The `autopayDone`
+  memory stays bucketed by calendar month (the clients' stored format), so reads
+  union every month the period overlaps and writes land in the current month's
+  bucket; payment `monthKey` stays calendar so records round-trip byte-identically.
+- `billSchedule.js` gains `billDueInPeriod`; `monthBoundsFromParts` is retained
+  for its tests only and carries a warning against reuse — hard-coding the
+  calendar month is precisely what caused both bugs above.
+
+**Auth + accounts (`server/`, `client/`, `ios/`, `android/`)**
+
+- `util.js` — `MIN_PASSWORD` 10 → 8, plus `SPECIAL_RE` (`/[^a-zA-Z0-9\s]/`).
+  Enforced at signup / change / reset only; stored hashes are untouched. The dev
+  seed in `index.js` hashes directly and does not call the policy, so the App
+  Review demo account is unaffected.
+- `routes/account.js` — `change-email` drops its `email_verified` gate and gains a
+  `rateLimit.check` / `.record` pair on the new address, checked *after* the
+  cheap rejections so only a change that actually sends mail spends budget.
+- `routes/auth.js` — `sessionResponse` carries `role`; `touchLastLogin` takes a
+  `method` (`password` | `passkey` | `oauth-google` | `oauth-apple` | `signup`).
+- `db.js` — `users.last_seen_at` (INTEGER) and `users.last_login_method` (TEXT),
+  added by the additive migration block. `touchLastSeen` only moves forward
+  (`WHERE COALESCE(last_seen_at,0) < ?`) so a stale request can't rewind it;
+  `findUserByEmail` now selects `role`.
+- `session.js` — `touchSeen` in `loadSession`, throttled by
+  `LAST_SEEN_THROTTLE_MS` (default 5 min) behind an in-memory map that is a cache,
+  not a source of truth. Failures are logged, never fatal to the request.
+- `routes/admin.js` — `serializeUser` gains `lastLoginMethod` and `lastSeenAt`.
+- `AuthScreen.kt` / `AuthView.swift` — `CAPTCHA_DEADLINE_MS` = 12 000, a stall
+  message and a retry.
+
+**Admin console on native (`ios/`, `android/`)**
+
+- `ios/.../Sources/Admin/AdminView.swift`, `android/.../ui/AdminScreen.kt`, and
+  `APIClient+Admin.swift`; reached from Settings behind `current.isAdmin`.
+  Server-side role enforcement is unchanged and remains the actual control.
+
+**Paywall pricing (`client/`, `ios/`, `android/`, `server/`)**
+
+- `pro.js` — `fetchPrices` via Paddle.js `PricePreview`; `monthsFor` /
+  `intervalWords` prefer the cycle Paddle reports over the local `PLAN_MONTHS`
+  table; `minorScale(currency)` derives minor units from `Intl` rather than
+  assuming 100, so JPY is not inflated a hundredfold.
+- `BillingManager.kt` — `isYearly`, `intervalRank`, `savingsPercent` (same
+  currency, ≥ 5%, both plans present), `perMonthLabel` formatted with the offer's
+  own currency code.
+- `securityHeaders.js` — `PADDLE_API` and `PADDLE_RETAIN` added to `connect-src`,
+  `PADDLE_RETAIN` to `script-src`, `PADDLE_CDN` to `style-src`. The `ld+json`
+  hash list is re-derived (`npm run csp:hashes`) and the home badge-switcher hash
+  is dropped with the script.
+
+**Balance review (`client/`, `ios/`, `android/`)**
+
+- `balanceProposalChange(current, proposed, currentLimit, proposedLimit)` in
+  `utils.js` and `Schedule` on both native platforms — returns `direction`
+  (`up`/`down`/`same`, measured from `liveBalance`) and `limitChanged`, both at
+  `PAID_EPSILON`. `plaidBalanceReview.js` gains `proposalComparison`;
+  `BalanceReview.kt` is new on Android.
+
+**Platform + build (`android/`, `.github/`)**
+
+- `Theme.kt` — `enableEdgeToEdge` re-applied in a `DisposableEffect(activity, dark)`
+  with an explicit `detectDarkMode`, bound to the in-app preference rather than
+  `uiMode`; `findActivity()` walks `ContextWrapper` because a Compose context
+  inside a Dialog is not the Activity. Scrim constants copied from androidx so
+  pre-API-29 bars look identical to before.
+- `AndroidManifest.xml` — verified App Link for `/dashboard` alongside `/oauth`.
+  Deliberately not the whole host.
+- Gradle wrapper 9.6.1 → 9.7.0 (#252).
+- CI runs `:app:testDebugUnitTest` (Android) and `xcodebuild test` (iOS), the
+  latter picking whatever iPhone simulator the runner image actually has rather
+  than naming a model that changes with every Xcode bump.
+
+## [1.6.1] — 2026-07-21
+
+| | |
+|---|---|
+| **Status** | Released — live on the App Store and Google Play |
 | **iOS** | 1.6.1 (27) - loans stop being counted as card debt: Settings → Household separates **Loan debt** from card debt (a shared mortgage had been sitting in the household's card total), and the 0%-promo alerts no longer fire for loans. The server deploy this needed **has gone out**. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 26 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 25 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 24 was in-app purchases can be redeemed again: the server was never switched on to accept Apple receipts, so every purchase attempt on builds up to 22 was refused after Apple had already taken it — the fix is a server setting, so this build does nothing until the server is deployed (build 23 was skipped; nothing shipped under it); 22 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Apple/Google accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is force-quit in between; 21 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, and a subscription bought on the web being manageable again; 20 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 19 was multi-day reminders, branded emails, skips listed in History, the new-month review on iPhone; 18 was the App Review fixes (App Store code redemption, account deletion for Apple/Google sign-ins), 17 the push permission fix, card issuer logos, pay-what's-left; 16 was income vs. spending history, 14 the card↔bank matching pass, 13 the first build with working push, 12 the push-handling pass, 11 added card↔bank linking |
 | **Android** | 1.6.1 (versionCode 48) - loans stop being counted as card debt: the dashboard's **Card debt** widget counts revolving credit only (net worth still counts every liability), Settings → Household separates **Loan debt** from card debt, and the 0%-promo alerts no longer fire for loans. The server deploy this needed **has gone out**. Shipping alongside a web release that made fihaven.app answerable by AI assistants (Cloudflare had been refusing every one of them, including the 267 daily requests ChatGPT made on behalf of real people asking about FiHaven), restored link previews, added three comparison pages, and reframed the web dashboard to match every other tab; 47 was a card leads with what to pay this period instead of its statement balance: a 0% promo card that had cleared its statement showed "$0.00" in the settled green while the same row asked for the monthly amount that clears the balance before the promo ends, so the corner figure now follows the payment goal in Settings (with a card's own Recommended payment still overriding it), the statement balance rides along whenever it differs, and wide issuer logos are no longer letterboxed on their white plate; 46 was the ✕ that deleted a purchase in one tap is gone from the Spending list: it sat right beside the edit pencil and was far too easy to hit by accident, so deleting now happens inside the transaction editor where it takes a deliberate second tap; 45 was a maintenance build: updated libraries and a fix so a Play test purchase can't be recorded as a real subscription; nothing visible changes; 44 was a security pass closing 14 findings (sign-in, two-factor, purchases — and Google/Apple accounts can manage their own security at last), plus FiHaven works offline: your data is kept on the device, so it opens and works without a connection, and a change made offline is saved on the phone and synced when you're back — even if the app is swiped away in between; 43 was sign-out ending the session for real (reminders stop, a pending save can't overwrite the next account), archived items no longer driving reminders and totals, a subscription bought on the web being manageable again, and Export data no longer crashing on a large account; 42 was a reusable paywall body behind both Pro screens, full-color issuer logos, and a Family plan that goes read-only instead of doing nothing when it lapses; 41 was multi-day reminders, branded emails, skips listed in History, the new-month review on Android; 40 was account deletion for Google/Apple sign-ins and Delete account under Settings → Account, 39 the push channel fix, card issuer logos, pay-what's-left; 38 was a resubmission of 37 (identical code; 37 sat in Play review), 37 was income vs. spending history, 36 the card↔bank matching pass, 35 fixed Android push, 34 carried card↔bank linking, 32 the Family SKU fixes |
 | **Web** | Everything is Live at [fihaven.app](https://fihaven.app) |
 
-> Want the Pre-Release/Beta builds? Join directly:
-> **Android** — [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven) ·
-> **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH)
+> **Get FiHaven:**
+> **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
+> **Android** — [Google Play](https://play.google.com/store/apps/details?id=app.fihaven)
+>
+> This is the version the public listings shipped on. Pre-release builds go to
+> TestFlight (iOS) and Play open testing (Android) first.
 
 ### Summary
 
@@ -4070,6 +4429,7 @@ Every change in 1.5.0, grouped by kind. Each entry carries its PR number.
   `/api/data` model.
 - Project setup — FiHaven rename, GitHub docs, workflows, metadata.
 
+[1.6.2]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.2
 [1.6.1]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.1
 [1.6.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Greigh/FiHaven/releases/tag/v1.5.0

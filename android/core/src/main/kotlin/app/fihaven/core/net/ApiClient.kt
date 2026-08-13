@@ -433,7 +433,109 @@ class ApiClient(
         send(makeRequest("api/account/mfa/passkey/delete", HttpMethod.POST, encode(PasskeyDeleteReauthBody.of(id, proof))))
     }
 
+    // ── Admin console (`/api/admin/*`) ───────────────────────────────
+    // Every route below is mounted behind `requireAuth, requireAdmin`; the
+    // role is seeded from ADMIN_EMAILS at boot. Hiding the console from a
+    // non-admin client is a courtesy — calling these anyway returns 403.
+
+    /** `GET /api/admin/users` — paged; `query` matches email or name. */
+    suspend fun adminUsers(query: String = "", page: Int = 1, limit: Int = 25): AdminUsersPage {
+        val q = if (query.isEmpty()) "" else "&q=" + urlEncode(query)
+        return decode(send(makeRequest("api/admin/users?page=$page&limit=$limit$q", HttpMethod.GET)))
+    }
+
+    /** Promote or demote. The server refuses to demote the caller, so the
+     *  last admin can't lock everyone out. */
+    suspend fun adminSetRole(userId: Int, admin: Boolean) {
+        val body = encode(AdminRoleBody(if (admin) "admin" else "user"))
+        send(makeRequest("api/admin/users/$userId/role", HttpMethod.POST, body))
+    }
+
+    /** Grant a comp Pro entitlement. `days` overrides the plan's default
+     *  length and is ignored for `lifetime`. */
+    suspend fun adminGrantPro(userId: Int, plan: String, days: Int? = null): Entitlement =
+        decode<EntitlementResponse>(
+            send(makeRequest("api/admin/users/$userId/pro", HttpMethod.POST, encode(AdminProBody(true, plan, days))))
+        ).entitlement
+
+    /** Pull back what this console handed out — the comp subscription and any
+     *  live promo grant. Store subscriptions are cancelled at the store. */
+    suspend fun adminRevokePro(userId: Int): Entitlement =
+        decode<EntitlementResponse>(
+            send(makeRequest("api/admin/users/$userId/pro", HttpMethod.POST, encode(AdminProBody(false))))
+        ).entitlement
+
+    /** Soft-suspend: blocks the app without deleting anything. Sessions stay
+     *  intact so an open client shows the suspended screen — use
+     *  [adminForceLogout] to actually kick devices off. */
+    suspend fun adminSuspend(userId: Int, suspend: Boolean, reason: String? = null) {
+        send(makeRequest("api/admin/users/$userId/suspend", HttpMethod.POST, encode(AdminSuspendBody(suspend, reason))))
+    }
+
+    /** Emails the user a password-reset link (same token flow as /forgot). */
+    suspend fun adminSendPasswordReset(userId: Int) {
+        send(makeRequest("api/admin/users/$userId/reset-password", HttpMethod.POST, "{}"))
+    }
+
+    /** Drops every session the user has; returns how many were cleared. */
+    suspend fun adminForceLogout(userId: Int): Int =
+        decode<AdminSessionsCleared>(send(makeRequest("api/admin/users/$userId/logout", HttpMethod.POST, "{}"))).sessionsCleared
+
+    /** Permanent delete. `confirmEmail` must match the account's address or
+     *  the server refuses — that echo is the safety catch. */
+    suspend fun adminDeleteUser(userId: Int, confirmEmail: String) {
+        send(makeRequest("api/admin/users/$userId/delete", HttpMethod.POST, encode(AdminDeleteUserBody(confirmEmail))))
+    }
+
+    suspend fun adminPromos(limit: Int = 50): List<AdminPromo> =
+        decode<AdminPromosResponse>(send(makeRequest("api/admin/promo?limit=$limit", HttpMethod.GET))).promos
+
+    /** Mints a `free_sub` code. An empty [code] lets the server generate one. */
+    suspend fun adminCreatePromo(
+        code: String = "",
+        plan: String? = null,
+        grantDays: Int,
+        note: String? = null,
+        maxRedemptions: Int? = null,
+    ): AdminPromo = decode<AdminPromoResponse>(
+        send(makeRequest(
+            "api/admin/promo",
+            HttpMethod.POST,
+            encode(AdminPromoBody(code.ifEmpty { null }, plan, grantDays, note, maxRedemptions)),
+        ))
+    ).promo
+
+    /** Deactivates a code. Redemptions already made keep their grant. */
+    suspend fun adminDeactivatePromo(code: String) {
+        send(makeRequest("api/admin/promo/${urlEncode(code)}/deactivate", HttpMethod.POST, "{}"))
+    }
+
+    suspend fun adminCardPresets(query: String = "", issuer: String = "", page: Int = 1, limit: Int = 50): AdminPresetsPage {
+        val q = if (query.isEmpty()) "" else "&q=" + urlEncode(query)
+        val i = if (issuer.isEmpty()) "" else "&issuer=" + urlEncode(issuer)
+        return decode(send(makeRequest("api/admin/card-presets?page=$page&limit=$limit$q$i", HttpMethod.GET)))
+    }
+
+    /** Creates a preset. A blank id lets the server slugify issuer + name. */
+    suspend fun adminCreateCardPreset(preset: AdminCardPreset): AdminCardPreset =
+        decode<AdminPresetResponse>(send(makeRequest("api/admin/card-presets", HttpMethod.POST, encode(preset)))).preset
+
+    suspend fun adminUpdateCardPreset(preset: AdminCardPreset): AdminCardPreset =
+        decode<AdminPresetResponse>(
+            send(makeRequest("api/admin/card-presets/${urlEncode(preset.id)}", HttpMethod.PUT, encode(preset)))
+        ).preset
+
+    suspend fun adminDeleteCardPreset(id: String) {
+        send(makeRequest("api/admin/card-presets/${urlEncode(id)}", HttpMethod.DELETE))
+    }
+
     companion object {
         fun now(): Long = System.currentTimeMillis()
+
+        /** Percent-encodes a query value / path segment. The admin search box
+         *  takes arbitrary text, so "+" for space (form encoding) would be
+         *  wrong in a path — encode it as %20. */
+        internal fun urlEncode(raw: String): String =
+            java.net.URLEncoder.encode(raw, "UTF-8").replace("+", "%20")
     }
 }

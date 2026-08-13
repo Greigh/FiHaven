@@ -175,17 +175,30 @@ data class IncomeAdjustment(
     val startMonth: String = "",         // "recurring" → first month (inclusive)
     val endMonth: String = "",           // "recurring" → last month ("" = ongoing)
 ) {
-    /// True if this adjustment affects the period [mk] ("YYYY-MM").
+    /// True if this adjustment affects the month [mk] ("YYYY-MM").
+    ///
+    /// Every key is coerced to a month first. A *period* key is only a month
+    /// key in calendar mode — the other modes key a period by its start date —
+    /// so a caller handing over `bounds.key` used to match nothing, and a
+    /// one-time adjustment stamped with a date by an older build was invisible
+    /// to this and to every income total. Both heal here.
     fun appliesTo(mk: String): Boolean {
-        if (mk.isEmpty()) return false
+        val m = monthOf(mk)
+        if (m.isEmpty()) return false
         if (kind == "recurring") {
-            if (startMonth.isNotEmpty() && mk < startMonth) return false
-            if (endMonth.isNotEmpty() && mk > endMonth) return false
+            val start = monthOf(startMonth)
+            val end = monthOf(endMonth)
+            if (start.isNotEmpty() && m < start) return false
+            if (end.isNotEmpty() && m > end) return false
             return true
         }
-        return monthKey == mk
+        return monthOf(monthKey) == m
     }
 }
+
+/// "YYYY-MM" from a month key or any longer date key ("YYYY-MM-DD").
+/// Mirrors monthOf in income.js.
+fun monthOf(key: String): String = if (key.length > 7) key.take(7) else key
 
 /// An asset account (what you own) — checking, savings, investments,
 /// property, cash. Paired with the debts in `cards` for net worth.

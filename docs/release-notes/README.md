@@ -40,6 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.2](v1.6.2/ios49-android49.md) | iOS 49 · Android 49 | 2026-08-13 | Income becomes its own tab, and adjustments start working on start-day/rolling periods and on date-stamped legacy rows; reminders stop firing for already-paid bills; the Pro screen shows real prices; a mistyped signup address is recoverable; admin console on the phones (**needs server deploy**) |
 | [1.6.1](v1.6.1/ios27-android48.md) | iOS 27 · Android 48 | 2026-08-10 | Loans stop counting as card debt on every platform; household splits out Loan debt; utilization reads the live balance; Card debt reaches the phone dashboards. Ships with a web release: AI assistants can read the site, share previews work, three comparison pages, reframed dashboard |
 | [1.6.1](v1.6.1/ios26-android47.md) | iOS 26 · Android 47 | 2026-08-07 | Cards lead with what to pay this period, not the statement balance; wide issuer logos stop being letterboxed |
 | [1.6.1](v1.6.1/ios25-android46.md) | iOS 25 · Android 46 | 2026-08-04 | The one-tap ✕ is gone from the Spending list; deleting a purchase happens in the editor |

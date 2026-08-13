@@ -23,7 +23,7 @@ sealed class ApiError : Exception() {
             is Http -> when (code) {
                 "invalid-credentials" -> "Incorrect email or password."
                 "invalid-email" -> "That email address looks invalid."
-                "weak-password" -> "Password must be 10+ characters with a letter and a number."
+                "weak-password" -> "Password must be at least 8 characters with a letter, a number, and a symbol."
                 "email-taken" -> "An account with that email already exists."
                 "email-unverified" -> "Verify your current email before changing it."
                 "mail-send-failed" -> "Email updated but we couldn't send a verification link. Try resending from the verify screen."

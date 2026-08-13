@@ -203,6 +203,12 @@ export function setSettings(obj) {
   // Restore the default income shape so reactive readers don't
   // crash on a freshly-cleared settings object.
   if (!('income' in settings)) settings.income = 0;
+  // These two live INSIDE settings, so they never passed through the
+  // repairIds() that guards every top-level array — and the Income tab
+  // renders both as keyed {#each}. Repairing here also heals the shared
+  // blob for iOS and Android, which have no repair pass of their own.
+  repairIds(settings.incomes);
+  repairIds(settings.incomeAdjustments);
 }
 
 /* ── Sync status indicator ───────────────────────────────── */

@@ -454,6 +454,12 @@ extension AppStore {
         let name: String
         let proposedCurrent: Double
         let limit: Double?
+        /// The card's live balance today — what accepting would replace. Nil
+        /// when the card is gone, leaving nothing to compare against.
+        let currentBalance: Double?
+        /// The limit on file, so the review can stay quiet about one that
+        /// hasn't moved. Nil when the card is gone or has no limit set.
+        let currentLimit: Double?
         let fingerprint: String
         /// Which tab owns this proposal. A matched loan account used to surface
         /// under Credit Cards and never under Loans. A proposal whose card is
@@ -479,6 +485,8 @@ extension AppStore {
                 name: card?.name ?? "Card \(cardId)",
                 proposedCurrent: proposed,
                 limit: limit,
+                currentBalance: card.map { Schedule.liveBalance($0) },
+                currentLimit: card.flatMap { $0.limit > 0 ? $0.limit : nil },
                 fingerprint: fp,
                 isLoan: card?.type == "loan"
             )

@@ -21,7 +21,11 @@ struct ChangeNameSheet: View {
         busy = true; defer { busy = false }
         do {
             let newName = try await env.api.changeName(name.trimmingCharacters(in: .whitespaces))
-            env.applyUser(User(email: current.email, name: newName))
+            // Copy the existing user so flags the sheet doesn't know about
+            // (verified, onboarded, role) survive a name change.
+            var updated = current
+            updated.name = newName
+            env.applyUser(updated)
             dismiss()
         } catch let e as APIError { errorText = e.userMessage }
         catch { errorText = error.localizedDescription }
@@ -70,7 +74,7 @@ struct ChangePasswordSheet: View {
     var body: some View {
         SheetForm(title: "Change password", busy: busy, error: errorText, onSave: save) {
             RevealableSecureField(placeholder: "Current password", text: $current, contentType: .password)
-            RevealableSecureField(placeholder: "New password (10+ chars)", text: $newPassword, contentType: .newPassword)
+            RevealableSecureField(placeholder: "New password (8+ chars, symbol)", text: $newPassword, contentType: .newPassword)
         }
     }
 

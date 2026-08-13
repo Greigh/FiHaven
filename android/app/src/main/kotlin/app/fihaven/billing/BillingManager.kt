@@ -16,6 +16,8 @@ import com.android.billingclient.api.QueryPurchasesParams
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.text.NumberFormat
+import java.util.Currency
 
 /**
  * Google Play Billing wrapper for the Pro subscription. The FiHaven
@@ -251,5 +253,67 @@ class BillingManager(
 
         private fun priceMicros(p: ProductDetails): Long =
             basePhase(p)?.priceAmountMicros ?: Long.MAX_VALUE
+
+        /** True for a yearly base plan — the one the paywall preselects. */
+        fun isYearly(p: ProductDetails): Boolean = basePhase(p)?.billingPeriod == "P1Y"
+
+        /**
+         * Sort key so the best-value plan leads the list: yearly, then monthly,
+         * then weekly. Unknown periods sort last.
+         */
+        fun intervalRank(p: ProductDetails): Int = when (basePhase(p)?.billingPeriod) {
+            "P1Y" -> 3
+            "P1M" -> 2
+            "P1W" -> 1
+            else -> 0
+        }
+
+        /**
+         * "37" for a "Save 37%" badge on [yearly], measured against twelve
+         * months of [monthly]. Null unless both plans exist on this storefront,
+         * are priced in the same currency, and the saving is worth stating —
+         * the badge must always be derivable from the two prices on screen.
+         */
+        fun savingsPercent(yearly: ProductDetails, monthly: ProductDetails): Int? {
+            val yearPhase = basePhase(yearly) ?: return null
+            val monthPhase = basePhase(monthly) ?: return null
+            if (yearPhase.billingPeriod != "P1Y" || monthPhase.billingPeriod != "P1M") return null
+            if (yearPhase.priceCurrencyCode != monthPhase.priceCurrencyCode) return null
+            val twelveMonths = monthPhase.priceAmountMicros * 12
+            if (twelveMonths <= 0 || yearPhase.priceAmountMicros >= twelveMonths) return null
+            val pct = Math.round(
+                (twelveMonths - yearPhase.priceAmountMicros) * 100.0 / twelveMonths
+            ).toInt()
+            return if (pct >= 5) pct else null
+        }
+
+        /**
+         * A yearly price restated per month ("$1.25/mo billed annually").
+         *
+         * Formatted with the offer's OWN currency code rather than whatever the
+         * device locale implies, so someone on the US store with their phone set
+         * to Japan is not shown a dollar amount wearing a yen sign.
+         */
+        fun perMonthLabel(p: ProductDetails): String? {
+            val phase = basePhase(p) ?: return null
+            if (phase.billingPeriod != "P1Y") return null
+            val fmt = NumberFormat.getCurrencyInstance()
+            runCatching { fmt.currency = Currency.getInstance(phase.priceCurrencyCode) }
+            return "${fmt.format(phase.priceAmountMicros / 12 / 1_000_000.0)}/mo billed annually"
+        }
+
+        /**
+         * The trial length ("7 days") when the offer that will actually be
+         * charged starts free — used to label the CTA honestly. Null when there
+         * is no trial or the intro phase costs money, in which case the button
+         * must not promise anything free.
+         */
+        fun freeTrialLength(p: ProductDetails): String? {
+            val phases = selectedOffer(p)?.pricingPhases?.pricingPhaseList ?: return null
+            if (phases.size < 2) return null
+            val intro = phases.first()
+            if (intro.priceAmountMicros != 0L) return null
+            return periodWords(intro.billingPeriod, intro.billingCycleCount)
+        }
     }
 }

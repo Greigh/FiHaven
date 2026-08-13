@@ -7,7 +7,7 @@
 
 // Conservative email check — good enough to reject obvious junk.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD = 10;
+const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128;
 // The cost FiHaven ships. This is the security-relevant number and it is
 // pinned by util.test.js — keep it here, unconditional, so that guard means
@@ -40,11 +40,21 @@ function isValidEmail(email) {
   return email.length >= 3 && email.length <= 254 && EMAIL_RE.test(email);
 }
 
+// Anything that isn't a letter, a digit, or whitespace counts as a symbol.
+// Deliberately open-ended rather than a fixed list like !@#$: a password
+// manager's output shouldn't be rejected because it reached for a character
+// this app didn't think of, and non-ASCII symbols are just as unguessable.
+const SPECIAL_RE = /[^a-zA-Z0-9\s]/;
+
 // Returns null when the password is acceptable, otherwise an error code.
+// The policy is length + one letter + one digit + one symbol. It applies at
+// signup / change / reset only — existing passwords keep working, so nobody
+// is locked out by a tightening here.
 function checkPasswordPolicy(password, email) {
   const pw = String(password || '');
   if (pw.length < MIN_PASSWORD || pw.length > MAX_PASSWORD) return 'weak-password';
   if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) return 'weak-password';
+  if (!SPECIAL_RE.test(pw)) return 'weak-password';
   const localPart = String(email || '').split('@')[0];
   if (localPart && pw.toLowerCase() === localPart.toLowerCase()) return 'weak-password';
   return null;

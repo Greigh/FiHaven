@@ -32,10 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +59,7 @@ import app.fihaven.core.model.CardPerk
 import app.fihaven.core.model.CardOffer
 import app.fihaven.core.model.genId
 import app.fihaven.core.model.archiveInsteadOfDelete
+import app.fihaven.core.logic.BalanceReview
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.logic.IssuerIcons
 import androidx.compose.foundation.layout.height
@@ -173,8 +178,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                                     Column(Modifier.weight(1f)) {
                                         Text(p.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Ct.colors.text)
                                         Text(
-                                            "Current → ${Money.fmt(p.proposedCurrent)}" +
-                                                (p.limit?.let { " · limit ${Money.fmt(it)}" } ?: ""),
+                                            proposalSummary(p),
                                             color = Ct.colors.muted, fontSize = 12.sp,
                                         )
                                     }
@@ -371,6 +375,41 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
                 modifier = Modifier.clickable {
                     fBalance = false; fPromo = false; fOverdue = false
                 }.padding(top = 6.dp))
+        }
+    }
+}
+
+/** One bank-balance-review line: where the balance stands now, where the bank
+ *  says it's going, and the limit only when it actually moved. The proposed
+ *  figure carries the direction — more debt is red, less is green — with an
+ *  arrow so the colour isn't doing that work on its own. */
+@Composable
+private fun proposalSummary(p: BalanceReview.Proposal): AnnotatedString {
+    val cur = p.currentBalance
+    val change = Schedule.balanceProposalChange(cur, p.proposedCurrent, p.currentLimit, p.limit)
+    val up = change.direction == "up"
+    val down = change.direction == "down"
+    val tone = when {
+        up -> Ct.colors.red
+        down -> Ct.colors.green
+        else -> Ct.colors.muted
+    }
+    val limit = p.limit
+    return buildAnnotatedString {
+        append("Current ")
+        if (cur != null) append("${Money.fmt(cur)} ")
+        append("→ ")
+        withStyle(SpanStyle(color = tone, fontWeight = FontWeight.SemiBold)) {
+            if (up) append("↑ ") else if (down) append("↓ ")
+            append(Money.fmt(p.proposedCurrent))
+        }
+        // `limit` drives limitChanged, so a null here can't happen — but the
+        // invariant lives in Schedule, and a crash in a row is a poor way to
+        // find that out.
+        limit?.takeIf { change.limitChanged }?.let {
+            append(" · limit ")
+            p.currentLimit?.let { old -> append("${Money.fmt(old)} → ") }
+            append(Money.fmt(it))
         }
     }
 }

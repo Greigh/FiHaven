@@ -29,6 +29,7 @@ describe('session.js', () => {
     insertSession: vi.fn(),
     deleteSession: vi.fn(),
     findSession: vi.fn(),
+    touchLastSeen: vi.fn(),
   };
   let session;
 
@@ -94,6 +95,54 @@ describe('session.js', () => {
 
     expect(req.authVia).toBe('bearer');
     expect(req.user.email).toBe('native@test.com');
+  });
+
+  it('loadSession stamps last_seen once per throttle window, not per request', () => {
+    const row = {
+      id: 'sess1',
+      user_id: 9,
+      email: 'user@test.com',
+      role: 'user',
+      email_verified: 1,
+      onboarded: 1,
+      csrf_token: 'csrf-abc',
+      expires_at: Date.now() + 60 * 60 * 1000,
+    };
+    dbMock.findSession.mockReturnValue(row);
+    const req = () => ({ cookies: { fh_test_sid: 'sess1' } });
+
+    session.loadSession(req(), {}, vi.fn());
+    session.loadSession(req(), {}, vi.fn());
+    expect(dbMock.touchLastSeen).toHaveBeenCalledOnce();
+    expect(dbMock.touchLastSeen).toHaveBeenCalledWith(9, Date.now());
+
+    // Past the window, the next request writes again.
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    session.loadSession(req(), {}, vi.fn());
+    expect(dbMock.touchLastSeen).toHaveBeenCalledTimes(2);
+  });
+
+  it('loadSession survives a failing last_seen write', () => {
+    dbMock.findSession.mockReturnValueOnce({
+      id: 'sess-db-down',
+      user_id: 42,
+      email: 'user@test.com',
+      role: 'user',
+      email_verified: 1,
+      onboarded: 1,
+      csrf_token: 'csrf-abc',
+      expires_at: Date.now() + 60_000,
+    });
+    dbMock.touchLastSeen.mockImplementationOnce(() => { throw new Error('db locked'); });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const req = { cookies: { fh_test_sid: 'sess-db-down' } };
+    const next = vi.fn();
+    session.loadSession(req, {}, next);
+
+    expect(req.user.id).toBe(42);
+    expect(next).toHaveBeenCalledOnce();
+    err.mockRestore();
   });
 
   it('loadSession deletes expired sessions and leaves the request anonymous', () => {

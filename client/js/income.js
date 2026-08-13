@@ -48,6 +48,13 @@ export function monthlyIncomeFromSettings(settings) {
    A one-off or recurring change to a single period's income:
    a bonus (+), unpaid time off (−), a raise (recurring +). Stored
    in `settings.incomeAdjustments` as signed amounts. */
+// "YYYY-MM" from a month key or any longer date key ("YYYY-MM-DD").
+// Mirrors monthOf in Models.kt / IncomeAdjustment.swift.
+export function monthOf(key) {
+  const s = typeof key === 'string' ? key : '';
+  return s.length > 7 ? s.slice(0, 7) : s;
+}
+
 export function normalizeAdjustment(a) {
   a = a || {};
   return {
@@ -55,21 +62,37 @@ export function normalizeAdjustment(a) {
     label: a.label || '',
     amount: parseFloat(a.amount) || 0,         // signed: + adds, − subtracts
     kind: a.kind === 'recurring' ? 'recurring' : 'once',
-    monthKey: a.monthKey || '',                // 'once' → the single month it applies
-    startMonth: a.startMonth || '',            // 'recurring' → first month (inclusive)
-    endMonth: a.endMonth || '',                // 'recurring' → last month ('' = ongoing)
+    monthKey: monthOf(a.monthKey),             // 'once' → the single month it applies
+    startMonth: monthOf(a.startMonth),         // 'recurring' → first month (inclusive)
+    endMonth: monthOf(a.endMonth),             // 'recurring' → last month ('' = ongoing)
   };
 }
 
-// True if adjustment `a` affects the period `mk` ("YYYY-MM").
+/* True if adjustment `a` affects the month `mk` ("YYYY-MM").
+
+   Every key is coerced to a month first. A *period* key is only a month key in
+   calendar mode — the other modes key a period by its start date — so a caller
+   handing over `bounds.key` used to match nothing, and a one-time adjustment
+   stamped with a date by an older build was invisible to this and to every
+   income total. Both heal here. */
 export function adjustmentAppliesTo(a, mk) {
-  if (!a || !mk) return false;
+  if (!a) return false;
+  const m = monthOf(mk);
+  if (!m) return false;
   if (a.kind === 'recurring') {
-    if (a.startMonth && mk < a.startMonth) return false;
-    if (a.endMonth && mk > a.endMonth) return false;
+    const start = monthOf(a.startMonth);
+    const end = monthOf(a.endMonth);
+    if (start && m < start) return false;
+    if (end && m > end) return false;
     return true;
   }
-  return a.monthKey === mk;
+  return monthOf(a.monthKey) === m;
+}
+
+// The month a one-time adjustment created in this period belongs to: the month
+// the period starts in. `bounds.key` is already a month key in calendar mode.
+export function periodAnchorMonth(bounds) {
+  return bounds ? monthOf(bounds.key) : '';
 }
 
 export function adjustmentsForMonth(settings, mk) {
@@ -122,6 +145,20 @@ export function monthOverlaps(bounds) {
   return out;
 }
 
+/* The adjustments affecting a whole period — the display counterpart to
+   adjustmentsTotalForPeriod, so a list and its total can never disagree. A
+   non-calendar period can straddle two calendar months, so this is every
+   adjustment applying to any month the period overlaps. */
+export function adjustmentsForPeriod(settings, bounds) {
+  const list = settings && Array.isArray(settings.incomeAdjustments)
+    ? settings.incomeAdjustments : [];
+  if (!bounds) return [];
+  const months = bounds.mode === 'calendar'
+    ? [bounds.key]
+    : monthOverlaps(bounds).map((o) => o.mk);
+  return list.filter((a) => months.some((mk) => adjustmentAppliesTo(a, mk)));
+}
+
 export function adjustmentsTotalForPeriod(settings, bounds) {
   if (!bounds) return 0;
   if (bounds.mode === 'calendar') return adjustmentsTotalForMonth(settings, bounds.key);
@@ -145,6 +182,14 @@ export function periodIncome(settings, bounds) {
 
 export function incomeLabelFor(cfg) {
   return cfg && cfg.mode !== 'calendar' ? 'Period income' : 'Monthly income';
+}
+
+export function baseIncomeLabelFor(cfg) {
+  return cfg && cfg.mode !== 'calendar' ? 'Base income this period' : 'Base monthly income';
+}
+
+export function adjustmentsLabelFor(cfg) {
+  return cfg && cfg.mode !== 'calendar' ? 'Adjustments this period' : 'Adjustments this month';
 }
 
 export function owedLabelFor(cfg) {

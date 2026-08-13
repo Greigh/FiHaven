@@ -60,6 +60,10 @@ function sessionResponse(session, user, mode) {
     user: {
       email: user.email,
       name: user.name || null,
+      // Carried here as well as on /me so a native client knows it's an admin
+      // the moment it signs in, rather than after the next session refresh —
+      // that's what decides whether the Admin row appears in Settings.
+      role: user.role || 'user',
       emailVerified: !!user.email_verified,
       onboarded: !!user.onboarded,
     },
@@ -119,7 +123,7 @@ router.post('/signup', async (req, res) => {
     // Non-fatal: the user can resend from the verify screen.
   }
 
-  dbApi.touchLastLogin(user.id);
+  dbApi.touchLastLogin(user.id, 'signup');
   const mode = authMode(req);
   const session = createSession(res, user, req, { mode });
   return res.status(201).json(sessionResponse(session, user, mode));
@@ -344,7 +348,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  dbApi.touchLastLogin(account.id);
+  dbApi.touchLastLogin(account.id, 'password');
   const mode = authMode(req);
   const session = createSession(res, account, req, { mode });
   return res.status(200).json(sessionResponse(session, account, mode));
@@ -386,9 +390,14 @@ function recordMfaFailure(ch) {
   return 'invalid-totp-code';
 }
 
-function finishLogin(res, req, account) {
+// `method` names the credential the user actually presented, so the admin
+// console can tell a real sign-in apart from a resumed session. The MFA
+// finishers take the default: the second factor doesn't change how the
+// account was proven, and the first factor was a password for everyone
+// except the rare OAuth account that also has 2FA on.
+function finishLogin(res, req, account, method) {
   if (account.suspended) return sendError(res, 403, 'account-suspended');
-  dbApi.touchLastLogin(account.id);
+  dbApi.touchLastLogin(account.id, method || 'password');
   const mode = authMode(req);
   const session = createSession(res, account, req, { mode });
   return res.status(200).json(sessionResponse(session, account, mode));
@@ -571,7 +580,7 @@ router.post('/passkey/login/finish', async (req, res) => {
 
   const account = dbApi.findUserById(credential.user_id);
   if (!account) return sendError(res, 401, 'passkey-unknown');
-  return finishLogin(res, req, account);
+  return finishLogin(res, req, account, 'passkey');
 });
 
 /* ── POST /api/auth/mfa/passkey/start ────────────────────────── */
@@ -912,7 +921,7 @@ router.post('/oauth/:provider', async (req, res) => {
     });
   }
 
-  return finishLogin(res, req, account);
+  return finishLogin(res, req, account, `oauth-${provider}`);
 });
 
 module.exports = router;

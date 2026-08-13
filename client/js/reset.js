@@ -43,10 +43,17 @@ function show(el, text, isError) {
   el.style.color = isError ? 'var(--red)' : 'var(--muted)';
 }
 
+/* Keep in step with checkPasswordPolicy in server/util.js: 8+ characters
+   carrying a letter, a digit, and one non-alphanumeric symbol. */
+function meetsPasswordPolicy(pw) {
+  var s = String(pw || '');
+  return s.length >= 8 && /[a-zA-Z]/.test(s) && /[0-9]/.test(s) && /[^a-zA-Z0-9\s]/.test(s);
+}
+
 function errorMessage(code) {
   switch (code) {
     case 'invalid-email': return 'Enter a valid email address.';
-    case 'weak-password': return 'Password must be 10+ characters with at least one letter and one number.';
+    case 'weak-password': return 'Password must be at least 8 characters with a letter, a number, and a symbol.';
     case 'invalid-token': return 'This reset link is invalid or has expired. Request a new one.';
     case 'captcha-failed': return 'Captcha check failed — please try again.';
     case 'missing-captcha': return 'Please complete the captcha.';
@@ -133,7 +140,10 @@ function initReset(token) {
     e.preventDefault();
     var pw = form.querySelector('#new-password').value;
     var confirm = form.querySelector('#confirm-password').value;
-    if (pw.length < 10) { show(message, errorMessage('weak-password'), true); return; }
+    // Mirrors the server's policy (server/util.js) so the obvious misses are
+    // caught before a round-trip. The server still decides — this only saves
+    // the user a submit.
+    if (!meetsPasswordPolicy(pw)) { show(message, errorMessage('weak-password'), true); return; }
     if (pw !== confirm) { show(message, 'Passwords don’t match.', true); return; }
 
     if (submitBtn) submitBtn.disabled = true;

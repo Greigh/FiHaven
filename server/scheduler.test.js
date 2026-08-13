@@ -273,6 +273,241 @@ describe('scheduler — runChecks', () => {
     expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
   });
 
+  /* Reminding someone about a bill they already paid is the fastest way to
+     teach them to ignore the reminders. Paid state lives in `payments`, which
+     the reminder filter used to ignore entirely. */
+  describe('already-paid suppression', () => {
+    const rent = { id: 'b1', name: 'Rent', amount: 1450, dueDay: 20 };
+    const at = new Date('2026-06-17T12:00:00.000Z');  // 08:00 EDT, 3 days out
+
+    it('does not remind for a bill paid in full for that cycle', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-06-02', monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).not.toHaveBeenCalled();
+      // Nothing to send is still a completed pass — stamp it so we don't rescan.
+      expect(setReminderDay).toHaveBeenCalledWith(1, '2026-06-17');
+    });
+
+    it('does not remind for a bill skipped for that cycle', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 0, date: '2026-06-02', monthKey: '2026-06', skipped: true }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).not.toHaveBeenCalled();
+    });
+
+    it('still reminds when only part of the bill has been paid', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 500, date: '2026-06-02', monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).toHaveBeenCalledOnce();
+    });
+
+    it('still reminds when last cycle was paid but this one is not', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-05-02', monthKey: '2026-05' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).toHaveBeenCalledOnce();
+    });
+
+    /* The lead window can cross a month boundary, and that's where a
+       today's-month check goes wrong: on May 29 the June 1 bill is 3 days out,
+       and May's payment must NOT silence June's reminder. */
+    it('measures paid against the due date cycle, not today', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 1 }],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-05-01', monthKey: '2026-05' }],
+        }),
+      ]);
+
+      // 2026-05-29 08:00 EDT — the June 1 due date is 3 days out.
+      await runChecks(new Date('2026-05-29T12:00:00.000Z'), {
+        db, emails: { sendBillReminder, sendMonthlySummary },
+      });
+
+      expect(sendBillReminder).toHaveBeenCalledOnce();
+    });
+
+    it('suppresses once the NEXT cycle is paid ahead of time', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [{ id: 'b1', name: 'Rent', amount: 1450, dueDay: 1 }],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-06-01', monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(new Date('2026-05-29T12:00:00.000Z'), {
+        db, emails: { sendBillReminder, sendMonthlySummary },
+      });
+
+      expect(sendBillReminder).not.toHaveBeenCalled();
+    });
+
+    /* A bill with no amount set has a goal of 0, which `paid >= goal` satisfies
+       with no payment at all — it must not go permanently silent. */
+    it('still reminds for an amount-less bill with no payment recorded', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({ bills: [{ id: 'b1', name: 'Rent', dueDay: 20 }], payments: [] }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).toHaveBeenCalledOnce();
+    });
+
+    it('suppresses an amount-less bill once any payment is recorded', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [{ id: 'b1', name: 'Rent', dueDay: 20 }],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 40, date: '2026-06-02', monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).not.toHaveBeenCalled();
+    });
+
+    it('places a legacy date-less payment by its monthKey', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).not.toHaveBeenCalled();
+    });
+
+    /* The whole point of the period port. With periodStartDay = 25 the period
+       holding Sept 1 runs Aug 25 → Sep 24, so an Aug 28 payment IS this
+       period's — every client shows the bill paid. Matching on calendar months
+       put that payment in "August" and the due date in "September", and the
+       reminder fired anyway. */
+    describe('non-calendar periods', () => {
+      const startDay25 = { periodMode: 'startDay', periodStartDay: 25 };
+      const rent1st = { id: 'b1', name: 'Rent', amount: 1450, dueDay: 1 };
+      // 2026-08-29 08:00 EDT — the Sept 1 due date is 3 days out.
+      const at = new Date('2026-08-29T12:00:00.000Z');
+
+      it('startDay: a payment earlier in the same period suppresses the reminder', async () => {
+        db.allUsersWithData.mockReturnValue([
+          makeUser({
+            settings: startDay25,
+            bills: [rent1st],
+            payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-08-28', monthKey: '2026-08' }],
+          }),
+        ]);
+
+        await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+        expect(sendBillReminder).not.toHaveBeenCalled();
+      });
+
+      it('startDay: a payment in the PREVIOUS period still reminds', async () => {
+        db.allUsersWithData.mockReturnValue([
+          makeUser({
+            settings: startDay25,
+            bills: [rent1st],
+            // Aug 24 is the last day of the Jul 25 → Aug 24 period.
+            payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-08-24', monthKey: '2026-08' }],
+          }),
+        ]);
+
+        await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+        expect(sendBillReminder).toHaveBeenCalledOnce();
+      });
+
+      it('calendar mode is unchanged by the port', async () => {
+        db.allUsersWithData.mockReturnValue([
+          makeUser({
+            settings: { periodMode: 'calendar' },
+            bills: [rent1st],
+            // Same Aug 28 payment — in calendar mode Sept is a different
+            // period, so this one SHOULD still remind.
+            payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-08-28', monthKey: '2026-08' }],
+          }),
+        ]);
+
+        await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+        expect(sendBillReminder).toHaveBeenCalledOnce();
+      });
+
+      it('rolling: a payment inside the same bucket suppresses the reminder', async () => {
+        db.allUsersWithData.mockReturnValue([
+          makeUser({
+            // 14-day buckets anchored 2026-08-24 → Sept 1 sits in Aug 24–Sep 6.
+            settings: { periodMode: 'rolling', periodLength: 14, periodAnchor: '2026-08-24' },
+            bills: [rent1st],
+            payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, date: '2026-08-28', monthKey: '2026-08' }],
+          }),
+        ]);
+
+        await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+        expect(sendBillReminder).not.toHaveBeenCalled();
+      });
+
+      /* A date-less payment can only be placed by its calendar monthKey, which
+         a non-calendar period can't interpret — so it must NOT suppress. */
+      it('startDay: a legacy date-less payment does not suppress', async () => {
+        db.allUsersWithData.mockReturnValue([
+          makeUser({
+            settings: startDay25,
+            bills: [rent1st],
+            payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1450, monthKey: '2026-08' }],
+          }),
+        ]);
+
+        await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+        expect(sendBillReminder).toHaveBeenCalledOnce();
+      });
+    });
+
+    it('does not let a card payment settle a same-id bill', async () => {
+      db.allUsersWithData.mockReturnValue([
+        makeUser({
+          bills: [rent],
+          payments: [{ id: 'p1', type: 'card', refId: 'b1', amount: 1450, date: '2026-06-02', monthKey: '2026-06' }],
+        }),
+      ]);
+
+      await runChecks(at, { db, emails: { sendBillReminder, sendMonthlySummary } });
+
+      expect(sendBillReminder).toHaveBeenCalledOnce();
+    });
+  });
+
   it('does not send reminders outside the local send hour', async () => {
     db.allUsersWithData.mockReturnValue([
       makeUser({
@@ -852,6 +1087,209 @@ describe('scheduler — autopay via runChecks', () => {
 
     expect(upsertUserData).not.toHaveBeenCalled();
     expect(setAutopayDay).not.toHaveBeenCalled();
+  });
+
+  /* markAutopay writes to user data, so these pin both the new period-aware
+     behaviour AND the stored format, which must stay byte-compatible with what
+     the clients read (calendar monthKey on the payment, calendar-month buckets
+     in settings.autopayDone). */
+  describe('period awareness', () => {
+    const startDay25 = { billReminders: false, autopayMark: true, periodMode: 'startDay', periodStartDay: 25 };
+
+    it('marks once per PERIOD, not once per calendar month', async () => {
+      // Period Aug 25 → Sep 24 spans two calendar months. A bill due Sept 1
+      // marked on Sept 1 must not be marked again later in the same period.
+      const user = makeUser({
+        settings: { ...startDay25, autopayDone: { '2026-09': ['bill:b1'] } },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      // Sept 10, still inside the Aug 25 → Sep 24 period.
+      await runChecks(new Date('2026-09-10T13:00:00.000Z'), { db, emails: {} });
+
+      expect(upsertUserData).not.toHaveBeenCalled();
+    });
+
+    /* The done-memory is bucketed by calendar month while the mark is per
+       period, so a period straddling two months has to union both buckets —
+       otherwise crossing the month boundary forgets the mark and re-adds it. */
+    it('reads the done-memory across every month the period overlaps', async () => {
+      const user = makeUser({
+        // Marked in August; now it's September, same period.
+        settings: { ...startDay25, autopayDone: { '2026-08': ['bill:b1'] } },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-09-10T13:00:00.000Z'), { db, emails: {} });
+
+      expect(upsertUserData).not.toHaveBeenCalled();
+    });
+
+    /* `handled` is a union across months; writing it wholesale into the current
+       bucket would migrate a neighbouring month's keys and resurrect them once
+       the old bucket ages out. Only newly-marked keys may be added. */
+    it('does not migrate another month\'s keys into this month\'s bucket', async () => {
+      const user = makeUser({
+        settings: { ...startDay25, autopayDone: { '2026-08': ['bill:other'] } },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-09-10T13:00:00.000Z'), { db, emails: {} });
+
+      const saved = upsertUserData.mock.calls[0][1];
+      expect(saved.settings.autopayDone['2026-09']).toEqual(['bill:b1']);
+      expect(saved.settings.autopayDone['2026-08']).toEqual(['bill:other']);
+    });
+
+    it('keeps the stored format calendar-based for client compatibility', async () => {
+      const user = makeUser({
+        settings: startDay25,
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-09-10T13:00:00.000Z'), { db, emails: {} });
+
+      const saved = upsertUserData.mock.calls[0][1];
+      // Payment monthKey is the calendar month of the mark date, not the
+      // period key ("2026-08-25").
+      expect(saved.payments[0].monthKey).toBe('2026-09');
+      expect(saved.payments[0].date).toBe('2026-09-10');
+      expect(Object.keys(saved.settings.autopayDone)).toEqual(['2026-09']);
+    });
+
+    /* A real payment anywhere in the period counts, even in the other calendar
+       month — the old `p.monthKey === lp.ym` check missed exactly this and
+       double-marked. */
+    it('does not add a mark when a real payment already covers the period', async () => {
+      const user = makeUser({
+        settings: startDay25,
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, autopay: true }],
+        payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 1500, date: '2026-08-28', monthKey: '2026-08' }],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-09-10T13:00:00.000Z'), { db, emails: {} });
+
+      expect(upsertUserData).not.toHaveBeenCalled();
+    });
+
+    /* Skipping is the user's explicit "I'm not paying this" — auto-marking it
+       paid invents a payment and overrules them. */
+    it('does not auto-mark an item the user skipped for the period', async () => {
+      const user = makeUser({
+        settings: { billReminders: false, autopayMark: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+        payments: [{ id: 'p1', type: 'bill', refId: 'b1', amount: 0, date: '2026-06-05', monthKey: '2026-06', skipped: true }],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+
+      expect(upsertUserData).not.toHaveBeenCalled();
+    });
+
+    /* The pull day is a day INSIDE the period, not a day-of-month equal to
+       today's — so a pass that lands after it still catches up rather than
+       skipping the period. The done-memory holds it to one mark. */
+    it('catches up when the pass lands after the pull day', async () => {
+      const user = makeUser({
+        settings: { billReminders: false, autopayMark: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      // June 23 — three days after the due day, same calendar period.
+      await runChecks(new Date('2026-06-23T13:00:00.000Z'), { db, emails: {} });
+
+      const saved = upsertUserData.mock.calls[0][1];
+      expect(saved.payments).toHaveLength(1);
+      expect(saved.payments[0].date).toBe('2026-06-23');
+    });
+
+    it('does not mark before the pull day has arrived', async () => {
+      const user = makeUser({
+        settings: { billReminders: false, autopayMark: true },
+        bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+        payments: [],
+      });
+      db.allUsersWithData.mockReturnValue([user]);
+
+      await runChecks(new Date('2026-06-19T13:00:00.000Z'), { db, emails: {} });
+
+      expect(upsertUserData).not.toHaveBeenCalled();
+    });
+  });
+
+  /* The server used to auto-mark a card at its flat minPayment while every
+     client marked the policy goal, so on a recommended/full account it wrote
+     the wrong amount — real money misreported in History and fed into
+     recentPaymentAverage, which seeds the rollover prefill. */
+  describe('card goal policy', () => {
+    const visa = {
+      id: 'c1', name: 'Visa', balance: 1000, minPayment: 35,
+      regularAPR: 19.99, dueDay: 20, autopay: true,
+    };
+
+    async function markWith(settings, cards = [visa]) {
+      db.allUsersWithData.mockReturnValue([makeUser({
+        settings: { billReminders: false, autopayMark: true, ...settings },
+        cards, payments: [],
+      })]);
+      await runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+      return upsertUserData.mock.calls[0][1].payments[0];
+    }
+
+    it('marks the minimum under the minimum policy', async () => {
+      expect(await markWith({ paidGoal: 'minimum' })).toMatchObject({ amount: 35 });
+    });
+
+    it('marks the payoff-aware recommendation under the default policy', async () => {
+      // Interest-bearing balance → the recommendation is to clear it.
+      expect(await markWith({})).toMatchObject({ amount: 1000 });
+    });
+
+    it('marks the whole balance under the full policy', async () => {
+      expect(await markWith({ paidGoal: 'full' })).toMatchObject({ amount: 1000 });
+    });
+
+    it('leaves a 0% card at its minimum under the recommended policy', async () => {
+      const zero = { ...visa, regularAPR: 0 };
+      expect(await markWith({}, [zero])).toMatchObject({ amount: 35 });
+    });
+
+    it('spreads a live promo balance over the months remaining', async () => {
+      const promo = {
+        ...visa, regularAPR: 0, hasPromo: true,
+        balance: 1200, promoBalance: 1200, promoEndDate: '2026-10-20',
+      };
+      // 1200 over 4 months (June → October) = 300.
+      expect(await markWith({}, [promo])).toMatchObject({ amount: 300 });
+    });
+
+    it('honours a per-card recommended override', async () => {
+      expect(await markWith({}, [{ ...visa, recommendedPayment: 200 }]))
+        .toMatchObject({ amount: 200 });
+    });
+
+    /* A loan owes its scheduled payment under every policy — marking the whole
+       principal would claim the user paid off a mortgage. */
+    it('marks a loan at its scheduled payment even under the full policy', async () => {
+      const loan = {
+        id: 'c2', name: 'Car', type: 'loan', balance: 24000, minPayment: 500,
+        regularAPR: 6.5, dueDay: 20, autopay: true,
+      };
+      expect(await markWith({ paidGoal: 'full' }, [loan]))
+        .toMatchObject({ amount: 500, refId: 'c2' });
+    });
   });
 
   it('skips inactive bills and bills without due metadata', async () => {
@@ -1483,7 +1921,7 @@ describe('scheduler — markAutopay guards', () => {
 
   /* Blank is unfinished setup, not a $0 charge: marking it would invent a
      payment that never happened and feed a 0 into the rollover prefill. */
-  it('ignores an item whose amount was never filled in', () => {
+  it('ignores a bill whose amount was never filled in', () => {
     const sched = loadScheduler();
     const data = {
       bills: [
@@ -1492,8 +1930,7 @@ describe('scheduler — markAutopay guards', () => {
         { id: 'b3', name: 'Gas', amount: '   ', dueDay: 20, autopay: true },
         { id: 'b4', name: 'Trash', amount: 'n/a', dueDay: 20, autopay: true },
       ],
-      cards: [{ id: 'c1', name: 'Visa', dueDay: 20, autopay: true }],
-      payments: [], settings: {},
+      cards: [], payments: [], settings: {},
     };
     expect(sched.markAutopay(data, lpFor(sched))).toBe(false);
     expect(data.payments).toEqual([]);
@@ -1502,6 +1939,27 @@ describe('scheduler — markAutopay guards', () => {
     data.bills = [{ id: 'b5', name: 'Water', amount: 0, dueDay: 20, autopay: true }];
     expect(sched.markAutopay(data, lpFor(sched))).toBe(true);
     expect(data.payments[0].amount).toBe(0);
+  });
+
+  /* For a CARD, "no amount set" is policy-dependent — only a goal that
+     actually reads minPayment can be missing it. A balance-derived goal
+     (recommended / full) legitimately reads 0 on an empty card, which is
+     "nothing due" rather than unfinished setup. This mirrors needsAmount in
+     utils.js and Schedule.needsAmount on both native clients; the old flat
+     `hasAmount(minPayment)` gate was the server's own divergence. */
+  it('gates an amount-less card on the policy, not on minPayment alone', () => {
+    const sched = loadScheduler();
+    const card = { id: 'c1', name: 'Visa', dueDay: 20, autopay: true };
+
+    // minimum policy reads minPayment, which is missing → nothing to mark.
+    const min = { bills: [], cards: [card], payments: [], settings: { paidGoal: 'minimum' } };
+    expect(sched.markAutopay(min, lpFor(sched))).toBe(false);
+    expect(min.payments).toEqual([]);
+
+    // recommended (the default) reads the balance, which is a real 0.
+    const rec = { bills: [], cards: [card], payments: [], settings: {} };
+    expect(sched.markAutopay(rec, lpFor(sched))).toBe(true);
+    expect(rec.payments[0]).toMatchObject({ type: 'card', refId: 'c1', amount: 0 });
   });
 
   it('ignores a bill that is not due today and a card whose day has not come', () => {

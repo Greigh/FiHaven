@@ -662,6 +662,11 @@ main {
 }
 
 /* ── Buttons ────────────────────────────────────────────── */
+/* `display: inline-flex` below is an author rule, so it beats the UA
+   [hidden] rule and a `hidden` button renders anyway — which is how the
+   onboarding paywall showed "Not now" and "Continue with Free" at the same
+   time. Same trap the .auth-consent rule in pages.css calls out. */
+.btn[hidden] { display: none; }
 .btn {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 7px 16px; border-radius: 7px; border: none;
@@ -3196,6 +3201,11 @@ main {
   margin-top: 5px;
   font-size: 11px;
   color: var(--muted);
+}
+/* The activity stamps stack as a block — keep them tight so three lines read
+   as one group rather than three separate details. */
+.admin-user-login + .admin-user-login {
+  margin-top: 2px;
 }
 .admin-promo-list-head {
   margin: 16px 0 8px;

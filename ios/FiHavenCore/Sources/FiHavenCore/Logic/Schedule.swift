@@ -230,6 +230,49 @@ public enum Schedule {
         card.currentBalance ?? card.balance
     }
 
+    /// Which way a bank's suggested balance moves the debt, and whether its
+    /// limit is actually news. See `balanceProposalChange`.
+    public struct BalanceChange: Equatable, Sendable {
+        public let direction: String
+        public let limitChanged: Bool
+    }
+
+    /// How a bank's suggested figures compare with what's on the card today,
+    /// for the balance-review row.
+    ///
+    /// `direction` is which way the debt moves — "up" is more owed, so the UI
+    /// paints it red. Callers pass `current` from `liveBalance`, because that
+    /// is the field accepting a proposal overwrites; comparing against the
+    /// statement would report the move from a figure the suggestion never
+    /// touches.
+    ///
+    /// `limitChanged` is false when the bank re-reports the limit already on
+    /// file, which keeps unchanged limits out of the row. A first limit on a
+    /// card that has none counts as a change.
+    ///
+    /// Both use `paidEpsilon`, the same cent tolerance the paid-state maths
+    /// uses — a re-reported figure differing in float noise is not a change.
+    /// Mirrors balanceProposalChange in utils.js.
+    public static func balanceProposalChange(
+        current: Double?,
+        proposed: Double,
+        currentLimit: Double?,
+        proposedLimit: Double?
+    ) -> BalanceChange {
+        let direction: String
+        if let current, abs(proposed - current) > paidEpsilon {
+            direction = proposed > current ? "up" : "down"
+        } else {
+            direction = "same"
+        }
+        let limitChanged: Bool = {
+            guard let proposedLimit else { return false }
+            guard let currentLimit else { return true }
+            return abs(proposedLimit - currentLimit) > paidEpsilon
+        }()
+        return BalanceChange(direction: direction, limitChanged: limitChanged)
+    }
+
     /// Credit utilization as a 0..1 ratio, or nil when there is nothing to
     /// measure against — a loan (no revolving limit) or a card with no limit
     /// set. Always from `liveBalance`, because that is the figure the issuer

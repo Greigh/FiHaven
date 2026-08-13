@@ -244,7 +244,11 @@ final class AppEnvironment: ObservableObject {
     /// After a successful change-email: stay signed in but gate on verify when required.
     func applyEmailChange(email: String, verificationRequired: Bool) {
         let name = currentUser?.name
-        let user = User(email: email, name: name, emailVerified: !verificationRequired)
+        // Carry the role across: rebuilding the user from scratch would drop
+        // it to "user" and make the admin console vanish until the next
+        // session refresh.
+        let user = User(email: email, name: name, emailVerified: !verificationRequired,
+                        role: currentUser?.role ?? "user")
         session = verificationRequired ? .unverified(user) : .signedIn(user)
     }
 

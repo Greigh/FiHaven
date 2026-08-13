@@ -1,5 +1,11 @@
 package app.fihaven.ui.theme
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -7,9 +13,11 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 
 /// Design tokens ported from client/css/tokens.css (docs/native-contract.md §8).
 data class CtColors(
@@ -78,6 +86,25 @@ fun FiHavenTheme(pref: ThemePref = ThemePref.SYSTEM, content: @Composable () -> 
         ThemePref.DARK -> true
     }
     val ct = if (dark) DarkCt else LightCt
+    // Re-apply edge-to-edge whenever `dark` flips. enableEdgeToEdge()'s default
+    // styles decide the system bars' icon color and scrim from the *system*
+    // dark-mode setting, but `dark` above is the user's in-app preference, which
+    // is free to disagree with it — so a Dark app on a Light phone drew dark
+    // status-bar icons onto our dark background, and vice versa. Handing the
+    // styles an explicit detectDarkMode is the supported way to bind them to
+    // something other than uiMode. MainActivity's bare call covers the frames
+    // before this runs.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        val activity = view.context.findActivity() as? ComponentActivity
+        DisposableEffect(activity, dark) {
+            activity?.enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.auto(TRANSPARENT, TRANSPARENT) { dark },
+                navigationBarStyle = SystemBarStyle.auto(NavBarLightScrim, NavBarDarkScrim) { dark },
+            )
+            onDispose {}
+        }
+    }
     val scheme = if (dark) {
         darkColorScheme(
             primary = ct.accent, background = ct.bg, surface = ct.surface,
@@ -99,3 +126,23 @@ fun FiHavenTheme(pref: ThemePref = ThemePref.SYSTEM, content: @Composable () -> 
         }
     }
 }
+
+/// A composable's context is not always the Activity — Compose wraps it, and
+/// inside a Dialog it is the dialog's own themed context — so walk the wrappers
+/// rather than casting.
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private const val TRANSPARENT = 0
+
+/// Navigation-bar fill below API 29, which has no contrast enforcement to keep
+/// the buttons legible over app content (and on API 26, no light-button mode
+/// either). Copied from androidx.activity's own defaults so the bar looks
+/// identical to what plain enableEdgeToEdge() produced — only which of the two
+/// gets picked changes. Both are unused from API 29 up: there the bar is simply
+/// transparent.
+private const val NavBarLightScrim = 0xE6FFFFFF.toInt()
+private const val NavBarDarkScrim = 0x801B1B1B.toInt()
