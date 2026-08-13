@@ -1,6 +1,16 @@
 # Store launch checklist — FiHaven (`app.fihaven`)
 
-Public App Store + Google Play launch. Versions freeze at **1.6.0** unless a post-freeze fix bumps a patch.
+Public App Store + Google Play launch. **Both listings went public on 2026-08-13
+on 1.6.1** — see §7. The freeze below was written for that launch (it froze at
+1.6.0, which became 1.6.1 through post-freeze patches); it is kept as the
+procedure to repeat, not as a live version pin. The **current train is 1.6.2,
+build 49 on both stores**.
+
+> **Build numbers are aligned from 1.6.2 onward.** iOS jumped 27 → 49 to meet
+> Android's versionCode so one number identifies a release on both stores. Bump
+> them **together** from here — letting one run ahead undoes the alignment, and
+> App Store Connect refuses a `CFBundleVersion` at or below one already uploaded,
+> so iOS can never be walked back down to catch up.
 
 Related: [`docs/local/app-store-connect.md`](../local/app-store-connect.md) (gitignored local notes), [`android/README.md`](../../android/README.md) (symbol upload), [`docs/testflight-license-agreement.txt`](../testflight-license-agreement.txt).
 
@@ -9,7 +19,7 @@ Related: [`docs/local/app-store-connect.md`](../local/app-store-connect.md) (git
 ## 0. Pre-submit freeze
 
 - [ ] Working tree for the review train is intentional (no mid-feature WIP).
-- [ ] Versions match: `package.json` `1.6.0`, iOS `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, Android `versionName` / `versionCode` in `android/app/build.gradle.kts`.
+- [ ] Versions match across all four sites: `package.json` `version`, iOS `MARKETING_VERSION` **and** `CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, Android `versionName` **and** `versionCode` in `android/app/build.gradle.kts`. The two marketing versions must be equal, and since 1.6.2 **the two build numbers must be equal too**.
 - [ ] Web legal pages deployed: Privacy / Terms / FAQ (`npm run deploy` if copy changed).
 - [ ] `GET https://fihaven.app/health` returns `{"ok":true}`.
 - [ ] Seller/publisher identity is **Greigh Studios LLC** on both stores: Apple Developer Program account is an Organization (D-U-N-S on file) and the App Store "Copyright" field reads `2026 Greigh Studios LLC`; Google Play developer account name and "Developer" listing name read Greigh Studios LLC. If either account is still a personal/individual account, start the transfer before submitting — Apple's individual→organization move and Play's account transfer both take time.
@@ -68,7 +78,7 @@ anyone can join from the Play listing — manage the audience under
 `GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
 It does **not** auto-bump `versionCode` — pass `--version-code +1` (or an
 absolute N) when you need a new code. Play release names are
-`versionName (versionCode)` (e.g. `1.6.1 (29)`).
+`versionName (versionCode)` (e.g. `1.6.2 (49)`).
 
 If commit fails with **The caller does not have permission**: Play Console →
 **Users and permissions** → add the JSON `client_email` → grant **Manage
@@ -82,7 +92,11 @@ Link the Cloud project under Setup → API access if you have not already.
 | iOS | dSYMs + LinkKit dSYM | `scripts/ios-testflight.sh` generates LinkKit dSYM before export; ASC symbol upload on |
 | Android | `native-debug-symbols.zip` + `mapping.txt` | Same Gradle build as the `.aab` — see `android/README.md` |
 
-Bump iOS `CURRENT_PROJECT_VERSION` and Android `versionCode` before every new upload of the same marketing version (Android: `bun run deploy:android -- --version-code +1`).
+Bump iOS `CURRENT_PROJECT_VERSION` and Android `versionCode` before every new
+upload of the same marketing version (Android: `bun run deploy:android --
+--version-code +1`) — and bump them **to the same number**, which is the whole
+point of the 1.6.2 alignment. Uploading to only one store still burns the number
+on both: take the next value for the pair rather than letting them diverge.
 
 ---
 
@@ -250,28 +264,27 @@ Same demo account as Apple. Point to Settings → About for Privacy/Terms. Note 
 
 ---
 
-## 7. Go-live flip (after both stores are public)
+## 7. Go-live flip (after both stores are public) — ✅ done 2026-08-13
 
-Badge markup is already flip-ready in [`client/home.html`](../../client/home.html) (`#app-store-badges`). Do **not** flip until listings are Approved / Published.
+Both listings are public:
 
-1. On `#app-store-badges`:
-   - `data-store-live="true"`
-   - Set the real App Store URL on `[data-store-badge="ios-live"]`’s `href`
-   - Confirm `[data-store-badge="android-live"]`’s `href` is the Play listing
-     (`https://play.google.com/store/apps/details?id=app.fihaven`)
-   - Do **not** copy store URLs through `data-*-href` attributes into `.href`
-     (that pattern re-triggers CodeQL `js/xss-through-dom`).
-2. FAQ — set JSON-LD + body answers to: *Available on the App Store and Google Play; same account as the web.*
-3. README Roadmap & gaps store table:
+- **iOS** — <https://apps.apple.com/us/app/fihaven/id6781084347> (Apple id `6781084347`)
+- **Android** — <https://play.google.com/store/apps/details?id=app.fihaven>
 
-   | Platform | Status |
-   |---|---|
-   | **iOS** | Available on the [App Store](https://apps.apple.com/app/id…) |
-   | **Android** | Available on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) |
+What the flip changed (kept here as the record of where store URLs live):
 
-4. `docs/local/competitive-roadmap.md` — change Store distribution row to: `App Store (iOS); Google Play (Android)`.
-5. `npm run deploy` — confirm `GET /health` → `{"ok":true}`.
-6. Optional: IndexNow if homepage changed materially.
+1. [`client/home.html`](../../client/home.html) `#app-store-badges` — now exactly **two**
+   badges, App Store and Google Play, both plain `<a href>` links. The beta/live
+   badge pair, the web badge, the `data-store-live` toggle, and its script are gone.
+   Store URLs stay literal in markup — never copy a `data-*` attribute into `.href`
+   (that pattern re-triggers CodeQL `js/xss-through-dom`).
+2. Home JSON-LD carries both listings in `sameAs`, `downloadUrl`, and `installUrl`.
+3. FAQ, Contact, Pricing, Security, Terms, and `client/public/llms{,-full}.txt`
+   all say *available on the App Store and Google Play*; no TestFlight or
+   open-testing routes in public copy.
+4. README "Store distribution" table and `docs/local/competitive-roadmap.md` updated.
+5. TestFlight and Play Open testing remain the **pre-release** tracks — the deploy
+   scripts (`scripts/ios-testflight.sh`, `scripts/play-upload.js`) are unchanged.
 
 Paste-ready listing text: [`store-listing-copy.md`](store-listing-copy.md).
 

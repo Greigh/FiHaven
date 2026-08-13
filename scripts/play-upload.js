@@ -80,7 +80,7 @@ Also uploads R8 mapping.txt and native-debug-symbols.zip when present.
 By default the versionCode already in android/app/build.gradle.kts is used.
 Pass --version-code +1 (or an absolute N) to bump before building.
 With --build and a TTY, you can also confirm marketing version interactively.
-Release name on Play is always "versionName (versionCode)", e.g. "1.6.1 (27)".
+Release name on Play is always "versionName (versionCode)", e.g. "1.6.2 (49)".
 Set GOOGLE_PLAY_ROLLOUT=0.1 to release to 10% of testers instead of everyone.`);
       process.exit(0);
     } else if (!arg.startsWith('-')) aab = arg;
