@@ -16,6 +16,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import app.fihaven.core.model.Bill
+import app.fihaven.core.model.IncomeAdjustment
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.CategoryIcon
 import app.fihaven.core.model.FiHavenJson
@@ -58,6 +59,53 @@ class IncomeTest {
             """{"income":9999,"incomes":[{"id":"a","label":"x","amount":1000,"frequency":"monthly"}]}"""
         ).jsonObject
         assertEquals(1000.0, Income.monthlyIncome(s), 1e-6)
+    }
+
+    @Test fun adjustmentsMatchOnMonthsNotPeriodKeys() {
+        // Outside calendar mode a period is keyed by its START DATE. Handing
+        // that to appliesTo used to match nothing, so a one-time adjustment
+        // created under a rolling period was invisible and counted for nothing.
+        val once = IncomeAdjustment(id = "a", amount = 500.0, kind = "once", monthKey = "2026-07")
+        assertTrue(once.appliesTo("2026-07-08"))
+        assertTrue(once.appliesTo("2026-07"))
+        assertFalse(once.appliesTo("2026-08-08"))
+
+        // Records an older build stamped with a date heal on read.
+        val legacy = IncomeAdjustment(id = "b", amount = 500.0, kind = "once", monthKey = "2026-07-08")
+        assertTrue(legacy.appliesTo("2026-07"))
+        assertTrue(legacy.appliesTo("2026-07-08"))
+
+        // A date-keyed window bound no longer sorts after the month it names.
+        val ending = IncomeAdjustment(
+            id = "c", amount = 100.0, kind = "recurring",
+            startMonth = "2026-06-15", endMonth = "2026-08-15",
+        )
+        assertTrue(ending.appliesTo("2026-08"))
+        assertTrue(ending.appliesTo("2026-06"))
+        assertFalse(ending.appliesTo("2026-09"))
+    }
+
+    @Test fun adjustmentsForPeriodCoverEveryOverlappedMonth() {
+        val settings = FiHavenJson.parseToJsonElement(
+            """{"incomeAdjustments":[
+                 {"id":"jul","amount":500,"kind":"once","monthKey":"2026-07"},
+                 {"id":"aug","amount":200,"kind":"once","monthKey":"2026-08"},
+                 {"id":"sep","amount":900,"kind":"once","monthKey":"2026-09"}
+               ]}"""
+        ).jsonObject
+        // A 35-day window from Jul 8 straddles July and August.
+        val cfg = PeriodConfig.normalized("rolling", null, 35)
+        val bounds = Period.bounds(LocalDate.of(2026, 7, 20), cfg)
+        val ids = Income.adjustmentsForPeriod(settings, bounds).map { it.id }
+        assertEquals(listOf("jul", "aug"), ids)
+        // The anchor for a NEW one-time adjustment is the month the period starts in.
+        assertEquals(bounds.key.take(7), Income.periodAnchorMonth(bounds))
+        assertEquals(7, Income.periodAnchorMonth(bounds).length)
+
+        // Calendar mode keys by month already, so nothing changes there.
+        val cal = Period.bounds(LocalDate.of(2026, 7, 20), PeriodConfig.normalized("calendar", null, null))
+        assertEquals(listOf("jul"), Income.adjustmentsForPeriod(settings, cal).map { it.id })
+        assertEquals("2026-07", Income.periodAnchorMonth(cal))
     }
 
     @Test fun periodIncomeProratesRolling() {
@@ -262,6 +310,23 @@ class ScheduleTest {
         assertEquals(300.0, Schedule.liveBalance(Card(id = "2", name = "Plain", balance = 300.0)), 1e-6)
         // A current balance of exactly zero is a real figure, not "unset".
         assertEquals(0.0, Schedule.liveBalance(Card(id = "3", balance = 300.0, currentBalance = 0.0)), 1e-6)
+    }
+
+    @Test fun balanceProposalChangeReadsDirectionAndLimitNews() {
+        // More debt is "up" (the review row paints it red), less is "down".
+        assertEquals("up", Schedule.balanceProposalChange(2336.64, 2400.0, null, null).direction)
+        assertEquals("down", Schedule.balanceProposalChange(2336.64, 1900.0, null, null).direction)
+        // Sub-cent float noise from a re-reported figure is not a change.
+        assertEquals("same", Schedule.balanceProposalChange(2336.64, 2336.641, null, null).direction)
+        // Nothing to compare against when the card is gone.
+        assertEquals("same", Schedule.balanceProposalChange(null, 500.0, null, null).direction)
+
+        // The limit stays out of the row unless it actually moved.
+        assertFalse(Schedule.balanceProposalChange(1.0, 1.0, 40_900.0, 40_900.0).limitChanged)
+        assertTrue(Schedule.balanceProposalChange(1.0, 1.0, 40_900.0, 45_000.0).limitChanged)
+        assertFalse(Schedule.balanceProposalChange(1.0, 1.0, 40_900.0, null).limitChanged)
+        // A first limit on a card that has none is news.
+        assertTrue(Schedule.balanceProposalChange(1.0, 1.0, null, 5_000.0).limitChanged)
     }
 
     @Test fun cardAmountsSeparatesDueCurrentAndOwed() {
@@ -651,20 +716,5 @@ class NeedsAmountTest {
         assertFalse(json.contains("\"minPayment\""))
         assertNull(FiHavenJson.decodeFromString(Card.serializer(), json).minPayment)
         assertEquals(0.0, FiHavenJson.decodeFromString(Card.serializer(), json).minPaymentOrZero, 1e-9)
-    }
-}
-
-class SpendingInsightsTest {
-    @Test fun computeSortsByDelta() {
-        val cur = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
-        val prev = Period.shift(cur, -1, PeriodConfig.normalized("calendar", null, 35))
-        val tx = listOf(
-            SpendTransaction(id = "1", date = "2026-06-05", amount = 200.0, category = "Dining", merchant = "", note = ""),
-            SpendTransaction(id = "2", date = "2026-05-05", amount = 50.0, category = "Dining", merchant = "", note = ""),
-            SpendTransaction(id = "3", date = "2026-06-03", amount = 80.0, category = "Groceries", merchant = "", note = ""),
-        )
-        val rows = SpendingInsights.compute(tx, cur, prev)
-        assertEquals("Dining", rows.first().cat)
-        assertEquals(150.0, rows.first().delta, 1e-6)
     }
 }

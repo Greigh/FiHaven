@@ -41,8 +41,6 @@ import app.fihaven.core.model.timezoneSetting
 import app.fihaven.core.model.currency
 import app.fihaven.core.model.hidePaidOnDashboard
 import app.fihaven.core.model.plaidHidden
-import app.fihaven.core.model.plaidBalanceProposals
-import app.fihaven.core.model.plaidBalanceResolved
 import app.fihaven.core.model.genId
 import app.fihaven.core.model.subscriptionDeclined
 import app.fihaven.core.model.withIncomeAdjustments
@@ -60,9 +58,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.BudgetRules
@@ -73,6 +68,7 @@ import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.PeriodBounds
 import app.fihaven.core.logic.PeriodConfig
 import app.fihaven.core.logic.Rewards
+import app.fihaven.core.logic.BalanceReview
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.logic.UpcomingItem
 import app.fihaven.core.net.ApiClient
@@ -923,7 +919,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** After a successful change-email: stay signed in but gate on verify when required. */
     fun applyEmailChange(email: String, verificationRequired: Boolean) {
         val name = currentUser?.name
-        val user = User(email, name, emailVerified = !verificationRequired)
+        // Carry the role across: rebuilding the user from scratch would drop
+        // it to "user" and make the admin console vanish until the next
+        // session refresh.
+        val user = User(email, name, emailVerified = !verificationRequired,
+            role = currentUser?.role ?: "user")
         _session.value = if (verificationRequired) Session.Unverified(user) else Session.SignedIn(user)
     }
 
@@ -1049,6 +1049,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             NotificationScheduler.reschedule(
                 getApplication(), d.activeBills, d.activeCards, d.settings, zone(),
                 pro = d.entitlement?.pro ?: false,
+                payments = d.payments,
             )
         }
     }
@@ -1454,80 +1455,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
 
-    data class BalanceProposal(
-        val cardId: String,
-        val name: String,
-        val proposedCurrent: Double,
-        val limit: Double?,
-        val fingerprint: String,
-        /** Which tab owns this proposal. A matched loan account used to surface
-         *  under Credit Cards and never under Loans. A proposal whose card is
-         *  gone stays with Cards so it remains answerable. */
-        val isLoan: Boolean = false,
-    )
+    // The queue itself lives in core (BalanceReview) so it can be tested
+    // without an Application; the ViewModel only owns the mutate/save wiring.
+    fun pendingBalanceProposals(): List<BalanceReview.Proposal> =
+        BalanceReview.pending(_data.value.settings, _data.value.cards)
 
-    fun pendingBalanceProposals(): List<BalanceProposal> {
-        val d = _data.value
-        val resolved = d.settings.plaidBalanceResolved
-            .mapNotNull { it["fingerprint"]?.let { v -> (v as? JsonPrimitive)?.contentOrNull } }
-            .toSet()
-        return d.settings.plaidBalanceProposals.mapNotNull { raw ->
-            val fp = (raw["fingerprint"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
-            if (fp in resolved) return@mapNotNull null
-            val idEl = raw["id"] ?: return@mapNotNull null
-            val cardId = when (idEl) {
-                is JsonPrimitive -> idEl.contentOrNull ?: idEl.doubleOrNull?.toInt()?.toString()
-                else -> null
-            } ?: return@mapNotNull null
-            val proposed = (raw["proposedCurrent"] as? JsonPrimitive)?.doubleOrNull
-                ?: (raw["balance"] as? JsonPrimitive)?.doubleOrNull
-                ?: return@mapNotNull null
-            val limit = (raw["limit"] as? JsonPrimitive)?.doubleOrNull
-            val card = d.cards.firstOrNull { it.id.toString() == cardId }
-            BalanceProposal(
-                cardId = cardId,
-                name = card?.name ?: "Card $cardId",
-                proposedCurrent = proposed,
-                limit = limit,
-                fingerprint = fp,
-                isLoan = card?.type == "loan",
-            )
-        }
-    }
-
-    fun acceptBalanceProposal(p: BalanceProposal) = mutate { d ->
-        val cards = d.cards.map { c ->
-            if (c.id.toString() != p.cardId) c
-            else c.copy(currentBalance = p.proposedCurrent, limit = p.limit ?: c.limit)
-        }
-        val resolved = (d.settings.plaidBalanceResolved + buildJsonObject {
-            put("fingerprint", p.fingerprint)
-            put("decision", "accept")
-        }).takeLast(200)
-        val proposals = d.settings.plaidBalanceProposals.filter {
-            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != p.fingerprint
-        }
+    fun acceptBalanceProposal(p: BalanceReview.Proposal) = mutate { d ->
         d.copy(
-            cards = cards,
-            settings = d.settings
-                .withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
-                .withSetting("plaidBalanceProposals", buildJsonArray { proposals.forEach { add(it) } }),
+            cards = BalanceReview.applyToCards(d.cards, p),
+            settings = BalanceReview.resolve(d.settings, p.fingerprint, "accept"),
         )
     }
 
-    fun declineBalanceProposal(p: BalanceProposal) = mutate { d ->
-        val resolved = (d.settings.plaidBalanceResolved + buildJsonObject {
-            put("fingerprint", p.fingerprint)
-            put("decision", "decline")
-        }).takeLast(200)
-        val proposals = d.settings.plaidBalanceProposals.filter {
-            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != p.fingerprint
-        }
-        d.copy(
-            settings = d.settings
-                .withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
-                .withSetting("plaidBalanceProposals", buildJsonArray { proposals.forEach { add(it) } }),
-        )
+    fun declineBalanceProposal(p: BalanceReview.Proposal) = mutate { d ->
+        d.copy(settings = BalanceReview.resolve(d.settings, p.fingerprint, "decline"))
     }
 
     fun declineSubscriptionMerchant(key: String) {

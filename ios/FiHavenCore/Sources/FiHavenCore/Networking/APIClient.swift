@@ -37,9 +37,19 @@ public final class APIClient: Sendable {
         path: String,
         method: Method,
         body: AnyEncodable? = nil,
-        tokenMode: Bool = false
+        tokenMode: Bool = false,
+        query: [URLQueryItem]? = nil
     ) throws -> URLRequest {
-        let url = config.baseURL.appendingPathComponent(path)
+        // `path` is a path only — a "?" inside it would be percent-encoded by
+        // appendingPathComponent and land as a literal in the path segment.
+        // Query goes through URLComponents so it is escaped correctly (the
+        // admin user search sends arbitrary text).
+        var url = config.baseURL.appendingPathComponent(path)
+        if let query, !query.isEmpty,
+           var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            comps.queryItems = query
+            if let built = comps.url { url = built }
+        }
         var req = URLRequest(url: url)
         req.httpMethod = method.rawValue
         if let token = tokens.get() {

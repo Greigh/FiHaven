@@ -49,7 +49,7 @@ enum NotificationScheduler {
     /// because the registrar is `@MainActor` and this is not.
     static func reschedule(
         bills: [Bill], cards: [Card] = [], settings: Settings, tz: TimeZone,
-        pro: Bool, pushHealthy: Bool
+        pro: Bool, pushHealthy: Bool, payments: [Payment] = []
     ) {
         center.removeAllPendingNotificationRequests()
         guard settings.localNotifications else { return }
@@ -76,8 +76,12 @@ enum NotificationScheduler {
         var scheduled = 0
         // Soonest-due first, so a long bill list still gets the most relevant
         // reminders within the pending-request budget.
+        let periodCfg = Period.config(from: settings)
         let upcoming: [(Bill, Date)] = pushCoversBills ? [] : bills.compactMap { bill -> (Bill, Date)? in
             guard let due = BillSchedule.nextDueDate(bill, tz: tz, from: now) else { return nil }
+            // Already handled for the cycle it's about to hit — reminding
+            // anyway is the noise that teaches people to ignore these.
+            if settled(bill, due: due, payments: payments, config: periodCfg, tz: tz) { return nil }
             return (bill, due)
         }.sorted { $0.1 < $1.1 }
 
@@ -196,6 +200,32 @@ enum NotificationScheduler {
         case 1: return "expires tomorrow"
         default: return "expires in \(off) days"
         }
+    }
+
+    /// True when `bill`'s cycle around `due` is already settled — skipped, or
+    /// paid up to its full amount — so no reminder is warranted.
+    ///
+    /// Measured over the period containing the DUE date, not today's: at a
+    /// 7-day lead the due date can sit in the next period, and matching on the
+    /// current one would read the last cycle's payment and silence a reminder
+    /// that should fire.
+    ///
+    /// A PARTIAL payment still reminds — money is still owed. The `paid > 0`
+    /// gate covers a bill with no amount set: its goal is 0, which
+    /// `paid >= goal` satisfies with no payment at all, so without it every
+    /// amount-less bill would go silent forever (the zero-goal trap
+    /// `Schedule.needsAmount` guards against in the UI). Mirrors
+    /// billSettledForDue in server/scheduler.js.
+    private static func settled(
+        _ bill: Bill, due: Date, payments: [Payment], config: PeriodConfig, tz: TimeZone
+    ) -> Bool {
+        if payments.isEmpty { return false }
+        let ref = String(bill.id)
+        let bounds = Period.bounds(for: due, config: config, tz: tz)
+        if Schedule.isSkipped(payments, type: "bill", refId: ref, in: bounds) { return true }
+        let paid = Schedule.paidAmount(payments, type: "bill", refId: ref, in: bounds)
+        if paid <= 0 { return false }
+        return paid >= Schedule.goalAmount(bill: bill) - Schedule.paidEpsilon
     }
 
     private static func trialEndDate(_ bill: Bill, tz: TimeZone) -> Date? {

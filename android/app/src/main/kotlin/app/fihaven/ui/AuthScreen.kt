@@ -61,6 +61,7 @@ import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -84,6 +85,17 @@ fun AuthScreen(vm: AppViewModel) {
     var captchaToken by remember { mutableStateOf<String?>(null) }
     var captchaReload by remember { mutableIntStateOf(0) }
     var turnstileHeight by remember { mutableIntStateOf(72) }
+    var captchaStalled by remember { mutableStateOf(false) }
+
+    // The widget renders nothing when it solves, so a challenge that never
+    // completes used to look like nothing at all: Sign in sat disabled with no
+    // reason given and no way to retry. Errors alone aren't the signal —
+    // Turnstile retries them on its own — so give the whole attempt a deadline.
+    LaunchedEffect(captchaReload) {
+        captchaStalled = false
+        delay(CAPTCHA_DEADLINE_MS)
+        if (captchaToken == null) captchaStalled = true
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -231,7 +243,7 @@ fun AuthScreen(vm: AppViewModel) {
                     siteKey = BuildConfig.TURNSTILE_SITEKEY,
                     baseUrl = BuildConfig.API_BASE.trimEnd('/'),
                     reloadKey = captchaReload,
-                    onToken = { captchaToken = it },
+                    onToken = { captchaToken = it; captchaStalled = false },
                     onError = { captchaToken = null },
                     onHeight = { turnstileHeight = it.coerceIn(0, 120) },
                     modifier = Modifier
@@ -239,6 +251,24 @@ fun AuthScreen(vm: AppViewModel) {
                         .padding(top = if (signup) 12.dp else 0.dp)
                         .height(turnstileHeight.coerceAtLeast(1).dp),
                 )
+                // Names the two ways out — retry, or one of the federated
+                // buttons, none of which need the security check.
+                if (captchaStalled && captchaToken == null) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "Couldn’t complete the security check. Check your connection and " +
+                                "try again, or use one of the sign-in options below.",
+                            color = Ct.colors.muted, fontSize = 12.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        TextButton(onClick = { reloadCaptcha() }) {
+                            Text("Try again", color = Ct.colors.accent, fontSize = 13.sp)
+                        }
+                    }
+                }
                 error?.let {
                     Text(it, color = Ct.colors.red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                 }
@@ -402,6 +432,11 @@ fun MfaScreen(vm: AppViewModel, challenge: MfaChallenge) {
 }
 
 private const val TAG_GOOGLE_AUTH = "FiHavenGoogleAuth"
+
+/** How long the Turnstile widget gets to produce a token before the screen says
+ *  something is wrong. Long enough that a slow-but-working challenge doesn't
+ *  trip it, short enough that nobody is left guessing. Mirrors iOS. */
+private const val CAPTCHA_DEADLINE_MS = 12_000L
 
 private fun Context.findActivity(): Activity? {
     var c: Context? = this

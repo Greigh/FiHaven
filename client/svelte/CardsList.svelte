@@ -23,6 +23,7 @@
     pendingBalanceProposals,
     acceptBalanceProposal,
     declineBalanceProposal,
+    proposalComparison,
   } from '../js/plaidBalanceReview.js';
   import { boundsForKey, paymentInBounds } from '../js/period.js';
   import Sparkline from './Sparkline.svelte';
@@ -280,12 +281,18 @@
       Suggestions update <strong>Current Balance</strong> only. Statement Balance stays manual. Decline remembers this figure so it won’t reappear until the bank changes.
     </p>
     {#each balanceProposals as p (p.fingerprint)}
+      {@const cmp = proposalComparison(p)}
       <div class="recon-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border);">
         <div style="flex:1;min-width:140px;">
           <div style="font-weight:600;font-size:14px;">{p.name}</div>
           <div style="font-size:12px;color:var(--muted);">
-            Current → {fmt(p.proposedCurrent)}
-            {#if p.limit != null}<span> · limit {fmt(p.limit)}</span>{/if}
+            Current {#if cmp.current != null}{fmt(cmp.current)} {/if}→
+            <!-- Arrow as well as color: more debt is red, less is green, and
+                 neither is legible to a colorblind reader on its own. -->
+            <strong style="color:{cmp.direction === 'up' ? 'var(--red)' : cmp.direction === 'down' ? 'var(--green)' : 'inherit'};">
+              {#if cmp.direction === 'up'}↑{:else if cmp.direction === 'down'}↓{/if}{fmt(cmp.proposed)}
+            </strong>
+            {#if cmp.limitChanged}<span> · limit {#if cmp.currentLimit != null}{fmt(cmp.currentLimit)} → {/if}{fmt(cmp.limit)}</span>{/if}
           </div>
         </div>
         <button class="btn btn-primary btn-xs" type="button" onclick={() => acceptProposal(p)}>Accept</button>

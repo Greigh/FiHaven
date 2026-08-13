@@ -142,7 +142,7 @@ describe('integration — account deletion', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'integration1',
+        password: 'integration1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),
@@ -184,7 +184,7 @@ describe('integration — account deletion', () => {
     const res = await fetch(`${base}/api/account/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, Cookie: cookie },
-      body: JSON.stringify({ password: 'integration1', confirm: 'DELETE ACCOUNT DATA' }),
+      body: JSON.stringify({ password: 'integration1!', confirm: 'DELETE ACCOUNT DATA' }),
     });
     expect(res.status).toBe(200);
     expect(ctx.db().findUserByEmail(email)).toBeFalsy();
@@ -241,7 +241,7 @@ describe('integration — account deletion', () => {
     const res = await fetch(`${base}/api/account/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, Cookie: cookie },
-      body: JSON.stringify({ password: 'integration1', confirm: 'DELETE ACCOUNT DATA' }),
+      body: JSON.stringify({ password: 'integration1!', confirm: 'DELETE ACCOUNT DATA' }),
     });
     expect(res.status).toBe(200);
 
@@ -265,7 +265,7 @@ describe('integration — account deletion', () => {
     const res = await fetch(`${base}/api/account/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, Cookie: cookie },
-      body: JSON.stringify({ password: 'integration1', confirm: 'DELETE ACCOUNT DATA' }),
+      body: JSON.stringify({ password: 'integration1!', confirm: 'DELETE ACCOUNT DATA' }),
     });
     // A billing hiccup must never trap someone in an account they asked to
     // delete — it's logged for follow-up instead.
@@ -278,7 +278,7 @@ describe('integration — account deletion', () => {
     const res = await fetch(`${base}/api/account/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, Cookie: cookie },
-      body: JSON.stringify({ password: 'integration1', confirm: 'DELETE ACCOUNT DATA' }),
+      body: JSON.stringify({ password: 'integration1!', confirm: 'DELETE ACCOUNT DATA' }),
     });
     expect(res.status).toBe(200);
     expect(paddleCalls).toHaveLength(0);

@@ -20,6 +20,7 @@ const billing = require('../billing');
 const emails = require('../emails');
 const mfa = require('../mfa');
 const plaid = require('../plaid');
+const rateLimit = require('../rateLimit');
 const reauth = require('../reauth');
 const tokens = require('../tokens');
 const { requireAuth, requireVerified, requireCsrf, requirePro, destroySession } = require('../session');
@@ -177,13 +178,18 @@ router.post('/change-name', requireAuth, requireCsrf, (req, res) => {
 
 /* ── POST /api/account/change-email ──────────────────────────── */
 
+// Deliberately available to an UNVERIFIED account. Typing the address wrong at
+// signup used to be a dead end: the verify screen is the only thing an
+// unverified session can reach, nothing there could correct the address, and
+// the confirmation mail was on its way to an inbox the user doesn't own. The
+// password re-entry above is what makes this safe to allow — and since an
+// OAuth account is verified the moment it is created, every unverified account
+// has a password to re-enter.
 router.post('/change-email', requireAuth, requireCsrf, async (req, res) => {
   const body = req.body || {};
 
   const user = await verifyPassword(req.user.id, body.password);
   if (!user) return sendError(res, 401, 'wrong-password');
-
-  if (!user.email_verified) return sendError(res, 403, 'email-unverified');
 
   const newEmail = normalizeEmail(body.newEmail);
   if (!isValidEmail(newEmail)) return sendError(res, 400, 'invalid-email');
@@ -191,6 +197,17 @@ router.post('/change-email', requireAuth, requireCsrf, async (req, res) => {
 
   const existing = dbApi.findUserByEmail(newEmail);
   if (existing) return sendError(res, 409, 'email-taken');
+
+  // Each accepted change sends mail to an address the user has only claimed,
+  // so an account walking addresses is a way to make FiHaven mail strangers.
+  // Same per-IP+email budget the resend button spends from. Checked after the
+  // rejections above so a typo or an already-taken address costs nothing —
+  // only a change that actually sends mail spends from the budget.
+  const limit = rateLimit.check(req.ip, newEmail);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+  rateLimit.record(req.ip, newEmail);
 
   try {
     dbApi.updateUserEmail(user.id, newEmail);

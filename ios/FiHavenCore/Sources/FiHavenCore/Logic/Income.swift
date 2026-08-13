@@ -91,6 +91,26 @@ public enum Income {
         return out
     }
 
+    /// The adjustments affecting a whole period — the display counterpart to
+    /// `adjustmentsTotal`, so a list and its total can never disagree. A
+    /// non-calendar period can straddle two calendar months, so this is every
+    /// adjustment applying to any month the period overlaps.
+    public static func adjustmentsForPeriod(
+        from settings: Settings, bounds: PeriodBounds, tz: TimeZone
+    ) -> [IncomeAdjustment] {
+        let months = bounds.mode == "calendar"
+            ? [bounds.key]
+            : monthOverlaps(bounds, tz: tz).map { $0.mk }
+        return settings.incomeAdjustments.filter { adj in months.contains { adj.applies(to: $0) } }
+    }
+
+    /// The month a one-time adjustment created in this period belongs to: the
+    /// month the period starts in. `bounds.key` is already a month key in
+    /// calendar mode. Mirrors periodAnchorMonth in income.js.
+    public static func periodAnchorMonth(_ bounds: PeriodBounds) -> String {
+        monthOf(bounds.key)
+    }
+
     /// Signed total of adjustments affecting a period (prorated for non-calendar modes).
     public static func adjustmentsTotal(from settings: Settings, bounds: PeriodBounds, tz: TimeZone) -> Double {
         if bounds.mode == "calendar" {
@@ -114,6 +134,15 @@ public enum Income {
 
     public static func incomeLabel(for config: PeriodConfig) -> String {
         config.mode == "calendar" ? "Monthly income" : "Period income"
+    }
+
+    /// Period-aware wording, mirrored so all three platforms say the same thing.
+    public static func baseIncomeLabel(for config: PeriodConfig) -> String {
+        config.mode == "calendar" ? "Base monthly income" : "Base income this period"
+    }
+
+    public static func adjustmentsLabel(for config: PeriodConfig) -> String {
+        config.mode == "calendar" ? "Adjustments this month" : "Adjustments this period"
     }
 
     public static func owedLabel(for config: PeriodConfig) -> String {

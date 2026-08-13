@@ -14,6 +14,12 @@ struct AuthView: View {
     @State private var captchaToken: String?
     @State private var captchaReloadID = UUID()
     @State private var turnstileHeight: CGFloat = 72
+    @State private var captchaStalled = false
+
+    /// How long the Turnstile widget gets to produce a token before the screen
+    /// says something is wrong. Long enough that a slow-but-working challenge
+    /// doesn't trip it, short enough that nobody is left guessing.
+    private static let captchaDeadline: Duration = .seconds(12)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,7 +66,10 @@ struct AuthView: View {
                     TurnstileView(
                         siteKey: AppConfig.turnstileSiteKey,
                         onToken: { token in
-                            performWithAnimation(!reduceMotion) { captchaToken = token }
+                            performWithAnimation(!reduceMotion) {
+                                captchaToken = token
+                                captchaStalled = false
+                            }
                         },
                         onError: {
                             performWithAnimation(!reduceMotion) { captchaToken = nil }
@@ -75,6 +84,21 @@ struct AuthView: View {
                     .transition(.opacity)
                     .accessibilityLabel("Security check")
                     .accessibilityHint("Completes automatically in the background")
+                    // The widget renders nothing when it solves, so a challenge
+                    // that never completes used to look like nothing at all:
+                    // Sign in sat greyed out with no reason given and no way to
+                    // retry. Errors alone aren't the signal — Turnstile retries
+                    // them on its own — so give the whole attempt a deadline.
+                    .task(id: captchaReloadID) {
+                        captchaStalled = false
+                        try? await Task.sleep(for: Self.captchaDeadline)
+                        guard !Task.isCancelled, captchaToken == nil else { return }
+                        performWithAnimation(!reduceMotion) { captchaStalled = true }
+                    }
+
+                    if captchaStalled, captchaToken == nil {
+                        captchaStalledNotice
+                    }
 
                     if let notice = env.authNotice {
                         FormNoticeBanner(message: notice)
@@ -186,6 +210,29 @@ struct AuthView: View {
 
     private var canSubmit: Bool {
         !env.working && email.contains("@") && password.count >= 6 && captchaToken != nil
+    }
+
+    /// Shown when the security check never produced a token. Names the two ways
+    /// out — retry, or one of the federated buttons, none of which need it.
+    private var captchaStalledNotice: some View {
+        VStack(spacing: 6) {
+            Text("Couldn’t complete the security check. Check your connection and try again, or use one of the sign-in options below.")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+                // The login card competes for vertical space with the keyboard
+                // and the federated buttons; without this the notice is handed
+                // a one-line height and truncates mid-sentence.
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Try again") {
+                performWithAnimation(!reduceMotion) { captchaReloadID = UUID() }
+            }
+            .font(Theme.ui(13, weight: .semibold))
+            .foregroundStyle(Theme.accent)
+        }
+        .frame(maxWidth: .infinity)
+        .transition(.opacity)
+        .accessibilityElement(children: .contain)
     }
 
     /// Sign-up consent — mirrors the web login terms notice; App Review expects

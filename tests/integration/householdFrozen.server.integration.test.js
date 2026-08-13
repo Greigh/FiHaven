@@ -25,7 +25,7 @@ describe('integration — a household frozen by a lapsed Family plan', () => {
     const r = await fetch(`${base}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'frozenpass12', loginStartedAt: Date.now() - 5000, captchaToken: 'test' }),
+      body: JSON.stringify({ email, password: 'frozenpass12!', loginStartedAt: Date.now() - 5000, captchaToken: 'test' }),
     });
     const session = await r.json();
     const cookie = cookieFrom(r.headers.get('set-cookie'));

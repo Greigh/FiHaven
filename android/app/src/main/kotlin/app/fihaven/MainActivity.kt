@@ -34,6 +34,10 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Draw behind the system bars from the first frame. FiHavenTheme calls
+        // this again with styles bound to the user's theme preference; this
+        // bare call only keeps the window from being briefly inset while the
+        // first composition is still running.
         enableEdgeToEdge()
         oauthDeepLink.value = intent?.data
         // DEBUG screenshot helpers: `adb ... --ez autologin true --es tab bills --es theme dark`.

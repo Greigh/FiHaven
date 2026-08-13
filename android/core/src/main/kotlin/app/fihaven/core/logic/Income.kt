@@ -5,6 +5,7 @@ import app.fihaven.core.model.IncomeSource
 import app.fihaven.core.model.income
 import app.fihaven.core.model.incomeAdjustments
 import app.fihaven.core.model.incomes
+import app.fihaven.core.model.monthOf
 import kotlinx.serialization.json.JsonObject
 import java.time.temporal.ChronoUnit
 
@@ -75,6 +76,25 @@ object Income {
         return out
     }
 
+    /**
+     * The adjustments affecting a whole period — the display counterpart to
+     * [adjustmentsTotal], so a list and its total can never disagree. A
+     * non-calendar period can straddle two calendar months, so this is every
+     * adjustment applying to any month the period overlaps.
+     */
+    fun adjustmentsForPeriod(settings: JsonObject, bounds: PeriodBounds): List<IncomeAdjustment> {
+        val months = if (bounds.mode == "calendar") listOf(bounds.key)
+            else monthOverlaps(bounds).map { it.mk }
+        return settings.incomeAdjustments.filter { adj -> months.any { adj.appliesTo(it) } }
+    }
+
+    /**
+     * The month a one-time adjustment created in this period belongs to: the
+     * month the period starts in. [PeriodBounds.key] is already a month key in
+     * calendar mode. Mirrors periodAnchorMonth in income.js.
+     */
+    fun periodAnchorMonth(bounds: PeriodBounds): String = monthOf(bounds.key)
+
     fun adjustmentsTotal(settings: JsonObject, bounds: PeriodBounds): Double {
         if (bounds.mode == "calendar") return adjustmentsTotal(settings, bounds.key)
         return monthOverlaps(bounds).sumOf { (mk, fraction) ->
@@ -91,6 +111,13 @@ object Income {
 
     fun incomeLabel(cfg: PeriodConfig): String =
         if (cfg.mode == "calendar") "Monthly income" else "Period income"
+
+    /// Period-aware wording, mirrored so all three platforms say the same thing.
+    fun baseIncomeLabel(cfg: PeriodConfig): String =
+        if (cfg.mode == "calendar") "Base monthly income" else "Base income this period"
+
+    fun adjustmentsLabel(cfg: PeriodConfig): String =
+        if (cfg.mode == "calendar") "Adjustments this month" else "Adjustments this period"
 
     fun owedLabel(cfg: PeriodConfig): String =
         if (cfg.mode == "calendar") "Left to pay" else "Left this period"

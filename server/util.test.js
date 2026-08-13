@@ -28,21 +28,39 @@ describe('util — email helpers', () => {
 
 describe('util — checkPasswordPolicy', () => {
   it('accepts a strong password', () => {
-    expect(checkPasswordPolicy('correcthorse1', 'user@example.com')).toBeNull();
+    expect(checkPasswordPolicy('correcthorse1!', 'user@example.com')).toBeNull();
+  });
+
+  it('accepts exactly the minimum length', () => {
+    expect(checkPasswordPolicy('ab1!cd2?', 'user@example.com')).toBeNull();
+    expect('ab1!cd2?'.length).toBe(MIN_PASSWORD);
   });
 
   it('rejects passwords that are too short or too long', () => {
-    expect(checkPasswordPolicy('short1', 'user@example.com')).toBe('weak-password');
-    expect(checkPasswordPolicy('a'.repeat(MAX_PASSWORD + 1) + '1', 'user@example.com')).toBe('weak-password');
+    expect(checkPasswordPolicy('shrt1!', 'user@example.com')).toBe('weak-password');
+    expect(checkPasswordPolicy('a'.repeat(MAX_PASSWORD + 1) + '1!', 'user@example.com')).toBe('weak-password');
   });
 
   it('requires letters and numbers', () => {
-    expect(checkPasswordPolicy('alllettersonly', 'user@example.com')).toBe('weak-password');
-    expect(checkPasswordPolicy('1234567890', 'user@example.com')).toBe('weak-password');
+    expect(checkPasswordPolicy('alllettersonly!', 'user@example.com')).toBe('weak-password');
+    expect(checkPasswordPolicy('1234567890!', 'user@example.com')).toBe('weak-password');
+  });
+
+  it('requires a symbol', () => {
+    expect(checkPasswordPolicy('correcthorse1', 'user@example.com')).toBe('weak-password');
+    // Whitespace is not a symbol — a space is too easy to add by accident for
+    // it to be the thing standing in for one.
+    expect(checkPasswordPolicy('correct horse1', 'user@example.com')).toBe('weak-password');
+  });
+
+  it('counts any non-alphanumeric character as the symbol', () => {
+    for (const pw of ['correcthorse1_', 'correcthorse1€', 'correcthorse1·', 'correcthorse1\\']) {
+      expect(checkPasswordPolicy(pw, 'user@example.com')).toBeNull();
+    }
   });
 
   it('rejects a password that matches the email local part', () => {
-    expect(checkPasswordPolicy('user123456', 'user123456@example.com')).toBe('weak-password');
+    expect(checkPasswordPolicy('user123!', 'user123!@example.com')).toBe('weak-password');
   });
 
   /* A signup body can arrive with either field absent — the policy check runs
@@ -52,12 +70,12 @@ describe('util — checkPasswordPolicy', () => {
     expect(checkPasswordPolicy()).toBe('weak-password');
     expect(checkPasswordPolicy(null, null)).toBe('weak-password');
     // A valid password with no email to compare against is still acceptable.
-    expect(checkPasswordPolicy('correcthorse1')).toBeNull();
-    expect(checkPasswordPolicy('correcthorse1', null)).toBeNull();
+    expect(checkPasswordPolicy('correcthorse1!')).toBeNull();
+    expect(checkPasswordPolicy('correcthorse1!', null)).toBeNull();
   });
 
   it('exports password constants', () => {
-    expect(MIN_PASSWORD).toBe(10);
+    expect(MIN_PASSWORD).toBe(8);
     expect(MAX_PASSWORD).toBe(128);
     // The shipped cost. Nothing may lower this — it is the KDF's strength.
     expect(BCRYPT_COST).toBe(12);

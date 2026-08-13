@@ -14,6 +14,7 @@
   import { todayISO } from '../js/tz.js';
   import { computeSpendingInsights } from '../js/spendingInsights.js';
   import { openConfirm } from '../js/modals.js';
+  import { openProDialog } from '../js/pro.js';
   import { duplicatePairs, unconfirmedManual } from '../js/reconcile.js';
 
   const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
@@ -226,7 +227,7 @@
     <div class="spend-pro-upsell">
       <span class="badge badge-gray" style="background:var(--accent-bg);color:var(--accent);">PRO</span>
       Set per-category budgets and track them against your spending.
-      <a href="/settings">Go Pro</a>
+      <button type="button" onclick={() => openProDialog()}>Go Pro</button>
     </div>
   {:else}
   {#if insights.length > 0}

@@ -25,6 +25,10 @@ jobs:
         working-directory: android
         run: ./gradlew :core:test
 
+      - name: Verify Android app unit tests
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest
+
       - name: Build Android app
         working-directory: android
         run: ./gradlew :app:assembleDebug

@@ -58,3 +58,16 @@ jobs:
       - name: Build iOS app
         working-directory: ios/FiHavenApp
         run: xcodebuild -project FiHaven.xcodeproj -scheme FiHaven -destination 'generic/platform=iOS Simulator' build
+
+      # `xcodebuild test` needs a concrete simulator, and the model shipped by
+      # the runner image changes with every Xcode bump — so pick whatever
+      # iPhone this runner actually has rather than naming one.
+      - name: Verify iOS app unit tests
+        working-directory: ios/FiHavenApp
+        run: |
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
+              print(next(v['udid'] for rt in sorted(d, reverse=True) for v in d[rt] if 'iPhone' in v['name']))")
+          echo "Testing on simulator $UDID"
+          xcodebuild test -project FiHaven.xcodeproj -scheme FiHaven \
+            -destination "id=$UDID" CODE_SIGNING_ALLOWED=NO

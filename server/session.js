@@ -86,6 +86,31 @@ function destroySession(req, res) {
   res.clearCookie(SESSION_COOKIE, { path: COOKIE_PATH });
 }
 
+// How stale users.last_seen_at may get before a request rewrites it. A write
+// per request would be pure overhead — this is an "is the account still in
+// use" signal for the admin console, not an audit log.
+const SEEN_THROTTLE_MS = Number(process.env.LAST_SEEN_THROTTLE_MS) || 5 * 60 * 1000;
+const lastSeenWrites = new Map();   // user_id → ms of the last write we did
+
+// Stamps "this account contacted the server" at most once per throttle window.
+// The in-memory map is a cache, not the source of truth: losing it on restart
+// only costs one extra write per user.
+function touchSeen(userId) {
+  const now = Date.now();
+  const wrote = lastSeenWrites.get(userId);
+  if (wrote && now - wrote < SEEN_THROTTLE_MS) return;
+  // Drop the cache wholesale rather than track it per entry; the only cost of
+  // a cold entry is one extra write.
+  if (lastSeenWrites.size > 10000) lastSeenWrites.clear();
+  lastSeenWrites.set(userId, now);
+  try {
+    dbApi.touchLastSeen(userId, now);
+  } catch (err) {
+    // Never fail a request over a liveness stamp.
+    console.error('last_seen update failed:', err && err.message);
+  }
+}
+
 // Middleware: resolves the cookie / Bearer token into req.user /
 // req.session for every request, recording how it arrived in
 // req.authVia. Expired sessions are deleted and treated as anon.
@@ -96,6 +121,7 @@ function loadSession(req, res, next) {
     if (row && row.expires_at > Date.now()) {
       req.session = row;
       req.authVia = found.via;
+      touchSeen(row.user_id);
       req.user = {
         id: row.user_id,
         email: row.email,

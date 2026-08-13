@@ -61,9 +61,13 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
   credit cards with 0% promo tracking, and loans/mortgages in their own
   tab (recommended payment is the minimum, not the whole balance —
   payoff-in-full stays an option).
-- **Budget suite** — income sources, period-aware budgeting (calendar,
-  start-day, or rolling K-day periods), and a "cushion after bills"
-  runway.
+- **Income tab** — every paycheck with its own frequency, plus one-off and
+  recurring adjustments (a bonus, unpaid time off, a raise) that move a single
+  period's total. Its own tab on web, iOS, and Android; it used to live inside
+  Budget.
+- **Budget suite** — period-aware budgeting (calendar, start-day, or rolling
+  K-day periods) and a "cushion after bills" runway, reading the income total
+  the Income tab owns.
 - **Transactions** — log individual spend, grouped and categorized;
   optionally augmented (never replaced) by Plaid bank sync.
 - **Rewards optimizer** — per-category multipliers, a built-in preset
@@ -1153,12 +1157,9 @@ ideas are tracked separately by the maintainers
 | Platform | Status |
 |---|---|
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | TestFlight beta — **1.6.1 (6)** — not on the public App Store yet |
-| **Android** | Closed testing on Google Play — **1.6.1 (29)** — public listing coming soon |
+| **iOS** | Live on the [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (id `6781084347`); TestFlight is the pre-release track |
+| **Android** | Live on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`); Open testing is the pre-release track |
 | **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
-
-Marketing copy on some public pages still says mobile apps are “coming soon” until
-store listings go live.
 
 ### Platform parity
 
@@ -1176,6 +1177,9 @@ Budget lens, envelope editor, spending insights, and household rollup are now on
 | Passkey **registration** | Settings → Security | — (list/delete on web) | Settings → Security |
 | Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
 | Plaid bank linking (Pro) | Yes | Yes | Yes |
+| **Income tab** (sources + adjustments) | Income tab | Income tab | Income tab |
+| **Admin console** (users, rewards, promo codes) | Admin panel | Settings → Admin | Settings → Admin |
+| Correct a mistyped signup address | Verify screen | Verify screen | Verify screen |
 
 Native Family screens now create/join households, invite members, and choose what to
 share (bills, cards, goals), live-syncing via SSE — at parity with web.
