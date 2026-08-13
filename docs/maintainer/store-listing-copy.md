@@ -3,7 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.1  
+**Version train:** 1.6.2 — **build 49 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
+**Current build's store copy:** [`../release-notes/v1.6.2/ios49-android49.md`](../release-notes/v1.6.2/ios49-android49.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -73,10 +74,27 @@ Do **not** reuse the app icon. Each promoted subscription needs a **unique** 102
 bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 ```
 
+### What's New (1.6.2) — current train
+
+Covers the 1.6.2 version as a whole — use this if it goes to public review.
+Build-level copy (Play "What's new", TestFlight "What to Test", and the App
+Store variant) lives in
+[`../release-notes/v1.6.2/ios49-android49.md`](../release-notes/v1.6.2/ios49-android49.md).
+
+```
+Income is now its own tab: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that change a single period's total. Two long-standing bugs are fixed with it: adjustments did nothing at all on start-day or rolling budget periods, and one-off entries from older builds were invisible. Both fixes are retroactive.
+
+Reminders no longer arrive for bills you have already paid or skipped; a partially paid bill still reminds you.
+
+The Pro screen now shows what each plan costs in your currency, with the yearly saving stated rather than implied.
+
+Mistyping your email at signup is no longer a dead end — the verification screen can correct it.
+```
+
 ### What's New (1.6.1)
 
-Covers the 1.6.1 version as a whole — use this if the version goes to public
-review. Build-level notes for testers are in the TestFlight section below.
+Covers the 1.6.1 version as a whole — the version the public listings launched
+on. Build-level notes for testers are in the TestFlight section below.
 
 ```
 Search on Bills, Cards, Loans, Subscriptions & Spending. Clearer Pro paywall with plan length, price, and Privacy & Terms links. Refreshed onboarding with Back, Change goals, and archive instead of delete. Smoother Spending & Family screens.

@@ -92,6 +92,19 @@ function daysUntilBillDue(bill, today) {
   return Math.round((next - atMidnight(today || new Date())) / DAY);
 }
 
+/** True if the bill falls due anywhere inside [bounds.start, bounds.end).
+ *  Mirrors billDueInPeriod in client/js/billSchedule.js. */
+function billDueInPeriod(bill, bounds) {
+  if (!bounds?.start || !bounds?.end) return false;
+  let d = atMidnight(bounds.start);
+  const end = atMidnight(bounds.end);
+  while (d < end) {
+    if (billDueOn(bill, d)) return true;
+    d = new Date(d.getTime() + DAY);
+  }
+  return false;
+}
+
 function billDueOnOrBeforeInPeriod(bill, bounds, asOf) {
   asOf = atMidnight(asOf || new Date());
   if (!bounds?.start || !bounds?.end) return null;
@@ -105,7 +118,14 @@ function billDueOnOrBeforeInPeriod(bill, bounds, asOf) {
   return last;
 }
 
-/** Build period bounds for calendar-month mode from local parts. */
+/* Build period bounds for CALENDAR-MONTH mode from local parts.
+
+   No production caller since the scheduler became period-aware — it is kept
+   only for its tests. Do NOT reach for this to build bounds for paid/owed
+   matching: it hard-codes the calendar month, which is exactly the assumption
+   that made reminders fire for already-paid bills and let autopay double-mark
+   on `startDay` / `rolling` accounts. Use getPeriodConfig + periodBounds from
+   server/period.js, which honours the user's actual period. */
 function monthBoundsFromParts(lp) {
   const start = new Date(lp.y, lp.m - 1, 1);
   const end = new Date(lp.y, lp.m, 1);
@@ -116,6 +136,7 @@ module.exports = {
   billDueOn,
   nextBillDueDate,
   daysUntilBillDue,
+  billDueInPeriod,
   billDueOnOrBeforeInPeriod,
   monthBoundsFromParts,
   atMidnight,

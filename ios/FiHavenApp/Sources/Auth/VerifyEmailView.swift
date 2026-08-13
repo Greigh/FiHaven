@@ -12,6 +12,7 @@ struct VerifyEmailView: View {
     @State private var resend: ResendState = .idle
     @State private var checking = false
     @State private var notYet = false
+    @State private var changingEmail = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,13 +59,24 @@ struct VerifyEmailView: View {
                             .foregroundStyle(Theme.accent)
                     }
                     .disabled(resend == .sending)
+
+                    // A mistyped address at signup is otherwise a dead end:
+                    // the only way off this screen is a mail nobody will get.
+                    Button {
+                        changingEmail = true
+                    } label: {
+                        Text("Wrong email? Change it")
+                            .font(Theme.ui(14, weight: .medium))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .accessibilityHint("Send the confirmation to a different address")
                 }
                 .ctCard(padding: 20)
 
                 Button {
                     Task { await env.logout() }
                 } label: {
-                    Text("Use a different account")
+                    Text("Sign out")
                         .font(Theme.ui(14, weight: .medium))
                         .foregroundStyle(Theme.muted)
                 }
@@ -76,6 +88,14 @@ struct VerifyEmailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
+        // The same sheet Settings uses. On success it re-enters .unverified
+        // with the new address, so this screen simply redraws pointing at the
+        // corrected inbox.
+        .sheet(isPresented: $changingEmail) {
+            ChangeEmailSheet(current: user)
+                .environmentObject(env)
+                .onDisappear { resend = .idle; notYet = false }
+        }
     }
 
     private var resendLabel: String {

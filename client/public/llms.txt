@@ -7,10 +7,9 @@ optional Pro subscriptions — there are no ads and no data brokerage. Bank link
 is optional and off by default: the app is designed to work fully by hand, and
 imported transactions never overwrite manual entries.
 
-Platform status: the web app is live. Android is in open testing on Google Play
-(installable straight from the store listing). iPhone and iPad run on TestFlight
-via a public join link — the public App Store listing is not live yet. All of
-them share one account and one API.
+Platform status: the web app is live, the iPhone and iPad app is live on the
+App Store, and the Android app is live on Google Play. All of them share one
+account and one API.
 
 ## Product
 
@@ -42,12 +41,12 @@ them share one account and one API.
 ## Optional
 
 - [llms-full.txt](https://fihaven.app/llms-full.txt): The same information expanded into a single document, including the full feature list and security posture.
-- [Google Play listing](https://play.google.com/store/apps/details?id=app.fihaven): Android open testing.
-- [TestFlight](https://testflight.apple.com/join/SdN4yuuH): Public iPhone and iPad beta.
+- [App Store listing](https://apps.apple.com/us/app/fihaven/id6781084347): FiHaven for iPhone and iPad.
+- [Google Play listing](https://play.google.com/store/apps/details?id=app.fihaven): FiHaven for Android.
 
 ## Contact
 
 - Product, onboarding, promo codes, and billing: support@fihaven.app
-- Trouble joining the Android open test or the iOS TestFlight beta: daniel@fihaven.app
+- Trouble installing or signing in to the iOS or Android app: daniel@fihaven.app
 - Privacy, data export or deletion, GDPR/CCPA requests: security@fihaven.app
 - Security and vulnerability reports: security@fihaven.app (a private GitHub advisory is preferred)

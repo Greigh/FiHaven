@@ -3,9 +3,11 @@ package app.fihaven.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +34,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -139,15 +146,22 @@ private fun ProLockedScreen(
     if (showPaywall) PaywallDialog(vm) { showPaywall = false }
 }
 
-// Pro perks only. Family sharing is deliberately absent: creating a household
+// The three perks that carry the pitch. Nine bullets above the price meant a
+// wall to scroll past before learning what Pro costs, so the rest moved behind
+// "See everything in Pro".
+//
+// Family sharing is deliberately absent from both lists: creating a household
 // needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
 // so it gets its own card below rather than a bullet here.
-private val perks = listOf(
+private val topPerks = listOf(
     "Payoff planner — snowball & avalanche plans + your debt-free date",
-    "Due-date calendar — every bill and card on a monthly view",
-    "Payment history — search and review everything you've paid",
     "Rewards optimizer — pick the best card for each purchase",
     "Subscription finder — spot recurring charges and price hikes",
+)
+
+private val morePerks = listOf(
+    "Due-date calendar — every bill and card on a monthly view",
+    "Payment history — search and review everything you've paid",
     "Category budgets — set limits and track spending by category",
     "Bank linking — auto-fetch balances via Plaid (optional)",
     "Autopay mark — auto-mark autopay items paid on their due date",
@@ -196,6 +210,11 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val billingNote = vm.billingNote(ent)
     val manageLabel = vm.manageButtonLabel(ent)
+    // Null means "nothing tapped yet", which resolves to yearly below — so the
+    // preselection survives products arriving late from Play without an effect
+    // to re-seed it.
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var showAllPerks by remember { mutableStateOf(false) }
 
     Column(
         modifier,
@@ -204,17 +223,31 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
     ) {
         Wordmark(28)
         ProBadge()
+        // The promise, at title weight. This used to be muted 15sp body copy,
+        // which read as a caption under the wordmark rather than as the reason
+        // to keep scrolling.
         Text(
-            "Unlock the planning tools that turn your bills into a payoff plan.",
+            "Turn your bills into a payoff plan.",
+            color = Ct.colors.text, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            "Every planning tool FiHaven has, on web, iOS and Android.",
             color = Ct.colors.muted, fontSize = 15.sp, textAlign = TextAlign.Center,
         )
         CtCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                perks.forEach { p ->
-                    Row {
-                        Text("•  ", color = Ct.colors.accent, fontWeight = FontWeight.Bold)
-                        Text(p, color = Ct.colors.text, fontSize = 14.sp)
-                    }
+                topPerks.forEach { PerkRow(it) }
+                if (showAllPerks) morePerks.forEach { PerkRow(it) }
+                TextButton(
+                    onClick = { showAllPerks = !showAllPerks },
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Text(
+                        if (showAllPerks) "Show less" else "See everything in Pro",
+                        color = Ct.colors.accent, fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -248,38 +281,22 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
                 color = Ct.colors.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
             )
         } else {
-            proProducts.forEach { product ->
-                OutlinedButton(
-                    onClick = { buy(product) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            BillingManager.planTitle(product),
-                            color = Ct.colors.text,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        BillingManager.period(product)?.let { len ->
-                            Text(len, color = Ct.colors.muted, fontSize = 12.sp)
-                        }
-                        // The trial has to be stated, not just silently applied
-                        // at purchase time.
-                        BillingManager.introOffer(product)?.let { intro ->
-                            Text(
-                                intro,
-                                color = Ct.colors.green,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                    Text(
-                        BillingManager.formattedPrice(product) ?: "",
-                        color = Ct.colors.text,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+            // Best value first, and preselected: yearly leads unless this
+            // storefront carries no yearly SKU.
+            val sorted = proProducts.sortedByDescending { BillingManager.intervalRank(it) }
+            val monthly = sorted.firstOrNull { BillingManager.intervalRank(it) == 2 }
+            val selected = sorted.firstOrNull { it.productId == selectedId }
+                ?: sorted.firstOrNull { BillingManager.isYearly(it) }
+                ?: sorted.firstOrNull()
+            sorted.forEach { product ->
+                PlanRow(
+                    product = product,
+                    selected = product.productId == selected?.productId,
+                    savings = monthly?.let { BillingManager.savingsPercent(product, it) },
+                    onClick = { selectedId = product.productId },
+                )
             }
+            selected?.let { product -> PurchaseCta(product) { buy(product) } }
             familyProduct?.let { p ->
                 FamilyOption(p, isUpgrade = false) { buy(p) }
             }
@@ -309,6 +326,143 @@ fun PaywallContent(vm: AppViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PerkRow(text: String) {
+    Row {
+        Text("•  ", color = Ct.colors.accent, fontWeight = FontWeight.Bold)
+        Text(text, color = Ct.colors.text, fontSize = 14.sp)
+    }
+}
+
+/**
+ * "Save 37%". Green rather than accent-coloured: it sits on a plan row that
+ * turns accent-tinted when selected, where another accent pill would vanish —
+ * and it reads as a saving, not as a tier like PRO / FAMILY.
+ */
+@Composable
+private fun SavingsBadge(percent: Int) {
+    Surface(shape = RoundedCornerShape(50), color = Ct.colors.greenBg) {
+        Text(
+            "Save $percent%",
+            color = Ct.colors.green, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/**
+ * A plan row now *selects* rather than buying. Tapping a row used to launch the
+ * Play purchase flow immediately, which made a mis-tap a purchase attempt and
+ * left no way to compare the plans first.
+ */
+@Composable
+private fun PlanRow(
+    product: ProductDetails,
+    selected: Boolean,
+    savings: Int?,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) Ct.colors.accentBg else Ct.colors.surface,
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) Ct.colors.accent else Ct.colors.accent.copy(alpha = 0.25f),
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The row itself carries the click and the selection semantics, so
+            // the button is decorative — a second tap target reading out its own
+            // "selected" state would be announced twice.
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Ct.colors.accent,
+                    unselectedColor = Ct.colors.muted,
+                ),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        BillingManager.planTitle(product),
+                        color = Ct.colors.text,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (savings != null) {
+                        Spacer(Modifier.width(6.dp))
+                        SavingsBadge(savings)
+                    }
+                }
+                // Play's subscription policy, like Apple's Guideline 3.1.2,
+                // wants the length and price of every plan visible — on every
+                // row, not only the selected one.
+                BillingManager.period(product)?.let { len ->
+                    Text(len, color = Ct.colors.muted, fontSize = 12.sp)
+                }
+                BillingManager.perMonthLabel(product)?.let { per ->
+                    Text(per, color = Ct.colors.muted, fontSize = 12.sp)
+                }
+                // The trial has to be stated, not just silently applied at
+                // purchase time.
+                BillingManager.introOffer(product)?.let { intro ->
+                    Text(
+                        intro,
+                        color = Ct.colors.green,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                BillingManager.formattedPrice(product) ?: "",
+                color = Ct.colors.text,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/**
+ * The one primary button, plus the exact terms of whatever is selected.
+ *
+ * The button never names a price the purchase won't actually charge: when a
+ * free trial applies it says so and the line below spells out what it renews
+ * into. An introductory figure on the button with the real one out of sight is
+ * the pattern Play's subscription policy exists to stop.
+ */
+@Composable
+private fun PurchaseCta(product: ProductDetails, onBuy: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val trial = BillingManager.freeTrialLength(product)
+        Button(
+            onClick = onBuy,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
+        ) { Text(if (trial != null) "Start $trial free" else "Subscribe") }
+        val terms = BillingManager.introOffer(product)?.let { "$it. Cancel before it renews." }
+            ?: BillingManager.periodUnit(product)?.let { unit ->
+                "${BillingManager.formattedPrice(product)}/$unit, auto-renewing."
+            }
+        terms?.let {
+            Text(it, color = Ct.colors.muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+        }
+        Text(
+            "Cancel anytime · Your data is never sold",
+            color = Ct.colors.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+        )
     }
 }
 

@@ -78,6 +78,24 @@ struct FamilyBadge: View {
     var body: some View { PlanBadge(text: "FAMILY", accessibility: "Family plan feature") }
 }
 
+/// "Save 37%" pill. Green rather than accent-coloured: it sits on a plan row
+/// that turns accent-tinted when selected, where another accent pill would
+/// vanish — and it reads as a saving, not as a tier like PRO / FAMILY.
+/// Hidden from VoiceOver because `planAccessibilityLabel` already speaks it.
+struct SavingsBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Theme.mono(11, weight: .bold))
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Theme.green.opacity(0.16))
+            .foregroundStyle(Theme.green)
+            .clipShape(Capsule())
+            .accessibilityHidden(true)
+    }
+}
+
 /// Shown in place of a Pro feature when the user is on the free tier.
 struct ProLockedView: View {
     @EnvironmentObject var billing: StoreManager
@@ -139,15 +157,29 @@ struct PaywallView: View {
 struct PaywallContent: View {
     @EnvironmentObject var billing: StoreManager
 
-    /// Pro perks only. Family sharing is deliberately absent: creating a household
-    /// needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO is 0),
-    /// so it gets its own card below rather than a bullet here.
-    private let perks: [(String, String, String)] = [
+    /// The plan the CTA will buy. Nil means "nothing tapped yet", which resolves
+    /// to `defaultProduct` (yearly) — so the preselection survives products
+    /// arriving late from StoreKit without an onChange to re-seed it.
+    @State private var selectedID: String?
+    @State private var showAllPerks = false
+
+    /// The three perks that carry the pitch. Nine bullets above the price meant
+    /// a wall to scroll past before learning what Pro costs, so the rest moved
+    /// behind `morePerks`.
+    ///
+    /// Family sharing is deliberately absent from both lists: creating a
+    /// household needs the separate Family subscription (billing.js:
+    /// HOUSEHOLD_MAX_PRO is 0), so it gets its own card below.
+    private let topPerks: [(String, String, String)] = [
         ("chart.line.downtrend.xyaxis", "Payoff planner", "Snowball & avalanche plans + your debt-free date"),
-        ("calendar", "Due-date calendar", "Every bill and card on a monthly view"),
-        ("clock.arrow.circlepath", "Payment history", "Search and review everything you've paid"),
         ("star.circle.fill", "Rewards optimizer", "See which card earns the most for each purchase"),
         ("arrow.triangle.2.circlepath", "Subscription finder", "Spot recurring charges and price hikes"),
+    ]
+
+    /// Revealed by "See everything in Pro".
+    private let morePerks: [(String, String, String)] = [
+        ("calendar", "Due-date calendar", "Every bill and card on a monthly view"),
+        ("clock.arrow.circlepath", "Payment history", "Search and review everything you've paid"),
         ("chart.pie.fill", "Category budgets", "Set spending limits and track progress by category"),
         ("building.columns.fill", "Bank linking", "Auto-fetch balances via Plaid (optional)"),
         ("checkmark.seal.fill", "Autopay mark", "Auto-mark autopay items paid on their due date"),
@@ -200,10 +232,16 @@ struct PaywallContent: View {
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Wordmark(size: 30)
             ProBadge()
-            Text("Unlock the planning tools that turn your bills into a payoff plan.")
+            // The promise, at title weight. This used to be muted 15pt body
+            // copy, which read as a caption under the wordmark rather than as
+            // the reason to keep scrolling.
+            Text("Turn your bills into a payoff plan.")
+                .font(Theme.title(24)).foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+            Text("Every planning tool FiHaven has, on web, iOS and Android.")
                 .font(Theme.ui(15)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }
@@ -211,32 +249,80 @@ struct PaywallContent: View {
 
     private var perksCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(perks, id: \.1) { icon, title, sub in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: icon)
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 24)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
-                        Text(sub).font(Theme.ui(13)).foregroundStyle(Theme.muted)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(title). \(sub)")
+            ForEach(topPerks, id: \.1) { perk in perkRow(perk) }
+            if showAllPerks {
+                ForEach(morePerks, id: \.1) { perk in perkRow(perk) }
             }
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { showAllPerks.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(showAllPerks ? "Show less" : "See everything in Pro")
+                    Image(systemName: showAllPerks ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .font(Theme.ui(14, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            }
+            .accessibilityHint(showAllPerks ? "Collapses the full feature list" : "Expands the full feature list")
         }
         .ctCard()
+    }
+
+    private func perkRow(_ perk: (String, String, String)) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: perk.0)
+                .foregroundStyle(Theme.accent)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(perk.1).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
+                Text(perk.2).font(Theme.ui(13)).foregroundStyle(Theme.muted)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(perk.1). \(perk.2)")
     }
 
     /// Family is a separate subscription, not a Pro tier — it gets its own card.
     private var familyProduct: Product? {
         billing.products.first { $0.id == StoreManager.familyID }
     }
+    /// Longest interval first, so the best-value plan leads the list.
     private var proProducts: [Product] {
-        billing.products.filter { $0.id != StoreManager.familyID }
+        billing.products
+            .filter { $0.id != StoreManager.familyID }
+            .sorted { intervalRank($0) > intervalRank($1) }
     }
     private var onFamily: Bool { billing.entitlement.plan == "family" }
+
+    /// Yearly outranks monthly outranks weekly; unknown periods sort last.
+    private func intervalRank(_ p: Product) -> Int {
+        switch p.subscription?.subscriptionPeriod.unit {
+        case .year: return 3
+        case .month: return 2
+        case .week: return 1
+        default: return 0
+        }
+    }
+
+    private func isYearly(_ p: Product) -> Bool {
+        guard let period = p.subscription?.subscriptionPeriod else { return false }
+        return period.unit == .year && period.value == 1
+    }
+
+    /// Yearly is preselected — it's the plan most people want and the one the
+    /// savings badge is about. Falls back to the first plan on a storefront
+    /// that carries no yearly SKU.
+    private var defaultProduct: Product? {
+        proProducts.first(where: isYearly) ?? proProducts.first
+    }
+
+    /// What the CTA will buy. `selectedID` wins once the user taps a row.
+    private var selectedProduct: Product? {
+        if let id = selectedID, let match = proProducts.first(where: { $0.id == id }) { return match }
+        return defaultProduct
+    }
 
     private var plansSection: some View {
         VStack(spacing: 12) {
@@ -252,50 +338,141 @@ struct PaywallContent: View {
                         .foregroundStyle(Theme.accent)
                 }
             } else {
-                ForEach(proProducts, id: \.id) { product in
-                    Button {
-                        Task { await billing.purchase(product) }
-                    } label: {
-                        HStack(alignment: .center) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                // Apple 3.1.2: title, length, and price of each
-                                // auto-renewing subscription must be visible.
-                                Text(product.displayName)
-                                    .font(Theme.ui(16, weight: .semibold))
-                                    .foregroundStyle(Theme.text)
-                                Text(lengthLabel(product))
-                                    .font(Theme.ui(12))
-                                    .foregroundStyle(Theme.muted)
-                                // 3.1.2: an introductory offer must state what
-                                // it is, how long it runs, and what it becomes.
-                                if let intro = introLabel(product) {
-                                    Text(intro)
-                                        .font(Theme.ui(12, weight: .semibold))
-                                        .foregroundStyle(Theme.green)
-                                }
-                                if let perUnit = pricePerUnitLabel(product) {
-                                    Text(perUnit)
-                                        .font(Theme.ui(11))
-                                        .foregroundStyle(Theme.muted)
-                                }
-                            }
-                            Spacer(minLength: 12)
-                            Text(product.displayPrice)
-                                .font(Theme.mono(16, weight: .semibold))
-                                .foregroundStyle(Theme.text)
-                        }
-                    }
-                    .buttonStyle(PlanButtonStyle())
-                    .disabled(billing.purchasing)
-                    .accessibilityLabel(planAccessibilityLabel(product))
-                    .accessibilityHint("Starts purchase")
-                }
+                ForEach(proProducts, id: \.id) { product in planRow(product) }
+                purchaseCTA
                 if billing.purchasing {
                     ProgressView()
                         .accessibilityLabel("Processing purchase")
                 }
             }
         }
+    }
+
+    /// A plan row now *selects* rather than buying. Tapping a row used to open
+    /// the App Store purchase sheet immediately, which made a mis-tap a
+    /// purchase attempt and left no way to compare the plans first.
+    private func planRow(_ product: Product) -> some View {
+        let selected = selectedProduct?.id == product.id
+        return Button {
+            selectedID = product.id
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(selected ? Theme.accent : Theme.muted)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        // Apple 3.1.2: title, length, and price of each
+                        // auto-renewing subscription must be visible — on every
+                        // row, not only the selected one.
+                        Text(product.displayName)
+                            .font(Theme.ui(16, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                        if let save = savingsLabel(product) { SavingsBadge(text: save) }
+                    }
+                    Text(lengthLabel(product))
+                        .font(Theme.ui(12))
+                        .foregroundStyle(Theme.muted)
+                    if let perUnit = pricePerUnitLabel(product) {
+                        Text(perUnit)
+                            .font(Theme.ui(12))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    // 3.1.2: an introductory offer must state what it is, how
+                    // long it runs, and what it becomes.
+                    if let intro = introLabel(product) {
+                        Text(intro)
+                            .font(Theme.ui(12, weight: .semibold))
+                            .foregroundStyle(Theme.green)
+                    }
+                }
+                Spacer(minLength: 8)
+                Text(product.displayPrice)
+                    .font(Theme.mono(16, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(selected ? Theme.accentBg : Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
+                    .stroke(selected ? Theme.accent : Theme.accent.opacity(0.25),
+                            lineWidth: selected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(billing.purchasing)
+        .accessibilityLabel(planAccessibilityLabel(product))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Selects this plan")
+    }
+
+    /// The one primary button, plus the exact terms of whatever is selected.
+    ///
+    /// The button never names a price the purchase won't actually charge: when
+    /// a free trial applies it says so and `selectedTerms` immediately below
+    /// spells out what it renews into (3.1.2), rather than putting an
+    /// introductory figure on the button and the real one out of sight.
+    private var purchaseCTA: some View {
+        VStack(spacing: 8) {
+            Button(ctaLabel) {
+                guard let product = selectedProduct else { return }
+                Task { await billing.purchase(product) }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(billing.purchasing || selectedProduct == nil)
+            .accessibilityHint("Starts purchase")
+
+            if let terms = selectedTerms {
+                Text(terms)
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+            }
+            Text("Cancel anytime · Your data is never sold")
+                .font(Theme.ui(12))
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 4)
+    }
+
+    private var ctaLabel: String {
+        guard let product = selectedProduct else { return "Continue" }
+        if billing.introEligible.contains(product.id),
+           let offer = product.subscription?.introductoryOffer,
+           offer.paymentMode == .freeTrial {
+            return "Start \(offerLength(offer)) free"
+        }
+        return "Subscribe"
+    }
+
+    /// Full terms for the selected plan, restated under the button so the price
+    /// being agreed to is next to the tap that agrees to it.
+    private var selectedTerms: String? {
+        guard let product = selectedProduct else { return nil }
+        if let intro = introLabel(product) { return "\(intro). Cancel before it renews." }
+        return "\(product.displayPrice)/\(billingNoun(product)), auto-renewing."
+    }
+
+    /// "Save 37%" on the yearly row, measured against twelve months of the
+    /// monthly plan. Nil unless both plans are on this storefront and the
+    /// saving is real and worth stating — the badge should never be a claim we
+    /// can't back out of the two prices shown on screen.
+    private func savingsLabel(_ product: Product) -> String? {
+        guard isYearly(product),
+              let monthly = proProducts.first(where: {
+                  $0.subscription?.subscriptionPeriod.unit == .month
+                      && $0.subscription?.subscriptionPeriod.value == 1
+              }) else { return nil }
+        let yearOfMonthly = monthly.price * 12
+        guard yearOfMonthly > 0, product.price < yearOfMonthly else { return nil }
+        let fraction = (yearOfMonthly - product.price) / yearOfMonthly
+        let percent = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
+        guard percent >= 5 else { return nil }
+        return "Save \(percent)%"
     }
 
     /// The Family subscription (`app.fihaven.pro.family`) — the only plan the
@@ -502,7 +679,8 @@ struct PaywallContent: View {
     }
 
     private func planAccessibilityLabel(_ product: Product) -> String {
-        [product.displayName, product.displayPrice, lengthLabel(product), introLabel(product)]
+        [product.displayName, savingsLabel(product), product.displayPrice,
+         lengthLabel(product), pricePerUnitLabel(product), introLabel(product)]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

@@ -38,8 +38,27 @@
           <div class="auth-error" data-resend-status aria-live="polite" style="min-height:1em;"></div>
           <div class="auth-actions" style="margin-top:12px;">
             <button class="btn btn-primary" type="button" data-resend>Resend the email</button>
-            <button class="btn btn-ghost" type="button" data-switch-account>Use a different account</button>
+            <button class="btn btn-ghost" type="button" data-change-email>Wrong email?</button>
+            <button class="btn btn-ghost" type="button" data-sign-out>Sign out</button>
           </div>
+
+          <!-- Sent to the wrong address? Correct it here rather than being
+               stranded on a screen only the missing email can unlock. -->
+          <form data-change-email-form hidden style="margin-top:18px;">
+            <div class="auth-field">
+              <label for="verify-new-email">New email address</label>
+              <input type="email" id="verify-new-email" autocomplete="email" placeholder="you@example.com" required/>
+            </div>
+            <div class="auth-field">
+              <label for="verify-password">Your password</label>
+              <input type="password" id="verify-password" autocomplete="current-password" placeholder="Confirm it's you" required/>
+            </div>
+            <div class="auth-error" data-change-email-status aria-live="polite" style="min-height:1em;"></div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit">Update and resend</button>
+              <button class="btn btn-ghost" type="button" data-change-email-cancel>Cancel</button>
+            </div>
+          </form>
         </div>
 
         <!-- No session on this device (e.g. opened the link elsewhere) -->

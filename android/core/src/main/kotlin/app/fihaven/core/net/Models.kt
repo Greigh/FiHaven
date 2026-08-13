@@ -32,7 +32,16 @@ data class User(
     // false, or those users could never confirm. Defaults true for older
     // payloads that predate the flag.
     val hasPassword: Boolean = true,
-)
+    // "user" or "admin", straight from the server. Decides whether the admin
+    // console is offered — and that is only cosmetic: every /api/admin/* route
+    // enforces the role itself, so a client that lied would just collect 403s.
+    // Defaults to the unprivileged role so an older payload can never surface
+    // the console by omission.
+    val role: String = "user",
+) {
+    /** Whether to offer the admin console. Never a security boundary. */
+    val isAdmin: Boolean get() = role == "admin"
+}
 
 data class AuthSession(val token: String, val user: User)
 
@@ -298,3 +307,119 @@ data class CardPresetDto(
         updatedAt = updatedAt,
     )
 }
+
+// ── Admin console (the /api/admin routes, server/routes/admin.js) ──
+// Every route behind these models is mounted with `requireAuth,
+// requireAdmin` on the server; the role is seeded from ADMIN_EMAILS at
+// boot. Nothing here is a permission check — hiding the console from a
+// non-admin is a courtesy, and calling anyway just returns 403.
+// (Line comments deliberately: Kotlin nests block comments, and a path
+// ending in a wildcard would open one that never closes.)
+
+/** One row of the admin user list. */
+@Serializable
+data class AdminUser(
+    val id: Int,
+    val email: String,
+    val name: String? = null,
+    val role: String = "user",
+    val createdAt: Double? = null,
+    // A credential was presented — password, passkey, OAuth, or the signup.
+    val lastLoginAt: Double? = null,
+    // How that sign-in was proven: password | passkey | oauth-* | signup.
+    val lastLoginMethod: String? = null,
+    // Any authenticated request on an existing session (app open, sync).
+    val lastSeenAt: Double? = null,
+    // Last time the saved data blob actually changed.
+    val lastUsedAt: Double? = null,
+    val pro: Boolean = false,
+    val proSource: String? = null,
+    val proPlan: String? = null,
+    val proExpiresAt: Double? = null,
+    // Whether this console handed out something it can pull back (a comp
+    // grant or promo). Store subscriptions are cancelled at the store.
+    val revocable: Boolean = false,
+    val suspended: Boolean = false,
+    val suspendedAt: Double? = null,
+    val suspendedReason: String? = null,
+) {
+    val isAdmin: Boolean get() = role == "admin"
+}
+
+@Serializable
+data class AdminUsersPage(
+    val users: List<AdminUser> = emptyList(),
+    val total: Int = 0,
+    val limit: Int = 25,
+    val page: Int = 1,
+    val pages: Int = 1,
+    /** Comp plans this server accepts for a grant. */
+    val plans: List<String> = emptyList(),
+)
+
+@Serializable
+data class AdminPromo(
+    val code: String,
+    val kind: String = "free_sub",
+    /** Tier the code redeems into; null for older codes that grant plain Pro. */
+    val plan: String? = null,
+    val grantDays: Int? = null,
+    val maxRedemptions: Int? = null,
+    val redeemedCount: Int = 0,
+    val expiresAt: Double? = null,
+    val note: String? = null,
+    val createdAt: Double? = null,
+    val active: Boolean = true,
+    /** Active, unexpired and not exhausted — someone could use it right now. */
+    val redeemable: Boolean = false,
+    val expired: Boolean = false,
+    val exhausted: Boolean = false,
+)
+
+@Serializable data class AdminPromosResponse(val promos: List<AdminPromo> = emptyList())
+@Serializable data class AdminPromoResponse(val promo: AdminPromo)
+
+@Serializable
+data class AdminPromoBody(
+    val code: String? = null,
+    val plan: String? = null,
+    val grantDays: Int,
+    val note: String? = null,
+    val maxRedemptions: Int? = null,
+)
+
+/** A rewards-catalog row as the admin editor sees it. Separate from
+ *  [CardPresetDto] because the editor round-trips values the calculator
+ *  never writes back. */
+@Serializable
+data class AdminCardPreset(
+    val id: String = "",
+    val issuer: String = "",
+    val name: String = "",
+    val network: String = "",
+    val rewardBase: Double = 1.0,
+    val rewardCategories: Map<String, Double> = emptyMap(),
+    val rotatingRate: Double? = null,
+    val rotatingPool: List<String>? = null,
+    val pointValue: Double? = null,
+    val updatedAt: Double? = null,
+) {
+    val label: String get() = "$issuer $name".trim()
+}
+
+@Serializable
+data class AdminPresetsPage(
+    val presets: List<AdminCardPreset> = emptyList(),
+    val issuers: List<String> = emptyList(),
+    val total: Int = 0,
+    val limit: Int = 50,
+    val page: Int = 1,
+    val pages: Int = 1,
+)
+
+@Serializable data class AdminPresetResponse(val preset: AdminCardPreset)
+@Serializable data class AdminRoleBody(val role: String)
+@Serializable data class AdminProBody(val grant: Boolean, val plan: String? = null, val days: Int? = null)
+@Serializable data class AdminSuspendBody(val suspend: Boolean, val reason: String? = null)
+@Serializable data class AdminDeleteUserBody(val confirmEmail: String)
+@Serializable data class AdminSessionsCleared(val sessionsCleared: Int = 0)

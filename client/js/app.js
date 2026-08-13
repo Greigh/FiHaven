@@ -15,6 +15,7 @@ import {
   setMoneyFormat,
 } from './utils.js';
 import { runAutopayMark } from './autopay.js';
+import { openProDialog } from './pro.js';
 import {
   openRolloverReview, saveRolloverReview, closeRolloverReview, clearRolloverPending,
 } from './rollover.js';
@@ -28,6 +29,7 @@ import './dashboard.js';
 import './bills.js';
 import './cards.js';
 import './loans.js';
+import './incomeTab.js';
 import './budget.js';
 import './spending.js';
 import './subscriptions.js';
@@ -45,7 +47,7 @@ import './navbar.js';
 
 // Order must match the navbar's tab order so showTab can use the
 // shared index to flip the active class on the right button.
-const TABS = ['dashboard', 'bills', 'cards', 'loans', 'budget', 'spending', 'subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
+const TABS = ['dashboard', 'bills', 'cards', 'loans', 'income', 'budget', 'spending', 'subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
 
 // Pro-only tabs (parity with the native apps). Free users see an
 // upgrade prompt instead; entitlement is server-authoritative.
@@ -98,8 +100,11 @@ function applyProGate(name, gated) {
           '<span class="hero-badge" style="display:inline-block;">PRO</span>' +
           '<h2 style="margin-top:14px;letter-spacing:-.03em;">Unlock ' + PRO_TABS[name] + '</h2>' +
           '<p style="margin-top:8px;color:var(--muted);">FiHaven Pro adds payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android.</p>' +
-          '<a class="btn btn-primary" href="/settings" style="margin-top:18px;display:inline-block;">Go Pro</a>' +
+          '<button type="button" class="btn btn-primary" data-pro-cta style="margin-top:18px;display:inline-block;">Go Pro</button>' +
         '</div>';
+      // Opens the plan dialog in place. This used to link to /settings, which
+      // dropped the user on a settings page with no purchase in sight.
+      gate.querySelector('[data-pro-cta]').addEventListener('click', function () { openProDialog(); });
       pane.appendChild(gate);
     }
     gate.style.display = '';

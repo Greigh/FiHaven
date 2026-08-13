@@ -11,7 +11,7 @@ async function signupVerified(base, db, tokens, label) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email,
-      password: 'integration1',
+      password: 'integration1!',
       loginStartedAt: Date.now() - 5000,
       captchaToken: 'test',
     }),
@@ -74,7 +74,7 @@ describe('integration — auth security (CSRF + bearer)', () => {
       },
       body: JSON.stringify({
         email,
-        password: 'integration1',
+        password: 'integration1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),
@@ -123,7 +123,7 @@ describe('integration — auth security (CSRF + bearer)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'oldpassword1',
+        password: 'oldpassword1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),
@@ -135,7 +135,7 @@ describe('integration — auth security (CSRF + bearer)', () => {
     const reset = await fetch(`${base}/api/auth/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: raw, password: 'newpassword1' }),
+      body: JSON.stringify({ token: raw, password: 'newpassword1!' }),
     });
     expect(reset.status).toBe(200);
 
@@ -144,7 +144,7 @@ describe('integration — auth security (CSRF + bearer)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'oldpassword1',
+        password: 'oldpassword1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),
@@ -156,7 +156,7 @@ describe('integration — auth security (CSRF + bearer)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: 'newpassword1',
+        password: 'newpassword1!',
         loginStartedAt: Date.now() - 5000,
         captchaToken: 'test',
       }),

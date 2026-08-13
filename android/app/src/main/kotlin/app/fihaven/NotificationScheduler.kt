@@ -10,8 +10,12 @@ import android.content.SharedPreferences
 import app.fihaven.core.Money
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.DateLogic
+import app.fihaven.core.logic.Period
+import app.fihaven.core.logic.PeriodConfig
+import app.fihaven.core.logic.Schedule
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.Payment
 import app.fihaven.core.model.billReminders
 import app.fihaven.core.model.localNotifications
 import app.fihaven.core.model.notifyHour
@@ -28,6 +32,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -79,6 +84,7 @@ object NotificationScheduler {
         settings: JsonObject,
         zone: ZoneId,
         pro: Boolean,
+        payments: List<Payment> = emptyList(),
     ) {
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -123,8 +129,12 @@ object NotificationScheduler {
             val upcoming = bills.mapNotNull { b -> BillSchedule.nextDueDate(b, zone)?.let { b to it } }
                 .sortedBy { it.second }
 
+            val periodCfg = Period.config(settings)
             for ((bill, due) in upcoming) {
                 if (scheduled.size >= MAX) break
+                // Already handled for the cycle it's about to hit — reminding
+                // anyway is the noise that teaches people to ignore these.
+                if (settled(bill, due, payments, periodCfg)) continue
                 for (off in offsets) {
                     if (scheduled.size >= MAX) break
                     val fire = due.minusDays(off.toLong()).atStartOfDay(zone).withHour(hour)
@@ -139,6 +149,37 @@ object NotificationScheduler {
         if (!pushCoversOffers) scheduleOffers(cards, settings, zone, scheduled)
         scheduled.forEach { arm(am, context, it) }
         writeSchedule(prefs, scheduled)
+    }
+
+    /**
+     * True when [bill]'s cycle around [due] is already settled — skipped, or
+     * paid up to its full amount — so no reminder is warranted.
+     *
+     * Measured over the period containing the DUE date, not today's: at a
+     * 7-day lead the due date can sit in the next period, and matching on the
+     * current one would read the last cycle's payment and silence a reminder
+     * that should fire.
+     *
+     * A PARTIAL payment still reminds — money is still owed. The `paid > 0`
+     * gate covers a bill with no amount set: its goal is 0, which `paid >=
+     * goal` satisfies with no payment at all, so without it every amount-less
+     * bill would go silent forever (the zero-goal trap [Schedule.needsAmount]
+     * guards against in the UI). Mirrors billSettledForDue in
+     * server/scheduler.js.
+     */
+    private fun settled(
+        bill: Bill,
+        due: LocalDate,
+        payments: List<Payment>,
+        cfg: PeriodConfig,
+    ): Boolean {
+        if (payments.isEmpty()) return false
+        val ref = bill.id.toString()
+        val bounds = Period.bounds(due, cfg)
+        if (Schedule.isSkipped(payments, "bill", ref, bounds)) return true
+        val paid = Schedule.paidAmount(payments, "bill", ref, bounds)
+        if (paid <= 0.0) return false
+        return paid >= Schedule.goalAmount(bill) - Schedule.PAID_EPSILON
     }
 
     /** Local notifications before activated card-linked offers expire (Pro;

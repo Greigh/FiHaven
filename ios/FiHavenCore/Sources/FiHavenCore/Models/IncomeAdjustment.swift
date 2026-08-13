@@ -53,14 +53,29 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
         ])
     }
 
-    /// True if this adjustment affects the period `mk` ("YYYY-MM").
+    /// True if this adjustment affects the month `mk` ("YYYY-MM").
+    ///
+    /// Every key is coerced to a month first. A *period* key is only a month
+    /// key in calendar mode — the other modes key a period by its start date —
+    /// so a caller handing over `bounds.key` used to match nothing, and a
+    /// one-time adjustment stamped with a date by an older build was invisible
+    /// to this and to every income total. Both heal here.
     public func applies(to mk: String) -> Bool {
-        guard !mk.isEmpty else { return false }
+        let m = monthOf(mk)
+        guard !m.isEmpty else { return false }
         if kind == "recurring" {
-            if !startMonth.isEmpty && mk < startMonth { return false }
-            if !endMonth.isEmpty && mk > endMonth { return false }
+            let start = monthOf(startMonth)
+            let end = monthOf(endMonth)
+            if !start.isEmpty && m < start { return false }
+            if !end.isEmpty && m > end { return false }
             return true
         }
-        return monthKey == mk
+        return monthOf(monthKey) == m
     }
+}
+
+/// "YYYY-MM" from a month key or any longer date key ("YYYY-MM-DD").
+/// Mirrors monthOf in income.js.
+public func monthOf(_ key: String) -> String {
+    key.count > 7 ? String(key.prefix(7)) : key
 }

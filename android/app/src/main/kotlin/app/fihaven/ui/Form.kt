@@ -263,3 +263,12 @@ fun DateField(
         ) { DatePicker(state = state) }
     }
 }
+
+/** Mirrors checkPasswordPolicy in server/util.js: 8+ characters carrying a
+ *  letter, a digit, and one non-alphanumeric symbol. Local only — it decides
+ *  whether Save is tappable, never whether the password is accepted. */
+fun meetsPasswordPolicy(password: String): Boolean =
+    password.length >= 8 &&
+        password.any { it.isLetter() } &&
+        password.any { it.isDigit() } &&
+        password.any { !it.isLetterOrDigit() && !it.isWhitespace() }

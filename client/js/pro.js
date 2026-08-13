@@ -116,22 +116,34 @@ function build() {
         '<button type="button" data-pro-close aria-label="Close" style="' +
           'background:none;border:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;">×</button>' +
       '</div>' +
-      '<p style="margin:8px 0 0;color:var(--muted);font-size:14px;">' +
-        'Pro unlocks payoff planning, calendar, history, rewards, subscriptions, category budgets, bank linking, and autopay mark — across web, iOS, and Android. The Family plan adds a shared household.' +
+      '<p style="margin:10px 0 0;font-size:20px;font-weight:700;letter-spacing:-.02em;">' +
+        'Turn your bills into a payoff plan.' +
       '</p>' +
+      '<p style="margin:6px 0 0;color:var(--muted);font-size:14px;">' +
+        'Every planning tool FiHaven has, on web, iOS and Android.' +
+      '</p>' +
+      // Three bullets carry the pitch. Eight of them above the price meant a
+      // wall to scroll past before learning what Pro costs, so the rest sit
+      // behind "See everything in Pro".
+      //
+      // Family sharing is deliberately not a bullet in either list: creating a
+      // household needs the separate Family subscription (billing.js:
+      // HOUSEHOLD_MAX_PRO is 0), which appears as its own card below.
       '<ul class="pro-features" style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;">' +
-        // Family sharing is deliberately not a bullet here: creating a household
-        // needs the separate Family subscription (billing.js: HOUSEHOLD_MAX_PRO
-        // is 0), which appears as its own plan row below.
         proFeature('Debt payoff planner — snowball & avalanche projections') +
-        proFeature('Due-date calendar + iCal subscription') +
-        proFeature('Full payment history & CSV exports') +
         proFeature('Rewards optimizer — best card for each purchase') +
         proFeature('Subscription finder — recurring charges & price hikes') +
+      '</ul>' +
+      '<ul class="pro-features" data-pro-more-features hidden style="list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px;">' +
+        proFeature('Due-date calendar + iCal subscription') +
+        proFeature('Full payment history & CSV exports') +
         proFeature('Category budgets in Spending') +
         proFeature('Optional bank linking to auto-fetch balances') +
         proFeature('Autopay mark — auto-mark items paid on due date') +
       '</ul>' +
+      '<button type="button" class="pro-more-toggle" data-pro-more aria-expanded="false" style="margin-top:10px;">' +
+        'See everything in Pro' +
+      '</button>' +
       '<div data-pro-status-card class="card" style="padding:14px 16px;margin-top:16px;display:flex;align-items:center;gap:10px;">' +
         '<span class="section-title" style="font-size:12px;">Status</span>' +
         '<span data-pro-status style="font-weight:600;margin-left:auto;">…</span>' +
@@ -150,7 +162,7 @@ function build() {
           '<span data-pro-expiry style="margin-left:auto;color:var(--text);">…</span>' +
         '</div>' +
       '</div>' +
-      '<div data-pro-upgrade hidden style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;"></div>' +
+      '<div data-pro-upgrade hidden style="margin-top:14px;display:grid;gap:10px;"></div>' +
       '<div data-pro-manage-wrap hidden style="margin-top:14px;">' +
         '<button class="btn btn-secondary" type="button" data-pro-manage>Manage subscription</button>' +
       '</div>' +
@@ -392,62 +404,347 @@ function openPortal(btn) {
   }).catch(function () { btn.disabled = false; setMsg('Could not reach the server. Please try again.', true); });
 }
 
+/* ── Plan pricing ─────────────────────────────────────────── */
+
+// Fallbacks for when Paddle hasn't priced the plans yet (or the call failed).
+// The billing cycle Paddle reports is preferred everywhere below, so a new
+// interval added to PADDLE_PLANS server-side needs no change here — which is
+// the promise billing.js makes ("no other code changes").
+var PLAN_MONTHS = { monthly: 1, three_month: 3, yearly: 12, family: 12 };
+var INTERVAL_WORDS = { monthly: 'month', three_month: '3 months', yearly: 'year', family: 'year' };
+// Longest interval first, so the best-value plan leads the list. `trial` is an
+// entry offer rather than an interval, so it sorts last.
+var PLAN_RANK = { yearly: 4, three_month: 3, monthly: 2, trial: 1 };
+
+// How many months a plan's billing cycle covers — the basis for both the
+// "Save N%" badge and the per-month restatement of a longer plan. 0 for a
+// cycle no sensible monthly figure can be derived from (weekly, daily).
+function monthsFor(plan) {
+  var cycle = (priceFor(plan) || {}).cycle;
+  if (cycle && cycle.interval) {
+    var n = cycle.frequency || 1;
+    if (cycle.interval === 'year') return n * 12;
+    if (cycle.interval === 'month') return n;
+    return 0;
+  }
+  return PLAN_MONTHS[plan.plan] || 0;
+}
+
+// "year", "3 months" — what the recurring price is charged per.
+function intervalWords(plan) {
+  var cycle = (priceFor(plan) || {}).cycle;
+  if (cycle && cycle.interval) {
+    var n = cycle.frequency || 1;
+    return n === 1 ? cycle.interval : n + ' ' + cycle.interval + 's';
+  }
+  return INTERVAL_WORDS[plan.plan] || null;
+}
+
+// Minor units per major unit for a currency — 100 for USD, 1 for JPY. Paddle
+// quotes amounts in minor units, so dividing by a hardcoded 100 would inflate
+// a yen price a hundredfold.
+function minorScale(currency) {
+  try {
+    var digits = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency })
+      .resolvedOptions().maximumFractionDigits;
+    return Math.pow(10, digits);
+  } catch (e) { return 100; }
+}
+
+function formatMoney(minor, currency) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency })
+      .format(minor / minorScale(currency));
+  } catch (e) { return null; }
+}
+
+// The server only ever knows each plan's Paddle price ID, never its amount, so
+// these rows used to carry no price at all. Paddle.js prices them in the
+// visitor's own currency, and it's the same figure checkout will charge — which
+// a hardcoded table here would drift from the first time a price moved in
+// Paddle. Failure is survivable: rows fall back to name-only, as before.
+function fetchPrices() {
+  var list = (lastBilling.plans || []).filter(function (p) { return p.priceId; });
+  if (!list.length) return Promise.resolve(null);
+  return loadPaddle().then(function (Paddle) {
+    return Paddle.PricePreview({
+      items: list.map(function (p) { return { priceId: p.priceId, quantity: 1 }; }),
+    });
+  }).then(function (res) {
+    var items = res && res.data && res.data.details && res.data.details.lineItems;
+    if (!items || !items.length) return null;
+    var byPriceId = {};
+    items.forEach(function (item) {
+      var price = item.price || {};
+      var unit = price.unitPrice || {};
+      if (!price.id) return;
+      byPriceId[price.id] = {
+        formatted: (item.formattedTotals && item.formattedTotals.subtotal) || null,
+        amount: parseInt(unit.amount, 10),
+        currency: unit.currencyCode || null,
+        cycle: price.billingCycle || null,
+        trial: price.trialPeriod || null,
+      };
+    });
+    lastBilling.prices = byPriceId;
+    return byPriceId;
+  }).catch(function () { return null; });
+}
+
+function priceFor(plan) {
+  return (lastBilling.prices || {})[plan.priceId] || null;
+}
+
+// "Save 37%" against the same span bought monthly. Only shown when both plans
+// are priced, share a currency, and the saving is real and worth stating — the
+// badge must always be derivable from the prices on screen.
+function savingsFor(plan) {
+  var months = monthsFor(plan);
+  if (months < 2) return null;
+  var price = priceFor(plan);
+  // Whichever offered plan actually bills monthly, rather than whichever is
+  // named "monthly".
+  var monthlyPlan = (lastBilling.plans || []).filter(function (p) {
+    return p.plan !== 'family' && monthsFor(p) === 1;
+  })[0];
+  var monthly = monthlyPlan && priceFor(monthlyPlan);
+  if (!price || !monthly || !isFinite(price.amount) || !isFinite(monthly.amount)) return null;
+  if (price.currency !== monthly.currency) return null;
+  var full = monthly.amount * months;
+  if (full <= 0 || price.amount >= full) return null;
+  var pct = Math.round((full - price.amount) / full * 100);
+  return pct >= 5 ? pct : null;
+}
+
+// A multi-month plan restated per month ("$1.25/mo billed annually").
+function perMonthFor(plan) {
+  var months = monthsFor(plan);
+  var price = priceFor(plan);
+  if (months < 2 || !price || !isFinite(price.amount) || !price.currency) return null;
+  var money = formatMoney(price.amount / months, price.currency);
+  if (!money) return null;
+  return money + '/mo billed ' + (months === 12 ? 'annually' : 'every ' + months + ' months');
+}
+
+// "7 days" when the Paddle price carries a free trial.
+function trialWords(plan) {
+  var trial = (priceFor(plan) || {}).trial;
+  if (!trial || !trial.frequency) return null;
+  var count = trial.frequency;
+  var unit = trial.interval;
+  if (unit === 'week') { count *= 7; unit = 'day'; }
+  return count + ' ' + unit + (count === 1 ? '' : 's');
+}
+
+// The full terms of the selected plan, restated under the button so the price
+// being agreed to sits next to the click that agrees to it. The button itself
+// never names a figure the checkout won't charge.
+function termsFor(plan) {
+  var price = priceFor(plan);
+  var unit = intervalWords(plan);
+  if (!price || !price.formatted) return '';
+  // A plan whose cycle we can't name still states its price and that it
+  // renews — silence would be the one unacceptable outcome here.
+  var recurring = unit ? price.formatted + '/' + unit : price.formatted;
+  var trial = trialWords(plan);
+  return trial
+    ? trial + ' free, then ' + recurring + '. Cancel before it renews.'
+    : recurring + ', auto-renewing.';
+}
+
+/* ── Plan selector ────────────────────────────────────────── */
+
 // `plans` is fetched once and cached; pass nothing to re-render against the
-// current entitlement. An existing solo-Pro subscriber sees only the Family
-// row (their upgrade path); a Family subscriber sees none.
+// current entitlement (or against prices that have just landed). An existing
+// solo-Pro subscriber sees only the Family card — their upgrade path; a Family
+// subscriber sees none.
 function renderPlans(plans) {
   var upgradeWrap = overlay.querySelector('[data-pro-upgrade]');
   if (!upgradeWrap) return;
   if (plans !== undefined) lastBilling.plans = plans;
-  upgradeWrap.style.flexDirection = 'column';
   upgradeWrap.innerHTML = '';
 
   var ent = lastBilling.entitlement;
   var isPro = !!(ent && ent.pro);
-  var list = lastBilling.plans || [];
-  if (isPro) {
-    // Only web (Paddle) subscribers can switch plans from here — an Apple/Google/promo
-    // Pro has to change it where they bought it, so offer them nothing.
-    list = (ent.plan === 'family' || !lastBilling.paddlePortal)
-      ? []
-      : list.filter(function (p) { return p.plan === 'family'; });
-  }
-  if (!list.length) {
+  var all = lastBilling.plans || [];
+  // Only web (Paddle) subscribers can switch plans from here — an
+  // Apple/Google/promo Pro has to change it where they bought it.
+  var canSwitch = isPro && ent.plan !== 'family' && !!lastBilling.paddlePortal;
+  var proPlans = isPro ? [] : all.filter(function (p) { return p.plan !== 'family'; });
+  var family = (!isPro || canSwitch)
+    ? all.filter(function (p) { return p.plan === 'family'; })[0]
+    : null;
+
+  if (!proPlans.length && !family) {
     // Nothing to offer: for a subscriber that's expected (hide the block); for
     // a free user it means the server has no prices configured.
     if (isPro) {
       upgradeWrap.style.display = 'none';
     } else {
-      upgradeWrap.innerHTML = '<span style="color:var(--muted);font-size:14px;">Plans aren’t available right now.</span>';
-      upgradeWrap.style.display = 'flex';
+      upgradeWrap.textContent = 'Plans aren’t available right now.';
+      upgradeWrap.style.cssText = 'margin-top:14px;color:var(--muted);font-size:14px;display:block;';
     }
     return;
   }
-  upgradeWrap.style.display = 'flex';
-  list.forEach(function (p) {
-    var isTrial = p.plan === 'trial';
-    var isBest = p.plan === 'yearly';
-    // Family is a separate subscription, not a Pro interval — it's the only plan
-    // that unlocks a shared household, so say so on the row itself.
-    var isFamily = p.plan === 'family';
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pro-plan' + (isBest ? ' pro-plan-best' : '');
-    btn.setAttribute('data-pro-plan', p.plan);
-    var cta = isTrial ? 'Try free' : (isPro ? 'Upgrade' : 'Choose');
-    btn.innerHTML =
-      '<span class="pro-plan-name">' + (isTrial ? 'Start free trial' : (p.label || p.plan)) +
-        (isFamily ? '<small style="display:block;font-weight:400;color:var(--muted);">Everything in Pro + a household of up to 3</small>' : '') +
-      '</span>' +
-      (isBest ? '<span class="pro-plan-badge">Best value</span>' : '') +
-      '<span class="pro-plan-cta">' + cta + ' ›</span>';
-    // An existing subscriber changes plan in the Billing Portal; checkout would
-    // open a second subscription (the server now rejects that with 409 too).
-    btn.addEventListener('click', function () {
-      if (isPro) openPortal(btn); else startCheckout(p.plan, btn);
-    });
-    upgradeWrap.appendChild(btn);
+  upgradeWrap.style.cssText = 'margin-top:14px;display:grid;gap:10px;';
+
+  if (proPlans.length) {
+    proPlans.sort(function (a, b) { return (PLAN_RANK[b.plan] || 0) - (PLAN_RANK[a.plan] || 0); });
+    // Yearly is preselected — it's the plan most people want and the one the
+    // savings badge is about. The choice survives re-renders (prices arrive
+    // asynchronously) but is re-seeded whenever it's no longer on offer.
+    var stillOffered = proPlans.filter(function (p) { return p.plan === lastBilling.selectedPlan; }).length;
+    if (!stillOffered) {
+      var preferred = proPlans.filter(function (p) { return p.plan === 'yearly'; })[0] || proPlans[0];
+      lastBilling.selectedPlan = preferred.plan;
+    }
+    var group = document.createElement('div');
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-label', 'Choose a plan');
+    group.style.cssText = 'display:grid;gap:10px;';
+    proPlans.forEach(function (p) { group.appendChild(planRow(p)); });
+    upgradeWrap.appendChild(group);
+    upgradeWrap.appendChild(buyBlock(proPlans));
+  }
+  if (family) upgradeWrap.appendChild(familyCard(family, isPro));
+}
+
+// A row SELECTS a plan. It used to open Paddle checkout on click, which made a
+// mis-click a purchase attempt and left no way to compare the plans first.
+function planRow(plan) {
+  var selected = plan.plan === lastBilling.selectedPlan;
+  var price = priceFor(plan);
+  var savings = savingsFor(plan);
+
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pro-plan';
+  btn.setAttribute('role', 'radio');
+  btn.setAttribute('aria-checked', selected ? 'true' : 'false');
+  btn.setAttribute('data-pro-plan', plan.plan);
+
+  var dot = document.createElement('span');
+  dot.className = 'pro-plan-radio';
+  dot.setAttribute('aria-hidden', 'true');
+  btn.appendChild(dot);
+
+  var main = document.createElement('span');
+  main.className = 'pro-plan-main';
+  var name = document.createElement('span');
+  name.className = 'pro-plan-name';
+  name.appendChild(document.createTextNode(plan.label || plan.plan));
+  if (savings) {
+    var save = document.createElement('span');
+    save.className = 'pro-plan-save';
+    save.textContent = 'Save ' + savings + '%';
+    name.appendChild(save);
+  }
+  main.appendChild(name);
+  // Price, per-month equivalent and any trial stay visible on every row, not
+  // just the selected one.
+  var trial = trialWords(plan);
+  [perMonthFor(plan), trial ? 'Includes ' + trial + ' free' : null].forEach(function (text) {
+    if (!text) return;
+    var sub = document.createElement('span');
+    sub.className = 'pro-plan-sub';
+    sub.textContent = text;
+    main.appendChild(sub);
   });
+  btn.appendChild(main);
+
+  if (price && price.formatted) {
+    var amount = document.createElement('span');
+    amount.className = 'pro-plan-price';
+    amount.textContent = price.formatted;
+    btn.appendChild(amount);
+  }
+  btn.addEventListener('click', function () {
+    lastBilling.selectedPlan = plan.plan;
+    renderPlans();
+  });
+  return btn;
+}
+
+// The one primary button, plus the exact terms of whatever is selected and the
+// trust line, so both sit with the click rather than in the fine print.
+function buyBlock(proPlans) {
+  var plan = proPlans.filter(function (p) { return p.plan === lastBilling.selectedPlan; })[0] || proPlans[0];
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:grid;gap:8px;margin-top:4px;';
+
+  var trial = trialWords(plan);
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-primary';
+  btn.setAttribute('data-pro-buy', '');
+  btn.textContent = trial ? 'Start ' + trial + ' free' : 'Subscribe';
+  btn.addEventListener('click', function () { startCheckout(plan.plan, btn); });
+  wrap.appendChild(btn);
+
+  var terms = termsFor(plan);
+  if (terms) {
+    var termsEl = document.createElement('div');
+    termsEl.className = 'pro-terms';
+    termsEl.textContent = terms;
+    wrap.appendChild(termsEl);
+  }
+  var trust = document.createElement('div');
+  trust.className = 'pro-trust';
+  trust.textContent = 'Cancel anytime · Your data is never sold';
+  wrap.appendChild(trust);
+  return wrap;
+}
+
+// Family is a separate subscription, not a Pro interval — it's the only plan
+// that unlocks a shared household, so it gets its own card rather than a row in
+// the selector, where it would look like a third billing period.
+function familyCard(plan, isPro) {
+  var price = priceFor(plan);
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'display:grid;gap:8px;padding:14px 16px;margin-top:4px;';
+
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  var label = plan.label || 'Family';
+  var name = document.createElement('strong');
+  name.textContent = label;
+  head.appendChild(name);
+  // The tier pill only earns its place when the plan's own label doesn't
+  // already say "Family" — otherwise the header reads "Family FAMILY".
+  if (!/family/i.test(label)) {
+    var badge = document.createElement('span');
+    badge.className = 'pro-plan-badge';
+    badge.textContent = 'Family';
+    head.appendChild(badge);
+  }
+  if (price && price.formatted) {
+    var amount = document.createElement('span');
+    amount.className = 'pro-plan-price';
+    amount.style.marginLeft = 'auto';
+    var unit = intervalWords(plan);
+    amount.textContent = unit ? price.formatted + '/' + unit : price.formatted;
+    head.appendChild(amount);
+  }
+  card.appendChild(head);
+
+  var blurb = document.createElement('div');
+  blurb.className = 'pro-plan-sub';
+  blurb.textContent = 'Everything in Pro, plus a shared household — share bills, cards & goals '
+    + 'with up to 3 people. Joining a household is always free.';
+  card.appendChild(blurb);
+
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-secondary';
+  btn.textContent = isPro ? 'Upgrade to Family' : 'Get the Family plan';
+  // An existing subscriber changes plan in the Billing Portal; checkout would
+  // open a second subscription (the server now rejects that with 409 too).
+  btn.addEventListener('click', function () {
+    if (isPro) openPortal(btn); else startCheckout(plan.plan, btn);
+  });
+  card.appendChild(btn);
+  return card;
 }
 
 function wire() {
@@ -481,10 +778,25 @@ function wire() {
     });
   }
 
+  var moreBtn = overlay.querySelector('[data-pro-more]');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', function () {
+      var list = overlay.querySelector('[data-pro-more-features]');
+      if (!list) return;
+      var opening = list.hidden;
+      list.hidden = !opening;
+      moreBtn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      moreBtn.textContent = opening ? 'Show less' : 'See everything in Pro';
+    });
+  }
+
   // Plans are static per server config — fetch once when the dialog is built.
   billingFetch('paddle/config').then(function (res) {
     if (res.ok && res.data) paddleConfig = res.data;
     renderPlans(res.ok && res.data ? res.data.plans : null);
+    // Amounts come from Paddle rather than our server, so paint the rows now
+    // and fill the prices in when they land.
+    fetchPrices().then(function (prices) { if (prices) renderPlans(); });
   }).catch(function () { renderPlans(null); });
 }
 

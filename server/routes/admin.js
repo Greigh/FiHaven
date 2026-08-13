@@ -53,10 +53,15 @@ function serializeUser(u) {
     name: u.name || null,
     role: u.role,
     createdAt: u.created_at,
+    // Credential entry only — password, passkey, OAuth, or the signup itself.
     lastLoginAt: u.last_login_at || null,
-    // Last time their synced app data changed (bills/cards/settings save).
-    // Not the same as last app open — long-lived sessions can sync without
-    // bumping last_login_at.
+    lastLoginMethod: u.last_login_method || null,
+    // Last authenticated request of any kind: app open, background sync, a
+    // read that changed nothing. This is what moves while a long-lived native
+    // session keeps working without anyone signing in again.
+    lastSeenAt: u.last_seen_at || null,
+    // Last time their synced app data actually changed (bills/cards/settings
+    // save). Quieter than lastSeenAt — reading data never bumps it.
     lastUsedAt: u.data_updated_at || null,
     pro: ent.pro,
     proSource: ent.source,

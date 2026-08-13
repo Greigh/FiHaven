@@ -90,6 +90,41 @@ struct CardsView: View {
         return list
     }
 
+    /// One bank-balance-review line: where the balance stands now, where the
+    /// bank says it's going, and the limit only when it actually moved. The
+    /// proposed figure carries the direction — more debt is red, less is green
+    /// — with an arrow so the colour isn't doing that work on its own.
+    @ViewBuilder
+    private func proposalSummary(_ p: AppStore.BalanceProposal) -> some View {
+        let change = Schedule.balanceProposalChange(
+            current: p.currentBalance,
+            proposed: p.proposedCurrent,
+            currentLimit: p.currentLimit,
+            proposedLimit: p.limit
+        )
+        let up = change.direction == "up"
+        let down = change.direction == "down"
+        let tone: Color = up ? Theme.red : (down ? Theme.green : Theme.muted)
+        let lead = "Current " + (p.currentBalance.map { "\(Money.fmt($0)) " } ?? "") + "→ "
+        let arrow = up ? "↑ " : (down ? "↓ " : "")
+        let tail: String = {
+            guard change.limitChanged, let lim = p.limit else { return "" }
+            return " · limit " + (p.currentLimit.map { "\(Money.fmt($0)) → " } ?? "") + Money.fmt(lim)
+        }()
+        (
+            Text(lead).foregroundStyle(Theme.muted)
+            + Text(arrow + Money.fmt(p.proposedCurrent)).foregroundStyle(tone).fontWeight(.semibold)
+            + Text(tail).foregroundStyle(Theme.muted)
+        )
+        .font(Theme.ui(12))
+        .accessibilityLabel(
+            lead.replacingOccurrences(of: "→", with: "changing to")
+            + Money.fmt(p.proposedCurrent)
+            + (up ? ", up" : (down ? ", down" : ""))
+            + tail
+        )
+    }
+
     // A proposal belongs to the tab its card lives on: a matched loan account
     // used to surface under Credit Cards and never under Loans.
     private var visibleProposals: [AppStore.BalanceProposal] {
@@ -103,9 +138,7 @@ struct CardsView: View {
                     ForEach(visibleProposals) { p in
                         VStack(alignment: .leading, spacing: 6) {
                             Text(p.name).font(Theme.ui(14, weight: .semibold))
-                            Text("Current → \(Money.fmt(p.proposedCurrent))"
-                                 + (p.limit.map { " · limit \(Money.fmt($0))" } ?? ""))
-                                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                            proposalSummary(p)
                             HStack {
                                 Button("Accept") { store.acceptBalanceProposal(p) }
                                     .buttonStyle(.borderedProminent)

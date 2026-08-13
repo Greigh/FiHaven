@@ -20,6 +20,11 @@ const TURNSTILE = 'https://challenges.cloudflare.com';
 const PLAID = 'https://cdn.plaid.com';
 const PADDLE_CDN = 'https://cdn.paddle.com';
 const PADDLE_BUY = 'https://buy.paddle.com https://sandbox-buy.paddle.com';
+// Paddle's REST API, called from the browser by Paddle.js `PricePreview` — the
+// paywall reads live plan prices from it (client/js/pro.js `fetchPrices`).
+const PADDLE_API = 'https://api.paddle.com https://sandbox-api.paddle.com';
+// Paddle Retain (ProfitWell), which Paddle.js loads itself on Initialize.
+const PADDLE_RETAIN = 'https://public.profitwell.com https://api.profitwell.com';
 const GOOGLE_SIGNIN = 'https://accounts.google.com';
 const APPLE_SIGNIN = 'https://appleid.cdn-apple.com https://appleid.apple.com';
 const GOOGLE_FONTS_CSS = 'https://fonts.googleapis.com';
@@ -39,24 +44,20 @@ const INLINE_SCRIPT_HASHES = [
   // The theme bootstrap that runs before paint (all 25 pages).
   "'sha256-mR59x0idOhjPq9cQO1dF3RJ1JNucX4BsdliBrgLrMZM='",
   // application/ld+json structured data — non-executable, but script-src
-  // still governs the element. One per page that carries a graph:
-  // bill-tracker-app, contact, faq, home, mint-alternative, pricing,
-  // rocket-money-alternative.
-  "'sha256-cOlgc+GH17pvyWW6f1tDQh9ZzNGB1wFfeuSQoE605c8='",
-  "'sha256-pjiHAO+yEFRBqBF5QYb6kW72HUSJ/6gHssWrPjxnKhY='",
-  "'sha256-PbWbEur8ikvbId6C8XU7Y75h+iDB9j7GI5xIOqge2ik='",
-  "'sha256-hQMC+hDE8KzNW0pL23mnqgrhZt8K9frasA8wkXQR180='",
-  "'sha256-UuB16srnzFcaJreOuqElKFG4R2dbS6z8IXF7v8I+4iw='",
-  "'sha256-Pgu8v+o7MsmXMXOMXOyvTw3Nekrm8vhv73lvNIGcVfk='",
-  "'sha256-IJhy48F3Yo5ThnZe8BjrGbxyk9zm1po4trcq0P+/ikM='",
-  // home.html app-store badge switcher.
-  "'sha256-HDaFQ449HYIS93STaGFZa9VrVx2GQCHO0bGOA+3MJgM='",
+  // still governs the element. One per page that carries a graph.
+  "'sha256-cOlgc+GH17pvyWW6f1tDQh9ZzNGB1wFfeuSQoE605c8='",   // bill-tracker-app
+  "'sha256-d+3PmsTGuTjmuLoKnV5RQKZuH0ChLzEdxqHWwt4Tlns='",   // contact
+  "'sha256-uQ3OJDm1QL/5f/FCOuUNFI2uh6PjLMcHFfZ071hot64='",   // faq
+  "'sha256-7zmQDR95YJ8xn8dUHL9gYujafeBDphRdFMECgTpJb24='",   // home
+  "'sha256-UuB16srnzFcaJreOuqElKFG4R2dbS6z8IXF7v8I+4iw='",   // mint-alternative
+  "'sha256-Pgu8v+o7MsmXMXOMXOyvTw3Nekrm8vhv73lvNIGcVfk='",   // pricing
+  "'sha256-IJhy48F3Yo5ThnZe8BjrGbxyk9zm1po4trcq0P+/ikM='",   // rocket-money-alternative
   // client/public/ — copied verbatim into dist, not Vite-processed: the OAuth
   // return pages the Android sign-in flow lands on, and the offline fallback
   // page (its retry script must run with no network).
-  "'sha256-U4dw3sAvIlexZIlD+ERF5Ec6xL4tXZAVg28V0G/59eQ='",
-  "'sha256-L3r+JZUA0GeWfSDQ7c+BwlOACFyw3apTMGbsYIzHScY='",
-  "'sha256-ExHs1lzkzBKdLeBPRmz8KByACsewCi326efa+s0NKuU='",
+  "'sha256-U4dw3sAvIlexZIlD+ERF5Ec6xL4tXZAVg28V0G/59eQ='",   // oauth-google-android
+  "'sha256-L3r+JZUA0GeWfSDQ7c+BwlOACFyw3apTMGbsYIzHScY='",   // oauth-return
+  "'sha256-ExHs1lzkzBKdLeBPRmz8KByACsewCi326efa+s0NKuU='",   // offline
 ].join(' ');
 
 /**
@@ -70,15 +71,16 @@ function buildCsp(nonce) {
   const nonceSrc = nonce ? `'nonce-${nonce}' ` : '';
   return [
     "default-src 'self'",
-    `script-src 'self' ${nonceSrc}${INLINE_SCRIPT_HASHES} ${TURNSTILE} ${PLAID} ${PADDLE_CDN} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN} ${CF_INSIGHTS}`,
+    `script-src 'self' ${nonceSrc}${INLINE_SCRIPT_HASHES} ${TURNSTILE} ${PLAID} ${PADDLE_CDN} ${PADDLE_RETAIN} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN} ${CF_INSIGHTS}`,
     // 'unsafe-inline' is load-bearing for styles: the UI is rendered from
     // HTML strings carrying style="" attributes throughout. Removing it is a
     // real refactor, and style injection is a far smaller prize than script.
-    `style-src 'self' 'unsafe-inline' ${GOOGLE_FONTS_CSS}`,
+    // Paddle.js pulls its own stylesheet from the CDN on Initialize.
+    `style-src 'self' 'unsafe-inline' ${GOOGLE_FONTS_CSS} ${PADDLE_CDN}`,
     `font-src 'self' ${GOOGLE_FONTS_FILES} data:`,
     // Issuer logos + user-supplied category icons can be data: URIs or remote.
     "img-src 'self' data: https:",
-    `connect-src 'self' ${PLAID} ${PADDLE_CDN} ${PADDLE_BUY} ${GOOGLE_SIGNIN} ${CF_INSIGHTS_CONNECT}`,
+    `connect-src 'self' ${PLAID} ${PADDLE_CDN} ${PADDLE_BUY} ${PADDLE_API} ${PADDLE_RETAIN} ${GOOGLE_SIGNIN} ${CF_INSIGHTS_CONNECT}`,
     `frame-src ${TURNSTILE} ${PLAID} https://plaid.com ${PADDLE_BUY} ${GOOGLE_SIGNIN} ${APPLE_SIGNIN}`,
     // Clickjacking: no one frames us. Belt to X-Frame-Options' braces, and the
     // only one of the two that modern browsers actually consult.

@@ -3,7 +3,7 @@ import SwiftUI
 /// The customizable app tabs — everything except the fixed "More" overflow
 /// and the Free-only "Get Pro" slot. Declaration order is the default order.
 enum TabItem: String, CaseIterable, Identifiable, Hashable {
-    case dashboard, bills, cards, loans, payoff, rewards, budget, spending, subscriptions, calendar, history, networth
+    case dashboard, bills, cards, loans, payoff, rewards, income, budget, spending, subscriptions, calendar, history, networth
     var id: String { rawValue }
 
     var title: String {
@@ -14,6 +14,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .loans: return "Loans"
         case .payoff: return "Payoff"
         case .rewards: return "Rewards"
+        case .income: return "Income"
         case .budget: return "Budget"
         case .spending: return "Spending"
         case .subscriptions: return "Subscriptions"
@@ -31,6 +32,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .loans: return "building.columns.fill"
         case .payoff: return "chart.line.downtrend.xyaxis"
         case .rewards: return "star.circle.fill"
+        case .income: return "dollarsign.circle.fill"
         case .budget: return "chart.pie.fill"
         case .spending: return "creditcard.and.123"
         case .subscriptions: return "arrow.triangle.2.circlepath"
@@ -49,6 +51,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .loans: CardsView(kind: "loan")
         case .payoff: ProGate(feature: .payoff) { PayoffView() }
         case .rewards: ProGate(feature: .rewards) { RewardsView() }
+        case .income: IncomeView()
         case .budget: BudgetView()
         case .spending: SpendingView()
         case .subscriptions: ProGate(feature: .subscriptions) { SubscriptionsView() }
