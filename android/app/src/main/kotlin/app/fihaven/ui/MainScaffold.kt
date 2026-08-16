@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -114,10 +115,14 @@ enum class TabId(val id: String, val label: String, val icon: ImageVector) {
     CALENDAR("calendar", "Calendar", Icons.Filled.CalendarMonth),
     HISTORY("history", "History", Icons.Filled.History),
     NETWORTH("networth", "Worth", Icons.Filled.AccountBalanceWallet),
+    BALANCES("balances", "Balances", Icons.Filled.Savings),
     ;
+    /** The unabbreviated name — used for contentDescription and as the title
+     *  in the More list, which is full-width and can afford it. */
     val a11yLabel: String get() = when (this) {
         SUBSCRIPTIONS -> "Subscriptions"
         NETWORTH -> "Net Worth"
+        BALANCES -> "Account Balances"
         else -> label
     }
     companion object { fun from(id: String?): TabId? = entries.find { it.id == id } }
@@ -333,6 +338,7 @@ internal fun TabContent(tab: TabId, vm: AppViewModel, padding: PaddingValues, on
         TabId.CALENDAR -> ProGate(vm, ProFeature.CALENDAR, padding, onBack) { CalendarScreen(vm, padding, onBack) }
         TabId.HISTORY -> ProGate(vm, ProFeature.HISTORY, padding, onBack) { HistoryScreen(vm, padding, onBack) }
         TabId.NETWORTH -> NetWorthScreen(vm, padding, onBack)
+        TabId.BALANCES -> BalancesScreen(vm, padding, onBack)
     }
 }
 

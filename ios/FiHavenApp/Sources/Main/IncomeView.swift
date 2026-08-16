@@ -280,6 +280,9 @@ struct IncomeAdjustmentEditorView: View {
             amount: amount,
             kind: kind,
             monthKey: isRecurring ? "" : onceMonth,
+            // The day a one-time change landed is set on the web; carry it
+            // through so editing the label here doesn't erase it.
+            date: isRecurring ? "" : (adjustment?.date ?? ""),
             startMonth: isRecurring ? startMonth : "",
             endMonth: isRecurring ? (adjustment?.endMonth ?? "") : ""
         )

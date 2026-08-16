@@ -25,7 +25,7 @@ struct MoreView: View {
                 if !overflow.isEmpty {
                     Section {
                         ForEach(overflow) { item in
-                            row(.tab(item), item.title, item.symbol)
+                            row(.tab(item), item.menuTitle, item.symbol)
                         }
                     }
                 }

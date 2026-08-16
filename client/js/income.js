@@ -55,17 +55,40 @@ export function monthOf(key) {
   return s.length > 7 ? s.slice(0, 7) : s;
 }
 
+// "YYYY-MM-DD" from anything that starts with one, else ''.
+export function dayOf(key) {
+  const s = typeof key === 'string' ? key.slice(0, 10) : '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+
 export function normalizeAdjustment(a) {
   a = a || {};
+  const kind = a.kind === 'recurring' ? 'recurring' : 'once';
+  // The day the money actually landed. Only a one-time change has one — a
+  // recurring change is a monthly figure, not an event. Older builds stamped
+  // the day into `monthKey` itself, so a legacy full date there becomes the
+  // date rather than being rounded away and lost.
+  const date = kind === 'once' ? (dayOf(a.date) || dayOf(a.monthKey)) : '';
   return {
     id: a.id || ('adj-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
     label: a.label || '',
     amount: parseFloat(a.amount) || 0,         // signed: + adds, − subtracts
-    kind: a.kind === 'recurring' ? 'recurring' : 'once',
-    monthKey: monthOf(a.monthKey),             // 'once' → the single month it applies
+    kind,
+    monthKey: monthOf(a.monthKey) || monthOf(date),  // 'once' → the single month it applies
+    date,                                      // 'once' → the day it landed ('' = unset)
     startMonth: monthOf(a.startMonth),         // 'recurring' → first month (inclusive)
     endMonth: monthOf(a.endMonth),             // 'recurring' → last month ('' = ongoing)
   };
+}
+
+// First and last day of a "YYYY-MM" month, for clamping a date input so a
+// one-time adjustment can never be dated out of the month it is filed under.
+export function monthDayBounds(mk) {
+  const m = monthOf(mk);
+  if (!/^\d{4}-\d{2}$/.test(m)) return { min: '', max: '' };
+  const [y, mo] = m.split('-').map(Number);
+  const last = new Date(y, mo, 0).getDate();
+  return { min: `${m}-01`, max: `${m}-${String(last).padStart(2, '0')}` };
 }
 
 /* True if adjustment `a` affects the month `mk` ("YYYY-MM").

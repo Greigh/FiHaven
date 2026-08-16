@@ -3,9 +3,10 @@ import SwiftUI
 /// The customizable app tabs — everything except the fixed "More" overflow
 /// and the Free-only "Get Pro" slot. Declaration order is the default order.
 enum TabItem: String, CaseIterable, Identifiable, Hashable {
-    case dashboard, bills, cards, loans, payoff, rewards, income, budget, spending, subscriptions, calendar, history, networth
+    case dashboard, bills, cards, loans, payoff, rewards, income, budget, spending, subscriptions, calendar, history, networth, balances
     var id: String { rawValue }
 
+    /// The short name, used in the bottom bar where the slot is ~80pt wide.
     var title: String {
         switch self {
         case .dashboard: return "Home"
@@ -21,6 +22,17 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .calendar: return "Calendar"
         case .history: return "History"
         case .networth: return "Net Worth"
+        case .balances: return "Balances"
+        }
+    }
+
+    /// The name in the "More" list and anywhere else with room to be
+    /// unambiguous. Defaults to `title`; only tabs whose short name needs
+    /// context override it.
+    var menuTitle: String {
+        switch self {
+        case .balances: return "Account Balances"
+        default: return title
         }
     }
 
@@ -39,6 +51,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .calendar: return "calendar"
         case .history: return "clock.arrow.circlepath"
         case .networth: return "chart.line.uptrend.xyaxis"
+        case .balances: return "banknote.fill"
         }
     }
 
@@ -58,6 +71,7 @@ enum TabItem: String, CaseIterable, Identifiable, Hashable {
         case .calendar: ProGate(feature: .calendar) { CalendarView() }
         case .history: ProGate(feature: .history) { HistoryView() }
         case .networth: NetWorthView()   // Free — net worth is not Pro-gated
+        case .balances: BalancesView()   // Free — bank linking inside it is Pro
         }
     }
 }
