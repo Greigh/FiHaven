@@ -21,7 +21,10 @@ const express = require('express');
 const dbApi = require('../db');
 const plaid = require('../plaid');
 const billing = require('../billing');
-const { balanceProposals, matchCardToAccount, cardOptedOut } = require('../plaidBalances');
+const {
+  balanceProposals, matchCardToAccount, cardOptedOut,
+  accountBalanceProposals, matchAccountToPlaid, accountOptedOut, isAssetAccount,
+} = require('../plaidBalances');
 const { mergeTransactions } = require('../plaidMerge');
 const { requireAuth, requireVerified, requireCsrf } = require('../session');
 
@@ -223,6 +226,34 @@ function autoLinkCards(userId) {
   }
 }
 
+/* The Balances-tab counterpart to autoLinkCards: pin a confident match onto
+   `account.plaidAccountId` so the Balances tab can show which bank account a
+   row is following, and so the pin (not a re-guess) drives later syncs. */
+function autoLinkAssetAccounts(userId) {
+  try {
+    const data = dbApi.getUserData(userId);
+    if (!data || !Array.isArray(data.accounts) || !data.accounts.length) return;
+    const { byItem, knownAccountIds } = linkedAccounts(userId);
+    const accts = data.accounts.filter(Boolean);
+    let linked = 0;
+    for (const { institutionName, accounts } of byItem) {
+      for (const a of accounts) {
+        if (!isAssetAccount(a)) continue;
+        const acct = matchAccountToPlaid(accts, a, institutionName, knownAccountIds);
+        if (!acct || accountOptedOut(acct)) continue;
+        if (String(acct.plaidAccountId || '') === String(a.account_id)) continue;
+        acct.plaidAccountId = String(a.account_id);
+        linked += 1;
+      }
+    }
+    if (!linked) return;
+    dbApi.upsertUserData(userId, data);
+    logPlaid('accounts-auto-linked', { userId, linked });
+  } catch (e) {
+    logPlaid('accounts-auto-link:error', { userId, message: e && e.message });
+  }
+}
+
 // Opt-in balance *suggestions*. By default FiHaven NEVER changes the balances
 // the user typed — Plaid balances live only in the bank panel. When the user
 // enables `settings.plaidUpdateBalances`, sync stores proposals for Current
@@ -239,9 +270,13 @@ function refreshBalanceProposals(userId) {
     const data = dbApi.getUserData(userId);
     if (!data) return;
     if (!(data.settings && data.settings.plaidUpdateBalances)) {
-      if (data.settings && Array.isArray(data.settings.plaidBalanceProposals)
-          && data.settings.plaidBalanceProposals.length) {
+      const hasCard = data.settings && Array.isArray(data.settings.plaidBalanceProposals)
+        && data.settings.plaidBalanceProposals.length;
+      const hasAcct = data.settings && Array.isArray(data.settings.plaidAccountProposals)
+        && data.settings.plaidAccountProposals.length;
+      if (hasCard || hasAcct) {
         data.settings.plaidBalanceProposals = [];
+        data.settings.plaidAccountProposals = [];
         dbApi.upsertUserData(userId, data);
       }
       return;
@@ -262,12 +297,33 @@ function refreshBalanceProposals(userId) {
         proposals.push(p);
       });
     }
+    // Asset accounts (the Balances tab) run the same queue against
+    // data.accounts, kept under its own settings key so a client that only
+    // knows about card proposals never sees a proposal naming a row it can't
+    // find — and quietly declines it.
+    const acctProposals = [];
+    const claimedAccts = new Set();
+    for (const { institutionName, accounts } of byItem) {
+      accountBalanceProposals(data.accounts || [], accounts, resolved,
+        { institutionName, knownAccountIds }).forEach((p) => {
+        const key = String(p.id);
+        if (claimedAccts.has(key)) return;
+        claimedAccts.add(key);
+        acctProposals.push(p);
+      });
+    }
+
     const prev = JSON.stringify(data.settings.plaidBalanceProposals || []);
     const next = JSON.stringify(proposals);
-    if (prev === next) return;
+    const prevAcct = JSON.stringify(data.settings.plaidAccountProposals || []);
+    const nextAcct = JSON.stringify(acctProposals);
+    if (prev === next && prevAcct === nextAcct) return;
     data.settings.plaidBalanceProposals = proposals;
+    data.settings.plaidAccountProposals = acctProposals;
     dbApi.upsertUserData(userId, data);
-    logPlaid('balances-proposed', { userId, proposed: proposals.length });
+    logPlaid('balances-proposed', {
+      userId, proposed: proposals.length, accountsProposed: acctProposals.length,
+    });
   } catch (e) {
     logPlaid('balances-propose:error', { userId, message: e && e.message });
   }
@@ -277,6 +333,7 @@ function refreshBalanceProposals(userId) {
 // runs first: proposals are built from the cards it just linked.
 function afterAccountsSaved(userId) {
   autoLinkCards(userId);
+  autoLinkAssetAccounts(userId);
   refreshBalanceProposals(userId);
 }
 

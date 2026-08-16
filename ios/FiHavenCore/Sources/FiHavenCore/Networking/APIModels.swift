@@ -219,6 +219,12 @@ public struct PlaidItem: Decodable, Equatable, Sendable, Identifiable {
     public var institutionId: String?
     public var status: String
     public var error: String?
+    /// When this item last synced, **epoch milliseconds** (the column is an
+    /// INTEGER, not a date string). The balances above are cached as of this
+    /// moment — FiHaven uses Plaid's free `/accounts/get`, not the paid Balance
+    /// product — so anything showing a bank figure must date it rather than
+    /// imply it is live.
+    public var lastSyncAt: Double?
     public var accounts: [PlaidAccount]
 }
 

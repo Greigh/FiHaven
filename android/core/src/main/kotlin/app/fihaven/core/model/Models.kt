@@ -172,9 +172,16 @@ data class IncomeAdjustment(
     val amount: Double = 0.0,            // signed: + adds, − subtracts
     val kind: String = "once",           // "once" | "recurring"
     val monthKey: String = "",           // "once" → the single month it applies
+    val date: String = "",               // "once" → the day it landed ("YYYY-MM-DD", "" = unset)
     val startMonth: String = "",         // "recurring" → first month (inclusive)
     val endMonth: String = "",           // "recurring" → last month ("" = ongoing)
 ) {
+    /// The day a one-time change landed. Older builds stamped it into
+    /// `monthKey`, so a legacy full date there stands in for a missing
+    /// `date`. Mirrors normalizeAdjustment in income.js.
+    val landedOn: String
+        get() = if (kind == "recurring") "" else dayOf(date).ifEmpty { dayOf(monthKey) }
+
     /// True if this adjustment affects the month [mk] ("YYYY-MM").
     ///
     /// Every key is coerced to a month first. A *period* key is only a month
@@ -200,6 +207,13 @@ data class IncomeAdjustment(
 /// Mirrors monthOf in income.js.
 fun monthOf(key: String): String = if (key.length > 7) key.take(7) else key
 
+/// "YYYY-MM-DD" from anything that starts with one, else "".
+/// Mirrors dayOf in income.js.
+fun dayOf(key: String): String {
+    val s = key.take(10)
+    return if (Regex("""^\d{4}-\d{2}-\d{2}$""").matches(s)) s else ""
+}
+
 /// An asset account (what you own) — checking, savings, investments,
 /// property, cash. Paired with the debts in `cards` for net worth.
 @Serializable
@@ -209,7 +223,18 @@ data class Account(
     val type: String = "checking", // checking|savings|investment|property|cash|other
     val balance: Double = 0.0,
     val notes: String = "",
-)
+    /** The Plaid account this row follows, when one is pinned (or the server
+     *  auto-linked it); [NO_PLAID_LINK] means "never match me". Modelled here
+     *  even though the app only reads it — a fixed data class drops keys it
+     *  doesn't know, so omitting it would strip the link on the next save
+     *  from this device. */
+    val plaidAccountId: String? = null,
+) {
+    companion object {
+        /** Kept in sync with NO_LINK in server/plaidBalances.js. */
+        const val NO_PLAID_LINK = "none"
+    }
+}
 
 /// A savings goal: a target, how much is saved, and an optional target
 /// date used to suggest a monthly contribution.

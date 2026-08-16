@@ -32,8 +32,11 @@ import app.fihaven.ui.theme.Ct
 
 /**
  * Net Worth tab — assets (the accounts you own) minus liabilities (the
- * non-archived cards and loans you owe). Asset accounts are added and edited
- * here; the debts side comes from the Cards/Loans tabs. Mirrors the web
+ * non-archived cards and loans you owe).
+ *
+ * A read-only rollup: adding and editing asset accounts moved to the Balances
+ * tab, which owns the same `accounts` list and adds the bank-linking this
+ * summary has no business carrying. One list, one editor. Mirrors the web
  * NetWorthPanel and the iOS NetWorthView.
  */
 private val ACCOUNT_TYPES = mapOf(
@@ -51,8 +54,6 @@ private fun typeIcon(t: String) = ACCOUNT_TYPES[t]?.second ?: "📦"
 @Composable
 fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
-    var editing by remember { mutableStateOf<Account?>(null) }
-    var creating by remember { mutableStateOf(false) }
 
     val assets = data.accounts.sumOf { it.balance }
     // Archived cards are soft-deleted, so they must not count as debt.
@@ -60,7 +61,7 @@ fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val netWorth = assets - liabilities
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
-        ScreenHeader("Net Worth", onAdd = { creating = true }, onBack = onBack, branded = true)
+        ScreenHeader("Net Worth", onBack = onBack, branded = true)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 CtCard {
@@ -92,14 +93,15 @@ fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 item {
                     CtCard {
                         Text(
-                            "No accounts yet. Tap + to add savings, checking, investments, or property.",
+                            "No accounts yet. Add savings, checking, investments, or property " +
+                                "on the Balances tab.",
                             color = Ct.colors.muted,
                         )
                     }
                 }
             } else {
                 items(data.accounts, key = { it.id }) { account ->
-                    CtCard(modifier = Modifier.clickable { editing = account }) {
+                    CtCard {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(typeIcon(account.type), fontSize = 18.sp,
                                 modifier = Modifier.padding(end = 12.dp))
@@ -119,7 +121,4 @@ fun NetWorthScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
             }
         }
     }
-
-    if (creating) AccountEditorDialog(null, vm, onDismiss = { creating = false })
-    editing?.let { AccountEditorDialog(it, vm, onDismiss = { editing = null }) }
 }

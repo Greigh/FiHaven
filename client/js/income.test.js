@@ -14,6 +14,8 @@ import {
   adjustmentsForPeriod,
   periodAnchorMonth,
   monthOf,
+  dayOf,
+  monthDayBounds,
   incomeLabelFor,
   owedLabelFor,
   AVG_MONTH_DAYS,
@@ -241,6 +243,39 @@ describe('income — adjustments key on months, not period keys', () => {
     expect(adjustmentsTotalForMonth({ incomeAdjustments: [legacy] }, '2026-07')).toBe(500);
     // …and normalizing rewrites it, so the next save persists a clean key.
     expect(normalizeAdjustment(legacy).monthKey).toBe('2026-07');
+    // The day it named isn't thrown away — it becomes the landed-on date.
+    expect(normalizeAdjustment(legacy).date).toBe('2026-07-08');
+  });
+
+  it('keeps the day a one-time adjustment landed', () => {
+    const a = normalizeAdjustment({ kind: 'once', monthKey: '2026-08', date: '2026-08-03' });
+    expect(a.date).toBe('2026-08-03');
+    expect(a.monthKey).toBe('2026-08');
+    // A date on its own is enough to file the adjustment under a month.
+    expect(normalizeAdjustment({ kind: 'once', date: '2026-08-03' }).monthKey).toBe('2026-08');
+    // A recurring change is a monthly figure, not an event on a day.
+    expect(normalizeAdjustment({ kind: 'recurring', startMonth: '2026-08', date: '2026-08-03' }).date).toBe('');
+    // Junk in, nothing out — the field never holds a half-typed date.
+    expect(normalizeAdjustment({ kind: 'once', date: '2026-08' }).date).toBe('');
+    expect(normalizeAdjustment({ kind: 'once', date: 'tomorrow' }).date).toBe('');
+    expect(normalizeAdjustment({}).date).toBe('');
+  });
+
+  it('dayOf keeps only a full leading date', () => {
+    expect(dayOf('2026-08-03')).toBe('2026-08-03');
+    expect(dayOf('2026-08-03T10:00:00Z')).toBe('2026-08-03');
+    expect(dayOf('2026-08')).toBe('');
+    expect(dayOf('20260803')).toBe('');
+    expect(dayOf(undefined)).toBe('');
+  });
+
+  it('monthDayBounds spans exactly the month it is given', () => {
+    expect(monthDayBounds('2026-08')).toEqual({ min: '2026-08-01', max: '2026-08-31' });
+    expect(monthDayBounds('2026-02')).toEqual({ min: '2026-02-01', max: '2026-02-28' });
+    expect(monthDayBounds('2028-02')).toEqual({ min: '2028-02-01', max: '2028-02-29' });  // leap
+    // A date key is coerced to its month first; junk gets no bounds at all.
+    expect(monthDayBounds('2026-08-03')).toEqual({ min: '2026-08-01', max: '2026-08-31' });
+    expect(monthDayBounds('')).toEqual({ min: '', max: '' });
   });
 
   it('keeps a date-keyed recurring window from excluding its own end month', () => {

@@ -1471,6 +1471,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         d.copy(settings = BalanceReview.resolve(d.settings, p.fingerprint, "decline"))
     }
 
+    // The Balances-tab queue, against `accounts` rather than `cards`.
+    fun pendingAccountProposals(): List<BalanceReview.AccountProposal> =
+        BalanceReview.pendingAccounts(_data.value.settings, _data.value.accounts)
+
+    fun acceptAccountProposal(p: BalanceReview.AccountProposal) = mutate { d ->
+        d.copy(
+            accounts = BalanceReview.applyToAccounts(d.accounts, p),
+            settings = BalanceReview.resolveAccount(d.settings, p.fingerprint, "accept"),
+        )
+    }
+
+    fun declineAccountProposal(p: BalanceReview.AccountProposal) = mutate { d ->
+        d.copy(settings = BalanceReview.resolveAccount(d.settings, p.fingerprint, "decline"))
+    }
+
     fun declineSubscriptionMerchant(key: String) {
         if (key.isBlank()) return
         mutate { d ->

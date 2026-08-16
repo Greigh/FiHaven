@@ -289,7 +289,19 @@ public struct Settings: Codable, Equatable, Sendable {
         set { raw["plaidBalanceProposals"] = .array(newValue.map { .object($0) }) }
     }
 
+    /// Pending balance proposals for asset accounts (the Balances tab). Kept
+    /// apart from `plaidBalanceProposals` so a client that only knows about
+    /// cards never meets a proposal naming a row it can't find.
+    public var plaidAccountProposals: [[String: JSONValue]] {
+        get {
+            guard let arr = raw["plaidAccountProposals"]?.asArray else { return [] }
+            return arr.compactMap { $0.asObject }
+        }
+        set { raw["plaidAccountProposals"] = .array(newValue.map { .object($0) }) }
+    }
+
     /// Accepted/declined fingerprints so the same bank figure is never re-prompted.
+    /// Shared by both queues — account fingerprints are prefixed "acct:".
     public var plaidBalanceResolved: [[String: JSONValue]] {
         get {
             guard let arr = raw["plaidBalanceResolved"]?.asArray else { return [] }

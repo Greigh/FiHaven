@@ -18,7 +18,27 @@ final class TabCatalogTests: XCTestCase {
         for item in TabItem.allCases {
             XCTAssertFalse(item.title.isEmpty, "\(item.rawValue) needs a title")
             XCTAssertFalse(item.symbol.isEmpty, "\(item.rawValue) needs an SF Symbol")
+            XCTAssertFalse(item.menuTitle.isEmpty, "\(item.rawValue) needs a menu title")
         }
+    }
+
+    func testBalancesIsShortInTheBarAndSpeltOutInMore() {
+        // The bottom-bar slot is ~80pt wide, so the tab strip gets the short
+        // name; the More list is full-width and gets the unambiguous one.
+        XCTAssertEqual(TabItem.balances.title, "Balances")
+        XCTAssertEqual(TabItem.balances.menuTitle, "Account Balances")
+        // Every other tab reads the same in both places — the override is the
+        // exception, not a second catalog to keep in sync.
+        for item in TabItem.allCases where item != .balances {
+            XCTAssertEqual(item.menuTitle, item.title, "\(item.rawValue)")
+        }
+    }
+
+    func testBalancesIsInTheCatalogAndStartsUnderMore() {
+        XCTAssertEqual(TabItem(rawValue: "balances"), .balances)
+        let (bottom, overflow) = resolveTabs(saved: nil)
+        XCTAssertFalse(bottom.contains(.balances))
+        XCTAssertTrue(overflow.contains(.balances))
     }
 
     func testNothingSavedFallsBackToTheDefaultBar() {
@@ -75,7 +95,7 @@ final class TabCatalogTests: XCTestCase {
         XCTAssertEqual(TabItem.allCases.map(\.rawValue), [
             "dashboard", "bills", "cards", "loans", "payoff", "rewards",
             "income", "budget", "spending", "subscriptions", "calendar",
-            "history", "networth",
+            "history", "networth", "balances",
         ])
     }
 }

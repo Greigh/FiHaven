@@ -123,7 +123,13 @@ val JsonObject.plaidBalanceMode: String
 /** Pending Current Balance proposals from bank sync. */
 val JsonObject.plaidBalanceProposals: List<JsonObject>
     get() = (this["plaidBalanceProposals"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
-/** Accepted/declined fingerprints. */
+/** Pending balance proposals for asset accounts (the Balances tab). Kept apart
+ *  from plaidBalanceProposals so a client that only knows about cards never
+ *  meets a proposal naming a row it can't find. */
+val JsonObject.plaidAccountProposals: List<JsonObject>
+    get() = (this["plaidAccountProposals"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
+/** Accepted/declined fingerprints. Shared by both queues — account
+ *  fingerprints are prefixed "acct:". */
 val JsonObject.plaidBalanceResolved: List<JsonObject>
     get() = (this["plaidBalanceResolved"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
 /** Subscription candidates: "inbox" or "inline". */

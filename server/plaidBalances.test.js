@@ -12,6 +12,17 @@ import {
   balanceProposals,
   applyAcceptedCurrentBalance,
   applyBalanceUpdates,
+  isAssetAccount,
+  accountTypeFromPlaid,
+  accountTypeCompatible,
+  accountOptedOut,
+  accountLinkIsLive,
+  accountMatchesMask,
+  accountMatchesName,
+  matchAccountToPlaid,
+  accountBalanceFingerprint,
+  accountBalanceProposals,
+  applyAcceptedAccountBalance,
 } from './plaidBalances.js';
 
 describe('plaidBalances — last4 & match', () => {
@@ -306,5 +317,170 @@ describe('plaidBalances — applyAcceptedCurrentBalance', () => {
     const res = applyBalanceUpdates(cards, [{ id: 1, balance: 742 }]);
     expect(res.cards[0].currentBalance).toBe(742);
     expect(res.cards[0].balance).toBe(500);
+  });
+});
+
+/* ── Asset accounts (the Balances tab) ────────────────────────── */
+
+describe('plaidBalances — asset account matching', () => {
+  const depo = (over = {}) => ({
+    account_id: 'p1', type: 'depository', subtype: 'checking',
+    mask: '4455', name: 'Total Checking', balances: { current: 1200 }, ...over,
+  });
+
+  it('only treats depository/investment accounts as assets', () => {
+    expect(isAssetAccount({ type: 'depository' })).toBe(true);
+    expect(isAssetAccount({ type: 'investment' })).toBe(true);
+    expect(isAssetAccount({ type: 'brokerage' })).toBe(true);
+    // Credit and loan are the cards' business, matched by balanceProposals.
+    expect(isAssetAccount({ type: 'credit' })).toBe(false);
+    expect(isAssetAccount({ type: 'loan' })).toBe(false);
+    expect(isAssetAccount(null)).toBe(false);
+  });
+
+  it('maps a Plaid subtype onto the Balances tab type', () => {
+    expect(accountTypeFromPlaid({ type: 'depository', subtype: 'checking' })).toBe('checking');
+    expect(accountTypeFromPlaid({ type: 'depository', subtype: 'savings' })).toBe('savings');
+    expect(accountTypeFromPlaid({ type: 'depository', subtype: 'cd' })).toBe('savings');
+    expect(accountTypeFromPlaid({ type: 'investment', subtype: 'ira' })).toBe('investment');
+    // An unknown subtype is left unclassified rather than guessed at.
+    expect(accountTypeFromPlaid({ type: 'depository', subtype: 'weird' })).toBe('');
+    expect(accountTypeFromPlaid({ type: 'credit' })).toBe('');
+  });
+
+  it('rules out an account whose type cannot be what Plaid describes', () => {
+    // A house is not a chequing account.
+    expect(accountTypeCompatible({ type: 'property' }, depo())).toBe(false);
+    expect(accountTypeCompatible({ type: 'checking' }, depo())).toBe(true);
+    // Checking/savings/cash are near enough that the user's label shouldn't veto.
+    expect(accountTypeCompatible({ type: 'savings' }, depo())).toBe(true);
+    // Unknown on either side stays eligible.
+    expect(accountTypeCompatible({ type: '' }, depo())).toBe(true);
+    expect(accountTypeCompatible({ type: 'property' }, { type: 'depository', subtype: 'weird' })).toBe(true);
+  });
+
+  it('matches on the last four digits carried in the account name', () => {
+    expect(accountMatchesMask({ name: 'Chase 4455' }, '4455')).toBe(true);
+    expect(accountMatchesMask({ name: 'Chase Checking' }, '4455')).toBe(false);
+    // Fewer than four digits is not a mask.
+    expect(accountMatchesMask({ name: 'Chase 455' }, '455')).toBe(false);
+  });
+
+  it('will not match on the words every account shares', () => {
+    // "Checking" is on both sides of every pairing at every bank, so it can
+    // never be the thing that connects two accounts.
+    expect(accountMatchesName({ name: 'My Checking' }, depo({ name: 'Total Checking' }), 'Chase')).toBe(false);
+    expect(accountMatchesName({ name: 'Savings' }, depo({ name: 'Premier Savings' }), 'Chase')).toBe(false);
+    // A distinctive product word does connect them.
+    expect(accountMatchesName({ name: 'Sapphire Checking' }, depo({ name: 'Sapphire Banking' }), 'Chase')).toBe(true);
+    // So does the bank's own name.
+    expect(accountMatchesName({ name: 'Ally Savings' }, depo({ name: 'Online Savings' }), 'Ally Bank')).toBe(true);
+  });
+
+  it('an explicit pin always wins, and beats a digit match on another row', () => {
+    const accounts = [
+      { id: 'a1', name: 'Chase 4455', type: 'checking' },
+      { id: 'a2', name: 'Pinned', type: 'checking', plaidAccountId: 'p1' },
+    ];
+    expect(matchAccountToPlaid(accounts, depo(), 'Chase').id).toBe('a2');
+  });
+
+  it('never claims an account the user opted out of', () => {
+    const accounts = [{ id: 'a1', name: 'Chase 4455', type: 'checking', plaidAccountId: NO_LINK }];
+    expect(accountOptedOut(accounts[0])).toBe(true);
+    expect(matchAccountToPlaid(accounts, depo(), 'Chase')).toBeNull();
+  });
+
+  it('leaves a genuinely ambiguous pair alone rather than guessing', () => {
+    // Same digits, and nothing distinctive in either name to separate them.
+    const accounts = [
+      { id: 'a1', name: 'Checking 4455', type: 'checking' },
+      { id: 'a2', name: 'Savings 4455', type: 'checking' },
+    ];
+    expect(matchAccountToPlaid(accounts, depo(), 'Chase')).toBeNull();
+  });
+
+  it('breaks a digit tie on the institution name', () => {
+    // Two rows carry the same last-4, but only one names the bank Plaid is
+    // reporting from — the same tier-3 narrowing the card path uses.
+    const accounts = [
+      { id: 'a1', name: 'Chase 4455', type: 'checking' },
+      { id: 'a2', name: 'Other 4455', type: 'checking' },
+    ];
+    expect(matchAccountToPlaid(accounts, depo(), 'Chase').id).toBe('a1');
+  });
+
+  it('frees an account pinned to a bank that has since been removed', () => {
+    const accounts = [{ id: 'a1', name: 'Chase 4455', type: 'checking', plaidAccountId: 'gone' }];
+    // With the live-id set supplied, the dead pin no longer blocks the match.
+    expect(accountLinkIsLive(accounts[0], new Set(['p1']))).toBe(false);
+    expect(matchAccountToPlaid(accounts, depo(), 'Chase', new Set(['p1'])).id).toBe('a1');
+  });
+});
+
+describe('plaidBalances — accountBalanceProposals', () => {
+  const acct = (over = {}) => ({ id: 'a1', name: 'Chase 4455', type: 'checking', balance: 900, ...over });
+  const depo = (over = {}) => ({
+    account_id: 'p1', type: 'depository', subtype: 'checking',
+    mask: '4455', name: 'Total Checking', balances: { current: 1200 }, ...over,
+  });
+
+  it('proposes the bank figure for a single confident match', () => {
+    expect(accountBalanceProposals([acct()], [depo()], [])).toEqual([{
+      id: 'a1',
+      proposedBalance: 1200,
+      fingerprint: accountBalanceFingerprint('a1', 1200),
+    }]);
+  });
+
+  it('ignores credit and loan accounts — those belong to the cards queue', () => {
+    const credit = depo({ type: 'credit', subtype: 'credit card' });
+    expect(accountBalanceProposals([acct()], [credit], [])).toEqual([]);
+  });
+
+  it('stays quiet when the stored balance already agrees', () => {
+    expect(accountBalanceProposals([acct({ balance: 1200 })], [depo()], [])).toEqual([]);
+  });
+
+  it('does not re-propose a figure the user already answered', () => {
+    const fp = accountBalanceFingerprint('a1', 1200);
+    expect(accountBalanceProposals([acct()], [depo()], [fp])).toEqual([]);
+    // A different figure is a different question, so it is asked.
+    const moved = accountBalanceProposals([acct()], [depo({ balances: { current: 1300 } })], [fp]);
+    expect(moved).toHaveLength(1);
+    expect(moved[0].proposedBalance).toBe(1300);
+  });
+
+  it('skips an account whose balance the bank did not report', () => {
+    // Number(null) is 0, so an absent figure must not become a $0 proposal.
+    expect(accountBalanceProposals([acct()], [depo({ balances: { current: null } })], [])).toEqual([]);
+    expect(accountBalanceProposals([acct()], [depo({ balances: {} })], [])).toEqual([]);
+  });
+
+  it('account fingerprints cannot collide with a card fingerprint', () => {
+    // Both queues share one resolved list, so the prefix is load-bearing.
+    expect(accountBalanceFingerprint('1', 500)).not.toBe(balanceFingerprint('1', 500));
+    expect(accountBalanceFingerprint('1', 500).startsWith('acct:')).toBe(true);
+  });
+});
+
+describe('plaidBalances — applyAcceptedAccountBalance', () => {
+  it('writes balance and leaves the user\'s own labels alone', () => {
+    const accounts = [
+      { id: 'a1', name: 'Chase', type: 'checking', balance: 900, notes: 'mine' },
+      { id: 'a2', name: 'Other', type: 'savings', balance: 10 },
+    ];
+    const res = applyAcceptedAccountBalance(accounts, [{ id: 'a1', proposedBalance: 1200 }]);
+    expect(res.changed).toBe(true);
+    expect(res.accounts[0]).toEqual({ id: 'a1', name: 'Chase', type: 'checking', balance: 1200, notes: 'mine' });
+    // Untouched rows keep their identity, so a re-render can skip them.
+    expect(res.accounts[1]).toBe(accounts[1]);
+  });
+
+  it('reports no change when the figure already matches, or the account is gone', () => {
+    const accounts = [{ id: 'a1', balance: 1200 }];
+    expect(applyAcceptedAccountBalance(accounts, [{ id: 'a1', proposedBalance: 1200 }]).changed).toBe(false);
+    expect(applyAcceptedAccountBalance(accounts, [{ id: 'nope', proposedBalance: 5 }]).changed).toBe(false);
+    expect(applyAcceptedAccountBalance(accounts, [{ id: 'a1', proposedBalance: null }]).changed).toBe(false);
   });
 });

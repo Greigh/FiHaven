@@ -1,11 +1,14 @@
 <!--
   NetWorthPanel.svelte — the Net Worth tab. Net worth =
   assets (accounts you own) − liabilities (the cards/loans you owe).
-  Accounts are edited inline, like income sources in the Budget tab.
   Archived cards are excluded from liabilities.
+
+  This is a read-only rollup. Editing accounts moved to the Balances tab
+  (BalancesView.svelte), which owns the same `accounts` array and adds the
+  bank-linking the rollup has no business carrying — one list, one editor.
 -->
 <script>
-  import { accounts, cards, save } from '../js/storage.svelte.js';
+  import { accounts, cards } from '../js/storage.svelte.js';
   import { fmt } from '../js/utils.js';
 
   const TYPES = [
@@ -22,16 +25,11 @@
   let liabilities = $derived(cards.filter((c) => !c.archived).reduce((s, c) => s + (parseFloat(c.balance) || 0), 0));
   let netWorth    = $derived(assets - liabilities);
 
-  function persist() { save('fh_accounts', accounts); }
-  function addAccount() {
-    accounts.push({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      name: '', type: 'checking', balance: 0, notes: '',
-    });
-    persist();
+  // Same tab-switch path the navbar buttons use, so the Balances pane is
+  // rendered and the More menu's active state follows.
+  function goToBalances() {
+    if (typeof window.showTab === 'function') window.showTab('balances');
   }
-  function updateAccount(i, patch) { Object.assign(accounts[i], patch); persist(); }
-  function removeAccount(i) { accounts.splice(i, 1); persist(); }
 </script>
 
 <section class="networth-card">
@@ -48,42 +46,49 @@
 
   <div class="networth-accts-head">
     <span>Accounts you own</span>
-    <button class="btn btn-primary btn-sm" onclick={addAccount}>+ Add account</button>
+    <button class="btn btn-primary btn-sm" onclick={goToBalances}>Manage balances</button>
   </div>
 
   {#if accounts.length === 0}
-    <p class="networth-empty">Add savings, checking, investments, or property to track your net worth.</p>
+    <p class="networth-empty">
+      Add savings, checking, investments, or property on the
+      <button type="button" class="networth-link" onclick={goToBalances}>Balances</button>
+      tab to track your net worth.
+    </p>
   {:else}
-    <div class="budget-income-list">
-      {#each accounts as a, i (a.id)}
-        <div class="budget-income-row">
-          <div class="budget-income-handle" aria-hidden="true">{iconFor(a.type)}</div>
-          <label class="budget-income-field budget-income-label" for={`acct-name-${a.id}`}>
-            <span>Name</span>
-            <input id={`acct-name-${a.id}`} type="text" placeholder="e.g. Ally Savings"
-              autocomplete="off" value={a.name}
-              oninput={(e) => updateAccount(i, { name: e.currentTarget.value })} />
-          </label>
-          <label class="budget-income-field budget-income-amount" for={`acct-bal-${a.id}`}>
-            <span>Balance</span>
-            <div class="budget-income-amount-input">
-              <span>$</span>
-              <input id={`acct-bal-${a.id}`} type="number" step="100" placeholder="0"
-                autocomplete="off" value={a.balance || ''}
-                oninput={(e) => updateAccount(i, { balance: parseFloat(e.currentTarget.value) || 0 })} />
-            </div>
-          </label>
-          <label class="budget-income-field budget-income-freq" for={`acct-type-${a.id}`}>
-            <span>Type</span>
-            <select id={`acct-type-${a.id}`} value={a.type}
-              onchange={(e) => updateAccount(i, { type: e.currentTarget.value })}>
-              {#each TYPES as t (t.key)}<option value={t.key}>{t.label}</option>{/each}
-            </select>
-          </label>
-          <button class="budget-income-remove" type="button" aria-label="Remove account"
-            onclick={() => removeAccount(i)}>×</button>
-        </div>
+    <ul class="networth-acct-list">
+      {#each accounts as a (a.id)}
+        <li class="networth-acct-row">
+          <span class="networth-acct-icon" aria-hidden="true">{iconFor(a.type)}</span>
+          <span class="networth-acct-name">{a.name || 'Unnamed account'}</span>
+          <span class="networth-acct-bal">{fmt(parseFloat(a.balance) || 0)}</span>
+        </li>
       {/each}
-    </div>
+    </ul>
   {/if}
 </section>
+
+<style>
+  .networth-acct-list { list-style: none; margin: 0; padding: 0; }
+  .networth-acct-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .networth-acct-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .networth-acct-bal { font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
+  /* A button, not an anchor: switching tabs is not navigation, and an <a
+     href="#"> here would put a dead entry in the browser history. */
+  .networth-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+</style>

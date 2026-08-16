@@ -30,6 +30,32 @@ class TabCatalogTest {
         assertEquals("Subscriptions", TabId.SUBSCRIPTIONS.a11yLabel)
         assertEquals("Worth", TabId.NETWORTH.label)
         assertEquals("Net Worth", TabId.NETWORTH.a11yLabel)
+        // The More list is full-width and gets the unambiguous name; the bar
+        // slot is narrow and gets the short one.
+        assertEquals("Balances", TabId.BALANCES.label)
+        assertEquals("Account Balances", TabId.BALANCES.a11yLabel)
+    }
+
+    @Test fun balancesIsInTheCatalogAndStartsUnderMore() {
+        assertEquals(TabId.BALANCES, TabId.from("balances"))
+        val (bottom, overflow) = resolveTabs(null)
+        assertTrue(TabId.BALANCES !in bottom)
+        assertTrue(TabId.BALANCES in overflow)
+    }
+
+    @Test fun theCatalogMatchesIOsOrder() {
+        // The saved `tabs` list is synced between platforms, so the catalogs
+        // have to agree on ids — an id only one platform knows is a tab that
+        // silently disappears when the other saves the layout. Kept in step
+        // with testTheCatalogMatchesAndroidsOrder in TabCatalogTests.swift.
+        assertEquals(
+            listOf(
+                "dashboard", "bills", "cards", "loans", "payoff", "rewards",
+                "income", "budget", "spending", "subscriptions", "calendar",
+                "history", "networth", "balances",
+            ),
+            TabId.entries.map { it.id },
+        )
     }
 
     @Test fun nothingSavedFallsBackToTheDefaultBar() {

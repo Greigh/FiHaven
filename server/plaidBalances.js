@@ -347,6 +347,198 @@ function applyAcceptedCurrentBalance(cards, proposals) {
   return { cards: next, changed };
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Depository accounts — the Balances tab.
+
+   The same manual-first contract as cards, applied to `data.accounts`
+   (what you own) instead of `data.cards` (what you owe). Plaid reports a
+   depository/investment `current` as a positive amount held, so it maps
+   straight onto `account.balance` with no sign gymnastics.
+
+   Matching is deliberately weaker than the card path because an Account
+   has no `lastDigits` or `issuer` field to lean on — only a free-text
+   name. So tier 2 reads the last-4 out of the name, and tier 3 requires
+   a *distinctive* shared word: "checking" and "savings" are on every
+   account at the bank and so are stopwords here. As with cards, a
+   proposal needs EXACTLY ONE candidate, which is what keeps two savings
+   accounts at the same bank from being guessed at.
+═══════════════════════════════════════════════════════════ */
+
+// Plaid account types that belong on the Balances tab. Credit and loan
+// are the cards' business and are matched by balanceProposals above.
+const ASSET_PLAID_TYPES = new Set(['depository', 'investment', 'brokerage']);
+
+/** True when a Plaid account is an asset (a balance you hold), not a debt. */
+function isAssetAccount(account) {
+  return ASSET_PLAID_TYPES.has(String((account && account.type) || '').toLowerCase());
+}
+
+// Words that describe what nearly every bank account IS, and so tell two of
+// them apart not at all. "Chase Total Checking" vs a user's "Chase Checking"
+// must not match on "checking" — that would pair any account with any other.
+const ACCOUNT_NAME_STOPWORDS = new Set([
+  'checking', 'chequing', 'savings', 'saving', 'deposit', 'deposits',
+  'money', 'market', 'brokerage', 'investment', 'investments', 'retirement',
+  'total', 'everyday', 'basic', 'premier', 'advantage', 'select', 'preferred',
+  'online', 'interest', 'high', 'yield', 'joint', 'individual', 'fund', 'funds',
+]);
+
+// Significant words for an *account* name: the card stopwords plus the ones
+// that describe an account's kind rather than its identity.
+function accountSignificantWords(v) {
+  return significantWords(v).filter((w) => !ACCOUNT_NAME_STOPWORDS.has(w));
+}
+
+/** The Balances-tab `type` a Plaid account implies, or '' when unclear. */
+function accountTypeFromPlaid(account) {
+  const type = String((account && account.type) || '').toLowerCase();
+  const subtype = String((account && account.subtype) || '').toLowerCase();
+  if (type === 'investment' || type === 'brokerage') return 'investment';
+  if (type !== 'depository') return '';
+  if (subtype === 'checking') return 'checking';
+  if (subtype === 'savings' || subtype === 'cd' || subtype === 'money market') return 'savings';
+  if (subtype === 'cash management' || subtype === 'prepaid') return 'cash';
+  return '';
+}
+
+// An account whose stored type can't be what Plaid is describing is never a
+// candidate — a house is not a chequing account. An empty type on either side
+// is treated as "unknown", which stays eligible rather than being ruled out.
+function accountTypeCompatible(acct, plaidAccount) {
+  const implied = accountTypeFromPlaid(plaidAccount);
+  const stored = String((acct && acct.type) || '').toLowerCase();
+  if (!implied || !stored) return true;
+  if (implied === stored) return true;
+  // Checking/savings/cash are near enough that a user's label shouldn't veto
+  // an otherwise solid match; property never is.
+  const liquid = new Set(['checking', 'savings', 'cash', 'other']);
+  return liquid.has(implied) && liquid.has(stored);
+}
+
+/** True when the user asked that this account never be matched to a bank. */
+function accountOptedOut(acct) {
+  return String((acct && acct.plaidAccountId) || '') === NO_LINK;
+}
+
+function accountIsLinkedTo(acct, plaidAccount) {
+  const linked = acct && acct.plaidAccountId;
+  if (accountOptedOut(acct)) return false;
+  const id = accountIdOf(plaidAccount);
+  return !!linked && !!id && String(linked) === id;
+}
+
+// Mirrors linkIsLive for accounts: a pin to a bank that's since been removed
+// must not bar the account from ever matching again.
+function accountLinkIsLive(acct, known) {
+  const linked = acct && acct.plaidAccountId;
+  if (!linked) return false;
+  if (accountOptedOut(acct)) return true;
+  if (!known) return true;
+  return known.has(String(linked));
+}
+
+/** Tier 2: the account name carries the Plaid mask's last four digits. */
+function accountMatchesMask(acct, mask) {
+  const m4 = last4(mask);
+  if (!m4) return false;
+  return String((acct && acct.name) || '').includes(m4);
+}
+
+/** Tier 3: a distinctive word shared with the Plaid account or its bank. */
+function accountMatchesName(acct, plaidAccount, institutionName) {
+  const own = new Set(accountSignificantWords(acct && acct.name));
+  if (!own.size) return false;
+  const bankText = [plaidAccount && plaidAccount.name, plaidAccount && plaidAccount.official_name]
+    .filter(Boolean).join(' ');
+  if (accountSignificantWords(bankText).some((w) => own.has(w))) return true;
+  // "Ally Savings" ↔ institution "Ally": the bank's own name is distinctive
+  // even when the product name shares nothing.
+  const inst = canonIssuer(institutionName);
+  if (!inst) return false;
+  return [...own].some((w) => {
+    const c = canonIssuer(w);
+    return !!c && (c === inst || inst.includes(c) || c.includes(inst));
+  });
+}
+
+/**
+ * The single stored account that owns `plaidAccount`, or null when it's
+ * ambiguous or unknown. Same three tiers as matchCardToAccount.
+ */
+function matchAccountToPlaid(accounts, plaidAccount, institutionName, knownAccountIds) {
+  const list = Array.isArray(accounts) ? accounts : [];
+
+  const explicit = list.filter((a) => accountIsLinkedTo(a, plaidAccount));
+  if (explicit.length) return explicit.length === 1 ? explicit[0] : null;
+
+  const free = list.filter((a) => !accountLinkIsLive(a, knownAccountIds)
+    && accountTypeCompatible(a, plaidAccount));
+
+  const byDigits = free.filter((a) => accountMatchesMask(a, plaidAccount && plaidAccount.mask));
+  if (byDigits.length === 1) return byDigits[0];
+  if (byDigits.length > 1) {
+    const narrowed = byDigits.filter((a) => accountMatchesName(a, plaidAccount, institutionName));
+    return narrowed.length === 1 ? narrowed[0] : null;
+  }
+
+  const soft = free.filter((a) => accountMatchesName(a, plaidAccount, institutionName));
+  return soft.length === 1 ? soft[0] : null;
+}
+
+/** Stable id for Accept/Decline memory on an asset account. */
+function accountBalanceFingerprint(accountId, proposedBalance) {
+  return 'acct:' + String(accountId) + ':' + Number(proposedBalance).toFixed(2);
+}
+
+/**
+ * Proposals: [{ id, proposedBalance, fingerprint }] for each Plaid asset
+ * account that maps to EXACTLY ONE stored account. Skips fingerprints the
+ * user already resolved, and skips when the stored balance already matches.
+ *
+ * @param {object} [opts] `{ institutionName, knownAccountIds }` — as for
+ *   balanceProposals.
+ */
+function accountBalanceProposals(accounts, plaidAccounts, resolvedFingerprints, opts) {
+  const list = (accounts || []).filter(Boolean);
+  const institutionName = (opts && opts.institutionName) || '';
+  const knownAccountIds = opts && opts.knownAccountIds;
+  const resolved = new Set((resolvedFingerprints || []).map(String));
+  const out = [];
+  (plaidAccounts || []).forEach((a) => {
+    if (!a || !isAssetAccount(a)) return;
+    const proposedBalance = num((a.balances || {}).current);
+    if (proposedBalance == null) return;
+    const acct = matchAccountToPlaid(list, a, institutionName, knownAccountIds);
+    if (!acct) return;
+    const fingerprint = accountBalanceFingerprint(acct.id, proposedBalance);
+    if (resolved.has(fingerprint)) return;
+    const stored = Number(acct.balance);
+    if (Number.isFinite(stored) && Math.abs(stored - proposedBalance) < 0.005) return;
+    out.push({ id: acct.id, proposedBalance, fingerprint });
+  });
+  return out;
+}
+
+/**
+ * Apply accepted account proposals: writes `balance` only — never the name or
+ * type, which are the user's own labels. Returns a NEW array + whether
+ * anything changed.
+ */
+function applyAcceptedAccountBalance(accounts, proposals) {
+  const byId = new Map((proposals || []).map((p) => [String(p.id), p]));
+  let changed = false;
+  const next = (accounts || []).map((a) => {
+    const p = byId.get(String(a.id));
+    if (!p) return a;
+    const proposed = p.proposedBalance;
+    if (proposed == null || !Number.isFinite(Number(proposed))) return a;
+    if (Number(a.balance) === Number(proposed)) return a;
+    changed = true;
+    return { ...a, balance: Number(proposed) };
+  });
+  return { accounts: next, changed };
+}
+
 /** @deprecated Use applyAcceptedCurrentBalance */
 function applyBalanceUpdates(cards, updates) {
   const proposals = (updates || []).map((u) => ({
@@ -374,4 +566,17 @@ module.exports = {
   balanceUpdates,
   applyAcceptedCurrentBalance,
   applyBalanceUpdates,
+  // ── Balances tab (asset accounts) ──
+  isAssetAccount,
+  accountTypeFromPlaid,
+  accountTypeCompatible,
+  accountOptedOut,
+  accountIsLinkedTo,
+  accountLinkIsLive,
+  accountMatchesMask,
+  accountMatchesName,
+  matchAccountToPlaid,
+  accountBalanceFingerprint,
+  accountBalanceProposals,
+  applyAcceptedAccountBalance,
 };

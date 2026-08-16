@@ -233,6 +233,9 @@ fun IncomeAdjustmentEditorDialog(
                     amount = signed,
                     kind = if (recurring) "recurring" else "once",
                     monthKey = if (recurring) "" else onceMonth,
+                    // The day a one-time change landed is set on the web; carry
+                    // it through so editing the label here doesn't erase it.
+                    date = if (recurring) "" else (adj?.date ?: ""),
                     startMonth = if (recurring) startMonth else "",
                     endMonth = if (recurring) (adj?.endMonth ?: "") else "",
                 )

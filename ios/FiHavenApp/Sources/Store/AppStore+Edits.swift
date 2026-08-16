@@ -529,6 +529,75 @@ extension AppStore {
         }
     }
 
+    // ── Asset-account balance proposals (the Balances tab) ──────────
+    // The same Accept/Decline contract as cards, against `accounts`. The
+    // resolved-fingerprint list is shared with the card queue; account
+    // fingerprints carry an "acct:" prefix so the two can't collide.
+
+    struct AccountBalanceProposal: Identifiable {
+        var id: String { fingerprint }
+        let accountId: String
+        let name: String
+        let proposedBalance: Double
+        /// The balance on file today — what accepting would replace. Nil when
+        /// the account is gone, leaving nothing to compare against.
+        let currentBalance: Double?
+        let fingerprint: String
+    }
+
+    func pendingAccountProposals() -> [AccountBalanceProposal] {
+        let resolved = Set(data.settings.plaidBalanceResolved.compactMap { $0["fingerprint"]?.asString })
+        return data.settings.plaidAccountProposals.compactMap { raw in
+            guard let fp = raw["fingerprint"]?.asString, !resolved.contains(fp) else { return nil }
+            let acctId: String = {
+                if let s = raw["id"]?.asString { return s }
+                if let n = raw["id"]?.asDouble { return String(Int(n)) }
+                return ""
+            }()
+            guard !acctId.isEmpty else { return nil }
+            guard let proposed = raw["proposedBalance"]?.asDouble else { return nil }
+            let account = data.accounts.first(where: { $0.id == acctId })
+            return AccountBalanceProposal(
+                accountId: acctId,
+                name: account?.name.isEmpty == false ? account!.name : "Account \(acctId)",
+                proposedBalance: proposed,
+                currentBalance: account?.balance,
+                fingerprint: fp
+            )
+        }
+    }
+
+    /// Accept: write the bank's figure to `balance`. Never the name or type —
+    /// those are the user's own labels.
+    func acceptAccountProposal(_ p: AccountBalanceProposal) {
+        mutate { data in
+            if let i = data.accounts.firstIndex(where: { $0.id == p.accountId }) {
+                data.accounts[i].balance = p.proposedBalance
+            }
+            Self.resolveAccountProposal(&data, fingerprint: p.fingerprint, decision: "accept")
+        }
+    }
+
+    func declineAccountProposal(_ p: AccountBalanceProposal) {
+        mutate { data in
+            Self.resolveAccountProposal(&data, fingerprint: p.fingerprint, decision: "decline")
+        }
+    }
+
+    private static func resolveAccountProposal(_ data: inout AppData, fingerprint: String, decision: String) {
+        var resolved = data.settings.plaidBalanceResolved
+        resolved.append([
+            "fingerprint": .string(fingerprint),
+            "decision": .string(decision),
+            "at": .string(ISO8601DateFormatter().string(from: Date())),
+        ])
+        if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
+        data.settings.plaidBalanceResolved = resolved
+        data.settings.plaidAccountProposals = data.settings.plaidAccountProposals.filter {
+            $0["fingerprint"]?.asString != fingerprint
+        }
+    }
+
     func declineSubscriptionMerchant(_ key: String) {
         guard !key.isEmpty else { return }
         mutate { data in

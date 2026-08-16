@@ -2,13 +2,14 @@ import SwiftUI
 import FiHavenCore
 
 /// Net Worth tab — assets (the accounts you own) minus liabilities (the
-/// non-archived cards and loans you owe). Asset accounts are added and
-/// edited here; the debts side comes from the Cards/Loans tabs.
+/// non-archived cards and loans you owe).
+///
+/// A read-only rollup: adding and editing asset accounts moved to the Balances
+/// tab, which owns the same `accounts` array and adds the bank-linking this
+/// summary has no business carrying. One list, one editor.
 /// Mirrors the web `NetWorthPanel`.
 struct NetWorthView: View {
     @EnvironmentObject var store: AppStore
-    @State private var editing: Account?
-    @State private var creating = false
 
     private static let types: [String: (label: String, icon: String)] = [
         "checking":   ("Checking", "🏦"),
@@ -29,7 +30,7 @@ struct NetWorthView: View {
                 HStack {
                     Spacer()
                     Text(store.loaded
-                        ? "No accounts yet. Tap + to add savings, checking, investments, or property."
+                        ? "No accounts yet. Add savings, checking, investments, or property on the Balances tab."
                         : "Loading…")
                         .font(Theme.ui(15))
                         .foregroundStyle(Theme.muted)
@@ -43,19 +44,6 @@ struct NetWorthView: View {
             } else {
                 ForEach(store.data.accounts) { account in
                     accountRow(account)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                store.deleteAccount(account)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            Button {
-                                editing = account
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                            .tint(Theme.accent)
-                        }
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
@@ -66,14 +54,6 @@ struct NetWorthView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Net Worth")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { creating = true } label: { Image(systemName: "plus") }
-                    .accessibilityIconButton("Add account")
-            }
-        }
-        .sheet(isPresented: $creating) { AccountEditorView(account: nil) }
-        .sheet(item: $editing) { account in AccountEditorView(account: account) }
     }
 
     // ── Assets − liabilities = net worth ─────────────────────────────
@@ -129,9 +109,6 @@ struct NetWorthView: View {
                 .foregroundStyle(Theme.text)
         }
         .ctCard()
-        .contentShape(Rectangle())
-        .onTapGesture { editing = account }
-        .accessibilityElement(children: .contain)
-        .accessibilityHint("Double tap to edit")
+        .accessibilityElement(children: .combine)
     }
 }

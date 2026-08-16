@@ -9,12 +9,13 @@
 -->
 <script>
   import { settings, save } from '../js/storage.svelte.js';
-  import { fmt, monthKeyLabel } from '../js/utils.js';
+  import { fmt, monthKeyLabel, ymd } from '../js/utils.js';
   import { currentPeriod, shiftPeriod, periodLabel, getPeriodConfig } from '../js/period.js';
   import {
     FREQUENCIES, FREQ_MAP, monthlyOfSource as monthlyOf,
     normalizeAdjustment, adjustmentsForPeriod, adjustmentsTotalForPeriod,
     periodAnchorMonth, periodIncome, adjustmentsLabelFor,
+    monthOf, monthDayBounds,
   } from '../js/income.js';
 
   /* ── Migration from the old single-income model ───────────── */
@@ -99,9 +100,14 @@
     save('fh_settings', settings);
   }
   function addAdjustment(kind) {
+    // A one-time change added while viewing the current month almost always
+    // landed today, so start there; in any other month there is no day to
+    // guess and the field opens empty.
+    const today = ymd();
     adjustments = [...adjustments, normalizeAdjustment({
       kind,
       monthKey: kind === 'once' ? mk : '',
+      date: kind === 'once' && monthOf(today) === mk ? today : '',
       startMonth: kind === 'recurring' ? mk : '',
     })];
     persistAdjustments();
@@ -113,6 +119,20 @@
   function updateAdjustment(id, patch) {
     adjustments = adjustments.map((a) => (a.id === id ? { ...a, ...patch } : a));
     persistAdjustments();
+  }
+  // The date a one-time change landed. The input is clamped to the month the
+  // row is filed under, but a typed-in date can still escape that, so the
+  // month key follows the date — an August bonus is never filed under July.
+  function setAdjustmentDate(adj, value) {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+    updateAdjustment(adj.id, { date, monthKey: date ? monthOf(date) : adj.monthKey });
+  }
+  // A recurring change has no single day — only the month it starts in.
+  // An unparseable value (a half-typed month) leaves the row alone rather
+  // than widening its scope to every month.
+  function setAdjustmentStart(adj, value) {
+    if (!/^\d{4}-\d{2}$/.test(value)) return;
+    updateAdjustment(adj.id, { startMonth: value });
   }
 
   /* ── Totals ──────────────────────────────────────────────── */
@@ -253,6 +273,7 @@
   {:else}
     <div class="budget-income-list">
       {#each periodAdjustments as adj (adj.id)}
+        {@const bounds = monthDayBounds(adj.monthKey)}
         <div class="budget-income-row">
           <div class="budget-income-handle" aria-hidden="true">{adj.amount < 0 ? '➖' : '➕'}</div>
           <label class="budget-income-field budget-income-label" for={`adj-label-${adj.id}`}>
@@ -280,6 +301,33 @@
               />
             </div>
           </label>
+          {#if adj.kind === 'recurring'}
+            <label class="budget-income-field budget-income-freq" for={`adj-start-${adj.id}`}>
+              <span>Starts</span>
+              <input
+                id={`adj-start-${adj.id}`}
+                name="adj-start"
+                type="month"
+                autocomplete="off"
+                value={adj.startMonth}
+                onchange={(e) => setAdjustmentStart(adj, e.currentTarget.value)}
+              />
+            </label>
+          {:else}
+            <label class="budget-income-field budget-income-freq" for={`adj-date-${adj.id}`}>
+              <span>{adj.amount < 0 ? 'Date applied' : 'Date received'}</span>
+              <input
+                id={`adj-date-${adj.id}`}
+                name="adj-date"
+                type="date"
+                autocomplete="off"
+                min={bounds.min}
+                max={bounds.max}
+                value={adj.date}
+                onchange={(e) => setAdjustmentDate(adj, e.currentTarget.value)}
+              />
+            </label>
+          {/if}
           <div class="budget-income-monthly" title="When this applies">
             <span>Scope</span>
             <strong style="font-size:12px;font-weight:600;">

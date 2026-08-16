@@ -13,6 +13,141 @@ Each release below uses two layers:
 
 ---
 
+## [1.6.2 build 50] Current Pre-Release — 2026-08-15
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.2 (50) — **Account Balances is its own tab.** A one-time income adjustment also keeps the date it landed when you edit it here. |
+| **Android** | 1.6.2 (versionCode 50) — **Account Balances is its own tab.** A one-time income adjustment also keeps the date it landed when you edit it here. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — the same Balances tab, plus the bank figure and its as-of date on every linked row |
+| **All platforms** | The accounts you own — checking, savings, investments, property, cash — move out of the Net Worth tab and into a tab of their own, called **Balances** in the tab strip and **Account Balances** in the More menu. Net Worth becomes what its name says: the assets-minus-debts rollup, now read-only, linking to Balances to edit. With a bank linked (Pro), a chequing or savings account can **suggest its own balance** — as a proposal you Accept or Decline, never an overwrite. No server deploy needed for the tab itself; the balance suggestions come from the server, so those need one. |
+
+> **Same marketing version, new build.** 1.6.2 stays; the build number goes
+> 49 → 50 on both stores together, which is the rule from here on
+> (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in
+> `android/app/build.gradle.kts`).
+
+### Summary
+
+> Balances is where the money you *have* lives, the way Cards is where the money
+> you owe lives. It was buried inside Net Worth, which meant the tab that exists
+> to show one number was also the only place to edit six.
+>
+> The other half is bank sync. FiHaven has been able to read your linked bank's
+> balances for a while, but only ever offered them to credit cards — a chequing
+> account had nowhere to put them. Now it does, on the same manual-first terms
+> the cards get: nothing is overwritten, every suggestion is a question, and
+> declining one means it isn't asked again until the bank's figure changes.
+>
+> Smaller, but it was a data-loss bug: one-time income adjustments record the
+> day the money landed, which build 49 shipped on the web only. Editing that
+> adjustment on a phone erased the date, because the native editors did not know
+> the field existed. They do now.
+
+### Technical changelog
+
+**A tab, not a new list (`client/`, `ios/`, `android/`)**
+
+Balances is backed by the **existing** `data.accounts` array — the same records
+Net Worth has always summed. No new model, no migration, and no second place to
+type a balance. `NetWorthPanel` / `NetWorthView` / `NetWorthScreen` drop their
+inline editors and keep the rollup; the add/edit affordances (and the existing
+`AccountEditorView` / `AccountEditorDialog`) move to the new tab.
+
+The catalogs gain one entry each — `TabItem.balances`, `TabId.BALANCES`, and
+`'balances'` in `app.js` `TABS`/`MORE_TABS` — so the tab-bar customizer picks it
+up on its own through `resolveTabs`. Both platforms' catalog-order tests pin the
+shared id list, which is what stops one platform knowing an id the other doesn't
+and silently dropping the tab when it saves the layout.
+
+The short/long label split the request asked for already existed on Android
+(`label` "Worth" vs `a11yLabel` "Net Worth"). iOS gains the same idea as
+`TabItem.menuTitle` (defaulting to `title`, overridden only where the short name
+needs context), and the web gains `TAB_MORE_LABELS` in `navbar.js`. So the
+bottom bar reads **Balances** and the More list reads **Account Balances**.
+
+**Depository balance proposals (`server/plaidBalances.js`)**
+
+`balanceProposals` has always gated on `type === 'credit' || 'loan'`. Its new
+counterpart `accountBalanceProposals` handles the other side — `depository`,
+`investment`, `brokerage` — mapping Plaid's `balances.current` straight onto
+`account.balance` (an asset's current is already a positive amount held, so
+there's none of the sign reasoning `owedFromBalances` needs for a credit line).
+
+Matching runs the same three tiers as the card path, but deliberately weaker at
+tier 3: an `Account` has no `lastDigits` and no `issuer`, only a free-text name.
+So tier 2 reads the last four out of the name, and tier 3 requires a
+*distinctive* shared word — `ACCOUNT_NAME_STOPWORDS` rules out "checking",
+"savings", "premier" and the rest, because those appear on every account at
+every bank and would otherwise pair any two of them. `accountTypeCompatible`
+rules out a match Plaid's subtype contradicts, so a house is never a chequing
+account. As with cards, a proposal still needs **exactly one** candidate.
+
+Accounts gain `plaidAccountId` (with the same `'none'` opt-out sentinel cards
+use), pinned by the new `autoLinkAssetAccounts` on every sync. It had to be added
+to the native `Account` structs as well as the web shape: those are fixed types
+that drop keys they don't model, so an unmodelled field would be stripped on the
+next save from that device and the link would silently revert.
+
+**A second queue, not a second meaning for the first**
+
+Proposals land in `settings.plaidAccountProposals`, separate from
+`plaidBalanceProposals`. Reusing the card queue with a discriminator would have
+meant a client build predating this feature finding a proposal that names no card
+it can find — and quietly *declining* it. A separate key is simply invisible to
+those builds. The resolved-fingerprint list **is** shared (one capped history of
+decisions), which is why account fingerprints carry an `acct:` prefix: both
+queues write into `plaidBalanceResolved`, so a collision would answer the other
+queue's question. There's a test for exactly that.
+
+**Honest dates, on all three.** FiHaven uses Plaid's free `/accounts/get`, not
+the paid Balance product, so the figures are cached as of the item's last sync
+(roughly daily). Every linked row prints "Bank says X · as of <date>" rather
+than implying live data.
+
+Getting that onto the phones needed `lastSyncAt` added to the native `PlaidItem`
+decoders, which had never modelled it. It is **epoch milliseconds** — the
+`plaid_items.last_sync_at` column is an INTEGER, not a date string — so it types
+as `Double?` on iOS and `Long?` on Android. Decoding it as a string would have
+parsed to nil and silently dropped the date half of every line.
+
+**Gating.** The tab is **Free** — manual balance tracking is core, and Net Worth
+was already Free. Linking a bank inside it stays **Pro**, as it is everywhere
+else.
+
+**Tests.** 24 new web/server cases (`plaidBalances.test.js`,
+`plaidBalanceReview.test.js`) covering the asset type gate, the stopword
+narrowing, the ambiguity refusal, the dead-pin recovery, the fingerprint
+prefix, and the apply path; plus catalog coverage in `TabCatalogTests.swift` and
+`TabCatalogTest.kt`.
+
+**The income-adjustment date reaches the phones (`ios/`, `android/`)**
+
+Build 49 gave a one-time adjustment a `date` ("the day it landed") and shipped
+the editor for it on the web only. The native editors rebuild the whole
+adjustment on save, so opening one on a phone to fix a typo in the label wrote
+the record back **without** `date` — silently discarding it.
+
+`IncomeAdjustment.swift` and `Models.kt` gain the field, and both native editors
+carry it through a save (`date:` in `IncomeAdjustmentEditorView`, `date =` in
+`IncomeAdjustmentEditorDialog`), blank for a recurring change because a
+recurring adjustment is a monthly figure and not an event. This is the same
+fixed-struct trap as `plaidAccountId` above: a native model that doesn't name a
+field drops it, and the drop only shows up after a save from that device.
+
+**Also in this build**
+
+- `client/js/income.js` gains `dayOf(key)` and `monthDayBounds(mk)` — the latter
+  clamps the web date input to the month the row is filed under, so a bonus
+  can't be dated outside the month it is counted in. A legacy full date sitting
+  in `monthKey` is read as the `date` rather than being rounded away.
+- Spacing on the Income tab matches the other tabs (`client/css/budget.css`,
+  `client/css/components.css`).
+- Dev dependencies: `concurrently` 10.0.4 → 10.0.5, `svelte` 5.56.8 → 5.56.9.
+
+---
+
 ## [1.6.2] Current Pre-Release — 2026-08-13
 
 | | |
@@ -20,7 +155,7 @@ Each release below uses two layers:
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
 | **iOS** | 1.6.2 (49) - **Income is its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that move a single period's total. Two long-standing bugs died with the move: an adjustment stamped with a full date instead of a month was invisible to every income figure, and on a non-calendar period (start-day or rolling) adjustments matched nothing at all. **Reminders stop nagging about bills you have already paid** — measured over the period the due date falls in, so a reminder that should fire still fires, and a partial payment still reminds because money is still owed. **The Pro screen shows real prices** in your own currency, with the yearly plan's saving stated as a percentage and restated per month. Mistyping your address at signup is **no longer a dead end** — the verify screen can now correct it. Admins get the console on the phone (Settings → Admin). A security check that stalls now says so and offers a retry instead of leaving Sign in disabled with no explanation. **Needs the server deploy.** |
 | **Android** | 1.6.2 (versionCode 49) - **Income is its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that move a single period's total. Two long-standing bugs died with the move: an adjustment stamped with a full date instead of a month was invisible to every income figure, and on a non-calendar period (start-day or rolling) adjustments matched nothing at all. **Reminders stop nagging about bills you have already paid**, on the device as well as by email. **The Pro screen shows real prices** from Play in the storefront's own currency, with the yearly plan's saving as a percentage and restated per month. Mistyping your address at signup is **no longer a dead end** — the verify screen can now correct it. Admins get the console on the phone (Settings → Admin). The status and navigation bars finally follow the **in-app** theme rather than the phone's, so Dark mode on a Light phone no longer draws dark icons on a dark bar. Tapping **Open FiHaven** in a reminder email lands in the app instead of the browser. **Needs the server deploy.** |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — Income tab, live plan pricing on the paywall, a rebuilt Pro step in onboarding, and the store go-live: the home page now links to the App Store and Google Play |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — Income tab, live plan pricing on the paywall, a rebuilt Pro step in onboarding, and the store go-live: the home page now links to the App Store and Google Play. One-time income adjustments now record the date the money landed, and the Income tab's spacing matches the other tabs |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -275,6 +410,13 @@ are web-only flows and must keep opening in a browser.
   adjustment applying to any month the period overlaps.
 - `periodAnchorMonth(bounds)` — the month a one-time adjustment created in this
   period belongs to.
+- A one-time adjustment now records the **day it landed** (`date`, `"YYYY-MM-DD"`).
+  `dayOf(key)` + `monthDayBounds(mk)` in `income.js` (mirrored by `dayOf` in
+  `IncomeAdjustment.swift` / `Models.kt`) parse it and clamp the date input to the
+  month the row is filed under; the month key follows the date, so a bonus can't
+  be filed under the wrong month. A legacy full date in `monthKey` becomes the
+  `date` instead of being rounded away. Editable on the web; the native editors
+  carry the field through a save so an edit there can't erase it.
 - `baseIncomeLabelFor` / `adjustmentsLabelFor` join `incomeLabelFor` and
   `owedLabelFor` in the period-aware label set.
 - New views: `client/svelte/IncomeView.svelte` (mounted by `client/js/incomeTab.js`),

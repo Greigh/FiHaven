@@ -9,6 +9,7 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
     public var amount: Double      // signed
     public var kind: String        // "once" | "recurring"
     public var monthKey: String    // "once" → the single month it applies ("YYYY-MM")
+    public var date: String        // "once" → the day it landed ("YYYY-MM-DD", "" = unset)
     public var startMonth: String  // "recurring" → first month (inclusive)
     public var endMonth: String    // "recurring" → last month ("" = ongoing)
 
@@ -18,6 +19,7 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
         amount: Double = 0,
         kind: String = "once",
         monthKey: String = "",
+        date: String = "",
         startMonth: String = "",
         endMonth: String = ""
     ) {
@@ -26,6 +28,7 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
         self.amount = amount
         self.kind = kind
         self.monthKey = monthKey
+        self.date = date
         self.startMonth = startMonth
         self.endMonth = endMonth
     }
@@ -37,6 +40,13 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
         self.amount = o["amount"]?.asDouble ?? 0
         self.kind = o["kind"]?.asString == "recurring" ? "recurring" : "once"
         self.monthKey = o["monthKey"]?.asString ?? ""
+        // Only a one-time change has a day. Older builds stamped it into
+        // `monthKey`, so a legacy full date there becomes the date instead of
+        // being dropped on the next save. Mirrors normalizeAdjustment.
+        let rawDate = o["date"]?.asString ?? ""
+        self.date = self.kind == "once"
+            ? (dayOf(rawDate).isEmpty ? dayOf(self.monthKey) : dayOf(rawDate))
+            : ""
         self.startMonth = o["startMonth"]?.asString ?? ""
         self.endMonth = o["endMonth"]?.asString ?? ""
     }
@@ -48,6 +58,7 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
             "amount": .number(amount),
             "kind": .string(kind),
             "monthKey": .string(monthKey),
+            "date": .string(date),
             "startMonth": .string(startMonth),
             "endMonth": .string(endMonth),
         ])
@@ -78,4 +89,17 @@ public struct IncomeAdjustment: Codable, Identifiable, Equatable, Sendable {
 /// Mirrors monthOf in income.js.
 public func monthOf(_ key: String) -> String {
     key.count > 7 ? String(key.prefix(7)) : key
+}
+
+/// "YYYY-MM-DD" from anything that starts with one, else "".
+/// Mirrors dayOf in income.js.
+public func dayOf(_ key: String) -> String {
+    let s = String(key.prefix(10))
+    guard s.count == 10 else { return "" }
+    let chars = Array(s)
+    for (i, c) in chars.enumerated() {
+        let wantsDash = (i == 4 || i == 7)
+        if wantsDash ? c != "-" : !(c.isASCII && c.isNumber) { return "" }
+    }
+    return s
 }
