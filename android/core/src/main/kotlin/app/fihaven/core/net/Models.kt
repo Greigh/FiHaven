@@ -249,6 +249,12 @@ data class PlaidItem(
     val institutionId: String? = null,
     val status: String = "active",
     val error: String? = null,
+    /** When this item last synced, **epoch milliseconds** (the column is an
+     *  INTEGER, not a date string). The balances above are cached as of this
+     *  moment — FiHaven uses Plaid's free `/accounts/get`, not the paid Balance
+     *  product — so anything showing a bank figure must date it rather than
+     *  imply it is live. */
+    val lastSyncAt: Long? = null,
     val accounts: List<PlaidAccount> = emptyList(),
 )
 

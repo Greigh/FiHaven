@@ -187,9 +187,18 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 16px;   /* a long label ("Effective income — August 2026") must never
+                  run into its own number on a narrow screen */
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+/* Two totals in a row (adjustments, then effective income) read as one
+   summary block — a second full-size gap would float the last line away
+   from the card it belongs to. */
+.budget-income-foot + .budget-income-foot {
+  margin-top: 10px;
+  padding-top: 12px;
 }
 .budget-income-foot-label {
   font-size: 11px;

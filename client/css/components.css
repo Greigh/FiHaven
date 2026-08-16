@@ -1574,6 +1574,7 @@ main {
 ═══════════════════════════════════════════════════════════ */
 #dashboard-mount,
 #budget-mount,
+#income-mount,
 #payoff-mount,
 #cards-mount {
   display: flex;

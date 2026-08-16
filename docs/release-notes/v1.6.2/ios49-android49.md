@@ -119,10 +119,6 @@ Let a bill you have already paid pass its reminder date and confirm no reminder 
 Open the Pro screen and confirm the prices shown match what the App Store charges at checkout, and that the yearly saving percentage is arithmetic you can verify from the two prices on screen.
 
 If you have a spare email address, sign up with a deliberate typo and check you can recover from it.
-
-NOTE
-
-Build 49 needs a server deploy for the Admin row, the email correction, and the reminder suppression in emails. If it has not gone out, those three are inactive; everything else works.
 ```
 
 ---

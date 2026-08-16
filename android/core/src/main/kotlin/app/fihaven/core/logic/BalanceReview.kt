@@ -1,6 +1,8 @@
 package app.fihaven.core.logic
 
+import app.fihaven.core.model.Account
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.plaidAccountProposals
 import app.fihaven.core.model.plaidBalanceProposals
 import app.fihaven.core.model.plaidBalanceResolved
 import app.fihaven.core.model.withSetting
@@ -94,15 +96,78 @@ object BalanceReview {
      * it. [decision] is "accept" or "decline".
      */
     fun resolve(settings: JsonObject, fingerprint: String, decision: String): JsonObject {
+        val remaining = settings.plaidBalanceProposals.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != fingerprint
+        }
+        return rememberResolved(settings, fingerprint, decision)
+            .withSetting("plaidBalanceProposals", buildJsonArray { remaining.forEach { add(it) } })
+    }
+
+    // ── Asset accounts (the Balances tab) ────────────────────────────
+    // The same contract against `accounts` instead of `cards`: a bank balance
+    // is only ever a suggestion, and each answer is remembered by fingerprint.
+    // The resolved list is shared with the card queue; account fingerprints
+    // carry an "acct:" prefix so the two can't collide.
+
+    data class AccountProposal(
+        val accountId: String,
+        val name: String,
+        val proposedBalance: Double,
+        /** The balance on file today — what accepting would replace. Null when
+         *  the account is gone, leaving nothing to compare against. */
+        val currentBalance: Double?,
+        val fingerprint: String,
+    )
+
+    /** Unanswered account proposals, paired with the account each one names. */
+    fun pendingAccounts(settings: JsonObject, accounts: List<Account>): List<AccountProposal> {
+        val resolved = settings.plaidBalanceResolved
+            .mapNotNull { (it["fingerprint"] as? JsonPrimitive)?.contentOrNull }
+            .toSet()
+        return settings.plaidAccountProposals.mapNotNull { raw ->
+            val fp = (raw["fingerprint"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            if (fp in resolved) return@mapNotNull null
+            val idEl = raw["id"] as? JsonPrimitive ?: return@mapNotNull null
+            val acctId = idEl.contentOrNull
+                ?: idEl.doubleOrNull?.toInt()?.toString()
+                ?: return@mapNotNull null
+            val proposed = (raw["proposedBalance"] as? JsonPrimitive)?.doubleOrNull
+                ?: return@mapNotNull null
+            val account = accounts.firstOrNull { it.id == acctId }
+            AccountProposal(
+                accountId = acctId,
+                name = account?.name?.takeIf { it.isNotBlank() } ?: "Account $acctId",
+                proposedBalance = proposed,
+                currentBalance = account?.balance,
+                fingerprint = fp,
+            )
+        }
+    }
+
+    /**
+     * The account list with an accepted proposal written in. Only `balance`
+     * moves — the name and type are the user's own labels. A proposal whose
+     * account is gone changes nothing.
+     */
+    fun applyToAccounts(accounts: List<Account>, p: AccountProposal): List<Account> =
+        accounts.map { a -> if (a.id != p.accountId) a else a.copy(balance = p.proposedBalance) }
+
+    /** [resolve], for the account queue. */
+    fun resolveAccount(settings: JsonObject, fingerprint: String, decision: String): JsonObject {
+        val remaining = settings.plaidAccountProposals.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != fingerprint
+        }
+        return rememberResolved(settings, fingerprint, decision)
+            .withSetting("plaidAccountProposals", buildJsonArray { remaining.forEach { add(it) } })
+    }
+
+    // Record an answer in the shared, capped fingerprint list. Both queues go
+    // through this so one can never trim the other's history differently.
+    private fun rememberResolved(settings: JsonObject, fingerprint: String, decision: String): JsonObject {
         val resolved = (settings.plaidBalanceResolved + buildJsonObject {
             put("fingerprint", fingerprint)
             put("decision", decision)
         }).takeLast(RESOLVED_CAP)
-        val remaining = settings.plaidBalanceProposals.filter {
-            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != fingerprint
-        }
-        return settings
-            .withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
-            .withSetting("plaidBalanceProposals", buildJsonArray { remaining.forEach { add(it) } })
+        return settings.withSetting("plaidBalanceResolved", buildJsonArray { resolved.forEach { add(it) } })
     }
 }

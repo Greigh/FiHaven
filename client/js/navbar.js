@@ -28,6 +28,7 @@ import { openProDialog } from './pro.js';
     payoff:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
     calendar:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4M16 3v4"/></svg>',
     networth:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 6h6z"/><path d="M19 7l-3 6h6z"/><path d="M8 21h8"/></svg>',
+    balances:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6.5C3 5.1 7 4 12 4s9 1.1 9 2.5S17 9 12 9 3 7.9 3 6.5z"/><path d="M3 6.5v11C3 18.9 7 20 12 20s9-1.1 9-2.5v-11"/><path d="M3 12c0 1.4 4 2.5 9 2.5s9-1.1 9-2.5"/></svg>',
     export:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 4v12"/><path d="M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>',
     user:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8.5" r="3.5"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>',
     theme:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
@@ -46,13 +47,20 @@ import { openProDialog } from './pro.js';
 
   // Primary bar tabs vs overflow "More" menu (order matches app.js TABS).
   var PRIMARY_TABS = ['dashboard', 'bills', 'cards', 'loans', 'income', 'budget', 'spending'];
-  var MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
+  var MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth', 'balances'];
   var TAB_LABELS = {
     dashboard: 'Dashboard', bills: 'Bills', cards: 'Cards', loans: 'Loans',
     income: 'Income', budget: 'Budget', spending: 'Spending', subscriptions: 'Subscriptions',
     calendar: 'Calendar', history: 'History', payoff: 'Payoff', rewards: 'Rewards',
-    networth: 'Net Worth',
+    networth: 'Net Worth', balances: 'Balances',
   };
+  // The More menu is a full-width list, so it can afford the unambiguous name.
+  // In the tab strip the short one wins — "Balances" next to "Net Worth" reads
+  // fine, where "Account Balances" would wrap.
+  var TAB_MORE_LABELS = {
+    balances: 'Account Balances',
+  };
+  function moreLabel(name) { return TAB_MORE_LABELS[name] || TAB_LABELS[name]; }
 
   // Brand mark — "Fi" monogram on a rounded accent tile. The tile
   // tracks the accent via currentColor so the wordmark + mark stay in
@@ -314,7 +322,7 @@ import { openProDialog } from './pro.js';
     }).join('');
 
     var moreItems = MORE_TABS.map(function (name) {
-      return tab(name, TAB_LABELS[name], {
+      return tab(name, moreLabel(name), {
         extraClass: 'tab-btn appbar-more-item',
         tab: name,
       });

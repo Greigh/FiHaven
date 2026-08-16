@@ -38,6 +38,7 @@ import './payoff.js';
 import './rewards.js';
 import './calendar.js';
 import './networth.js';
+import './balancesTab.js';
 import './export.js';
 // Theme + auth + navbar are pulled in here so the dashboard page
 // only needs a single module entry.
@@ -47,7 +48,7 @@ import './navbar.js';
 
 // Order must match the navbar's tab order so showTab can use the
 // shared index to flip the active class on the right button.
-const TABS = ['dashboard', 'bills', 'cards', 'loans', 'income', 'budget', 'spending', 'subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
+const TABS = ['dashboard', 'bills', 'cards', 'loans', 'income', 'budget', 'spending', 'subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth', 'balances'];
 
 // Pro-only tabs (parity with the native apps). Free users see an
 // upgrade prompt instead; entitlement is server-authoritative.
@@ -60,7 +61,7 @@ const PRO_TABS = {
 };
 
 // Tabs tucked under the navbar "More" menu (must stay in sync with navbar.js).
-const MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth'];
+const MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth', 'balances'];
 
 /* ── Tab switching ────────────────────────────────────────── */
 function showTab(name) {
