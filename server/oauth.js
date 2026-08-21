@@ -109,8 +109,12 @@ async function verifyIdToken(token, { jwksUrl, issuers, audiences }) {
     if (!audiences.length || !auds.some((a) => audiences.includes(a))) {
       throw new Error('bad-audience');
     }
+    // Required, not merely honoured when present: treating a missing `exp` as
+    // "fine" makes the one claim that bounds a stolen token's usefulness
+    // optional. Both providers always send it, so demanding it costs nothing.
     const now = Math.floor(Date.now() / 1000);
-    if (typeof payload.exp === 'number' && payload.exp < now) throw new Error('token-expired');
+    if (typeof payload.exp !== 'number') throw new Error('missing-expiry');
+    if (payload.exp < now) throw new Error('token-expired');
   }
 
   return payload;

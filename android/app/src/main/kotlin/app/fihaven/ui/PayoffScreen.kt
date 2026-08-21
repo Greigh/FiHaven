@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -97,7 +97,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         FieldLabel("Extra per month")
                         Text(
                             Money.fmt(extra.toDouble()), color = Ct.colors.accent, fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium, fontFamily = PlexMono,
+                            fontWeight = FontWeight.Medium, style = MonoNumerals,
                             modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         )
                     }
@@ -226,9 +226,9 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(c.paidOffMonth?.let { "Month $it" } ?: "—", color = Ct.colors.text,
-                                            fontSize = 13.sp, fontFamily = PlexMono)
+                                            fontSize = 13.sp, style = MonoNumerals)
                                         Text("${Money.fmtShort(c.interestPaid)} interest", color = Ct.colors.muted,
-                                            fontSize = 10.sp, fontFamily = PlexMono)
+                                            fontSize = 10.sp, style = MonoNumerals)
                                     }
                                 }
                                 if (showCompare) {
@@ -272,7 +272,7 @@ private fun StrategyTile(
             Text(
                 DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)),
                 color = if (selected) Ct.colors.accent else Ct.colors.text,
-                fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals,
             )
             Text("${result.months} mo · ${Money.fmtShort(result.totalInterest)} interest", color = Ct.colors.muted, fontSize = 11.sp)
         }

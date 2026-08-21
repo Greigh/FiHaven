@@ -20,6 +20,8 @@ const household = require('../household');
 const householdEvents = require('../householdEvents');
 const billing = require('../billing');
 const emails = require('../emails');
+const rateLimit = require('../rateLimit');
+const { normalizeEmail } = require('../util');
 
 const router = express.Router();
 
@@ -85,12 +87,27 @@ router.patch('/', requireAuth, requireCsrf, (req, res) => {
 
 /* ── POST /api/household/invite ──────────────────────────────── */
 router.post('/invite', requireAuth, requireCsrf, async (req, res) => {
+  // Re-inviting the same address deletes the prior pending row (see
+  // household.invite), so the member cap never grows and can never be what
+  // stops a loop — without a budget here, an owner could send unlimited
+  // FiHaven-branded mail to any address. Same per-IP+email allowance the
+  // verification and password-reset mails spend from.
+  const target = normalizeEmail((req.body || {}).email);
+  const limit = rateLimit.check(req.ip, target);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+
   let invite;
   try {
     invite = household.invite(req.user, (req.body || {}).email);
   } catch (err) {
     return fail(res, err);
   }
+  // Charged only once an invite actually exists to mail — a not-owner,
+  // already-member, or household-full rejection sends nothing and costs
+  // nothing.
+  rateLimit.record(req.ip, invite.email);
   // The invite is stored regardless; a mail failure shouldn't lose it.
   let emailed = true;
   try {

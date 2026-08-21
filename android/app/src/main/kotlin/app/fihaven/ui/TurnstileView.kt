@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.Composable
@@ -35,9 +36,13 @@ fun TurnstileView(
                     setBackgroundColor(Color.TRANSPARENT)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    // Nothing here reads from disk or from a content provider.
+                    // Explicit because the defaults have moved across API levels.
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
-                    webViewClient = WebViewClient()
+                    webViewClient = TurnstileWebViewClient()
                     val main = Handler(Looper.getMainLooper())
                     addJavascriptInterface(
                         TurnstileBridge(
@@ -57,6 +62,29 @@ fun TurnstileView(
                 }
             },
         )
+    }
+}
+
+/* This WebView is two things an attacker would like: the page is loaded with
+   https://fihaven.app as its base URL (Turnstile checks the hostname against
+   the sitekey, so it cannot just be about:blank), and `AndroidTurnstile` is
+   injected with no origin binding — addJavascriptInterface exposes it to
+   whatever document the WebView happens to be showing, not only the one we
+   wrote. The default WebViewClient would let any navigation carry a foreign
+   page into both of those. Pin it shut: only Cloudflare's challenge origin,
+   which is where the widget's own iframes come from, may navigate here.
+
+   Resource loads (the api.js script, XHR) do not pass through this callback,
+   so the widget is unaffected. */
+private class TurnstileWebViewClient : WebViewClient() {
+    override fun shouldOverrideUrlLoading(
+        view: WebView,
+        request: WebResourceRequest,
+    ): Boolean {
+        val host = request.url.host.orEmpty()
+        val allowed = host == "challenges.cloudflare.com" || host.endsWith(".cloudflare.com")
+        // true = "handled", i.e. do not navigate.
+        return !allowed
     }
 }
 

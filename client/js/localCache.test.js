@@ -18,12 +18,14 @@ describe('localCache', () => {
     ]);
   });
 
-  it('ending a session also drops the owner and pending-sync markers', () => {
+  it('ending a session also drops the owner, pending-sync and merge markers', () => {
     // `fh_pending_sync` flags edits the server hasn't accepted. Sign-out
     // deletes the cached edits themselves, so leaving the flag behind would
     // point the next session at data that no longer exists.
+    // `fh_sync_base` is the three-way merge's baseline — one account's data.
+    // Left behind, the next user's records would all read as local deletions.
     expect(SESSION_KEYS).toEqual(
-      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync'])
+      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync', 'fh_sync_base'])
     );
   });
 

@@ -13,7 +13,399 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.2 build 50] Current Pre-Release — 2026-08-15
+## [1.6.2 build 51] Current Pre-Release — 2026-08-20
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.2 (51) — **Snooze a dashboard row until tomorrow**, matching the web. Issuer logos sit on a square plate, so every row's name starts in the same place. |
+| **Android** | 1.6.2 (versionCode 51) — the same snooze, the same logo plate, and figures across the app now line up in tabular numerals. The login WebView only lets Cloudflare's challenge navigate it. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — a bank sync no longer strands or overwrites income you just entered: unsynced changes are now **merged** with the server's rather than one side losing. Exported backups finally carry accounts, goals and transactions |
+| **Server** | **Security release.** A push token now belongs to one account, a promo code cannot be redeemed twice by racing, promo codes come from the CSPRNG, an OAuth token without an expiry is rejected, logging in is throttled per-account as well as per-IP, household invites are rate-limited, and the Plaid webhook demands its signature on any production server. **Includes a DB migration** — see below |
+
+> **Same marketing version, new build.** 1.6.2 stays; the build number goes
+> 50 → 51 on both stores together, which is the rule from build 49 onward
+> (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in
+> `android/app/build.gradle.kts`).
+
+> **⚠️ This release migrates the database.** `push_devices` gains a UNIQUE
+> index on `token`, and rows that would violate it are deleted first — newest
+> registration per token wins. On a normal install this deletes nothing; it
+> only bites where a token was genuinely registered to two accounts, which is
+> the bug being fixed. Back up `data/` before deploying (the deploy script does
+> this on its own).
+
+### Summary
+
+> The headline is not a feature. Most of this build is security work on the
+> server, and the one that mattered most was a push token being allowed to
+> belong to more than one account. Anyone who learned another person's device
+> token could register it against their own account and start sending that
+> person notifications — and since bill names are free text, those
+> notifications could say anything. A device now belongs to exactly one
+> account: the last one to sign in on it.
+>
+> In the same pass: a promo code could be redeemed twice if two requests raced
+> each other, which on a `max_redemptions: 1` code meant giving away a
+> subscription. Promo codes were also generated with `Math.random()`, which is
+> predictable from a few observed outputs — hold two or three codes and you
+> could guess the rest. Both are fixed, and codes now come from the same
+> cryptographic source as the MFA backup codes.
+>
+> Signing in is now throttled per account as well as per IP address. The old
+> counter included the address, so an attacker who rotated addresses got a
+> fresh allowance every time and could guess at one account forever. The new
+> budget is deliberately generous — 50 an hour, far above anyone retyping a
+> password — because a per-account counter is also a way to lock someone out
+> on purpose, and it deliberately does not apply to password reset, which is
+> the one thing you need most when your account is under attack.
+>
+> On the apps: **you can now snooze a row on the dashboard until tomorrow**,
+> which the web has had and the phones have not. It is a per-device gesture —
+> hiding something on your phone does not hide it on your laptop — because
+> "not on this screen, not right now" is about the screen in front of you.
+>
+> Issuer logos got their plate fixed. A wide wordmark like US Bank's was
+> stretching its own tile and pushing that row's text further right than every
+> other row, so a list of cards had a ragged left edge. Every mark now sits on
+> the same square tile. Android also switched its figures to tabular numerals,
+> so columns of money line up instead of jittering as the digits change.
+>
+> Exported backups were not actually complete. The file offered as "All data"
+> left out your net-worth accounts, savings goals and imported bank
+> transactions — so restoring from one could not bring back what it never
+> carried. It carries them now, and importing an *older* backup will not delete
+> the three lists that file predates.
+>
+> And the sync rewrite: a bank sync could quietly undo income you had just
+> entered. Adding a paycheck and syncing within the same few seconds lost the
+> paycheck, and a paycheck added on your phone would not appear on an Income
+> tab that was already open. Both are fixed, and the app no longer has to
+> choose between your changes and everyone else's — it now combines them. Add
+> a paycheck on your laptop while your partner edits a bill on their phone and
+> the bank imports a purchase, and all three survive, even if your laptop was
+> offline for the whole thing. Only a case where two people changed the very
+> same figure needs a winner, and there the device in your hands wins.
+>
+> If a save doesn't get through, the app keeps retrying instead of quietly
+> giving up, and it no longer stops picking up changes from your other devices
+> once one save has failed. In the one case retrying can't fix — you have more
+> data than we can store — it now says so plainly, with the actual numbers,
+> instead of showing "Offline" forever.
+
+### Technical changelog
+
+**A push token belongs to one account (`server/db.js`)**
+
+`push_devices` was keyed `PRIMARY KEY (user_id, token)`, which permits the same
+token under many `user_id`s. Registration is authenticated but the token is
+just a string in the body, so anyone holding another user's APNs/FCM token
+could register it to their own account and have that handset receive their
+reminders — with bill names as the payload, that is attacker-controlled text
+delivered by us. The index is now `UNIQUE(token)` and `upsertPushDevice`
+resolves the conflict on `token` alone, so registering *transfers* the device
+rather than adding a second owner. That is also the right behaviour for signing
+out of one account and into another on the same phone: the old account's
+reminders stop arriving there.
+
+The migration deletes losing duplicates first (`updated_at`, then `rowid` to
+break ties — without the tiebreak two identical rows both survive and the index
+fails to build). **This is the release's only schema change.**
+
+**Promo redemption is decided inside the transaction (`server/billing.js`, `server/db.js`)**
+
+`redeemPromo` read `redeemed_count`, compared it to `max_redemptions`, then
+wrote. Under PM2 cluster mode two workers pass that check simultaneously and
+both redeem. The read-then-write pair is now a conditional UPDATE —
+`bumpPromoRedeemed` carries `AND (max_redemptions IS NULL OR redeemed_count <
+max_redemptions)` and returns whether it claimed a slot — and the bump runs
+*before* the insert inside the transaction, so losing the race aborts the whole
+thing. `UNIQUE(code, user_id)` remains the authority on one-per-user; both
+failure modes are caught and mapped to `code-exhausted` / `already-redeemed`.
+The pre-checks stay, but only as a cheap path for the common rejection.
+
+**Promo codes come from the CSPRNG (`server/routes/admin.js`)**
+
+`'FH-' + Math.random().toString(36).slice(2, 8).toUpperCase()` produced a
+bearer credential worth up to a year of Family from V8's xorshift128+, whose
+state is recoverable from a handful of outputs. `newPromoCode` uses
+`crypto.randomInt` (rejection-sampled, unlike `byte % len`) over the
+look-alike-free alphabet already used by the MFA backup codes — ~40 bits, and
+readable aloud.
+
+**An OAuth token must say when it expires (`server/oauth.js`, `server/googlePubSubAuth.js`)**
+
+Both verifiers checked `exp` only `if (typeof payload.exp === 'number')`, so a
+token omitting the claim skipped the check entirely — making the one field that
+bounds a stolen token's usefulness optional. A missing `exp` is now
+`missing-expiry` / `pubsub-missing-expiry`. Google, Apple and Pub/Sub all
+always send it.
+
+**A second login budget, keyed on the account alone (`server/rateLimit.js`, `server/routes/auth.js`)**
+
+The existing counter keys on `ip:email`, so credential stuffing from rotating
+addresses never exhausts it. `checkAccount` / `recordAccount` / `resetAccount`
+add an IP-independent budget: **50 attempts per hour**, namespaced `acct:` so
+both budgets share one map and one durable table while keeping their own window
+lengths (`windowFor` / `limitFor` derive the window from the key, so a row
+replayed from the store at boot lands on the right one, and `prune` measures
+each entry against its own window rather than sweeping the hour-long ones
+early).
+
+The generosity is the point: a per-account counter is a lockout primitive, and
+anyone can burn a known address's budget deliberately. 50/hour is far above a
+human retyping a password and far below what a brute force needs. It is spent
+**on the login path only** — putting it on the mail-sending endpoints would let
+that same burn block the victim's password reset.
+
+**Household invites are rate-limited (`server/routes/household.js`)**
+
+`POST /api/household/invite` sent FiHaven-branded mail to any address with no
+budget at all. Re-inviting the same address deletes the prior pending row, so
+the member cap never grows and could never be what stopped a loop. It now spends
+from the same per-IP+email allowance as the verification and reset mails, and is
+charged only once an invite actually exists to send — a not-owner, already-member
+or household-full rejection mails nothing and costs nothing.
+
+**The Plaid webhook demands its signature on any production server (`server/routes/plaid.js`, `server/securityConfig.js`, `.env.example`)**
+
+Verification was gated on `plaidEnv() === 'production'`. A deployed server
+pointed at Plaid *sandbox* is still reachable from the internet, and this
+endpoint drives billable Plaid calls (`syncItem`) and rewrites item status for
+any `item_id` a caller names. `webhookSignatureRequired()` now returns true
+whenever `PLAID_ENV=production` **or** `NODE_ENV=production`. Sandbox webhooks
+are unsigned, so a deployed staging box sets `PLAID_ALLOW_UNSIGNED_WEBHOOKS=1`;
+that opt-out is ignored outright when Plaid is in production, and
+`assertProductionSafe` warns at boot when it is set.
+
+**`escHtml` escapes quotes (`client/js/rollover.js`)**
+
+The textContent-then-innerHTML trick escapes `& < >` but **not** quotes — the
+HTML serializer only escapes quotes inside attribute values, never in a text
+node. Its output was being interpolated into `aria-label="…"`, so a bill named
+`" onfocus=…` closed the attribute and injected a handler. Now a straight
+character-class replace covering `& < > " '`, which is free in text position
+(`&quot;` renders as `"` either way) and correct in both.
+
+**Also hardened**
+
+- **`client/js/settings.js`** — CSV import built record ids from
+  `Date.now() + Math.floor(Math.random() * 1e6)`, which collides; now
+  `newRecordId()`.
+- **`android/…/ui/TurnstileView.kt`** — the login WebView loads with
+  `https://fihaven.app` as its base URL (Turnstile checks the hostname against
+  the sitekey) and injects `AndroidTurnstile` with no origin binding, so
+  `addJavascriptInterface` exposes it to whatever document the WebView shows.
+  The default `WebViewClient` would let any navigation carry a foreign page
+  into both. `TurnstileWebViewClient` permits only Cloudflare's challenge
+  origin to navigate; resource loads don't pass through that callback, so the
+  widget is unaffected. `allowFileAccess` / `allowContentAccess` are now set
+  explicitly to `false` — nothing here reads from disk or a content provider,
+  and the defaults have moved across API levels.
+
+**Exports were not "all data" (`server/routes/account.js`, `client/js/settings.js`)**
+
+`GET /api/account/export` — offered in the UI as a full JSON backup — sent
+`bills`, `cards`, `payments` and `settings`, silently omitting `accounts`,
+`goals` and `transactions`. It now sends all seven.
+
+Import needed matching care in the other direction. `PUT /api/data` leaves an
+absent list alone but **clears** one sent as `[]`, so defaulting the three new
+keys to `[]` would make restoring a backup written before this change delete
+the lists that file predates. Each key is copied only when the file actually
+carries it. The replace confirmation now names what *this* file will overwrite
+rather than a fixed sentence, and the summary counts the extra lists.
+
+**Snooze until tomorrow, on iOS and Android**
+
+Ported from `snoozes.svelte.js` to `Snoozes.swift` / `Snoozes.kt` in the shared
+core, with the same shape: a map of `"type:refId"` → the epoch-millisecond it
+expires, which is midnight at the start of tomorrow in the user's timezone. An
+expired entry reads as not-snoozed even before it is pruned, so a stale map can
+never keep a row hidden past its deadline.
+
+The queue is **per-device and never synced** — `SnoozeStore` (UserDefaults) and
+`SnoozePrefs` (SharedPreferences), mirroring web's localStorage. Hiding a row is
+a "not on this screen, not right now" gesture, so it belongs to the device you
+made it on, not the account.
+
+`DashboardView` and `MainScaffold` filter the upcoming list through it and offer
+snoozed rows back in their own block — except any that have since been paid,
+where un-snoozing would only restore a settled row. When everything left is
+snoozed, both say "Nothing on deck — N items snoozed for today" rather than
+claiming nothing is scheduled (web parity). Both hoist the two derived lists out
+of the view body so a redraw doesn't rebuild the schedule once per branch.
+Covered by `SnoozesTest.kt`, `SnoozePrefsTest.kt`, `SnoozeStoreTests.swift` and
+`SnoozeChecks.swift`.
+
+**Issuer logos get a square plate (`IconMark.kt`, `IssuerLogoView.swift`, `client/js/issuerLogos.js`)**
+
+Both native renderers sized the plate to the mark and capped width at
+`1.75 × height`. A 4:1 lockup like US Bank's therefore rendered as a short wide
+strip whose plate was a different size from every neighbouring square mark, and
+because the plate set the row's leading width, the name column started further
+right on exactly the rows carrying a wordmark. The plate is now square and
+exactly `size` on both platforms, with the mark scaled whole to fit inside a
+6.25% inset, and the corner radius matches the monogram chip the mark sits
+beside in a list. The web keeps its fixed 48×32 chip, which can afford what a
+list row cannot; the comment in `issuerLogos.js` is updated to describe the two
+strategies rather than the removed cap.
+
+**Tabular numerals on Android (`android/…/ui/theme/Fonts.kt` and callers)**
+
+`MonoNumerals` replaces the bare `PlexMono` font family at every figure site
+across the app's screens, so digits are fixed-width and a column of money stops
+jittering as values change.
+
+**Income survives a bank sync (`client/`)**
+
+A bank sync is not only about transactions: `syncBanks` asks the server to merge
+into the stored blob and then adopts the whole result — `settings` included, and
+income sources and adjustments live in `settings`. Two ordering bugs fell out of
+that, both of which could lose a paycheck.
+
+*The Income tab read a snapshot.* `IncomeView` copied `settings.incomes` and
+`settings.incomeAdjustments` into local `$state` at mount. The tab mounts once
+per session and `renderIncome` early-returns thereafter, so the copy went stale
+the moment `pullFromServer` → `setSettings` replaced the store underneath it —
+while the footer totals kept reading `settings` directly, so the list and its
+own total disagreed. Worse, the next keystroke wrote the stale array straight
+back over the fresher server copy. Both lists are now `$derived` from `settings`
+and every mutation writes the current list through, which is the contract the
+rest of the app already follows (iOS and Android read `store.data.settings`
+live and were never affected).
+
+*The merge ran against a stale base.* `/api/plaid/refresh` reads the stored
+blob, folds the bank's rows in and writes it back. A local edit still inside the
+800 ms debounce had not reached that blob, so the merge wrote over it and the
+following pull brought the loss back down. `syncBanks` now flushes the outbound
+queue **before** the refresh. Settings' manual **Sync now** takes the same path.
+
+`pushData` returns its promise to make that possible; `flushSync` (keepalive,
+64 KB body cap, for unload) and the new `flushLocalWrites` (an ordinary request)
+share one `flushNow`.
+
+*And it has to un-wedge itself.* A failed push left the pending marker set with
+**no timer armed**, so nothing was scheduled to retry it. `flushNow` now retries
+an owed write whether or not a timer is running; without that, one failed push
+meant a device that never pushed and never pulled again until the user happened
+to type something.
+
+Two things could make a write fail forever, and both are now handled rather
+than left to spin:
+
+- **A rotated CSRF token.** `PUT /api/data` answers 403, and resending the same
+  stale token answers 403 again. `pushData` now re-reads the token through
+  `AppAuth.me()` and retries **once** (never on the unload path, which has no
+  room for a round trip).
+- **A dataset over the 256 kb `express.json` cap.** The server answers 413 and
+  always will for that body, so this is not a connection blip and is not
+  retried into oblivion. It is recorded as *rejected* — the sync pill says
+  "Not saved — this device is out of sync" instead of the old silent
+  "Offline", `syncBlockedReason()` reports it, and Settings' **Sync now** tells
+  the user their data is too large and what to do about it rather than claiming
+  it synced.
+
+Writes are also serialized through one chain (`queuePush`), since retrying an
+owed write from a pull is exactly what makes two overlapping `PUT`s likely —
+and with last-write-wins, overlap lets response arrival order decide the winner
+instead of which snapshot is newer. An idle queue still starts its push
+synchronously, which the debounce timer and the keepalive unload flush both
+depend on.
+
+**The merge itself (`client/js/syncMerge.js`)**
+
+Refusing to adopt is a safe answer, not a right one — it protects the edits by
+giving up on the pull. The reason it looked like the only answer is that with
+just "mine" and "theirs" there is genuinely nothing to reconcile against:
+whole-blob last-write-wins keeps no version or `updatedAt`, so a field that
+differs could equally be an edit here or a staleness here, and any rule is a
+guess.
+
+A **third** state removes the guess. The client already caches the server's copy
+every time it adopts one, so it can keep that as a baseline — the last dataset
+both sides are known to have agreed on, stored at `fh_sync_base` and written at
+exactly the two moments they agree: when we adopt the server's copy, and when
+the server accepts ours. With a baseline, "differs" splits into the two facts
+that matter — what *this* device changed, and what changed elsewhere — and those
+compose instead of colliding. That is an ordinary three-way merge.
+
+`mergeDataset(base, local, server)` is pure (no DOM, no network, no storage) and
+works per record, keyed by the ids that are already stable on every platform:
+
+- Added on either side → kept. This is how a bank sync's imported transactions
+  and an unpushed paycheck now both survive.
+- Changed on one side only → that side's value, no contest.
+- Changed on both → merged **field by field**, so "I renamed the bill here, my
+  partner changed its amount there" keeps both. Only the same field moved on
+  both sides is a real conflict; the local value wins (it is the device in the
+  user's hands) and the field is reported through `lastSyncConflicts()`.
+- Deleted on either side → deleted, even against a concurrent edit. The
+  alternative resurrects records the user deliberately removed, and "this bill
+  keeps coming back" is a worse failure than re-applying an edit.
+
+Three settings keys need their own rule, and would each be wrong under a plain
+field compare: `plaidBalanceProposals` / `plaidAccountProposals` / `autopayDone`
+are **server-owned** (the client never authors them, so a local difference is
+only ever staleness — this is the same hazard `keepBalanceProposals` guards
+server-side); `incomes` / `incomeAdjustments` are **id-keyed lists** merged per
+record, which is what lets two devices each add a paycheck; and `plaidHidden` /
+`plaidBalanceResolved` are **append-only**, unioned, because both record
+decisions the user already made and re-asking a settled question is the one
+outcome worth ruling out.
+
+`pullFromServer` now reconciles instead of refusing, and pushes the merge back
+so the server converges too. Two edge cases needed care, and neither ended up
+needing a refusal:
+
+**No baseline** — the first sync after this ships, or storage was full when we
+tried to write one. Rather than decline the pull, the merge runs against an
+*empty* baseline, which makes every record on either side read as an addition:
+the union, dropping nothing. The one thing an empty baseline cannot express is a
+deletion, so a record removed here that the server still has will come back;
+`lastSyncConservative()` reports when that mode was used, and it clears itself
+the moment any push is accepted and writes a real baseline.
+
+**A page that never loaded the account** — `/settings` is one, and it calls
+`pullFromServer`. Its in-memory state is seven empty lists, which a merge would
+read as the user having deleted everything: the same trap the `hydrated` flag
+exists to catch, reached through a new door. But that page is not editless — its
+edits are in the offline cache, exactly where pendingSync says they live — so
+`reconcile` reads local from there and merges properly.
+
+That turns on one distinction: an **absent** cache key is not an empty list. An
+empty list says "the user deleted these"; a missing key says "no information
+about these", and they are opposites to a merge. A missing key therefore falls
+back to the baseline — literally "unchanged here" — so the merge takes the
+server's side for it. With no cache at all, local becomes identical to base and
+the merge degrades cleanly into a plain adopt, so the dangerous case needs no
+special-casing at all. Getting this wrong is not theoretical: with a plain `[]`
+fallback the tests show a bill list coming back as `[]` instead of `['b1']`.
+
+`syncBanks` no longer skips on a merely-unsynced edit either, since the pull is
+no longer destructive. It still skips a **rejected** write — folding a bank's
+transactions into a blob already over the size cap only makes the unsaveable
+thing bigger — but that refusal now carries a number: `rejectedWriteBytes()` and
+`SYNC_SIZE_LIMIT` let Settings say "your data is N KB, over the 256 KB we can
+save" instead of an unactionable "too large".
+
+Covered by `client/js/syncMerge.test.js` (20 unit cases over the merge rules)
+and `tests/integration/incomeBankSync.client.integration.test.js` (20 cases
+mounting the real `IncomeView` and driving the real sync path); each fails
+against the code it replaces. `client/js/storage.unhydrated.test.js` covers the
+never-loaded-page door, and `tests/integration/exportBackup.server.integration.test.js`
+the export/import round trip.
+
+**Also in this build**
+
+- `server/rateLimit.test.js` gains coverage for the account-wide budget, the
+  per-key window lengths, and the boot replay.
+- `README.md` substantially rewritten.
+- Regenerated `client/public/sitemap.xml`.
+
+---
+
+## [1.6.2 build 50] — 2026-08-15
 
 | | |
 |---|---|

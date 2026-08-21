@@ -28,7 +28,7 @@ import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.model.Card
 import app.fihaven.ui.theme.Ct
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 import kotlin.math.abs
 
 private data class PayPreset(val label: String, val sub: String, val amount: Double)
@@ -286,7 +286,7 @@ private fun PresetLabel(p: PayPreset, onAccent: Boolean) {
         Text(
                 Money.fmt(p.amount),
                 color = main,
-                fontFamily = PlexMono,
+                style = MonoNumerals,
                 fontWeight = FontWeight.Medium
         )
     }

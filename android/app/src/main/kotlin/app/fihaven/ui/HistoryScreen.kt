@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,7 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
@@ -259,14 +260,14 @@ private fun IncomeHistoryCard(
                             )
                             OneLine(
                                 Money.fmt(r.income), color = Ct.colors.text, weight = MONEY_COL,
-                                fontFamily = PlexMono, fontWeight = FontWeight.Medium,
+                                style = MonoNumerals, fontWeight = FontWeight.Medium,
                             )
                             OneLine(
                                 if (r.blind) "not recorded" else Money.fmt(r.spending),
                                 color = if (r.blind) Ct.colors.muted else Ct.colors.text,
                                 weight = SPEND_COL,
                                 maxFontSize = if (r.blind) 10.sp else 12.sp,
-                                fontFamily = if (r.blind) FontFamily.Default else PlexMono,
+                                style = if (r.blind) LocalTextStyle.current else MonoNumerals,
                                 fontWeight = FontWeight.Medium,
                             )
                             OneLine(
@@ -278,7 +279,7 @@ private fun IncomeHistoryCard(
                                 },
                                 weight = MONEY_COL,
                                 maxFontSize = if (r.blind) 10.sp else 12.sp,
-                                fontFamily = if (r.blind) FontFamily.Default else PlexMono,
+                                style = if (r.blind) LocalTextStyle.current else MonoNumerals,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
@@ -309,7 +310,7 @@ private fun IncomeHistoryCard(
                             }
                             Spacer(Modifier.width(8.dp))
                             Text(Money.fmt(total), color = Ct.colors.text, fontSize = 12.sp,
-                                fontFamily = PlexMono, fontWeight = FontWeight.Medium,
+                                style = MonoNumerals, fontWeight = FontWeight.Medium,
                                 modifier = Modifier.width(78.dp))
                             Text(
                                 if (bonus > 0) "+${Money.fmt(bonus)}" else "",
@@ -347,13 +348,13 @@ private fun RowScope.OneLine(
     maxFontSize: TextUnit = 12.sp,
     minFontSize: TextUnit = 9.sp,
     align: TextAlign = TextAlign.End,
-    fontFamily: FontFamily? = null,
+    style: TextStyle = LocalTextStyle.current,
     fontWeight: FontWeight? = null,
 ) {
     Text(
         text,
         color = color,
-        fontFamily = fontFamily,
+        style = style,
         fontWeight = fontWeight,
         textAlign = align,
         maxLines = 1,
@@ -383,7 +384,7 @@ private fun RowScope.StatFigure(label: String, value: String, color: Color, capt
         Row {
             OneLine(
                 value, color, 1f, maxFontSize = 20.sp, minFontSize = 12.sp, align = TextAlign.Start,
-                fontFamily = PlexMono, fontWeight = FontWeight.SemiBold,
+                style = MonoNumerals, fontWeight = FontWeight.SemiBold,
             )
         }
         if (caption != null) {
@@ -434,7 +435,7 @@ private fun HistoryRow(p: Payment, onEdit: () -> Unit, onDelete: () -> Unit) {
                 fontWeight = FontWeight.Medium)
         } else {
             Text(Money.fmt(p.amount), color = Ct.colors.green, fontSize = 15.sp,
-                fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                fontWeight = FontWeight.Medium, style = MonoNumerals)
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             // A skip has no amount to edit — the pay editor refuses $0, so editing

@@ -41,11 +41,13 @@
    Android renderers, and no mark wastes room on padding its source file
    happened to carry. `w` is therefore the mark's true aspect ratio.
    Wordmarks stay whole rather than being cropped to a letter, so the
-   widest of them render short: a renderer caps width at 1.75x height to
-   protect the row's layout. Bilt is the exception, and deliberately so —
-   its square lockup is kept square (the wordmark small inside its own
-   navy tile, as the brand ships it) rather than cropped to the band the
-   letters occupy, which read as a squashed strip beside square marks.
+   widest of them render short: a renderer scales the mark whole into the
+   room it has — a fixed chip on the web, a square plate on iOS and
+   Android — rather than letting a 4:1 lockup set a row's layout. Bilt is
+   the exception, and deliberately so — its square lockup is kept square
+   (the wordmark small inside its own navy tile, as the brand ships it)
+   rather than cropped to the band the letters occupy, which read as a
+   squashed strip beside square marks.
    A white-on-dark lockup carries its own plate as its first layer, so it
    still reads on a light background, and keeps a margin around the
    artwork so the plate isn't flush with the letters. A ® is dropped:
