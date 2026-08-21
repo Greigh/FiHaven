@@ -41,7 +41,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 426 / 500 characters (counted with newlines, as the console does).
+> 438 / 500 characters (counted with newlines, as the console does).
 
 ```
 BETA: Snooze a bill or card until tomorrow.
@@ -50,7 +50,7 @@ Tap snooze on a dashboard row and it steps aside until tomorrow. It is per-devic
 
 Card logos now sit on a square tile, so every row's name starts in the same place, and figures line up in tabular numerals.
 
-This build also carries a round of security fixes and a sync rewrite.
+This build also carries a round of security fixes, bug fixes, and a sync rewrite.
 
 For support, contact daniel@fihaven.app.
 ```
