@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -106,9 +106,9 @@ fun IncomeScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(Money.fmt(src.amount), color = Ct.colors.text, fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                                fontWeight = FontWeight.Medium, style = MonoNumerals)
                             Text("${Money.fmt(Income.monthly(src))}/mo", color = Ct.colors.muted,
-                                fontSize = 10.sp, fontFamily = PlexMono)
+                                fontSize = 10.sp, style = MonoNumerals)
                         }
                     }
                 }
@@ -141,7 +141,7 @@ fun IncomeScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         }
                         Text("${if (adj.amount >= 0) "+" else ""}${Money.fmt(adj.amount)}",
                             color = if (adj.amount < 0) Ct.colors.red else Ct.colors.green,
-                            fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                            fontSize = 15.sp, fontWeight = FontWeight.Medium, style = MonoNumerals)
                     }
                 }
             }
@@ -158,7 +158,7 @@ fun IncomeScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
 private fun summaryRow(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ct.colors.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text(value, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+        Text(value, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals)
     }
 }
 

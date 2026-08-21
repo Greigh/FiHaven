@@ -104,6 +104,18 @@ function assertProductionSafe() {
     );
   }
 
+  // An unsigned Plaid webhook lets anyone who names an item_id drive billable
+  // syncs and rewrite item status. The route ignores this opt-out when Plaid is
+  // in production, so it is a warning rather than a boot failure — but on a
+  // deployed sandbox box it is still a hole someone opened on purpose.
+  if (process.env.PLAID_ALLOW_UNSIGNED_WEBHOOKS === '1') {
+    console.warn(
+      '[security] PLAID_ALLOW_UNSIGNED_WEBHOOKS=1 — POST /api/plaid/webhook accepts ' +
+        'unsigned payloads. Intended for local sandbox development only; ignored ' +
+        'outright when PLAID_ENV=production.'
+    );
+  }
+
   // Play RTDN audience: googlePubSubAuth fails closed without one, which would
   // silently drop every renewal/expiry notification. Catch it at boot instead.
   if (

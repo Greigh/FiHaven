@@ -28,8 +28,14 @@ export const DATA_CACHE_KEYS = [
  *  `fh_pending_sync` goes too. It marks edits the server hasn't accepted, and
  *  sign-out drops the cache holding those edits — so keeping the marker would
  *  leave a flag pointing at data that no longer exists, and invite the next
- *  session to push a cache that isn't its own. */
-export const SESSION_KEYS = DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync']);
+ *  session to push a cache that isn't its own.
+ *
+ *  So does `fh_sync_base`, the three-way merge's baseline. It is one account's
+ *  data, and a merge measured against the wrong account's ancestor would read
+ *  every one of the next user's records as a deliberate local deletion. */
+export const SESSION_KEYS = DATA_CACHE_KEYS.concat([
+  'fh_data_owner', 'fh_pending_sync', 'fh_sync_base',
+]);
 
 /** Remove every session-scoped key. Safe when storage is unavailable. */
 export function clearSessionCache() {

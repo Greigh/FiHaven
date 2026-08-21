@@ -94,4 +94,27 @@ describe('rollover — review modal', () => {
     expect(document.querySelectorAll('#rollover-body img').length).toBe(0);
     expect(document.querySelector('.rollover-name').textContent).toBe('<img src=x onerror=alert(1)>');
   });
+
+  // The name also lands inside aria-label="…" and title="…". Escaping only
+  // & < > (which is all the textContent/innerHTML idiom does — the serializer
+  // leaves quotes alone in a text node) let a name close the attribute and add
+  // its own, with no angle bracket needed.
+  it('escapes quotes so a bill name cannot break out of an attribute', async () => {
+    setBills([
+      { id: 'B8', name: '" autofocus onfocus="alert(1)', amount: 5, dueDay: 3 },
+    ]);
+    const { openRolloverReview } = await import('./rollover.js');
+    openRolloverReview();
+
+    const input = document.querySelector('#rollover-body .rollover-amt');
+    const button = document.querySelector('#rollover-body .rollover-edit');
+
+    // The whole name is one attribute value, not markup.
+    expect(input.getAttribute('aria-label')).toBe('" autofocus onfocus="alert(1) amount');
+    expect(button.getAttribute('title')).toBe('Edit " autofocus onfocus="alert(1)');
+    // No smuggled-in attributes on either element.
+    expect(input.hasAttribute('onfocus')).toBe(false);
+    expect(input.hasAttribute('autofocus')).toBe(false);
+    expect(button.hasAttribute('onfocus')).toBe(false);
+  });
 });

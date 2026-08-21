@@ -93,10 +93,15 @@ function toResult(r) {
     .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
 }
 
+// Escapes quotes as well as & < >, so it is safe in attribute position too —
+// the console interpolates preset issuers into `<option value="…">`, and
+// issuer text is stored unvalidated. The textContent/innerHTML shortcut this
+// replaces left quotes alone (the serializer only escapes them inside
+// attribute values), which made that an attribute-injection sink.
 function esc(s) {
-  var d = document.createElement('div');
-  d.textContent = String(s == null ? '' : s);
-  return d.innerHTML;
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 function errText(code) {

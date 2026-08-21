@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -125,7 +125,7 @@ private fun spendIcon(c: String) = when (c) {
 private fun summaryRow(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Ct.colors.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text(value, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+        Text(value, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals)
     }
 }
 
@@ -141,7 +141,7 @@ private fun GoalRow(g: SavingsGoal, zone: java.time.ZoneId, onEdit: () -> Unit) 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(g.name.ifBlank { "Goal" }, color = Ct.colors.text, fontSize = 15.sp,
                     fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Text("${(pct * 100).toInt()}%", color = Ct.colors.muted, fontSize = 13.sp, fontFamily = PlexMono)
+                Text("${(pct * 100).toInt()}%", color = Ct.colors.muted, fontSize = 13.sp, style = MonoNumerals)
             }
             LinearProgressIndicator(progress = { pct.toFloat() }, modifier = Modifier.fillMaxWidth(),
                 color = Ct.colors.green, trackColor = Ct.colors.border)
@@ -285,7 +285,7 @@ private fun BudgetLensCard(lens: BudgetRules.Lens) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(h.label, color = Ct.colors.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(Money.fmt(h.amount), color = Ct.colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlexMono)
+                    Text(Money.fmt(h.amount), color = Ct.colors.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, style = MonoNumerals)
                 }
             }
             lens.rows.forEach { row ->
@@ -302,7 +302,7 @@ private fun BudgetLensCard(lens: BudgetRules.Lens) {
                             "under" -> Ct.colors.red
                             else -> Ct.colors.orange
                         }
-                        Text(Money.fmt(row.actual), color = color, fontSize = 13.sp, fontFamily = PlexMono)
+                        Text(Money.fmt(row.actual), color = color, fontSize = 13.sp, style = MonoNumerals)
                     }
                 }
             }

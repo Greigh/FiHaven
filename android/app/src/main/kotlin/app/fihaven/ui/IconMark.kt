@@ -5,7 +5,6 @@ import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -70,11 +69,11 @@ fun IconMark(
 }
 
 /**
- * Widest a brand mark may render, as a multiple of its height. Matches the
- * 42px cap the web's 48x32 card chip allows a 24px-tall mark, so a 4:1
- * wordmark can't push a row's text around.
+ * Gap between a full-color mark and the edge of its plate, as a fraction of
+ * the plate. Enough that the plate reads as a tile around the mark rather
+ * than a box clamped onto it.
  */
-private const val MAX_LOGO_ASPECT = 1.75f
+private const val LOGO_PLATE_INSET = 0.0625f
 
 /**
  * Draw a bundled issuer brand mark ([IssuerLogos]) as a vector.
@@ -83,10 +82,14 @@ private const val MAX_LOGO_ASPECT = 1.75f
  * renders — which Compose's [addPathNodes] parses directly. A monochrome mark
  * is a square tinted for the current surface; a full-color one keeps its own
  * colors on a light plate (it was drawn for a white page, and Bilt's black
- * wordmark would vanish on the dark theme) and keeps its own aspect ratio, up
- * to [MAX_LOGO_ASPECT] wide — past that the whole mark scales down and the
- * plate shrinks with it, the way the web's does. Sizing the plate to the row
- * instead left a 4:1 wordmark like Bilt's floating in white bands.
+ * wordmark would vanish on the dark theme).
+ *
+ * The plate is square and exactly [size], like every other mark a row can
+ * get, with the mark scaled whole to fit inside it — so a 4:1 wordmark like
+ * US Bank's reads as a logo tile and every row's text starts at the same
+ * place. Sizing the plate to the mark instead (as the web's fixed 48x32 chip
+ * can afford to) flattened a wordmark into a strip and shoved the name
+ * column right on exactly the rows that carry one.
  * Falls back to the emoji stand-in if the key isn't bundled.
  */
 @Composable
@@ -103,13 +106,12 @@ fun IssuerLogoMark(
     val surface = Ct.colors.surface
     val fullColor = logo != null && logo.isFullColor
     val aspect = if (fullColor) logo!!.aspect else 1f
-    // The mark's box, at the mark's own aspect ratio: width is capped so a
-    // wordmark can't push the row's text around, and past the cap the height
-    // comes down with it so the mark is scaled whole. Keeping the box square
-    // at [size] and letting `ContentScale.Fit` sort it out letterboxed the
-    // mark inside its own plate.
-    val markWidth = if (fullColor) (size.value * minOf(aspect, MAX_LOGO_ASPECT)).dp else size
-    val markHeight = if (aspect > MAX_LOGO_ASPECT) (size.value * MAX_LOGO_ASPECT / aspect).dp else size
+    // The mark's box: its own aspect ratio, scaled to fit inside the plate's
+    // inset. Sizing the box square and letting `ContentScale.Fit` sort it out
+    // letterboxed the mark inside its own plate instead.
+    val inner = size.value * (1f - 2f * LOGO_PLATE_INSET)
+    val markWidth = if (!fullColor) size else (if (aspect >= 1f) inner else inner * aspect).dp
+    val markHeight = if (!fullColor) size else (if (aspect >= 1f) inner / aspect else inner).dp
     val image = remember(logo, markWidth, markHeight, surface) {
         logo ?: return@remember null
         runCatching {
@@ -148,11 +150,12 @@ fun IssuerLogoMark(
     if (fullColor) {
         Box(
             modifier = modifier
-                // A short, wide plate needs a smaller radius than a square one,
-                // or the corners eat the mark.
-                .clip(RoundedCornerShape(minOf(size.value * 0.18f, markHeight.value * 0.25f).dp))
-                .background(Ct.colors.logoPlate)
-                .padding(1.dp),
+                .size(size)
+                // Same corner as the monogram chip: the two are siblings in a
+                // list, one carrying a mark and the other initials.
+                .clip(RoundedCornerShape((size.value * 0.22f).dp))
+                .background(Ct.colors.logoPlate),
+            contentAlignment = Alignment.Center,
         ) {
             mark(Modifier)
         }

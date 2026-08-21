@@ -289,11 +289,21 @@ router.post('/login', async (req, res) => {
 
   const email = normalizeEmail(body.email);
 
+  // Two budgets, because they stop different attacks. The IP+email one caps a
+  // single source; the account-wide one caps guessing at ONE address from
+  // anywhere, which is what rotating source addresses otherwise sidesteps
+  // entirely.
   const limit = rateLimit.check(req.ip, email);
   if (!limit.allowed) {
     return res
       .status(429)
       .json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+  const accountLimit = rateLimit.checkAccount(email);
+  if (!accountLimit.allowed) {
+    return res
+      .status(429)
+      .json({ error: 'rate-limited', retryAfter: accountLimit.retryAfter });
   }
 
   const captcha = await verifyCaptcha(body.captchaToken, req.ip);
@@ -309,6 +319,7 @@ router.post('/login', async (req, res) => {
 
   if (!account || !ok) {
     rateLimit.record(req.ip, email);
+    rateLimit.recordAccount(email);
     return sendError(res, 401, 'invalid-credentials');
   }
 
@@ -317,6 +328,7 @@ router.post('/login', async (req, res) => {
   }
 
   rateLimit.reset(req.ip, email);
+  rateLimit.resetAccount(email);
 
   // If the account has any second factor enrolled, do NOT mint a
   // session yet. Issue a short-lived mfaToken instead; the client

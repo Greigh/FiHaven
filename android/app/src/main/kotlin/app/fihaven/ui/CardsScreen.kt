@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -500,7 +500,7 @@ private fun CardRow(
                             if (lastDigits != null) {
                                 Text(
                                     listOfNotNull(card.network?.takeIf { it.isNotBlank() }, "•••• $lastDigits").joinToString(" "),
-                                    color = Ct.colors.muted, fontSize = 11.sp, fontFamily = PlexMono, maxLines = 1,
+                                    color = Ct.colors.muted, fontSize = 11.sp, style = MonoNumerals, maxLines = 1,
                                 )
                             }
                         }
@@ -517,7 +517,7 @@ private fun CardRow(
                             fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
                             modifier = Modifier.padding(bottom = 2.dp))
                         Text(Money.fmt(headlineAmount), color = headlineColor, fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                            fontWeight = FontWeight.SemiBold, style = MonoNumerals)
                     }
                     companionAmounts.forEach { line ->
                         Text(line, color = Ct.colors.muted, fontSize = 10.sp, maxLines = 1)
@@ -537,10 +537,10 @@ private fun CardRow(
                             color = Ct.colors.muted, fontSize = 12.sp)
                     }
                     if (promoActive) {
-                        Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono)
+                        Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, style = MonoNumerals)
                     } else {
                         Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
-                            fontSize = 11.sp, fontFamily = PlexMono)
+                            fontSize = 11.sp, style = MonoNumerals)
                     }
                     Spacer(Modifier.width(6.dp))
                     AutopayPill(card.autopay, card.autopayDay)
@@ -548,7 +548,7 @@ private fun CardRow(
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
-                        fontSize = 11.sp, fontFamily = PlexMono, modifier = Modifier.weight(1f))
+                        fontSize = 11.sp, style = MonoNumerals, modifier = Modifier.weight(1f))
                     AutopayPill(card.autopay, card.autopayDay)
                 }
             }
@@ -998,7 +998,7 @@ private fun AutopayPill(autopay: Boolean, autopayDay: Int?) {
     if (autopay) {
         Text(
             if (autopayDay != null) "✓ Autopay · day $autopayDay" else "✓ Autopay",
-            color = Ct.colors.green, fontSize = 10.sp, fontFamily = PlexMono,
+            color = Ct.colors.green, fontSize = 10.sp, style = MonoNumerals,
             modifier = Modifier
                 .background(Ct.colors.greenBg, RoundedCornerShape(999.dp))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
@@ -1006,7 +1006,7 @@ private fun AutopayPill(autopay: Boolean, autopayDay: Int?) {
     } else {
         Text(
             "Manual",
-            color = Ct.colors.muted, fontSize = 10.sp, fontFamily = PlexMono,
+            color = Ct.colors.muted, fontSize = 10.sp, style = MonoNumerals,
             modifier = Modifier
                 .background(Ct.colors.surface2, RoundedCornerShape(999.dp))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
@@ -1078,7 +1078,7 @@ private fun CardsSummaryCard(
                     color = if (caughtUp) Ct.colors.green else Ct.colors.text,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    fontFamily = PlexMono,
+                    style = MonoNumerals,
                 )
                 Text(
                     when {
@@ -1123,7 +1123,7 @@ private fun CardsSummaryCard(
                     Text(
                         if (totalLimit > 0) "$utilPct%" else "—",
                         color = if (util > 0.3) Ct.colors.red else Ct.colors.green,
-                        fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PlexMono,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, style = MonoNumerals,
                     )
                 }
                 if (totalLimit > 0) {
@@ -1155,7 +1155,7 @@ private fun SummaryAmountRow(label: String, amount: String) {
             fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, modifier = Modifier.weight(1f),
         )
         Text(amount, color = Ct.colors.text, fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+            fontWeight = FontWeight.SemiBold, style = MonoNumerals)
     }
 }
 

@@ -26,10 +26,18 @@ function activeBills() {
   return bills.filter(function (b) { return (b.dueDay || b.startDate) && billActive(b); });
 }
 
+// Safe in BOTH text and attribute position. The tempting one-liner —
+// setting textContent and reading innerHTML back — escapes & < > but NOT
+// quotes, because the HTML serializer only escapes quotes inside attribute
+// values, never inside a text node. Interpolating its output into
+// `aria-label="…"` therefore let a bill named `" onfocus=…` close the
+// attribute and inject a handler. Escaping quotes here costs nothing in text
+// position (`&quot;` renders as `"` either way) and makes the helper correct
+// wherever it is used.
 function escHtml(s) {
-  var d = document.createElement('div');
-  d.textContent = String(s == null ? '' : s);
-  return d.innerHTML;
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 // The date this bill lands on in the month being reviewed. Anchored to

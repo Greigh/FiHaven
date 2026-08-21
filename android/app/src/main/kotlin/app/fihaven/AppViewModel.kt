@@ -70,6 +70,7 @@ import app.fihaven.core.logic.PeriodConfig
 import app.fihaven.core.logic.Rewards
 import app.fihaven.core.logic.BalanceReview
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.logic.Snoozes
 import app.fihaven.core.logic.UpcomingItem
 import app.fihaven.core.net.ApiClient
 import app.fihaven.core.net.ApiConfig
@@ -230,6 +231,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _locked = MutableStateFlow(lockAfterDefault >= 0)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
     private var backgroundedAt: Long? = null
+
+    // ── Snoozed dashboard rows (local, per-device) ───────────────────
+    // Never synced: hiding a row until tomorrow is a "not right now, on this
+    // screen" gesture, so it belongs to this device (web keeps the same map
+    // in localStorage, iOS in UserDefaults).
+    private val snoozePrefs = SnoozePrefs(app)
+    private val _snoozes = MutableStateFlow(snoozePrefs.load())
+    val snoozes: StateFlow<Map<String, Long>> = _snoozes.asStateFlow()
+
+    fun snooze(type: String, refId: String) {
+        _snoozes.value = Snoozes.snoozed(_snoozes.value, type, refId, zone())
+        snoozePrefs.save(_snoozes.value)
+    }
+
+    fun unsnooze(type: String, refId: String) {
+        _snoozes.value = Snoozes.unsnoozed(_snoozes.value, type, refId)
+        snoozePrefs.save(_snoozes.value)
+    }
 
     // First-run intro is local (no account yet) — shown once before auth.
     private val introPrefs = app.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)

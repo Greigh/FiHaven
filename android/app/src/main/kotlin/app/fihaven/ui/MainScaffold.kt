@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -90,6 +90,7 @@ import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.Income
 import app.fihaven.core.logic.PaidState
 import app.fihaven.core.logic.Schedule
+import app.fihaven.core.logic.Snoozes
 import app.fihaven.core.logic.UpcomingItem
 import app.fihaven.core.model.timezoneSetting
 import app.fihaven.core.net.User
@@ -362,7 +363,16 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         data.settings.categoryIcons,
     )
     val obligations = vm.periodObligationItems(upcoming)
+    // Snoozed rows drop off the list until tomorrow. The queue is per-device
+    // (never synced) and lives in the view model — see SnoozePrefs.
+    val snoozes by vm.snoozes.collectAsStateWithLifecycle()
     val visible = vm.dashboardUpcoming(upcoming)
+        .filterNot { Snoozes.isSnoozed(snoozes, it.type, it.refId) }
+    // Snoozed rows worth offering back. One that has since been paid stays
+    // gone — un-snoozing it would only put a settled row on the list.
+    val snoozed = upcoming.filter {
+        Snoozes.isSnoozed(snoozes, it.type, it.refId) && !vm.isFullyPaid(it.type, it.refId)
+    }
     // "Left to pay" = sum of each obligation's remaining-to-goal, so partial
     // payments shrink it and fully-paid items drop to zero.
     val remaining = obligations.sumOf { vm.remainingFor(it) }
@@ -518,8 +528,20 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                             Text("UPCOMING", color = Ct.colors.muted, fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
                         }
-                        if (visible.isEmpty()) {
+                        if (visible.isEmpty() && snoozed.isEmpty()) {
                             item { CtCard { Text("Nothing scheduled — add a bill or card.", color = Ct.colors.muted) } }
+                        } else if (visible.isEmpty()) {
+                            // Everything left is snoozed: say so, rather than
+                            // claiming nothing is scheduled (web parity).
+                            item {
+                                CtCard {
+                                    val n = snoozed.size
+                                    Text(
+                                        "Nothing on deck — $n item${if (n == 1) "" else "s"} snoozed for today.",
+                                        color = Ct.colors.muted,
+                                    )
+                                }
+                            }
                         } else {
                             item {
                                 CtCard(padding = 0) {
@@ -545,6 +567,7 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                                         vm.goalAmount(item), false)
                                                 },
                                                 onConfirmZero = { vm.confirmZeroAmount(item.type, item.refId) },
+                                                onSnooze = { vm.snooze(item.type, item.refId) },
                                                 onEdit = {
                                                     if (item.type == "bill")
                                                         editingBill = data.bills.firstOrNull { it.id.toString() == item.refId }
@@ -556,6 +579,9 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
                                     }
                                 }
                             }
+                        }
+                        if (snoozed.isNotEmpty()) {
+                            item { SnoozedBlock(snoozed, vm) }
                         }
                     }
                 }
@@ -593,7 +619,7 @@ private fun StatCard(label: String, value: String, color: androidx.compose.ui.gr
         Column {
             FieldLabel(label)
             Text(value, color = color, fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                fontWeight = FontWeight.SemiBold, style = MonoNumerals)
         }
     }
 }
@@ -656,7 +682,7 @@ private fun BudgetStatusWidget(
                     Text(
                         Money.fmt(headline.amount),
                         color = if (headline.status == "ok") Ct.colors.green else Ct.colors.red,
-                        fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                        fontSize = 20.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals,
                     )
                 }
             }
@@ -669,7 +695,7 @@ private fun BudgetStatusWidget(
                 Text(
                     Money.fmt(cushion),
                     color = if (cushion >= 0) Ct.colors.green else Ct.colors.red,
-                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = PlexMono,
+                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals,
                 )
             }
         }
@@ -686,7 +712,7 @@ private fun GoalsWidget(goals: List<app.fihaven.core.model.SavingsGoal>) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(g.name.ifBlank { "Goal" }, color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("${Money.fmt(g.saved)} / ${Money.fmt(g.target)}", color = Ct.colors.muted, fontSize = 12.sp, fontFamily = PlexMono)
+                        Text("${Money.fmt(g.saved)} / ${Money.fmt(g.target)}", color = Ct.colors.muted, fontSize = 12.sp, style = MonoNumerals)
                     }
                     ProgressBar(pct)
                 }
@@ -701,12 +727,12 @@ private fun SubscriptionsWidget(subs: List<Pair<String, Double>>) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 FieldLabel("Subscriptions")
-                Text("${Money.fmt(subs.sumOf { it.second })}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
+                Text("${Money.fmt(subs.sumOf { it.second })}/mo", color = Ct.colors.text, fontSize = 13.sp, style = MonoNumerals)
             }
             subs.take(5).forEach { (name, m) ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(name, color = Ct.colors.text, fontSize = 13.sp, maxLines = 1)
-                    Text("${Money.fmt(m)}/mo", color = Ct.colors.muted, fontSize = 12.sp, fontFamily = PlexMono)
+                    Text("${Money.fmt(m)}/mo", color = Ct.colors.muted, fontSize = 12.sp, style = MonoNumerals)
                 }
             }
         }
@@ -725,7 +751,7 @@ private fun IncomeHistoryWidget(settings: kotlinx.serialization.json.JsonObject,
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FieldLabel("Income history")
             Text(Money.fmt(avg), color = Ct.colors.text, fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                fontWeight = FontWeight.SemiBold, style = MonoNumerals)
             Text("Avg / mo incl. bonuses · last 6 months", color = Ct.colors.muted, fontSize = 12.sp)
         }
     }
@@ -758,6 +784,42 @@ object DashboardWidgets {
     }
 }
 
+/** The snoozed queue, offered back one tap at a time. Web shows the same list
+ *  as chips under Upcoming; full-width rows read better on a phone. */
+@Composable
+private fun SnoozedBlock(snoozed: List<UpcomingItem>, vm: AppViewModel) {
+    val c = Ct.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("💤 Snoozed until tomorrow", color = c.muted, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text("${snoozed.size}", color = c.muted, fontSize = 12.sp, style = MonoNumerals)
+        }
+        CtCard(padding = 0) {
+            Column {
+                snoozed.forEachIndexed { i, item ->
+                    if (i > 0) HorizontalDivider(color = c.border, thickness = 1.dp)
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable { vm.unsnooze(item.type, item.refId) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconMark(icon = item.icon, size = 18.dp, modifier = Modifier.padding(end = 12.dp))
+                        Text(item.name, color = c.text, fontSize = 14.sp,
+                            maxLines = 1, modifier = Modifier.weight(1f))
+                        Text(Money.fmt(vm.remainingFor(item)), color = c.muted,
+                            fontSize = 13.sp, style = MonoNumerals,
+                            modifier = Modifier.padding(end = 12.dp))
+                        Text("Un-snooze", color = c.accent, fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun UpcomingRow(
     item: UpcomingItem,
@@ -775,6 +837,7 @@ private fun UpcomingRow(
     onUnskip: () -> Unit,
     onUnmark: () -> Unit,
     onConfirmZero: () -> Unit,
+    onSnooze: () -> Unit = {},
     onEdit: () -> Unit,
 ) {
     val c = Ct.colors
@@ -823,8 +886,8 @@ private fun UpcomingRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(Money.fmt(if (state == PaidState.FULL) goal else remaining), color = Ct.colors.text,
-                    fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = PlexMono)
-                if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+                    fontSize = 15.sp, fontWeight = FontWeight.Medium, style = MonoNumerals)
+                if (item.autopay) Text("autopay", color = Ct.colors.muted, fontSize = 9.sp, style = MonoNumerals)
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -847,10 +910,14 @@ private fun UpcomingRow(
                     // "It's $0" settles it for good, in a tap.
                     needsAmount -> {
                         QuickAction("It's $0", c.muted, onConfirmZero)
+                        QuickAction("Snooze", c.muted, onSnooze)
                         QuickAction("Pay", c.accent, onPay)
                     }
                     else -> {
                         QuickAction("Skip", c.muted, onSkip)
+                        // Hide the row until tomorrow — a "seen it, not today"
+                        // gesture, kept on this device only (web parity).
+                        QuickAction("Snooze", c.muted, onSnooze)
                         QuickAction("Pay", c.accent, onPay)
                     }
                 }

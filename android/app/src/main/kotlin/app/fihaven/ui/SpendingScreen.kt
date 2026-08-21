@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,7 +102,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Total spent", color = Ct.colors.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             Text(Money.fmt(totalSpent), color = Ct.colors.text, fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                                fontWeight = FontWeight.SemiBold, style = MonoNumerals)
                         }
                         SPENDING_CATEGORIES.forEach { cat ->
                             val spent = spentByCat[cat] ?: 0.0
@@ -113,7 +115,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                         Text(
                                             if (ent.pro && budget > 0) "${Money.fmt(spent)} / ${Money.fmt(budget)}" else Money.fmt(spent),
                                             color = if (ent.pro && budget > 0 && spent > budget) Ct.colors.red else Ct.colors.muted,
-                                            fontSize = 12.sp, fontFamily = PlexMono,
+                                            fontSize = 12.sp, style = MonoNumerals,
                                         )
                                     }
                                     if (ent.pro && budget > 0) {
@@ -140,7 +142,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                     Text("${spendIcon(row.cat)} ${row.cat}", color = Ct.colors.text, fontSize = 13.sp,
                                         modifier = Modifier.weight(1f))
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text(Money.fmt(row.now), color = Ct.colors.text, fontSize = 12.sp, fontFamily = PlexMono)
+                                        Text(Money.fmt(row.now), color = Ct.colors.text, fontSize = 12.sp, style = MonoNumerals)
                                         val deltaColor = when {
                                             row.delta > 0 -> Ct.colors.red
                                             row.delta < 0 -> Ct.colors.green
@@ -148,7 +150,7 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                         }
                                         val sign = if (row.delta > 0) "+" else ""
                                         Text("$sign${Money.fmt(row.delta)} (${row.pct}%)",
-                                            color = deltaColor, fontSize = 11.sp, fontFamily = PlexMono)
+                                            color = deltaColor, fontSize = 11.sp, style = MonoNumerals)
                                     }
                                 }
                             }
@@ -251,16 +253,22 @@ private fun SpendingTxRow(
             color = Ct.colors.text,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            fontFamily = PlexMono,
+            style = MonoNumerals,
+            textAlign = TextAlign.End,
             modifier = Modifier.padding(top = 2.dp),
         )
-        IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
-            Icon(Icons.Filled.Edit, contentDescription = "Edit transaction", tint = Ct.colors.accent)
-        }
+        // The keep button only exists on pending bank rows, so hold its slot
+        // open on every other row — otherwise the amounts (and the pencil)
+        // sit 48dp further right on some rows than others.
         if (tx.isBank && tx.pending) {
             IconButton(onClick = onKeep, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.CheckCircle, contentDescription = "Keep pending bank transaction", tint = Ct.colors.accent)
             }
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
+        IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Filled.Edit, contentDescription = "Edit transaction", tint = Ct.colors.accent)
         }
     }
 }

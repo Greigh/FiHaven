@@ -1,11 +1,16 @@
 package app.fihaven.ui.theme
 
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import app.fihaven.R
 
 // Bundled OFL fonts: Manrope (variable wght axis) for UI text, IBM Plex
@@ -28,6 +33,18 @@ val PlexMono = FontFamily(
     Font(R.font.ibm_plex_mono_regular, FontWeight.Normal),
     Font(R.font.ibm_plex_mono_medium, FontWeight.Medium),
 )
+
+/**
+ * Money and other figures: Plex Mono with Material's default body tracking
+ * (0.5sp, tuned for Roboto) dropped. Plex Mono's figures are already wide, so
+ * the extra gap made amounts read loose next to their Manrope labels; web and
+ * iOS add no tracking to mono either. Inherits size/weight/colour from the
+ * surrounding style, and per-call `Text` params still win — pass this as
+ * `style = MonoNumerals` instead of `fontFamily = PlexMono`.
+ */
+val MonoNumerals: TextStyle
+    @Composable @ReadOnlyComposable
+    get() = LocalTextStyle.current.copy(fontFamily = PlexMono, letterSpacing = 0.sp)
 
 /** Material typography with Manrope as the family across every style. */
 fun fihavenTypography(): Typography {

@@ -14,7 +14,7 @@ import { BROWSER_TZ, COMMON_TIMEZONES } from './tz.js';
 import { clearSessionCache } from './localCache.js';
 import { mount } from 'svelte';
 import MfaSection from '../svelte/MfaSection.svelte';
-import { getDevEntitlement, setDevEntitlement, pullFromServer } from './storage.svelte.js';
+import { getDevEntitlement, setDevEntitlement, pullFromServer, flushLocalWrites, syncBlockedReason, rejectedWriteBytes, SYNC_SIZE_LIMIT } from './storage.svelte.js';
 import {
   acceptAllBalanceProposals,
   pendingBalanceProposals,
@@ -2033,7 +2033,14 @@ import {
       showMessage('import', 'Importing…', false);
 
       if (pending.mode === 'replace') {
-        if (!window.confirm('Replace ALL your current bills, cards, payments, and settings with this file? This cannot be undone.')) {
+        // Name what this particular file will overwrite. A backup taken before
+        // the export carried accounts/goals/transactions leaves those alone,
+        // so promising to replace them would be wrong for that file.
+        var replacing = Object.keys(pending.payload)
+          .filter(function (k) { return k !== 'settings'; })
+          .join(', ');
+        if (!window.confirm('Replace ALL your current ' + replacing
+          + ', and settings with this file? This cannot be undone.')) {
           submit.disabled = false;
           showMessage('import', 'Cancelled.', false);
           return;
@@ -2108,11 +2115,25 @@ import {
     if (!bills.length && !cards.length && !payments.length && !Object.keys(settings).length) {
       throw new Error('JSON does not look like a FiHaven backup.');
     }
+    var payload = { bills: bills, cards: cards, payments: payments, settings: settings };
+    /* Net-worth accounts, savings goals and bank transactions ride along in a
+       current backup. A key is copied ONLY when the file actually carries it:
+       `PUT /api/data` leaves an absent list alone but clears one sent as [],
+       so defaulting these to [] would make restoring an older backup — written
+       before the export included them — delete the three lists it never had. */
+    var extras = ['accounts', 'goals', 'transactions'];
+    var extraCounts = [];
+    extras.forEach(function (key) {
+      if (!Array.isArray(data[key])) return;
+      payload[key] = data[key];
+      if (data[key].length) extraCounts.push(data[key].length + ' ' + key);
+    });
     return {
       kind: 'json',
       mode: 'replace',
-      payload: { bills: bills, cards: cards, payments: payments, settings: settings },
-      summary: bills.length + ' bills · ' + cards.length + ' cards · ' + payments.length + ' payments.',
+      payload: payload,
+      summary: bills.length + ' bills · ' + cards.length + ' cards · ' + payments.length + ' payments'
+        + (extraCounts.length ? ' · ' + extraCounts.join(' · ') : '') + '.',
     };
   }
 
@@ -2158,7 +2179,7 @@ import {
       var cards = body.map(function (row) {
         var get = function (k) { return unguard(row[header.indexOf(k)] || ''); };
         return {
-          id: Date.now() + Math.floor(Math.random() * 1e6),
+          id: newRecordId(),
           name: get('name'),
           balance: numOrZero(get('balance')),
           limit: numOrZero(get('credit limit')),
@@ -2184,7 +2205,7 @@ import {
       var bills = body.map(function (row) {
         var get = function (k) { return unguard(row[header.indexOf(k)] || ''); };
         return {
-          id: Date.now() + Math.floor(Math.random() * 1e6),
+          id: newRecordId(),
           name: get('name'),
           category: get('category') || 'Other',
           amount: numOrZero(get('amount')),
@@ -2207,7 +2228,7 @@ import {
         var date = get('date');
         var mk = get('month') || (date ? date.slice(0, 7) : '');
         return {
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+          id: newRecordId(),
           type: (get('type') || 'bill').toLowerCase(),
           refId: '',           // filled in below by matching name
           name: get('name'),
@@ -2225,6 +2246,17 @@ import {
     }
 
     throw new Error('Could not recognise the CSV. Headers: ' + header.join(', '));
+  }
+
+  /* Record ids are base-36 strings everywhere else in the app and on both
+     native clients. The bills and cards branches below used to mint a Number
+     instead, so a CSV import was the one way to get a numerically-identified
+     record into an account. Nothing outright broke — every lookup coerces with
+     String() — but it left the id an outlier that any future strict compare
+     would trip on, and the timestamp collided for rows imported in the same
+     millisecond. This is the generator the payments branch already used. */
+  function newRecordId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
   function numOrZero(v) {
@@ -2730,8 +2762,27 @@ import {
     function refreshBalances() {
       refreshBtn.disabled = true;
       showMessage('plaid', 'Syncing…', false);
-      plaidFetch('refresh', 'POST', { force: true }).then(function (res) {
+      // Same ordering rule as the automatic sync in bankSync.js: the refresh
+      // merges into the *stored* blob, so anything still in the debounce queue
+      // has to reach the server before it runs, or the merge writes over it.
+      flushLocalWrites().then(function () {
+        // The flush didn't land, so syncing would merge into a copy that
+        // predates this device's own edits and then overwrite them. Skip it —
+        // and say why, rather than reporting a sync that didn't happen.
+        var blocked = syncBlockedReason();
+        if (blocked) return { blocked: blocked };
+        return plaidFetch('refresh', 'POST', { force: true });
+      }).then(function (res) {
         refreshBtn.disabled = false;
+        if (res.blocked) {
+          showMessage('plaid', res.blocked === 'rejected'
+            ? 'Your data is ' + Math.round(rejectedWriteBytes() / 1024) + ' KB, over the '
+              + Math.round(SYNC_SIZE_LIMIT / 1024) + ' KB we can save, so syncing would '
+              + 'only add to it. Remove some old transactions or payments, then try again.'
+            : 'Changes on this device have not reached the server yet. '
+              + 'Check your connection and try again in a moment.', true);
+          return;
+        }
         if (res.ok) {
           showMessage('plaid', 'Synced.', false);
           render({ configured: true, pro: true, items: res.data.items });

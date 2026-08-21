@@ -205,7 +205,70 @@ describe('rateLimit.js — durable store', () => {
     rl.reset('1.2.3.4', 'user@test.com');
     expect(store.remove).toHaveBeenCalledWith('1.2.3.4:user@test.com');
 
+    // The store holds both budgets, so it is swept at the LONGER window.
+    // Pruning at WINDOW_MS would delete the hour-long account counters after
+    // fifteen minutes — reopening the "restart clears the throttle" hole the
+    // durable store exists to close.
     rl.prune();
-    expect(store.prune).toHaveBeenCalledWith(Date.now() - rl.WINDOW_MS);
+    expect(store.prune).toHaveBeenCalledWith(Date.now() - rl.ACCOUNT_WINDOW_MS);
+  });
+});
+
+describe('rateLimit.js — account-wide budget', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('counts guesses at one address regardless of source IP', () => {
+    const rl = loadRateLimit();
+    // Spread across a fresh IP each time: the IP+email budget never fills,
+    // which is exactly the case the account budget exists to catch.
+    for (let i = 0; i < rl.ACCOUNT_MAX_ATTEMPTS; i++) {
+      expect(rl.check(`10.0.0.${i}`, 'victim@test.com').allowed).toBe(true);
+      rl.record(`10.0.0.${i}`, 'victim@test.com');
+      rl.recordAccount('victim@test.com');
+    }
+
+    expect(rl.check('10.0.99.99', 'victim@test.com').allowed).toBe(true);
+    const blocked = rl.checkAccount('victim@test.com');
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.retryAfter).toBeGreaterThan(0);
+  });
+
+  it('is scoped to the account, not to other accounts or the pair budget', () => {
+    const rl = loadRateLimit();
+    for (let i = 0; i < rl.ACCOUNT_MAX_ATTEMPTS; i++) rl.recordAccount('victim@test.com');
+
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(false);
+    expect(rl.checkAccount('bystander@test.com').allowed).toBe(true);
+    // The mail-sending endpoints read the pair budget only, so burning the
+    // account budget must not block the victim's own password reset.
+    expect(rl.check('1.2.3.4', 'victim@test.com').allowed).toBe(true);
+  });
+
+  it('resetAccount clears the budget on a successful sign-in', () => {
+    const rl = loadRateLimit();
+    for (let i = 0; i < rl.ACCOUNT_MAX_ATTEMPTS; i++) rl.recordAccount('victim@test.com');
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(false);
+
+    rl.resetAccount('victim@test.com');
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(true);
+  });
+
+  it('expires on its own hour-long window, not the pair budget’s fifteen minutes', () => {
+    const rl = loadRateLimit();
+    for (let i = 0; i < rl.ACCOUNT_MAX_ATTEMPTS; i++) rl.recordAccount('victim@test.com');
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(false);
+
+    vi.advanceTimersByTime(rl.WINDOW_MS + 1000);
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(false);
+
+    vi.advanceTimersByTime(rl.ACCOUNT_WINDOW_MS);
+    expect(rl.checkAccount('victim@test.com').allowed).toBe(true);
   });
 });

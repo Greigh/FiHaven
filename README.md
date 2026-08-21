@@ -22,11 +22,14 @@ backend.
 A focused bill and debt dashboard for people who'd rather spend five
 calm minutes a week than a frantic afternoon every payday. Track
 recurring bills, credit cards (including 0% promo periods), **loans**,
-monthly budget, **individual transactions**, payment history,
+**income**, the **accounts you own**, a period-aware budget,
+**individual transactions**, **subscriptions**, payment history,
 debt-payoff strategies, and a month-grid calendar of upcoming due
 dates — all behind a real account with server-side sync, optional
-multi-factor sign-in (TOTP, passkeys, or email codes), and an iCal feed
-you can subscribe to from any calendar app.
+multi-factor sign-in (TOTP, passkeys, or email codes), an iCal feed you
+can subscribe to from any calendar app, and reminders by email, push, or
+on-device notification. The full inventory is in
+[Features](#features).
 
 It stays **manual-first**: you own every number. Optional **Plaid**
 bank linking is just a safety net that surfaces transactions you may
@@ -45,11 +48,11 @@ Android (Play).
 | Getting started | Reference | Operations |
 |---|---|---|
 | [Highlights](#highlights) | [Project structure](#project-structure) | [Production deploy](#production-deploy) |
-| [Free vs Pro](#free-vs-pro) | [npm scripts](#npm-scripts) | [Admin & promo codes](#admin--promo-codes) |
-| [Stack](#stack) | [Environment](#environment) | [SEO + standards](#seo--standards) |
-| [Quick start](#quick-start) | [URLs](#urls) | [Roadmap & gaps](#roadmap--gaps) |
-| [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android) | [API](#api) | [License](#license) |
-| | [How a few things work](#how-a-few-things-work) | |
+| [**Features** (the full list)](#features) | [npm scripts](#npm-scripts) | [Admin & promo codes](#admin--promo-codes) |
+| [Free vs Pro](#free-vs-pro) | [Environment](#environment) | [SEO + standards](#seo--standards) |
+| [Stack](#stack) | [URLs](#urls) | [Roadmap & gaps](#roadmap--gaps) |
+| [Quick start](#quick-start) | [API](#api) | [License](#license) |
+| [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android) | [How a few things work](#how-a-few-things-work) | |
 
 Changelog: [CHANGELOG.md](CHANGELOG.md).
 
@@ -61,35 +64,215 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
   credit cards with 0% promo tracking, and loans/mortgages in their own
   tab (recommended payment is the minimum, not the whole balance —
   payoff-in-full stays an option).
-- **Income tab** — every paycheck with its own frequency, plus one-off and
-  recurring adjustments (a bonus, unpaid time off, a raise) that move a single
-  period's total. Its own tab on web, iOS, and Android; it used to live inside
-  Budget.
+- **Income & Balances tabs** — every paycheck with its own frequency plus
+  one-off/recurring adjustments; and the accounts you *own* (checking,
+  savings, investments, property, cash) in a tab of their own, feeding a
+  read-only Net Worth rollup.
 - **Budget suite** — period-aware budgeting (calendar, start-day, or rolling
-  K-day periods) and a "cushion after bills" runway, reading the income total
-  the Income tab owns.
-- **Transactions** — log individual spend, grouped and categorized;
-  optionally augmented (never replaced) by Plaid bank sync.
-- **Rewards optimizer** — per-category multipliers, a built-in preset
-  database of popular cards, and 0%-promo-aware recommendations.
+  K-day periods), budget-rule lenses, category budgets, an envelope editor,
+  and a "cushion after bills" runway.
+- **Transactions & spending** — log individual spend, grouped and categorized,
+  with period-over-period insights, a 12-month cash-flow chart, and
+  bank-vs-manual reconciliation; optionally augmented (never replaced) by Plaid.
+- **Credit-card intelligence** — a rewards optimizer with a preset database of
+  popular cards, a statement-credit **perks tracker**, a card-linked **offers**
+  tracker, and an annual-fee "is it worth keeping?" assessment.
 - **Debt payoff** — avalanche / snowball planners with a split view.
-- **Calendar + iCal** — month grid of due dates and a subscribe-anywhere
-  feed.
+- **Calendar + iCal** — month grid of due dates and a subscribe-anywhere feed.
+- **Subscription finder** — flagged bills plus recurring-charge detection, with
+  cancel links, duplicate detection, and free-trial reminders.
 - **Customizable dashboard** — pick **Classic** (fixed) or **Widgets**, a
-  reorderable, toggleable set of cards (overview, cash-flow, alerts, upcoming,
-  net worth, spending, goals, subscriptions, income history). Identical
-  nine-widget catalog on web, iOS, and Android.
-- **Reminders & notifications** — configurable bill-reminder lead time and
-  send hour, an optional due-day reminder, and a weekly "week ahead" digest —
-  delivered as tz-aware **email** (server scheduler) and, on the native apps,
-  opt-in **local device notifications** (rescheduled across reboots on Android).
-- **Sign in with Apple / Google** — OAuth on web, iOS, and Android (see
-  the maintainer-local social-login setup notes), alongside the
-  password + MFA flows.
-- **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate
-  limiting (express-rate-limit), MFA (TOTP / passkeys / email codes),
-  AES-256-GCM at rest, and a hardware-KeyStore-backed biometric app lock
-  on Android.
+  reorderable, toggleable catalog of cards; native apps also let you rebuild the
+  tab bar itself.
+- **Reminders & notifications** — multiple per-bill reminder offsets, a weekly
+  digest, and a monthly summary, delivered as tz-aware **email**, **push**
+  (APNs / FCM / Web Push), and **local** device notifications.
+- **Family sharing** — share bills, cards, and goals with up to three people,
+  live-synced over SSE.
+- **Sign in with Apple / Google**, passwordless **passkeys**, TOTP, and email
+  codes — on web, iOS, and Android.
+- **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate limiting,
+  AES-256-GCM at rest, step-up re-auth on sensitive actions, and a
+  hardware-KeyStore-backed biometric app lock on the native apps.
+
+---
+
+## Features
+
+Everything in this section is **shipped**. What isn't is in
+[Roadmap & gaps](#roadmap--gaps); dated release notes live in
+[CHANGELOG.md](CHANGELOG.md). Rows are **Free** unless marked **Pro** or
+**Family** — the `pro` entitlement is server-authoritative and identical on web,
+iOS, and Android, and finance logic is mirrored three ways
+(`client/js/*.js` ↔ `ios/FiHavenCore` ↔ `android/core`), so a feature is
+normally on all three platforms unless noted.
+
+### Bills, cards & loans
+
+| Feature | Notes |
+|---|---|
+| **Recurring bills** | Monthly / Weekly / Bi-weekly / Quarterly / Annually (`billSchedule.js`, mirrored server-side), start + end dates, categories, notes, autopay flag |
+| **Archive gate** | `billActive` keeps a not-yet-started or stopped bill out of reminders, totals, autopay marking, and the monthly summary |
+| **Variance sparklines** | Inline 6-month history of what each bill *actually* cost, so a "fixed" bill that isn't stands out |
+| **Stale-bill audit** | Rows unpaid for 60+ days get a "mark dormant" / delete affordance |
+| **Credit cards** | Statement balance, current balance, limit, APR, minimum payment, due day, utilisation warnings, annual fee |
+| **0% promo tracking** | Promo balance + expiry, a dashboard tile for promos ending within three months, and a one-time prompt to clear the promo flags when you pay it to zero |
+| **Loans & mortgages** | Own tab. They share the `cards` list but are split out wherever it matters: the recommendation is the scheduled monthly payment, and `activeCreditCards` (vs `activeCards`) keeps a mortgage out of "card debt" |
+| **Pay flow** | Marking paid decrements statement / promo / current balances; editing a payment applies the delta; deleting one from History adds it back. Balances never go negative |
+| **Pay-goal policy** | What an item should reach this period — `minimum`, payoff-aware `recommended` (default), or `full` (`settings.paidGoal`, ported to the server in `paidGoal.js` so autopay marks the same number a client would) |
+| **Autopay auto-mark** *(Pro)* | Opt-in. An autopay item whose due date has arrived is marked paid at most once per period, with an undo-aware per-month memory that also handles $0 items |
+| **Monthly rollover review** | When a new period starts, a banner offers to re-check each active bill's amount, pre-filled per `rolloverPrefill` (recent-payment average by default) |
+| **Sort, filter & icons** | Per-tab sort/filter bar, issuer logos + generated monograms, and per-category icons (user-overridable in Settings) |
+| **Snooze** | "Not today" on a dashboard row — hidden until the next local midnight, with a "snoozed until tomorrow" list to bring it back. Kept per-device (web `localStorage`, iOS `UserDefaults`, Android `SharedPreferences`) rather than synced |
+
+### Income
+
+| Feature | Notes |
+|---|---|
+| **Multiple income sources** | Each with its own frequency — hourly (× hours/week), weekly, bi-weekly, semi-monthly, monthly, annual — normalised to a monthly figure by `income.js` |
+| **Adjustments** | One-off (a bonus, unpaid time off — keeping the date it landed) and recurring (a raise) changes that move a single period's total |
+| **Income history** | 12-month trend, bonuses included, as a dashboard widget |
+
+### Balances, net worth & goals
+
+| Feature | Notes |
+|---|---|
+| **Account Balances tab** | Checking, savings, investments, property, cash — the accounts you own, editable in one place |
+| **Net worth** | Read-only assets-minus-debts rollup over those accounts plus card and loan debt |
+| **Bank balance suggestions** *(Pro)* | With a bank linked, a depository/investment account can propose its own balance — Accept or Decline, never an overwrite, and a decline isn't re-asked until the bank's figure changes. Every linked row prints "Bank says X · as of &lt;date&gt;" because the figures are cached, not live |
+| **Savings goals** | Target amount, target date, and a suggested monthly contribution that feeds the budget lens |
+
+### Budget
+
+| Feature | Notes |
+|---|---|
+| **Period model** | Calendar month, start-day (e.g. the 15th), or rolling K-day periods — `period.js`, honoured by every total in the app |
+| **Cushion after bills** | Income minus fixed monthly bills: how much of the period is uncommitted |
+| **Budget-rule lenses** | 50/30/20 and other split presets, custom splits, obligations-first, debt-focus (with an extra-payment field), and housing (30%) / debt (36%) ratio warnings |
+| **Category buckets** | Every bill and spend category maps to needs / wants / save, with per-category user overrides |
+| **Category budgets** *(Pro)* | Per-category monthly caps counted against actual spend |
+| **Envelope lens + assign editor** *(Pro)* | Zero-based-lite assignment across buckets, goals, and categories, with opt-in month-to-month rollover of what an envelope didn't spend |
+| **Safe-to-spend** | Budget-status panel and dashboard widget |
+
+### Spending, subscriptions & reconciliation
+
+| Feature | Notes |
+|---|---|
+| **Transactions** | Manual entry with merchant, amount, date, category, and card attribution; grouped recent-spend view |
+| **Merchant → category hints** | A keyword table guesses the reward/spend category for a merchant ("Shell" → Gas) — a hint, never a hard classification |
+| **Spending insights** *(Pro)* | Period-over-period category deltas |
+| **Cash-flow history** | 12-month income vs. spending chart merging transactions and payments, with card payments deliberately excluded as transfers (and reported separately) so nothing is double-counted |
+| **Subscription finder** | Flagged bills plus recurring-charge detection out of transactions — amount similarity, cadence, and staleness — surfaced either as an inbox or inline (`subscriptionDetectMode`) |
+| **Subscription action panel** *(Pro)* | Cancel / manage deep links, duplicate-subscription detection, and free-trial reminders |
+| **Reconciliation** | Finds bank-vs-manual duplicates (same cent, similar merchant, ±1 day), bank rows with no manual match, and manual rows the bank never confirmed. Always a suggestion — nothing is auto-deleted |
+
+### Credit-card intelligence
+
+| Feature | Notes |
+|---|---|
+| **Rewards optimizer** *(Pro)* | Ranks your cards per spending category from `rewardCategories[category] ?? rewardBase`, and **excludes any card inside an active 0% promo** (with the reason shown) — a reward purchase at the back of the payoff queue costs more in interest than the rewards are worth |
+| **Card preset database** *(Pro)* | Popular U.S. rewards cards auto-fill a full reward profile, including rotating / choose-your-category 5% pools you tick per quarter |
+| **Preset update prompts** | When the admin catalog changes a rate on a card you imported, you get Update / Keep mine rather than a silent overwrite |
+| **Perks & statement credits** *(Pro — Rewards tab)* | Track recurring credits ("$10 Uber Cash", "$50 hotel credit") per cycle — monthly, quarterly, semiannual, annual — with unrealised-credit totals so you see money left on the table |
+| **Annual-fee assessment** *(Pro)* | Fee vs. captured perks plus estimated rewards: keep it or drop it |
+| **Card-linked offers** *(Pro)* | Manual tracker for Amex Offers / Chase Offers / BofA Deals (issuer activation APIs are private), with expiry tracking and "you may have just used this" suggestions matched against transactions |
+| **Spend-based rewards estimate** *(Pro)* | Categorises your transactions to total spend per reward category |
+
+### Payoff, calendar & dashboard
+
+| Feature | Notes |
+|---|---|
+| **Debt payoff planner** *(Pro)* | Avalanche and snowball, side by side, over cards *and* loans |
+| **Calendar tab** *(Pro)* | Month grid of every bill / card payment due in the next 6 months, colour-coded, each cell linking back to its row |
+| **iCal subscription** *(Pro)* | Per-user random token → a `webcal` feed any calendar app can subscribe to, with a `VALARM` a day before each event. Rotating the token kills existing subscriptions instantly |
+| **Payment history** *(Pro)* | Full ledger with edit and delete, both of which correct card balances |
+| **Dashboard layouts** | **Classic** (fixed) or **Widgets** — a reorderable, toggleable catalog: overview tiles, this period's payments, alerts, upcoming, net worth, card debt, spending, savings goals, subscriptions, income history, budget / safe-to-spend |
+| **Tab-bar customizer** *(native)* | Drag tabs between the bottom bar and More; stored in the synced `tabs` setting, so the two platforms share one catalog of ids |
+| **Default view** | Which tab the app opens on (`landingView`) |
+| **CSV / JSON export** | Per-tab CSV from the dashboard plus a full-account JSON download |
+
+### Reminders & notifications
+
+| Feature | Notes |
+|---|---|
+| **Bill reminders** | Multiple lead-time offsets per user (`reminderOffsets` — several at once, replacing the old single lead-day + due-day pair) and a configurable send hour, all evaluated in the user's own time zone |
+| **Weekly digest** | The week ahead, on your chosen day |
+| **Monthly summary** | On the 1st, over the month just closed |
+| **Trial & offer expiry** | Free trials about to convert and card-linked offers about to lapse are folded into the same mail run |
+| **Channels** | tz-aware **email** (`server/scheduler.js`), **remote push** via APNs / FCM / Web Push with dead-token pruning, and opt-in **local device notifications** on iOS and Android (rescheduled across reboots on Android) |
+| **Unsubscribe** | Signed opt-out tokens power `List-Unsubscribe` headers, footer links, and a no-sign-in-needed `/unsubscribe` preferences page |
+
+### Family & household *(create is Family; joining is free)*
+
+| Feature | Notes |
+|---|---|
+| **Create / join / invite** | Invite by email, cancel invites, remove members, leave. Up to **3** people (`HOUSEHOLD_MAX_FAMILY`); solo Pro is capped at 0, so it can only join |
+| **Selective sharing** | Share and unshare individual bills, cards, and goals — nothing is shared by default |
+| **Live sync** | Server-Sent Events (`GET /api/household/stream`) with a durable event log, so a client that reconnects replays what it missed |
+| **Household rollup** | Shared totals — monthly bills, card debt, loan debt (split from card debt), goal targets — per household and per member |
+
+### Bank linking (Plaid) *(Pro)*
+
+| Feature | Notes |
+|---|---|
+| **Manual-first by construction** | Synced transactions are additive, tagged `source:'plaid'`, deduped by Plaid id, outflows only, marked 🏦 — they never overwrite or delete what you typed |
+| **Opt-in gates** | Purchases and balances are separate switches, both **off** until you say yes; the sync cursor only advances when the merge actually ran, so enabling it later doesn't cost you the backlog |
+| **Balance proposals** | Statement balances are never silently rewritten — a sync queues Accept/Decline proposals, separately for cards and asset accounts |
+| **Card ↔ account matching** | Three tiers server-side (explicit pin, last-4, issuer + product name), written back as `plaidAccountId`, with a durable **"Don't link this card"** opt-out |
+| **Reconnect ("update mode")** | A first-class flow on web, iOS, and Android when a bank drops the connection — a broken link never breaks the dashboard |
+| **OAuth returns** | Web `/plaid-oauth`, Android package return, iOS Universal Link at `/plaid` — bank OAuth never dumps you in a browser |
+
+### Accounts, sign-in & security
+
+| Feature | Notes |
+|---|---|
+| **Password auth** | bcrypt, a password policy, opaque server-side sessions in SQLite, `HttpOnly` cookies, CSRF double-submit |
+| **Sign in with Apple / Google** | OIDC ID-token verification with auto-link by verified email, on all three platforms (Android goes through a Custom Tab + short-lived handoff code) |
+| **Passkeys** | Passwordless **sign-in** on web, iOS (with autofill), and Android; **registration** and management on web and Android |
+| **TOTP + backup codes** | QR enrollment, 10 single-use bcrypt-hashed backup codes, regeneration |
+| **Email sign-in codes** | A second factor for people who won't run an authenticator app |
+| **Step-up re-auth** | Sensitive actions (disable TOTP, delete a passkey, regenerate codes, delete account) re-verify you — by password, or by emailed code for OAuth-only accounts that have no password |
+| **Email verification & recovery** | Verify-email (including correcting a mistyped signup address), forgot/reset password, and a lost-2FA recovery flow, all on single-use tokens |
+| **Bot & abuse protection** | Cloudflare Turnstile, honeypot + timing checks, per-IP `express-rate-limit`, and an in-memory login throttle keyed by IP + email |
+| **Encryption at rest** | AES-256-GCM over TOTP secrets, Plaid access tokens, and every user's `user_data` blob |
+| **Biometric app lock** *(native)* | Face ID / Touch ID / device credential, bound to a hardware AndroidKeyStore key on Android |
+| **Server-side page gates** | Private pages are gated by Express, not just JS, so they hold with scripting off |
+| **Session hygiene** | Changing your password signs out every *other* device; admins can force-logout a user |
+
+### Your data
+
+| Feature | Notes |
+|---|---|
+| **Export** | Full JSON download plus bills / cards / history CSV endpoints |
+| **Import** | Restore a previously exported JSON |
+| **Clear data** | Wipe your finance data without deleting the account |
+| **Delete account** | Removes the account and all data, with a public `/delete-account` page describing the process |
+| **Offline-first** | localStorage caches the signed-in snapshot; writes queue durably (owner-tagged, so offline edits can't land in the next account to sign in) and flush on reconnect, with an offline banner on the native apps |
+| **Per-user sync** | One JSON blob per user, debounced `PUT /api/data`, flushed on `pagehide` with `keepalive` |
+
+### FiHaven Pro, billing & admin
+
+| Feature | Notes |
+|---|---|
+| **Unified entitlement** | One server-authoritative `pro` flag across web (Paddle, merchant of record), iOS (StoreKit 2), and Android (Play Billing), embedded in `GET /api/data` |
+| **Native receipt verification** | Play via the Google Play Developer API with Real-time Developer Notifications; StoreKit via signed transactions and App Store Server Notifications (JWS-verified) |
+| **Plans** | Monthly, three-month, yearly, trial, and Family prices, driven by env-configured Paddle price ids |
+| **Promo codes** | Server-issued `free_sub` grants and `store_offer` codes mapping to an Apple Offer / Play promo, redeemed in-app and managed from a CLI with no network surface |
+| **Admin console** | Search users, grant/revoke comp Pro, promote/demote admins, suspend, force-logout, reset a password, delete a user, and maintain the card-preset catalog and promo codes — on web, iOS, and Android |
+| **Dev portal** | `/dev-portal` manages a comp/dev Pro grant |
+
+### Platform & presentation
+
+| Feature | Notes |
+|---|---|
+| **Responsive web** | One `mobile.css` layer: a hamburger drawer ≤900px, dense tables collapsing into stacked cards ≤768px, single-column grids and bottom-sheet modals ≤560px |
+| **Light / dark** | Themed token files on web; a theme toggle on both native apps |
+| **Time zones** | All due-date math goes through `today()` in the user's chosen IANA zone, which is what kills the classic "Due tomorrow" off-by-one |
+| **Currencies** | USD, CAD, AUD, GBP, EUR, JPY, INR, CHF, MXN, BRL — each with a locale so grouping and symbol placement are right |
+| **Onboarding** | A `/welcome` flow (goals → plan → security → Pro) on web and an intro/onboarding pair on both native apps |
+| **Installable** | Web manifest, maskable SVG icon, and a service worker (which also backs Web Push) |
+| **Accessibility** | Screen-reader labels on native, `<thead>` preserved for screen readers when tables collapse, and comfortable tap targets |
+| **Marketing & SEO** | Landing, pricing, FAQ, security, contact, refunds, and comparison pages — crawlable without JavaScript, with structured data and generated share cards |
 
 ---
 
@@ -102,14 +285,16 @@ automation and insight tools. **Creating** a household is the Family plan only. 
 
 | Free | Pro (solo) | Family |
 |---|---|---|
-| Bills, cards & loans — track, mark paid, due dates, promos | Everything in Free, plus: | Everything in Pro, plus: |
-| Budget with manual transactions + **budget rule lenses** (50/30/20, safe-to-spend, debt-focus, etc.) | **Envelope lens** + assign editor (zero-based lite; web editor today) | **Create** a household + invite members |
-| Savings goals, net worth, light/dark, time zones, MFA, export/import | **Debt-payoff planner** (snowball / avalanche) | Share/unshare bills, cards & goals (web, iOS, Android) |
-| Dashboard widgets (safe-to-spend, budget status, credit util warnings) | **Due-date calendar** + iCal feed | Up to **3 people** (`HOUSEHOLD_MAX_FAMILY`) |
-| Subscription finder **detection** on web (flagged bills + recurring tx) | **Subscription action panel** — cancel links, duplicates, trial reminders | |
-| **Join** a Family household (view shared bills, cards, goals) | **Payment history**, **rewards optimizer** + card preset database | |
-| Email + local bill reminders (configurable lead time, weekly digest) | **Spending insights** (period-over-period; web Spending tab today) | |
-| | **Category budgets**, **autopay auto-mark**, **bank sync (Plaid)** | |
+| Bills, cards & loans — track, mark paid, due dates, 0% promos | Everything in Free, plus: | Everything in Pro, plus: |
+| Income sources + adjustments, **Account Balances**, net worth, savings goals | **Debt-payoff planner** (snowball / avalanche) | **Create** a household + invite members |
+| Budget with manual transactions + **budget rule lenses** (50/30/20, safe-to-spend, debt-focus, ratio warnings) | **Envelope lens** + assign editor (zero-based lite) and **category budgets** | Share/unshare bills, cards & goals (web, iOS, Android) |
+| Category buckets + per-category overrides, period model (calendar / start-day / rolling) | **Due-date calendar** + iCal feed, **payment history** | Up to **3 people** (`HOUSEHOLD_MAX_FAMILY`) |
+| Spending tab, cash-flow history chart, monthly rollover review | **Spending insights** (period-over-period) | Household rollup — shared bills, card debt, loan debt, goals |
+| Dashboard widgets + layouts, native tab-bar customizer, snooze, sort/filter | **Rewards optimizer** + card preset database, **perks/credits tracker**, **card-linked offers**, annual-fee assessment | |
+| Subscription **detection** (flagged bills + recurring transactions) | **Subscription action panel** — cancel links, duplicates, trial reminders | |
+| **Join** a Family household (view shared bills, cards, goals) | **Autopay auto-mark**, **bank sync (Plaid)** + balance proposals + reconciliation | |
+| Email / push / local reminders, weekly digest, monthly summary | | |
+| Light/dark, time zones, 10 currencies, MFA + passkeys, biometric app lock, export/import/delete | | |
 
 Gating is centralized: web via `PRO_TABS` in `client/js/app.js` +
 `requirePro` on the server, iOS via `ProGate(feature:)`, Android via
@@ -154,6 +339,7 @@ Requires **Node ≥ 24** (see `engines` in `package.json`; for native
 git clone <repo> fihaven
 cd fihaven
 npm install
+cp .env.example .env      # then fill in at least the Turnstile keys
 npm run dev
 ```
 
@@ -161,16 +347,18 @@ Then open <http://localhost:5173/>. Vite serves the client
 with HMR on `:5173` and proxies `/api/*` to the Express
 server on `:5222`.
 
-**Sign in with the seeded dev account:**
+**Seed a dev account.** Set these in your local env file, and the user is
+created on first server start (skipped entirely when
+`NODE_ENV === 'production'`):
 
-| | |
-|---|---|
-| Email | `demo@fihaven.app` |
-| Password | `demopassword11` |
+```ini
+DEV_USER_EMAIL=demo@fihaven.app
+DEV_USER_PASSWORD=demopassword11
+```
 
-The seed lives in [`.env.development`](.env.development) and is
-created automatically on first server start (only when
-`NODE_ENV !== 'production'`).
+Every `.env*` file except [`.env.example`](.env.example) is **gitignored**, so
+nothing here ships a working key — including `.env.development`, which the
+loader reads if you create one but the repo does not carry.
 
 > You can also hit Express directly at
 > <http://localhost:5222/> if you don't need HMR — same
@@ -200,7 +388,7 @@ one usually means a change to all three — and to each of their suites.
 
 | Platform | Command | Covers |
 |---|---|---|
-| Web | `npx vitest run` | `client/js/*.test.js`, `server/*.test.js`, `tests/integration/` |
+| Web | `npm test` | `client/js/*.test.js`, `server/*.test.js`, `tests/integration/` |
 | iOS core | `cd ios/FiHavenCore && swift test` | XCTest suite (`Tests/FiHavenCoreTests`) |
 | iOS core (checks) | `FH_INCLUDE_CHECKS=1 swift run FiHavenCoreChecks` | the older hand-rolled check executable |
 | Android core | `android/gradlew -p android :core:test` | shared Kotlin logic |
@@ -215,15 +403,22 @@ an emulator/simulator by hand.
 
 ## Project structure
 
+Three clients, one backend. The finance logic in `client/js/*.js` is mirrored by
+`ios/FiHavenCore` and `android/core` — the file names line up on purpose
+(`perks.js` ↔ `Perks.swift` ↔ `Perks.kt`), so a change to one is a change to
+three, plus each of their test suites.
+
 ```
 fihaven/
 ├── client/
 │   ├── *.html                       page entries: home, login, pricing, faq,
-│   │                                security, contact, dashboard, settings,
-│   │                                plaid-oauth, welcome (onboarding),
-│   │                                verify-email, reset (password),
-│   │                                recover (lost-2FA), dev-portal (comp Pro),
-│   │                                terms, privacy, 404, 500
+│   │                                bill-tracker-app, mint-alternative,
+│   │                                rocket-money-alternative, security, contact,
+│   │                                terms, privacy, refunds, delete-account,
+│   │                                dashboard, settings, welcome (onboarding),
+│   │                                pay (checkout), plaid-oauth, verify-email,
+│   │                                reset (password), recover (lost-2FA),
+│   │                                unsubscribe, dev-portal (comp Pro), 404, 500
 │   ├── css/
 │   │   ├── styles.css               manifest — @imports the others
 │   │   ├── tokens.css               design tokens + body bg
@@ -236,54 +431,99 @@ fihaven/
 │   │   │                            drawer, stacked-card tables, touch sizing
 │   │   └── tailwind-input.css       (Tailwind source for utility classes)
 │   ├── js/
-│   │   ├── app.js                   dashboard entry — imports the lot
+│   │   │                            ── entries ──
+│   │   ├── app.js                   dashboard entry — TABS / MORE_TABS / PRO_TABS
 │   │   ├── settings.js              /settings entry (tabbed sections)
 │   │   ├── public-entry.js          /, /login, /terms, /privacy entry
-│   │   ├── auth.js                  /api/auth client, MFA second-step UI
-│   │   ├── welcome.js               onboarding (/welcome: goals → plan → security → Pro)
+│   │   ├── home-hero.js             landing-page hero
+│   │   ├── pricing-page.js          /pricing plan cards + checkout entry
+│   │   ├── public-footer.js         shared marketing footer
+│   │   ├── welcome.js               onboarding (goals → plan → security → Pro)
 │   │   ├── verify-email.js          email-verification page
 │   │   ├── reset.js                 forgot / reset-password page
 │   │   ├── recover.js               lost-2FA recovery page
+│   │   ├── unsubscribe.js           email-preferences page (token, no sign-in)
+│   │   ├── dev-portal.js            comp/dev Pro grant management
 │   │   ├── admin.js                 admin dashboard panel
+│   │   │                            ── auth & session ──
+│   │   ├── auth.js                  /api/auth client, MFA second-step UI
+│   │   ├── social-login.js          Sign in with Apple / Google buttons
+│   │   ├── passwordToggle.js        show/hide password control
+│   │   ├── nextUrl.js               safe post-login redirect targets
+│   │   │                            ── state & sync ──
+│   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
+│   │   ├── localCache.js            the single list of session-scoped localStorage keys
+│   │   ├── pendingSync.js           durable "this device has unsent edits" flag
+│   │   ├── snoozes.svelte.js        per-device row snoozes (not synced)
+│   │   │                            ── money logic (mirrored natively) ──
 │   │   ├── utils.js                 formatters (currency-aware) + due-date math
 │   │   ├── tz.js                    IANA-timezone `today()` helper
-│   │   ├── income.js                shared frequency-to-monthly math
-│   │   ├── modals.js                bill/card/pay/confirm modal logic
-│   │   ├── navbar.js                appbar + mobile drawer + FiHaven Pro entry
-│   │   ├── theme.js                 light/dark theme handling
-│   │   ├── export.js                CSV builders for the dashboard tabs
+│   │   ├── period.js                period model (calendar / start-day / rolling)
+│   │   ├── billSchedule.js          bill recurrence (weekly … annually)
+│   │   ├── income.js                frequency-to-monthly math for income sources
+│   │   ├── budgetRules.js           budget lenses, buckets, envelopes, ratio warnings
+│   │   ├── payoff.js                avalanche / snowball planners
 │   │   ├── rewards.js               per-category rewards ranking engine
 │   │   ├── cardPresets.js           preset DB of popular cards + reward defaults
-│   │   ├── period.js                period model (calendar / start-day / rolling)
-│   │   ├── dashboardWidgets.js      dashboard widget catalog + layout/order helpers
-│   │   ├── plaid-oauth.js           /plaid-oauth redirect resume handler
-│   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
-│   │   ├── snoozes.svelte.js        per-bill snooze state
-│   │   └── dashboard.js / bills.js / cards.js / loans.js /
-│   │       budget.js / history.js / payoff.js / rewards.js /
-│   │       calendar.js               thin mount shims for each Svelte view
+│   │   ├── presetUpdates.js         Update / Keep-mine when the catalog changes
+│   │   ├── perks.js                 statement-credit tracker + annual-fee assessment
+│   │   ├── offers.js                card-linked offers (Amex/Chase/BofA) tracker
+│   │   ├── merchants.js             merchant → spend-category hints
+│   │   ├── spendingInsights.js      period-over-period category deltas (Pro)
+│   │   ├── cashflowHistory.js       12-month income vs. spending, de-double-counted
+│   │   ├── subscriptionsFinder.js   recurring-charge detection + trials + duplicates
+│   │   ├── subscriptionLinks.js     cancel/manage URLs      (+ …Logos / …Icons)
+│   │   ├── reconcile.js             bank-vs-manual duplicate + gap detection
+│   │   ├── rollover.js              new-period bill amount review
+│   │   ├── autopay.js               opt-in auto-marking of autopay items (Pro)
+│   │   ├── export.js                CSV builders + full JSON export
+│   │   ├── categoryIcons.js         category icon catalog + user overrides
+│   │   ├── issuerIcons.js           issuer artwork (+ issuerLogos / issuerMonograms)
+│   │   ├── dashboardWidgets.js      widget catalog + layout/order helpers
+│   │   │                            ── integrations ──
+│   │   ├── plaidLink.js             Plaid Link launcher (+ plaidAccounts, plaid-oauth)
+│   │   ├── plaidBalanceReview.js    Accept/Decline balance proposals
+│   │   ├── bankSync.js              sync triggers + status
+│   │   ├── household.js             Family UI (+ householdShared, householdMerge)
+│   │   ├── pro.js                   entitlement + paywall UI
+│   │   ├── pay.js                   Paddle checkout hand-off
+│   │   ├── webpush.js               browser push subscription (VAPID)
+│   │   ├── swRegister.js            service-worker registration
+│   │   ├── theme.js                 light/dark theme handling
+│   │   ├── modals.js                bill/card/pay/confirm modal logic
+│   │   ├── navbar.js                appbar + mobile drawer + More menu + Pro entry
+│   │   └── dashboard.js / bills.js / cards.js / loans.js / incomeTab.js /
+│   │       budget.js / spending.js / subscriptions.js / calendar.js /
+│   │       history.js / payoff.js / rewards.js / networth.js /
+│   │       balancesTab.js            thin mount shims for each Svelte view
 │   ├── svelte/                      Svelte 5 components
-│   │   ├── DashboardView.svelte
+│   │   ├── DashboardView.svelte     stat strip, cash-flow, alerts, upcoming
 │   │   ├── BillsList.svelte         + variance sparklines, stale-bill audit
 │   │   ├── CardsList.svelte         shared by Cards & Loans via a `kind` prop
-│   │   ├── RewardsView.svelte       "which card should I use?" optimizer
+│   │   ├── IncomeView.svelte        sources + adjustments (own tab)
 │   │   ├── BudgetView.svelte        + "Cushion after bills" runway
+│   │   ├── BudgetRulePanel.svelte   lens display (+ BudgetStatusPanel)
 │   │   ├── SpendingPanel.svelte     transactions entry + recent spend
-│   │   ├── SubscriptionsPanel.svelte recurring-charge detection
-│   │   ├── NetWorthPanel.svelte     accounts → net-worth rollup
-│   │   ├── GoalsPanel.svelte        savings goals
-│   │   ├── IncomeHistory.svelte     12-month income trend (incl. bonuses)
+│   │   ├── SubscriptionsPanel.svelte recurring-charge detection + actions
+│   │   ├── RewardsView.svelte       optimizer + perks + offers + fee assessment
+│   │   ├── PayoffView.svelte        avalanche / snowball split view
 │   │   ├── CalendarView.svelte      month-grid of upcoming due dates
-│   │   ├── HistoryList.svelte
-│   │   ├── PayoffView.svelte
+│   │   ├── HistoryList.svelte       payment ledger (edit / delete)
+│   │   ├── BalancesView.svelte      the accounts you own
+│   │   ├── NetWorthPanel.svelte     read-only assets-minus-debts rollup
+│   │   ├── GoalsPanel.svelte        savings goals
+│   │   ├── CashflowChart.svelte     12-month income vs. spending
+│   │   ├── IncomeHistory.svelte     12-month income trend (incl. bonuses)
+│   │   ├── SortFilterBar.svelte     shared sort/filter control
 │   │   ├── Sparkline.svelte         tiny inline SVG sparkline
+│   │   ├── IconMark.svelte          category / issuer glyph
 │   │   └── MfaSection.svelte        Settings → 2FA UI (TOTP/passkey/email)
 │   ├── public/                      copied verbatim to dist root
-│   │   ├── robots.txt
+│   │   ├── robots.txt               + Content-Signal + AI-crawler policy
 │   │   ├── sitemap.xml              generated — npm run sitemap
 │   │   ├── site.webmanifest
-│   │   ├── llms.txt                 product summary for LLM agents
-│   │   ├── llms-full.txt
+│   │   ├── sw.js                    service worker (offline shell + Web Push)
+│   │   ├── llms.txt / llms-full.txt product summary for LLM agents
 │   │   ├── icon.svg
 │   │   └── og-image.jpg             share cards — npm run generate:og
 │   └── svelte.config.js
@@ -292,20 +532,25 @@ fihaven/
 │   │                                page gates, scheduler boot, / base
 │   ├── db.js                        better-sqlite3 + schema + statements
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
+│   ├── reauth.js                    step-up proof for sensitive actions (password or emailed code)
 │   ├── securityConfig.js            CSP / security headers, one place
+│   ├── securityHeaders.js           the emitted header set + CSP hash list
 │   ├── pageGate.js                  server-side gate on private pages (works with JS off)
 │   ├── health.js                    /health probe (db reachable, build info)
 │   ├── tokens.js                    single-use email tokens (verify / reset / recover)
-│   ├── emails.js                    branded HTML emails (verify, reset, recovery,
-│   │                                bill reminders, weekly digest) — light + dark palettes
+│   ├── emails.js                    branded HTML emails — light + dark palettes
 │   ├── unsubscribe.js               signed opt-out tokens for List-Unsubscribe + footer links
 │   ├── oauth.js                     OIDC ID-token verification for Sign in with Apple/Google
 │   ├── oauthHandoff.js              short-lived handoff codes (Android Custom Tab → app)
 │   ├── appleJws.js                  App Store Server Notifications JWS verification
 │   ├── googlePubSubAuth.js          verifies Play RTDN Pub/Sub push requests
-│   ├── scheduler.js                 tz-aware mailer: bill reminders (configurable lead time,
-│   │                                send hour, due-day), weekly digest, monthly summary
+│   ├── scheduler.js                 tz-aware mailer: bill reminders (multiple offsets,
+│   │                                send hour), weekly digest, monthly summary,
+│   │                                trial + offer expiry
 │   ├── billSchedule.js              server-side copy of the bill recurrence math
+│   ├── period.js                    server-side copy of the period model
+│   ├── paidGoal.js                  server port of the pay-target policy, so the
+│   │                                scheduler's autopay marks what a client would
 │   ├── push.js                      APNs + FCM + web push fan-out, dead-token pruning
 │   ├── captcha.js                   Cloudflare Turnstile siteverify
 │   ├── mfa.js                       AES-256-GCM, TOTP, backup codes, passkeys, email codes
@@ -314,49 +559,67 @@ fihaven/
 │   ├── googlePlay.js                Google Play Developer API — verify Play
 │   │                                purchases + Real-time Developer Notifications
 │   ├── plaid.js                     optional Plaid bank-linking helpers
-│   ├── plaidBalances.js             card↔account matching + Current Balance proposals
+│   ├── plaidBalances.js             card/account matching + balance proposals
 │   ├── plaidMerge.js                additive transaction merge (dedupe, outflows only)
 │   ├── household.js                 Family/household model + caps
 │   ├── householdEvents.js           per-household SSE broadcast (live share sync)
 │   ├── mail.js                      thin nodemailer wrapper
 │   ├── rateLimit.js                 in-memory login throttle, IP+email (5 / 15 min)
 │   │                                (per-IP flood guard is express-rate-limit in index.js)
+│   ├── cardPresets.seed.json        the shipped card-preset catalog
 │   ├── util.js                      email + password policy, BCRYPT_COST
 │   └── routes/
-│       ├── auth.js                  signup, login, logout, me, verify, reset, recover,
-│       │                            OAuth (Sign in with Apple/Google)
+│       ├── auth.js                  signup, login, logout, me, verify, resend,
+│       │                            forgot/reset, lost-2FA recovery, passwordless
+│       │                            passkeys, OAuth (+ callbacks + handoff)
 │       ├── data.js                  GET/PUT /api/data (verified-gated)
-│       ├── account.js               change-email/password/name, delete, export,
-│       │                            export/<type>.csv, iCal token CRUD, onboarded
-│       ├── mfa.js                   /api/account/mfa (enroll/manage second factors)
-│       ├── billing.js               Paddle checkout / portal / webhook + entitlement
+│       ├── account.js               change-email/password/name, delete, clear-data,
+│       │                            onboarded, export, export/<type>.csv, iCal token CRUD
+│       ├── mfa.js                   /api/account/mfa (enroll/manage second factors, re-auth)
+│       ├── billing.js               Paddle checkout / portal / webhook, Apple + Play
+│       │                            verification and notifications, promo redeem
 │       ├── plaid.js                 Pro-gated bank linking (link / exchange /
 │       │                            refresh / item-remove / repaired / webhook)
-│       ├── push.js                  device registration + notification preferences
+│       ├── push.js                  device registration + VAPID config
 │       ├── unsubscribe.js           token-authenticated opt-out (no sign-in needed)
-│       ├── feedback.js              user-volunteered links (rate reports, contact)
-│       ├── household.js             Family/household create/join/invite + share
-│       ├── admin.js                 admin-only stats + user management
+│       ├── feedback.js              user-volunteered links + rate reports
+│       ├── household.js             Family/household create/join/invite + share + SSE
+│       ├── admin.js                 admin-only users, card presets, promo codes
 │       └── calendar.js              public `/api/calendar/<token>.ics` feed
+├── ios/                             SwiftUI app + shared Swift core — see ios/README.md
+├── android/                         Compose app + shared Kotlin core — see android/README.md
+├── tests/integration/               cross-layer suites (server + client flows)
+├── docs/                            security/retention/access policies, source-available
+│                                    terms, release notes, maintainer-local notes
 ├── data/                            SQLite file + mfa.key live here (gitignored)
 ├── dist/                            Vite build output (gitignored)
 ├── scripts/
 │   ├── promo.js                     promo-code admin CLI (deployed to production)
+│   ├── csp-hashes.js                recompute / check inline-script CSP hashes
 │   ├── generate-icons.sh            iOS/Android icon generation
 │   ├── generate-og.js               Open Graph share cards → client/public/*.jpg
 │   ├── generate-sitemap.js          sitemap.xml from indexnow-urls.js + git lastmod
 │   ├── check-crawler-policy.js      assert live AI-crawler allow/block matrix
 │   ├── indexnow-urls.js             single source of truth for public URLs
 │   ├── submit-indexnow.js           ping IndexNow with those URLs
+│   ├── sync-issuer-logos.js         refresh the bundled issuer logo set
+│   ├── ios-testflight.sh            archive + upload to App Store Connect
+│   ├── play-upload.js               bundleRelease + upload the AAB to Play
+│   ├── native-versions.js           read/bump the shared marketing + build numbers
+│   ├── mail-check.js                SMTP smoke test
+│   ├── push-check.js                APNs / FCM smoke test (+ push-setup.sh)
+│   ├── seed-user-data.js            fill a dev account with realistic data
+│   ├── migrate-blank-amounts.js     one-off data migration
 │   ├── README.md                    script index
 │   ├── examples/upload.example.sh   deploy template — copy to upload.sh at repo root
 │   ├── examples/rollback.example.sh restore a pre-deploy backup on the VPS
 │   └── dev/                         local maintainer tools (not deployed)
 │       ├── generate-pdfs.js         docs/*.md → PDF (CHROME_PATH optional)
+│       ├── paddle-webhook-check.js  Paddle webhook signature check
 │       └── plaid-sandbox-check.js   Plaid sandbox smoke test
 ├── upload.sh                        local deploy script — gitignored copy of the template
 ├── .env                             local secrets (gitignored)
-├── .env.development                 dev defaults (committed — TEST keys)
+├── .env.development                 optional dev-mode overrides (gitignored)
 ├── .env.example                     template
 ├── vite.config.js                   multi-page + Svelte, base=/, envDir=..
 └── tailwind.config.js
@@ -366,28 +629,69 @@ fihaven/
 
 ## npm scripts
 
+Grouped the way you actually reach for them. Every row below exists in
+`package.json`; anything not listed here is run directly (`bash …`, `node …`).
+
+**Develop**
+
 | Script | What it does |
 |---|---|
 | `npm run dev` | Express (`:5222`) + Vite (`:5173`) concurrently. Vite proxies `/api` → Express. **Use this for normal development.** |
 | `npm run dev:server` | Express only, with `node --watch`. |
 | `npm run dev:client` | Vite only. |
 | `npm run dev:css` | Watch-rebuild the Tailwind utility classes into `client/css/tailwind-built.css`. |
+
+**Test**
+
+| Script | What it does |
+|---|---|
+| `npm test` | `vitest run` — `client/js/*.test.js`, `server/*.test.js`, `tests/integration/`. |
+| `npm run test:watch` | Vitest in watch mode. |
+| `npm run test:integration` | Just `tests/integration/`. |
+| `npm run coverage` | Vitest with coverage (uploaded to Codecov in CI). |
+
+**Build & verify**
+
+| Script | What it does |
+|---|---|
 | `npm run build:css` | One-shot Tailwind utility build (minified). |
-| `npm run build` | `build:css` + `vite build` → `dist/`. Strips HTML comments and minifies CSS/JS. |
+| `npm run build:vite` | `vite build` only. |
+| `npm run build` | `build:css` + `build:vite` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
-| `npm start` | `NODE_ENV=production node server/index.js` — serves `dist/` + the API. |
+| `npm run ci` | `csp:check` + `sitemap:check` + `build` — what CI runs. |
+| `npm run csp:hashes` | Recompute inline-script/JSON-LD CSP hashes; paste the output into `server/securityHeaders.js`. |
+| `npm run csp:check` | Fail if the committed CSP hashes are stale. Part of `npm run ci`. |
+| `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
+| `npm run sitemap:check` | Fail if the committed sitemap is stale. Part of `npm run ci`. |
+| `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
+
+**Ship**
+
+| Script | What it does |
+|---|---|
 | `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies `/health`. |
 | `npm run deploy:ios` | Archive Release iOS + upload to App Store Connect / TestFlight (`scripts/ios-testflight.sh`). |
 | `npm run deploy:android` | `bundleRelease` + upload AAB (and mapping/native symbols) to Play; default track `beta` (Open testing) — `--track alpha` for Closed testing. |
-| `npm run rollback` | Runs `bash scripts/examples/rollback.example.sh` — list or restore pre-deploy backups (`--list`, `--latest`, or a backup path). |
+| `npm run indexnow` | Ping IndexNow with the URLs in `scripts/indexnow-urls.js`. |
+
+There is deliberately **no** `npm start` and **no** `npm run rollback`.
+Production is started by PM2 (`pm2 start server/index.js --name fihaven`, with
+`NODE_ENV=production` from the remote `.env`), and rollback is run straight from
+the template: `bash scripts/examples/rollback.example.sh --list` — see
+[Rollback](#rollback).
+
+**Assets & one-offs**
+
+| Script | What it does |
+|---|---|
 | `npm run generate:icons` | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (macOS + ImageMagick). |
 | `npm run generate:og` | Regenerate the 1200×630 Open Graph share cards into `client/public/` (headless Chrome + ImageMagick; needs network for the webfont). |
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
-| `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
-| `npm run sitemap:check` | Fail if the committed sitemap is stale — runs as part of `npm run ci`. |
-| `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
+| `npm run sync:issuer-logos` | Refresh the bundled card-issuer logo set. |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
+| `npm run paddle:webhook` | Local Paddle webhook signature/delivery check. |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
+
 ---
 
 ## Environment
@@ -401,11 +705,13 @@ Variables are loaded in this order; the first match per variable wins:
 .env                      # local catch-all
 ```
 
-So `npm run dev` (default `NODE_ENV=development`) picks up the
-committed test keys in [`.env.development`](.env.development), and
-your private `.env` is only consulted as a fallback. In production
-(`npm start`), `.env.production.local`, `.env.local`, and `.env` all
-get a shot — but `.env.development` is skipped.
+So `npm run dev` (default `NODE_ENV=development`) picks up anything you put in
+`.env.development` first, and your private `.env` is only consulted as a
+fallback. **None of those files are committed** — `.env`, `.env.local`,
+`.env.*.local`, `.env.development`, and `.env.production` are all gitignored;
+[`.env.example`](.env.example) is the only tracked one. In production
+(`NODE_ENV=production node server/index.js`, which is what PM2 runs),
+`.env.production.local`, `.env.local`, and `.env` all get a shot — but `.env.development` is skipped.
 
 ### Variables
 
@@ -413,9 +719,9 @@ get a shot — but `.env.development` is skipped.
 |---|---|---|---|
 | `NODE_ENV` | no | `development` | Drives env-file loading + cookie `Secure` flag |
 | `PORT` | no | `5222` | Express port |
-| `TURNSTILE_SECRET` | **yes** | test key | Cloudflare Turnstile server-side secret |
-| `TURNSTILE_SITEKEY` | **yes** | test key | Cloudflare Turnstile public sitekey |
-| `VITE_TURNSTILE_SITEKEY` | **yes** | test key | Same sitekey, exposed to Vite so it can inline into `login.html` at build time |
+| `TURNSTILE_SECRET` | **yes** | — | Cloudflare Turnstile server-side secret. The server **exits at boot** without this and `TURNSTILE_SITEKEY` |
+| `TURNSTILE_SITEKEY` | **yes** | — | Cloudflare Turnstile public sitekey |
+| `VITE_TURNSTILE_SITEKEY` | **yes** | — | Same sitekey, exposed to Vite so it can inline into `login.html` at build time |
 | `SESSION_COOKIE` | no | `ct_sid` | Cookie name |
 | `SESSION_TTL_HOURS` | no | `12` | Session lifetime |
 | `SMTP_HOST` | for email-MFA | `localhost` | Outbound SMTP host (production VPS runs Postfix on loopback) |
@@ -423,11 +729,35 @@ get a shot — but `.env.development` is skipped.
 | `SMTP_USER` / `SMTP_PASS` | optional | — | Only if your relay requires auth |
 | `MAIL_FROM` | for email-MFA | `FiHaven <no-reply@fihaven.app>` | RFC 5322 `From:` header for outbound mail |
 | `MFA_ENCRYPTION_KEY` | **yes (prod)** | auto via `data/mfa.key` | 32-byte hex for AES-256-GCM of TOTP, Plaid tokens, and `user_data`. Generate with `openssl rand -hex 32`. Production deploy requires it; if migrating from a file-backed key, copy `data/mfa.key` into `.env`. |
-| `DEV_USER_EMAIL` | no | `demo@fihaven.app` | Seeded on first dev start (skipped in prod) |
-| `DEV_USER_PASSWORD` | no | `demopassword11` | Same as above |
+| `DEV_USER_EMAIL` | no | — | Seeds this account on first dev start when set alongside the password (skipped in prod) |
+| `DEV_USER_PASSWORD` | no | — | Same as above |
 
-Real Turnstile keys come from
+For local development, Cloudflare's published always-passes test pair works:
+sitekey `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.
+The native apps are built against that test sitekey, so a local server they talk
+to needs the matching test **secret**. Real keys come from
 <https://dash.cloudflare.com/?to=/:account/turnstile>.
+
+### Feature variables
+
+Every one of these is **optional** — the feature it powers simply stays off (or
+stays in test mode) when it's unset. [`.env.example`](.env.example) is the
+authoritative, commented list; this table is the map.
+
+| Group | Variables | Turns on |
+|---|---|---|
+| **Billing (web)** | `PADDLE_ENV`, `PADDLE_API_KEY`, `PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_PRICE_MONTHLY` / `_THREE_MONTH` / `_YEARLY` / `_TRIAL` / `_FAMILY` | Paddle checkout, customer portal, and webhook → entitlement |
+| **Billing (Apple)** | `APPLE_BUNDLE_ID`, `APPLE_VERIFY_ENABLED`, `APPLE_ALLOW_SANDBOX`, `APPLE_SANDBOX_BUILD`, `IAP_PRODUCTS`, `IAP_VERIFY_MODE` | StoreKit receipt verification + App Store Server Notifications |
+| **Billing (Play)** | `GOOGLE_PLAY_PACKAGE`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, `GOOGLE_PLAY_SA_LOCAL`, `GOOGLE_VERIFY_ENABLED`, `GOOGLE_ALLOW_TEST_PURCHASES`, `GOOGLE_PUBSUB_AUDIENCE`, `GOOGLE_PUBSUB_REQUIRE_AUTH`, `GOOGLE_PUBSUB_VERIFICATION_TOKEN` | Play purchase verification + Real-time Developer Notifications |
+| **Bank sync** | `PLAID_CLIENT_ID`, `PLAID_SECRET` (or `PLAID_SANDBOX_SECRET` / `PLAID_PRODUCTION_SECRET`), `PLAID_ENV` (`sandbox`), `PLAID_PRODUCTS` (`transactions`), `PLAID_COUNTRY_CODES`, `PLAID_REDIRECT_URI`, `PLAID_IOS_REDIRECT_URI`, `PLAID_ANDROID_PACKAGE`, `PLAID_WEBHOOK_URL`, `PLAID_ALLOW_UNSIGNED_WEBHOOKS` | Plaid Link on web/iOS/Android and webhook delivery |
+| **Social sign-in** | `APPLE_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_ID`, `OAUTH_VERIFY_MODE` | The Sign in with Apple / Google buttons (`/api/auth/oauth/config` drives visibility) |
+| **Passkeys** | `PASSKEY_ANDROID_ORIGIN` | Native Android passkey origin (iOS needs the Associated Domains capability instead) |
+| **Push** | `APNS_KEY_PATH`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_PRODUCTION`, `APNS_SA_LOCAL`; `FCM_SERVICE_ACCOUNT_JSON`, `FCM_SA_LOCAL`; `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Remote push to iOS (APNs), Android (FCM), and browsers (Web Push). Web push is fully built but a no-op until the VAPID keys are set |
+| **Scheduler & mail** | `ENABLE_SCHEDULER`, `TOKEN_TTL_DAYS`, `MAIL_CHECK_TO` | The reminder / digest / summary mailer and email-token lifetime |
+| **Household** | `HOUSEHOLD_MAX_PRO` (`0`), `HOUSEHOLD_MAX_FAMILY` (`3`) | Who may create a household and how many members it holds |
+| **Admin & feedback** | `ADMIN_EMAILS`, `SUBSCRIPTION_LINK_INBOX` | Bootstrapped admin accounts (re-promoted every boot) and where volunteered links are mailed |
+| **Site & SEO** | `PUBLIC_ORIGIN`, `INDEXNOW_KEY`, `CSP_ENFORCE` | Absolute URLs in mail/links, IndexNow submission, and enforcing (vs report-only) CSP |
+| **Test escapes** | `DISABLE_RATE_LIMIT`, `FIHAVEN_TEST_DB_PATH` | Local/CI only — never set in production |
 
 ### Deploy-only variables (read by `upload.sh`)
 
@@ -466,8 +796,10 @@ the Vite dev middleware.
 | `/contact` | Contact / support | public | ✅ |
 | `/terms` | Terms of Use | public | ✅ |
 | `/privacy` | Privacy Policy | public | ✅ |
-| `/dashboard` | App dashboard (Dashboard / Bills / Cards / Loans / Budget / Calendar / History / Payoff / Rewards) | required | ❌ noindex |
-| `/settings` | Grouped settings (open a group to drill in) — Profile, Preferences (time zone, theme, dashboard layout, **reminders/notifications**), Security (2FA), Payments/Pro, Calendar/iCal, Bank linking, Data (export/import/delete). Auto-synced to the server. | required | ❌ noindex |
+| `/refunds` | Refund & cancellation policy | public | ✅ |
+| `/delete-account` | How to delete your account and data (store-required) | public | ✅ |
+| `/dashboard` | App dashboard — Dashboard / Bills / Cards / Loans / Income / Budget / Spending, plus Subscriptions / Calendar / History / Payoff / Rewards / Net Worth / Balances under **More** | required | ❌ noindex |
+| `/settings` | Grouped settings (open a group to drill in) — Profile (name, currency, time zone, default view), Budget (period, lens, category buckets, category icons), Payments & cards, Monthly rollover, Dashboard, Family & household, Security (email, password, 2FA), Notifications (email + push), Calendar/iCal, Bank linking, Data (export / import / clear / delete), Admin + Developer where applicable. Auto-synced to the server. | required | ❌ noindex |
 | `/welcome` | Post-signup onboarding flow | required | ❌ noindex |
 | `/verify-email` | Email-verification landing (token) | public | ❌ noindex |
 | `/reset` | Forgot / reset password (token) | public | ❌ noindex |
@@ -475,6 +807,8 @@ the Vite dev middleware.
 | `/plaid-oauth` | Plaid OAuth return handler for **web** Link (resumes bank Link after the redirect) | required | ❌ noindex |
 | `/plaid` | Plaid Universal Link target for **iOS** native Link (fallback page if the app does not open) | required | ❌ noindex |
 | `/dev-portal` | Developer subscription portal (manage a comp/dev Pro grant) | required | ❌ noindex |
+| `/pay` | Paddle checkout hand-off page | required | ❌ noindex |
+| `/unsubscribe` | Email preferences / opt-out (signed token — no sign-in needed) | public | ❌ noindex |
 | `/404` | Not-found page | public | ❌ |
 | `/500` | Server-error page | public | ❌ |
 
@@ -494,11 +828,19 @@ CSV / JSON export endpoints and the public `.ics` feed).
 | `POST` | `/api/auth/mfa/verify` | Complete a TOTP / backup-code / email-code second step |
 | `POST` | `/api/auth/mfa/email/send` | Issue an email sign-in code for the pending `mfaToken` |
 | `POST` | `/api/auth/mfa/passkey/start` / `.../finish` | WebAuthn second-factor handshake |
+| `POST` | `/api/auth/passkey/login/start` / `.../finish` | **Passwordless** passkey sign-in (no password step at all) |
 | `POST` | `/api/auth/logout` | Destroy session (requires `X-CSRF-Token`) |
 | `GET` | `/api/auth/me` | Session check — returns `{user, csrfToken}` or `{user: null}` |
+| `POST` | `/api/auth/verify-email` | Confirm an email-verification token |
+| `POST` | `/api/auth/resend-verification` | Re-send verification (also how a mistyped signup address is corrected) |
+| `POST` | `/api/auth/forgot` / `/api/auth/reset` | Request a reset email / set a new password from the token |
+| `POST` | `/api/auth/recover-2fa/request` / `.../confirm` | Lost-2FA account recovery |
 | `GET` | `/api/auth/oauth/config` | Which social providers are configured (drives button visibility) |
 | `POST` | `/api/auth/oauth/:provider` | Verify a Google/Apple OIDC ID token → link-or-create + session |
+| `GET`/`POST` | `/api/auth/oauth/{apple,google}/callback` | Web redirect-flow callbacks (form_post for Apple) |
+| `POST` | `/api/auth/oauth/:provider/handoff` | Exchange a short-lived handoff code (Android Custom Tab → app) |
 | `GET` | `/api/config` | Public config (currently just `turnstileSitekey`) |
+| `GET` | `/health` | Unauthenticated liveness probe — DB ping + build info (not under `/api`) |
 
 ### Per-user data
 
@@ -514,7 +856,9 @@ CSV / JSON export endpoints and the public `.ics` feed).
 | `POST` | `/api/account/change-email` | Change email (re-verifies password) |
 | `POST` | `/api/account/change-password` | Change password (also signs out other devices) |
 | `POST` | `/api/account/change-name` | Set the display name shown in the navbar |
+| `POST` | `/api/account/clear-data` | Wipe finance data, keep the account |
 | `POST` | `/api/account/delete` | Delete account + all data |
+| `POST` | `/api/account/onboarded` | Mark the `/welcome` flow complete |
 | `GET` | `/api/account/export` | Full JSON download |
 | `GET` | `/api/account/export/bills.csv` | Bills CSV |
 | `GET` | `/api/account/export/cards.csv` | Cards CSV |
@@ -528,6 +872,7 @@ CSV / JSON export endpoints and the public `.ics` feed).
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/account/mfa/status` | Snapshot of enrolled factors + remaining backup codes |
+| `POST` | `/api/account/mfa/reauth/send` | Email a step-up code — the re-auth path for OAuth-only accounts with no password |
 | `POST` | `/api/account/mfa/totp/setup` | Begin TOTP enrollment — returns QR + base32 secret (requires password) |
 | `POST` | `/api/account/mfa/totp/confirm` | Confirm with a 6-digit code; on success returns 10 backup codes |
 | `POST` | `/api/account/mfa/totp/disable` | Disable TOTP (requires password + current code) |
@@ -561,6 +906,7 @@ removed entirely in 1.6.1; App Store and Play purchases are unaffected.
 | `GET` | `/api/billing/paddle/config` | Client token, price ids, and whether Paddle is live |
 | `POST` | `/api/billing/paddle/checkout` | Open the Paddle overlay checkout (web) |
 | `POST` | `/api/billing/paddle/portal` | Paddle customer portal (manage/cancel) |
+| `POST` | `/api/billing/paddle/portal/dev-cancel` / `.../dev-change` | Simulate a cancel / plan change against a dev entitlement — **403 in production** |
 | `POST` | `/api/billing/paddle/webhook` | Paddle-signed events → entitlement |
 | `POST` | `/api/billing/{apple,google}/verify` | Verify a native store transaction |
 | `POST` | `/api/billing/{apple,google}/notifications` | Store server notifications (ASSN JWS / Play RTDN) |
@@ -619,6 +965,29 @@ when the gate is off, and every caller leaves the cursor alone.
 | `POST` | `/api/plaid/item/:id/remove` | Unlink a bank (manual data untouched) |
 | `POST` | `/api/plaid/webhook` | Plaid webhooks (ES256 JWT-verified in production) |
 
+### Push notifications
+
+Device tokens live alongside the email preferences; the same `push_devices`
+table backs iOS (APNs), Android (FCM), and browsers (Web Push), and dead tokens
+are pruned on send.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/push/register` | Register a device token — `{platform: 'ios'\|'android'\|'web', token}`. Replies `{ready}` so a device knows whether that platform's credentials are configured server-side |
+| `POST` | `/api/push/unregister` | Drop a token (sign-out, permission revoked) |
+| `GET` | `/api/push/config` | The VAPID public key for browser subscriptions |
+
+### Email opt-out (`/api/unsubscribe`)
+
+Authenticated by a signed token in the URL, **not** a session — so
+`List-Unsubscribe` and the footer link in every email work without signing in.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/unsubscribe?token=` | One-click opt-out (also the `List-Unsubscribe-Post` target) |
+| `GET` | `/api/unsubscribe/info?token=` | What the token opts out of, for the preferences page |
+| `POST` | `/api/unsubscribe` | Apply the opt-out from the `/unsubscribe` page |
+
 ### Volunteered links (`/api/feedback`)
 
 Optional, user-initiated. Each route emails the submitted name, the URL,
@@ -631,8 +1000,9 @@ disclosure is surfaced in-app and in the privacy policy.
 |---|---|---|
 | `POST` | `/api/feedback/subscription-link` | Offer a subscription's manage/cancel link |
 | `POST` | `/api/feedback/rewards-link` | Offer a card's rewards/offers link |
+| `POST` | `/api/feedback/reward-rate` | Report a wrong rate in the card-preset catalog |
 
-### Household (Family — create is Pro-gated)
+### Household (Family — creating is Family-plan-only)
 
 Share bills, cards, and goals with family members. Creating a household
 requires Pro; **joining** one is free. Shared entities live-sync via SSE.
@@ -640,7 +1010,8 @@ requires Pro; **joining** one is free. Shared entities live-sync via SSE.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/household` | Current household — members + pending invites |
-| `POST` | `/api/household` | Create a household (Pro) |
+| `POST` | `/api/household` | Create a household (Family) |
+| `PATCH` | `/api/household` | Rename / update the household |
 | `POST` | `/api/household/invite` | Invite a member by email |
 | `DELETE` | `/api/household/invites/:id` | Cancel a pending invite |
 | `POST` | `/api/household/accept` | Accept an invite |
@@ -663,7 +1034,7 @@ All mutating routes (every `POST` / `PUT` / `DELETE` above) require
 the session cookie **and** the `X-CSRF-Token` header — its value is
 the `csrfToken` returned by `/api/auth/me` (or by `signup` / `login`
 / `mfa/verify`). Exceptions: native (Bearer-token) clients are
-CSRF-exempt, and the store webhooks (`stripe/webhook`,
+CSRF-exempt, and the store webhooks (`paddle/webhook`,
 `apple`/`google` notifications) authenticate by their provider
 signature instead of a session.
 
@@ -671,7 +1042,7 @@ signature instead of a session.
 
 ## Admin & promo codes
 
-Pro entitlement is server-authoritative. Beyond Stripe / StoreKit / Play
+Pro entitlement is server-authoritative. Beyond Paddle / StoreKit / Play
 purchases, you can grant it manually two ways.
 
 ### Admin role + dashboard panel
@@ -691,6 +1062,14 @@ CSRF-protected `/api/admin/*` routes:
 | `GET` | `/api/admin/users?q=&limit=` | List/search users with role + Pro status |
 | `POST` | `/api/admin/users/:id/role` | Set `admin` / `user` (can't demote yourself) |
 | `POST` | `/api/admin/users/:id/pro` | Grant (`{grant:true,days?}`) or revoke a comp Pro |
+| `POST` | `/api/admin/users/:id/suspend` | Suspend / unsuspend an account |
+| `POST` | `/api/admin/users/:id/reset-password` | Send that user a password-reset email |
+| `POST` | `/api/admin/users/:id/logout` | Force-sign-out every session for that user |
+| `POST` | `/api/admin/users/:id/delete` | Delete the account and its data |
+| `GET`/`POST` | `/api/admin/card-presets` | Read / add entries in the shared card-preset catalog |
+| `PUT`/`DELETE` | `/api/admin/card-presets/:id` | Edit or remove a preset — an edited rate becomes an Update / Keep-mine prompt for users who imported it |
+| `GET`/`POST` | `/api/admin/promo` | List / create promo codes (the CLI is still the preferred path) |
+| `POST` | `/api/admin/promo/:code/deactivate` | Disable a code |
 
 The panel stays hidden for non-admins, and the endpoints return `403`.
 
@@ -721,8 +1100,8 @@ ssh root@<host> "cd /var/www/fihaven.app && \
 
 - `free_sub` codes grant Pro directly (no payment); `store_offer` codes map
   to an Apple Offer / Play promo code for a *discounted purchase*.
-- For a discount on the **web**, create a Stripe coupon + promotion code in
-  the Stripe Dashboard — web checkout already accepts promo codes.
+- For a discount on the **web**, create a discount in the Paddle dashboard —
+  the Paddle overlay checkout accepts discount codes.
 
 ---
 
@@ -995,20 +1374,22 @@ If a deploy goes wrong, restore a timestamped backup created in step 1
 with [`scripts/examples/rollback.example.sh`](scripts/examples/rollback.example.sh):
 
 ```bash
+R=scripts/examples/rollback.example.sh
+
 # List backups on the VPS
-npm run rollback -- --list
+bash $R --list
 
 # Restore the newest backup (prompts for confirmation)
-npm run rollback -- --latest
+bash $R --latest
 
 # Skip confirmation
-npm run rollback -- --latest --yes
+bash $R --latest --yes
 
 # Restore a specific backup
-npm run rollback -- /var/www/fihaven.app.backup_20260615_153045
+bash $R /var/www/fihaven.app.backup_20260615_153045
 
 # Restore only data/ (SQLite + MFA key), not application code
-npm run rollback -- --latest --data-only
+bash $R --latest --data-only
 ```
 
 Full rollback stops PM2, `rsync`s the backup over the live deploy
@@ -1147,10 +1528,9 @@ when the nav and footer were JS-only the served homepage linked to just
 
 ## Roadmap & gaps
 
-Honest inventory of what is **not shipped yet**, **web-only**, or **intentionally out of
-scope**. Shipped features live in [CHANGELOG.md](CHANGELOG.md). Competitor-driven
-ideas are tracked separately by the maintainers
-(note: Tier 1/2 items shipped in **1.4.x**; see checklist below).
+Honest inventory of what is **not shipped yet**, **one-platform-only**, or
+**intentionally out of scope**. What *is* shipped is in [Features](#features);
+dated release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ### Store distribution
 
@@ -1163,36 +1543,54 @@ ideas are tracked separately by the maintainers
 
 ### Platform parity
 
-Budget lens, envelope editor, spending insights, and household rollup are now on **web, iOS, and Android**.
+The finance logic is shared three ways, so most features land everywhere at
+once. This table is for the ones that **don't** — or where the entry point
+differs enough to be worth writing down.
 
 | Area | Web | iOS | Android |
 |---|---|---|---|
-| Budget lens **display** on Budget tab | Yes | Yes | Yes |
+| Bills / cards / loans / income / balances / budget / spending | Yes | Yes | Yes |
+| Payoff, calendar, history, rewards, subscriptions (Pro) | Yes | Yes | Yes |
+| Perks & credits, card-linked offers, annual-fee assessment | Rewards tab | Rewards tab | Rewards tab |
+| Bank-vs-manual reconciliation | Spending tab | Spending tab | Spending tab |
+| Cash-flow history chart | Dashboard widget | Dashboard widget | Dashboard widget |
+| Budget lens **display** | Budget tab | Budget tab | Budget tab |
 | Budget lens **settings** (mode, splits, debt-focus extra, envelope rollover, bucket overrides) | Settings | Settings → Budget lens | Settings → Budget lens |
 | Envelope assign editor (Pro) | Budget tab | Budget tab | Budget tab |
 | Spending insights vs last period (Pro) | Spending tab | Spending tab | Spending tab |
 | Household **membership** (create/join/invite) | Settings → Family | Settings → Family | Settings → Family |
 | Household **share/unshare** bills, cards, goals | Settings → Family | Settings → Family | Settings → Family |
 | Household rollup (shared totals) | Dashboard card | Settings → Family | Settings → Family |
-| Passkey **registration** | Settings → Security | — (list/delete on web) | Settings → Security |
-| Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
-| Plaid bank linking (Pro) | Yes | Yes | Yes |
-| **Income tab** (sources + adjustments) | Income tab | Income tab | Income tab |
-| **Admin console** (users, rewards, promo codes) | Admin panel | Settings → Admin | Settings → Admin |
+| Plaid bank linking + balance proposals (Pro) | Yes | Yes | Yes |
+| **Admin console** (users, card presets, promo codes) | Admin panel | Settings → Admin | Settings → Admin |
 | Correct a mistyped signup address | Verify screen | Verify screen | Verify screen |
+| Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
+| Passkey **registration** | Settings → Security | **—** (list/delete on web) | Settings → Security |
+| **Tab-bar customizer** | **—** (fixed tab row + More menu) | Settings → Tabs | Settings → Customize tabs |
+| **Biometric app lock** | **—** | Face ID / Touch ID | Biometric + hardware KeyStore |
+| **Local device notifications** | **—** (email + web push instead) | Yes | Yes (rescheduled after reboot) |
+| Remote push transport | Web Push / VAPID | APNs | FCM |
 
-Native Family screens now create/join households, invite members, and choose what to
-share (bills, cards, goals), live-syncing via SSE — at parity with web.
+### Product gaps
 
-### Product gaps (all platforms)
+Genuinely not shipped, or shipped with a caveat:
 
-- **Remote push notifications** — reminders are **email** (server scheduler),
-  **local** on-device (iOS/Android), and optional **server push** (APNs / FCM)
-  when `pushNotifications` is enabled.
-- **User overrides for needs/wants/save category mapping** — per-category overrides in Settings → Category buckets (web + native).
-- **Household rollup views** — shared-entity totals on the dashboard and in Family settings (`GET /api/household/rollup`).
-- **Auto-save / round-up rules** — intentionally skipped (conflicts with manual-first
-  positioning unless added as strict opt-in later).
+- **Web push is built but dormant** — the whole path exists (service worker,
+  `push_devices`, `/api/push/config`), and it stays a no-op until
+  `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` are set in the
+  environment.
+- **iOS passkey registration** — iOS can *sign in* with a passkey but not enroll
+  one; enrollment is web and Android. Managing (list/delete) is web-only.
+- **No instrumented native test suites** — both app modules have pure-logic unit
+  tests only; UI behaviour is verified by driving a simulator/emulator by hand.
+- **Household is per-entity sharing, not a joint ledger** — members share
+  selected bills, cards, and goals plus a rollup; there is no shared budget or
+  shared transaction stream.
+- **Auto-save / round-up rules** — intentionally skipped (conflicts with
+  manual-first positioning unless added as strict opt-in later).
+- **Plaid is Transactions-only** — balances come from the free `/accounts/get`
+  (cached, dated), not the paid Balance product, and investment holdings,
+  liabilities, and income products are not used at all.
 
 ### Out of scope (unless strategy changes)
 

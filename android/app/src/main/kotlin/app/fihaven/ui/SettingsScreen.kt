@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import android.Manifest
 import android.content.Intent
@@ -969,7 +969,7 @@ private fun BioLockDialog(
         ) {
             Text("Custom:", color = Ct.colors.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = { if (customMinutes > 1) customMinutes-- }) { Text("−", color = Ct.colors.accent) }
-            Text("$customMinutes min", color = Ct.colors.text, fontSize = 15.sp, fontFamily = PlexMono)
+            Text("$customMinutes min", color = Ct.colors.text, fontSize = 15.sp, style = MonoNumerals)
             TextButton(onClick = { if (customMinutes < 60) customMinutes++ }) { Text("+", color = Ct.colors.accent) }
             TextButton(onClick = { apply(customMinutes) }) { Text("Set", color = Ct.colors.accent) }
         }
@@ -1618,13 +1618,13 @@ private fun TotpSetupDialog(vm: AppViewModel, onDone: () -> Unit) {
             0 -> { Text("Confirm it's you.", color = Ct.colors.muted, fontSize = 13.sp); ReauthFields(vm, proof) { proof = it } }
             1 -> {
                 qr?.let { Image(it, "QR", modifier = Modifier.size(200.dp)) }
-                Text("Secret: $secret", color = Ct.colors.muted, fontSize = 13.sp, fontFamily = PlexMono)
+                Text("Secret: $secret", color = Ct.colors.muted, fontSize = 13.sp, style = MonoNumerals)
                 OutlinedTextField(code, { code = it }, label = { Text("6-digit code") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
             }
             else -> {
                 Text("Save these backup codes:", color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                codes.forEach { Text(it, color = Ct.colors.text, fontFamily = PlexMono, fontSize = 15.sp) }
+                codes.forEach { Text(it, color = Ct.colors.text, style = MonoNumerals, fontSize = 15.sp) }
             }
         }
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
@@ -1715,7 +1715,7 @@ private fun BackupCodesDialog(vm: AppViewModel, onDone: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         } else {
             Text("New backup codes:", color = Ct.colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            codes.forEach { Text(it, color = Ct.colors.text, fontFamily = PlexMono, fontSize = 15.sp) }
+            codes.forEach { Text(it, color = Ct.colors.text, style = MonoNumerals, fontSize = 15.sp) }
         }
         error?.let { Text(it, color = Ct.colors.red, fontSize = 13.sp) }
     }

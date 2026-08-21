@@ -210,7 +210,13 @@ function renderNewMonthBanner(currentMk, prevMk) {
   var currLabel = monthKeyLabel(currentMk);
 
   // Names come from user data, so escape before injecting into innerHTML.
-  var esc = function (s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; };
+  // Quotes included — see escHtml in rollover.js for why the
+  // textContent/innerHTML shortcut is not enough.
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
 
   var missedHtml;
   if (missed.length) {

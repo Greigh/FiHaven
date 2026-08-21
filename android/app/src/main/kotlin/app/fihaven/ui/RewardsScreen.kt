@@ -44,7 +44,7 @@ import app.fihaven.core.logic.Rewards
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.perkUsage
 import app.fihaven.ui.theme.Ct
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 import kotlinx.coroutines.launch
 
 /**
@@ -137,7 +137,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                                 }
                                 Spacer(Modifier.weight(1f))
                                 Text(ratePct(best.value), fontWeight = FontWeight.Bold, fontSize = 24.sp,
-                                    fontFamily = PlexMono, color = Ct.colors.accent)
+                                    style = MonoNumerals, color = Ct.colors.accent)
                             }
                             val rotateNote = if (best.card.rotatingPool?.contains(category) == true) " · activate this quarter" else ""
                             Text(Rewards.explanation(best.card, category) + rotateNote,
@@ -163,7 +163,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                                             Text(it, color = Ct.colors.muted, fontSize = 11.sp)
                                         }
                                     }
-                                    Text(ratePct(e.value), fontWeight = FontWeight.SemiBold, color = Ct.colors.muted, fontFamily = PlexMono)
+                                    Text(ratePct(e.value), fontWeight = FontWeight.SemiBold, color = Ct.colors.muted, style = MonoNumerals)
                                 }
                                 if (i < runnersUp.lastIndex) HorizontalDivider(color = Ct.colors.border)
                             }
@@ -222,7 +222,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                                     if (best.card.rotatingPool?.contains(pick.category) == true) {
                                         RotBadge(); Spacer(Modifier.width(6.dp))
                                     }
-                                    Text(ratePct(best.value), fontWeight = FontWeight.Bold, fontFamily = PlexMono, color = Ct.colors.accent)
+                                    Text(ratePct(best.value), fontWeight = FontWeight.Bold, style = MonoNumerals, color = Ct.colors.accent)
                                 }
                             }
                         }
@@ -345,7 +345,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(Money.fmt(unrealized), fontWeight = FontWeight.Bold, fontSize = 20.sp,
-                                        fontFamily = PlexMono,
+                                        style = MonoNumerals,
                                         color = if (unrealized < 0.005) Ct.colors.green else Ct.colors.accent)
                                     Text("left this cycle", color = Ct.colors.muted, fontSize = 11.sp)
                                 }
@@ -577,7 +577,7 @@ private fun PerkUsageRow(label: String, meta: String, used: Double, remaining: D
         Text(
             if (remaining < 0.005) "✓" else Money.fmt(remaining),
             color = if (remaining < 0.005) Ct.colors.green else Ct.colors.accent,
-            fontSize = 12.sp, fontFamily = PlexMono,
+            fontSize = 12.sp, style = MonoNumerals,
         )
     }
 }

@@ -882,11 +882,12 @@ function highlightActiveChip() {
 }
 
 // Escape user-controlled text before it is interpolated into innerHTML —
-// bill/card names are user-named. Mirrors escHtml in rollover.js.
+// bill/card names are user-named. Mirrors escHtml in rollover.js, quotes
+// included, so it stays correct if it is ever used inside an attribute.
 function escHtml(s) {
-  var d = document.createElement('div');
-  d.textContent = String(s == null ? '' : s);
-  return d.innerHTML;
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 // Explain how this payment lands against the fully-paid goal.

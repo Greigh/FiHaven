@@ -101,10 +101,11 @@ async function verifyPushRequest(req) {
   if (!auds.some((a) => audiences.includes(a))) {
     throw new Error('pubsub-bad-audience');
   }
+  // Required rather than optional — a token with no `exp` would otherwise be
+  // replayable forever. Pub/Sub always sets it.
   const now = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === 'number' && payload.exp < now) {
-    throw new Error('pubsub-token-expired');
-  }
+  if (typeof payload.exp !== 'number') throw new Error('pubsub-missing-expiry');
+  if (payload.exp < now) throw new Error('pubsub-token-expired');
   return { ok: true, email: payload.email || null };
 }
 

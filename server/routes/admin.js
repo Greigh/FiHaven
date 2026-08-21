@@ -19,6 +19,7 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
 
 const dbApi = require('../db');
@@ -35,6 +36,20 @@ const COMP_PLANS = Object.keys(billing.COMP_DEFAULT_DAYS || {
 });
 
 function sendError(res, code, error) { return res.status(code).json({ error }); }
+
+/* An auto-generated promo code is a bearer credential worth up to a year of
+   Family, so it comes from the CSPRNG. Math.random() is xorshift128+: its
+   internal state is recoverable from a handful of observed outputs, so anyone
+   holding two or three issued codes could predict the rest. crypto.randomInt
+   is rejection-sampled, unlike `byte % len`. The alphabet omits look-alikes
+   (0/O, 1/I) so a code survives being read aloud — same set as the backup
+   codes in mfa.js — and 8 chars of it is ~40 bits. */
+const PROMO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function newPromoCode() {
+  let out = '';
+  for (let i = 0; i < 8; i++) out += PROMO_ALPHABET[crypto.randomInt(PROMO_ALPHABET.length)];
+  return 'FH-' + out;
+}
 
 // Gate the whole router behind an authenticated admin.
 router.use(requireAuth, requireAdmin);
@@ -366,8 +381,7 @@ router.post('/promo', requireCsrf, (req, res) => {
   const plan = body.plan ? String(body.plan) : null;
   if (plan && !COMP_PLANS.includes(plan)) return sendError(res, 400, 'bad-plan');
   try {
-    const code = String(body.code || '').trim()
-      || ('FH-' + Math.random().toString(36).slice(2, 8).toUpperCase());
+    const code = String(body.code || '').trim() || newPromoCode();
     const promo = billing.createPromoCode({
       code,
       kind: 'free_sub',
