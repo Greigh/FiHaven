@@ -103,6 +103,16 @@ function requirePlaid(req, res, next) {
   next();
 }
 
+/* Whether POST /webhook must carry a valid Plaid-Verification JWT.
+   Exported for tests and for the boot-time warning in securityConfig. */
+function webhookSignatureRequired() {
+  // Real bank data — never negotiable, opt-out or not.
+  if (plaid.plaidEnv() === 'production') return true;
+  if (process.env.PLAID_ALLOW_UNSIGNED_WEBHOOKS === '1') return false;
+  // A deployed server is reachable even when it is talking to sandbox.
+  return process.env.NODE_ENV === 'production';
+}
+
 /* ── helpers ─────────────────────────────────────────────────── */
 
 // Encrypt/decrypt a single string for at-rest storage, reusing the vetted
@@ -609,9 +619,16 @@ router.post('/item/:id/remove', requireAuth, requireVerified, requireCsrf, requi
 // In production the signed `Plaid-Verification` JWT is verified first (see
 // plaid.verifyWebhook); sandbox sends no signature so it's skipped there.
 router.post('/webhook', async (req, res) => {
-  // In production, verify Plaid's signed JWT before trusting the body.
-  // Sandbox doesn't sign webhooks, so verification is skipped there.
-  if (plaid.plaidEnv() === 'production') {
+  /* Verify Plaid's signed JWT before trusting the body.
+     Gating this on plaidEnv() alone was too narrow: a deployed server pointed
+     at Plaid sandbox is still reachable from the internet, and this endpoint
+     drives billable Plaid calls (syncItem) and item status for any item_id a
+     caller names. So the signature is required whenever the server itself is
+     in production, not only when Plaid is.
+     Plaid genuinely does not sign sandbox webhooks, so local development needs
+     a way through — PLAID_ALLOW_UNSIGNED_WEBHOOKS=1. It is ignored outright
+     when Plaid is in production, where the payloads concern real bank data. */
+  if (webhookSignatureRequired()) {
     const ok = await plaid.verifyWebhook(req.headers['plaid-verification'], req.rawBody);
     if (!ok) return sendError(res, 401, 'bad-signature');
   }
@@ -662,6 +679,9 @@ module.exports.mergePlaidTransactions = mergePlaidTransactions;
 // Exposed for tests: the review queue spans every linked bank, so syncing one
 // must not drop the proposals belonging to another.
 module.exports.refreshBalanceProposals = refreshBalanceProposals;
+// Exposed for tests + the boot-time warning: whether an unsigned webhook is
+// accepted is a security decision worth asserting on directly.
+module.exports.webhookSignatureRequired = webhookSignatureRequired;
 // Exposed for tests: a confident digits/issuer match is written onto the card,
 // which is what makes spending attribution and the editor's picker agree.
 module.exports.autoLinkCards = autoLinkCards;

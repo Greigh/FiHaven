@@ -181,6 +181,14 @@
   margin-top: 18px;
 }
 
+/* Same trap as .auth-consent and .settings-panel below: `display` here beats
+   the UA's `[hidden] { display: none }`, so a field JS marks hidden renders
+   anyway. Settings toggles seven of these — the Budget period's start-day /
+   window-length / start-window fields, the Budget rule's custom split, extra
+   debt payment and envelope rollover, and the emailed-code field that stands
+   in for the password prompt on Apple/Google accounts — and every one of them
+   was on screen in every mode. */
+.auth-field[hidden] { display: none; }
 .auth-field {
   display: grid;
   gap: 6px;
@@ -494,6 +502,20 @@
   gap: 16px;
 }
 .settings-panel[hidden] { display: none; }
+
+/* The browser-push buttons. The layout used to be an inline style, and an
+   inline `display` beats every stylesheet — including the UA's `[hidden]`
+   rule — so the row stayed on screen on a server with no VAPID keys, offering
+   an "Enable browser notifications" button next to the "this browser doesn't
+   support push" line it was supposed to replace. */
+.webpush-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.webpush-actions[hidden] { display: none; }
 
 /* Settings sections reuse the .auth-card markup, but inside a panel we
    give them the app's flatter .card look (see components.css .card) so
@@ -900,23 +922,25 @@
   border-radius: 4px;
 }
 /* Full-color official marks: authored for a white page, so they sit on a
-   light plate in both themes rather than being tinted. Width follows the
-   mark's aspect ratio (--logo-aspect, set inline beside aspect-ratio), capped
-   so a 4:1 wordmark can't push the name column around — the 48x32 chip has
-   room for 42px of it. Height derives from the width rather than being fixed,
-   so a mark past the cap scales down whole and the plate hugs it; a fixed
-   height left a wordmark like Bilt's letterboxed in white bands. */
+   light plate in both themes rather than being tinted. The plate is square
+   and the size of every other mark in the row, with the mark scaled whole
+   inside it — letting a 4:1 wordmark like US Bank's set its own width
+   flattened it to a strip and pushed the text beside it out of line with
+   its neighbours. The card chip below is the exception: a fixed 48x32 tile
+   has room to give the mark its full width without moving anything. */
 .icon-mark-img.icon-mark-plate {
-  width: min(2.01em, calc(1.15em * var(--logo-aspect, 1)));
-  height: auto;
-  max-width: none;
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
   background: #fff;
   border-radius: 3px;
   padding: 1px;
-  box-sizing: content-box;
+  box-sizing: border-box;
 }
 /* Inside a card chip the chip itself is the plate (see .card-row-chip.is-plate),
-   so the mark doesn't carry a second one. */
+   so the mark doesn't carry a second one — and the chip's fixed 48x32 leaves
+   room for up to 42px of a wordmark, with the height following the aspect
+   ratio set inline so the mark scales down whole rather than letterboxing. */
 .card-row-chip .icon-mark-img.icon-mark-plate {
   width: min(42px, calc(24px * var(--logo-aspect, 1)));
   height: auto;

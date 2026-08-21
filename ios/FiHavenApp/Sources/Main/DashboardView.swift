@@ -5,6 +5,8 @@ import FiHavenCore
 /// store's derived values (Income / Schedule from FiHavenCore).
 struct DashboardView: View {
     @EnvironmentObject var store: AppStore
+    /// Per-device snooze queue (never synced) — see SnoozeStore.
+    @ObservedObject private var snoozeStore = SnoozeStore.shared
     @State private var paying: PayTarget?
     @State private var skipPrompt: SkipPrompt?
     @State private var editingBill: Bill?
@@ -167,21 +169,45 @@ struct DashboardView: View {
     }
 
     // ── Upcoming ─────────────────────────────────────────────────────
+    /// What the dashboard actually lists: the store's rows (already filtered
+    /// by the hide-paid setting) minus anything snoozed on this device.
+    private var visibleUpcoming: [UpcomingItem] {
+        store.dashboardUpcoming.filter { !snoozeStore.isSnoozed($0) }
+    }
+
+    /// Snoozed rows worth offering back. One that has since been paid stays
+    /// gone — un-snoozing it would only put a settled row on the list.
+    private var snoozedUpcoming: [UpcomingItem] {
+        store.upcoming.filter { snoozeStore.isSnoozed($0) && !store.isFullyPaid($0) }
+    }
+
     private var upcomingSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // Both lists are built from the same `upcoming` rebuild, hoisted out
+        // of the view body so a redraw doesn't recompute the schedule once
+        // per branch that reads it.
+        let visible = visibleUpcoming
+        let snoozed = snoozedUpcoming
+        return VStack(alignment: .leading, spacing: 10) {
             Text("Upcoming")
                 .font(Theme.ui(13, weight: .semibold))
                 .tracking(0.4)
                 .foregroundStyle(Theme.muted)
 
-            if store.dashboardUpcoming.isEmpty {
+            if visible.isEmpty && snoozed.isEmpty {
                 Text(store.loaded ? "Nothing scheduled — add a bill or card." : "Loading…")
+                    .font(Theme.ui(15))
+                    .foregroundStyle(Theme.muted)
+                    .ctCard()
+            } else if visible.isEmpty {
+                // Everything left is snoozed: say so, rather than claiming
+                // there is nothing scheduled (mirrors web's "Nothing on deck").
+                Text("Nothing on deck — \(snoozed.count) item\(snoozed.count == 1 ? "" : "s") snoozed for today.")
                     .font(Theme.ui(15))
                     .foregroundStyle(Theme.muted)
                     .ctCard()
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(store.dashboardUpcoming.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, item in
                         if index > 0 { Divider().overlay(Theme.border) }
                         UpcomingRow(
                             item: item,
@@ -201,6 +227,7 @@ struct DashboardView: View {
                             },
                             onSkip: { requestSkip(item) },
                             onUnskip: { store.unskip(type: item.type, refId: item.refId) },
+                            onSnooze: { snoozeStore.snooze(item, tz: store.tz) },
                             onConfirmZero: { store.confirmZeroAmount(type: item.type, refId: item.refId) }
                         )
                         .contentShape(Rectangle())
@@ -218,6 +245,9 @@ struct DashboardView: View {
                             Button { edit(item) } label: {
                                 Label(item.type == "bill" ? "Edit bill" : "Edit card", systemImage: "pencil")
                             }
+                            Button { snoozeStore.snooze(item, tz: store.tz) } label: {
+                                Label("Snooze until tomorrow", systemImage: "moon.zzz")
+                            }
                             if store.isSkipped(item) {
                                 Button { store.unskip(type: item.type, refId: item.refId) } label: {
                                     Label("Un-skip \(store.periodNoun(item))", systemImage: "arrow.uturn.backward")
@@ -232,6 +262,53 @@ struct DashboardView: View {
                 }
                 .ctCard(padding: 0)
             }
+
+            if !snoozed.isEmpty { snoozedBlock(snoozed) }
+        }
+    }
+
+    /// The snoozed queue, offered back one tap at a time. Web shows the same
+    /// list as chips under Upcoming; full-width rows read better on a phone.
+    private func snoozedBlock(_ snoozed: [UpcomingItem]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("💤 Snoozed until tomorrow")
+                    .font(Theme.ui(13, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Text("\(snoozed.count)")
+                    .font(Theme.mono(12))
+                    .foregroundStyle(Theme.muted)
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(snoozed.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 { Divider().overlay(Theme.border) }
+                    Button { snoozeStore.unsnooze(item) } label: {
+                        HStack(spacing: 12) {
+                            IconMark(icon: item.icon, size: 18)
+                            Text(item.name)
+                                .font(Theme.ui(14))
+                                .foregroundStyle(Theme.text)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(Money.fmt(store.remaining(item)))
+                                .font(Theme.mono(13))
+                                .foregroundStyle(Theme.muted)
+                            Text("Un-snooze")
+                                .font(Theme.ui(12, weight: .medium))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(item.name), snoozed until tomorrow, \(Money.fmt(store.remaining(item)))")
+                    .accessibilityHint("Double tap to un-snooze")
+                }
+            }
+            .ctCard(padding: 0)
         }
     }
 
@@ -421,6 +498,7 @@ private struct UpcomingRow: View {
     let onUnmark: () -> Void
     let onSkip: () -> Void
     let onUnskip: () -> Void
+    var onSnooze: () -> Void = {}
     var onConfirmZero: () -> Void = {}
 
     var body: some View {
@@ -473,7 +551,7 @@ private struct UpcomingRow: View {
             .accessibilityHint("Double tap to edit")
 
             // Actions spelled out, matching the Bills tab and the web dashboard.
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 Text(statusLine)
                     .font(Theme.ui(12))
                     .foregroundStyle(skipped ? Theme.muted : labelColor)
@@ -492,9 +570,13 @@ private struct UpcomingRow: View {
                     // the row for one period and leave the real gap unanswered.
                     // "It's $0" settles it for good, in a tap.
                     quickAction("It's $0", Theme.muted, onConfirmZero)
+                    quickAction("Snooze", Theme.muted, onSnooze)
                     quickAction("Pay", Theme.accent, onPay)
                 } else {
                     quickAction("Skip", Theme.muted, onSkip)
+                    // Hide the row until tomorrow — a "seen it, not today"
+                    // gesture, kept on this device only (web parity).
+                    quickAction("Snooze", Theme.muted, onSnooze)
                     quickAction("Pay", Theme.accent, onPay)
                 }
             }

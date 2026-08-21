@@ -59,8 +59,15 @@
   // The Income tab keeps its own period offset: adjustments are anchored
   // to a month, so you need to be able to walk to one to add or edit it.
   let monthOffset = $state(0);
-  let incomes     = $state(readIncomes());
-  let adjustments = $state(readAdjustments());
+  // Both lists are DERIVED from settings, never copied into local state. The
+  // tab is mounted once and never re-mounted, so a boot-time snapshot would go
+  // stale the moment anything replaced `settings` underneath it — which is
+  // exactly what a bank sync does (syncBanks → pullFromServer → setSettings).
+  // A snapshot didn't just show yesterday's paychecks: the totals below read
+  // `settings` directly, so list and total disagreed, and the next keystroke
+  // wrote the stale array back over the fresher server copy.
+  let incomes     = $derived(readIncomes());
+  let adjustments = $derived(readAdjustments());
 
   let periodBnds = $derived(shiftPeriod(currentPeriod(), monthOffset));
   // The month a new one-time adjustment belongs to. NOT the period key —
@@ -70,33 +77,33 @@
   let adjLabel   = $derived(adjustmentsLabelFor(getPeriodConfig()));
 
   /* ── Income mutations (write through to storage) ─────────── */
-  function persist() {
-    settings.incomes = incomes.map((s) => ({
+  // Every mutation reads the current derived list, applies the change, and
+  // writes the whole list straight back to `settings` — so what is edited is
+  // always whatever the store holds *now*, not what it held at mount.
+  function writeIncomes(list) {
+    settings.incomes = list.map((s) => ({
       id: s.id, label: s.label, amount: parseFloat(s.amount) || 0, frequency: s.frequency,
       hoursPerWeek: s.frequency === 'hourly' ? (parseFloat(s.hoursPerWeek) || 0) : undefined,
     }));
     // Keep the legacy single `settings.income` field synced to the base
     // recurring total for any consumer that still falls back to it.
-    settings.income = baseMonthlyIncome;
+    settings.income = list.reduce((sum, src) => sum + monthlyOf(src), 0);
     save('fh_settings', settings);
   }
 
   function addIncome() {
-    incomes = [...incomes, freshSource()];
-    persist();
+    writeIncomes([...incomes, freshSource()]);
   }
   function removeIncome(i) {
-    incomes = incomes.filter((_, idx) => idx !== i);
-    persist();
+    writeIncomes(incomes.filter((_, idx) => idx !== i));
   }
   function updateIncome(i, patch) {
-    incomes = incomes.map((s, idx) => idx === i ? { ...s, ...patch } : s);
-    persist();
+    writeIncomes(incomes.map((s, idx) => idx === i ? { ...s, ...patch } : s));
   }
 
   /* ── Adjustment mutations ────────────────────────────────── */
-  function persistAdjustments() {
-    settings.incomeAdjustments = adjustments.map(normalizeAdjustment);
+  function writeAdjustments(list) {
+    settings.incomeAdjustments = list.map(normalizeAdjustment);
     save('fh_settings', settings);
   }
   function addAdjustment(kind) {
@@ -104,21 +111,18 @@
     // landed today, so start there; in any other month there is no day to
     // guess and the field opens empty.
     const today = ymd();
-    adjustments = [...adjustments, normalizeAdjustment({
+    writeAdjustments([...adjustments, normalizeAdjustment({
       kind,
       monthKey: kind === 'once' ? mk : '',
       date: kind === 'once' && monthOf(today) === mk ? today : '',
       startMonth: kind === 'recurring' ? mk : '',
-    })];
-    persistAdjustments();
+    })]);
   }
   function removeAdjustment(id) {
-    adjustments = adjustments.filter((a) => a.id !== id);
-    persistAdjustments();
+    writeAdjustments(adjustments.filter((a) => a.id !== id));
   }
   function updateAdjustment(id, patch) {
-    adjustments = adjustments.map((a) => (a.id === id ? { ...a, ...patch } : a));
-    persistAdjustments();
+    writeAdjustments(adjustments.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }
   // The date a one-time change landed. The input is clamped to the month the
   // row is filed under, but a typed-in date can still escape that, so the
@@ -136,12 +140,13 @@
   }
 
   /* ── Totals ──────────────────────────────────────────────── */
-  // The list comes from the normalized local copy — those records are the ones
-  // the editors mutate, and normalizing guarantees every row has an id to key on.
-  // The filter is period-aware, so a period straddling two months lists both.
+  // The list is the normalized view of settings.incomeAdjustments — normalizing
+  // guarantees every row has an id to key on. The filter is period-aware, so a
+  // period straddling two months lists both.
   let periodAdjustments  = $derived(adjustmentsForPeriod({ incomeAdjustments: adjustments }, periodBnds));
-  // Totals go through settings (persist() writes on every edit) so they use the
-  // same period-aware maths as the dashboard and Budget.
+  // Totals go through settings so they use the same period-aware maths as the
+  // dashboard and Budget — and they can no longer disagree with the list above,
+  // which now derives from the same place.
   let periodAdjustTotal  = $derived(adjustmentsTotalForPeriod(settings, periodBnds));
   let baseMonthlyIncome  = $derived(incomes.reduce((s, src) => s + monthlyOf(src), 0));
   let effectiveIncome    = $derived(periodIncome(settings, periodBnds));

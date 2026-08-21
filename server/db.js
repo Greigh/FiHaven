@@ -434,6 +434,30 @@ db.exec(`
 // many rows can share NULL without a clash).
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ical_token ON users(ical_token) WHERE ical_token IS NOT NULL`);
 
+/* A device token identifies a physical device, so exactly one account may hold
+   it. The original PRIMARY KEY (user_id, token) allowed several: anyone who
+   learned another user's APNs/FCM token could register it against their own
+   account and have that device receive their notifications — and bill names are
+   free text, so those notifications say whatever the sender wants. Dedupe any
+   rows already in that state (newest registration wins, which is the device's
+   real current owner) before the index makes it impossible. */
+(function migratePushDeviceTokenOwnership() {
+  // Drop every row that has a strictly better sibling for the same token, so
+  // exactly one survives. Ties on updated_at break on rowid — without that a
+  // tie would leave two rows and the index below would fail to build.
+  db.exec(`
+    DELETE FROM push_devices
+     WHERE EXISTS (
+       SELECT 1 FROM push_devices AS q
+        WHERE q.token = push_devices.token
+          AND (q.updated_at > push_devices.updated_at
+               OR (q.updated_at = push_devices.updated_at
+                   AND q.rowid > push_devices.rowid))
+     );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_push_devices_token ON push_devices(token);
+  `);
+})();
+
 /* ── prepared statements ─────────────────────────────────────── */
 
 const stmt = {
@@ -705,8 +729,14 @@ const stmt = {
   setPromoActive: db.prepare(
     `UPDATE promo_codes SET active = ? WHERE code = ?`
   ),
+  // The cap is enforced in the UPDATE itself, not by a read beforehand: under
+  // PM2 cluster mode two processes can both pass a separate `redeemed_count <
+  // max_redemptions` check and both redeem. Here SQLite's write lock decides,
+  // and a caller that loses the race sees 0 changes.
   bumpPromoRedeemed: db.prepare(
-    `UPDATE promo_codes SET redeemed_count = redeemed_count + 1 WHERE code = ?`
+    `UPDATE promo_codes SET redeemed_count = redeemed_count + 1
+      WHERE code = ?
+        AND (max_redemptions IS NULL OR redeemed_count < max_redemptions)`
   ),
   insertPromoRedemption: db.prepare(
     `INSERT INTO promo_redemptions (code, user_id, redeemed_at, grant_expires_at)
@@ -862,9 +892,17 @@ const stmt = {
   ),
 
   /* ── Push device tokens (APNs / FCM) ─────────────────────────── */
+  // Conflict is resolved on `token` alone, so registering transfers the device
+  // to the registering account rather than adding a second owner. That is the
+  // behaviour you want when someone signs out of one account and into another
+  // on the same handset: the previous account's reminders stop arriving there,
+  // instead of both accounts pushing to it forever.
   upsertPushDevice: db.prepare(
     `INSERT INTO push_devices (user_id, platform, token, updated_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(user_id, token) DO UPDATE SET platform = excluded.platform, updated_at = excluded.updated_at`
+     ON CONFLICT(token) DO UPDATE SET
+       user_id = excluded.user_id,
+       platform = excluded.platform,
+       updated_at = excluded.updated_at`
   ),
   deletePushDevice: db.prepare(
     `DELETE FROM push_devices WHERE user_id = ? AND token = ?`
@@ -1252,7 +1290,9 @@ function listPromoCodes(limit) {
 function setPromoActive(code, active) {
   return stmt.setPromoActive.run(active ? 1 : 0, code).changes;
 }
-function bumpPromoRedeemed(code)        { stmt.bumpPromoRedeemed.run(code); }
+// Returns true when this call is the one that claimed a slot; false when the
+// code was already exhausted (see the statement for why the check lives there).
+function bumpPromoRedeemed(code)        { return stmt.bumpPromoRedeemed.run(code).changes > 0; }
 function insertPromoRedemption(row)     { stmt.insertPromoRedemption.run(row); }
 function findPromoRedemption(code, userId) {
   return stmt.findPromoRedemption.get(code, userId);

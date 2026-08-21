@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -311,9 +311,9 @@ private fun BillRow(
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(Money.fmt(bill.amountOrZero), color = Ct.colors.text, fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold, fontFamily = PlexMono)
+                        fontWeight = FontWeight.SemiBold, style = MonoNumerals)
                     if (bill.autopay) Text(bill.autopayDay?.let { "autopay · day $it" } ?: "autopay",
-                        color = Ct.colors.muted, fontSize = 9.sp, fontFamily = PlexMono)
+                        color = Ct.colors.muted, fontSize = 9.sp, style = MonoNumerals)
                 }
             }
             // Actions carry their own 48dp padding now, so the row needs less
@@ -477,7 +477,7 @@ private fun BillsSummaryCard(due: Double, left: Double, count: Int) {
                 color = if (allPaid) Ct.colors.green else Ct.colors.text,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.ExtraBold,
-                fontFamily = PlexMono,
+                style = MonoNumerals,
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${Money.fmt(due)} due this period", color = Ct.colors.muted, fontSize = 12.sp)

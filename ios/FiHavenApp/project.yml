@@ -188,7 +188,7 @@ targets:
         # support thread. Only iOS moved; Android's 49 is its natural next.
         # This is one-way — App Store Connect refuses a CFBundleVersion at or
         # below one already uploaded — so both platforms bump together now.
-        CURRENT_PROJECT_VERSION: "50"
+        CURRENT_PROJECT_VERSION: "51"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         # Swift 5 language mode keeps the first builds free of strict-

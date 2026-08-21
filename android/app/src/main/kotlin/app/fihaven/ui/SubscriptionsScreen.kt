@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -156,7 +156,7 @@ private fun SubscriptionsCard(
                 Text("SUBSCRIPTIONS", color = Ct.colors.muted, fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text("${Money.fmt(total)}/mo · ${tracked.size} tracked", color = Ct.colors.muted,
-                    fontSize = 12.sp, fontFamily = PlexMono)
+                    fontSize = 12.sp, style = MonoNumerals)
             }
             Column(Modifier.padding(top = 6.dp)) {
                 if (detectMode == "inbox") {
@@ -300,7 +300,7 @@ private fun SubscriptionRow(
                 }
             }
         }
-        Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, fontFamily = PlexMono)
+        Text("${Money.fmt(s.monthly)}/mo", color = Ct.colors.text, fontSize = 13.sp, style = MonoNumerals)
     }
 }
 

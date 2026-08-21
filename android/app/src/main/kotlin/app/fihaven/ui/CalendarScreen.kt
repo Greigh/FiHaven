@@ -1,6 +1,6 @@
 package app.fihaven.ui
 
-import app.fihaven.ui.theme.PlexMono
+import app.fihaven.ui.theme.MonoNumerals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -96,7 +96,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 listOf("S", "M", "T", "W", "T", "F", "S").forEach {
-                    Text(it, color = Ct.colors.muted, fontSize = 11.sp, fontFamily = PlexMono,
+                    Text(it, color = Ct.colors.muted, fontSize = 11.sp, style = MonoNumerals,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.weight(1f))
                 }
             }
@@ -145,7 +145,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                 IconMark(icon = it.icon, size = 18.dp, modifier = Modifier.padding(end = 8.dp))
                                 Text(it.name, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
                                 Text(Money.fmt(it.amount), color = Ct.colors.text, fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium, fontFamily = PlexMono)
+                                    fontWeight = FontWeight.Medium, style = MonoNumerals)
                             }
                         }
                     }

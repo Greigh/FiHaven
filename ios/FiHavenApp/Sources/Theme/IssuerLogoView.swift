@@ -90,25 +90,31 @@ struct IssuerMonogramView: View {
 /// A monochrome mark is a square tinted to stay legible on the current
 /// theme. A full-color mark keeps its own colors on a light plate — it was
 /// drawn for a white page, and Bilt's black wordmark would otherwise vanish
-/// on the dark theme — and keeps its own aspect ratio, capped in width so a
-/// 4:1 wordmark can't push the row's text around. Past the cap the height
-/// comes down with it and the plate shrinks to match, the way the web's
-/// does; a full-height plate left a wordmark floating in white bands.
+/// on the dark theme.
+///
+/// That plate is square and exactly `size`, like every other mark a row can
+/// get, with the mark scaled whole to fit inside it — so a 4:1 wordmark like
+/// US Bank's reads as a logo tile and every row's text starts at the same
+/// place. Sizing the plate to the mark instead (as the web's fixed 48x32 chip
+/// can afford to) flattened a wordmark into a strip and shoved the name
+/// column right on exactly the rows that carry one.
 struct IssuerLogoView: View {
     let key: String
     var size: CGFloat = 22
     var fallbackEmoji: String = "💳"
 
-    /// Widest a mark may render, as a multiple of its height. Matches the
-    /// 42px cap the web's 48x32 card chip allows a 24px-tall mark.
-    static let maxAspect: CGFloat = 1.75
+    /// Gap between a full-color mark and the edge of its plate, as a fraction
+    /// of the plate. Enough that the plate reads as a tile around the mark
+    /// rather than a box clamped onto it.
+    static let plateInset: CGFloat = 0.0625
 
     var body: some View {
         if let layers = IssuerLogoCache.lookup(key), let logo = IssuerLogos.logo(key) {
             if logo.isFullColor {
                 let aspect = CGFloat(logo.aspect)
-                let width = min(size * aspect, size * Self.maxAspect)
-                let height = aspect > Self.maxAspect ? size * Self.maxAspect / aspect : size
+                let inner = size * (1 - 2 * Self.plateInset)
+                let width = aspect >= 1 ? inner : inner * aspect
+                let height = aspect >= 1 ? inner / aspect : inner
                 ZStack {
                     ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
                         IssuerLogoShape(segments: layer.segments, viewBoxWidth: logo.width)
@@ -116,11 +122,11 @@ struct IssuerLogoView: View {
                     }
                 }
                 .frame(width: width, height: height)
-                .padding(1)
+                .frame(width: size, height: size)
                 .background(
-                    // A short, wide plate needs a smaller radius than a square
-                    // one, or the corners eat the mark.
-                    RoundedRectangle(cornerRadius: max(2, min(size * 0.18, height * 0.25)), style: .continuous)
+                    // Same corner as the monogram chip: the two are siblings
+                    // in a list, one carrying a mark and the other initials.
+                    RoundedRectangle(cornerRadius: max(3, size * 0.22), style: .continuous)
                         .fill(Theme.logoPlate)
                 )
             } else {

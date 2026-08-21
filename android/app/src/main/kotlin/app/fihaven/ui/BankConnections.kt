@@ -358,19 +358,26 @@ fun BankConnections(vm: AppViewModel) {
                         "anything you typed. You can change this any time on this screen.",
                 )
             },
+            // Three choices, two of them far too long to sit on one line: the
+            // dialog's own action row flows the dismiss button back alongside
+            // them and they collide. Stack all three in the confirm slot,
+            // end-aligned like every other dialog's actions, and leave the
+            // dismiss slot empty so nothing is laid out beside them.
             confirmButton = {
-                Column {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
                     TextButton(onClick = { applyImportChoice(purchases = true, balances = false) }) {
                         Text("Import my purchases", color = Ct.colors.accent)
                     }
                     TextButton(onClick = { applyImportChoice(purchases = true, balances = true) }) {
                         Text("Purchases + suggest balances", color = Ct.colors.accent)
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showImportPrompt = false }) {
-                    Text("Not now", color = Ct.colors.muted)
+                    TextButton(onClick = { showImportPrompt = false }) {
+                        Text("Not now", color = Ct.colors.muted)
+                    }
                 }
             },
             containerColor = Ct.colors.surface,

@@ -374,6 +374,13 @@ router.get('/export', requireAuth, requireVerified, (req, res) => {
     bills: data.bills,
     cards: data.cards,
     payments: data.payments,
+    // The other three lists the account holds. They were missing, so the file
+    // offered as "All data" / "a full JSON backup" quietly excluded net-worth
+    // accounts, savings goals, and imported bank transactions — and restoring
+    // from it could not bring back what it never carried.
+    accounts: data.accounts,
+    goals: data.goals,
+    transactions: data.transactions,
     settings: data.settings,
   };
   res.setHeader('Content-Type', 'application/json; charset=utf-8');

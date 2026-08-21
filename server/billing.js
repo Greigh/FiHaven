@@ -547,6 +547,8 @@ function redeemPromo(user, codeRaw) {
 
   const now = Date.now();
   if (promo.expires_at && promo.expires_at < now) return { error: 'code-expired' };
+  // Cheap pre-checks so the common rejections answer without opening a write
+  // transaction. They are NOT what enforces the limits — see below.
   if (promo.max_redemptions != null && promo.redeemed_count >= promo.max_redemptions) {
     return { error: 'code-exhausted' };
   }
@@ -557,16 +559,29 @@ function redeemPromo(user, codeRaw) {
       ? now + promo.grant_days * DAY_MS
       : null;
 
+  /* Both limits are re-decided inside the transaction, because the reads above
+     can go stale between here and the write — under PM2 cluster mode two
+     processes race, and a `max_redemptions: 1` code granted twice is a real
+     subscription given away. The bump is a conditional UPDATE (0 changes means
+     someone else took the last slot) and the duplicate insert trips
+     UNIQUE(code, user_id); either one aborts the whole transaction. */
   const apply = dbApi.db.transaction(() => {
+    if (!dbApi.bumpPromoRedeemed(promo.code)) throw new Error('code-exhausted');
     dbApi.insertPromoRedemption({
       code: promo.code,
       user_id: user.id,
       redeemed_at: now,
       grant_expires_at: grantExpiresAt,
     });
-    dbApi.bumpPromoRedeemed(promo.code);
   });
-  apply();
+  try {
+    apply();
+  } catch (err) {
+    if (err && err.message === 'code-exhausted') return { error: 'code-exhausted' };
+    // The UNIQUE constraint is the authoritative "one redemption per user".
+    if (err && /UNIQUE/.test(String(err.message))) return { error: 'already-redeemed' };
+    throw err;
+  }
 
   if (promo.kind === 'store_offer') {
     return {
