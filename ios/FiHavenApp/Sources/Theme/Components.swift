@@ -291,12 +291,23 @@ struct PercentField: View {
 
 /// Render a [CategoryIcon] — emoji glyph, a decoded data-URI image, or a
 /// bundled issuer brand mark.
+///
+/// `slot` fixes the width the icon occupies, whatever it turns out to be.
+/// Pass it in a list that mixes bills with cards: an issuer's tile is wider
+/// than a bill's emoji, and without a slot every row's text would start at a
+/// different place. `IssuerTile.width(size)` is the width to ask for.
 struct IconMark: View {
     let icon: CategoryIcon
     var size: CGFloat = 22
     var fallbackEmoji: String = "📌"
+    var slot: CGFloat? = nil
 
     var body: some View {
+        mark.frame(width: slot)
+    }
+
+    @ViewBuilder
+    private var mark: some View {
         switch icon {
         case .emoji(let glyph):
             Text(glyph)

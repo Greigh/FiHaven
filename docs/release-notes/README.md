@@ -40,6 +40,9 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.2](v1.6.2/ios52-android52.md) | iOS 52 · Android 52 | 2026-08-22 | A credit-card payment stops counting as spending, so budgets, rewards and the spending charts stop double-counting; imported transaction names arrive readable and a re-filed category sticks; one issuer tile on every platform. Ships a stored XSS fix and hashes session ids at rest (**needs server deploy; signs everyone out once**) |
+| [1.6.2](v1.6.2/ios51-android51.md) | iOS 51 · Android 51 | 2026-08-20 | Snooze a dashboard row until tomorrow; issuer logos get a square plate; Android figures line up in tabular numerals. Mostly server-side security work, plus a three-way sync merge (**needs server deploy; migrates the database**) |
+| [1.6.2](v1.6.2/ios50-android50.md) | iOS 50 · Android 50 | 2026-08-15 | Account Balances becomes its own tab; a one-time income adjustment keeps the date it landed when edited there |
 | [1.6.2](v1.6.2/ios49-android49.md) | iOS 49 · Android 49 | 2026-08-13 | Income becomes its own tab, and adjustments start working on start-day/rolling periods and on date-stamped legacy rows; reminders stop firing for already-paid bills; the Pro screen shows real prices; a mistyped signup address is recoverable; admin console on the phones (**needs server deploy**) |
 | [1.6.1](v1.6.1/ios27-android48.md) | iOS 27 · Android 48 | 2026-08-10 | Loans stop counting as card debt on every platform; household splits out Loan debt; utilization reads the live balance; Card debt reaches the phone dashboards. Ships with a web release: AI assistants can read the site, share previews work, three comparison pages, reframed dashboard |
 | [1.6.1](v1.6.1/ios26-android47.md) | iOS 26 · Android 47 | 2026-08-07 | Cards lead with what to pay this period, not the statement balance; wide issuer logos stop being letterboxed |

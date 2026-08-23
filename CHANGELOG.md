@@ -13,7 +13,255 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.2 build 51] Current Pre-Release — 2026-08-20
+## [1.6.2 build 52] Current Pre-Release — 2026-08-22
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.2 (52) — **a credit-card payment no longer counts as spending**, so budgets, rewards and the spending charts stop double-counting purchases you already paid for. Bank transaction names arrive readable. Issuer logos sit on one tile, whatever shape the logo is. |
+| **Android** | 1.6.2 (versionCode 52) — the same transfer fix, the same cleaned-up transaction names, the same issuer tile. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — **fixes a stored cross-site scripting hole on the dashboard** that a household member could reach across a Family plan |
+| **Server** | **Security release.** The XSS above, and **session ids are now hashed at rest** so a copy of the database is no longer a set of working logins. **Includes a DB migration, and everyone is signed out once** — see below |
+
+> **Same marketing version, new build.** 1.6.2 stays; the build number goes
+> 51 → 52 on both stores together, which is the rule from build 49 onward
+> (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in
+> `android/app/build.gradle.kts`).
+
+> **⚠️ Everyone is signed out exactly once when this server deploys.** The
+> `sessions` table is rekeyed from the raw session id to its SHA-256 hash. The
+> old rows cannot be converted — hashing needs the raw id, and keeping that is
+> the whole problem — so they are dropped. Web users log in again; the iOS and
+> Android apps meet a 401 on their next request and route to the login screen,
+> which is a path both already handle. It happens once per database. Back up
+> `data/` before deploying (the deploy script does this on its own).
+
+### Summary
+
+> The security half of this build is two holes, one of which was reachable by
+> another person.
+>
+> The dashboard's "Needs attention" alerts were built as HTML strings with card
+> and bill names pasted in raw, then handed to the DOM unescaped. A name is
+> whatever the user typed — and on a Family plan, whatever a *different* member
+> typed, because a household folds everyone's cards and bills into the same
+> lists. So one member could name a card in a way that ran code in another
+> member's browser, on a page holding that person's whole financial picture and
+> a live session. The attacker even controlled the trigger: their own balance
+> and limit decide whether the utilization alert fires at all. None of those
+> alerts needed markup — they are sentences with a couple of bold runs — so
+> they are now built as text and a test refuses to let `{@html}` back into any
+> component.
+>
+> The second was quieter. Session ids sat in the database in plaintext while
+> everything else the server keeps was already protected: email tokens and
+> OAuth codes hashed, Plaid tokens and your data encrypted. A leaked backup or
+> a compromised host therefore handed over working logins rather than
+> ciphertext, and the phones made that worse — a native session lasts 30 days.
+> Only the hash is stored now, so what a database reader walks away with is not
+> a login. The cost is one forced sign-out, which is the note above.
+>
+> The rest of the build is about money that was being counted twice. Paying
+> your credit card is not spending — the purchases that payment settles were
+> already counted when they posted — but the payment landed in the transaction
+> feed like anything else and got added to your budget, your category totals,
+> your rewards estimate and your cashflow chart. On a card you pay off monthly
+> that is a second copy of nearly everything you bought. Transfers are now
+> excluded everywhere, on all three platforms, and if the bank's category was
+> too vague to tell, the descriptor is read as a fallback.
+>
+> Those descriptors are also just easier to read now. `BILT CARD
+> PMT~Future Amount: 4070.00~REF 90210` becomes `Bilt Card Payment`: the bank's
+> own bookkeeping after the tilde is dropped, processor prefixes like `SQ *`
+> and trailing reference numbers go, and an all-caps descriptor stops shouting.
+> Re-filing a transaction into a different category still sticks — the importer
+> now records what *it* chose separately, so a later pass can tell its own guess
+> from your correction and leaves the correction alone.
+>
+> And the issuer logos are finally right. Build 51 put them on a plate, which
+> helped the square ones and did nothing for the wide ones. The tile was being
+> sized to the logo rather than the logo fitted into the tile, so a wordmark
+> like US Bank's still pushed its row's name further right than its neighbours',
+> and a white plate beside a solid brand tile read as two different designs. One
+> tile now, one content box inside it, the same proportions on web, iOS and
+> Android, and the mark is never stretched to fill anything.
+
+### Technical changelog
+
+**Stored XSS in the dashboard alerts (`client/svelte/DashboardView.svelte`, `client/js/htmlSinks.test.js`)**
+
+`alerts` was a list of `{ html }` strings assembled with template literals —
+`` `💳 <strong>${c.name}</strong> — ${util}% credit utilization…` `` — and
+rendered with `{@html a.html}`. Card and bill names are free text and reach
+this list through `householdMerge.js`, so on a Family plan the name came from
+another member's account. That is a stored XSS across a trust boundary, on the
+page that holds the victim's whole dataset and an authenticated session.
+
+Alerts now carry data, not markup: `{ type, icon, name, body }` where `body` is
+a list of `{ text, strong }` segments, and the template interpolates each one,
+which Svelte escapes. Same output, no sink.
+
+`htmlSinks.test.js` bans `{@html}` across every `.svelte` file so this cannot
+come back quietly — a component that genuinely needs it has to argue for it in
+review, and escape at the point of interpolation. The test strips comments
+first so the prose explaining the ban doesn't trip it.
+
+**Session ids are hashed at rest (`server/db.js`, `server/session.js`, `server/routes/account.js`)**
+
+`sessions.id` was the raw 256-bit session id, in plaintext, as the primary key.
+Anyone able to read `cleartab.db` — a leaked backup, a compromised host, some
+future SQL read primitive — could replay any row straight into an
+authenticated request. Native Bearer sessions last 30 days, so those rows were
+worth the most.
+
+The table is now keyed on `id_hash`, the SHA-256 of the id, matching how
+`email_tokens.token_hash` and `oauth_handoffs.code_hash` have always worked.
+`createSession` mints the id, stores only its hash, and returns the raw value
+on its result object — the one moment it exists outside the client — so the
+cookie and the native Bearer token are unchanged from the client's side.
+`loadSession` and `destroySession` hash before they look up. `req.session`
+carries `id_hash` and deliberately has no `id`, so nothing downstream can log
+or leak a credential; `deleteOtherSessions` compares hashes.
+
+Plain SHA-256, no salt and no stretching, is the right primitive here rather
+than bcrypt: the id is 256 bits of CSPRNG output, so there is nothing to guess
+or precompute, and the lookup has to stay one indexed equality match.
+
+*Migration.* `migrateSessionIdHash` rebuilds the table when it finds the old
+shape, dropping the rows — see the sign-out warning above. It no-ops once
+`id_hash` exists, so a restart does not log everyone out again.
+`tests/integration/sessionAtRest.server.integration.test.js` covers the whole
+claim against a real SQLite file: it signs up, then opens the database on a
+second connection and asserts the raw id appears in no column of no row and
+nowhere in the file bytes (including the `-wal`), that the stored hash is
+rejected as a credential, that logout still deletes the right row, that a
+password change keeps the calling session and evicts the others, and that the
+migration rekeys an old database and is idempotent.
+
+**A transfer is not spending (`client/js/budgetRules.js` and callers, `server/plaidMerge.js`, `Transaction.swift`, `Models.kt`, `Settings.kt`)**
+
+A credit-card payment settles purchases that were already counted when they
+posted. Counting the payment too double-counts them, and on a card paid in full
+each month that is close to a second copy of the whole month.
+
+A `Transfer` category and a `countsAsSpending(t)` gate now sit in
+`budgetRules.js`, and every spend total goes through it: the per-category rows,
+the 50/30/20 split lens, `spendingInsights`, `rewards`, `cashflowHistory`,
+`subscriptionsFinder`. `Transfer` is deliberately absent from `SPENDING_BUCKET`
+— a budget line for it would be meaningless — and is offered only when logging
+a transaction. Mirrored in both native cores.
+
+On the import side, `plaidMerge.js` maps Plaid's
+`LOAN_PAYMENTS_CREDIT_CARD_PAYMENT`, `TRANSFER_OUT_ACCOUNT_TRANSFER` and
+`TRANSFER_OUT_SAVINGS` to `Transfer`. Banks that hand Plaid only a vague
+`LOAN_PAYMENTS` / `TRANSFER_OUT` primary fall back to reading the descriptor,
+and that fallback requires **both** a card word and a payment word, so a
+"PAYMENT" to a utility or a purchase at "CARD SHOP" is not swept up.
+
+**Re-filing a transaction sticks (`server/plaidMerge.js`)**
+
+Plaid re-sends a transaction whenever the bank touches it. `retidyStored` used
+to re-derive the category on every pass, which would have undone a user's
+manual recategorization. The importer now records its own choice as
+`autoCategory` alongside the live `category`; a later pass only rewrites rows
+where the two still agree — i.e. rows nobody has re-filed. Rows imported before
+this shipped have no stamp, so they fall back to "only touch it if it is still
+sitting in the default bucket".
+
+**Bank descriptors are cleaned up (`server/plaidMerge.js`)**
+
+`cleanMerchant` drops everything after the first tilde (the bank's own fields),
+strips processor prefixes (`SQ *`, `TST*`), trailing trace/auth/reference
+numbers and masked card tails, and title-cases an all-caps descriptor with a
+keep-list for genuine acronyms (`ATM`, `CVS`, `LLC`) and an expansion map for
+the common abbreviations (`PMT` → `Payment`). It never cleans a name away
+entirely — a descriptor that is nothing but a reference number still beats a
+blank row.
+
+Two things worth noting in that function. The whitespace run is collapsed
+**first**, before the anchored patterns run: `\s*#?\s*` could split one run of
+spaces between two quantifiers in as many ways as the run is long, and while no
+bank descriptor gets near that, the cost of not depending on it is one line. A
+60,000-space input now takes 0 ms. And the abbreviation lookup uses
+`Object.hasOwn`, not a truthy check — `CONSTRUCTOR` would otherwise find
+`Object.prototype.constructor` and splice a function's source into a merchant
+name.
+
+**An offer is not redeemed by paying the card (`client/js/offers.js`, `Offers.swift`, `Offers.kt`)**
+
+`offerLikelyUsedTx` matches an offer to a transaction on a merchant substring,
+and "AMEX PAYMENT" matches an Amex offer well enough to fire a false "looks
+like you used this offer" prompt. It now requires the transaction to count as
+spending first.
+
+**The server owns both bank-balance queues (`server/routes/data.js`)**
+
+`keepBalanceProposals` protected `plaidBalanceProposals` and returned early when
+the server's copy was empty, leaving whatever the client sent in place. Two
+consequences: the Balances tab's newer `plaidAccountProposals` queue was erased
+by the very next save (which is every save — the client pushes its whole
+settings object), and a client could seed a queue the server never wrote. Both
+queues are now always derived from the server's copy, empty or not.
+Covered by a new case in `dataPartialSave.server.integration.test.js`.
+
+**`Object.assign` into a null-prototype target (`server/routes/data.js`)**
+
+The settings merge used `{}` as its target, so a body carrying a `__proto__`
+key reached `Object.assign`'s `[[Set]]` and swapped that object's prototype —
+flags the client never sent would read as set for the rest of the request.
+Nothing persisted (`JSON.stringify` skips it) and `Object.prototype` was never
+touched, but a null-prototype target closes it outright rather than relying on
+that.
+
+**One issuer tile, everywhere (`client/css/`, `IssuerLogoView.swift`, `IconMark.kt`, `client/js/issuerLogos.js`)**
+
+Build 51's plate helped the square marks and did nothing for the wide ones,
+because the tile was still being sized to the mark. A wordmark therefore set its
+row's leading width and pushed the card name right, and a white plate next to a
+solid brand tile read as two unrelated designs.
+
+Now: one tile at 3:2 with a fixed content box inside it, and the mark fitted
+into that box with `object-fit: contain` (SwiftUI computes the same uniform
+scale by hand in `IssuerLogoShape`; Compose uses `ContentScale.Fit`). Nothing is
+ever stretched. The edge is the brand's own colour at 55% over a neutral floor,
+so a pale brand like Best Buy's yellow still has an edge and a near-black tile
+still has one on the dark theme.
+
+`brandInk(hex)` picks the knockout colour by WCAG relative luminance rather than
+a hand-maintained list — whichever of white or `#15161A` has the better contrast
+ratio against the brand wins. Twelve brands take ink (Discover, Robinhood,
+Barclays, Goldman Sachs, Shell, Venmo, Cash App, Klarna, Afterpay, Wise, N26,
+Best Buy), and the same rule now colours monogram initials, which were
+unconditionally white before — PNC's orange and Amazon's yellow could not carry
+them. The hex parser accepts 6-digit values only; `#FFF` used to parse as a
+dark blue.
+
+The ratios are shared: `IssuerTile.widthRatio 1.5` / `cornerRatio 0.25` /
+`markWidthRatio 1.25` / `markHeightRatio 0.625` on both natives, and the same
+proportions in `.card-row-chip`. The dashboard's smaller upcoming chip is
+33×22, which is `22 × 1.5` — the number both natives produce for a 22 pt tile.
+
+**Also in this build**
+
+- **`spentByCategory` had two copies** (`client/js/budgetRules.js`,
+  `client/js/spendingInsights.js`) — byte-identical, which is how one of them
+  ends up with a gate the other doesn't; the transfer work would have been
+  exactly that. One implementation now, in `budgetRules.js` (the lower-level
+  module, so the import stays acyclic), re-exported from `spendingInsights.js`
+  where callers and the native mirror look for it. The native cores already
+  routed both callers through one function.
+- **`autoCategory` is a synced field**, so it is added to `Transaction.swift`
+  and `SpendTransaction` in `Models.kt` — a native model that doesn't know a
+  field strips it on the next save.
+- **`CtCard`'s slot was a `Box`** (`android/…/ui/theme/Theme.kt`), so a card
+  with more than one child stacked them on top of each other. It is a
+  `ColumnScope` now.
+- Web: 1273 tests across 96 files. iOS core: 1564 checks. Android: `:core:test`
+  and `:app:testDebugUnitTest` green.
+
+---
+
+## [1.6.2 build 51] — 2026-08-20
 
 | | |
 |---|---|

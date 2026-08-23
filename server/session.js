@@ -1,9 +1,11 @@
 /* ═══════════════════════════════════════════════════════════
    session.js — server-side session store on top of SQLite.
-   Sessions are opaque random IDs delivered in an HttpOnly cookie;
-   the data lives in the `sessions` table so logout is a real
-   server-side delete. Also exports the loadSession / requireAuth
-   middleware.
+   Sessions are opaque random IDs delivered in an HttpOnly cookie
+   (or, for native clients, as a Bearer token); the data lives in
+   the `sessions` table so logout is a real server-side delete.
+   Only the SHA-256 of the id is stored, so the database never holds
+   a credential that can be replayed. Also exports the loadSession /
+   requireAuth middleware.
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -23,6 +25,15 @@ const TOKEN_TTL_MS = TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 function newId() {
   return crypto.randomBytes(32).toString('base64url');
+}
+
+// The lookup key for a session row. The raw id is the bearer credential and is
+// never persisted — same rule as tokens.js applies to email tokens. A plain
+// SHA-256 with no salt or stretching is right here (unlike a password): the id
+// is 256 bits of CSPRNG output, so there is nothing to guess or precompute,
+// and the lookup has to be a single indexed equality match.
+function hashId(raw) {
+  return crypto.createHash('sha256').update(String(raw)).digest('hex');
 }
 
 // FiHaven serves at its own domain root, so the session cookie is
@@ -65,8 +76,9 @@ function readSessionId(req) {
 function createSession(res, user, req, opts) {
   const mode = (opts && opts.mode) || 'cookie';
   const now = Date.now();
+  const id = newId();
   const row = {
-    id: newId(),
+    id_hash: hashId(id),
     user_id: user.id,
     csrf_token: newId(),
     created_at: now,
@@ -75,13 +87,16 @@ function createSession(res, user, req, opts) {
     ip: req.ip || null,
   };
   dbApi.insertSession(row);
-  if (mode !== 'token') res.cookie(SESSION_COOKIE, row.id, cookieOpts());
-  return row;
+  if (mode !== 'token') res.cookie(SESSION_COOKIE, id, cookieOpts());
+  // The raw id rides along on the return value only — this is the one moment
+  // it exists outside the client, so the caller either sets it as a cookie
+  // (above) or hands it back as a Bearer token.
+  return { ...row, id };
 }
 
 function destroySession(req, res) {
   const found = readSessionId(req);
-  if (found) dbApi.deleteSession(found.id);
+  if (found) dbApi.deleteSession(hashId(found.id));
   // Harmless for token clients (they have no cookie to clear).
   res.clearCookie(SESSION_COOKIE, { path: COOKIE_PATH });
 }
@@ -117,7 +132,7 @@ function touchSeen(userId) {
 function loadSession(req, res, next) {
   const found = readSessionId(req);
   if (found) {
-    const row = dbApi.findSession(found.id);
+    const row = dbApi.findSession(hashId(found.id));
     if (row && row.expires_at > Date.now()) {
       req.session = row;
       req.authVia = found.via;
@@ -134,7 +149,7 @@ function loadSession(req, res, next) {
         suspendedReason: row.suspended_reason || null,
       };
     } else if (row) {
-      dbApi.deleteSession(found.id);
+      dbApi.deleteSession(row.id_hash);
     }
   }
   next();

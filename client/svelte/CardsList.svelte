@@ -26,6 +26,7 @@
     proposalComparison,
   } from '../js/plaidBalanceReview.js';
   import { boundsForKey, paymentInBounds } from '../js/period.js';
+  import { countsAsSpending } from '../js/budgetRules.js';
   import Sparkline from './Sparkline.svelte';
   import SortFilterBar from './SortFilterBar.svelte';
   import IconMark from './IconMark.svelte';
@@ -40,7 +41,8 @@
     if (!card.plaidAccountId) return null;
     const rows = transactions.filter(
       (t) => t.accountId && String(t.accountId) === String(card.plaidAccountId)
-        && paymentInBounds(t, periodBounds),
+        && paymentInBounds(t, periodBounds)
+        && countsAsSpending(t),
     );
     if (!rows.length) return null;
     return { total: rows.reduce((s, t) => s + (Number(t.amount) || 0), 0), count: rows.length };
@@ -487,9 +489,11 @@
         <header class="card-row-head is-bill-head">
           <div class="card-row-headline">
             <div class="card-row-identity">
+              <!-- `--chip-ring` tints the tile's edge with the brand, which is
+                   what a white plate leans on to read as a tile at all. -->
               <div
                 class="card-row-chip {chipPlated ? 'is-plate' : ''}"
-                style={chipPlated ? '' : `background:${chipColor};`}
+                style="--chip-ring:{chipColor};{chipPlated ? '' : `background:${chipColor};`}"
               ><IconMark info={issuerIconMark(c, { chip: true })} /></div>
               <div class="card-row-naming">
                 <div class="card-row-name">

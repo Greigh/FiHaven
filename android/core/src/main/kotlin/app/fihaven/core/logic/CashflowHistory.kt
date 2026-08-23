@@ -117,6 +117,9 @@ object CashflowHistory {
         val out = mutableMapOf<String, MonthSpending>()
 
         for (t in transactions) {
+            // A card payment is a transfer, not an outflow to plot — the
+            // purchases it settles are already here under their own months.
+            if (!t.countsAsSpending) continue
             val mk = monthKey(t.date)
             if (mk.isEmpty()) continue
             val b = out[mk] ?: MonthSpending()

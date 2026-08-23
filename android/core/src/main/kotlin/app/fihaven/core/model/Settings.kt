@@ -343,10 +343,24 @@ fun JsonObject.withPerkUsage(usage: Map<String, Double>): JsonObject = buildJson
     put("perkUsage", buildJsonObject { usage.forEach { (k, v) -> put(k, v) } })
 }
 
-/// Spending categories used for transactions + budgets.
+/// Spending categories used for budgets and the per-category rows.
 val SPENDING_CATEGORIES = listOf(
     "Groceries", "Dining", "Shopping", "Transport", "Entertainment", "Health", "Bills", "Other",
 )
+
+/// Money moved between the user's own accounts — a credit-card payment, a
+/// sweep to savings. It shows in the transaction list like anything else but
+/// is NOT spending: the purchases a card payment settles were already counted
+/// when they posted, so totalling the payment double-counts them.
+///
+/// Deliberately absent from SPENDING_CATEGORIES, which drives the budget rows
+/// and the bucket picker — a budget for "Transfer" is meaningless. Mirrors
+/// TRANSFER_CATEGORY in budgetRules.js / transferCategory in Transaction.swift.
+const val TRANSFER_CATEGORY = "Transfer"
+
+/// Categories offered when logging a transaction: budgets get
+/// SPENDING_CATEGORIES, the picker also offers Transfer.
+val TRANSACTION_CATEGORIES = SPENDING_CATEGORIES + TRANSFER_CATEGORY
 
 /// Per-category monthly spending budgets (category → amount).
 val JsonObject.categoryBudgets: Map<String, Double>

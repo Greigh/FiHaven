@@ -615,10 +615,14 @@ final class AppStore: ObservableObject {
         let b = currentBounds
         return data.transactions.filter { !$0.date.isEmpty && $0.date >= b.startKey && $0.date < b.endKey }
     }
+    /// `periodTransactions` is the list; `periodSpend` is what actually counts
+    /// toward a budget — transfers (card payments, savings sweeps) are shown but
+    /// never totalled, or the purchases they settle get counted twice.
+    var periodSpend: [SpendTransaction] { periodTransactions.filter(\.countsAsSpending) }
     func spent(category: String) -> Double {
-        periodTransactions.filter { $0.category == category }.reduce(0) { $0 + $1.amount }
+        periodSpend.filter { $0.category == category }.reduce(0) { $0 + $1.amount }
     }
-    var totalSpent: Double { periodTransactions.reduce(0) { $0 + $1.amount } }
+    var totalSpent: Double { periodSpend.reduce(0) { $0 + $1.amount } }
     var upcoming: [UpcomingItem] {
         Schedule.buildUpcomingItems(
             bills: data.bills,

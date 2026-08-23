@@ -266,8 +266,16 @@ data class SpendTransaction(
     // claims the row — that's how per-card spending works. Resolved at read
     // time so re-pointing a card re-attributes its whole history.
     val accountId: String? = null,
+    // The category the bank importer assigned, kept alongside the live one so a
+    // later import pass can tell its own guess from a category the user re-filed
+    // by hand (server `retidyStored`). Never shown; preserved on re-encode so a
+    // native write doesn't strip it.
+    val autoCategory: String? = null,
 ) {
     val isBank: Boolean get() = source == "plaid"
+
+    /// False for transfers; the gate on every spend total. See TRANSFER_CATEGORY.
+    val countsAsSpending: Boolean get() = category != TRANSFER_CATEGORY
 }
 
 /// Full per-user blob. `settings` stays a raw JsonObject so unknown

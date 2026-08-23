@@ -51,6 +51,21 @@ public enum BrandColor {
         return best
     }
 
+    /// Ink for a mark knocked out of a tile painted this brand's color.
+    ///
+    /// Most issuer brands are dark enough to carry a white mark, but a
+    /// handful (Shell's yellow, Klarna's pink, Robinhood's lime) are not:
+    /// white on them is a pale smear. Those brands draw themselves in black
+    /// anyway, so the darker mark is both more legible and truer to the logo.
+    ///
+    /// The dark option matches `--text` on the light theme, so a dark mark
+    /// reads as ink rather than pure black. Mirrors web `brandInk`.
+    public static func ink(on brand: UInt32) -> UInt32 {
+        contrastRatio(brand, inkDark) > contrastRatio(brand, 0xFFFFFF) ? inkDark : 0xFFFFFF
+    }
+
+    public static let inkDark: UInt32 = 0x15161A
+
     /// Linear blend between two packed colors; `amount` 0 = `a`, 1 = `b`.
     public static func mix(_ a: UInt32, _ b: UInt32, amount: Double) -> UInt32 {
         let t = min(1, max(0, amount))
