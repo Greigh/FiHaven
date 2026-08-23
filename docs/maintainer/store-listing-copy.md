@@ -76,26 +76,23 @@ bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 
 ### What's New (1.6.2) — current train
 
-Covers the 1.6.2 version as a whole — use this if it goes to public review.
-Build-level copy (Play "What's new", TestFlight "What to Test", and the App
-Store variant) lives in
-[`../release-notes/v1.6.2/ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md),
-and the earlier builds of this train sit beside it in
-[`../release-notes/`](../release-notes/README.md).
+The **App Store copy for the 1.6.2 release as a whole** now lives in
+[`../release-notes/v1.6.2/appstore-1.6.2.md`](../release-notes/v1.6.2/appstore-1.6.2.md),
+with a shorter variant and promotional text beside it. That is the file to
+paste from when 1.6.2 goes to public review — it covers builds 49 through 52,
+not just the newest one.
 
-```
-Income is now its own tab: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that change a single period's total. Two long-standing bugs are fixed with it: adjustments did nothing at all on start-day or rolling budget periods, and one-off entries from older builds were invisible. Both fixes are retroactive.
+Per-build copy for testers (Play "What's new", TestFlight "What to Test") is in
+the same folder, one file per build; the current build is
+[`ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md).
 
-Reminders no longer arrive for bills you have already paid or skipped; a partially paid bill still reminds you.
+Two things that must stay in whatever gets pasted:
 
-The Pro screen now shows what each plan costs in your currency, with the yearly saving stated rather than implied.
-
-Mistyping your email at signup is no longer a dead end — the verification screen can correct it.
-
-Account Balances is its own tab, and you can snooze a bill or card on the dashboard until tomorrow.
-
-Paying a credit card is no longer counted as spending. That payment settles purchases FiHaven already counted when they posted, so counting it again double-counted them — budgets, category totals, the spending charts and your rewards estimate now all skip transfers. Transaction names imported from your bank arrive readable, and a category you set by hand stays set.
-```
+- **The one-time sign-out**, stated early. Everyone updating is asked to sign in
+  again, and a customer who is not told first reads it as a bug.
+- **No pricing comparison.** Yearly Pro is cheaper on the web, which is true and
+  is on the website — but steering language does not belong in an App Store
+  release note.
 
 ### What's New (1.6.1)
 

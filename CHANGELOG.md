@@ -20,7 +20,7 @@ Each release below uses two layers:
 | **Status** | Releasing — build 52 goes to the App Store and Google Play for public release; live once both reviews clear |
 | **iOS** | 1.6.2 (52) - **a credit-card payment stops counting as spending**: the purchases it settles were already counted when they posted, so a card you clear each month was holding close to a second copy of everything you bought in your budget, category totals, spending charts, rewards estimate and cashflow history — transfers are excluded from all of them now, and a card payment no longer trips the "looks like you used this offer" prompt either. Bank transaction names arrive readable rather than raw, a category you set by hand survives the next sync, and every issuer logo sits in one tile at one size instead of a wide wordmark pushing its row's name out of line; 51 was **snooze a bill or card until tomorrow** on the dashboard — per-device, never synced, collected in their own block so you can pull one back — plus the first pass at the logo plate and a round of server security work; 50 was **Account Balances as its own tab**, splitting Liquid (checking, savings, cash) from Other assets, with a linked bank able to *suggest* a balance as a question you accept or decline rather than a silent overwrite, and bank figures dated rather than presented as live; 49 was **Income as its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — and with the move, two long-standing bugs died (a date-stamped adjustment was invisible to every income figure, and on a start-day or rolling period adjustments matched nothing at all). Also from that build: reminders stop nagging about bills you have already paid, the Pro screen shows real prices in your own currency, a mistyped signup address is no longer a dead end, and admins get the console on the phone |
 | **Android** | 1.6.2 (versionCode 52) - **a credit-card payment stops counting as spending**, the same fix on the same shared rule: transfers leave your budget, category totals, spending charts, rewards estimate and cashflow history, and stop firing the offer-redemption prompt. Bank transaction names arrive readable, a hand-set category survives the next sync, and the issuer tile is uniform whatever shape the logo is; 51 was **snooze a bill or card until tomorrow**, the first logo plate, figures lining up in tabular numerals across the app, and the login WebView pinned to Cloudflare's challenge origin; 50 was **Account Balances as its own tab** with Liquid vs Other assets and bank-suggested balances you accept or decline; 49 was **Income as its own tab** with per-paycheck frequency and working adjustments on every period mode, reminders that stop nagging about paid bills, real Play prices on the Pro screen, a recoverable mistyped signup address, the admin console on the phone, status and navigation bars that follow the **in-app** theme rather than the phone's, and **Open FiHaven** in a reminder email landing in the app instead of the browser |
-| **Web** | Everything is live at [fihaven.app](https://fihaven.app) — the Income and Balances tabs, bank-suggested balances, a three-way sync merge that stops two devices overwriting each other, exports that finally carry all seven lists, and the transfer fix. **Two security fixes shipped here**: a stored XSS on the dashboard reachable across a Family plan, and session ids that were sitting in the database in plaintext |
+| **Web** | Everything is live at [fihaven.app](https://fihaven.app) — the Income and Balances tabs, bank-suggested balances, a three-way sync merge that stops two devices overwriting each other, exports that finally carry all seven lists, and the transfer fix. **Two security fixes shipped here**: a stored XSS on the dashboard reachable across a Family plan, and session ids that were sitting in the database in plaintext. The site also became readable by agents (Markdown renditions, `Link` headers, an API catalog, and an `auth.md` that says there is no agent login), and a 500 on `apple-app-site-association` that had been quietly breaking **iOS Universal Links and passkeys** was fixed |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -342,6 +342,59 @@ The ratios are shared: `IssuerTile.widthRatio 1.5` / `cornerRatio 0.25` /
 `markWidthRatio 1.25` / `markHeightRatio 0.625` on both natives, and the same
 proportions in `.card-row-chip`. The dashboard's smaller upcoming chip is
 33×22, which is `22 × 1.5` — the number both natives produce for a 22 pt tile.
+
+**`/.well-known/apple-app-site-association` was returning 500 (`server/index.js`)**
+
+`res.sendFile` refuses any path containing a dot segment unless passed
+`dotfiles: 'allow'`, and `.well-known` is one — so the explicit route threw
+`NotFoundError` into the error handler on every request, and had been doing so
+in production. That file backs iOS **Universal Links** and passkey
+**`webcredentials:`**, neither of which reports a failure anywhere a person
+would look: the link opens Safari instead of the app, and the passkey prompt
+does not appear.
+
+`assetlinks.json` and `security.txt` were unaffected — they have no explicit
+route and fall through to the `express.static('/.well-known', …)` mount, which
+already carried the option. So only hand-written routes were broken, which is
+the set that looks most deliberate. A source guard in `server/agentWeb.test.js`
+now asserts every `sendFile` mentioning `.well-known` passes the option.
+
+**The public site is readable by agents (`server/agentWeb.js`, `scripts/generate-markdown.js`)**
+
+Cloudflare's AI-readiness report had the site at 4/5 on Level 1 and 0/3 on
+Level 2. Both are closed:
+
+- Every public page has a Markdown rendition, reachable by appending `.md` or
+  by sending `Accept: text/markdown` to the normal URL. Built from the HTML
+  with jsdom — already a devDependency — off the same `indexnow-urls.js` page
+  list the sitemap and IndexNow use, so a new public page is picked up by all
+  three at once. Generated rather than converted per request, so the files are
+  reviewable in a diff; `npm run build` regenerates and `npm run markdown:check`
+  gates staleness in `npm run ci`.
+- Negotiation is deliberately strict. A wildcard `Accept` keeps the HTML —
+  that is what curl, link-preview fetchers and half-written scrapers send, and
+  it means "anything", not "Markdown please". Both representations carry
+  `Vary: Accept`.
+- `Link:` headers on public pages point at `llms.txt` (`rel="describedby"`),
+  the sitemap, the API catalog, and the page's own Markdown alternate.
+- `/.well-known/api-catalog` is an RFC 9727 linkset naming which APIs exist and
+  that all but two are authenticated. `/.well-known/auth.md` states that there
+  is **no agent login** — FiHaven holds bill schedules, card balances and live
+  Plaid connections, and an agent credential for that account is a credential
+  for someone's financial life — and tells assistants not to ask a customer for
+  their password when Settings → Account → Export data exists.
+- Both middlewares are scoped to the public page list and no-op on `/api/` and
+  the signed-in app.
+
+Level 3 (agent login: OAuth discovery, WebMCP, Web Bot Auth) and the commerce
+protocols are deliberately not implemented; `auth.md` says so publicly.
+
+The Cloudflare WAF path guard on *AI Crawl Control - Block AI bots by User
+Agent* was widened alongside, since a blocked crawler that also gets a 403 on
+these files learns nothing about FiHaven at all. It now exempts the two
+`.well-known` documents by name and the renditions by `.md` suffix — a suffix
+rather than a list, so adding a public page never needs another dashboard edit.
+`npm run check:crawlers` verifies the whole matrix against production.
 
 **Also in this build**
 
