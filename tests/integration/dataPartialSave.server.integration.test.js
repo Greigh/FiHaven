@@ -212,6 +212,35 @@ describe('integration — PUT /api/data must not drop omitted lists', () => {
     expect(after.settings.plaidAccountProposals).toHaveLength(1);
   });
 
+  it('a __proto__ key in the settings body cannot pollute the merge target', async () => {
+    // The settings merge used `{}` as its Object.assign target, so a body
+    // carrying "__proto__" reached [[Set]] and swapped that object's prototype
+    // — flags the client never sent would then read as set for the rest of the
+    // request. A null-prototype target closes it outright.
+    const u = await makeUser();
+    await put(u, seeded);
+
+    const res = await put(u, {
+      ...seeded,
+      settings: {
+        income: 3000,
+        // eslint-disable-next-line no-proto
+        __proto__: { plaidUpdateBalances: true, isAdmin: true },
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const after = await get(u);
+    // Neither injected flag may be readable, and neither may be stored.
+    expect(after.settings.plaidUpdateBalances).toBeUndefined();
+    expect(after.settings.isAdmin).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(after.settings, '__proto__')).toBe(false);
+    // The legitimate half of the same body still saved.
+    expect(after.settings.income).toBe(3000);
+    // And nothing leaked onto Object.prototype in this process either.
+    expect({}.isAdmin).toBeUndefined();
+  });
+
   it('an explicit empty array still clears a list (deleting everything works)', async () => {
     const u = await makeUser();
     await put(u, seeded);

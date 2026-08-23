@@ -65,6 +65,27 @@ func runBudgetRulesChecks() {
         )
         checkClose(moved?.rows.first { $0.key == "wants" }?.actual ?? -1, 200,
                    "the overridden bill counts as a want", tol: 0.0001)
+
+        // The split lens is the headline "you spent X on needs, Y on wants"
+        // figure. A card payment is neither — it settles purchases already
+        // counted under their own categories — so counting it here inflated the
+        // number people budget against, by the size of their whole statement.
+        func splitActuals(_ transactions: [SpendTransaction]) -> [String: Double] {
+            let l = BudgetRules.lens(
+                settings: s, income: 4000, bills: [], cards: [],
+                transactions: transactions, goals: [], bounds: june,
+                billDueInPeriod: { _ in true }, isPro: false, tz: tz
+            )
+            return Dictionary(uniqueKeysWithValues: (l?.rows ?? []).map { ($0.key, $0.actual) })
+        }
+        let purchase = SpendTransaction(id: "t1", date: "2026-06-10", amount: 200, category: "Groceries")
+        let payment = SpendTransaction(id: "t2", date: "2026-06-20", amount: 4070,
+                                       category: transferCategory, merchant: "Bilt Card Payment")
+        checkEqual(splitActuals([purchase, payment]), splitActuals([purchase]),
+                   "a transfer changes no split-lens actual")
+        // Not vacuous: the purchase beside it IS counted.
+        checkClose(splitActuals([purchase, payment])["needs"] ?? -1, 200,
+                   "the ordinary purchase still lands in needs", tol: 0.0001)
     }
 
     section("BudgetRules — envelope assignments") {

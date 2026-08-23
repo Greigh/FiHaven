@@ -56,8 +56,14 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'jsdom',
-          environmentMatchGlobs: [['server/**/*.test.js', 'node']],
-          include: ['client/js/**/*.test.js', 'server/**/*.test.js'],
+          // scripts/ holds the release-time generators and the checks that
+          // guard them (version agreement, the Markdown renditions) — node,
+          // like server/, since they read the filesystem rather than a DOM.
+          environmentMatchGlobs: [
+            ['server/**/*.test.js', 'node'],
+            ['scripts/**/*.test.js', 'node'],
+          ],
+          include: ['client/js/**/*.test.js', 'server/**/*.test.js', 'scripts/**/*.test.js'],
         },
       },
       {

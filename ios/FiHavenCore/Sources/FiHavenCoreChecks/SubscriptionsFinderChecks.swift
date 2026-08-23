@@ -172,6 +172,26 @@ func runSubscriptionsFinderChecks() {
               "declining is remembered by normalized key, whatever the casing")
     }
 
+    section("SubscriptionsFinder — a card payment is not a subscription") {
+        // A card payment recurs monthly, from a consistent merchant string, for
+        // a steady-ish amount — exactly the shape this finder looks for. Without
+        // the transfer gate, paying your card off every month surfaced as a
+        // subscription you might want to cancel.
+        var payment1 = tx("p1", "Chase Card Payment", 450, monthsAgo(2))
+        payment1.category = transferCategory
+        var payment2 = tx("p2", "Chase Card Payment", 450, monthsAgo(1))
+        payment2.category = transferCategory
+        check(SubscriptionsFinder.build(bills: [], transactions: [payment1, payment2], tz: tz).isEmpty,
+              "a recurring transfer is never a subscription")
+
+        // The same cadence as ordinary spending still is one, so the gate is
+        // rejecting the category rather than the pattern.
+        var purchase1 = payment1; purchase1.category = "Shopping"
+        var purchase2 = payment2; purchase2.category = "Shopping"
+        checkEqual(SubscriptionsFinder.build(bills: [], transactions: [purchase1, purchase2], tz: tz).count, 1,
+                   "the same rows as purchases are still found")
+    }
+
     section("SubscriptionLinks — keys and manage URLs") {
         checkEqual(SubscriptionLinks.normalizeKey("Disney+ Plus"), "disneyplus", "punctuation stripped")
         checkEqual(SubscriptionLinks.normalizeKey("YouTube Premium"), "youtubepremium", "casing folded")
