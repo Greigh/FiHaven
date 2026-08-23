@@ -5,6 +5,16 @@
 #   https://fihaven.app/llms.txt
 #   https://fihaven.app/llms-full.txt
 #
+# Every public page also has a Markdown rendition — append .md to
+# the path (https://fihaven.app/pricing.md), or send
+# `Accept: text/markdown` to the normal URL. Same content, none of
+# the layout.
+#
+# What exists, and how to authenticate against it (short answer:
+# you can't — there is no agent login, deliberately):
+#   https://fihaven.app/.well-known/api-catalog
+#   https://fihaven.app/.well-known/auth.md
+#
 # ── Cloudflare note ────────────────────────────────────────────
 # Cloudflare's "Manage your robots.txt" feature, when enabled,
 # PREPENDS its own managed block to this file at the edge — so

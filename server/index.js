@@ -36,6 +36,7 @@ const mfa = require('./mfa');
 const householdEvents = require('./householdEvents');
 const { loadSession, requireVerified } = require('./session');
 const { assertProductionSafe } = require('./securityConfig');
+const { markdownForAgents, agentLinkHeaders } = require('./agentWeb');
 const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
 const accountRouter = require('./routes/account');
@@ -197,12 +198,38 @@ sub.get(Object.keys(LEGACY), (req, res) =>
   res.redirect(301, BASE + LEGACY[req.path])
 );
 
+// ── Machine-readable web ──────────────────────────────────────
+// Point agents at llms.txt / sitemap / api-catalog on the public pages, and
+// hand them Markdown instead of our layout when they ask for it. Both are
+// scoped to the marketing and legal pages; neither touches /api/ or the
+// signed-in app. Mounted after the legacy redirects so /pricing.html has
+// already been normalized to /pricing.
+sub.use(agentLinkHeaders());
+sub.use(markdownForAgents(CLIENT_DIR));
+
+// RFC 9727 API catalog. Extensionless like the Apple association file, so it
+// needs an explicit content type — application/linkset+json — before the
+// static .well-known mount can guess wrong.
+sub.get('/.well-known/api-catalog', (req, res) => {
+  res.type('application/linkset+json').sendFile(
+    path.join(PUBLIC_ASSET_DIR, '.well-known', 'api-catalog'),
+    { dotfiles: 'allow' }
+  );
+});
+
 // Apple App Site Association (passkeys / universal links). The file has no
 // extension, so static serving would mislabel it; Apple requires valid JSON
 // over HTTPS. Serve it explicitly with application/json before the static mount.
+//
+// `dotfiles: 'allow'` is load-bearing, not decoration: res.sendFile refuses any
+// path containing a dot-segment by default, and `.well-known` is one — so
+// without it this route 500s and takes iOS Universal Links and passkey
+// webcredentials down with it. It did, in production, until 2026-08-23. The
+// static mount below carries the same option for the same reason.
 sub.get('/.well-known/apple-app-site-association', (req, res) => {
   res.type('application/json').sendFile(
-    path.join(PUBLIC_ASSET_DIR, '.well-known', 'apple-app-site-association')
+    path.join(PUBLIC_ASSET_DIR, '.well-known', 'apple-app-site-association'),
+    { dotfiles: 'allow' }
   );
 });
 

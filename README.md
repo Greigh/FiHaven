@@ -524,6 +524,9 @@ fihaven/
 │   │   ├── site.webmanifest
 │   │   ├── sw.js                    service worker (offline shell + Web Push)
 │   │   ├── llms.txt / llms-full.txt product summary for LLM agents
+│   │   ├── *.md                    generated — npm run markdown (one per public page)
+│   │   ├── .well-known/api-catalog RFC 9727 — which APIs exist
+│   │   ├── .well-known/auth.md     there is no agent login, and why
 │   │   ├── icon.svg
 │   │   └── og-image.jpg             share cards — npm run generate:og
 │   └── svelte.config.js
@@ -532,6 +535,7 @@ fihaven/
 │   │                                page gates, scheduler boot, / base
 │   ├── db.js                        better-sqlite3 + schema + statements
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
+│   ├── agentWeb.js                  Accept: text/markdown negotiation + Link headers
 │   ├── reauth.js                    step-up proof for sensitive actions (password or emailed code)
 │   ├── securityConfig.js            CSP / security headers, one place
 │   ├── securityHeaders.js           the emitted header set + CSP hash list
@@ -599,6 +603,7 @@ fihaven/
 │   ├── generate-icons.sh            iOS/Android icon generation
 │   ├── generate-og.js               Open Graph share cards → client/public/*.jpg
 │   ├── generate-sitemap.js          sitemap.xml from indexnow-urls.js + git lastmod
+│   ├── generate-markdown.js         Markdown renditions of the public pages (jsdom)
 │   ├── check-crawler-policy.js      assert live AI-crawler allow/block matrix
 │   ├── indexnow-urls.js             single source of truth for public URLs
 │   ├── submit-indexnow.js           ping IndexNow with those URLs
@@ -658,11 +663,13 @@ Grouped the way you actually reach for them. Every row below exists in
 | `npm run build:vite` | `vite build` only. |
 | `npm run build` | `build:css` + `build:vite` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
-| `npm run ci` | `csp:check` + `sitemap:check` + `build` — what CI runs. |
+| `npm run ci` | `csp:check` + `sitemap:check` + `markdown:check` + `build` — what CI runs. |
 | `npm run csp:hashes` | Recompute inline-script/JSON-LD CSP hashes; paste the output into `server/securityHeaders.js`. |
 | `npm run csp:check` | Fail if the committed CSP hashes are stale. Part of `npm run ci`. |
 | `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
 | `npm run sitemap:check` | Fail if the committed sitemap is stale. Part of `npm run ci`. |
+| `npm run markdown` | Regenerate the Markdown rendition of every public page into `client/public/*.md`. Runs as part of `npm run build`. |
+| `npm run markdown:check` | Fail if a committed rendition is stale. Part of `npm run ci`. |
 | `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
 
 **Ship**
@@ -1474,6 +1481,32 @@ a fresh VPS, either replicate that setup or point `SMTP_HOST` /
 `llms.txt` and `llms-full.txt` at the site root state what FiHaven is,
 what each tier costs, and where it isn't the right tool — written to be
 read directly by an assistant rather than scraped out of marketing copy.
+
+**Every public page also has a Markdown rendition.** Append `.md` to the
+path (`https://fihaven.app/pricing.md`), or send `Accept: text/markdown` to
+the normal URL and content negotiation returns the same file. They are
+generated from the HTML by **`npm run markdown`**
+([`scripts/generate-markdown.js`](scripts/generate-markdown.js)) off the same
+`indexnow-urls.js` page list the sitemap uses, committed so they are
+reviewable in a diff, and regenerated as part of `npm run build`;
+`npm run markdown:check` fails `npm run ci` if they are stale.
+
+Negotiation is deliberately strict — `Accept: */*` keeps the HTML, because
+that is what curl, link-preview fetchers and half-written scrapers send, and
+it means "anything", not "Markdown please". Both representations carry
+`Vary: Accept`.
+
+Two `.well-known` documents complete the picture:
+
+| Path | What it says |
+|---|---|
+| [`/.well-known/api-catalog`](https://fihaven.app/.well-known/api-catalog) | RFC 9727 linkset: which APIs exist, and that all but two of them are authenticated |
+| [`/.well-known/auth.md`](https://fihaven.app/.well-known/auth.md) | That there is **no agent login**, why, and that an assistant must never ask a user for their FiHaven password — the supported route is the user's own **Settings → Account → Export data** |
+
+Public pages also carry `Link:` headers pointing at `llms.txt`
+(`rel="describedby"`), the sitemap, the API catalog, and the page's own
+Markdown alternate — see [`server/agentWeb.js`](server/agentWeb.js). The
+signed-in app and `/api/` get none of this.
 
 The policy is **answerable, not trainable**: crawlers that let an
 assistant find and cite FiHaven are allowed (`OAI-SearchBot`,
