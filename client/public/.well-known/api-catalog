@@ -1,0 +1,64 @@
+{
+  "_comment": [
+    "RFC 9727 API catalog for fihaven.app, served as application/linkset+json.",
+    "FiHaven has no public, unauthenticated API. Everything under /api/ except",
+    "the two entries marked below requires a signed-in session, and /api/ is",
+    "disallowed in robots.txt. This catalog exists so an automated client can",
+    "establish that quickly and correctly, rather than probing to find out."
+  ],
+  "linkset": [
+    {
+      "anchor": "https://fihaven.app/.well-known/api-catalog",
+      "item": [
+        {
+          "href": "https://fihaven.app/health",
+          "title": "Liveness probe",
+          "type": "application/json",
+          "hreflang": ["en"]
+        },
+        {
+          "href": "https://fihaven.app/api/auth/oauth/config",
+          "title": "Enabled federated sign-in providers and their public client ids",
+          "type": "application/json",
+          "hreflang": ["en"]
+        },
+        {
+          "href": "https://fihaven.app/api/data",
+          "title": "Per-user financial data (authenticated: session cookie or Bearer token)",
+          "type": "application/json",
+          "hreflang": ["en"]
+        },
+        {
+          "href": "https://fihaven.app/api/calendar/{token}.ics",
+          "title": "Private per-user bill calendar (Pro; authenticated by an unguessable feed token)",
+          "type": "text/calendar",
+          "hreflang": ["en"]
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://fihaven.app/llms.txt",
+          "title": "FiHaven, summarized for an LLM agent",
+          "type": "text/plain"
+        },
+        {
+          "href": "https://github.com/Greigh/FiHaven#readme",
+          "title": "Source-available README, including the full endpoint tables",
+          "type": "text/html"
+        }
+      ],
+      "author": [
+        {
+          "href": "https://fihaven.app/contact",
+          "title": "Greigh Studios LLC"
+        }
+      ],
+      "license": [
+        {
+          "href": "https://fihaven.app/terms",
+          "title": "FiHaven Terms of Use"
+        }
+      ]
+    }
+  ]
+}

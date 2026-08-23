@@ -75,7 +75,21 @@ const MUST_BLOCK = [
 
    Add a path here and to that expression together, or this check will
    start failing. */
-const SHOULD_EXEMPT = ['/robots.txt', '/llms.txt', '/llms-full.txt'];
+/* Machine-readable files that must stay reachable even for a crawler the WAF
+   blocks. A blocked crawler that also gets a 403 on these learns nothing about
+   FiHaven at all — which is what happened when only /robots.txt was exempt.
+   The .well-known pair matters most: api-catalog and auth.md exist precisely
+   so an automated client can establish what is here and that there is no agent
+   login, without probing for it. `/pricing.md` stands in for the 13 per-page
+   Markdown renditions; the guard below covers the whole shape. */
+const SHOULD_EXEMPT = [
+  '/robots.txt',
+  '/llms.txt',
+  '/llms-full.txt',
+  '/.well-known/api-catalog',
+  '/.well-known/auth.md',
+  '/pricing.md',
+];
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -130,7 +144,9 @@ async function main() {
     console.log(`\n  ${notExempt.join(', ')} is not exempt. Fix the path guard on the WAF`);
     console.log('  rule "AI Crawl Control - Block AI bots by User Agent" — its expression');
     console.log('  must open with:');
-    console.log('    not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"}');
+    console.log('    not http.request.uri.path in {"/robots.txt" "/llms.txt" "/llms-full.txt"');
+    console.log('      "/.well-known/api-catalog" "/.well-known/auth.md"}');
+    console.log('    and not ends_with(http.request.uri.path, ".md")');
   }
 
   console.log('');
