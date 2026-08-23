@@ -11,6 +11,7 @@
 ═══════════════════════════════════════════════════════════ */
 
 import { today } from './tz.js';
+import { countsAsSpending } from './budgetRules.js';
 
 const DAY = 864e5;
 
@@ -94,6 +95,10 @@ export function offerLikelyUsedTx(offer, transactions, date, windowDays) {
   let bestDate = null;
   (transactions || []).forEach((t) => {
     if ((Number(t.amount) || 0) <= 0) return;
+    // A transfer is not a purchase, so it can never be an offer redemption —
+    // and "AMEX PAYMENT" fuzzy-matches an Amex offer well enough to fire a
+    // false "looks like you used this" prompt.
+    if (!countsAsSpending(t)) return;
     const tm = normMerchant(t.merchant);
     if (tm.length < 3) return;
     if (!tm.includes(m) && !m.includes(tm)) return;

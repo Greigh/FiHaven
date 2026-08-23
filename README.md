@@ -91,9 +91,9 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
   live-synced over SSE.
 - **Sign in with Apple / Google**, passwordless **passkeys**, TOTP, and email
   codes — on web, iOS, and Android.
-- **Security** — opaque server sessions, CSRF, Turnstile, per-IP rate limiting,
-  AES-256-GCM at rest, step-up re-auth on sensitive actions, and a
-  hardware-KeyStore-backed biometric app lock on the native apps.
+- **Security** — opaque server sessions (hashed at rest), CSRF, Turnstile,
+  per-IP rate limiting, AES-256-GCM at rest, step-up re-auth on sensitive
+  actions, and a hardware-KeyStore-backed biometric app lock on the native apps.
 
 ---
 
@@ -226,7 +226,7 @@ normally on all three platforms unless noted.
 
 | Feature | Notes |
 |---|---|
-| **Password auth** | bcrypt, a password policy, opaque server-side sessions in SQLite, `HttpOnly` cookies, CSRF double-submit |
+| **Password auth** | bcrypt, a password policy, opaque server-side sessions in SQLite (stored as a SHA-256 hash, so a database copy holds no usable session), `HttpOnly` cookies, CSRF double-submit |
 | **Sign in with Apple / Google** | OIDC ID-token verification with auto-link by verified email, on all three platforms (Android goes through a Custom Tab + short-lived handoff code) |
 | **Passkeys** | Passwordless **sign-in** on web, iOS (with autofill), and Android; **registration** and management on web and Android |
 | **TOTP + backup codes** | QR enrollment, 10 single-use bcrypt-hashed backup codes, regeneration |
@@ -234,10 +234,10 @@ normally on all three platforms unless noted.
 | **Step-up re-auth** | Sensitive actions (disable TOTP, delete a passkey, regenerate codes, delete account) re-verify you — by password, or by emailed code for OAuth-only accounts that have no password |
 | **Email verification & recovery** | Verify-email (including correcting a mistyped signup address), forgot/reset password, and a lost-2FA recovery flow, all on single-use tokens |
 | **Bot & abuse protection** | Cloudflare Turnstile, honeypot + timing checks, per-IP `express-rate-limit`, and an in-memory login throttle keyed by IP + email |
-| **Encryption at rest** | AES-256-GCM over TOTP secrets, Plaid access tokens, and every user's `user_data` blob |
+| **Encryption at rest** | AES-256-GCM over TOTP secrets, Plaid access tokens, and every user's `user_data` blob. Session ids, email tokens and OAuth handoff codes are SHA-256-hashed rather than encrypted — they are random secrets we only need to recognise, never to read back |
 | **Biometric app lock** *(native)* | Face ID / Touch ID / device credential, bound to a hardware AndroidKeyStore key on Android |
 | **Server-side page gates** | Private pages are gated by Express, not just JS, so they hold with scripting off |
-| **Session hygiene** | Changing your password signs out every *other* device; admins can force-logout a user |
+| **Session hygiene** | Changing your password signs out every *other* device; admins can force-logout a user. Sessions are addressed by hash, so nothing downstream of the lookup ever holds the credential |
 
 ### Your data
 
@@ -316,7 +316,7 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
 | **Server** | Node 24 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
-| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite, HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
+| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite (SHA-256-hashed at rest), HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Paddle](https://paddle.com) (merchant of record), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |

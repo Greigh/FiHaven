@@ -198,6 +198,46 @@ export const ISSUER_LOGO_PATHS = {
   },
 };
 
+/* Ink used where a brand color is too light to carry a white mark. Matches
+   --text on the light theme, so a dark mark reads as ink rather than pure
+   black. */
+const BRAND_INK = '#15161A';
+const BRAND_INK_LUMINANCE = 0.0091;
+
+/**
+ * WCAG relative luminance of a #rrggbb color.
+ *
+ * Six digits only. A shorthand like `#FFF` parses as 0x000FFF — a dark blue —
+ * which would hand white text a white background; better to treat an
+ * unexpected shape as black and get a white mark than to invert silently.
+ */
+function relativeLuminance(hex) {
+  const raw = String(hex || '').replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(raw)) return 0;
+  const n = parseInt(raw, 16);
+  const channels = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+/**
+ * The mark color to use on a tile painted `hex` — whichever of white or ink
+ * holds more contrast against it.
+ *
+ * Most issuer brands are dark enough to carry a white mark, but a handful
+ * (Shell's yellow, Klarna's pink, Robinhood's lime) are not: white on them
+ * is a pale smear. Those brands draw themselves in black anyway, so the
+ * darker mark is both more legible and truer to the logo.
+ */
+export function brandInk(hex) {
+  const l = relativeLuminance(hex);
+  const onWhite = 1.05 / (l + 0.05);
+  const onInk = (l + 0.05) / (BRAND_INK_LUMINANCE + 0.05);
+  return onInk > onWhite ? BRAND_INK : '#FFFFFF';
+}
+
 /** True when a mark carries its own colors and must not be recolored. */
 export function issuerLogoIsFullColor(entry) {
   return !!(entry && entry.l);

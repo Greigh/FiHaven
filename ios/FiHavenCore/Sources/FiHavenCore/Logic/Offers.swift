@@ -69,7 +69,10 @@ public enum Offers {
         var best: SpendTransaction?
         var bestDate: Date?
         for t in transactions {
-            guard t.amount > 0 else { continue }
+            // A transfer is not a purchase, so it can never be an offer
+            // redemption — and "AMEX PAYMENT" fuzzy-matches an Amex offer well
+            // enough to fire a false "looks like you used this" prompt.
+            guard t.amount > 0, t.countsAsSpending else { continue }
             let tm = normMerchant(t.merchant)
             guard tm.count >= 3, tm.contains(m) || m.contains(tm) else { continue }
             guard let td = DateLogic.parseDate(t.date, tz: tz), td >= start, td <= today else { continue }

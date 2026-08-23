@@ -142,7 +142,13 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                                         },
                                     )
                                 }
-                                IconMark(icon = it.icon, size = 18.dp, modifier = Modifier.padding(end = 8.dp))
+                                // Bills and cards share the day's list — fixed
+                                // slot, so an issuer tile and a bill's emoji
+                                // start their names alike.
+                                IconMark(
+                                    icon = it.icon, size = 18.dp,
+                                    modifier = Modifier.padding(end = 8.dp), slot = IssuerTile.width(18.dp),
+                                )
                                 Text(it.name, color = Ct.colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
                                 Text(Money.fmt(it.amount), color = Ct.colors.text, fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium, style = MonoNumerals)

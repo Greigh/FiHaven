@@ -15,6 +15,7 @@ import { mount } from 'svelte';
 import RewardsView from '../svelte/RewardsView.svelte';
 import { setRenderer, REWARD_CATEGORIES } from './utils.js';
 import { merchantCategory } from './merchants.js';
+import { countsAsSpending } from './budgetRules.js';
 import { today } from './tz.js';
 
 // A card's reward rate for a category: the per-category multiplier when
@@ -144,6 +145,8 @@ export function categorySpendAnnual(transactions, refDate) {
   (transactions || []).forEach((t) => {
     const amt = Number(t.amount) || 0;
     if (amt <= 0) return;
+    // A card payment is a transfer, not spend to earn rewards on.
+    if (!countsAsSpending(t)) return;
     const d = parseTxDate(t.date);
     if (!d || d < yearAgo || d > now) return;
     recent.push({ amt, d, t });

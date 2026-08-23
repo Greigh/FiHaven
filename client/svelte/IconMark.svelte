@@ -3,7 +3,7 @@
   issuer monogram chip).
 -->
 <script>
-  /** @type {{ info?: { isImage?: boolean, isMonogram?: boolean, text?: string, color?: string, emoji?: string, src?: string, fullColor?: boolean, aspect?: number } | null, emoji?: string, class?: string, alt?: string }} */
+  /** @type {{ info?: { isImage?: boolean, isMonogram?: boolean, text?: string, color?: string, ink?: string, emoji?: string, src?: string, fullColor?: boolean, aspect?: number } | null, emoji?: string, class?: string, alt?: string }} */
   let { info = null, emoji = '', class: className = '', alt = '' } = $props();
 
   let isImage = $derived(!!(info && info.isImage && info.src));
@@ -25,9 +25,11 @@
     alt={alt}
   />
 {:else if isMonogram}
+  <!-- `ink` keeps the initials legible on a light brand color, the same
+       rule a monochrome mark follows (see `brandInk`). -->
   <span
     class="icon-mark icon-mark-monogram {className}"
-    style={info.color ? `background:${info.color};` : ''}
+    style="{info.color ? `background:${info.color};` : ''}{info.ink ? `color:${info.ink};` : ''}"
     aria-hidden={alt ? undefined : 'true'}
   >{info.text}</span>
 {:else}

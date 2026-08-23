@@ -313,3 +313,11 @@
   }
 }
 
+
+/* A near-black brand tile (Apple, Bilt, Brex) has no edge of its own against
+   the dark theme's card, so the tile's neutral ring flips to light. A white
+   plate keeps a dark ring — its own surface is the light one. */
+[data-theme="dark"] .card-row-chip { --chip-edge: rgba(255,255,255,.17); }
+[data-theme="dark"] .card-row-chip.is-plate { --chip-edge: rgba(0,0,0,.16); }
+[data-theme="dark"] .upcoming-chip { --chip-edge: rgba(255,255,255,.17); }
+[data-theme="dark"] .upcoming-chip.is-plate { --chip-edge: rgba(0,0,0,.16); }

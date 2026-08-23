@@ -4,6 +4,7 @@ import app.fihaven.core.logic.Offers
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.CardOffer
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.TRANSFER_CATEGORY
 import java.time.LocalDate
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -68,5 +69,18 @@ class OffersTest {
 
         val sugg = Offers.useSuggestions(listOf(card), txns, jun20)
         assertEquals(listOf("match"), sugg.map { it.offer.id }) // used/expired excluded
+    }
+
+    // A transfer is not a purchase, so it can never redeem an offer — and the
+    // substring match is loose enough that "Amex Payment" hits an "Amex" offer.
+    @Test fun transfersNeverRedeemAnOffer() {
+        val amexOffer = CardOffer(id = "o", merchant = "Amex", expires = "2026-06-30")
+        val payment = SpendTransaction(
+            id = "p", date = "2026-06-19", amount = 500.0,
+            merchant = "Amex Payment", category = TRANSFER_CATEGORY,
+        )
+        assertNull(Offers.likelyUsedTx(amexOffer, listOf(payment), jun20))
+        // The same row as an ordinary purchase still matches.
+        assertEquals("p", Offers.likelyUsedTx(amexOffer, listOf(payment.copy(category = "Shopping")), jun20)?.id)
     }
 }

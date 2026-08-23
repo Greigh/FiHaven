@@ -39,8 +39,14 @@ db.exec(`
     role          TEXT NOT NULL DEFAULT 'user'   -- 'user' | 'admin'
   );
 
+  -- Sessions are opaque 256-bit random ids. The raw id is the bearer
+  -- credential — it lives in the HttpOnly cookie, or in the native app's
+  -- Keychain/Keystore — so only its SHA-256 hash is persisted here, the
+  -- same way email tokens and OAuth handoff codes are. A dump of this file
+  -- therefore can't be replayed as a login, which matters most for the
+  -- 30-day native token sessions.
   CREATE TABLE IF NOT EXISTS sessions (
-    id          TEXT PRIMARY KEY,
+    id_hash     TEXT PRIMARY KEY,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     csrf_token  TEXT NOT NULL,
     created_at  INTEGER NOT NULL,
@@ -458,6 +464,34 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ical_token ON users(ical_to
   `);
 })();
 
+/* Sessions used to store the raw session id as the primary key, so anyone who
+   could read this file — a leaked backup, a compromised host — held directly
+   replayable credentials, including the 30-day native Bearer tokens. The id is
+   now keyed by its SHA-256 hash (see session.js), matching how email tokens and
+   OAuth handoff codes have always been stored.
+
+   The old rows can't be converted: hashing needs the raw id, and keeping it is
+   the whole problem. So they go, which logs every signed-in device out exactly
+   once. Sessions are disposable by design (the web re-logs in, native clients
+   re-authenticate on their next 401), and this runs once per database. */
+(function migrateSessionIdHash() {
+  const cols = db.prepare(`PRAGMA table_info(sessions)`).all().map((c) => c.name);
+  if (cols.length === 0 || cols.includes('id_hash')) return;
+  db.exec(`
+    DROP TABLE sessions;
+    CREATE TABLE sessions (
+      id_hash     TEXT PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      csrf_token  TEXT NOT NULL,
+      created_at  INTEGER NOT NULL,
+      expires_at  INTEGER NOT NULL,
+      user_agent  TEXT,
+      ip          TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  `);
+})();
+
 /* ── prepared statements ─────────────────────────────────────── */
 
 const stmt = {
@@ -535,20 +569,22 @@ const stmt = {
     `DELETE FROM subscriptions WHERE platform = 'comp' AND user_id = ?`
   ),
   insertSession: db.prepare(
-    `INSERT INTO sessions (id, user_id, csrf_token, created_at, expires_at, user_agent, ip)
-     VALUES (@id, @user_id, @csrf_token, @created_at, @expires_at, @user_agent, @ip)`
+    `INSERT INTO sessions (id_hash, user_id, csrf_token, created_at, expires_at, user_agent, ip)
+     VALUES (@id_hash, @user_id, @csrf_token, @created_at, @expires_at, @user_agent, @ip)`
   ),
+  // Selects id_hash, never a raw id — there isn't one to select. Callers that
+  // need to identify "this session" (deleteOtherSessions) compare hashes.
   findSession: db.prepare(
-    `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, s.created_at,
+    `SELECT s.id_hash, s.user_id, s.csrf_token, s.expires_at, s.created_at,
             u.email, u.name, u.role, u.email_verified, u.onboarded,
             u.suspended, u.suspended_at, u.suspended_reason
        FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.id = ?`
+      WHERE s.id_hash = ?`
   ),
-  deleteSession: db.prepare(`DELETE FROM sessions WHERE id = ?`),
+  deleteSession: db.prepare(`DELETE FROM sessions WHERE id_hash = ?`),
   deleteExpiredSessions: db.prepare(`DELETE FROM sessions WHERE expires_at < ?`),
   deleteOtherSessions: db.prepare(
-    `DELETE FROM sessions WHERE user_id = ? AND id != ?`
+    `DELETE FROM sessions WHERE user_id = ? AND id_hash != ?`
   ),
   deleteUserSessions: db.prepare(`DELETE FROM sessions WHERE user_id = ?`),
 
@@ -1047,9 +1083,11 @@ function countUsers(query) {
 // 'comp') that computeEntitlement treats like any active subscription.
 function deleteCompSubscription(userId) { stmt.deleteCompSubscription.run(userId); }
 
-// Logs out every other device after a password change.
-function deleteOtherSessions(userId, keepSessionId) {
-  return stmt.deleteOtherSessions.run(userId, keepSessionId).changes;
+// Logs out every other device after a password change. `keepIdHash` is the
+// stored key of the session making the request (req.session.id_hash), not a
+// raw session id — those are never in the database.
+function deleteOtherSessions(userId, keepIdHash) {
+  return stmt.deleteOtherSessions.run(userId, keepIdHash).changes;
 }
 
 // Logs out ALL devices (password reset / 2FA recovery).
@@ -1133,12 +1171,14 @@ function insertSession(row) {
   stmt.insertSession.run(row);
 }
 
-function findSession(id) {
-  return stmt.findSession.get(id);
+// Sessions are addressed by the SHA-256 of the raw id; session.js does the
+// hashing, so nothing below this line ever sees the credential itself.
+function findSession(idHash) {
+  return stmt.findSession.get(idHash);
 }
 
-function deleteSession(id) {
-  stmt.deleteSession.run(id);
+function deleteSession(idHash) {
+  stmt.deleteSession.run(idHash);
 }
 
 function deleteExpiredSessions() {

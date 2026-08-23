@@ -3,7 +3,10 @@ package app.fihaven.core
 import app.fihaven.core.logic.Period
 import app.fihaven.core.logic.PeriodConfig
 import app.fihaven.core.logic.SpendingInsights
+import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.TRANSACTION_CATEGORIES
+import app.fihaven.core.model.TRANSFER_CATEGORY
 import java.time.LocalDate
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -46,6 +49,26 @@ class SpendingInsightsTest {
         )
         assertEquals(12.0, spend["Other"]!!, 1e-9)     // blank folds into Other
         assertNull(spend["Groceries"])                 // unusable dates are dropped
+    }
+
+    /* A credit-card payment moves money between the user's own accounts. Its
+       dollars were already counted when the purchases it settles posted, so
+       totalling it again double-counts them — and a $4,070 payment would read
+       as the biggest spending swing of the month. */
+    @Test fun transfersAreNotSpending() {
+        val spend = SpendingInsights.spentByCategory(
+            listOf(
+                tx(150.0, "Groceries", "2026-06-10"),
+                tx(4070.0, TRANSFER_CATEGORY, "2026-06-20"),
+            ),
+            june,
+        )
+        assertNull(spend[TRANSFER_CATEGORY])
+        assertEquals(150.0, spend["Groceries"]!!, 1e-9)
+
+        // Not budgetable (a budget for "Transfer" is meaningless), but loggable.
+        assertTrue(TRANSFER_CATEGORY !in SPENDING_CATEGORIES)
+        assertTrue(TRANSFER_CATEGORY in TRANSACTION_CATEGORIES)
     }
 
     @Test fun computeReportsDeltasAgainstThePreviousPeriod() {

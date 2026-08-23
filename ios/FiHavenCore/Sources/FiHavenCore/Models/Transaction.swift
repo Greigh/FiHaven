@@ -20,6 +20,11 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
     /// claims the row, which is how per-card spending works. Resolved at read
     /// time so re-pointing a card re-attributes its whole history.
     public var accountId: String?
+    /// The category the bank importer assigned, kept alongside the live one so
+    /// a later import pass can tell its own guess from a category the user
+    /// re-filed by hand (server `retidyStored`). Never shown; preserved on
+    /// re-encode so a native write doesn't strip it.
+    public var autoCategory: String?
 
     public init(
         id: String,
@@ -31,7 +36,8 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         source: String = "manual",
         plaidId: String? = nil,
         pending: Bool = false,
-        accountId: String? = nil
+        accountId: String? = nil,
+        autoCategory: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -43,10 +49,11 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         self.plaidId = plaidId
         self.pending = pending
         self.accountId = accountId
+        self.autoCategory = autoCategory
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, date, amount, category, merchant, note, source, plaidId, pending, accountId
+        case id, date, amount, category, merchant, note, source, plaidId, pending, accountId, autoCategory
     }
 
     public init(from decoder: Decoder) throws {
@@ -61,6 +68,7 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
         plaidId = c.flexibleString(.plaidId)
         pending = c.flexibleBool(.pending) ?? false
         accountId = c.flexibleString(.accountId)
+        autoCategory = c.flexibleString(.autoCategory)
     }
 
     public var isBank: Bool { source == "plaid" }
@@ -70,3 +78,22 @@ public struct SpendTransaction: Codable, Identifiable, Equatable, Sendable {
 public let spendingCategories = [
     "Groceries", "Dining", "Shopping", "Transport", "Entertainment", "Health", "Bills", "Other",
 ]
+
+/// Money moved between the user's own accounts — a credit-card payment, a
+/// sweep to savings. It shows in the transaction list like anything else but is
+/// NOT spending: the purchases a card payment settles were already counted when
+/// they posted, so totalling the payment double-counts them.
+///
+/// Deliberately absent from `spendingCategories`, which drives the per-category
+/// budget rows and the bucket picker — a budget for "Transfer" is meaningless.
+/// Mirrors TRANSFER_CATEGORY in budgetRules.js / Settings.kt.
+public let transferCategory = "Transfer"
+
+/// Categories offered when logging a transaction: budgets get
+/// `spendingCategories`, the picker also offers Transfer.
+public let transactionCategories = spendingCategories + [transferCategory]
+
+public extension SpendTransaction {
+    /// False for transfers; the gate on every spend total.
+    var countsAsSpending: Bool { category != transferCategory }
+}

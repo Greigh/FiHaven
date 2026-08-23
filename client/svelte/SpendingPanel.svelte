@@ -16,11 +16,16 @@
   import { openConfirm } from '../js/modals.js';
   import { openProDialog } from '../js/pro.js';
   import { duplicatePairs, unconfirmedManual } from '../js/reconcile.js';
+  import { TRANSFER_CATEGORY, countsAsSpending } from '../js/budgetRules.js';
 
   const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
+  // Transfer is loggable and listed, but never budgeted and never totalled —
+  // it's money moving between the user's own accounts (see countsAsSpending).
+  const PICK_CATS = [...CATS, TRANSFER_CATEGORY];
   const ICON = {
     Groceries: '🛒', Dining: '🍽️', Shopping: '🛍️', Transport: '🚗',
     Entertainment: '🎬', Health: '💊', Bills: '📄', Other: '📦',
+    [TRANSFER_CATEGORY]: '🔁',
   };
 
   let bounds   = $derived(boundsForKey(currentPeriodKey()));
@@ -29,12 +34,15 @@
   let search = $state('');
   let budgets  = $derived((settings && settings.categoryBudgets) || {});
 
+  // The list shows every row in the period; the totals below count only the
+  // ones that are actually spending.
+  let spendTx  = $derived(periodTx.filter(countsAsSpending));
   let spentByCat = $derived.by(() => {
     const m = {};
-    periodTx.forEach((t) => { m[t.category] = (m[t.category] || 0) + (parseFloat(t.amount) || 0); });
+    spendTx.forEach((t) => { m[t.category] = (m[t.category] || 0) + (parseFloat(t.amount) || 0); });
     return m;
   });
-  let totalSpent  = $derived(periodTx.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0));
+  let totalSpent  = $derived(spendTx.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0));
   let totalBudget = $derived(CATS.reduce((s, c) => s + (parseFloat(budgets[c]) || 0), 0));
 
   // Categories to show: any with a budget or any spending this period.
@@ -201,7 +209,7 @@
         onkeydown={(e) => { if (e.key === 'Enter') saveTx(); }} />
     </div>
     <select bind:value={txCategory}>
-      {#each CATS as c (c)}<option value={c}>{ICON[c]} {c}</option>{/each}
+      {#each PICK_CATS as c (c)}<option value={c}>{ICON[c]} {c}</option>{/each}
     </select>
     <input class="spend-add-merchant" type="text" placeholder="Merchant (optional)" bind:value={txMerchant} />
     <input class="spend-add-date" type="date" bind:value={txDate} />
@@ -322,6 +330,7 @@
             <span class="spend-tx-sub"> · {shortDay(t.date)}</span>
             {#if cardForTransaction(t, cards)}<span class="spend-tx-sub"> · {cardForTransaction(t, cards).name}</span>{/if}
             {#if t.note}<span class="spend-tx-sub"> · {t.note}</span>{/if}
+            {#if !countsAsSpending(t)}<span class="spend-tx-sub"> · not counted as spending</span>{/if}
           </span>
           <span class="spend-tx-amt">{fmt(t.amount)}</span>
           <!-- The row ✕ stays on the web, unlike iOS/Android: a pointer does not

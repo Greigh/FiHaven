@@ -46,6 +46,29 @@ class BrandColorTest {
         assertTrue((visa and 0xFF) > ((visa shr 16) and 0xFF), "blue channel still dominates")
     }
 
+    @Test fun inkPicksWhiteOnDarkBrandsAndInkOnLightOnes() {
+        // The brands that can't carry a white mark — each draws itself dark.
+        for (color in listOf(0xFFD500, 0xFFB3C7, 0xCCFF00, 0xB2FCE4, 0xFFED31)) {
+            assertEquals(BrandColor.INK_DARK, BrandColor.ink(color), "0x%06X takes ink".format(color))
+        }
+        // …and the many that can.
+        for (color in listOf(0x117ACA, 0x1A1F71, 0x000000, 0xD8232A)) {
+            assertEquals(0xFFFFFF, BrandColor.ink(color), "0x%06X takes white".format(color))
+        }
+    }
+
+    @Test fun inkAlwaysClearsThreeToOneOnItsOwnTile() {
+        // Whichever it picks, a mark knocked out of its brand tile has to be
+        // visible on it — that is the whole point of choosing.
+        for ((key, logo) in IssuerLogos.all) {
+            val ink = BrandColor.ink(logo.color)
+            assertTrue(
+                BrandColor.contrastRatio(ink, logo.color) >= 3.0,
+                "$key mark readable on its own tile",
+            )
+        }
+    }
+
     @Test fun everyBundledMarkIsLegibleOnBothSurfaces() {
         for ((key, logo) in IssuerLogos.all) {
             for (surface in listOf(LIGHT_SURFACE, DARK_SURFACE)) {

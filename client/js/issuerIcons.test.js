@@ -12,6 +12,7 @@ import {
   issuerLogoDataUri,
   issuerLogoAspect,
   issuerLogoIsFullColor,
+  brandInk,
 } from './issuerLogos.js';
 import { ISSUER_MONOGRAM_COLORS, issuerInitials } from './issuerMonograms.js';
 
@@ -210,12 +211,13 @@ describe('issuerIcons', () => {
     expect(issuerIconInfo({ name: 'Amex Gold Card' }).isLogo).toBe(false);
   });
 
-  it('exposes an IconMark-compatible shape with optional white chip fill', () => {
+  it('exposes an IconMark-compatible shape with optional knockout chip fill', () => {
     expect(issuerIconMark({ issuer: 'Chase' })).toEqual({
       isImage: true,
       src: expect.stringMatching(/^data:image\/svg\+xml,/),
       fullColor: false,
       aspect: 1,
+      ink: '#FFFFFF',
     });
     expect(issuerIconMark({ issuer: 'Chase' }, { chip: true }).src)
       .toContain(encodeURIComponent('#FFFFFF'));
@@ -224,9 +226,35 @@ describe('issuerIcons', () => {
       isMonogram: true,
       text: 'ML',
       color: ISSUER_MONOGRAM_COLORS.missionlane,
+      ink: '#FFFFFF',
     });
     // Inside a brand-colored chip the initials ride the chip's background.
     expect(issuerIconMark({ issuer: 'Mission Lane' }, { chip: true }).color).toBe(null);
+  });
+
+  it('knocks a light brand out in ink rather than white', () => {
+    // Shell's yellow and Klarna's pink can't carry a white mark — both brands
+    // draw themselves in black, and so does the chip.
+    for (const issuer of ['Shell', 'Klarna', 'Robinhood']) {
+      const info = issuerIconInfo({ issuer });
+      expect(info.ink).toBe('#15161A');
+      expect(issuerIconMark({ issuer }, { chip: true }).src)
+        .toContain(encodeURIComponent('#15161A'));
+    }
+    // A dark brand still gets the white knockout.
+    expect(issuerIconInfo({ issuer: 'Chase' }).ink).toBe('#FFFFFF');
+    // …and the rule reaches monogram initials too (PNC's orange).
+    expect(issuerIconInfo({ issuer: 'PNC' }).ink).toBe('#15161A');
+  });
+
+  it('treats a malformed brand color as dark rather than inverting', () => {
+    // Shorthand hex would parse as 0x000FFF — a dark blue — and hand a white
+    // mark a white tile. Every bundled color is six digits, so this guards the
+    // next one somebody adds.
+    expect(brandInk('#FFF')).toBe('#FFFFFF');
+    expect(brandInk('')).toBe('#FFFFFF');
+    expect(brandInk(undefined)).toBe('#FFFFFF');
+    expect(brandInk('#FFFFFF')).toBe('#15161A');
   });
 
   it('never flattens a full-color mark to the chip fill', () => {

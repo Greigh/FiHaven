@@ -2,19 +2,13 @@
    spendingInsights.js — period-over-period category deltas (Pro).
 ═══════════════════════════════════════════════════════════ */
 
-import { transactionInPeriod } from './budgetRules.js';
+// One implementation, in budgetRules.js — see the note there. Re-exported
+// because this module is where callers (and the native mirror) look for it.
+import { spentByCategory } from './budgetRules.js';
+
+export { spentByCategory };
 
 const CATS = ['Groceries', 'Dining', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Bills', 'Other'];
-
-export function spentByCategory(transactions, periodBounds) {
-  const m = {};
-  (transactions || []).forEach((t) => {
-    if (!transactionInPeriod(t, periodBounds)) return;
-    const cat = t.category || 'Other';
-    m[cat] = (m[cat] || 0) + (parseFloat(t.amount) || 0);
-  });
-  return m;
-}
 
 /**
  * Compare current vs previous period spending by category.

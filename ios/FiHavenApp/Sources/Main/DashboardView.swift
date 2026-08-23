@@ -515,7 +515,10 @@ private struct UpcomingRow: View {
                 .frame(width: 44)
                 .accessibilityHidden(true)
 
-                IconMark(icon: item.icon, size: 22)
+                // Bills and cards share this list, so the icon gets a fixed
+                // slot — an issuer tile is wider than a bill's emoji, and
+                // without one the names would start at different places.
+                IconMark(icon: item.icon, size: 22, slot: IssuerTile.width(22))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {

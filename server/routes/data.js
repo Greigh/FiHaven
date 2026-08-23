@@ -60,8 +60,14 @@ router.put('/', requireAuth, requireCsrf, (req, res) => {
     else if (Array.isArray(current[key])) clean[key] = current[key];
     else clean[key] = [];
   }
+  // `{ __proto__: null }` as the target, not `{}`: a body carrying a
+  // "__proto__" key would otherwise reach Object.assign's [[Set]] and swap this
+  // object's prototype, so flags the client never sent would read as set for the
+  // rest of the request. Nothing persists (JSON.stringify skips it) and
+  // Object.prototype is untouched either way, but a null-prototype target closes
+  // it outright rather than relying on that.
   clean.settings = Object.assign(
-    {},
+    { __proto__: null },
     body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
       ? body.settings
       : (current.settings || {})
@@ -79,30 +85,45 @@ router.put('/', requireAuth, requireCsrf, (req, res) => {
   backfillOnOptIn(req.user.id, before, clean.settings);
 });
 
-/* The bank-balance review queue is the one settings key the SERVER owns: Plaid
-   sync writes `plaidBalanceProposals`, and the client only ever resolves them
-   by appending to `plaidBalanceResolved` (Accept and Decline both do). A client
-   posting a settings snapshot taken before the last sync would otherwise wipe
-   the queue — and with the one-hour sync throttle, the Accept buttons would
-   stay missing for an hour. So keep the server's list and subtract only what
-   the client has actually resolved. */
+/* The bank-balance review queues are the settings keys the SERVER owns: Plaid
+   sync writes them, and the client only ever resolves them by appending to
+   `plaidBalanceResolved` (Accept and Decline both do). A client posting a
+   settings snapshot taken before the last sync would otherwise wipe a queue
+   — and with the one-hour sync throttle, the Accept buttons would stay
+   missing for an hour. So keep the server's list and subtract only what the
+   client has actually resolved.
+
+   Both queues, not just the cards' one. The Balances tab's asset accounts got
+   their own key so an older client never meets a proposal naming a row it
+   can't find, and protecting only `plaidBalanceProposals` left that second
+   queue to be erased by the very next save — which is every save, since the
+   client pushes its whole settings object. The single shared
+   `plaidBalanceResolved` list covers decisions on both. */
+const PROPOSAL_QUEUES = ['plaidBalanceProposals', 'plaidAccountProposals'];
+
 function keepBalanceProposals(before, next) {
-  const server = Array.isArray(before.plaidBalanceProposals) ? before.plaidBalanceProposals : [];
-  if (!server.length) return;
-  // Opting out clears the queue; sync would do the same on its next pass.
-  if (!next.plaidUpdateBalances) {
-    next.plaidBalanceProposals = [];
-    return;
-  }
   const resolved = new Set(
     (Array.isArray(next.plaidBalanceResolved) ? next.plaidBalanceResolved : [])
       .map((r) => (r && r.fingerprint) || r)
       .filter(Boolean)
       .map(String)
   );
-  next.plaidBalanceProposals = server.filter(
-    (p) => p && p.fingerprint && !resolved.has(String(p.fingerprint))
-  );
+  for (const key of PROPOSAL_QUEUES) {
+    const server = Array.isArray(before[key]) ? before[key] : [];
+    // Opting out clears the queue; sync would do the same on its next pass.
+    if (!next.plaidUpdateBalances) {
+      next[key] = [];
+      continue;
+    }
+    // Always derived from the SERVER's copy, including when that copy is empty.
+    // Skipping empty ones left whatever the client sent in place, which let a
+    // client invent proposals for itself — only its own account, but these keys
+    // are the server's to write and nobody downstream expects a client-authored
+    // one.
+    next[key] = server.filter(
+      (p) => p && p.fingerprint && !resolved.has(String(p.fingerprint))
+    );
+  }
 }
 
 const OPT_IN_KEYS = ['plaidUpdatePurchases', 'plaidUpdateBalances'];

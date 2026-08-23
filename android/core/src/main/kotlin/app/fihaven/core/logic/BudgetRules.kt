@@ -310,7 +310,7 @@ object BudgetRules {
         }
         cards.forEach { actual[Bucket.NEEDS] = actual.getValue(Bucket.NEEDS) + cardAmount(it) }
         transactions.forEach { t ->
-            if (!transactionInPeriod(t.date, bounds)) return@forEach
+            if (!t.countsAsSpending || !transactionInPeriod(t.date, bounds)) return@forEach
             val b = spendingBucket(t.category, settings)
             actual[b] = actual.getValue(b) + abs(t.amount)
         }

@@ -10,6 +10,7 @@ import {
   trialDaysLeft,
   trialEndingSoon,
 } from './subscriptionLinks.js';
+import { countsAsSpending } from './budgetRules.js';
 
 export const STALE_DAYS = 60;
 export const TRIAL_REMINDER_DAYS = 3;
@@ -106,6 +107,8 @@ export function buildSubscriptionItems(bills, transactions, now = Date.now(), op
 
   const byMerchant = {};
   transactions.forEach((t) => {
+    // A monthly card payment recurs like a subscription but isn't one.
+    if (!countsAsSpending(t)) return;
     const k = (t.merchant || '').trim().toLowerCase();
     if (!k) return;
     (byMerchant[k] = byMerchant[k] || []).push(t);

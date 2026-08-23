@@ -19,6 +19,7 @@ struct IssuerLogoShape: Shape {
 
         // Uniform scale, centered — never stretch a logo. Every layer of a
         // mark shares the viewBox, so they stay registered to each other.
+        // This is the web's `object-fit: contain` by hand.
         let boxWidth = CGFloat(viewBoxWidth)
         let scale = min(rect.width / boxWidth, rect.height / 24)
         let offsetX = rect.minX + (rect.width - boxWidth * scale) / 2
@@ -62,9 +63,54 @@ enum IssuerLogoCache {
     }
 }
 
-/// Issuer initials on a brand-colored chip, for issuers with no bundled
-/// logo (Citi, Capital One, Bilt, …). Sized to match `IssuerLogoView` so a
-/// list keeps its rhythm whichever mark a row gets.
+/// The tile an issuer mark rides — geometry and edge, shared by the brand
+/// marks and the monogram so a list of cards keeps one rhythm.
+///
+/// Ported from the web's `.card-row-chip` (client/css/components.css). Every
+/// issuer gets the same tile whatever mark it carries, and the mark is fitted
+/// *into* it rather than the tile being sized to the mark — which is what
+/// stopped a wide wordmark like US Bank's from reading as a loose strip
+/// beside its neighbours' square marks.
+enum IssuerTile {
+    /// Proportions relative to the tile's height, matching the web's 48x32
+    /// tile with its 40x20 content box.
+    static let widthRatio: CGFloat = 1.5
+    static let cornerRatio: CGFloat = 0.25
+    static let markWidthRatio: CGFloat = 1.25
+    static let markHeightRatio: CGFloat = 0.625
+
+    static func width(_ height: CGFloat) -> CGFloat { height * widthRatio }
+
+    /// The tile's edge: the brand's own color over a neutral floor.
+    ///
+    /// A brand tile reads as a slightly deeper edge of its own color; a white
+    /// plate picks up a brand-tinted outline, which is what keeps it from
+    /// reading as a logo floating loose on the card. The floor guarantees an
+    /// edge either way — including for a brand as pale as Best Buy's yellow,
+    /// and for a near-black tile (Apple, Bilt) on the dark theme, where it
+    /// flips to light because the tile has no edge of its own there.
+    @ViewBuilder
+    static func edge(_ height: CGFloat, brand: UInt32, plated: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: height * cornerRatio, style: .continuous)
+        shape.strokeBorder(floor(plated: plated), lineWidth: 1)
+        shape.strokeBorder(Theme.exact(brand).opacity(0.55), lineWidth: 1)
+    }
+
+    private static func floor(plated: Bool) -> Color {
+        // A plate's own surface is the light one, so it keeps a dark floor in
+        // both themes; a brand tile follows the theme.
+        if plated { return Color.black.opacity(0.16) }
+        return Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(white: 1, alpha: 0.17)
+                : UIColor(white: 0, alpha: 0.10)
+        })
+    }
+}
+
+/// Issuer initials on a brand-colored tile, for issuers with no bundled
+/// logo (Mission Lane, Navy Federal, PNC, …). Shares `IssuerTile` with
+/// `IssuerLogoView` so a list keeps its rhythm whichever mark a row gets.
 struct IssuerMonogramView: View {
     let text: String
     let color: UInt32
@@ -72,68 +118,57 @@ struct IssuerMonogramView: View {
 
     var body: some View {
         Text(text)
-            .font(Theme.ui(size * 0.5, weight: .heavy))
-            .foregroundStyle(.white)
+            .font(Theme.ui(size * 0.42, weight: .heavy))
+            // Ink, not always white: PNC's orange and Amazon's yellow can't
+            // carry white initials any more than they can a white mark.
+            .foregroundStyle(Theme.exact(BrandColor.ink(on: color)))
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .frame(width: size, height: size)
+            .frame(width: size * IssuerTile.markWidthRatio, height: size * IssuerTile.markHeightRatio)
+            .frame(width: IssuerTile.width(size), height: size)
             .background(
-                RoundedRectangle(cornerRadius: max(3, size * 0.22), style: .continuous)
-                    .fill(Theme.chip(color))
+                RoundedRectangle(cornerRadius: size * IssuerTile.cornerRatio, style: .continuous)
+                    .fill(Theme.exact(color))
             )
+            .overlay(IssuerTile.edge(size, brand: color, plated: false))
     }
 }
 
-/// An issuer mark `size` tall, falling back to the emoji stand-in when the
-/// key isn't bundled.
+/// An issuer mark on its tile, `size` tall, falling back to the emoji
+/// stand-in when the key isn't bundled.
 ///
-/// A monochrome mark is a square tinted to stay legible on the current
-/// theme. A full-color mark keeps its own colors on a light plate — it was
-/// drawn for a white page, and Bilt's black wordmark would otherwise vanish
-/// on the dark theme.
+/// A monochrome mark is knocked out of a tile in the brand's own color —
+/// white for most brands, ink for the light ones that can't carry white (see
+/// `BrandColor.ink(on:)`). A full-color mark can't be recolored, so its tile
+/// becomes the white plate it was drawn for — in both themes, or Bilt's black
+/// wordmark would vanish on the dark one.
 ///
-/// That plate is square and exactly `size`, like every other mark a row can
-/// get, with the mark scaled whole to fit inside it — so a 4:1 wordmark like
-/// US Bank's reads as a logo tile and every row's text starts at the same
-/// place. Sizing the plate to the mark instead (as the web's fixed 48x32 chip
-/// can afford to) flattened a wordmark into a strip and shoved the name
-/// column right on exactly the rows that carry one.
+/// Either way the mark is fitted into the same content box and the tile is
+/// the same size, so every row's text starts at the same place.
 struct IssuerLogoView: View {
     let key: String
     var size: CGFloat = 22
     var fallbackEmoji: String = "💳"
 
-    /// Gap between a full-color mark and the edge of its plate, as a fraction
-    /// of the plate. Enough that the plate reads as a tile around the mark
-    /// rather than a box clamped onto it.
-    static let plateInset: CGFloat = 0.0625
-
     var body: some View {
         if let layers = IssuerLogoCache.lookup(key), let logo = IssuerLogos.logo(key) {
-            if logo.isFullColor {
-                let aspect = CGFloat(logo.aspect)
-                let inner = size * (1 - 2 * Self.plateInset)
-                let width = aspect >= 1 ? inner : inner * aspect
-                let height = aspect >= 1 ? inner / aspect : inner
-                ZStack {
-                    ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
-                        IssuerLogoShape(segments: layer.segments, viewBoxWidth: logo.width)
-                            .fill(Theme.exact(layer.color), style: FillStyle(eoFill: false))
-                    }
+            let plated = logo.isFullColor
+            let ink = BrandColor.ink(on: logo.color)
+            ZStack {
+                ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
+                    IssuerLogoShape(segments: layer.segments, viewBoxWidth: logo.width)
+                        // Only a monochrome mark can be knocked out; a
+                        // full-color one keeps every layer as authored.
+                        .fill(Theme.exact(plated ? layer.color : ink), style: FillStyle(eoFill: false))
                 }
-                .frame(width: width, height: height)
-                .frame(width: size, height: size)
-                .background(
-                    // Same corner as the monogram chip: the two are siblings
-                    // in a list, one carrying a mark and the other initials.
-                    RoundedRectangle(cornerRadius: max(3, size * 0.22), style: .continuous)
-                        .fill(Theme.logoPlate)
-                )
-            } else {
-                IssuerLogoShape(segments: layers[0].segments, viewBoxWidth: logo.width)
-                    .fill(Theme.brand(logo.color), style: FillStyle(eoFill: false))
-                    .frame(width: size, height: size)
             }
+            .frame(width: size * IssuerTile.markWidthRatio, height: size * IssuerTile.markHeightRatio)
+            .frame(width: IssuerTile.width(size), height: size)
+            .background(
+                RoundedRectangle(cornerRadius: size * IssuerTile.cornerRatio, style: .continuous)
+                    .fill(plated ? Theme.logoPlate : Theme.exact(logo.color))
+            )
+            .overlay(IssuerTile.edge(size, brand: logo.color, plated: plated))
         } else {
             Text(fallbackEmoji)
                 .font(.system(size: size))

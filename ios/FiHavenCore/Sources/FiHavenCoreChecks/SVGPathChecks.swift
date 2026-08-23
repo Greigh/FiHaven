@@ -209,4 +209,24 @@ func runSVGPathChecks() {
             }
         }
     }
+
+    section("BrandColor — knockout ink") {
+        // The brands that can't carry a white mark — each draws itself dark.
+        for color: UInt32 in [0xFFD500, 0xFFB3C7, 0xCCFF00, 0xB2FCE4, 0xFFED31] {
+            checkEqual(BrandColor.ink(on: color), BrandColor.inkDark, String(format: "0x%06X takes ink", color))
+        }
+        // …and the many that can.
+        for color: UInt32 in [0x117ACA, 0x1A1F71, 0x000000, 0xD8232A] {
+            checkEqual(BrandColor.ink(on: color), 0xFFFFFF, String(format: "0x%06X takes white", color))
+        }
+
+        // Whichever it picks, a mark knocked out of its brand tile has to be
+        // visible on it — that is the whole point of choosing.
+        for (key, logo) in IssuerLogos.all {
+            check(
+                BrandColor.contrastRatio(BrandColor.ink(on: logo.color), logo.color) >= 3,
+                "\(key) mark readable on its own tile"
+            )
+        }
+    }
 }

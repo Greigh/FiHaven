@@ -32,6 +32,7 @@
 
 import { looksSame } from './reconcile.js';
 import { monthlyIncomeForMonth } from './income.js';
+import { countsAsSpending } from './budgetRules.js';
 
 const num = (v) => parseFloat(v) || 0;
 
@@ -92,6 +93,9 @@ export function monthlySpending(payments, transactions, dayTolerance) {
   const bucket = (mk) => (out[mk] = out[mk] || emptyBucket());
 
   (transactions || []).forEach((t) => {
+    // A card payment is a transfer, not an outflow to plot — the purchases it
+    // settles are already in this chart under their own months.
+    if (!countsAsSpending(t)) return;
     const mk = monthKeyOf(t);
     if (!mk) return;
     const b = bucket(mk);

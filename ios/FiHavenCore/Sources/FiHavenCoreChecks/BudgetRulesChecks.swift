@@ -141,6 +141,17 @@ func runSpendingInsightsChecks() {
         )
         checkClose(odd["Other"] ?? -1, 12, "a blank category folds into Other", tol: 0.0001)
         check(odd["Groceries"] == nil, "unusable dates are dropped")
+
+        // A card payment moves money between the user's own accounts. Its
+        // dollars were already counted when the purchases it settles posted.
+        let withTransfer = SpendingInsights.spentByCategory(
+            [tx(150, "Groceries", "2026-06-10"), tx(4070, transferCategory, "2026-06-20")],
+            bounds: june
+        )
+        check(withTransfer[transferCategory] == nil, "a transfer is not counted as spending")
+        checkClose(withTransfer["Groceries"] ?? -1, 150, "real spending is untouched", tol: 0.0001)
+        check(!spendingCategories.contains(transferCategory), "Transfer is not a budgetable category")
+        check(transactionCategories.contains(transferCategory), "Transfer is offered when logging a transaction")
     }
 
     section("SpendingInsights — compute") {

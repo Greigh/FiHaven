@@ -20,7 +20,9 @@ object SpendingInsights {
     fun spentByCategory(transactions: List<SpendTransaction>, bounds: PeriodBounds): Map<String, Double> {
         val m = mutableMapOf<String, Double>()
         transactions.forEach { t ->
-            if (!transactionInPeriod(t.date, bounds)) return@forEach
+            // Transfers (card payments, savings sweeps) would read as a huge
+            // swing in a category the user never spent in. Not spending.
+            if (!t.countsAsSpending || !transactionInPeriod(t.date, bounds)) return@forEach
             val cat = t.category.ifBlank { "Other" }
             m[cat] = (m[cat] ?: 0.0) + t.amount
         }

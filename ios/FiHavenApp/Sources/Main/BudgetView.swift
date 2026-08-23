@@ -319,7 +319,7 @@ struct TransactionEditorView: View {
             Form {
                 CurrencyField(label: "Amount", value: $amount)
                 Picker("Category", selection: $category) {
-                    ForEach(spendingCategories, id: \.self) { cat in
+                    ForEach(transactionCategories, id: \.self) { cat in
                         Text("\(SpendingView.catIcon(cat)) \(cat)")
                             .tag(cat)
                             .accessibilityLabel(cat)

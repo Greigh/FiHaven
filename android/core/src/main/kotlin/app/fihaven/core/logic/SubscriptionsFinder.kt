@@ -85,7 +85,8 @@ object SubscriptionsFinder {
                 )
             }
 
-        transactions.filter { it.merchant.trim().isNotEmpty() }
+        // A monthly card payment recurs like a subscription but isn't one.
+        transactions.filter { it.countsAsSpending && it.merchant.trim().isNotEmpty() }
             .groupBy { it.merchant.trim().lowercase() }
             .forEach { (_, list) ->
                 val months = list.map { it.date.take(7) }.toSet()

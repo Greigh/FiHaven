@@ -10,6 +10,9 @@ import {
   PRESET_SPLITS,
   DEFAULT_SPLITS,
   HOUSING_RATIO_LIMIT,
+  countsAsSpending,
+  TRANSFER_CATEGORY,
+  SPENDING_CATEGORIES,
 } from './budgetRules.js';
 
 describe('budgetRuleMode', () => {
@@ -135,6 +138,38 @@ describe('split lens', () => {
     expect(billBucket('Subscriptions')).toBe('wants');
     expect(spendingBucket('Dining')).toBe('wants');
     expect(billBucket('Subscriptions', { budgetBucketOverrides: { bills: { Subscriptions: 'save' } } })).toBe('save');
+  });
+});
+
+/* Money moved between the user's own accounts. The purchases a card payment
+   settles were already counted when they posted, so a lens that adds the
+   payment on top double-counts them. */
+describe('transfers are not spending', () => {
+  it('countsAsSpending is false only for the Transfer category', () => {
+    expect(countsAsSpending({ category: 'Dining' })).toBe(true);
+    expect(countsAsSpending({ category: TRANSFER_CATEGORY })).toBe(false);
+  });
+
+  it('keeps Transfer out of the budgetable categories', () => {
+    // A per-category budget for "Transfer" would be meaningless.
+    expect(SPENDING_CATEGORIES).not.toContain(TRANSFER_CATEGORY);
+  });
+
+  it('leaves a card payment out of the split lens buckets', () => {
+    const lensWith = (transactions) => computeBudgetLens({
+      settings: { budgetRule: '50-30-20' },
+      income: 4000,
+      bills: [],
+      cards: [],
+      transactions,
+      periodBounds: { start: new Date(2026, 5, 1), end: new Date(2026, 6, 1) },
+      billDueInPeriod: () => true,
+      mk: '2026-06',
+    });
+    const spend = [{ date: '2026-06-05', category: 'Dining', amount: 75 }];
+    const withPayment = [...spend, { date: '2026-06-20', category: TRANSFER_CATEGORY, amount: 4070 }];
+    const wants = (l) => l.rows.find((r) => r.key === 'wants').actual;
+    expect(wants(lensWith(withPayment))).toBe(wants(lensWith(spend)));
   });
 });
 

@@ -77,7 +77,10 @@ public enum SubscriptionsFinder {
                 duplicate: false
             ))
         }
-        let withMerchant = transactions.filter { !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty }
+        // A monthly card payment recurs like a subscription but isn't one.
+        let withMerchant = transactions.filter {
+            $0.countsAsSpending && !$0.merchant.trimmingCharacters(in: .whitespaces).isEmpty
+        }
         let byMerchant = Dictionary(grouping: withMerchant) { $0.merchant.trimmingCharacters(in: .whitespaces).lowercased() }
         for (_, list) in byMerchant {
             let months = Set(list.map { String($0.date.prefix(7)) })

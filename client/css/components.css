@@ -1875,26 +1875,52 @@ main {
   border-color: color-mix(in srgb, var(--red) 28%, var(--border));
   background: color-mix(in srgb, var(--red-bg) 28%, var(--surface));
 }
-.upcoming-icon { font-size: 18px; line-height: 1; display: inline-flex; align-items: center; }
-.upcoming-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 5px; }
-/* A full-color mark keeps its own colors on a light plate, and its own aspect
-   ratio — capped at 35px so a wordmark can't shove the row's text over. Past
-   the cap the height comes down with the width so the plate hugs the mark
-   instead of letterboxing it (see .icon-mark-plate). */
-.upcoming-logo.is-plate {
-  width: min(35px, calc(20px * var(--logo-aspect, 1)));
-  height: auto;
-  background: #fff;
-  border-radius: 3px;
-  padding: 1px;
-  box-sizing: content-box;
+/* One fixed slot for whatever mark a row carries — a bill's emoji, an
+   issuer's tile — so every name in the list starts at the same x. Sizing the
+   slot to its contents let a wide wordmark shove one row's text out of line
+   with its neighbours'. */
+.upcoming-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 33 = 22 * 1.5, the same tile proportions the Cards list uses and the same
+     number IssuerTile.width(22) produces on iOS and Android. */
+  flex: 0 0 33px;
+  width: 33px;
 }
-/* Issuer initials, for issuers with no bundled logo. Matches .upcoming-logo
-   so the row keeps its rhythm either way. */
+/* The Cards list tile (.card-row-chip), at the row's scale and sharing its
+   two-ring edge — see that rule for what the rings do. */
+.upcoming-chip {
+  --chip-ring: transparent;
+  --chip-edge: rgba(0,0,0,.10);
+  width: 33px;
+  height: 22px;
+  border-radius: 5.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--chip-ring) 55%, transparent),
+    inset 0 0 0 1px var(--chip-edge),
+    inset 0 1px 0 rgba(255,255,255,.22);
+}
+/* A full-color mark keeps its own colors, so its tile is the white plate it
+   was drawn for rather than the brand color. */
+.upcoming-chip.is-plate { background: #fff; --chip-edge: rgba(0,0,0,.16); }
+/* One content box for every mark, letterboxed by `contain` — a square symbol
+   lands at 13.75 square, a wordmark spreads to 27.5 wide at its own aspect,
+   and neither is stretched. Same fractions of the tile as the Cards list
+   (40x20 of 48x32), so a mark reads identically at both sizes. */
+.upcoming-logo { width: 27.5px; height: 13.75px; object-fit: contain; }
+/* Issuer initials, for issuers with no bundled logo. Rides the tile's own
+   background, so it's type rather than a second chip. */
 .upcoming-monogram {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 5px;
-  color: #fff; font-size: 10px; font-weight: 800; letter-spacing: -.02em;
+  font-size: 9px; font-weight: 800; letter-spacing: -.02em;
+  color: #fff;
 }
 .upcoming-body { min-width: 0; }
 .upcoming-name {
@@ -2466,25 +2492,40 @@ main {
   letter-spacing: .06em;
   text-transform: uppercase;
 }
+/* The issuer tile. Every card gets the same 48x32 tile whatever mark it
+   carries, and the mark is fitted inside it (see .card-row-chip .icon-mark-img)
+   rather than sizing the tile to itself — so the column of tiles down the left
+   of the list keeps one rhythm and the name beside each starts at the same x.
+
+   The edge is two stacked rings: the brand's own color, over a neutral floor.
+   A brand tile reads as a slightly deeper edge of its own color; a white plate
+   picks up a brand-tinted outline. The floor guarantees an edge either way,
+   including for a brand as pale as Best Buy's yellow. */
 .card-row-chip {
+  --chip-ring: transparent;
+  --chip-edge: rgba(0,0,0,.10);
   width: 48px;
   height: 32px;
-  border-radius: 7px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 17px;
   flex-shrink: 0;
   color: white;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--chip-ring) 55%, transparent),
+    inset 0 0 0 1px var(--chip-edge),
+    inset 0 1px 0 rgba(255,255,255,.22);
   margin-top: 2px;
 }
-/* Holding a full-color brand mark, the chip becomes the white plate the mark
-   was drawn for — in both themes, so a black wordmark stays visible. The
-   inset highlight and border keep it from floating on the light theme's card. */
+/* Holding a full-color brand mark, the tile becomes the white plate the mark
+   was drawn for — in both themes, so a black wordmark stays visible. It keeps
+   the same rings as a brand tile, which is what stops it reading as a logo
+   floating loose on the card rather than a tile like its neighbours. */
 .card-row-chip.is-plate {
   background: #fff;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+  --chip-edge: rgba(0,0,0,.16);
 }
 .card-row-naming {
   min-width: 0;

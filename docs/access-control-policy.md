@@ -35,7 +35,7 @@ This policy governs access to all FiHaven production assets (servers, databases,
 
 - Passwords are hashed with **bcrypt**; credentials are never stored or logged in readable form.
 - Users may enroll **phishing-resistant MFA** — WebAuthn **passkeys**, authenticator-app **TOTP**, and/or email one-time codes; MFA secrets are encrypted at rest.
-- Sessions are bound server-side. Web clients use `Secure`/`HttpOnly`/`SameSite` cookies plus a per-session CSRF token; native apps store a bearer token in the platform secure store (iOS Keychain, Android EncryptedSharedPreferences).
+- Sessions are bound server-side and stored only as a SHA-256 hash of the session id, so the session store itself holds no replayable credential. Web clients use `Secure`/`HttpOnly`/`SameSite` cookies plus a per-session CSRF token; native apps store a bearer token in the platform secure store (iOS Keychain, Android EncryptedSharedPreferences).
 
 **Operator / administrative identities** (server SSH, hosting console, GitHub, Plaid, Paddle, Cloudflare, DNS/mail):
 

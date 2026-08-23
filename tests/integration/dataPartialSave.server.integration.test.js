@@ -126,6 +126,92 @@ describe('integration — PUT /api/data must not drop omitted lists', () => {
     expect(after.settings.plaidBalanceProposals).toEqual([]);
   });
 
+  // The Balances tab's asset accounts run a SECOND queue, `plaidAccountProposals`,
+  // under its own settings key. It was left unprotected while the cards' queue
+  // was kept, so every client save erased it and the tab's "Bank sync review"
+  // panel was empty essentially always — bank balances never reached an account.
+  // These keys are the server's to write. Skipping the ones whose server copy
+  // was empty left whatever the client sent in place, so a client could invent
+  // proposals for itself — its own account only, but nothing downstream expects
+  // a client-authored one.
+  it('a client cannot invent proposals the server never wrote', async () => {
+    const u = await makeUser();
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true } });
+
+    await put(u, {
+      ...seeded,
+      settings: {
+        plaidUpdateBalances: true,
+        plaidBalanceProposals: [{ id: 'fake', proposedCurrent: 1, fingerprint: 'fake:1.00:' }],
+        plaidAccountProposals: [{ id: 'fake2', proposedBalance: 2, fingerprint: 'acct:fake2:2.00' }],
+      },
+    });
+    const after = await get(u);
+    expect(after.settings.plaidBalanceProposals).toEqual([]);
+    expect(after.settings.plaidAccountProposals).toEqual([]);
+  });
+
+  it('a stale settings save cannot wipe the asset-account review queue', async () => {
+    const u = await makeUser();
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true } });
+
+    // Stand in for a sync writing BOTH queues, as refreshBalanceProposals does.
+    const user = ctx.db().findUserByEmail(u.email);
+    const stored = ctx.db().getUserData(user.id);
+    stored.settings.plaidBalanceProposals = [
+      { id: 'c1', proposedCurrent: 120, fingerprint: 'c1:120.00:' },
+    ];
+    stored.settings.plaidAccountProposals = [
+      { id: 'a1', proposedBalance: 640.25, fingerprint: 'acct:a1:640.25' },
+      { id: 'a2', proposedBalance: 12000, fingerprint: 'acct:a2:12000.00' },
+    ];
+    ctx.db().upsertUserData(user.id, stored);
+
+    // A client that loaded before the sync: neither queue in its snapshot.
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true, currency: 'EUR' } });
+    let after = await get(u);
+    expect(after.settings.plaidAccountProposals).toHaveLength(2);
+    // The cards' queue must not regress while the accounts' one is fixed.
+    expect(after.settings.plaidBalanceProposals).toHaveLength(1);
+
+    // Both queues share one resolved list, and an account decision must retire
+    // only its own proposal.
+    await put(u, {
+      ...seeded,
+      settings: {
+        plaidUpdateBalances: true,
+        plaidBalanceResolved: [{ fingerprint: 'acct:a1:640.25', decision: 'accept' }],
+      },
+    });
+    after = await get(u);
+    expect(after.settings.plaidAccountProposals.map((p) => p.id)).toEqual(['a2']);
+    expect(after.settings.plaidBalanceProposals.map((p) => p.id)).toEqual(['c1']);
+
+    // Opting out empties both.
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: false } });
+    after = await get(u);
+    expect(after.settings.plaidAccountProposals).toEqual([]);
+    expect(after.settings.plaidBalanceProposals).toEqual([]);
+  });
+
+  // An empty cards' queue must not short-circuit the accounts' one — the old
+  // code returned early on `!server.length` before it ever looked further.
+  it('keeps the account queue when the card queue is empty', async () => {
+    const u = await makeUser();
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true } });
+
+    const user = ctx.db().findUserByEmail(u.email);
+    const stored = ctx.db().getUserData(user.id);
+    stored.settings.plaidAccountProposals = [
+      { id: 'a1', proposedBalance: 640.25, fingerprint: 'acct:a1:640.25' },
+    ];
+    ctx.db().upsertUserData(user.id, stored);
+
+    await put(u, { ...seeded, settings: { plaidUpdateBalances: true, currency: 'EUR' } });
+    const after = await get(u);
+    expect(after.settings.plaidAccountProposals).toHaveLength(1);
+  });
+
   it('an explicit empty array still clears a list (deleting everything works)', async () => {
     const u = await makeUser();
     await put(u, seeded);

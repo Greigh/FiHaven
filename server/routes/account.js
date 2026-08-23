@@ -145,8 +145,9 @@ router.post('/change-password', requireAuth, requireCsrf, async (req, res) => {
 
   const hash = await bcrypt.hash(body.newPassword, ACTIVE_BCRYPT_COST);
   dbApi.updateUserPassword(user.id, hash);
-  // Log out every other device; keep the current session.
-  dbApi.deleteOtherSessions(user.id, req.session.id);
+  // Log out every other device; keep the current session. Sessions are keyed
+  // by the hash of their id, so that hash is what identifies "this one".
+  dbApi.deleteOtherSessions(user.id, req.session.id_hash);
 
   return res.json({ ok: true });
 });

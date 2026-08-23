@@ -261,7 +261,7 @@ public enum BudgetRules {
         }
         cards.forEach { actual[.needs, default: 0] += cardAmount($0) }
         transactions.forEach { t in
-            guard transactionInPeriod(t.date, bounds: bounds) else { return }
+            guard t.countsAsSpending, transactionInPeriod(t.date, bounds: bounds) else { return }
             actual[spendingBucket(t.category, settings: settings), default: 0] += abs(t.amount)
         }
         actual[.save] = max(0, income - actual[.needs, default: 0] - actual[.wants, default: 0])

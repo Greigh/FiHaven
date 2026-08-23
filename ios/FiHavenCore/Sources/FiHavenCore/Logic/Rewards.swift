@@ -390,7 +390,9 @@ public enum Rewards {
         guard let yearAgo = cal.date(byAdding: .day, value: -365, to: today) else { return [:] }
         var recent: [(amt: Double, date: Date, tx: SpendTransaction)] = []
         for t in transactions {
-            guard t.amount > 0, let d = DateLogic.parseDate(t.date, tz: tz) else { continue }
+            // A card payment is a transfer, not spend that earns rewards.
+            guard t.amount > 0, t.countsAsSpending,
+                  let d = DateLogic.parseDate(t.date, tz: tz) else { continue }
             if d < yearAgo || d > today { continue }
             recent.append((t.amount, d, t))
         }

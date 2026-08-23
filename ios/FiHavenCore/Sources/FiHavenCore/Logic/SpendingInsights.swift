@@ -15,7 +15,10 @@ public enum SpendingInsights {
     public static func spentByCategory(_ transactions: [SpendTransaction], bounds: PeriodBounds) -> [String: Double] {
         var m: [String: Double] = [:]
         for t in transactions {
-            guard BudgetRules.transactionInPeriod(t.date, bounds: bounds) else { continue }
+            // Transfers (card payments, savings sweeps) would read as a huge
+            // swing in a category the user never spent in. They aren't spending.
+            guard t.countsAsSpending,
+                  BudgetRules.transactionInPeriod(t.date, bounds: bounds) else { continue }
             let cat = t.category.isEmpty ? "Other" : t.category
             m[cat, default: 0] += t.amount
         }

@@ -176,7 +176,9 @@ struct CalendarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(item.name), \(A11y.paidStateLabel(state))")
             .accessibilityHint("Opens payment screen")
-            IconMark(icon: item.icon, size: 18)
+            // Bills and cards share the day's list — fixed slot, so an
+            // issuer tile and a bill's emoji start their names alike.
+            IconMark(icon: item.icon, size: 18, slot: IssuerTile.width(18))
                 .accessibilityHidden(true)
             Text(item.name).font(Theme.ui(15)).foregroundStyle(Theme.text)
             Spacer()
