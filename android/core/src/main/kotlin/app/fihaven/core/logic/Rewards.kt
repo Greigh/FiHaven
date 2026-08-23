@@ -376,7 +376,8 @@ object Rewards {
         data class Row(val amt: Double, val date: LocalDate, val tx: SpendTransaction)
         val recent = mutableListOf<Row>()
         for (t in transactions) {
-            if (t.amount <= 0) continue
+            // A card payment is a transfer, not spend that earns rewards.
+            if (t.amount <= 0 || !t.countsAsSpending) continue
             val d = DateLogic.parseDate(t.date) ?: continue
             if (d.isBefore(yearAgo) || d.isAfter(today)) continue
             recent.add(Row(t.amount, d, t))

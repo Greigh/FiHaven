@@ -46,6 +46,26 @@ export const BILL_BUCKET = {
   Other: 'needs',
 };
 
+/**
+ * Money moved between the user's own accounts — a credit-card payment, a sweep
+ * to savings. It shows in the transaction list like anything else, but it is
+ * NOT spending: the purchases a card payment settles were already counted when
+ * they posted, so totalling the payment double-counts them.
+ *
+ * Deliberately absent from SPENDING_BUCKET below, which drives the per-category
+ * budget rows and the bucket-override picker — a budget for "Transfer" would be
+ * meaningless. Mirrored by Transaction.swift / Settings.kt.
+ */
+export const TRANSFER_CATEGORY = 'Transfer';
+
+/** False for transfers; the gate on every spend total. */
+export function countsAsSpending(t) {
+  return !t || t.category !== TRANSFER_CATEGORY;
+}
+
+/** Categories offered when logging a transaction — budgets get SPENDING_CATEGORIES. */
+export const TRANSACTION_CATEGORIES_EXTRA = [TRANSFER_CATEGORY];
+
 /** Spending category → bucket (matches SPENDING_CATEGORIES in cores). */
 export const SPENDING_BUCKET = {
   Groceries: 'needs',
@@ -271,10 +291,19 @@ export function applyEnvelopeRollover(settings, transactions, prevBounds) {
   };
 }
 
-function spentByCategory(transactions, periodBounds) {
+/**
+ * Per-category spend for a period. Transfers are excluded — a card payment
+ * would show as a huge swing in a category the user never spent in.
+ *
+ * Exported and shared with spendingInsights.js, which used to keep a
+ * byte-identical copy. Two copies of a rule this small is how one of them ends
+ * up with a gate the other doesn't; the native cores already route both callers
+ * through a single `SpendingInsights.spentByCategory`.
+ */
+export function spentByCategory(transactions, periodBounds) {
   const m = {};
   (transactions || []).forEach((t) => {
-    if (!transactionInPeriod(t, periodBounds)) return;
+    if (!transactionInPeriod(t, periodBounds) || !countsAsSpending(t)) return;
     const cat = t.category || 'Other';
     m[cat] = (m[cat] || 0) + (parseFloat(t.amount) || 0);
   });
@@ -343,7 +372,7 @@ function computeSplitLens(mode, ctx) {
   });
   ctx.cards.filter((c) => !c.archived).forEach((c) => { actual.needs += cardAmt(c, ctx.goalAmountFor, ctx.mk); });
   (ctx.transactions || []).forEach((t) => {
-    if (!transactionInPeriod(t, ctx.periodBounds)) return;
+    if (!transactionInPeriod(t, ctx.periodBounds) || !countsAsSpending(t)) return;
     actual[spendingBucket(t.category, settings)] += Math.abs(parseFloat(t.amount) || 0);
   });
   actual.save = Math.max(0, income - actual.needs - actual.wants);

@@ -15,4 +15,16 @@ describe('computeSpendingInsights', () => {
     const dining = rows.find((r) => r.cat === 'Dining');
     expect(dining).toMatchObject({ now: 150, was: 100, delta: 50, pct: 50 });
   });
+
+  /* A $4,070 card payment landing in the deltas would read as the user's
+     biggest spending swing of the month, when nothing was spent at all. */
+  it('ignores transfers — a card payment is not a spending swing', () => {
+    const tx = [
+      { date: '2026-06-10', category: 'Dining', amount: 150 },
+      { date: '2026-06-20', category: 'Transfer', amount: 4070 },
+    ];
+    const rows = computeSpendingInsights(tx, cur, prev);
+    expect(rows.find((r) => r.cat === 'Transfer')).toBeUndefined();
+    expect(rows.find((r) => r.cat === 'Dining').now).toBe(150);
+  });
 });

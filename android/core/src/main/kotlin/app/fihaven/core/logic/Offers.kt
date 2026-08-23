@@ -70,7 +70,10 @@ object Offers {
         var best: SpendTransaction? = null
         var bestDate: LocalDate? = null
         for (t in transactions) {
-            if (t.amount <= 0) continue
+            // A transfer is not a purchase, so it can never be an offer
+            // redemption — and "AMEX PAYMENT" fuzzy-matches an Amex offer well
+            // enough to fire a false "looks like you used this" prompt.
+            if (t.amount <= 0 || !t.countsAsSpending) continue
             val tm = normMerchant(t.merchant)
             if (tm.length < 3 || (!tm.contains(m) && !m.contains(tm))) continue
             val td = parse(t.date) ?: continue

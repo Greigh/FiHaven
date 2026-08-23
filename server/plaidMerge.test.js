@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTransactions } from './plaidMerge.js';
+import { mergeTransactions, cleanMerchant, isTransferTx, TRANSFER_CATEGORY } from './plaidMerge.js';
 
 /* Plaid's transactions-sync cursor is destructive: once advanced, those
    transactions are never handed to us again. Bank import is opt-in and OFF by
@@ -163,5 +163,138 @@ describe('plaidMerge — account attribution', () => {
     const row = second.transactions.find((t) => t.plaidId === 'p1');
     expect(row.amount).toBe(12);
     expect(row.accountId).toBe('acct-gold');
+  });
+});
+
+/* A bank descriptor is machine-written: "BILT CARD PMT~Future Amount:
+   4070.00~REF 90210" wraps to three lines in a transaction row and buries the
+   two words a human actually reads. */
+describe('plaidMerge — tidying bank descriptors', () => {
+  const on = { plaidUpdatePurchases: true };
+
+  it('keeps the leading name and drops the bank’s packed-on fields', () => {
+    expect(cleanMerchant('BILT CARD PMT~Future Amount: 4070.00~REF 90210')).toBe('Bilt Card Payment');
+  });
+
+  it('strips trailing reference numbers, store numbers and processor prefixes', () => {
+    expect(cleanMerchant('365 RETAIL MARKETS 8005551212')).toBe('365 Retail Markets');
+    expect(cleanMerchant('COSTCO WHSE #1234')).toBe('Costco Whse');
+    expect(cleanMerchant('SQ *COFFEE BAR')).toBe('Coffee Bar');
+    expect(cleanMerchant('WALMART REF #A19X')).toBe('Walmart');
+  });
+
+  it('leaves an already-readable name alone', () => {
+    expect(cleanMerchant('Trader Joe’s')).toBe('Trader Joe’s');
+    expect(cleanMerchant('Amazon')).toBe('Amazon');
+  });
+
+  it('never cleans a name away to nothing', () => {
+    // All reference number is still better than a blank row.
+    expect(cleanMerchant('   000123456789')).toBe('000123456789');
+    expect(cleanMerchant('')).toBe('');
+  });
+
+  it('cleans the merchant on import', () => {
+    const out = mergeTransactions(on, [], {
+      added: [tx('p1', 12, { name: 'SQ *BLUE BOTTLE~Ref 4471', merchant_name: null })],
+    });
+    expect(out.transactions[0].merchant).toBe('Blue Bottle');
+  });
+});
+
+/* A credit-card payment is money moving between the user's own accounts. Its
+   dollars were already counted as spending when the individual purchases
+   posted, so letting it into a spend total double-counts them — a $4,070
+   payment swamped a month of real groceries. */
+describe('plaidMerge — card payments are transfers, not spending', () => {
+  const on = { plaidUpdatePurchases: true };
+  const pfc = (primary, detailed) => ({ personal_finance_category: { primary, detailed } });
+
+  it('classifies Plaid’s card-payment category as Transfer', () => {
+    const out = mergeTransactions(on, [], {
+      added: [tx('p1', 4070, { name: 'BILT CARD PMT', ...pfc('LOAN_PAYMENTS', 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT') })],
+    });
+    expect(out.transactions[0].category).toBe(TRANSFER_CATEGORY);
+  });
+
+  it('falls back to the descriptor when the bank’s category is vague', () => {
+    // Both a card word AND a payment word must appear.
+    expect(isTransferTx({ name: 'BILT CARD PMT', ...pfc('LOAN_PAYMENTS', '') })).toBe(true);
+    expect(isTransferTx({ name: 'CHASE CREDIT CRD AUTOPAY', ...pfc('TRANSFER_OUT', '') })).toBe(true);
+    expect(isTransferTx({ name: 'CITY WATER PAYMENT', ...pfc('LOAN_PAYMENTS', '') })).toBe(false);
+    expect(isTransferTx({ name: 'THE CARD SHOP', ...pfc('GENERAL_MERCHANDISE', '') })).toBe(false);
+  });
+
+  it('treats a real purchase as spending even when the name mentions a card', () => {
+    const out = mergeTransactions(on, [], {
+      added: [tx('p1', 30, { name: 'CARD SHOP', ...pfc('GENERAL_MERCHANDISE', '') })],
+    });
+    expect(out.transactions[0].category).toBe('Shopping');
+  });
+});
+
+/* Plaid only re-sends a transaction when the BANK changes it, so a row stored
+   before this tidy-up would keep its raw name and wrong category forever. The
+   merge re-tidies stored rows on the way through — conservatively, so hand
+   edits survive. */
+describe('plaidMerge — re-tidying already-stored bank rows', () => {
+  const on = { plaidUpdatePurchases: true };
+  const stored = (extra) => ({ id: 'plaid-old', plaidId: 'old', source: 'plaid', amount: 4070, date: '2026-06-01', ...extra });
+
+  it('cleans a raw stored descriptor and reclassifies the card payment', () => {
+    const out = mergeTransactions(on, [stored({ merchant: 'BILT CARD PMT~Future Amount: 4070.00', category: 'Bills' })], {
+      added: [tx('p1')],
+    });
+    const old = out.transactions.find((t) => t.plaidId === 'old');
+    expect(old.merchant).toBe('Bilt Card Payment');
+    expect(old.category).toBe(TRANSFER_CATEGORY);
+  });
+
+  it('leaves a name the user rewrote and a category they re-picked alone', () => {
+    const out = mergeTransactions(on, [stored({ merchant: 'Bilt rent card', category: 'Housing' })], {
+      added: [tx('p1')],
+    });
+    const old = out.transactions.find((t) => t.plaidId === 'old');
+    expect(old.merchant).toBe('Bilt rent card');
+    expect(old.category).toBe('Housing');
+  });
+
+  // 'Bills' and 'Other' are values a USER can pick too, so inferring "untouched"
+  // from them re-filed a deliberate choice — and did it again on every sync, so
+  // the correction could never stick. `autoCategory` records what the importer
+  // actually chose, which is the only thing that can tell the two apart.
+  it("keeps a card payment the user deliberately filed under Bills", () => {
+    const row = stored({
+      merchant: 'Chase Card Payment', category: 'Bills', autoCategory: TRANSFER_CATEGORY,
+    });
+    const out = mergeTransactions(on, [row], { added: [tx('p1')] });
+    const old = out.transactions.find((t) => t.plaidId === 'old');
+    expect(old.category).toBe('Bills');
+  });
+
+  it('stamps a legacy row so the next hand edit is respected', () => {
+    // Pass 1: no autoCategory, so the old guess applies once…
+    const first = mergeTransactions(on, [stored({ merchant: 'Chase Card Payment', category: 'Bills' })], {
+      added: [tx('p1')],
+    }).transactions.find((t) => t.plaidId === 'old');
+    expect(first.category).toBe(TRANSFER_CATEGORY);
+    expect(first.autoCategory).toBe(TRANSFER_CATEGORY);
+
+    // …and once the user moves it back, it stays put across further syncs.
+    let row = { ...first, category: 'Bills' };
+    for (let i = 0; i < 3; i += 1) {
+      row = mergeTransactions(on, [row], { added: [tx('p' + i)] })
+        .transactions.find((t) => t.plaidId === 'old');
+      expect(row.category).toBe('Bills');
+    }
+  });
+
+  it('records what the importer chose on a freshly imported row', () => {
+    const out = mergeTransactions(on, [], {
+      added: [tx('p1', 10, { name: 'CHASE CREDIT CRD AUTOPAY', personal_finance_category: { primary: 'LOAN_PAYMENTS', detailed: '' } })],
+    });
+    const row = out.transactions.find((t) => t.plaidId === 'p1');
+    expect(row.category).toBe(TRANSFER_CATEGORY);
+    expect(row.autoCategory).toBe(TRANSFER_CATEGORY);
   });
 });

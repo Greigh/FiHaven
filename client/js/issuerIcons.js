@@ -16,6 +16,7 @@ import {
   issuerLogoDataUri,
   issuerLogoIsFullColor,
   issuerLogoAspect,
+  brandInk,
 } from './issuerLogos.js';
 import { issuerMonogram } from './issuerMonograms.js';
 import { cardPresetById } from './cardPresets.js';
@@ -173,9 +174,9 @@ export function resolveCardIssuer(card) {
 
 /**
  * Issuer icon for a card. Returns one of:
- *   { isLogo: true, logo, key, color, fullColor, aspect, emoji }
+ *   { isLogo: true, logo, key, color, fullColor, aspect, ink, emoji }
  *                                                    — SVG data URI
- *   { isMonogram: true, text, color, key, emoji }    — initials chip
+ *   { isMonogram: true, text, color, ink, key, emoji } — initials chip
  *   { emoji, key }                                   — emoji stand-in
  * Always resolves (falls back to 💳 / 🏦).
  */
@@ -212,6 +213,9 @@ export function issuerIconInfo(card) {
       // caller having to measure the image.
       fullColor: issuerLogoIsFullColor(entry),
       aspect: issuerLogoAspect(entry),
+      // What the mark is painted with when it rides a tile in this brand's
+      // color — white for most, ink for the light brands.
+      ink: brandInk(entry.c),
       // Always include the emoji stand-in for text / native parity.
       emoji: emojiHit || ISSUER_EMOJI[logoKey] || CARD_ICON,
     };
@@ -226,6 +230,7 @@ export function issuerIconInfo(card) {
       isMonogram: true,
       text: monogram.text,
       color: monogram.color,
+      ink: brandInk(monogram.color),
       key: key || nameKey || null,
       emoji: emojiHit || CARD_ICON,
     };
@@ -252,20 +257,26 @@ export function issuerIconMark(card, opts) {
   const info = issuerIconInfo(card);
   if (info.isLogo) {
     const entry = ISSUER_LOGO_PATHS[info.key];
-    // Only a monochrome mark can go white on a brand chip; a full-color one
-    // keeps its own colors and the caller plates it instead.
-    const fill = opts && opts.chip && !info.fullColor ? '#FFFFFF' : undefined;
+    // Only a monochrome mark can be knocked out of a brand chip; a
+    // full-color one keeps its own colors and the caller plates it instead.
+    // White is the usual knockout, but a light brand needs ink (see
+    // `brandInk`) or the mark washes out against its own color.
+    const fill = opts && opts.chip && !info.fullColor ? info.ink : undefined;
     return {
       isImage: true,
       src: issuerLogoDataUri(entry, fill),
       fullColor: info.fullColor,
       aspect: info.aspect,
+      ink: info.ink,
     };
   }
   if (info.isMonogram) {
     // On a brand-colored chip the initials ride the chip's own background.
     const color = opts && opts.chip ? null : info.color;
-    return { isImage: false, isMonogram: true, text: info.text, color: color };
+    return {
+      isImage: false, isMonogram: true, text: info.text, color: color,
+      ink: info.ink,
+    };
   }
   return { isImage: false, emoji: info.emoji };
 }

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -68,8 +67,12 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val prevBounds = Period.shift(bounds, -1, cfg)
     val insights = if (ent.pro) SpendingInsights.compute(data.transactions, bounds, prevBounds) else emptyList()
     val periodTx = data.transactions.filter { it.date.isNotEmpty() && it.date >= bounds.startKey && it.date < bounds.endKey }
-    val spentByCat = periodTx.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }
-    val totalSpent = periodTx.sumOf { it.amount }
+    // The list below shows every row in the period; the totals count only the
+    // ones that are actually spending — a transfer (card payment, savings
+    // sweep) would double-count purchases already tallied when they posted.
+    val spendTx = periodTx.filter { it.countsAsSpending }
+    val spentByCat = spendTx.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }
+    val totalSpent = spendTx.sumOf { it.amount }
     val budgets = data.settings.categoryBudgets
     val recentTx = periodTx
         .filter { matchesListSearch(searchQuery, it.merchant, it.category, it.note) }
@@ -230,23 +233,32 @@ private fun SpendingTxRow(
             append(" · ")
             append(if (tx.pending) "Bank · pending" else "Bank")
         }
+        // Say why a transfer's amount is missing from the totals above.
+        if (!tx.countsAsSpending) append(" · not counted as spending")
         if (tx.note.isNotBlank()) {
             append(" · ")
             append(tx.note)
         }
     }
 
-    Row(verticalAlignment = Alignment.Top) {
-        Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp, top = 2.dp))
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+    // Centered, not top-aligned: a title that wrapped to two lines left the
+    // amount stranded at the top of a tall row with dead space beneath it.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(spendIcon(tx.category), fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            // One line, always: a bank descriptor is long and unpredictable, and
+            // letting it wrap made every row a different height.
             Text(
                 title,
                 color = Ct.colors.text,
                 fontSize = 14.sp,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(subtitle, color = Ct.colors.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Two lines: on a bank row the date, the source and the
+            // "not counted" note together overflow one line and the note —
+            // the part that explains a missing amount — is what gets cut.
+            Text(subtitle, color = Ct.colors.muted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Text(
             Money.fmt(tx.amount),
@@ -255,17 +267,16 @@ private fun SpendingTxRow(
             fontWeight = FontWeight.Medium,
             style = MonoNumerals,
             textAlign = TextAlign.End,
-            modifier = Modifier.padding(top = 2.dp),
+            maxLines = 1,
         )
-        // The keep button only exists on pending bank rows, so hold its slot
-        // open on every other row — otherwise the amounts (and the pencil)
-        // sit 48dp further right on some rows than others.
+        // The keep button only exists on pending bank rows. Its slot used to be
+        // held open on every other row to keep the amounts in one column, but
+        // that left an empty 48dp gap between the amount and the pencil on most
+        // rows; the amount now sits next to whichever control follows it.
         if (tx.isBank && tx.pending) {
             IconButton(onClick = onKeep, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.CheckCircle, contentDescription = "Keep pending bank transaction", tint = Ct.colors.accent)
             }
-        } else {
-            Spacer(Modifier.size(48.dp))
         }
         IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Filled.Edit, contentDescription = "Edit transaction", tint = Ct.colors.accent)
@@ -275,5 +286,5 @@ private fun SpendingTxRow(
 
 private fun spendIcon(c: String) = when (c) {
     "Groceries" -> "🛒"; "Dining" -> "🍽️"; "Shopping" -> "🛍️"; "Transport" -> "🚗"
-    "Entertainment" -> "🎬"; "Health" -> "💊"; "Bills" -> "📄"; else -> "📦"
+    "Entertainment" -> "🎬"; "Health" -> "💊"; "Bills" -> "📄"; "Transfer" -> "🔁"; else -> "📦"
 }

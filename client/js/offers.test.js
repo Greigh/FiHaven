@@ -71,6 +71,16 @@ describe('offers', () => {
     expect(offerLikelyUsedTx(offer({ merchant: 'X' }), [{ merchant: 'X mart', amount: 5, date: '2026-06-19' }])).toBeNull();
   });
 
+  it('never reads a transfer as an offer redemption', () => {
+    // "AMEX PAYMENT" fuzzy-matches an Amex offer on the substring rule, so
+    // without the spending gate a card payment fired a false "looks like you
+    // used this offer" prompt.
+    const payment = { merchant: 'Amex Payment', amount: 500, date: '2026-06-19', category: 'Transfer' };
+    expect(offerLikelyUsedTx(offer({ merchant: 'Amex' }), [payment])).toBeNull();
+    // The same row as an ordinary purchase still matches.
+    expect(offerLikelyUsedTx(offer({ merchant: 'Amex' }), [{ ...payment, category: 'Shopping' }])).not.toBeNull();
+  });
+
   it('collects use-suggestions across cards, skipping used/expired offers', () => {
     const cards = [
       { id: 'C1', offers: [

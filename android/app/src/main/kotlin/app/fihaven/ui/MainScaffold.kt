@@ -805,7 +805,10 @@ private fun SnoozedBlock(snoozed: List<UpcomingItem>, vm: AppViewModel) {
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconMark(icon = item.icon, size = 18.dp, modifier = Modifier.padding(end = 12.dp))
+                        IconMark(
+                            icon = item.icon, size = 18.dp,
+                            modifier = Modifier.padding(end = 12.dp), slot = IssuerTile.width(18.dp),
+                        )
                         Text(item.name, color = c.text, fontSize = 14.sp,
                             maxLines = 1, modifier = Modifier.weight(1f))
                         Text(Money.fmt(vm.remainingFor(item)), color = c.muted,
@@ -876,7 +879,13 @@ private fun UpcomingRow(
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconMark(icon = item.icon, size = 22.dp, modifier = Modifier.padding(end = 12.dp))
+            // Bills and cards share this list, so the icon gets a fixed slot
+            // — an issuer tile is wider than a bill's emoji, and without one
+            // the names would start at different places.
+            IconMark(
+                icon = item.icon, size = 22.dp,
+                modifier = Modifier.padding(end = 12.dp), slot = IssuerTile.width(22.dp),
+            )
             Column(Modifier.weight(1f)) {
                 Text(item.name, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 // Who it's actually paid to — the name above is often a nickname.

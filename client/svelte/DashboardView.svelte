@@ -95,6 +95,17 @@
   );
 
   /* ── Alerts (promo cliff, credit util, trials) ───────── */
+  // Alerts carry DATA, never markup. `name` is a card or bill name the user
+  // typed — and on a Family plan, one a *different* member typed and shared
+  // (householdMerge.js folds their cards into this same list). Building an
+  // HTML string here and rendering it with {@html} made that an XSS: the
+  // attacker also controls the trigger, since it is their own balance/limit
+  // or promo dates that decide whether the alert fires at all. The template
+  // below interpolates every field as text, so Svelte escapes it.
+  //
+  // `body` is a run of segments; `strong: true` bolds one. Segment text is
+  // always app-generated (formatted money, day counts) — user data only ever
+  // reaches `name`, and `regularAPR`, which is stored unvalidated too.
   let alerts = $derived.by(() => {
     const out = [];
     activeCards.forEach((c) => {
@@ -102,7 +113,9 @@
       if (util != null && util >= 80) {
         out.push({
           type: util >= 90 ? 'danger' : 'warn',
-          html: `💳 <strong>${c.name}</strong> — ${util}% credit utilization (${fmt(liveCardBalance(c))} of ${fmt(parseFloat(c.limit) || 0)}).`,
+          icon: '💳',
+          name: c.name,
+          body: [{ text: `${util}% credit utilization (${fmt(liveCardBalance(c))} of ${fmt(parseFloat(c.limit) || 0)}).` }],
         });
       }
     });
@@ -111,7 +124,9 @@
       const dayWord = days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
       out.push({
         type: days <= 1 ? 'danger' : 'warn',
-        html: `⏳ <strong>${t.name}</strong> — free trial ends ${dayWord}. Review before you're charged.`,
+        icon: '⏳',
+        name: t.name,
+        body: [{ text: `free trial ends ${dayWord}. Review before you're charged.` }],
       });
     });
     promoCards.forEach((c) => {
@@ -122,11 +137,32 @@
       const payAmt = fmt(Math.max(parseFloat(c.minPayment || 0), needed));
       const endStr = new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       if (mo <= 0 && bal > 0) {
-        out.push({ type: 'danger', html: `🚨 <strong>${c.name}</strong> — 0% promo expired. ${fmt(bal)} is accruing ${c.regularAPR}% APR.` });
+        out.push({
+          type: 'danger', icon: '🚨', name: c.name,
+          body: [{ text: `0% promo expired. ${fmt(bal)} is accruing ${c.regularAPR}% APR.` }],
+        });
       } else if (mo <= 2 && bal > 0) {
-        out.push({ type: 'danger', html: `🔥 <strong>${c.name}</strong> — 0% promo ends in <strong>${days} days</strong> (${endStr}). Pay <strong>${payAmt}/mo</strong> to avoid interest.` });
+        out.push({
+          type: 'danger', icon: '🔥', name: c.name,
+          body: [
+            { text: '0% promo ends in ' },
+            { text: `${days} days`, strong: true },
+            { text: ` (${endStr}). Pay ` },
+            { text: `${payAmt}/mo`, strong: true },
+            { text: ' to avoid interest.' },
+          ],
+        });
       } else if (mo <= 4 && bal > 0) {
-        out.push({ type: 'warn', html: `⚠️ <strong>${c.name}</strong> — 0% promo ends in <strong>${mo} months</strong>. Need <strong>${payAmt}/mo</strong> to clear ${fmt(bal)}.` });
+        out.push({
+          type: 'warn', icon: '⚠️', name: c.name,
+          body: [
+            { text: '0% promo ends in ' },
+            { text: `${mo} months`, strong: true },
+            { text: '. Need ' },
+            { text: `${payAmt}/mo`, strong: true },
+            { text: ` to clear ${fmt(bal)}.` },
+          ],
+        });
       }
     });
     return out;
@@ -337,8 +373,10 @@
       </div>
     </div>
     <div class="alert-stack">
+      <!-- Text interpolation only — see the `alerts` comment for why this
+           must never go back to {@html}. -->
       {#each alerts as a, i (i)}
-        <div class="alert {a.type}"><div>{@html a.html}</div></div>
+        <div class="alert {a.type}"><div>{a.icon} <strong>{a.name}</strong> — {#each a.body as seg, j (j)}{#if seg.strong}<strong>{seg.text}</strong>{:else}{seg.text}{/if}{/each}</div></div>
       {/each}
     </div>
   </div>
@@ -363,13 +401,24 @@
           {@const noAmount = needsAmount(u.type, u.refId, mk)}
           {@const noneDue = nothingDue(u.type, u.refId, mk)}
           <div class="upcoming-item">
+            <!-- A card's issuer rides the same tile the Cards list gives it,
+                 scaled to the row: one slot width for every kind of mark, so
+                 the names beside them line up whether the row is a bill with
+                 an emoji or a card with a wordmark. -->
             <div class="upcoming-icon">
-              {#if u.brand && u.brand.isLogo}<img
-                  class="upcoming-logo {u.brand.fullColor ? 'is-plate' : ''}"
-                  style={u.brand.fullColor && u.brand.aspect ? `aspect-ratio:${u.brand.aspect};--logo-aspect:${u.brand.aspect};` : ''}
-                  src={u.brand.logo}
-                  alt=""
-                />{:else if u.brand && u.brand.isMonogram}<span class="upcoming-monogram" style="background:{u.brand.color};">{u.brand.text}</span>{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
+              <!-- `brandMark` is the knockout mark, the only one that reads on a
+                   brand-colored tile — `brand.logo` is drawn IN the brand color
+                   and would be invisible on it, so a row without a knockout
+                   falls through to the emoji rather than rendering nothing. -->
+              {#if u.brand && u.brand.isLogo && u.brandMark && u.brandMark.src}<span
+                  class="upcoming-chip {u.brand.fullColor ? 'is-plate' : ''}"
+                  style="--chip-ring:{u.brand.color};{u.brand.fullColor ? '' : `background:${u.brand.color};`}"
+                ><img class="upcoming-logo" src={u.brandMark.src} alt="" /></span
+                >{:else if u.brand && u.brand.isMonogram}<span
+                  class="upcoming-chip"
+                  style="--chip-ring:{u.brand.color};background:{u.brand.color};"
+                ><span class="upcoming-monogram" style={u.brand.ink ? `color:${u.brand.ink};` : ''}>{u.brand.text}</span></span
+                >{:else if u.brand}{u.brand.emoji}{:else}<IconMark info={u.iconInfo} emoji={u.icon} />{/if}
             </div>
             <div class="upcoming-body">
               <div class="upcoming-name">{u.name}</div>

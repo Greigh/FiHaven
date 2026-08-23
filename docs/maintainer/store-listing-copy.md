@@ -3,8 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.2 — **build 49 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
-**Current build's store copy:** [`../release-notes/v1.6.2/ios49-android49.md`](../release-notes/v1.6.2/ios49-android49.md)  
+**Version train:** 1.6.2 — **build 52 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
+**Current build's store copy:** [`../release-notes/v1.6.2/ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -79,7 +79,9 @@ bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 Covers the 1.6.2 version as a whole — use this if it goes to public review.
 Build-level copy (Play "What's new", TestFlight "What to Test", and the App
 Store variant) lives in
-[`../release-notes/v1.6.2/ios49-android49.md`](../release-notes/v1.6.2/ios49-android49.md).
+[`../release-notes/v1.6.2/ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md),
+and the earlier builds of this train sit beside it in
+[`../release-notes/`](../release-notes/README.md).
 
 ```
 Income is now its own tab: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — that change a single period's total. Two long-standing bugs are fixed with it: adjustments did nothing at all on start-day or rolling budget periods, and one-off entries from older builds were invisible. Both fixes are retroactive.
@@ -89,6 +91,10 @@ Reminders no longer arrive for bills you have already paid or skipped; a partial
 The Pro screen now shows what each plan costs in your currency, with the yearly saving stated rather than implied.
 
 Mistyping your email at signup is no longer a dead end — the verification screen can correct it.
+
+Account Balances is its own tab, and you can snooze a bill or card on the dashboard until tomorrow.
+
+Paying a credit card is no longer counted as spending. That payment settles purchases FiHaven already counted when they posted, so counting it again double-counted them — budgets, category totals, the spending charts and your rewards estimate now all skip transfers. Transaction names imported from your bank arrive readable, and a category you set by hand stays set.
 ```
 
 ### What's New (1.6.1)

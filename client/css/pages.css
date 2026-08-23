@@ -916,10 +916,19 @@
   border-radius: 4px;
   vertical-align: -0.15em;
 }
+/* One content box for every mark in an issuer tile, whatever its shape.
+   `contain` letterboxes the mark inside the box, so a 1:1 symbol lands at
+   20x20 and a 4:1 wordmark at 40x10 — each at its own aspect, none stretched,
+   all optically centered in a tile of the same size. The box is wider than it
+   is tall because that costs a square mark nothing (it's bound by the height)
+   and buys a wordmark like US Bank's the width it needs to stay readable.
+   Sizing the tile to the mark instead is what used to leave a wide wordmark
+   reading as a loose strip beside its neighbours' square chips. */
 .card-row-chip .icon-mark-img {
-  width: 21px;
-  height: 21px;
-  border-radius: 4px;
+  width: 40px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 0;
 }
 /* Full-color official marks: authored for a white page, so they sit on a
    light plate in both themes rather than being tinted. The plate is square
@@ -937,13 +946,10 @@
   padding: 1px;
   box-sizing: border-box;
 }
-/* Inside a card chip the chip itself is the plate (see .card-row-chip.is-plate),
-   so the mark doesn't carry a second one — and the chip's fixed 48x32 leaves
-   room for up to 42px of a wordmark, with the height following the aspect
-   ratio set inline so the mark scales down whole rather than letterboxing. */
+/* Inside an issuer tile the tile itself is the plate (see
+   .card-row-chip.is-plate), so a full-color mark doesn't carry a second one —
+   and it shares the one content box above with every other mark. */
 .card-row-chip .icon-mark-img.icon-mark-plate {
-  width: min(42px, calc(24px * var(--logo-aspect, 1)));
-  height: auto;
   background: none;
   border-radius: 0;
   padding: 0;
@@ -964,10 +970,13 @@
   letter-spacing: -0.02em;
   font-family: var(--font-ui, inherit);
 }
+/* On an issuer tile the initials ride the tile's own background, so the
+   monogram is just type — sized to sit like a mark in the same content box. */
 .card-row-chip .icon-mark-monogram {
-  width: 21px;
-  height: 21px;
-  font-size: 11px;
+  width: 40px;
+  height: 20px;
+  border-radius: 0;
+  font-size: 12px;
 }
 
 .fh-switch { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }

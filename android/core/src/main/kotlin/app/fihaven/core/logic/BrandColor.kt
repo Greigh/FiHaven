@@ -56,6 +56,22 @@ object BrandColor {
         return target
     }
 
+    /** The dark ink option — matches `--text` on the light theme. */
+    const val INK_DARK = 0x15161A
+
+    /**
+     * Ink for a mark knocked out of a tile painted this brand's color.
+     *
+     * Most issuer brands are dark enough to carry a white mark, but a handful
+     * (Shell's yellow, Klarna's pink, Robinhood's lime) are not: white on them
+     * is a pale smear. Those brands draw themselves in black anyway, so the
+     * darker mark is both more legible and truer to the logo.
+     *
+     * Mirrors web `brandInk` and iOS `BrandColor.ink(on:)`.
+     */
+    fun ink(brand: Int): Int =
+        if (contrastRatio(brand, INK_DARK) > contrastRatio(brand, 0xFFFFFF)) INK_DARK else 0xFFFFFF
+
     /** Linear blend between two packed colors; [amount] 0 = [a], 1 = [b]. */
     fun mix(a: Int, b: Int, amount: Double): Int {
         val t = min(1.0, max(0.0, amount))

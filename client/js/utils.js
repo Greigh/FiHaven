@@ -746,6 +746,9 @@ export function buildUpcomingItems() {
       icon:    issuerEmoji(c),
       iconInfo: issuerIconMark(c),
       brand:   issuerIconInfo(c),
+      // The knockout mark, for rendering on a brand-colored tile — same
+      // treatment the Cards list gives an issuer, at the row's smaller size.
+      brandMark: issuerIconMark(c, { chip: true }),
     });
   });
 

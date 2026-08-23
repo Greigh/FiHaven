@@ -48,6 +48,10 @@ data class CtColors(
     /// these logos are drawn for a white page, and a black wordmark would
     /// disappear if the plate followed the dark surface.
     val logoPlate: Color,
+    /// Neutral floor under an issuer tile's brand-colored ring (web
+    /// `--chip-edge`). It flips to light on the dark theme because a
+    /// near-black tile — Apple's, Bilt's — has no edge of its own there.
+    val tileEdge: Color,
 )
 
 val LightCt = CtColors(
@@ -57,7 +61,7 @@ val LightCt = CtColors(
     green = Color(0xFF15803D), greenBg = Color(0xFFE7F4EC), red = Color(0xFFDC2626), redBg = Color(0xFFFDECEC),
     orange = Color(0xFFC2410C), orangeBg = Color(0xFFFDEEE3), yellow = Color(0xFFA16207), yellowBg = Color(0xFFFBF5DC),
     chartIncome = Color(0xFF3D6FE1), chartSpend = Color(0xFFC2410C),
-    logoPlate = Color(0xFFFFFFFF),
+    logoPlate = Color(0xFFFFFFFF), tileEdge = Color(0x1A000000),
 )
 
 val DarkCt = CtColors(
@@ -67,7 +71,7 @@ val DarkCt = CtColors(
     green = Color(0xFF34C57B), greenBg = Color(0xFF0E2B1A), red = Color(0xFFF87171), redBg = Color(0xFF2B1414),
     orange = Color(0xFFFB923C), orangeBg = Color(0xFF2B1A0C), yellow = Color(0xFFFBBF24), yellowBg = Color(0xFF2B2008),
     chartIncome = Color(0xFF4A87EE), chartSpend = Color(0xFFD9700F),
-    logoPlate = Color(0xFFFFFFFF),
+    logoPlate = Color(0xFFFFFFFF), tileEdge = Color(0x2BFFFFFF),
 )
 
 val LocalCt = staticCompositionLocalOf { LightCt }

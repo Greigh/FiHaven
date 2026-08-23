@@ -118,6 +118,9 @@ public enum CashflowHistory {
         var out: [String: MonthSpending] = [:]
 
         for t in transactions {
+            // A card payment is a transfer, not an outflow to plot — the
+            // purchases it settles are already here under their own months.
+            if !t.countsAsSpending { continue }
             let mk = monthKey(date: t.date)
             if mk.isEmpty { continue }
             var b = out[mk] ?? MonthSpending()

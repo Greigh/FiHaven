@@ -194,7 +194,7 @@ struct SpendingView: View {
         switch c {
         case "Groceries": return "🛒"; case "Dining": return "🍽️"; case "Shopping": return "🛍️"
         case "Transport": return "🚗"; case "Entertainment": return "🎬"; case "Health": return "💊"
-        case "Bills": return "📄"; default: return "📦"
+        case "Bills": return "📄"; case transferCategory: return "🔁"; default: return "📦"
         }
     }
 }
@@ -215,33 +215,41 @@ private struct SpendingRow: View {
     private var subtitle: String {
         var parts = [tx.date]
         if tx.isBank { parts.append(tx.pending ? "Bank · pending" : "Bank") }
+        // Say why a transfer's amount is missing from the totals above.
+        if !tx.countsAsSpending { parts.append("not counted as spending") }
         return parts.joined(separator: " · ")
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        // Centered, not top-aligned: a two-line title used to leave the amount
+        // stranded at the top of a tall row with dead space under it.
+        HStack(alignment: .center, spacing: 10) {
             Text(SpendingView.catIcon(tx.category))
                 .font(.system(size: 15))
                 .frame(width: 22, alignment: .center)
-                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(Theme.ui(13))
                     .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 Text(subtitle)
                     .font(Theme.ui(11))
                     .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
+                    // Two lines: on a bank row the date, the source and the
+                    // "not counted" note overflow one line, and the note — the
+                    // part that explains a missing amount — is what gets cut.
+                    .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(Money.fmt(tx.amount))
                 .font(Theme.mono(13))
                 .foregroundStyle(Theme.text)
-                .padding(.top, 2)
+                .lineLimit(1)
+                .layoutPriority(1)
+                .padding(.leading, 4)
 
             HStack(spacing: 2) {
                 Button(action: onEdit) {

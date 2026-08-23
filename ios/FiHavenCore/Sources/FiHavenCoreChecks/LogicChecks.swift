@@ -423,6 +423,24 @@ func runScheduleChecks() {
         checkEqual(Offers.expiringSoon([card], tz: tz, now: now), 1, "one expiring within 7 days")
     }
 
+    section("Offers — a transfer never redeems one") {
+        // A transfer is not a purchase, and the substring match is loose enough
+        // that "Amex Payment" hits an "Amex" offer.
+        let tz = TimeZone(identifier: "UTC")!
+        let jun20 = DateLogic.parseDate("2026-06-20", tz: tz)!
+        let amexOffer = CardOffer(id: "o", merchant: "Amex", expires: "2026-06-30")
+        let payment = SpendTransaction(
+            id: "p", date: "2026-06-19", amount: 500,
+            category: transferCategory, merchant: "Amex Payment"
+        )
+        check(Offers.likelyUsedTx(amexOffer, transactions: [payment], tz: tz, now: jun20) == nil,
+              "a transfer is never an offer redemption")
+        var purchase = payment
+        purchase.category = "Shopping"
+        checkEqual(Offers.likelyUsedTx(amexOffer, transactions: [purchase], tz: tz, now: jun20)?.id, "p",
+                   "the same row as a purchase still matches")
+    }
+
     section("Merchants — category hints") {
         checkEqual(Merchants.category("STARBUCKS #1234"), "Dining", "starbucks → Dining")
         checkEqual(Merchants.category("Whole Foods Market"), "Groceries", "whole foods → Groceries")

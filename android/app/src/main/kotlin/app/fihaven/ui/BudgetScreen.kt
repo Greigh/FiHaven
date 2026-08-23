@@ -39,6 +39,7 @@ import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.Income
 import app.fihaven.core.model.genId
 import app.fihaven.core.model.SPENDING_CATEGORIES
+import app.fihaven.core.model.TRANSACTION_CATEGORIES
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.core.model.envelopeRollover
@@ -118,7 +119,7 @@ fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
 
 private fun spendIcon(c: String) = when (c) {
     "Groceries" -> "🛒"; "Dining" -> "🍽️"; "Shopping" -> "🛍️"; "Transport" -> "🚗"
-    "Entertainment" -> "🎬"; "Health" -> "💊"; "Bills" -> "📄"; else -> "📦"
+    "Entertainment" -> "🎬"; "Health" -> "💊"; "Bills" -> "📄"; "Transfer" -> "🔁"; else -> "📦"
 }
 
 @Composable
@@ -235,7 +236,7 @@ fun TransactionEditorDialog(
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount") }, prefix = { Text("$") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
             modifier = Modifier.fillMaxWidth())
-        DropdownField("Category", SPENDING_CATEGORIES, category) { category = it }
+        DropdownField("Category", TRANSACTION_CATEGORIES, category) { category = it }
         OutlinedTextField(merchant, { merchant = it }, label = { Text("Merchant (optional)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth())
         OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") },
