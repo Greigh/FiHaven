@@ -13,11 +13,113 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.2 build 52] Current Pre-Release — 2026-08-22
+## [1.6.2] — 2026-08-23
 
 | | |
 |---|---|
-| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **Status** | Releasing — build 52 goes to the App Store and Google Play for public release; live once both reviews clear |
+| **iOS** | 1.6.2 (52) - **a credit-card payment stops counting as spending**: the purchases it settles were already counted when they posted, so a card you clear each month was holding close to a second copy of everything you bought in your budget, category totals, spending charts, rewards estimate and cashflow history — transfers are excluded from all of them now, and a card payment no longer trips the "looks like you used this offer" prompt either. Bank transaction names arrive readable rather than raw, a category you set by hand survives the next sync, and every issuer logo sits in one tile at one size instead of a wide wordmark pushing its row's name out of line; 51 was **snooze a bill or card until tomorrow** on the dashboard — per-device, never synced, collected in their own block so you can pull one back — plus the first pass at the logo plate and a round of server security work; 50 was **Account Balances as its own tab**, splitting Liquid (checking, savings, cash) from Other assets, with a linked bank able to *suggest* a balance as a question you accept or decline rather than a silent overwrite, and bank figures dated rather than presented as live; 49 was **Income as its own tab**, lifted out of Budget: every paycheck with its own frequency, plus one-off and recurring adjustments — a bonus, unpaid time off, a raise — and with the move, two long-standing bugs died (a date-stamped adjustment was invisible to every income figure, and on a start-day or rolling period adjustments matched nothing at all). Also from that build: reminders stop nagging about bills you have already paid, the Pro screen shows real prices in your own currency, a mistyped signup address is no longer a dead end, and admins get the console on the phone |
+| **Android** | 1.6.2 (versionCode 52) - **a credit-card payment stops counting as spending**, the same fix on the same shared rule: transfers leave your budget, category totals, spending charts, rewards estimate and cashflow history, and stop firing the offer-redemption prompt. Bank transaction names arrive readable, a hand-set category survives the next sync, and the issuer tile is uniform whatever shape the logo is; 51 was **snooze a bill or card until tomorrow**, the first logo plate, figures lining up in tabular numerals across the app, and the login WebView pinned to Cloudflare's challenge origin; 50 was **Account Balances as its own tab** with Liquid vs Other assets and bank-suggested balances you accept or decline; 49 was **Income as its own tab** with per-paycheck frequency and working adjustments on every period mode, reminders that stop nagging about paid bills, real Play prices on the Pro screen, a recoverable mistyped signup address, the admin console on the phone, status and navigation bars that follow the **in-app** theme rather than the phone's, and **Open FiHaven** in a reminder email landing in the app instead of the browser |
+| **Web** | Everything is live at [fihaven.app](https://fihaven.app) — the Income and Balances tabs, bank-suggested balances, a three-way sync merge that stops two devices overwriting each other, exports that finally carry all seven lists, and the transfer fix. **Two security fixes shipped here**: a stored XSS on the dashboard reachable across a Family plan, and session ids that were sitting in the database in plaintext |
+
+> **Get FiHaven:**
+> **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
+> **Android** — [Google Play](https://play.google.com/store/apps/details?id=app.fihaven)
+>
+> This is the version the public listings ship on for the 1.6.2 train. Builds
+> go to TestFlight (iOS) and Play open testing (Android) first, and the four
+> that made up this version are recorded below as `[1.6.2 build 49]` through
+> `[1.6.2 build 52]`; build 52 is the one being promoted. The **web and server
+> are already live** — they do not wait on a store review, and the two security
+> fixes in this version are on them.
+
+> **Flip the Status row to "Released — live on the App Store and Google Play"
+> once both listings are actually serving 52.** Apple review and Google's
+> open-testing-to-production review both run on their own clock.
+
+> **⚠️ Everyone is signed out once.** Session ids used to be stored in the clear.
+> They are hashed now, and the old rows could not be converted — hashing needs
+> the raw id, which is exactly what we are refusing to keep — so they were
+> dropped. Web and native alike sign in again; the apps meet a 401 and route to
+> their login screen, a path they already handle. It happens once.
+
+> **⚠️ This version carries two database migrations**, one in build 51 and one
+> in build 52. Build 51 added a `UNIQUE(token)` index to `push_devices`,
+> deleting duplicate rows first (newest registration per token wins — on a
+> healthy database this deletes nothing). Build 52 rekeyed `sessions` from the
+> raw session id to its SHA-256 hash. Both are idempotent and both are applied.
+
+### Summary
+
+> Two things define this version. One is a class of number that had been wrong
+> since FiHaven could read a bank, and one is a pair of security holes, one of
+> which another person could reach.
+>
+> **Paying your credit card was being counted as spending.** The purchases that
+> payment settles were already counted when they posted, so counting the payment
+> as well meant that on a card you clear every month, your spending totals held
+> close to a second copy of everything you bought. Transfers are now excluded
+> from the budget, the per-category totals, the spending charts, the rewards
+> estimate and the cashflow history, on all three platforms, through a single
+> shared rule. If a bank labels a payment too vaguely to tell, the descriptor is
+> read as a fallback — and that check demands both a card word and a payment
+> word, because a false transfer would silently *hide* real spending, which is
+> the worse of the two ways it could fail.
+>
+> **The dashboard's alerts were a stored XSS.** They were built as HTML strings
+> with card and bill names pasted in raw and handed to the DOM unescaped. A name
+> is whatever the user typed — and on a Family plan, whatever a *different*
+> member typed, because a household folds everyone's cards and bills into the
+> same lists. One member could therefore name a card in a way that ran code in
+> another member's browser, on a page holding that person's whole financial
+> picture and a live session, with their own balance and limit deciding whether
+> the alert fired at all. None of those alerts needed markup; they are sentences
+> with a couple of bold runs, and a test now refuses to let raw HTML back into
+> any component.
+>
+> **Session ids were in the database in plaintext**, while email tokens and
+> OAuth codes were already hashed and Plaid tokens and your data encrypted. A
+> leaked backup handed over working logins rather than ciphertext, and the
+> phones made it worse, because a native session lasts 30 days. Only the hash is
+> stored now. The cost is the one forced sign-out noted above.
+>
+> Around those: three tabs arrived across the version — **Income**, **Account
+> Balances**, and the ability to **snooze** a dashboard row until tomorrow. A
+> linked bank can now *suggest* an account balance instead of the figure being
+> fetched and thrown away, and it arrives as a question rather than a change.
+> Two devices editing different things at the same time now keep both edits
+> instead of one winning. Exports finally contain everything they claim to.
+> Bank transaction names read like merchant names. And the issuer logos, which
+> took two builds to get right, sit in one tile at one size so a list of cards
+> lines up whatever shape the logos are.
+>
+> Build 51 was additionally a server security release in its own right: a push
+> token now belongs to exactly one account, a promo code can no longer be
+> redeemed twice by racing, promo codes come from the CSPRNG rather than
+> `Math.random()`, an OAuth token without an expiry is rejected, logging in is
+> throttled per-account as well as per-IP, household invites are rate-limited,
+> and the Plaid webhook demands its signature on any production server.
+
+### What made up this version
+
+| Build | Shipped | Headline |
+|---|---|---|
+| [52](#162-build-52--2026-08-22) | 2026-08-22 | A card payment stops counting as spending; readable bank descriptors; a hand-set category sticks; one issuer tile everywhere. Stored XSS fixed; session ids hashed at rest |
+| [51](#162-build-51--2026-08-20) | 2026-08-20 | Snooze a dashboard row until tomorrow; the first logo plate; Android tabular numerals. Server security release; three-way sync merge; exports carry all seven lists |
+| [50](#162-build-50--2026-08-15) | 2026-08-15 | Account Balances becomes its own tab; a linked bank can suggest a balance; an income adjustment keeps its date when edited on a phone |
+| [49](#162-build-49--2026-08-13) | 2026-08-13 | Income becomes its own tab, and adjustments start working on every period mode; reminders stop firing for paid bills; real prices on the Pro screen; a mistyped signup address is recoverable; admin console on the phones |
+
+Each build's full technical changelog is in its own section below. Store copy
+for every build of this train is in
+[`docs/release-notes/v1.6.2/`](docs/release-notes/v1.6.2/).
+
+---
+
+## [1.6.2 build 52] — 2026-08-22
+
+| | |
+|---|---|
+| **Status** | Released — this is the build 1.6.2 went public on; see [1.6.2] above |
 | **iOS** | 1.6.2 (52) — **a credit-card payment no longer counts as spending**, so budgets, rewards and the spending charts stop double-counting purchases you already paid for. Bank transaction names arrive readable. Issuer logos sit on one tile, whatever shape the logo is. |
 | **Android** | 1.6.2 (versionCode 52) — the same transfer fix, the same cleaned-up transaction names, the same issuer tile. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) — **fixes a stored cross-site scripting hole on the dashboard** that a household member could reach across a Family plan |
@@ -788,7 +890,7 @@ field drops it, and the drop only shows up after a save from that device.
 
 ---
 
-## [1.6.2] Current Pre-Release — 2026-08-13
+## [1.6.2 build 49] — 2026-08-13
 
 | | |
 |---|---|

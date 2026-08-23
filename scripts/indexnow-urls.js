@@ -35,6 +35,15 @@ const PUBLIC_PAGES = [
 
 const PUBLIC_PATHS = PUBLIC_PAGES.map((p) => p.path);
 
+/* The basename of a page's Markdown rendition: '/' → 'index',
+   '/pricing' → 'pricing'. Lives here rather than in the generator
+   because server/agentWeb.js needs the same rule to find the file,
+   and the generator pulls in jsdom — a devDependency the production
+   server must never load. */
+function slugFor(urlPath) {
+  return urlPath === '/' ? 'index' : urlPath.replace(/^\//, '').replace(/\//g, '-');
+}
+
 function publicOrigin() {
   return (process.env.PUBLIC_ORIGIN || 'https://fihaven.app').replace(/\/$/, '');
 }
@@ -44,4 +53,4 @@ function publicUrls(origin) {
   return PUBLIC_PATHS.map((p) => (p === '/' ? `${base}/` : `${base}${p}`));
 }
 
-module.exports = { PUBLIC_PAGES, PUBLIC_PATHS, publicOrigin, publicUrls };
+module.exports = { PUBLIC_PAGES, PUBLIC_PATHS, publicOrigin, publicUrls, slugFor };

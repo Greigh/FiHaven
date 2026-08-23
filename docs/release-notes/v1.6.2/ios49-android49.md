@@ -6,7 +6,9 @@ Paste-ready copy for the store consoles. Neither upload script reads these —
 so the text below goes in by hand.
 
 This is **the copy actually being shipped**, not a reconstruction. Source: the
-`[1.6.2]` section of [CHANGELOG.md](../../../CHANGELOG.md).
+`[1.6.2 build 49]` section of [CHANGELOG.md](../../../CHANGELOG.md) (that
+section carried the bare `[1.6.2]` heading until the version-level release
+entry was written).
 
 **This is a beta build** — TestFlight and Play open testing. It is the first
 build of the 1.6.2 train, and the first since both public listings went live.
