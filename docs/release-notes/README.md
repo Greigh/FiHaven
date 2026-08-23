@@ -40,6 +40,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [**1.6.2 — release**](v1.6.2/appstore-1.6.2.md) | the version as a whole | 2026-08-23 | **App Store copy for the public 1.6.2 release**, covering builds 49–52 together. Leads with the one-time sign-out and the credit-card-payment fix; shorter variant and promotional text included |
 | [1.6.2](v1.6.2/ios52-android52.md) | iOS 52 · Android 52 | 2026-08-22 | A credit-card payment stops counting as spending, so budgets, rewards and the spending charts stop double-counting; imported transaction names arrive readable and a re-filed category sticks; one issuer tile on every platform. Ships a stored XSS fix and hashes session ids at rest (**needs server deploy; signs everyone out once**) |
 | [1.6.2](v1.6.2/ios51-android51.md) | iOS 51 · Android 51 | 2026-08-20 | Snooze a dashboard row until tomorrow; issuer logos get a square plate; Android figures line up in tabular numerals. Mostly server-side security work, plus a three-way sync merge (**needs server deploy; migrates the database**) |
 | [1.6.2](v1.6.2/ios50-android50.md) | iOS 50 · Android 50 | 2026-08-15 | Account Balances becomes its own tab; a one-time income adjustment keeps the date it landed when edited there |
