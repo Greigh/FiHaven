@@ -57,6 +57,41 @@ describe('obligations-first lens', () => {
   });
 });
 
+describe('50/30/20 split lens — transfers', () => {
+  const periodBounds = { start: new Date(2026, 5, 1), end: new Date(2026, 6, 1) };
+  const lensFor = (transactions) => computeBudgetLens({
+    settings: { budgetRule: '50-30-20' },
+    income: 5000,
+    bills: [],
+    cards: [],
+    transactions,
+    periodBounds,
+    billDueInPeriod: () => true,
+    mk: '2026-06',
+  });
+
+  it('keeps a card payment out of the needs/wants actuals', () => {
+    // The split lens is the headline "you spent X on needs, Y on wants" figure.
+    // A card payment is neither — it settles purchases already counted under
+    // their own categories — so counting it here inflated the number people
+    // budget against, by the size of their whole statement.
+    const purchase = { id: 't1', category: 'Groceries', amount: 200, date: '2026-06-10' };
+    const payment = { id: 't2', category: 'Transfer', amount: 4070, merchant: 'Bilt Card Payment', date: '2026-06-20' };
+
+    const withPayment = lensFor([purchase, payment]);
+    const without = lensFor([purchase]);
+
+    const actuals = (lens) => lens.rows.map((r) => [r.key, r.actual]);
+    expect(actuals(withPayment)).toEqual(actuals(without));
+
+    // Not vacuous: the ordinary purchase in the same list IS counted, so the
+    // gate is rejecting the transfer rather than the whole transaction list.
+    const needs = (lens) => lens.rows.find((r) => r.key === 'needs').actual;
+    expect(needs(withPayment)).toBe(200);
+    expect(needs(lensFor([]))).toBe(0);
+  });
+});
+
 describe('debt-focus lens', () => {
   it('includes extra debt payment from settings', () => {
     const lens = computeBudgetLens({

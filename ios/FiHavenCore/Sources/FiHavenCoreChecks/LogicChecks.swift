@@ -473,6 +473,19 @@ func runScheduleChecks() {
         check((spend["Gas"] ?? 0) > 180, "gas annualized above raw")
         check(Rewards.categorySpendAnnual([], tz: tz, now: now).isEmpty, "no txns → empty")
 
+        // A card payment is an outflow like any other, and "Chase Card Payment"
+        // matches no merchant hint — so before the transfer gate it landed in
+        // Other and inflated the spend the optimizer reasons about. A card
+        // recommended on the strength of your own card payments is worse than
+        // no recommendation at all.
+        var payment = SpendTransaction(id: "p", date: "2026-06-10", amount: 2500, merchant: "Chase Card Payment")
+        payment.category = transferCategory
+        let withPayment = Rewards.categorySpendAnnual(txns + [payment], tz: tz, now: now)
+        check(withPayment[transferCategory] == nil, "a transfer has no spend bucket")
+        // And it did not land under Other either — the totals must be identical.
+        checkClose(withPayment.values.reduce(0, +), spend.values.reduce(0, +),
+                   "a transfer changes no category total", tol: 0.0001)
+
         // Rewards estimate counts only bonus categories.
         let est = ["Dining": 1000.0, "Gas": 1000.0, "Other": 5000.0]
         checkClose(Rewards.cardRewardsEstimateAnnual(Card(id: "1", name: "Gold", rewardBase: 1, rewardCategories: ["Dining": 4]), spendByCategory: est), 40, "4% on $1000 dining = $40")

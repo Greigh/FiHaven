@@ -4,6 +4,7 @@ import app.fihaven.core.logic.Merchants
 import app.fihaven.core.logic.Rewards
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.TRANSFER_CATEGORY
 import java.time.LocalDate
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -48,6 +49,30 @@ class RewardsSpendTest {
         assertTrue((spend["Dining"] ?: 0.0) > 180)
         assertTrue((spend["Gas"] ?: 0.0) > 180)
         assertTrue(Rewards.categorySpendAnnual(emptyList(), today).isEmpty())
+    }
+
+    @Test fun categorySpendAnnualIgnoresTransfers() {
+        // A card payment is an outflow like any other, and "Chase Card Payment"
+        // matches no merchant hint — so before the transfer gate it landed in
+        // Other and inflated the spend the optimizer reasons about. A card
+        // recommended on the strength of your own card payments is worse than
+        // no recommendation at all.
+        val real = listOf(
+            SpendTransaction(id = "a", date = "2026-06-10", amount = 50.0, merchant = "Starbucks"),
+            SpendTransaction(id = "c", date = "2026-01-01", amount = 100.0, category = "Gas", merchant = "Some Station"),
+        )
+        val payment = SpendTransaction(
+            id = "p", date = "2026-06-10", amount = 2500.0,
+            category = TRANSFER_CATEGORY, merchant = "Chase Card Payment",
+        )
+        val withPayment = Rewards.categorySpendAnnual(real + payment, today)
+        assertNull(withPayment[TRANSFER_CATEGORY])
+        // And it did not land under Other either — the totals must be identical.
+        assertEquals(
+            Rewards.categorySpendAnnual(real, today).values.sum(),
+            withPayment.values.sum(),
+            1e-9,
+        )
     }
 
     @Test fun rewardsEstimateOnlyBonusCategories() {
