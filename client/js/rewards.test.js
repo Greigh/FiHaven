@@ -152,6 +152,24 @@ describe('rewards — spend categorization & estimate', () => {
     expect(out).not.toHaveProperty('Other'); // nothing fell through
   });
 
+  it('never counts a transfer toward category spend', () => {
+    // A card payment is an outflow like any other, and "Chase Card Payment"
+    // has no merchant hint — so before the gate it landed in Other and
+    // inflated the annualized spend the rewards optimizer reasons about.
+    // A card recommended on the strength of your own card payments is worse
+    // than no recommendation.
+    const txns = [
+      { merchant: 'Chipotle', amount: 100, date: ymd(10) },
+      { merchant: 'Chase Card Payment', category: 'Transfer', amount: 2500, date: ymd(9) },
+    ];
+    const out = categorySpendAnnual(txns, today);
+    expect(out).not.toHaveProperty('Transfer');
+    // The payment must not reappear under any other bucket either.
+    const total = Object.values(out).reduce((a, b) => a + b, 0);
+    const dining = categorySpendAnnual([txns[0]], today);
+    expect(total).toBeCloseTo(Object.values(dining).reduce((a, b) => a + b, 0), 6);
+  });
+
   it('returns {} when there are no usable transactions', () => {
     expect(categorySpendAnnual([], today)).toEqual({});
     expect(categorySpendAnnual([{ amount: -5, date: ymd(1) }], today)).toEqual({});

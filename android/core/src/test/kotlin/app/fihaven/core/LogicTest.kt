@@ -23,6 +23,7 @@ import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.Payment
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.TRANSFER_CATEGORY
 import app.fihaven.core.model.envelopeRolloverBal
 import app.fihaven.core.model.envelopeRolloverAppliedFor
 import kotlinx.serialization.json.jsonObject
@@ -570,6 +571,28 @@ class BudgetRulesTest {
         )
         assertTrue(lens != null)
         assertEquals(250.0, lens!!.rows.first { it.key == "needs" }.actual, 1e-6)
+    }
+
+    @Test fun splitLensIgnoresTransfers() {
+        // The split lens is the headline "you spent X on needs, Y on wants"
+        // figure. A card payment is neither — it settles purchases already
+        // counted under their own categories — so counting it here inflated the
+        // number people budget against, by the size of their whole statement.
+        val settings = FiHavenJson.parseToJsonElement("""{"budgetRule":"50-30-20"}""").jsonObject
+        val bounds = Period.bounds(LocalDate.of(2026, 6, 1), PeriodConfig.normalized("calendar", null, 35))
+        fun actuals(transactions: List<SpendTransaction>): Map<String, Double> = BudgetRules.lens(
+            settings, 4000.0, emptyList(), emptyList(),
+            transactions, emptyList(), bounds, { true }, false, java.time.ZoneId.of("UTC"),
+        )!!.rows.associate { it.key to it.actual }
+
+        val purchase = SpendTransaction(id = "t1", date = "2026-06-10", amount = 200.0, category = "Groceries")
+        val payment = SpendTransaction(
+            id = "t2", date = "2026-06-20", amount = 4070.0,
+            category = TRANSFER_CATEGORY, merchant = "Bilt Card Payment",
+        )
+        assertEquals(actuals(listOf(purchase)), actuals(listOf(purchase, payment)))
+        // Not vacuous: the purchase beside it IS counted.
+        assertEquals(200.0, actuals(listOf(purchase, payment))["needs"]!!, 1e-6)
     }
 
     @Test fun bucketOverridesAffectSplitLens() {

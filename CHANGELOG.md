@@ -396,8 +396,43 @@ these files learns nothing about FiHaven at all. It now exempts the two
 rather than a list, so adding a public page never needs another dashboard edit.
 `npm run check:crawlers` verifies the whole matrix against production.
 
+**The transfer gate is now pinned on every platform**
+
+Auditing the release turned up that the gate was applied in all six spend-
+summing places on all three platforms — but only three of the six were
+*tested*, and the coverage differed per platform. A gate nobody tests is a gate
+someone deletes, and the failure is silent: a card payment creeping back into
+the rewards estimate or the cashflow chart doesn't crash anything, it just
+quietly goes back to being wrong.
+
+Every module now has a transfer-exclusion test on web, iOS and Android:
+`spentByCategory`, the 50/30/20 split lens, `cashflowHistory`, `rewards`,
+`subscriptionsFinder` and `offers`. The split lens had no such test on **any**
+platform, which mattered most — it is the headline "you spent X on needs, Y on
+wants" figure, so a card payment landing there moved the number people budget
+against by the size of their whole statement.
+
+Each new test asserts the ordinary purchase beside the transfer is still
+counted, so a gate that rejected everything would fail too.
+
+**The four version sites are checked, not eyeballed (`scripts/nativeVersions.test.js`)**
+
+`package.json`, iOS `MARKETING_VERSION` + `CURRENT_PROJECT_VERSION`, and
+Android `versionName` + `versionCode` have to agree, and the store launch
+checklist carried that as a manual checkbox. Getting it wrong is asymmetric:
+App Store Connect refuses a `CFBundleVersion` at or below one already uploaded,
+so if iOS is ever bumped past Android by accident, iOS can never be walked back
+down — the build-number alignment that started at 49 is permanently lost.
+
+The test also asserts the build being shipped has a CHANGELOG section and a
+store-notes file, since uploading a build whose notes nobody wrote is how a
+release goes out carrying the previous one's description.
+
 **Also in this build**
 
+- **The `__proto__` hardening has a test** — a settings body carrying a
+  `__proto__` key must not leave its flags readable on the merged object, and
+  the legitimate half of the same body must still save.
 - **`spentByCategory` had two copies** (`client/js/budgetRules.js`,
   `client/js/spendingInsights.js`) — byte-identical, which is how one of them
   ends up with a gate the other doesn't; the transfer work would have been
@@ -411,8 +446,8 @@ rather than a list, so adding a public page never needs another dashboard edit.
 - **`CtCard`'s slot was a `Box`** (`android/…/ui/theme/Theme.kt`), so a card
   with more than one child stacked them on top of each other. It is a
   `ColumnScope` now.
-- Web: 1273 tests across 96 files. iOS core: 1564 checks. Android: `:core:test`
-  and `:app:testDebugUnitTest` green.
+- Web: 1298 tests across 98 files. iOS core: 1570 checks. Android: 229 core
+  tests, plus `:app:testDebugUnitTest`, all green.
 
 ---
 

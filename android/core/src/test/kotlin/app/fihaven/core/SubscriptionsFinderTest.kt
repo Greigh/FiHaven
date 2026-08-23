@@ -4,6 +4,7 @@ import app.fihaven.core.logic.SubscriptionLinks
 import app.fihaven.core.logic.SubscriptionsFinder
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.SpendTransaction
+import app.fihaven.core.model.TRANSFER_CATEGORY
 import java.time.LocalDate
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -37,6 +38,23 @@ class SubscriptionsFinderTest {
 
     private fun tx(id: String, merchant: String, amount: Double, date: String) =
         SpendTransaction(id = id, merchant = merchant, amount = amount, date = date)
+
+    @Test fun aRecurringCardPaymentIsNotASubscription() {
+        // A card payment recurs monthly, from a consistent merchant string, for
+        // a steady-ish amount — exactly the shape this finder looks for. Without
+        // the transfer gate, paying your card off every month surfaced as a
+        // subscription you might want to cancel.
+        val payments = listOf(
+            tx("p1", "Chase Card Payment", 450.0, monthsAgo(2)).copy(category = TRANSFER_CATEGORY),
+            tx("p2", "Chase Card Payment", 450.0, monthsAgo(1)).copy(category = TRANSFER_CATEGORY),
+        )
+        assertTrue(SubscriptionsFinder.build(emptyList(), payments, UTC).isEmpty())
+
+        // The same cadence as ordinary spending still is one, so the gate is
+        // rejecting the category rather than the pattern.
+        val purchases = payments.map { it.copy(category = "Shopping") }
+        assertEquals(1, SubscriptionsFinder.build(emptyList(), purchases, UTC).size)
+    }
 
     @Test fun thresholdsAreTheDocumentedOnes() {
         // The date-based cases below derive their fixtures from these constants

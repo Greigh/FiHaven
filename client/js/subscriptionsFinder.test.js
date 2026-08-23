@@ -41,6 +41,22 @@ describe('subscriptionsFinder — buildSubscriptionItems', () => {
     expect(items[0]).toMatchObject({ key: 'bill-s1', name: 'Netflix', source: 'bill', monthly: 15.99 });
   });
 
+  it('never reads a recurring card payment as a subscription', () => {
+    // A card payment recurs monthly, from a consistent merchant string, for a
+    // steady-ish amount — which is exactly the shape this finder looks for.
+    // Without the transfer gate, paying your card off every month showed up as a
+    // subscription you might want to cancel.
+    const items = buildSubscriptionItems(
+      [],
+      [
+        { merchant: 'Chase Card Payment', category: 'Transfer', amount: 450, date: '2026-04-05' },
+        { merchant: 'Chase Card Payment', category: 'Transfer', amount: 450, date: '2026-05-05' },
+      ],
+      new Date(2026, 5, 15).getTime(),
+    );
+    expect(items).toEqual([]);
+  });
+
   it('detects recurring merchants seen in at least two months', () => {
     const items = buildSubscriptionItems(
       [],
