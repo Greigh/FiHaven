@@ -76,11 +76,12 @@ bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 
 ### What's New (1.6.2) — current train
 
-The **App Store copy for the 1.6.2 release as a whole** now lives in
+The **App Store and Google Play copy for the 1.6.2 release as a whole** lives in
 [`../release-notes/v1.6.2/appstore-1.6.2.md`](../release-notes/v1.6.2/appstore-1.6.2.md),
-with a shorter variant and promotional text beside it. That is the file to
-paste from when 1.6.2 goes to public review — it covers builds 49 through 52,
-not just the newest one.
+with a short variant for each store and promotional text beside it. That is the
+file to paste from when 1.6.2 goes to public review — it covers builds 49
+through 52, not just the newest one. Play's **500-character** cap is the binding
+one, so its note is a separate edit rather than a trim of Apple's.
 
 Per-build copy for testers (Play "What's new", TestFlight "What to Test") is in
 the same folder, one file per build; the current build is
