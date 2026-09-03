@@ -114,7 +114,7 @@ dependencies {
     implementation(project(":core"))
 
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     implementation(platform("androidx.compose:compose-bom:2026.08.00"))
