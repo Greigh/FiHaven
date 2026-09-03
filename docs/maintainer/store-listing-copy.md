@@ -3,8 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.2 — **build 52 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
-**Current build's store copy:** [`../release-notes/v1.6.2/ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md)  
+**Version train:** 1.6.2 — **build 53 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
+**Current build's store copy:** [`../release-notes/v1.6.2/ios53-android53.md`](../release-notes/v1.6.2/ios53-android53.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -85,7 +85,9 @@ one, so its note is a separate edit rather than a trim of Apple's.
 
 Per-build copy for testers (Play "What's new", TestFlight "What to Test") is in
 the same folder, one file per build; the current build is
-[`ios52-android52.md`](../release-notes/v1.6.2/ios52-android52.md).
+[`ios53-android53.md`](../release-notes/v1.6.2/ios53-android53.md). Build 53
+needs **no server deploy and signs no one out** — it is the client half of the
+build-52 account-proposal work.
 
 Two things that must stay in whatever gets pasted:
 

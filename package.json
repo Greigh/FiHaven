@@ -54,17 +54,17 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.2",
+    "@simplewebauthn/server": "^13.3.3",
     "apns2": "^12.2.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.2",
+    "express-rate-limit": "^8.7.0",
     "firebase-admin": "^14.3.0",
     "googleapis": "^176.0.0",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^9.1.1",
     "otpauth": "^9.5.1",
     "plaid": "^46.0.0",
     "qrcode": "^1.5.4",
@@ -77,7 +77,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^10.0.5",
     "jsdom": "^30.0.1",
-    "svelte": "^5.56.10",
+    "svelte": "^5.57.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
@@ -86,9 +86,9 @@
     "bcrypt@6.0.0": true,
     "fsevents@2.3.3": true,
     "@parcel/watcher@2.5.1": true,
-    "protobufjs@7.6.5": true,
     "better-sqlite3@13.0.3": true,
-    "@firebase/util@1.15.3": true
+    "@firebase/util@1.15.3": true,
+    "protobufjs@7.6.6": true
   },
   "overrides": {
     "uuid": "^11.1.1",

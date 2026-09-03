@@ -1165,6 +1165,30 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
     var type by remember { mutableStateOf(account?.type ?: "checking") }
     var balance by remember { mutableStateOf(account?.balance?.takeIf { it != 0.0 }?.toString() ?: "") }
     var notes by remember { mutableStateOf(account?.notes ?: "") }
+    // Plaid account this row is pinned to ("" = match automatically) and the
+    // depository/investment accounts to choose from. An asset account has no
+    // digits or issuer to match on — only a free-text name — so pinning is
+    // often the only way sync can find it, and it is what makes the
+    // Accept/Decline balance review on the Balances tab appear. The row stays
+    // hidden until a bank is linked; failures leave the list empty.
+    var plaidAccountId by remember { mutableStateOf(account?.plaidAccountId ?: "") }
+    val bankAccounts = remember { mutableStateListOf<Pair<String, String>>() } // id to label
+    LaunchedEffect(Unit) {
+        val status = runCatching { vm.api.plaidStatus() }.getOrNull() ?: return@LaunchedEffect
+        bankAccounts.clear()
+        status.items.forEach { item ->
+            item.accounts
+                .filter { (it.type ?: "").lowercase() in listOf("depository", "investment", "brokerage") }
+                .forEach { a ->
+                    val label = buildString {
+                        append(item.institutionName)
+                        a.name?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                        a.mask?.takeIf { it.isNotBlank() }?.let { append(" ····").append(it) }
+                    }
+                    bankAccounts.add(a.accountId to label)
+                }
+        }
+    }
     FormDialog(
         title = if (account == null) "New Account" else "Edit Account",
         saveEnabled = name.isNotBlank(),
@@ -1174,6 +1198,7 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
                     id = account?.id ?: genId(),
                     name = name.trim(), type = type,
                     balance = balance.toDoubleOrNull() ?: 0.0, notes = notes,
+                    plaidAccountId = plaidAccountId.takeIf { it.isNotBlank() },
                 )
             )
             onDismiss()
@@ -1190,6 +1215,39 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
             modifier = Modifier.fillMaxWidth())
         OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+
+        if (bankAccounts.isNotEmpty() || plaidAccountId.isNotBlank()) {
+            val auto = "Match automatically"
+            val never = "Don't link this account"
+            val stale = "Previously linked account"
+            val optedOut = plaidAccountId == Account.NO_PLAID_LINK
+            val labels = buildList {
+                add(auto)
+                addAll(bankAccounts.map { it.second })
+                add(never)
+                if (plaidAccountId.isNotBlank() && !optedOut &&
+                    bankAccounts.none { it.first == plaidAccountId }
+                ) add(stale)
+            }
+            val selected = bankAccounts.firstOrNull { it.first == plaidAccountId }?.second
+                ?: when {
+                    plaidAccountId.isBlank() -> auto
+                    optedOut -> never
+                    else -> stale
+                }
+            DropdownField("Linked bank account", labels, selected) { picked ->
+                plaidAccountId = when (picked) {
+                    auto -> ""
+                    never -> Account.NO_PLAID_LINK
+                    stale -> plaidAccountId
+                    else -> bankAccounts.firstOrNull { it.second == picked }?.first ?: ""
+                }
+            }
+            Text(
+                "Pick the bank account this row follows when its name isn't enough to match it. The bank's balance then shows up on the Balances tab to Accept or Decline. \"$never\" keeps it out of bank matching entirely.",
+                color = Ct.colors.muted, fontSize = 12.sp,
+            )
+        }
     }
 }
 

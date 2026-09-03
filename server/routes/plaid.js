@@ -685,3 +685,7 @@ module.exports.webhookSignatureRequired = webhookSignatureRequired;
 // Exposed for tests: a confident digits/issuer match is written onto the card,
 // which is what makes spending attribution and the editor's picker agree.
 module.exports.autoLinkCards = autoLinkCards;
+// Exposed for tests: the Balances-tab counterpart — a confident match is pinned
+// onto the asset account so later syncs (and the account editor's picker)
+// agree on which bank account a row follows.
+module.exports.autoLinkAssetAccounts = autoLinkAssetAccounts;

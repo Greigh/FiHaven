@@ -140,4 +140,75 @@ final class BalanceProposalTests: XCTestCase {
         XCTAssertEqual(store.data.cards, before, "no card to write to, none changed")
         XCTAssertTrue(store.pendingBalanceProposals().isEmpty, "the row is retired either way")
     }
+
+    // ── Asset accounts (the Balances tab) ──────────────────────────
+
+    private func acctProposal(id: String, balance: Double, fingerprint: String) -> [String: JSONValue] {
+        ["id": .string(id), "proposedBalance": .number(balance), "fingerprint": .string(fingerprint)]
+    }
+
+    private func seedAccounts(_ store: AppStore) {
+        store.mutate { data in
+            data.accounts = [
+                Account(id: "a1", name: "Ally Savings", type: "savings", balance: 4200,
+                        plaidAccountId: "plaid-sav"),
+                Account(id: "a2", name: "House", type: "property", balance: 500_000),
+            ]
+        }
+    }
+
+    func testReadsAccountProposalsAndPairsThemWithTheirAccount() {
+        let store = TestStore.make()
+        seedAccounts(store)
+        store.mutate {
+            $0.settings.plaidAccountProposals = [acctProposal(id: "a1", balance: 4500, fingerprint: "af1")]
+        }
+        let p = store.pendingAccountProposals()[0]
+        XCTAssertEqual(p.name, "Ally Savings")
+        XCTAssertEqual(p.proposedBalance, 4500)
+        XCTAssertEqual(p.currentBalance, 4200, "the balance Accept would replace")
+    }
+
+    func testAcceptAccountProposalWritesBalanceAndKeepsTheLink() {
+        let store = TestStore.make()
+        seedAccounts(store)
+        store.mutate {
+            $0.settings.plaidAccountProposals = [acctProposal(id: "a1", balance: 4500, fingerprint: "af1")]
+        }
+        store.acceptAccountProposal(store.pendingAccountProposals()[0])
+
+        let acct = store.data.accounts.first { $0.id == "a1" }!
+        XCTAssertEqual(acct.balance, 4500, "the bank figure is written")
+        XCTAssertEqual(acct.name, "Ally Savings", "the user's own label is untouched")
+        XCTAssertEqual(acct.plaidAccountId, "plaid-sav", "the link survives an Accept")
+        XCTAssertTrue(store.pendingAccountProposals().isEmpty)
+        XCTAssertEqual(store.data.settings.plaidBalanceResolved.first?["decision"]?.asString, "accept")
+    }
+
+    func testDeclineAccountProposalRemembersWithoutTouchingTheAccount() {
+        let store = TestStore.make()
+        seedAccounts(store)
+        store.mutate {
+            $0.settings.plaidAccountProposals = [acctProposal(id: "a1", balance: 4500, fingerprint: "af1")]
+        }
+        store.declineAccountProposal(store.pendingAccountProposals()[0])
+
+        XCTAssertEqual(store.data.accounts.first { $0.id == "a1" }?.balance, 4200, "untouched")
+        XCTAssertTrue(store.pendingAccountProposals().isEmpty, "not asked again")
+        XCTAssertEqual(store.data.settings.plaidBalanceResolved.first?["decision"]?.asString, "decline")
+    }
+
+    func testAccountAndCardResolvedMemoryShareOneListWithoutColliding() {
+        let store = TestStore.make()
+        seed(store)
+        seedAccounts(store)
+        store.mutate {
+            $0.settings.plaidBalanceProposals = [proposal(id: "c1", current: 2400, fingerprint: "1:2400.00:")]
+            $0.settings.plaidAccountProposals = [acctProposal(id: "a1", balance: 4500, fingerprint: "acct:a1:4500.00")]
+        }
+        store.acceptBalanceProposal(store.pendingBalanceProposals()[0])
+        XCTAssertEqual(store.pendingAccountProposals().count, 1, "the account queue is unaffected")
+        store.acceptAccountProposal(store.pendingAccountProposals()[0])
+        XCTAssertEqual(store.data.settings.plaidBalanceResolved.count, 2)
+    }
 }
