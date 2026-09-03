@@ -18,8 +18,8 @@ function stub(rel, exports) {
 
 // A fake DB holding one user record plus two linked banks. Accounts are stored
 // as the plaintext legacy columns so the stubbed decryptToken never matters.
-function makeDb(cards, settings) {
-  const record = { bills: [], cards, payments: [], accounts: [], goals: [], transactions: [], settings };
+function makeDb(cards, settings, accounts = []) {
+  const record = { bills: [], cards, payments: [], accounts, goals: [], transactions: [], settings };
   return {
     record,
     getUserData: () => JSON.parse(JSON.stringify(record)),
@@ -37,11 +37,11 @@ function makeDb(cards, settings) {
 let routes;
 let db;
 
-function load(cards, settings) {
+function load(cards, settings, accounts = []) {
   for (const key of Object.keys(require.cache)) {
     if (key.startsWith(SERVER_DIR + path.sep)) delete require.cache[key];
   }
-  db = makeDb(cards, settings);
+  db = makeDb(cards, settings, accounts);
   stub('db.js', db);
   stub('plaid.js', {
     plaidConfigured: () => true,
@@ -209,5 +209,79 @@ describe('autoLinkCards', () => {
     db.upsertUserData = (...args) => { writes += 1; return real(...args); };
     routes.autoLinkCards(7);
     expect(writes).toBe(0);
+  });
+});
+
+/* The Balances tab (asset accounts) runs the same pin-then-propose path as
+   cards, against `data.accounts`. It matters that syncing a bank builds the
+   account queue too — the Accept/Decline review on that tab is the only place a
+   depository balance gets reconciled. */
+describe('asset accounts — autoLinkAssetAccounts + account proposals', () => {
+  beforeEach(() => { routes = null; });
+
+  // One linked bank (item 1) with a checking account the user could plausibly
+  // have typed by hand.
+  function loadWithBank(accounts, settings) {
+    load([], settings, accounts);
+    db.listPlaidItems = () => [{ id: 1, institution_name: 'Ally Bank' }];
+    db.listPlaidAccountsByItem = () => [{
+      account_id: 'ally-chk', name: 'Ally Interest Checking', mask: '8842',
+      type: 'depository', subtype: 'checking', current_balance: 3120.44, limit_balance: null,
+    }];
+  }
+
+  it('pins a confident name match onto the account', () => {
+    loadWithBank([{ id: 'a1', name: 'Ally Checking', type: 'checking', balance: 2000 }], {});
+    routes.autoLinkAssetAccounts(7);
+    expect(db.record.accounts[0].plaidAccountId).toBe('ally-chk');
+  });
+
+  it('proposes the bank figure once the account is linked (explicitly or auto)', () => {
+    loadWithBank(
+      [{ id: 'a1', name: 'Checking', type: 'checking', balance: 2000, plaidAccountId: 'ally-chk' }],
+      { plaidUpdateBalances: true },
+    );
+    routes.refreshBalanceProposals(7);
+    expect(db.record.settings.plaidAccountProposals).toEqual([
+      { id: 'a1', proposedBalance: 3120.44, fingerprint: 'acct:a1:3120.44' },
+    ]);
+  });
+
+  it('a name too generic to match leaves the account unlinked and unproposed', () => {
+    // This is the case the editor's picker exists for: no digits, no issuer,
+    // and "checking" is on every account at the bank.
+    loadWithBank([{ id: 'a1', name: 'Checking', type: 'checking', balance: 2000 }],
+      { plaidUpdateBalances: true });
+    routes.autoLinkAssetAccounts(7);
+    routes.refreshBalanceProposals(7);
+    expect(db.record.accounts[0].plaidAccountId).toBeUndefined();
+    expect(db.record.settings.plaidAccountProposals || []).toEqual([]);
+  });
+
+  it('does not re-propose a figure the user already answered', () => {
+    loadWithBank(
+      [{ id: 'a1', name: 'Checking', type: 'checking', balance: 2000, plaidAccountId: 'ally-chk' }],
+      { plaidUpdateBalances: true, plaidBalanceResolved: [{ fingerprint: 'acct:a1:3120.44', decision: 'decline' }] },
+    );
+    routes.refreshBalanceProposals(7);
+    expect(db.record.settings.plaidAccountProposals || []).toEqual([]);
+  });
+
+  it('clears the account queue when the user has not opted in', () => {
+    loadWithBank(
+      [{ id: 'a1', name: 'Checking', type: 'checking', balance: 2000, plaidAccountId: 'ally-chk' }],
+      { plaidUpdateBalances: false, plaidAccountProposals: [{ id: 'a1', fingerprint: 'x' }] },
+    );
+    routes.refreshBalanceProposals(7);
+    expect(db.record.settings.plaidAccountProposals).toEqual([]);
+  });
+
+  it('honours the "don\'t link this account" opt-out', () => {
+    loadWithBank([{ id: 'a1', name: 'Ally Checking', type: 'checking', balance: 2000, plaidAccountId: 'none' }],
+      { plaidUpdateBalances: true });
+    routes.autoLinkAssetAccounts(7);
+    routes.refreshBalanceProposals(7);
+    expect(db.record.accounts[0].plaidAccountId).toBe('none');
+    expect(db.record.settings.plaidAccountProposals || []).toEqual([]);
   });
 });

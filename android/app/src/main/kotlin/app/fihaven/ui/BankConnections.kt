@@ -237,8 +237,9 @@ fun BankConnections(vm: AppViewModel) {
                                     msg = BankMessage.info("Synced.")
                                     vm.reload()   // pick up purchases + balance proposals
                                     if (vm.data.value.settings.plaidBalanceMode == "prompt") {
-                                        val pending = vm.pendingBalanceProposals()
-                                        if (pending.isNotEmpty()) {
+                                        val hasPending = vm.pendingBalanceProposals().isNotEmpty() ||
+                                            vm.pendingAccountProposals().isNotEmpty()
+                                        if (hasPending) {
                                             showBalancePrompt = true
                                         }
                                     }
@@ -386,24 +387,28 @@ fun BankConnections(vm: AppViewModel) {
 
     if (showBalancePrompt) {
         val pending = vm.pendingBalanceProposals()
+        val pendingAccts = vm.pendingAccountProposals()
+        val total = pending.size + pendingAccts.size
         AlertDialog(
             onDismissRequest = { showBalancePrompt = false },
-            title = { Text("Accept Current Balance suggestions?") },
+            title = { Text("Accept bank balance suggestions?") },
             text = {
                 // Parenthesised: `+` binds tighter than the if/else arms, so
                 // the else branch used to swallow the rest of the sentence —
-                // a single-card prompt read "…updates for 1 card" and stopped.
+                // a single-item prompt read "…updates for 1 item" and stopped.
                 Text(
-                    "Bank suggested Current Balance updates for ${pending.size} " +
-                        (if (pending.size == 1) "card" else "cards") +
-                        ". Statement Balance stays manual. Decline individual items from Cards.",
+                    "Bank suggested balance updates for $total " +
+                        (if (total == 1) "item" else "items") +
+                        ". Card Statement Balance stays manual. Decline individual " +
+                        "items from Cards or Balances.",
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pending.forEach { vm.acceptBalanceProposal(it) }
+                    pendingAccts.forEach { vm.acceptAccountProposal(it) }
                     showBalancePrompt = false
-                    msg = BankMessage.info("Accepted Current Balance suggestions.")
+                    msg = BankMessage.info("Accepted bank balance suggestions.")
                 }) { Text("Accept all", color = Ct.colors.accent) }
             },
             dismissButton = {
