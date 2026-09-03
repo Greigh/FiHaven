@@ -3,9 +3,10 @@
 Public App Store + Google Play launch. **Both listings went public on 2026-08-13
 on 1.6.1** — see §7. The freeze below was written for that launch (it froze at
 1.6.0, which became 1.6.1 through post-freeze patches); it is kept as the
-procedure to repeat, not as a live version pin. The **current train is 1.6.2,
-build 53 on both stores** (build 52 is the one the public listings went live
-on; 53 is a beta build on TestFlight / Play open testing).
+procedure to repeat, not as a live version pin. The **current train is 1.6.3,
+build 53 on both stores** — a beta build on TestFlight / Play open testing.
+1.6.2 (build 52) is what the public listings are serving; 1.6.3 bumped the
+marketing version while the build number carried straight on, 52 → 53.
 
 > **Build numbers are aligned from 1.6.2 onward.** iOS jumped 27 → 49 to meet
 > Android's versionCode so one number identifies a release on both stores. Bump
@@ -79,7 +80,7 @@ anyone can join from the Play listing — manage the audience under
 `GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
 It does **not** auto-bump `versionCode` — pass `--version-code +1` (or an
 absolute N) when you need a new code. Play release names are
-`versionName (versionCode)` (e.g. `1.6.2 (53)`).
+`versionName (versionCode)` (e.g. `1.6.3 (53)`).
 
 If commit fails with **The caller does not have permission**: Play Console →
 **Users and permissions** → add the JSON `client_email` → grant **Manage

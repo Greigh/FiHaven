@@ -3,8 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.2 — **build 53 on both stores** (iOS jumped 27 → 49 to align with Play's versionCode; one number from here on)  
-**Current build's store copy:** [`../release-notes/v1.6.2/ios53-android53.md`](../release-notes/v1.6.2/ios53-android53.md)  
+**Version train:** 1.6.3 — **build 53 on both stores** (marketing bump 1.6.2 → 1.6.3; the build number is one shared counter and continued 52 → 53 without resetting)  
+**Current build's store copy:** [`../release-notes/v1.6.3/ios53-android53.md`](../release-notes/v1.6.3/ios53-android53.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -74,20 +74,28 @@ Do **not** reuse the app icon. Each promoted subscription needs a **unique** 102
 bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
 ```
 
-### What's New (1.6.2) — current train
+### What's New — current train (1.6.3)
+
+The current train is **1.6.3**, opened by build 53. Per-build copy for testers
+(Play "What's new", TestFlight "What to Test") is in
+[`../release-notes/v1.6.3/`](../release-notes/v1.6.3/), one file per build; the
+current build is
+[`ios53-android53.md`](../release-notes/v1.6.3/ios53-android53.md). Build 53
+needs **no server deploy and signs no one out** — it is the client half of the
+build-52 account-proposal work.
+
+There is no combined "release as a whole" copy for 1.6.3 yet; write one
+(`../release-notes/v1.6.3/appstore-1.6.3.md`, patterned on
+[`v1.6.2/appstore-1.6.2.md`](../release-notes/v1.6.2/appstore-1.6.2.md)) when the
+train goes to public review. Play's **500-character** cap is the binding one, so
+its note is always a separate edit rather than a trim of Apple's.
+
+### What's New (1.6.2)
 
 The **App Store and Google Play copy for the 1.6.2 release as a whole** lives in
 [`../release-notes/v1.6.2/appstore-1.6.2.md`](../release-notes/v1.6.2/appstore-1.6.2.md),
-with a short variant for each store and promotional text beside it. That is the
-file to paste from when 1.6.2 goes to public review — it covers builds 49
-through 52, not just the newest one. Play's **500-character** cap is the binding
-one, so its note is a separate edit rather than a trim of Apple's.
-
-Per-build copy for testers (Play "What's new", TestFlight "What to Test") is in
-the same folder, one file per build; the current build is
-[`ios53-android53.md`](../release-notes/v1.6.2/ios53-android53.md). Build 53
-needs **no server deploy and signs no one out** — it is the client half of the
-build-52 account-proposal work.
+covering builds 49 through 52. That is what the public listings ship on until
+1.6.3 is promoted.
 
 Two things that must stay in whatever gets pasted:
 
