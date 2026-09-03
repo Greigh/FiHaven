@@ -13,6 +13,184 @@ Each release below uses two layers:
 
 ---
 
+## [1.6.3] Current Pre-Release — 2026-09-02
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.3 (53) — **link a checking, savings or investment row to a specific bank account** from the account editor, the "Linked bank account" picker credit cards have carried since the 1.6.1 train. An asset account has no card digits and no issuer behind it — only the name you gave it — so a sync often could not tell which bank account it was; pinning it is what puts the bank's balance on the Balances tab as an Accept/Decline. The prompt right after you link a bank, or after a manual sync, now covers those account balances too, not just cards. |
+| **Android** | 1.6.3 (versionCode 53) — the same "Linked bank account" picker on asset rows, the same prompt widened to account balances. Also rolls up the Compose, Firebase, Plaid SDK, JUnit and Gradle-wrapper bumps merged since build 52. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — the Balances tab now says a row's bank account can be set when its name isn't enough to match on its own, and the post-link prompt offers account-balance suggestions beside card ones. Plus a mobile layout fix for the marketing site's "shipped" band. |
+| **Server** | **No runtime change, no migration, nobody is signed out.** The only server edit is a test-visibility export. |
+
+> **Get FiHaven:**
+> **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
+> **Android** — [Google Play](https://play.google.com/store/apps/details?id=app.fihaven)
+>
+> Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
+> **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
+
+> **Marketing version bumps 1.6.2 → 1.6.3.** The build number continues 52 → 53
+> — since build 49 it is a single shared counter across both stores and does
+> **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
+> `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
+> `scripts/nativeVersions.test.js` keeps the four version sites in agreement).
+
+> **No server deploy is required, and no one is signed out.** The account-proposal
+> backend — `autoLinkAssetAccounts` and the `plaidAccountProposals` queue —
+> shipped with build 52. This build is the client half: the editor picker that
+> lets a sync find an asset account in the first place, and the prompt that
+> surfaces its suggestion.
+
+### Summary
+
+> 1.6.3 opens with one change, finishing work the 1.6.2 train started. Build 50
+> gave asset accounts their own tab and let a linked bank *suggest* a balance for
+> one; build 52 shipped the server side of that. Build 53 closes the gap that
+> made the suggestion hard to reach.
+>
+> A card carries its last four digits and an issuer, so a sync can match it on
+> its own. A checking or savings row carries neither — only whatever you named it
+> — so more often than not the sync had nothing to match on and no suggestion
+> ever appeared. Cards have had a **Linked bank account** picker for exactly this
+> since the 1.6.1 train; asset rows now have the same one, in the account editor.
+> Pick the bank account a row follows and the bank's balance for it shows up on
+> the Balances tab to Accept or Decline, or pick **Don't link this account** to
+> keep it out of bank matching entirely. A previously-linked account that no
+> longer resolves is kept and labelled rather than silently dropped.
+>
+> The prompt that appears right after you link a bank, or after a manual sync,
+> used to offer card balance suggestions only. It now lists account balances in
+> the same prompt, and the wording moves from "Current Balance updates" to "bank
+> balance suggestions" to match.
+>
+> Android additionally rolls up the dependency bumps merged since build 52 — the
+> Compose BOM (2026.08.00), Firebase BOM (34.18.0), Plaid Link SDK (6.2.1), JUnit
+> (6.1.3) and the Gradle wrapper (9.7.1) — none of which change behaviour.
+
+### What made up this version
+
+| Build | Shipped | Headline |
+|---|---|---|
+| [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
+
+Store copy for every build of this train is in
+[`docs/release-notes/v1.6.3/`](docs/release-notes/v1.6.3/).
+
+---
+
+## [1.6.3 build 53] — 2026-09-02
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing); first build of the 1.6.3 train |
+| **iOS** | 1.6.3 (53) — **link a checking, savings or investment row to a specific bank account** from the account editor, the same "Linked bank account" picker credit cards have carried since the 1.6.1 train. An asset account has no card digits and no issuer behind it — only the name you gave it — so a sync often could not tell which bank account it was; pinning it is what puts the bank's balance on the Balances tab as an Accept/Decline. The prompt that appears right after you link a bank, or after a manual sync, now covers those account balances too, not just cards. |
+| **Android** | 1.6.3 (versionCode 53) — the same "Linked bank account" picker on asset rows, the same prompt widened to account balances. Also rolls up the Compose, Firebase, Plaid SDK, JUnit and Gradle-wrapper bumps that merged since build 52. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — the Balances tab now says a row's bank account can be set when its name isn't enough to match on its own, and the post-link prompt offers account-balance suggestions beside card ones. Plus a mobile layout fix for the marketing site's "shipped" band. |
+| **Server** | **No runtime change, no migration, nobody is signed out.** The only server edit is a test-visibility export. |
+
+> **Marketing version bump.** 1.6.2 → 1.6.3; the build number continues 52 → 53
+> on both stores together — one shared counter since build 49, no reset on a
+> marketing bump (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`,
+> `versionCode` in `android/app/build.gradle.kts`).
+
+> **No server deploy is required for this build, and no one is signed out.** The
+> account-proposal backend — `autoLinkAssetAccounts` and the
+> `plaidAccountProposals` queue — shipped with build 52. Build 53 is the client
+> half: the editor picker that lets a sync find an asset account in the first
+> place, and the prompt that surfaces its suggestion.
+
+### Summary
+
+> Build 50 gave asset accounts their own tab and let a linked bank *suggest* a
+> balance for one. Build 53 closes the gap that made that suggestion hard to
+> reach. A card carries its last four digits and an issuer, so a sync can match
+> it on its own. A checking or savings row carries neither — only whatever you
+> named it — so more often than not the sync had nothing to match on and no
+> suggestion ever appeared.
+>
+> Cards have had a **Linked bank account** picker for exactly this since the
+> 1.6.1 train. Asset rows now have the same one, in the account editor: pick the
+> bank account a row follows and the bank's balance for it shows up on the
+> Balances tab to Accept or Decline, or pick **Don't link this account** to keep
+> it out of bank matching entirely. A previously-linked account that no longer
+> resolves is kept and labelled rather than silently dropped.
+>
+> The prompt that appears right after you link a bank, or after a manual sync,
+> used to offer card balance suggestions only. It now lists account balances in
+> the same prompt, and the wording moves from "Current Balance updates" to "bank
+> balance suggestions" to match.
+>
+> Android additionally rolls up the dependency bumps that merged since build 52 —
+> the Compose BOM (2026.08.00), Firebase BOM (34.18.0), Plaid Link SDK (6.2.1),
+> JUnit (6.1.3) and the Gradle wrapper (9.7.1) — none of which change behaviour.
+
+### Technical changelog
+
+**"Linked bank account" picker on asset accounts (`ios/FiHavenApp/Sources/Main/CardsView.swift`, `android/app/src/main/kotlin/app/fihaven/ui/CardsScreen.kt`)**
+
+`AccountEditorView` / `AccountEditorDialog` gain the picker `CardEditorView` and
+the Android card editor already carry. On appear it calls `plaidStatus()` and
+lists every `depository` / `investment` / `brokerage` account across all linked
+banks as `Institution · Name ····mask`. The selection writes
+`Account.plaidAccountId`: `""` matches automatically, `Account.noPlaidLink` /
+`Account.NO_PLAID_LINK` (`"none"`) never matches, a real id pins. An id that no
+longer resolves to a live bank account is kept and shown as "Previously linked
+account" rather than dropped. The section stays hidden until a bank is linked,
+and a `plaidStatus()` failure leaves it hidden — the picker never blocks saving
+an account.
+
+**The post-link / post-sync prompt counts account proposals (`client/js/settings.js`, `ios/FiHavenApp/Sources/Settings/BankView.swift`, `android/app/src/main/kotlin/app/fihaven/ui/BankConnections.kt`)**
+
+Each platform's "Accept balance suggestions?" prompt gated on
+`pendingBalanceProposals()` (cards) alone. It now also reads
+`pendingAccountProposals()`, renders both queues in one list, and accepts both
+on confirm. The copy moves from "Current Balance updates for N cards" to
+"balance updates for N items … Card Statement Balance stays manual. Decline
+individual items from Cards or Balances." The web post-link status messages
+change the same way ("suggesting matching card and account balances").
+
+**`autoLinkAssetAccounts` exported for tests (`server/routes/plaid.js`)**
+
+The Balances-tab counterpart to `autoLinkCards`, already wired into
+`refreshBalanceProposals`, is now on `module.exports` so `plaidProposals.test.js`
+can drive it directly. No behaviour change.
+
+**Tests**
+
+- `server/routes/plaidProposals.test.js` — a new `asset accounts` block:
+  `makeDb` / `load` take an `accounts` list, and the cases cover a confident
+  name match being pinned, a linked account getting its bank figure proposed, a
+  name too generic to match being left unlinked and unproposed, an
+  already-answered fingerprint not being re-proposed, the queue clearing when
+  the user has not opted in, and the "don't link this account" opt-out.
+- `ios/FiHavenApp/Tests/BalanceProposalTests.swift` — reads an account proposal
+  and pairs it with its row; Accept writes the balance and keeps the link;
+  Decline remembers without touching the account; card and account resolved
+  memory share one list without colliding.
+- `android/core/src/test/kotlin/app/fihaven/core/BalanceReviewTest.kt` — the
+  same coverage against `BalanceReview.pendingAccounts` / `applyToAccounts` /
+  `resolveAccount`.
+
+**Also in this build**
+
+- Android dependency bumps merged since build 52: `androidx.compose:compose-bom`
+  `2026.06.01` → `2026.08.00`, `com.google.firebase:firebase-bom` `34.17.0` →
+  `34.18.0`, `com.plaid.link:sdk-core` `6.2.0` → `6.2.1`,
+  `org.junit.jupiter:junit-jupiter` `6.1.2` → `6.1.3`, gradle-wrapper `9.7.0` →
+  `9.7.1`.
+- Web dependency bumps: `@simplewebauthn/server` `13.3.3`, `express-rate-limit`
+  `8.7.0`, `nodemailer` `9.1.1`, `svelte` `5.57.0`; `protobufjs@7.6.6` replaces
+  `7.6.5` in `allowScripts`.
+- `client/css/marketing.css` — below the mobile breakpoint the
+  `.marketing-shipped` band stacks vertically and left-aligns instead of
+  overflowing.
+- Validation: web `npm run ci` + 1304 tests across 98 files; iOS core 1570
+  checks plus the `FiHavenTests` bundle; Android `:core:test`,
+  `:app:testDebugUnitTest` and `:app:compileDebugKotlin` — all green.
+
+---
+
 ## [1.6.2] — 2026-08-23
 
 | | |
@@ -112,118 +290,6 @@ Each release below uses two layers:
 Each build's full technical changelog is in its own section below. Store copy
 for every build of this train is in
 [`docs/release-notes/v1.6.2/`](docs/release-notes/v1.6.2/).
-
----
-
-## [1.6.2 build 53] — 2026-09-02
-
-| | |
-|---|---|
-| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.2 (53) — **link a checking, savings or investment row to a specific bank account** from the account editor, the same "Linked bank account" picker credit cards have carried since the 1.6.1 train. An asset account has no card digits and no issuer behind it — only the name you gave it — so a sync often could not tell which bank account it was; pinning it is what puts the bank's balance on the Balances tab as an Accept/Decline. The prompt that appears right after you link a bank, or after a manual sync, now covers those account balances too, not just cards. |
-| **Android** | 1.6.2 (versionCode 53) — the same "Linked bank account" picker on asset rows, the same prompt widened to account balances. Also rolls up the Compose, Firebase, Plaid SDK, JUnit and Gradle-wrapper bumps that merged since build 52. |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — the Balances tab now says a row's bank account can be set when its name isn't enough to match on its own, and the post-link prompt offers account-balance suggestions beside card ones. Plus a mobile layout fix for the marketing site's "shipped" band. |
-| **Server** | **No runtime change, no migration, nobody is signed out.** The only server edit is a test-visibility export. |
-
-> **Same marketing version, new build.** 1.6.2 stays; the build number goes
-> 52 → 53 on both stores together, which is the rule from build 49 onward
-> (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in
-> `android/app/build.gradle.kts`).
-
-> **No server deploy is required for this build, and no one is signed out.** The
-> account-proposal backend — `autoLinkAssetAccounts` and the
-> `plaidAccountProposals` queue — shipped with build 52. Build 53 is the client
-> half: the editor picker that lets a sync find an asset account in the first
-> place, and the prompt that surfaces its suggestion.
-
-### Summary
-
-> Build 50 gave asset accounts their own tab and let a linked bank *suggest* a
-> balance for one. Build 53 closes the gap that made that suggestion hard to
-> reach. A card carries its last four digits and an issuer, so a sync can match
-> it on its own. A checking or savings row carries neither — only whatever you
-> named it — so more often than not the sync had nothing to match on and no
-> suggestion ever appeared.
->
-> Cards have had a **Linked bank account** picker for exactly this since the
-> 1.6.1 train. Asset rows now have the same one, in the account editor: pick the
-> bank account a row follows and the bank's balance for it shows up on the
-> Balances tab to Accept or Decline, or pick **Don't link this account** to keep
-> it out of bank matching entirely. A previously-linked account that no longer
-> resolves is kept and labelled rather than silently dropped.
->
-> The prompt that appears right after you link a bank, or after a manual sync,
-> used to offer card balance suggestions only. It now lists account balances in
-> the same prompt, and the wording moves from "Current Balance updates" to "bank
-> balance suggestions" to match.
->
-> Android additionally rolls up the dependency bumps that merged since build 52 —
-> the Compose BOM (2026.08.00), Firebase BOM (34.18.0), Plaid Link SDK (6.2.1),
-> JUnit (6.1.3) and the Gradle wrapper (9.7.1) — none of which change behaviour.
-
-### Technical changelog
-
-**"Linked bank account" picker on asset accounts (`ios/FiHavenApp/Sources/Main/CardsView.swift`, `android/app/src/main/kotlin/app/fihaven/ui/CardsScreen.kt`)**
-
-`AccountEditorView` / `AccountEditorDialog` gain the picker `CardEditorView` and
-the Android card editor already carry. On appear it calls `plaidStatus()` and
-lists every `depository` / `investment` / `brokerage` account across all linked
-banks as `Institution · Name ····mask`. The selection writes
-`Account.plaidAccountId`: `""` matches automatically, `Account.noPlaidLink` /
-`Account.NO_PLAID_LINK` (`"none"`) never matches, a real id pins. An id that no
-longer resolves to a live bank account is kept and shown as "Previously linked
-account" rather than dropped. The section stays hidden until a bank is linked,
-and a `plaidStatus()` failure leaves it hidden — the picker never blocks saving
-an account.
-
-**The post-link / post-sync prompt counts account proposals (`client/js/settings.js`, `ios/FiHavenApp/Sources/Settings/BankView.swift`, `android/app/src/main/kotlin/app/fihaven/ui/BankConnections.kt`)**
-
-Each platform's "Accept balance suggestions?" prompt gated on
-`pendingBalanceProposals()` (cards) alone. It now also reads
-`pendingAccountProposals()`, renders both queues in one list, and accepts both
-on confirm. The copy moves from "Current Balance updates for N cards" to
-"balance updates for N items … Card Statement Balance stays manual. Decline
-individual items from Cards or Balances." The web post-link status messages
-change the same way ("suggesting matching card and account balances").
-
-**`autoLinkAssetAccounts` exported for tests (`server/routes/plaid.js`)**
-
-The Balances-tab counterpart to `autoLinkCards`, already wired into
-`refreshBalanceProposals`, is now on `module.exports` so `plaidProposals.test.js`
-can drive it directly. No behaviour change.
-
-**Tests**
-
-- `server/routes/plaidProposals.test.js` — a new `asset accounts` block:
-  `makeDb` / `load` take an `accounts` list, and the cases cover a confident
-  name match being pinned, a linked account getting its bank figure proposed, a
-  name too generic to match being left unlinked and unproposed, an
-  already-answered fingerprint not being re-proposed, the queue clearing when
-  the user has not opted in, and the "don't link this account" opt-out.
-- `ios/FiHavenApp/Tests/BalanceProposalTests.swift` — reads an account proposal
-  and pairs it with its row; Accept writes the balance and keeps the link;
-  Decline remembers without touching the account; card and account resolved
-  memory share one list without colliding.
-- `android/core/src/test/kotlin/app/fihaven/core/BalanceReviewTest.kt` — the
-  same coverage against `BalanceReview.pendingAccounts` / `applyToAccounts` /
-  `resolveAccount`.
-
-**Also in this build**
-
-- Android dependency bumps merged since build 52: `androidx.compose:compose-bom`
-  `2026.06.01` → `2026.08.00`, `com.google.firebase:firebase-bom` `34.17.0` →
-  `34.18.0`, `com.plaid.link:sdk-core` `6.2.0` → `6.2.1`,
-  `org.junit.jupiter:junit-jupiter` `6.1.2` → `6.1.3`, gradle-wrapper `9.7.0` →
-  `9.7.1`.
-- Web dependency bumps: `@simplewebauthn/server` `13.3.3`, `express-rate-limit`
-  `8.7.0`, `nodemailer` `9.1.1`, `svelte` `5.57.0`; `protobufjs@7.6.6` replaces
-  `7.6.5` in `allowScripts`.
-- `client/css/marketing.css` — below the mobile breakpoint the
-  `.marketing-shipped` band stacks vertically and left-aligns instead of
-  overflowing.
-- Validation: web 1304 tests across 98 files; iOS core 1570 checks plus the
-  `FiHavenTests` bundle; Android `:core:test`, `:app:testDebugUnitTest` and
-  `:app:compileDebugKotlin` — all green.
 
 ---
 

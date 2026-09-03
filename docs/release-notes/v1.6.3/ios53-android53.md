@@ -1,4 +1,4 @@
-# Store release notes — 1.6.2 · iOS build 53 / Android versionCode 53
+# Store release notes — 1.6.3 · iOS build 53 / Android versionCode 53
 
 Paste-ready copy for the store consoles. Neither upload script reads these —
 [`play-upload.js`](../../../scripts/play-upload.js) and
@@ -6,11 +6,12 @@ Paste-ready copy for the store consoles. Neither upload script reads these —
 so the text below goes in by hand.
 
 This is **the copy actually being shipped**, not a reconstruction. Source: the
-`[1.6.2 build 53]` section of [CHANGELOG.md](../../../CHANGELOG.md).
+`[1.6.3 build 53]` section of [CHANGELOG.md](../../../CHANGELOG.md).
 
-**This is a beta build** — TestFlight and Play open testing. Marketing version
-is unchanged at **1.6.2**; only the build number moves, 52 → 53, on both stores
-together. That is the rule from build 49 onward.
+**This is a beta build** — TestFlight and Play open testing. **Marketing version
+bumps 1.6.2 → 1.6.3**; the build number continues 52 → 53 (it is one shared
+counter across both stores and does not reset on a marketing bump — the rule
+from build 49 onward). 1.6.3 opens a new train.
 
 **No server deploy, no migration, no forced sign-out.** The account-proposal
 backend shipped with build 52; build 53 is the client half. Nothing on the
