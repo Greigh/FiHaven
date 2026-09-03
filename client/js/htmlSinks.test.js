@@ -28,11 +28,18 @@ describe('svelte components — no raw-HTML sinks', () => {
 
   /** Drop comments so the ban doesn't fire on prose describing the ban. */
   function stripComments(src) {
-    return src
-      .replace(/<!--[\s\S]*?-->/g, '')
-      // Line comments only where `//` opens the line — never mid-line, so a
-      // URL can't swallow real code that follows it on the same line.
-      .replace(/^[ \t]*\/\/.*$/gm, '');
+    // Strip HTML comments to a fixed point: one pass over `<!-- ... -->` can
+    // splice its surroundings into a fresh `<!-- ... -->`, so repeat until a
+    // pass changes nothing.
+    let out = src;
+    let prev;
+    do {
+      prev = out;
+      out = out.replace(/<!--[\s\S]*?-->/g, '');
+    } while (out !== prev);
+    // Line comments only where `//` opens the line — never mid-line, so a
+    // URL can't swallow real code that follows it on the same line.
+    return out.replace(/^[ \t]*\/\/.*$/gm, '');
   }
 
   it('finds .svelte files to check', () => {

@@ -143,8 +143,12 @@ function render(node, ctx) {
       return body ? `\n\n> ${body}\n\n` : '';
     }
     case 'TABLE': {
+      // The column bar is the one character a cell can't carry raw. Escape it
+      // together with the backslash in a single pass: escaping only the bar
+      // would turn a source `\|` into `\` + an unescaped column break.
+      const escapeCell = (s) => s.replace(/([\\|])/g, '\\$1');
       const rows = Array.from(node.querySelectorAll('tr')).map((tr) =>
-        Array.from(tr.children).map((cell) => squash(render(cell, ctx)).trim().replace(/\|/g, '\\|'))
+        Array.from(tr.children).map((cell) => escapeCell(squash(render(cell, ctx)).trim()))
       ).filter((r) => r.length);
       if (!rows.length) return '';
       const width = Math.max(...rows.map((r) => r.length));
