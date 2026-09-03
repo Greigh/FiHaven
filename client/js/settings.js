@@ -18,6 +18,9 @@ import { getDevEntitlement, setDevEntitlement, pullFromServer, flushLocalWrites,
 import {
   acceptAllBalanceProposals,
   pendingBalanceProposals,
+  acceptAllAccountProposals,
+  pendingAccountProposals,
+  accountProposalComparison,
   plaidBalanceMode,
   proposalComparison,
 } from './plaidBalanceReview.js';
@@ -2441,10 +2444,10 @@ import {
             if (balancesToggle) balancesToggle.checked = wantBalances;
             showMessage('plaid', wantPurchases || wantBalances
               ? (wantPurchases && wantBalances
-                ? 'Bank linked. Importing purchases and updating matching card balances…'
+                ? 'Bank linked. Importing purchases and suggesting matching card and account balances…'
                 : wantPurchases
                   ? 'Bank linked. Importing your history now — check the Spending tab in a moment.'
-                  : 'Bank linked. Updating matching card balances…')
+                  : 'Bank linked. Suggesting matching card and account balances…')
               : 'Bank linked.', false);
             refreshStatus();
           }).catch(function (err) {
@@ -2733,8 +2736,10 @@ import {
       return pullFromServer().then(function (server) {
         if (plaidBalanceMode() !== 'prompt') return;
         var list = pendingBalanceProposals();
-        if (!list.length) return;
+        var acctList = pendingAccountProposals();
+        if (!list.length && !acctList.length) return;
         var cardList = (server && server.cards) || [];
+        var accountList = (server && server.accounts) || [];
         var lines = list.map(function (p) {
           var c = cardList.find(function (x) { return String(x.id) === String(p.id); });
           var name = (c && c.name) || ('Card ' + p.id);
@@ -2747,14 +2752,23 @@ import {
           return '• ' + name + ': Current '
             + (cmp.current != null ? fmt(cmp.current) + ' ' : '')
             + '→ ' + fmt(cmp.proposed) + limitText;
-        }).join('\n');
+        });
+        var acctLines = acctList.map(function (p) {
+          var cmp = accountProposalComparison(p, accountList);
+          var name = cmp.name || ('Account ' + p.id);
+          return '• ' + name + ': '
+            + (cmp.current != null ? fmt(cmp.current) + ' ' : '')
+            + '→ ' + fmt(cmp.proposed);
+        });
+        var body = lines.concat(acctLines).join('\n');
         var accept = window.confirm(
-          'Bank suggested Current Balance updates:\n\n' + lines
-          + '\n\nOK = Accept all. Cancel = leave them in the Cards review queue.'
+          'Bank suggested balance updates:\n\n' + body
+          + '\n\nOK = Accept all. Cancel = leave them in the review queue.'
         );
         if (accept) {
-          acceptAllBalanceProposals(list);
-          showMessage('plaid', 'Accepted Current Balance suggestions.', false);
+          if (list.length) acceptAllBalanceProposals(list);
+          if (acctList.length) acceptAllAccountProposals(acctList);
+          showMessage('plaid', 'Accepted balance suggestions.', false);
         }
       });
     }

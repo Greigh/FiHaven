@@ -688,5 +688,13 @@ a.app-badge:hover {
   .marketing-cta-band { padding: 28px 22px; }
   .marketing-preview-stats { grid-template-columns: 1fr !important; }
   .compare-table th, .compare-table td { padding: 12px 14px; }
+  .marketing-shipped {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    border-radius: 20px;
+    padding: 16px 18px;
+  }
+  .marketing-shipped p { text-align: left; }
 }
 

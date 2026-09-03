@@ -60,15 +60,16 @@ struct BankView: View {
         // Re-read the status on dismiss: if the user did subscribe, the section
         // unlocks in place rather than making them leave and come back.
         .sheet(isPresented: $showPaywall, onDismiss: { Task { await load() } }) { PaywallView() }
-        .alert("Accept Current Balance suggestions?", isPresented: $promptAcceptAll) {
+        .alert("Accept bank balance suggestions?", isPresented: $promptAcceptAll) {
             Button("Accept all") {
                 guard let store = env.store else { return }
                 for p in store.pendingBalanceProposals() { store.acceptBalanceProposal(p) }
-                message = .info("Accepted Current Balance suggestions.")
+                for p in store.pendingAccountProposals() { store.acceptAccountProposal(p) }
+                message = .info("Accepted bank balance suggestions.")
             }
             Button("Not now", role: .cancel) {}
         } message: {
-            Text("Bank suggested Current Balance updates for \(pendingPromptCount) card\(pendingPromptCount == 1 ? "" : "s"). Statement Balance stays manual. Decline individual items from the Cards tab.")
+            Text("Bank suggested balance updates for \(pendingPromptCount) item\(pendingPromptCount == 1 ? "" : "s"). Card Statement Balance stays manual. Decline individual items from the Cards or Balances tab.")
         }
         .confirmationDialog(
             "Bank linked — what should FiHaven do with it?",
@@ -407,9 +408,9 @@ struct BankView: View {
             await MainActor.run {
                 guard let store = env.store,
                       store.data.settings.plaidBalanceMode == "prompt" else { return }
-                let pending = store.pendingBalanceProposals()
-                guard !pending.isEmpty else { return }
-                pendingPromptCount = pending.count
+                let count = store.pendingBalanceProposals().count + store.pendingAccountProposals().count
+                guard count > 0 else { return }
+                pendingPromptCount = count
                 promptAcceptAll = true
             }
         }

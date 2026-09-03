@@ -245,8 +245,9 @@
           change.
         {:else if bankAccounts.length > 0}
           {bankAccounts.length} bank {bankAccounts.length === 1 ? 'account' : 'accounts'}
-          available to link. Balance suggestions are
-          {settings.plaidUpdateBalances ? 'on' : 'off'} — change that in Settings.
+          available to link. Set the <strong>Bank account</strong> on a row above
+          when its name isn't enough to match it on its own. Balance suggestions
+          are {settings.plaidUpdateBalances ? 'on' : 'off'} — change that in Settings.
         {:else}
           Connect a bank in Settings and your checking and savings accounts can
           suggest their own balances.

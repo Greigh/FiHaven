@@ -1,8 +1,10 @@
 package app.fihaven.core
 
 import app.fihaven.core.logic.BalanceReview
+import app.fihaven.core.model.Account
 import app.fihaven.core.model.Card
 import app.fihaven.core.model.FiHavenJson
+import app.fihaven.core.model.plaidAccountProposals
 import app.fihaven.core.model.plaidBalanceProposals
 import app.fihaven.core.model.plaidBalanceResolved
 import kotlinx.serialization.json.JsonPrimitive
@@ -170,6 +172,72 @@ class BalanceReviewTest {
         val next = BalanceReview.resolve(s, "f1", "accept")
         assertEquals("dark", (next["theme"] as JsonPrimitive).contentOrNull)
         assertEquals(3000.0, (next["income"] as JsonPrimitive).doubleOrNull())
+    }
+
+    // ── Asset accounts (the Balances tab) ────────────────────────────
+
+    private val accounts = listOf(
+        Account(id = "a1", name = "Ally Savings", type = "savings", balance = 4200.0, plaidAccountId = "plaid-sav"),
+        Account(id = "a2", name = "House", type = "property", balance = 500_000.0),
+    )
+
+    private fun withAccountProposals(vararg raw: String) = settings(
+        """{"plaidAccountProposals":[${raw.joinToString(",")}]}"""
+    )
+
+    @Test fun readsAccountProposalsAndPairsThemWithTheirAccount() {
+        val s = withAccountProposals("""{"id":"a1","proposedBalance":4500,"fingerprint":"af1"}""")
+        val p = BalanceReview.pendingAccounts(s, accounts).single()
+        assertEquals("Ally Savings", p.name)
+        assertEquals(4500.0, p.proposedBalance, 1e-9)
+        assertEquals(4200.0, p.currentBalance!!, 1e-9)   // the balance Accept would replace
+    }
+
+    @Test fun acceptAccountProposalWritesBalanceAndKeepsEverythingElse() {
+        val s = withAccountProposals("""{"id":"a1","proposedBalance":4500,"fingerprint":"af1"}""")
+        val p = BalanceReview.pendingAccounts(s, accounts).single()
+        val acct = BalanceReview.applyToAccounts(accounts, p).first { it.id == "a1" }
+        assertEquals(4500.0, acct.balance, 1e-9)          // the bank figure is written
+        assertEquals("Ally Savings", acct.name)           // the user's own label is untouched
+        assertEquals("plaid-sav", acct.plaidAccountId)    // the link survives an Accept
+        // Every other account is untouched.
+        assertEquals(accounts.filter { it.id != "a1" }, BalanceReview.applyToAccounts(accounts, p).filter { it.id != "a1" })
+    }
+
+    @Test fun anAccountProposalWhoseRowVanishedStaysAnswerableAndChangesNothing() {
+        val s = withAccountProposals("""{"id":"gone","proposedBalance":50,"fingerprint":"afx"}""")
+        val p = BalanceReview.pendingAccounts(s, accounts).single()
+        assertEquals("Account gone", p.name)
+        assertNull(p.currentBalance)
+        assertEquals(accounts, BalanceReview.applyToAccounts(accounts, p))
+    }
+
+    @Test fun resolveAccountRetiresOnlyItsOwnRowAndSharesTheResolvedList() {
+        val s = settings(
+            """{"plaidAccountProposals":[
+                 {"id":"a1","proposedBalance":4500,"fingerprint":"af1"},
+                 {"id":"a2","proposedBalance":510000,"fingerprint":"af2"}
+               ],
+               "plaidBalanceProposals":[{"id":"c1","proposedCurrent":2400,"fingerprint":"f1"}]}"""
+        )
+        val next = BalanceReview.resolveAccount(s, "af1", "accept")
+        assertEquals(listOf("af2"), next.plaidAccountProposals.map {
+            (it["fingerprint"] as JsonPrimitive).contentOrNull
+        })
+        // The card queue is left alone; the resolved memory is the shared one.
+        assertEquals(listOf("f1"), next.plaidBalanceProposals.map {
+            (it["fingerprint"] as JsonPrimitive).contentOrNull
+        })
+        assertEquals("af1", (next.plaidBalanceResolved.single()["fingerprint"] as JsonPrimitive).contentOrNull)
+        assertTrue(BalanceReview.pendingAccounts(next, accounts).map { it.fingerprint } == listOf("af2"))
+    }
+
+    @Test fun anAlreadyResolvedAccountFingerprintIsNotOfferedAgain() {
+        val s = settings(
+            """{"plaidAccountProposals":[{"id":"a1","proposedBalance":4500,"fingerprint":"af1"}],
+               "plaidBalanceResolved":[{"fingerprint":"af1","decision":"decline"}]}"""
+        )
+        assertTrue(BalanceReview.pendingAccounts(s, accounts).isEmpty())
     }
 
     private fun JsonPrimitive.doubleOrNull() = content.toDoubleOrNull()

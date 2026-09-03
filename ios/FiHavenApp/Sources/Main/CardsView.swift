@@ -548,6 +548,7 @@ struct CardsView: View {
 /// Add/edit an asset account.
 struct AccountEditorView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var env: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     let account: Account?
 
@@ -555,6 +556,14 @@ struct AccountEditorView: View {
     @State private var type = "checking"
     @State private var balance: Double = 0
     @State private var notes = ""
+    /// Plaid account this row is pinned to ("" = match automatically), plus the
+    /// depository/investment accounts to pick from. Loaded on appear; the row
+    /// stays hidden until a bank is linked. An asset account has no digits or
+    /// issuer to match on — only a free-text name — so pinning is often the
+    /// only way a sync can find it, and it is what makes the Accept/Decline
+    /// balance review on this tab appear.
+    @State private var plaidAccountId = ""
+    @State private var bankAccounts: [(id: String, label: String)] = []
 
     private static let types = [
         ("checking", "Checking"), ("savings", "Savings"), ("investment", "Investments"),
@@ -572,6 +581,25 @@ struct AccountEditorView: View {
                     CurrencyField(label: "Balance", value: $balance)
                     TextField("Notes", text: $notes, axis: .vertical)
                 }
+
+                if !bankAccounts.isEmpty || !plaidAccountId.isEmpty {
+                    Section {
+                        Picker("Linked bank account", selection: $plaidAccountId) {
+                            Text("Match automatically").tag("")
+                            ForEach(bankAccounts, id: \.id) { Text($0.label).tag($0.id) }
+                            // Automatic is not a refusal; this is.
+                            Text("Don't link this account").tag(Account.noPlaidLink)
+                            if !plaidAccountId.isEmpty
+                                && plaidAccountId != Account.noPlaidLink
+                                && !bankAccounts.contains(where: { $0.id == plaidAccountId }) {
+                                Text("Previously linked account").tag(plaidAccountId)
+                            }
+                        }
+                    } footer: {
+                        Text("Pick the bank account this row follows when its name isn't enough to match it on its own. The bank's balance then shows up here to Accept or Decline. \"Don't link this account\" keeps it out of bank matching entirely.")
+                    }
+                }
+
                 if account != nil {
                     Section {
                         Button("Delete account", role: .destructive) {
@@ -594,8 +622,27 @@ struct AccountEditorView: View {
             .onAppear {
                 if let account {
                     name = account.name; type = account.type; balance = account.balance; notes = account.notes
+                    plaidAccountId = account.plaidAccountId ?? ""
                 }
             }
+            .task { await loadBankAccounts() }
+        }
+    }
+
+    /// Depository/investment accounts across every linked bank — the mirror of
+    /// CardEditorView.loadBankAccounts, which wants the credit lines instead.
+    /// Failures are silent: the picker simply stays hidden.
+    private func loadBankAccounts() async {
+        guard let status = try? await env.api.plaidStatus() else { return }
+        bankAccounts = status.items.flatMap { item in
+            item.accounts
+                .filter { ["depository", "investment", "brokerage"].contains(($0.type ?? "").lowercased()) }
+                .map { a in
+                    var label = item.institutionName
+                    if let n = a.name, !n.isEmpty { label += " · " + n }
+                    if let m = a.mask, !m.isEmpty { label += " ····" + m }
+                    return (id: a.accountId, label: label)
+                }
         }
     }
 
@@ -603,7 +650,8 @@ struct AccountEditorView: View {
         store.upsertAccount(Account(
             id: account?.id ?? AppStore.newID(),
             name: name.trimmingCharacters(in: .whitespaces),
-            type: type, balance: balance, notes: notes
+            type: type, balance: balance, notes: notes,
+            plaidAccountId: plaidAccountId.isEmpty ? nil : plaidAccountId
         ))
         dismiss()
     }
