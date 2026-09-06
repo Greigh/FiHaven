@@ -53,7 +53,7 @@
     "paddle:webhook": "node scripts/dev/paddle-webhook-check.js"
   },
   "dependencies": {
-    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^13.3.3",
     "apns2": "^12.2.0",
     "bcrypt": "^6.0.0",
