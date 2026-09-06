@@ -74,7 +74,7 @@
     "@codecov/vite-plugin": "^2.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/cli": "^4.3.3",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "concurrently": "^10.0.5",
     "jsdom": "^30.0.1",
     "svelte": "^5.57.0",
