@@ -94,7 +94,19 @@ const PUBLIC_ASSET_DIR =
 /* ── app ────────────────────────────────────────────────────── */
 
 const app = express();
-app.set('trust proxy', 1);
+// `req.ip` feeds per-IP rate limiting and the Paddle webhook IP allow-list, so
+// this has to match the real proxy chain. Wrong-low and every client collapses
+// into one Cloudflare-edge bucket (and Paddle webhooks 403); wrong-high and
+// X-Forwarded-For becomes spoofable. Default 1 (one proxy, e.g. Cloudflare
+// straight to Node); set TRUST_PROXY per deployment — see .env.example.
+function trustProxySetting() {
+  const raw = (process.env.TRUST_PROXY || '').trim();
+  if (!raw) return 1;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  if (raw === 'true' || raw === 'false') return raw === 'true';
+  return raw; // comma-separated IP/CIDR list, or a named subnet
+}
+app.set('trust proxy', trustProxySetting());
 
 // 256kb comfortably holds a full bill/card/payment dataset. Capture the
 // raw bytes too so the Paddle webhook can verify its signature.
