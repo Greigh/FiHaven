@@ -97,7 +97,12 @@ function applyDelta(entity) {
   loadRollup();
 }
 
+function closeStream() {
+  if (es) { try { es.close(); } catch (e) { /* noop */ } es = null; }
+}
+
 function openStream(since) {
+  closeStream();   // never leak a prior connection
   if (typeof EventSource === 'undefined') return;
   try {
     es = new EventSource('/api/household/stream?since=' + (since || 0));
@@ -105,6 +110,11 @@ function openStream(since) {
       try { var d = JSON.parse(ev.data); if (d && d.entity) applyDelta(d.entity); } catch (e) { /* ignore */ }
     });
   } catch (e) { es = null; }
+}
+
+// Symmetric teardown, mirroring household.js / householdMerge.js.
+export function teardownHouseholdShared() {
+  closeStream();
 }
 
 var started = false;

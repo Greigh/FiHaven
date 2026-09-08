@@ -21,7 +21,7 @@ async function fetchJwks() {
   if (jwksCache.keys && Date.now() - jwksCache.fetchedAt < JWKS_TTL_MS) {
     return jwksCache.keys;
   }
-  const res = await fetch(GOOGLE_JWKS);
+  const res = await fetch(GOOGLE_JWKS, { signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error('jwks-fetch-failed');
   const body = await res.json();
   jwksCache.keys = Array.isArray(body.keys) ? body.keys : [];

@@ -37,13 +37,20 @@ function escHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// Collapse whitespace and drop control characters — these strings land in the
+// Subject: header (nodemailer encodes headers, but a value with a newline has
+// no business getting that far) and in single-line HTML.
+function oneLine(s) {
+  return String(s == null ? '' : s).replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /* Both link kinds validate and mail identically; only the wording differs.
    `kind.label` names the thing in the subject, `kind.what` in the sentence,
    and `kind.field` is what the name column is called. */
 function linkHandler(kind) {
   return async (req, res) => {
     const body = req.body || {};
-    const name = String(body.name || '').trim().slice(0, 120);
+    const name = oneLine(body.name).slice(0, 120);
     const url = String(body.url || '').trim().slice(0, 2000);
     if (!name) return sendError(res, 400, 'missing-name');
     if (!isHttpUrl(url)) return sendError(res, 400, 'invalid-url');
@@ -93,10 +100,10 @@ function parseRate(v) {
 
 router.post('/reward-rate', ...guards, async (req, res) => {
   const body = req.body || {};
-  const card = String(body.card || '').trim().slice(0, 120);
-  const issuer = String(body.issuer || '').trim().slice(0, 120);
-  const category = String(body.category || '').trim().slice(0, 60);
-  const note = String(body.note || '').trim().slice(0, 500);
+  const card = oneLine(body.card).slice(0, 120);
+  const issuer = oneLine(body.issuer).slice(0, 120);
+  const category = oneLine(body.category).slice(0, 60);
+  const note = oneLine(body.note).slice(0, 500);
   const correctRate = parseRate(body.correctRate);
   // What the app currently shows. Optional — a card with no rate set for the
   // category still deserves a "you're missing this" report.

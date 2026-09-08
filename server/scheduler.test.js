@@ -1089,6 +1089,43 @@ describe('scheduler — autopay via runChecks', () => {
     expect(setAutopayDay).not.toHaveBeenCalled();
   });
 
+  /* The pass loads every user up front, then awaits SMTP for each in turn, so
+     the blob it holds for a late user can be minutes stale. The autopay write
+     must re-read right before mutating, or a client save that landed during the
+     pass is silently overwritten. Here getUserData returns a bill the pass-start
+     snapshot never had; the written record must still contain it. */
+  it('re-reads the blob before writing so a concurrent client save is not lost', async () => {
+    const user = makeUser({
+      settings: { billReminders: false, autopayMark: true },
+      bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true }],
+      payments: [],
+    });
+    db.allUsersWithData.mockReturnValue([user]);
+    // The user saved a new bill from a client while the pass was running.
+    const fresh = {
+      settings: { billReminders: false, autopayMark: true },
+      bills: [
+        { id: 'b1', name: 'Rent', amount: 1500, dueDay: 20, autopay: true },
+        { id: 'b2', name: 'Gym', amount: 40, dueDay: 3 },
+      ],
+      cards: [],
+      payments: [],
+      accounts: [],
+      goals: [],
+      transactions: [],
+    };
+    db.getUserData = vi.fn(() => fresh);
+
+    await runChecks(new Date('2026-06-20T13:00:00.000Z'), { db, emails: {} });
+
+    expect(db.getUserData).toHaveBeenCalledWith(1);
+    expect(upsertUserData).toHaveBeenCalledOnce();
+    const saved = upsertUserData.mock.calls[0][1];
+    expect(saved.bills.map((b) => b.id).sort()).toEqual(['b1', 'b2']);
+    expect(saved.payments).toHaveLength(1);
+    expect(saved.payments[0]).toMatchObject({ refId: 'b1', note: 'Auto-marked (autopay)' });
+  });
+
   /* markAutopay writes to user data, so these pin both the new period-aware
      behaviour AND the stored format, which must stay byte-compatible with what
      the clients read (calendar monthKey on the payment, calendar-month buckets

@@ -21,7 +21,11 @@ async function verifyCaptcha(token, remoteip) {
   if (remoteip) body.set('remoteip', remoteip);
 
   try {
-    const r = await fetch(SITEVERIFY_URL, { method: 'POST', body });
+    // Bound the wait: a hung Cloudflare response would otherwise hold the
+    // request (and its rate-limit slot) open indefinitely.
+    const r = await fetch(SITEVERIFY_URL, {
+      method: 'POST', body, signal: AbortSignal.timeout(10000),
+    });
     const data = await r.json();
     return {
       ok: data.success === true,

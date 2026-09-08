@@ -245,13 +245,22 @@ router.get(['/stream', '/stream/:since'], requireAuth, (req, res) => {
   // Catch the client up on anything it missed while disconnected.
   for (const f of householdEvents.replayFrames(householdId, since)) res.write(f);
 
-  householdEvents.subscribe(householdId, res);
+  householdEvents.subscribe(householdId, res, req.user.id);
   const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) { /* noop */ } }, 25000);
+  // Absolute lifetime. EventSource reconnects transparently (and resumes from
+  // Last-Event-ID), so cycling the socket is invisible — but it guarantees a
+  // half-open connection that never fires 'close' is still reaped.
+  const MAX_STREAM_MS = 30 * 60 * 1000;
+  const deadline = setTimeout(() => { try { res.end(); } catch (_) { /* noop */ } }, MAX_STREAM_MS);
+  deadline.unref();
 
-  req.on('close', () => {
+  const cleanup = () => {
     clearInterval(ping);
+    clearTimeout(deadline);
     householdEvents.unsubscribe(householdId, res);
-  });
+  };
+  req.on('close', cleanup);
+  res.on('close', cleanup);
 });
 
 module.exports = router;

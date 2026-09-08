@@ -134,12 +134,24 @@ async function totpQrDataUrl(uri) {
   return QRCode.toDataURL(uri, { errorCorrectionLevel: 'M', margin: 1, width: 220 });
 }
 
-function verifyTotpCode(secretBase32, code, email) {
-  if (!secretBase32 || !code) return false;
+// Full result: whether the code is valid right now, plus the ABSOLUTE time
+// step it matched (period count since the epoch, offset by the accepted skew).
+// The step is what anti-replay is keyed on — a given code only ever matches one
+// step, so consuming that step once blocks the same code being used again while
+// it is still inside its ±window validity.
+function checkTotp(secretBase32, code, email) {
+  if (!secretBase32 || !code) return { valid: false, step: null };
   const cleaned = String(code).replace(/\s+/g, '');
-  if (!/^\d{6}$/.test(cleaned)) return false;
-  const delta = totpFor(secretBase32, email).validate({ token: cleaned, window: TOTP_WINDOW });
-  return delta !== null;
+  if (!/^\d{6}$/.test(cleaned)) return { valid: false, step: null };
+  const totp = totpFor(secretBase32, email);
+  const delta = totp.validate({ token: cleaned, window: TOTP_WINDOW });
+  if (delta === null) return { valid: false, step: null };
+  const step = Math.floor(Date.now() / 1000 / totp.period) + delta;
+  return { valid: true, step };
+}
+
+function verifyTotpCode(secretBase32, code, email) {
+  return checkTotp(secretBase32, code, email).valid;
 }
 
 /* ── Backup codes ───────────────────────────────────────────── */
@@ -353,6 +365,7 @@ module.exports = {
   totpUri,
   totpQrDataUrl,
   verifyTotpCode,
+  checkTotp,
   // backup codes
   BACKUP_CODE_COUNT,
   newBackupCodeSet,

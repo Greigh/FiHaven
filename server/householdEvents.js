@@ -16,6 +16,13 @@ const dbApi = require('./db');
 
 // householdId -> Set<res> (open SSE responses)
 const subscribers = new Map();
+// userId -> Set<res> — same connections, indexed for the per-user cap.
+const byUser = new Map();
+
+// One person needs at most a couple of live streams (a tab plus the phone).
+// Past that it's a buggy or hostile client holding sockets open; evict the
+// oldest so the count can't grow without bound.
+const MAX_STREAMS_PER_USER = 6;
 
 /**
  * Boot-time guard for the per-process assumption above.
@@ -55,7 +62,21 @@ function warnIfMultiProcess(log = console.warn) {
   return true;
 }
 
-function subscribe(householdId, res) {
+function subscribe(householdId, res, userId) {
+  // Enforce the per-user cap first, evicting oldest-first. A Set preserves
+  // insertion order, so the first entry is the oldest connection.
+  if (userId != null) {
+    let mine = byUser.get(userId);
+    if (!mine) { mine = new Set(); byUser.set(userId, mine); }
+    while (mine.size >= MAX_STREAMS_PER_USER) {
+      const oldest = mine.values().next().value;
+      try { oldest.end(); } catch (_) { /* its close handler unsubscribes */ }
+      mine.delete(oldest);
+    }
+    mine.add(res);
+    res._hhUserId = userId;
+  }
+
   let set = subscribers.get(householdId);
   if (!set) { set = new Set(); subscribers.set(householdId, set); }
   set.add(res);
@@ -63,9 +84,18 @@ function subscribe(householdId, res) {
 
 function unsubscribe(householdId, res) {
   const set = subscribers.get(householdId);
-  if (!set) return;
-  set.delete(res);
-  if (!set.size) subscribers.delete(householdId);
+  if (set) {
+    set.delete(res);
+    if (!set.size) subscribers.delete(householdId);
+  }
+  const uid = res && res._hhUserId;
+  if (uid != null) {
+    const mine = byUser.get(uid);
+    if (mine) {
+      mine.delete(res);
+      if (!mine.size) byUser.delete(uid);
+    }
+  }
 }
 
 // One SSE frame for an entity delta.
@@ -86,13 +116,37 @@ function record(householdId, entity) {
   return seq;
 }
 
+// How many missed rows one reconnect may replay. A connected client always
+// re-fetches a full snapshot first and asks for `since = snapshot seq`, so a
+// real gap is tiny; this only bounds a client that asks with a stale/zero seq.
+const MAX_REPLAY = 5000;
+
+// How long the durable delta log is kept. Replay past this is never needed —
+// clients re-snapshot on every connect, and sessions expire well before it.
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 // Rows the client missed (seq > sinceSeq), as ready-to-send frames.
 function replayFrames(householdId, sinceSeq) {
-  return dbApi.listHouseholdEventsSince(householdId, sinceSeq || 0).map((row) => {
+  return dbApi.listHouseholdEventsSince(householdId, sinceSeq || 0, MAX_REPLAY).map((row) => {
     let payload;
     try { payload = JSON.parse(row.payload); } catch (_) { payload = {}; }
     return frame(row.seq, payload.entity);
   });
 }
 
-module.exports = { subscribe, unsubscribe, record, replayFrames, warnIfMultiProcess };
+// Drop delta rows older than the retention window. Safe to call on a timer.
+function pruneEvents(now = Date.now()) {
+  try {
+    const removed = dbApi.pruneHouseholdEvents(now - RETENTION_MS);
+    if (removed) console.log(`pruned ${removed} household event(s)`);
+    return removed;
+  } catch (err) {
+    console.error('household event prune failed:', err && err.message);
+    return 0;
+  }
+}
+
+module.exports = {
+  subscribe, unsubscribe, record, replayFrames, pruneEvents,
+  warnIfMultiProcess, MAX_REPLAY, RETENTION_MS, MAX_STREAMS_PER_USER,
+};

@@ -94,7 +94,19 @@ const PUBLIC_ASSET_DIR =
 /* ── app ────────────────────────────────────────────────────── */
 
 const app = express();
-app.set('trust proxy', 1);
+// `req.ip` feeds per-IP rate limiting and the Paddle webhook IP allow-list, so
+// this has to match the real proxy chain. Wrong-low and every client collapses
+// into one Cloudflare-edge bucket (and Paddle webhooks 403); wrong-high and
+// X-Forwarded-For becomes spoofable. Default 1 (one proxy, e.g. Cloudflare
+// straight to Node); set TRUST_PROXY per deployment — see .env.example.
+function trustProxySetting() {
+  const raw = (process.env.TRUST_PROXY || '').trim();
+  if (!raw) return 1;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  if (raw === 'true' || raw === 'false') return raw === 'true';
+  return raw; // comma-separated IP/CIDR list, or a named subnet
+}
+app.set('trust proxy', trustProxySetting());
 
 // 256kb comfortably holds a full bill/card/payment dataset. Capture the
 // raw bytes too so the Paddle webhook can verify its signature.
@@ -348,8 +360,15 @@ function pruneSessions() {
   const removed = dbApi.deleteExpiredSessions();
   if (removed) console.log(`pruned ${removed} expired session(s)`);
 }
-pruneSessions();
-setInterval(pruneSessions, 60 * 60 * 1000).unref();
+
+// The household delta log is append-only; trim rows past the retention window
+// so it can't grow without bound. Same hourly cadence as the session sweep.
+function housekeeping() {
+  pruneSessions();
+  householdEvents.pruneEvents();
+}
+housekeeping();
+setInterval(housekeeping, 60 * 60 * 1000).unref();
 
 /* ── Dev convenience account ─────────────────────────────────
    If DEV_USER_EMAIL + DEV_USER_PASSWORD are set (typically via

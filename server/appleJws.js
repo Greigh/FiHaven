@@ -99,7 +99,12 @@ function verifyAndDecode(jws) {
   const intermediate = certFromX5c(x5c[1]);
   const roots = loadRootCerts();
 
-  // Chain: leaf ← intermediate ← Apple Root CA
+  // Chain: leaf ← intermediate ← Apple Root CA. Each `verify` proves the child
+  // was signed by the parent's key. Name-chaining and basicConstraints are not
+  // additionally checked: the top link must be signed by Apple Root CA - G3
+  // (fingerprint-pinned, offline, and only ever used to sign Apple's own CA
+  // intermediates), so there is no attacker-supplied cert that can sit anywhere
+  // in this chain regardless of its subject/issuer fields.
   if (!leaf.verify(intermediate.publicKey)) throw new Error('bad-leaf-chain');
 
   let anchored = false;
@@ -117,9 +122,16 @@ function verifyAndDecode(jws) {
   }
   if (!anchored) throw new Error('untrusted-root');
 
+  // Validity window — for BOTH certs, not just the leaf. An expired intermediate
+  // was previously accepted; Apple's live long enough that this never trips on a
+  // genuine chain, but a stale captured one no longer verifies here.
   const now = Date.now();
-  if (new Date(leaf.validTo).getTime() < now) throw new Error('leaf-expired');
-  if (new Date(leaf.validFrom).getTime() > now) throw new Error('leaf-not-yet-valid');
+  const inWindow = (cert, label) => {
+    if (new Date(cert.validTo).getTime() < now) throw new Error(`${label}-expired`);
+    if (new Date(cert.validFrom).getTime() > now) throw new Error(`${label}-not-yet-valid`);
+  };
+  inWindow(leaf, 'leaf');
+  inWindow(intermediate, 'intermediate');
 
   const data = Buffer.from(`${parts[0]}.${parts[1]}`);
   const sig = b64urlToBuffer(parts[2]);

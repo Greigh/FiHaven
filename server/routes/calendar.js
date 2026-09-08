@@ -43,8 +43,13 @@ function vstamp(d) {
 }
 
 // RFC-5545 §3.3.11 escaping: backslash, semicolon, comma, newline.
+// Strip other control characters first — a lone CR (or any C0 byte) in a
+// bill/card name, which `PUT /api/data` stores verbatim, could otherwise be
+// read as a line break by a lenient calendar parser and inject properties or
+// whole components into the feed. Keep TAB (0x09) and LF (0x0a, escaped below).
 function vesc(s) {
   return String(s == null ? '' : s)
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
