@@ -13,7 +13,8 @@ const oauth = require('../oauth');
 const oauthHandoff = require('../oauthHandoff');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
-const { createSession, destroySession, requireAuth, requireCsrf } = require('../session');
+const session = require('../session');
+const { createSession, destroySession, requireAuth, requireCsrf } = session;
 const mfa = require('../mfa');
 const mail = require('../mail');
 const tokens = require('../tokens');
@@ -673,12 +674,7 @@ router.post('/logout', (req, res) => {
   if (!req.session) return res.status(204).end();
   // Cookie clients must echo the CSRF token; Bearer clients are exempt
   // (the header is never auto-attached by a browser).
-  if (req.authVia !== 'bearer') {
-    const supplied = req.get('x-csrf-token');
-    if (!supplied || supplied !== req.session.csrf_token) {
-      return sendError(res, 403, 'bad-csrf-token');
-    }
-  }
+  if (!session.csrfOk(req)) return sendError(res, 403, 'bad-csrf-token');
   destroySession(req, res);
   return res.status(204).end();
 });
