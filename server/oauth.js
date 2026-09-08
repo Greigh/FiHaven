@@ -66,7 +66,7 @@ const JWKS_TTL_MS = 60 * 60 * 1000;
 async function fetchJwks(url) {
   const cached = jwksCache.get(url);
   if (cached && Date.now() - cached.fetchedAt < JWKS_TTL_MS) return cached.keys;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error('jwks-fetch-failed');
   const body = await res.json();
   const keys = Array.isArray(body.keys) ? body.keys : [];
