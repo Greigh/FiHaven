@@ -33,6 +33,7 @@ const dbApi = require('../db');
 const mfa = require('../mfa');
 const mail = require('../mail');
 const reauth = require('../reauth');
+const rateLimit = require('../rateLimit');
 const { requireAuth, requireCsrf } = require('../session');
 const { sendError } = require('../util');
 
@@ -97,12 +98,25 @@ router.post('/reauth/send', requireAuth, requireCsrf, async (req, res) => {
   const user = dbApi.findUserById(req.user.id);
   if (!user) return sendError(res, 401, 'unauthenticated');
   if (reauth.hasPassword(user)) return sendError(res, 400, 'password-required');
+
+  // Same per-IP+email mail budget the verification / password-reset / invite
+  // mails spend from. reauth.sendCode caps re-sends against a single live code;
+  // this also bounds a caller who lets each code expire and asks for another.
+  const limit = rateLimit.check(req.ip, user.email);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'rate-limited', retryAfter: limit.retryAfter });
+  }
+
   try {
     await reauth.sendCode(user);
   } catch (err) {
+    if (err && err.code === 'reauth-too-many-sends') {
+      return sendError(res, 429, 'reauth-too-many-sends');
+    }
     console.error('reauth code send failed:', err && err.message);
     return sendError(res, 500, 'mail-send-failed');
   }
+  rateLimit.record(req.ip, user.email);
   res.json({ ok: true });
 });
 
