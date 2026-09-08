@@ -348,8 +348,15 @@ function pruneSessions() {
   const removed = dbApi.deleteExpiredSessions();
   if (removed) console.log(`pruned ${removed} expired session(s)`);
 }
-pruneSessions();
-setInterval(pruneSessions, 60 * 60 * 1000).unref();
+
+// The household delta log is append-only; trim rows past the retention window
+// so it can't grow without bound. Same hourly cadence as the session sweep.
+function housekeeping() {
+  pruneSessions();
+  householdEvents.pruneEvents();
+}
+housekeeping();
+setInterval(housekeeping, 60 * 60 * 1000).unref();
 
 /* ── Dev convenience account ─────────────────────────────────
    If DEV_USER_EMAIL + DEV_USER_PASSWORD are set (typically via

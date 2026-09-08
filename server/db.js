@@ -921,10 +921,18 @@ const stmt = {
     `INSERT INTO household_events (household_id, payload, created_at) VALUES (?, ?, ?)`
   ),
   listHouseholdEventsSince: db.prepare(
-    `SELECT seq, payload FROM household_events WHERE household_id = ? AND seq > ? ORDER BY seq`
+    `SELECT seq, payload FROM household_events
+       WHERE household_id = ? AND seq > ? ORDER BY seq LIMIT ?`
   ),
   maxHouseholdEventSeq: db.prepare(
     `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events WHERE household_id = ?`
+  ),
+  // Age-based retention for the delta log. Clients re-fetch a full snapshot on
+  // every connect (and every navigation), so an event older than the window is
+  // never needed for replay — only for a client that has been reconnecting
+  // continuously for weeks, which the session TTLs rule out.
+  pruneHouseholdEvents: db.prepare(
+    `DELETE FROM household_events WHERE created_at < ?`
   ),
 
   /* ── Push device tokens (APNs / FCM) ─────────────────────────── */
@@ -1654,8 +1662,14 @@ function householdDataVersion(householdId)   { return stmt.maxHouseholdEntityVer
 function insertHouseholdEvent(householdId, payload) {
   return stmt.insertHouseholdEvent.run(householdId, payload, Date.now()).lastInsertRowid;
 }
-function listHouseholdEventsSince(householdId, sinceSeq) { return stmt.listHouseholdEventsSince.all(householdId, sinceSeq); }
+// `limit` caps how many rows a single replay can pull into memory — a client
+// passing `since=0` (or one very far behind) can't turn a reconnect into an
+// unbounded read. 5000 is far more than any real gap between snapshots.
+function listHouseholdEventsSince(householdId, sinceSeq, limit = 5000) {
+  return stmt.listHouseholdEventsSince.all(householdId, sinceSeq, Math.max(1, limit | 0));
+}
 function householdEventSeq(householdId)      { return stmt.maxHouseholdEventSeq.get(householdId).s; }
+function pruneHouseholdEvents(beforeMs)      { return stmt.pruneHouseholdEvents.run(beforeMs).changes; }
 
 /* ── Push device wrappers ─────────────────────────────────────── */
 function upsertPushDevice(userId, platform, token) {
@@ -1820,6 +1834,7 @@ module.exports = {
   insertHouseholdEvent,
   listHouseholdEventsSince,
   householdEventSeq,
+  pruneHouseholdEvents,
   upsertPushDevice,
   deletePushDevice,
   listPushDevices,
