@@ -53,8 +53,8 @@
     "paddle:webhook": "node scripts/dev/paddle-webhook-check.js"
   },
   "dependencies": {
-    "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.3",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.1",
     "apns2": "^12.2.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
@@ -63,10 +63,10 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "firebase-admin": "^14.3.0",
-    "googleapis": "^176.0.0",
-    "nodemailer": "^9.1.1",
-    "otpauth": "^9.5.1",
-    "plaid": "^46.0.0",
+    "googleapis": "^178.0.0",
+    "nodemailer": "^10.0.1",
+    "otpauth": "^9.5.2",
+    "plaid": "^47.0.0",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7"
   },
@@ -74,13 +74,13 @@
     "@codecov/vite-plugin": "^2.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/cli": "^4.3.3",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "concurrently": "^10.0.5",
     "jsdom": "^30.0.1",
     "svelte": "^5.57.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true,
