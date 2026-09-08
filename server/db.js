@@ -100,7 +100,8 @@ db.exec(`
     user_id        INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     secret_enc     TEXT NOT NULL,
     enabled_at     INTEGER,
-    last_used_at   INTEGER
+    last_used_at   INTEGER,
+    last_used_step INTEGER          -- absolute TOTP step of the last accepted code (anti-replay)
   );
 
   CREATE TABLE IF NOT EXISTS user_backup_codes (
@@ -419,6 +420,15 @@ db.exec(`
   if (!cols.includes('sends'))    db.exec(`ALTER TABLE mfa_challenges ADD COLUMN sends INTEGER NOT NULL DEFAULT 0`);
 })();
 
+// The absolute TOTP time-step of the last accepted code, so a code can't be
+// replayed (once for login, then again on a destructive action inside its
+// ~90s validity window). last_used_at alone couldn't enforce this — it's a
+// wall-clock stamp, not the step that was consumed.
+(function migrateTotpColumns() {
+  const cols = db.prepare(`PRAGMA table_info(user_totp)`).all().map((c) => c.name);
+  if (!cols.includes('last_used_step')) db.exec(`ALTER TABLE user_totp ADD COLUMN last_used_step INTEGER`);
+})();
+
 (function migratePlaidItemColumns() {
   const cols = db.prepare(`PRAGMA table_info(plaid_items)`).all().map((c) => c.name);
   // When we last actually pulled from Plaid for this item. Drives the sync
@@ -640,7 +650,8 @@ const stmt = {
 
   /* ── TOTP ──────────────────────────────────────────────── */
   getTotp: db.prepare(
-    `SELECT user_id, secret_enc, enabled_at, last_used_at FROM user_totp WHERE user_id = ?`
+    `SELECT user_id, secret_enc, enabled_at, last_used_at, last_used_step
+       FROM user_totp WHERE user_id = ?`
   ),
   upsertTotp: db.prepare(
     `INSERT INTO user_totp (user_id, secret_enc, enabled_at, last_used_at) VALUES (?, ?, ?, NULL)
@@ -649,6 +660,13 @@ const stmt = {
              enabled_at = excluded.enabled_at`
   ),
   touchTotpUsed: db.prepare(`UPDATE user_totp SET last_used_at = ? WHERE user_id = ?`),
+  // Claim a TOTP step exactly once: succeeds (changes = 1) only when this step
+  // is newer than the last one accepted for the user, so a replayed code — same
+  // step, still inside its window — writes nothing and is rejected by the caller.
+  claimTotpStep: db.prepare(
+    `UPDATE user_totp SET last_used_at = ?, last_used_step = ?
+      WHERE user_id = ? AND (last_used_step IS NULL OR last_used_step < ?)`
+  ),
   deleteTotp: db.prepare(`DELETE FROM user_totp WHERE user_id = ?`),
 
   /* ── Backup codes ──────────────────────────────────────── */
@@ -921,10 +939,18 @@ const stmt = {
     `INSERT INTO household_events (household_id, payload, created_at) VALUES (?, ?, ?)`
   ),
   listHouseholdEventsSince: db.prepare(
-    `SELECT seq, payload FROM household_events WHERE household_id = ? AND seq > ? ORDER BY seq`
+    `SELECT seq, payload FROM household_events
+       WHERE household_id = ? AND seq > ? ORDER BY seq LIMIT ?`
   ),
   maxHouseholdEventSeq: db.prepare(
     `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events WHERE household_id = ?`
+  ),
+  // Age-based retention for the delta log. Clients re-fetch a full snapshot on
+  // every connect (and every navigation), so an event older than the window is
+  // never needed for replay — only for a client that has been reconnecting
+  // continuously for weeks, which the session TTLs rule out.
+  pruneHouseholdEvents: db.prepare(
+    `DELETE FROM household_events WHERE created_at < ?`
   ),
 
   /* ── Push device tokens (APNs / FCM) ─────────────────────────── */
@@ -1263,6 +1289,11 @@ function upsertTotp(userId, encSecret, enabledAt) {
   stmt.upsertTotp.run(userId, encSecret, enabledAt || null);
 }
 function touchTotpUsed(userId)    { stmt.touchTotpUsed.run(Date.now(), userId); }
+// Returns true if `step` was newly claimed, false if it was already used (a
+// replay). Callers treat false as an invalid code.
+function claimTotpStep(userId, step) {
+  return stmt.claimTotpStep.run(Date.now(), step, userId, step).changes > 0;
+}
 function deleteTotp(userId)       { stmt.deleteTotp.run(userId); }
 
 /* ── Backup-code wrappers ───────────────────────────────────── */
@@ -1654,8 +1685,14 @@ function householdDataVersion(householdId)   { return stmt.maxHouseholdEntityVer
 function insertHouseholdEvent(householdId, payload) {
   return stmt.insertHouseholdEvent.run(householdId, payload, Date.now()).lastInsertRowid;
 }
-function listHouseholdEventsSince(householdId, sinceSeq) { return stmt.listHouseholdEventsSince.all(householdId, sinceSeq); }
+// `limit` caps how many rows a single replay can pull into memory — a client
+// passing `since=0` (or one very far behind) can't turn a reconnect into an
+// unbounded read. 5000 is far more than any real gap between snapshots.
+function listHouseholdEventsSince(householdId, sinceSeq, limit = 5000) {
+  return stmt.listHouseholdEventsSince.all(householdId, sinceSeq, Math.max(1, limit | 0));
+}
 function householdEventSeq(householdId)      { return stmt.maxHouseholdEventSeq.get(householdId).s; }
+function pruneHouseholdEvents(beforeMs)      { return stmt.pruneHouseholdEvents.run(beforeMs).changes; }
 
 /* ── Push device wrappers ─────────────────────────────────────── */
 function upsertPushDevice(userId, platform, token) {
@@ -1732,6 +1769,7 @@ module.exports = {
   getTotp,
   upsertTotp,
   touchTotpUsed,
+  claimTotpStep,
   deleteTotp,
   // Backup codes
   insertBackupCode,
@@ -1820,6 +1858,7 @@ module.exports = {
   insertHouseholdEvent,
   listHouseholdEventsSince,
   householdEventSeq,
+  pruneHouseholdEvents,
   upsertPushDevice,
   deletePushDevice,
   listPushDevices,

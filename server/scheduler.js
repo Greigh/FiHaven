@@ -481,21 +481,33 @@ async function runChecks(now = new Date(), deps = {}) {
       const markHour = Math.min(23, Math.max(0, parseInt(s.autopayMarkHour, 10) || 9));
       if (lp.hour === markHour && u.last_autopay_day !== lp.ymd) {
         try {
-          if (markAutopay(u.data, lp)) {
+          // Re-read the blob immediately before mutating it. `u.data` is a
+          // snapshot taken at the top of this pass, and a pass awaits SMTP for
+          // every earlier user — minutes and many awaits ago — so by now the
+          // owner may have saved from a client. getUserData + markAutopay +
+          // upsertUserData below run with NO await between them, so the whole
+          // read-modify-write is atomic against a concurrent client PUT.
+          // Writing the stale snapshot back instead would silently drop those
+          // edits (PUT /api/data replaces the record wholesale).
+          const fresh = typeof db.getUserData === 'function' ? db.getUserData(u.id) : u.data;
+          if (markAutopay(fresh, lp)) {
             // Write the WHOLE record back. upsertUserData replaces it, so a
             // snapshot naming only some lists silently erases the rest — this
             // dropped the user's transactions, net-worth accounts, and savings
             // goals every time autopay auto-marked something.
             db.upsertUserData(u.id, {
-              bills: u.data.bills || [],
-              cards: u.data.cards || [],
-              payments: u.data.payments || [],
-              accounts: u.data.accounts || [],
-              goals: u.data.goals || [],
-              transactions: u.data.transactions || [],
-              settings: u.data.settings || {},
+              bills: fresh.bills || [],
+              cards: fresh.cards || [],
+              payments: fresh.payments || [],
+              accounts: fresh.accounts || [],
+              goals: fresh.goals || [],
+              transactions: fresh.transactions || [],
+              settings: fresh.settings || {},
             });
           }
+          // The rest of this iteration (reminders / digest / summary) should
+          // read the freshly-marked payments too.
+          u.data = fresh;
           if (db.setAutopayDay) db.setAutopayDay(u.id, lp.ymd);
         } catch (e) { console.error('autopay-mark failed', u.email, e && e.message); }
       }

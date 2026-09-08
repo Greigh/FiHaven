@@ -199,6 +199,25 @@ function requirePro(req, res, next) {
   next();
 }
 
+// Constant-time string compare — the CSRF token isn't a high-value secret
+// (the legit client echoes it back), but there's no reason to leak it a byte
+// at a time either.
+function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a == null ? '' : a), 'utf8');
+  const bufB = Buffer.from(String(b == null ? '' : b), 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// True when this request satisfies the double-submit CSRF check: a Bearer
+// client (no ambient cookie to forge), or a cookie client whose X-CSRF-Token
+// header matches the session token. Shared by the middleware and the inline
+// check on POST /logout.
+function csrfOk(req) {
+  if (req.authVia === 'bearer') return true;
+  return safeEqual(req.get('x-csrf-token'), req.session && req.session.csrf_token);
+}
+
 // Middleware: double-submit CSRF check for state-changing requests.
 // The session's csrf_token must be echoed in the X-CSRF-Token header.
 // Bearer-token clients are exempt: a CSRF attack relies on the browser
@@ -206,11 +225,7 @@ function requirePro(req, res, next) {
 // happens for an Authorization header the app sets explicitly.
 function requireCsrf(req, res, next) {
   if (!req.session) return res.status(401).json({ error: 'unauthenticated' });
-  if (req.authVia === 'bearer') return next();
-  const supplied = req.get('x-csrf-token');
-  if (!supplied || supplied !== req.session.csrf_token) {
-    return res.status(403).json({ error: 'bad-csrf-token' });
-  }
+  if (!csrfOk(req)) return res.status(403).json({ error: 'bad-csrf-token' });
   next();
 }
 
@@ -225,4 +240,5 @@ module.exports = {
   requireAdmin,
   requirePro,
   requireCsrf,
+  csrfOk,
 };

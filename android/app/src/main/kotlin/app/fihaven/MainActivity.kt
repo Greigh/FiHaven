@@ -41,10 +41,13 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         oauthDeepLink.value = intent?.data
         // DEBUG screenshot helpers: `adb ... --ez autologin true --es tab bills --es theme dark`.
-        val autoLogin = intent.getBooleanExtra("autologin", false)
+        // MainActivity is exported, so any app on the device can send these — the
+        // ones that change auth or app state are DEBUG-only. `tab`/`route` are
+        // just navigation hints and stay live.
+        val autoLogin = BuildConfig.DEBUG && intent.getBooleanExtra("autologin", false)
         val tab = intent.getStringExtra("tab")
         val route = intent.getStringExtra("route")
-        val themeOverride = intent.getStringExtra("theme")
+        val themeOverride = if (BuildConfig.DEBUG) intent.getStringExtra("theme") else null
         val bioDemo = intent.getBooleanExtra("biodemo", false)
         val bioLock = intent.getBooleanExtra("biolock", false)
         setContent {

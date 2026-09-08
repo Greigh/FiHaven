@@ -31,6 +31,12 @@ const mail = require('./mail');
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+// Re-sends allowed against one outstanding code before the owner has to wait
+// for it to expire. Re-sending mints a fresh code and carries the guess budget
+// forward; without a ceiling, a session-holder could stream unlimited codes
+// (mail-bombing the owner) and reset the brute-force counter every time. Mirrors
+// MAX_MFA_SENDS on the login path.
+const MAX_SENDS = 3;
 // One outstanding re-auth code per user. A deterministic id means no extra
 // lookup statement, and it is not a secret: the row's payload is a bcrypt hash
 // of the code, and `kind` keeps it from being mistaken for a login token.
@@ -46,15 +52,32 @@ function hasPassword(user) {
 /**
  * Email a fresh re-auth code. Only meaningful for password-less accounts;
  * callers should not offer it when hasPassword(user) is true.
+ *
+ * Throws an Error with `.code === 'reauth-too-many-sends'` once MAX_SENDS codes
+ * have gone out against one still-valid challenge — the caller maps that to 429.
  */
 async function sendCode(user) {
-  const code = mfa.newEmailCode();
-  const hash = await mfa.hashEmailCode(code);
   const now = Date.now();
   const id = challengeId(user.id);
 
-  // Replace any outstanding code, resetting attempts — this branch is reached
-  // only by someone already holding a valid session for the account.
+  // Carry the guess budget forward across re-sends, and cap how many codes one
+  // outstanding challenge can spawn. A still-valid row means someone already
+  // asked recently; an expired/absent one starts fresh.
+  const prior = dbApi.findChallenge(id);
+  const live = prior && prior.kind === 'reauth' && prior.expires_at > now;
+  const attempts = live ? (prior.attempts || 0) : 0;
+  const priorSends = live ? (prior.sends || 0) : 0;
+  if (priorSends >= MAX_SENDS) {
+    const err = new Error('reauth-too-many-sends');
+    err.code = 'reauth-too-many-sends';
+    throw err;
+  }
+
+  const code = mfa.newEmailCode();
+  const hash = await mfa.hashEmailCode(code);
+
+  // Replace the outstanding code (same deterministic id) but keep attempts/sends
+  // — this branch is reached only by someone already holding a valid session.
   dbApi.deleteChallenge(id);
   dbApi.insertChallenge({
     id,
@@ -63,6 +86,8 @@ async function sendCode(user) {
     payload: hash,
     created_at: now,
     expires_at: now + CODE_TTL_MS,
+    attempts,
+    sends: priorSends + 1,
   });
 
   await mail.sendMail({
@@ -127,4 +152,4 @@ async function verify(user, body) {
   return null;
 }
 
-module.exports = { verify, sendCode, hasPassword, CODE_TTL_MS, MAX_ATTEMPTS };
+module.exports = { verify, sendCode, hasPassword, CODE_TTL_MS, MAX_ATTEMPTS, MAX_SENDS };

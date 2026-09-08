@@ -89,7 +89,10 @@ async function checkSecondFactor(user, code, opts) {
     let secret;
     try { secret = mfa.decrypt(totp.secret_enc); }
     catch (_) { return { status: 500, error: 'decrypt-failed' }; }
-    if (mfa.verifyTotpCode(secret, supplied, user.email)) return null;
+    // Valid AND not already spent — a code used to log in can't be reused here
+    // inside its validity window (claimTotpStep returns false on a replay).
+    const { valid, step } = mfa.checkTotp(secret, supplied, user.email);
+    if (valid && dbApi.claimTotpStep(user.id, step)) return null;
     return { status: 401, error: 'invalid-second-factor' };
   }
 

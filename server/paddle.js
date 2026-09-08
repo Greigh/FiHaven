@@ -69,6 +69,7 @@ async function api(path, { method = 'GET', body } = {}) {
       'Content-Type': 'application/json',
     },
     body: body == null ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -170,7 +171,10 @@ async function notificationIps() {
   const fresh = ipCache.cidrs && Date.now() - ipCache.fetchedAt < IP_TTL_MS;
   if (fresh) return ipCache.cidrs;
   try {
-    const res = await fetch(IPS_URL, { headers: { Accept: 'application/json' } });
+    const res = await fetch(IPS_URL, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
     if (!res.ok) throw new Error('status ' + res.status);
     const json = await res.json();
     const cidrs = (json && json.data && json.data.ipv4_cidrs) || [];

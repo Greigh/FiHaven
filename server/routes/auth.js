@@ -13,7 +13,8 @@ const oauth = require('../oauth');
 const oauthHandoff = require('../oauthHandoff');
 const { verifyCaptcha } = require('../captcha');
 const rateLimit = require('../rateLimit');
-const { createSession, destroySession, requireAuth, requireCsrf } = require('../session');
+const session = require('../session');
+const { createSession, destroySession, requireAuth, requireCsrf } = session;
 const mfa = require('../mfa');
 const mail = require('../mail');
 const tokens = require('../tokens');
@@ -526,10 +527,13 @@ router.post('/mfa/verify', async (req, res) => {
   let secret;
   try { secret = mfa.decrypt(totp.secret_enc); }
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
-  if (!mfa.verifyTotpCode(secret, code, account.email)) {
+  const totpCheck = mfa.checkTotp(secret, code, account.email);
+  // Reject the code, and reject a replay of one already spent (claimTotpStep
+  // returns false when this step was consumed before — same code, still inside
+  // its ±window). Either way the token burns an attempt.
+  if (!totpCheck.valid || !dbApi.claimTotpStep(account.id, totpCheck.step)) {
     return sendError(res, 401, recordMfaFailure(ch));
   }
-  dbApi.touchTotpUsed(account.id);
   dbApi.deleteChallenge(ch.id);
   return finishLogin(res, req, account);
 });
@@ -670,12 +674,7 @@ router.post('/logout', (req, res) => {
   if (!req.session) return res.status(204).end();
   // Cookie clients must echo the CSRF token; Bearer clients are exempt
   // (the header is never auto-attached by a browser).
-  if (req.authVia !== 'bearer') {
-    const supplied = req.get('x-csrf-token');
-    if (!supplied || supplied !== req.session.csrf_token) {
-      return sendError(res, 403, 'bad-csrf-token');
-    }
-  }
+  if (!session.csrfOk(req)) return sendError(res, 403, 'bad-csrf-token');
   destroySession(req, res);
   return res.status(204).end();
 });
