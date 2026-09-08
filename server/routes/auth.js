@@ -526,10 +526,13 @@ router.post('/mfa/verify', async (req, res) => {
   let secret;
   try { secret = mfa.decrypt(totp.secret_enc); }
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
-  if (!mfa.verifyTotpCode(secret, code, account.email)) {
+  const totpCheck = mfa.checkTotp(secret, code, account.email);
+  // Reject the code, and reject a replay of one already spent (claimTotpStep
+  // returns false when this step was consumed before — same code, still inside
+  // its ±window). Either way the token burns an attempt.
+  if (!totpCheck.valid || !dbApi.claimTotpStep(account.id, totpCheck.step)) {
     return sendError(res, 401, recordMfaFailure(ch));
   }
-  dbApi.touchTotpUsed(account.id);
   dbApi.deleteChallenge(ch.id);
   return finishLogin(res, req, account);
 });

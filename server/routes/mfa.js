@@ -264,6 +264,10 @@ router.post('/totp/confirm', requireAuth, requireCsrf, async (req, res) => {
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
 
   const user = dbApi.findUserById(req.user.id);
+  // Enrolment confirmation is a one-shot proof of possession — no replay window
+  // to protect (the outcome is "enabled + fresh backup codes", behind reauth),
+  // and claiming the step here would block the user's very first sign-in with
+  // the code still on their screen. Anti-replay starts at first real use.
   if (!mfa.verifyTotpCode(secret, (req.body || {}).code, user.email)) {
     return sendError(res, 401, 'invalid-totp-code');
   }
@@ -293,7 +297,8 @@ router.post('/totp/disable', requireAuth, requireCsrf, async (req, res) => {
   try { secret = mfa.decrypt(totp.secret_enc); }
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
 
-  if (!mfa.verifyTotpCode(secret, body.code, user.email)) {
+  const disableCheck = mfa.checkTotp(secret, body.code, user.email);
+  if (!disableCheck.valid || !dbApi.claimTotpStep(req.user.id, disableCheck.step)) {
     return sendError(res, 401, 'invalid-totp-code');
   }
 
@@ -316,7 +321,8 @@ router.post('/backup-codes/regenerate', requireAuth, requireCsrf, async (req, re
   try { secret = mfa.decrypt(totp.secret_enc); }
   catch (_) { return sendError(res, 500, 'decrypt-failed'); }
 
-  if (!mfa.verifyTotpCode(secret, body.code, user.email)) {
+  const regenCheck = mfa.checkTotp(secret, body.code, user.email);
+  if (!regenCheck.valid || !dbApi.claimTotpStep(req.user.id, regenCheck.step)) {
     return sendError(res, 401, 'invalid-totp-code');
   }
 

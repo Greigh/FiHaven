@@ -52,6 +52,7 @@ function createTestServer() {
   const { loadSession, requireVerified } = require(path.join(SERVER_DIR, 'session'));
   const authRouter = require(path.join(SERVER_DIR, 'routes/auth'));
   const accountRouter = require(path.join(SERVER_DIR, 'routes/account'));
+  const mfaRouter = require(path.join(SERVER_DIR, 'routes/mfa'));
   const dataRouter = require(path.join(SERVER_DIR, 'routes/data'));
   const householdRouter = require(path.join(SERVER_DIR, 'routes/household'));
   const billingRouter = require(path.join(SERVER_DIR, 'routes/billing'));
@@ -70,6 +71,7 @@ function createTestServer() {
   app.use(loadSession);
   app.use('/api/auth', authRouter);
   app.use('/api/account', accountRouter);
+  app.use('/api/account/mfa', requireVerified, mfaRouter);
   app.use('/api/data', requireVerified, dataRouter);
   app.use('/api/household', requireVerified, householdRouter);
   app.use('/api/billing', billingRouter);
