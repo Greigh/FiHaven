@@ -106,6 +106,44 @@ describe('session.js', () => {
     expect(req.user.email).toBe('native@test.com');
   });
 
+  it('loadSession falls back to Bearer token when cookie session is expired or missing', () => {
+    dbMock.findSession.mockImplementation((hash) => {
+      if (hash === HASH.expired) {
+        return {
+          id_hash: HASH.expired,
+          user_id: 9,
+          email: 'stale@test.com',
+          role: 'user',
+          expires_at: Date.now() - 1000,
+        };
+      }
+      if (hash === HASH['native-token']) {
+        return {
+          id_hash: HASH['native-token'],
+          user_id: 3,
+          email: 'native@test.com',
+          role: 'user',
+          email_verified: 1,
+          onboarded: 1,
+          csrf_token: 'csrf-native',
+          expires_at: Date.now() + 60_000,
+        };
+      }
+      return null;
+    });
+
+    const req = {
+      cookies: { fh_test_sid: 'expired' },
+      get: (h) => (h.toLowerCase() === 'authorization' ? 'Bearer native-token' : undefined),
+    };
+    const next = vi.fn();
+    session.loadSession(req, {}, next);
+
+    expect(dbMock.deleteSession).toHaveBeenCalledWith(HASH.expired);
+    expect(req.authVia).toBe('bearer');
+    expect(req.user.email).toBe('native@test.com');
+  });
+
   it('loadSession stamps last_seen once per throttle window, not per request', () => {
     const row = {
       id_hash: HASH.sess1,
@@ -316,6 +354,18 @@ describe('session.js', () => {
     const res = { clearCookie: vi.fn() };
     session.destroySession(req, res);
     expect(dbMock.deleteSession).toHaveBeenCalledWith(HASH.gone);
+    expect(res.clearCookie).toHaveBeenCalledWith('fh_test_sid', { path: '/' });
+  });
+
+  it('destroySession removes both cookie and bearer sessions when both are present', () => {
+    const req = {
+      cookies: { fh_test_sid: 'gone' },
+      get: (h) => (h.toLowerCase() === 'authorization' ? 'Bearer native-token' : undefined),
+    };
+    const res = { clearCookie: vi.fn() };
+    session.destroySession(req, res);
+    expect(dbMock.deleteSession).toHaveBeenCalledWith(HASH.gone);
+    expect(dbMock.deleteSession).toHaveBeenCalledWith(HASH['native-token']);
     expect(res.clearCookie).toHaveBeenCalledWith('fh_test_sid', { path: '/' });
   });
 });

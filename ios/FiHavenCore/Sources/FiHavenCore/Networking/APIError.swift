@@ -62,6 +62,7 @@ public enum APIError: Error, Equatable, Sendable {
             case "invalid-second-factor": return "That code is incorrect or expired."
             case "receipt-already-claimed": return "That purchase is already linked to a different FiHaven account."
             case "account-suspended": return "This account has been suspended. Contact support if you think that's a mistake."
+            case "payload-too-large": return "Changes are too large to save to the server."
             default: return code ?? "Request failed (\(status))."
             }
         }

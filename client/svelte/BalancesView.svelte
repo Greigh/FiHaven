@@ -78,10 +78,13 @@
 
   /* ── Bank review queue ───────────────────────────────────── */
   // Read through `settings` so accepting a proposal (which rewrites the list)
-  // re-runs this and drops the row.
-  let proposals = $derived(
-    settings.plaidAccountProposals ? pendingAccountProposals() : []
-  );
+  // re-runs this and drops the row. Touching both plaidAccountProposals and
+  // plaidBalanceResolved ensures Svelte tracks all reactive mutations.
+  let proposals = $derived.by(() => {
+    void settings.plaidAccountProposals;
+    void settings.plaidBalanceResolved;
+    return pendingAccountProposals();
+  });
   function accept(p) { acceptAccountProposal(p); }
   function decline(p) { declineAccountProposal(p); }
 </script>
@@ -102,7 +105,7 @@
 
 <!-- Bank sync review — only when there is something to answer -->
 {#if proposals.length > 0}
-  <section class="recon">
+  <section class="recon" id="bank-sync-review" aria-label="Bank sync review">
     <div class="recon-head">🏦 Bank sync review</div>
     <p class="recon-sub">
       Your bank reports a different balance than the one saved here. Accepting
@@ -111,25 +114,37 @@
     </p>
     {#each proposals as p (p.fingerprint)}
       {@const cmp = accountProposalComparison(p, accounts)}
-      <div class="recon-row">
+      <div class="recon-row" data-account-id={p.id}>
         <div class="recon-info">
           <strong>{cmp.name || 'Account'}</strong>
           <span class="balance-proposal-figures">
             {cmp.current == null ? '—' : fmt(cmp.current)}
             <span class="balance-proposal-arrow" aria-hidden="true">→</span>
-            <span style="color:{cmp.direction === 'up' ? 'var(--green)' : 'var(--red)'};">{fmt(cmp.proposed)}</span>
+            <span style="color:{cmp.direction === 'up' ? 'var(--green)' : cmp.direction === 'down' ? 'var(--red)' : 'inherit'};font-weight:600;">
+              {#if cmp.direction === 'up'}↑{:else if cmp.direction === 'down'}↓{/if}{fmt(cmp.proposed)}
+            </span>
           </span>
         </div>
         <div class="recon-actions">
-          <button class="btn btn-primary btn-sm" onclick={() => accept(p)}>Accept</button>
-          <button class="btn btn-ghost btn-sm" onclick={() => decline(p)}>Decline</button>
+          <button
+            class="btn btn-primary btn-sm"
+            type="button"
+            aria-label={`Accept proposed balance for ${cmp.name || 'account'}`}
+            onclick={() => accept(p)}
+          >Accept</button>
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            aria-label={`Decline proposed balance for ${cmp.name || 'account'}`}
+            onclick={() => decline(p)}
+          >Decline</button>
         </div>
       </div>
     {/each}
     {#if proposals.length > 1}
       <div class="recon-actions" style="justify-content:flex-end;margin-top:10px;">
-        <button class="btn btn-ghost btn-sm" onclick={() => acceptAllAccountProposals()}>Accept all</button>
-        <button class="btn btn-ghost btn-sm" onclick={() => declineAllAccountProposals()}>Decline all</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick={() => acceptAllAccountProposals(proposals)}>Accept all</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick={() => declineAllAccountProposals(proposals)}>Decline all</button>
       </div>
     {/if}
   </section>

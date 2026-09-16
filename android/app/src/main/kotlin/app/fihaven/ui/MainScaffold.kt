@@ -184,13 +184,13 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
         val sync by vm.syncState.collectAsStateWithLifecycle()
         var offlineDismissed by remember { mutableStateOf(false) }
         LaunchedEffect(sync) {
-            if (sync != SyncState.Offline) offlineDismissed = false
+            if (sync != SyncState.Offline && sync != SyncState.Rejected) offlineDismissed = false
         }
         Scaffold(
             containerColor = Ct.colors.bg,
             topBar = {
-                if (sync == SyncState.Offline && !offlineDismissed) {
-                    SyncOfflineBanner(onDismiss = { offlineDismissed = true })
+                if ((sync == SyncState.Offline || sync == SyncState.Rejected) && !offlineDismissed) {
+                    SyncOfflineBanner(rejected = sync == SyncState.Rejected, onDismiss = { offlineDismissed = true })
                 }
             },
             bottomBar = {
@@ -252,7 +252,7 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
 }
 
 @Composable
-private fun SyncOfflineBanner(onDismiss: () -> Unit) {
+private fun SyncOfflineBanner(rejected: Boolean = false, onDismiss: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -265,14 +265,13 @@ private fun SyncOfflineBanner(onDismiss: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("☁", fontSize = 14.sp)
+        Text(if (rejected) "⚠️" else "☁", fontSize = 14.sp)
         Text(
-            // Every edit is written to the device before the network is
-            // attempted, so this can now say it's safe — and it no longer has
-            // to ask the user to keep the app open, because an unsent snapshot
-            // is replayed on the next launch.
-            "Offline — your changes are saved on this device and will sync when you’re back online.",
-            color = Ct.colors.text,
+            if (rejected)
+                "Sync rejected — data exceeds server limit. Edits remain on this device."
+            else
+                "Offline — your changes are saved on this device and will sync when you’re back online.",
+            color = if (rejected) Ct.colors.red else Ct.colors.text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),

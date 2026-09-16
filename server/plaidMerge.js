@@ -41,7 +41,7 @@ const TRANSFER_DETAILED = [
 // LOAN_PAYMENTS or TRANSFER_OUT generally). Both halves must match, so a
 // "PAYMENT" to a utility or a charge at "CARD SHOP" is not swept up.
 const CARD_WORD = /\b(card|crd|cc|visa|mastercard|amex|discover)\b/i;
-const PAYMENT_WORD = /\b(pmt|pymt|paymt|payment|autopay|epay)\b/i;
+const PAYMENT_WORD = /\b(pmt|pymt|paymt|payment|epayment|autopay|epay)\b/i;
 
 function looksLikeCardPayment(name) {
   const s = String(name || '');
@@ -52,9 +52,10 @@ function isTransferTx(t) {
   const pfc = (t && t.personal_finance_category) || {};
   const detailed = pfc.detailed || '';
   if (TRANSFER_DETAILED.includes(detailed)) return true;
+  if (looksLikeCardPayment(t && (t.merchant_name || t.name))) return true;
   const primary = pfc.primary || '';
   if (primary !== 'LOAN_PAYMENTS' && primary !== 'TRANSFER_OUT') return false;
-  return looksLikeCardPayment(t && (t.merchant_name || t.name));
+  return false;
 }
 
 // Bank descriptors banks tack fields onto: "BILT CARD PMT~Future Amount:
@@ -227,21 +228,34 @@ function mergeTransactions(settings, existing, sync) {
     hidden.has(String(t.transaction_id)) ||
     (t.pending_transaction_id != null && hidden.has(String(t.pending_transaction_id)));
 
+  const normId = (id) => {
+    const s = String(id == null ? '' : id);
+    return s.startsWith('plaid-') ? s.slice(6) : s;
+  };
+
   const all = Array.isArray(existing) ? existing.slice() : [];
   const manual = all.filter((t) => t.source !== 'plaid');
   const bank = new Map();
   // Drop any already-stored bank row the user has since declined (e.g. declined
   // on another device) as we fold in the diff.
   all.filter((t) => t.source === 'plaid' && !hidden.has(String(t.plaidId || t.id)))
-    .forEach((t) => bank.set(t.plaidId || t.id, retidyStored(t)));
+    .forEach((t) => {
+      const key = normId(t.plaidId || t.id);
+      if (key) bank.set(key, retidyStored(t));
+    });
 
-  removed.forEach((r) => { const id = r.transaction_id || r; bank.delete(id); });
+  removed.forEach((r) => {
+    const id = normId(r.transaction_id || r);
+    if (id) bank.delete(id);
+  });
   [...added, ...modified].forEach((t) => {
+    const key = normId(t.transaction_id);
+    if (!key) return;
     // Plaid signs outflows positive; anything <= 0 is money coming IN, which
     // isn't spending, so it never belongs in Spending.
-    if ((t.amount || 0) <= 0) { bank.delete(t.transaction_id); return; }
-    if (isHidden(t)) { bank.delete(t.transaction_id); return; }
-    bank.set(t.transaction_id, toLocalTx(t));
+    if ((t.amount || 0) <= 0) { bank.delete(key); return; }
+    if (isHidden(t)) { bank.delete(key); return; }
+    bank.set(key, toLocalTx(t));
   });
 
   let bankRows = Array.from(bank.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));

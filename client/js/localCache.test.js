@@ -25,7 +25,7 @@ describe('localCache', () => {
     // `fh_sync_base` is the three-way merge's baseline — one account's data.
     // Left behind, the next user's records would all read as local deletions.
     expect(SESSION_KEYS).toEqual(
-      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync', 'fh_sync_base'])
+      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync', 'fh_sync_base', 'fh_plaid_oauth'])
     );
   });
 

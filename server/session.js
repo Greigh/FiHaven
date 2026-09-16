@@ -50,21 +50,31 @@ function cookieOpts() {
   };
 }
 
-// Resolves a session id from the request. Web clients carry it in
-// the HttpOnly cookie; native clients send it as `Authorization:
-// Bearer <id>`. The cookie wins if both are present. Returns
-// { id, via } or null.
-function readSessionId(req) {
-  const cookieId = req.cookies && req.cookies[SESSION_COOKIE];
-  if (cookieId) return { id: cookieId, via: 'cookie' };
+function readCookieId(req) {
+  return (req.cookies && req.cookies[SESSION_COOKIE]) || null;
+}
+
+function readBearerId(req) {
   const auth = (req.get && req.get('authorization')) || '';
   const trimmed = auth.trim();
   // Linear parse (single \s, no quantifier) so a crafted "bearer " header
   // with many spaces can't trigger catastrophic backtracking (ReDoS).
   if (/^bearer\s/i.test(trimmed)) {
     const id = trimmed.slice(6).trim();   // 'Bearer'.length === 6
-    if (id) return { id, via: 'bearer' };
+    if (id) return id;
   }
+  return null;
+}
+
+// Resolves a session id from the request. Web clients carry it in
+// the HttpOnly cookie; native clients send it as `Authorization:
+// Bearer <id>`. The cookie wins if both are present and valid. Returns
+// { id, via } or null.
+function readSessionId(req) {
+  const cookieId = readCookieId(req);
+  if (cookieId) return { id: cookieId, via: 'cookie' };
+  const bearerId = readBearerId(req);
+  if (bearerId) return { id: bearerId, via: 'bearer' };
   return null;
 }
 
@@ -95,8 +105,10 @@ function createSession(res, user, req, opts) {
 }
 
 function destroySession(req, res) {
-  const found = readSessionId(req);
-  if (found) dbApi.deleteSession(hashId(found.id));
+  const cookieId = readCookieId(req);
+  if (cookieId) dbApi.deleteSession(hashId(cookieId));
+  const bearerId = readBearerId(req);
+  if (bearerId) dbApi.deleteSession(hashId(bearerId));
   // Harmless for token clients (they have no cookie to clear).
   res.clearCookie(SESSION_COOKIE, { path: COOKIE_PATH });
 }
@@ -130,27 +142,46 @@ function touchSeen(userId) {
 // req.session for every request, recording how it arrived in
 // req.authVia. Expired sessions are deleted and treated as anon.
 function loadSession(req, res, next) {
-  const found = readSessionId(req);
-  if (found) {
-    const row = dbApi.findSession(hashId(found.id));
+  let found = null;
+  const cookieId = readCookieId(req);
+  if (cookieId) {
+    const row = dbApi.findSession(hashId(cookieId));
     if (row && row.expires_at > Date.now()) {
-      req.session = row;
-      req.authVia = found.via;
-      touchSeen(row.user_id);
-      req.user = {
-        id: row.user_id,
-        email: row.email,
-        name: row.name || null,
-        role: row.role || 'user',
-        emailVerified: !!row.email_verified,
-        onboarded: !!row.onboarded,
-        suspended: !!row.suspended,
-        suspendedAt: row.suspended_at || null,
-        suspendedReason: row.suspended_reason || null,
-      };
+      found = { id: cookieId, via: 'cookie', row };
     } else if (row) {
       dbApi.deleteSession(row.id_hash);
     }
+  }
+
+  // If cookie was missing or expired/invalid, fall back to Authorization: Bearer
+  if (!found) {
+    const bearerId = readBearerId(req);
+    if (bearerId) {
+      const row = dbApi.findSession(hashId(bearerId));
+      if (row && row.expires_at > Date.now()) {
+        found = { id: bearerId, via: 'bearer', row };
+      } else if (row) {
+        dbApi.deleteSession(row.id_hash);
+      }
+    }
+  }
+
+  if (found) {
+    const { row } = found;
+    req.session = row;
+    req.authVia = found.via;
+    touchSeen(row.user_id);
+    req.user = {
+      id: row.user_id,
+      email: row.email,
+      name: row.name || null,
+      role: row.role || 'user',
+      emailVerified: !!row.email_verified,
+      onboarded: !!row.onboarded,
+      suspended: !!row.suspended,
+      suspendedAt: row.suspended_at || null,
+      suspendedReason: row.suspended_reason || null,
+    };
   }
   next();
 }

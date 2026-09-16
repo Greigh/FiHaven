@@ -54,6 +54,8 @@ const cleanUrls = {
       [BASE + '/mint-alternative.html']:        BASE + '/mint-alternative',
       [BASE + '/rocket-money-alternative.html']: BASE + '/rocket-money-alternative',
       [BASE + '/bill-tracker-app.html']:        BASE + '/bill-tracker-app',
+      [BASE + '/changelog.html']:               BASE + '/changelog',
+      [BASE + '/changelog/']:                   BASE + '/changelog',
     };
     server.middlewares.use((req, res, next) => {
       const path = (req.url || '/').split('?')[0];
@@ -182,6 +184,7 @@ export default defineConfig({
         mintAlternative:        clientFile('mint-alternative.html'),
         rocketMoneyAlternative: clientFile('rocket-money-alternative.html'),
         billTrackerApp:         clientFile('bill-tracker-app.html'),
+        changelog:              clientFile('changelog.html'),
         notFound:  clientFile('404.html'),
         serverError: clientFile('500.html'),
         devPortal: clientFile('dev-portal.html'),

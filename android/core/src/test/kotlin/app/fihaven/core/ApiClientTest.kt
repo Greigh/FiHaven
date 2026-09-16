@@ -163,4 +163,33 @@ class ApiClientTest {
         assertEquals(4.0, presets[0].rewardCategories["Dining"])
         assertTrue(t.last!!.url.endsWith("/api/card-presets"))
     }
+
+    @Test fun baseUrlMatchesConfig() {
+        val t = FakeTransport()
+        val c = client(transport = t)
+        assertEquals("http://localhost:5222", c.baseUrl)
+    }
+
+    @Test fun pushRegistrationAndUnregistration() = runTest {
+        val t = FakeTransport().apply { responder = { HttpResponse(200, """{"ok":true,"ready":true}""") } }
+        val c = client(InMemoryTokenStore("t"), t)
+        val ready = c.registerPushDevice("android", "fcm-token-123")
+        assertTrue(ready)
+        assertTrue(t.last!!.url.endsWith("/api/push/register"))
+        assertEquals("Bearer t", t.last!!.headers["Authorization"])
+
+        t.responder = { HttpResponse(200, """{"ok":true}""") }
+        c.unregisterPushDevice("fcm-token-123")
+        assertTrue(t.last!!.url.endsWith("/api/push/unregister"))
+    }
+
+    @Test fun terminalErrorsMapToUserMessage() {
+        val err413 = ApiError.Http(413, "payload-too-large")
+        assertEquals("payload-too-large", err413.serverCode)
+        assertEquals("Changes are too large to save to the server.", err413.userMessage)
+
+        val err403 = ApiError.Http(403, "account-suspended")
+        assertEquals("account-suspended", err403.serverCode)
+        assertEquals("This account has been suspended. Contact support if you think that's a mistake.", err403.userMessage)
+    }
 }

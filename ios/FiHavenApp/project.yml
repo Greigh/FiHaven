@@ -187,10 +187,10 @@ targets:
         # below one already uploaded — so both platforms bump together now.
         #
         # From 49 on, the build number is a single continuous counter and does
-        # NOT reset when the marketing version bumps: 1.6.3 carries build 53,
+        # NOT reset when the marketing version bumps: 1.6.3 carries build 54,
         # straight on from 1.6.2's 52. Must equal Android versionCode; keep them
         # in lockstep (scripts/nativeVersions.test.js enforces this).
-        CURRENT_PROJECT_VERSION: "53"
+        CURRENT_PROJECT_VERSION: "54"
         INFOPLIST_KEY_CFBundleDisplayName: FiHaven
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         # Swift 5 language mode keeps the first builds free of strict-

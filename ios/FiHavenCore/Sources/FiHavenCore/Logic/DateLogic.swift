@@ -41,15 +41,18 @@ public enum DateLogic {
         monthKey(now, tz: tz)
     }
 
-    /// Start-of-day Date for a given year/month/day in `cal`. Out-of-range
-    /// components roll over (Calendar normalizes them), matching JS
-    /// `new Date(y, m, d)`.
+    /// Start-of-day Date for a given year/month/day in `cal`. If day exceeds the
+    /// number of days in the target month (e.g. day 31 in April), it clamps to the
+    /// last day of that month.
     public static func dateForDay(_ day: Int, year: Int, month: Int, cal: Calendar) -> Date {
         var dc = DateComponents()
         dc.year = year
         dc.month = month
-        dc.day = day
-        let d = cal.date(from: dc) ?? Date()
+        dc.day = 1
+        guard let firstOfMonth = cal.date(from: dc) else { return Date() }
+        let daysInMonth = cal.range(of: .day, in: .month, for: firstOfMonth)?.count ?? 28
+        let effectiveDay = min(max(1, day), daysInMonth)
+        let d = cal.date(bySetting: .day, value: effectiveDay, of: firstOfMonth) ?? firstOfMonth
         return cal.startOfDay(for: d)
     }
 

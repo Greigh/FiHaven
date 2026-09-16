@@ -131,6 +131,14 @@ describe('scheduler — daysUntilDue', () => {
     const lp = { y: 2026, m: 6, d: 25 };
     expect(daysUntilDue(5, lp)).toBeGreaterThan(0);
   });
+
+  it('clamps day 31 to the last day of short months (e.g. Feb 28, Apr 30)', () => {
+    const lpFeb = { y: 2026, m: 2, d: 26 };
+    expect(daysUntilDue(31, lpFeb)).toBe(2);
+
+    const lpApr = { y: 2026, m: 4, d: 28 };
+    expect(daysUntilDue(31, lpApr)).toBe(2);
+  });
 });
 
 describe('scheduler — summarize', () => {

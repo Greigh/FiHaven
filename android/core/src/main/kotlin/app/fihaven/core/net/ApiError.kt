@@ -37,6 +37,7 @@ sealed class ApiError : Exception() {
                 "email-unverified-conflict" ->
                     "An unverified account already uses this email. Verify it from the link we emailed, or sign in with your password."
                 "account-suspended" -> "This account has been suspended. Contact support if you think that's a mistake."
+                "payload-too-large" -> "Changes are too large to save to the server."
                 "wrong-password" -> "That password is incorrect."
                 // Re-auth on an account with no password (Sign in with Apple / Google).
                 "reauth-code-required" -> "Send yourself a confirmation code, then enter it to continue."

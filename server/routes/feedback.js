@@ -12,6 +12,7 @@
 'use strict';
 
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const mail = require('../mail');
 const { requireAuth, requireVerified, requireCsrf } = require('../session');
 const { sendError } = require('../util');
@@ -75,7 +76,21 @@ function linkHandler(kind) {
   };
 }
 
-const guards = [requireAuth, requireVerified, requireCsrf];
+const feedbackLimiter = (process.env.NODE_ENV === 'test' && !process.env.TEST_FEEDBACK_RATE_LIMIT)
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 60 * 1000,
+      limit: 10,
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: false,
+      keyGenerator: (req) => (req.user ? `user:${req.user.id}` : `ip:${req.ip}`),
+      handler: (req, res) => {
+        sendError(res, 429, 'rate-limited');
+      },
+    });
+
+const guards = [requireAuth, requireVerified, requireCsrf, feedbackLimiter];
 
 router.post('/subscription-link', ...guards, linkHandler({
   label: 'Subscription manage link',

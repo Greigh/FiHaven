@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
@@ -144,6 +145,22 @@ fun BalancesScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
                 items(proposals, key = { it.fingerprint }) { p ->
                     ProposalCard(p, onAccept = { vm.acceptAccountProposal(p) },
                         onDecline = { vm.declineAccountProposal(p) })
+                }
+                if (proposals.size > 1) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(onClick = { proposals.forEach { vm.acceptAccountProposal(it) } }) {
+                                Text("Accept all", color = Ct.colors.accent)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = { proposals.forEach { vm.declineAccountProposal(it) } }) {
+                                Text("Decline all", color = Ct.colors.muted)
+                            }
+                        }
+                    }
                 }
             }
 

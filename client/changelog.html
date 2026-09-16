@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="theme-color" content="#3D6FE1"/>
+
+  <meta name="description" content="What's new in FiHaven — releases, features, updates, and improvements across Web, iOS, and Android."/>
+  <meta name="robots" content="index,follow"/>
+  <link rel="canonical" href="https://fihaven.app/changelog"/>
+
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="FiHaven"/>
+  <meta property="og:url" content="https://fihaven.app/changelog"/>
+  <meta property="og:title" content="FiHaven — Changelog"/>
+  <meta property="og:description" content="What's new in FiHaven — releases, updates, and platform improvements."/>
+  <meta property="og:image" content="https://fihaven.app/og-home.jpg"/>
+  <meta property="og:image:type" content="image/jpeg"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="FiHaven Changelog — releases and product updates."/>
+  <meta property="og:locale" content="en_US"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FiHaven — Changelog"/>
+  <meta name="twitter:description" content="What's new in FiHaven — releases, updates, and platform improvements."/>
+  <meta name="twitter:image" content="https://fihaven.app/og-home.jpg"/>
+  <meta name="twitter:image:alt" content="FiHaven Changelog — releases and product updates."/>
+
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="icon" href="/favicon.ico" sizes="32x32"/>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+
+  <title>Changelog — FiHaven</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <link rel="stylesheet" href="css/tailwind-built.css"/>
+  <script>document.documentElement.dataset.theme=localStorage.getItem("fh_theme")||"light";</script>
+
+  <style>
+    .changelog-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      margin-top: 32px;
+    }
+    .changelog-entry {
+      background: var(--card-bg, rgba(255, 255, 255, 0.7));
+      border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .changelog-entry:hover {
+      border-color: var(--primary, #3D6FE1);
+      box-shadow: 0 8px 30px -4px rgba(61, 111, 225, 0.12);
+    }
+    .changelog-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+    }
+    .changelog-version {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .changelog-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .badge-latest {
+      background: rgba(61, 111, 225, 0.15);
+      color: var(--primary, #3D6FE1);
+      border: 1px solid rgba(61, 111, 225, 0.3);
+    }
+    .badge-stable {
+      background: rgba(46, 160, 67, 0.15);
+      color: #2ea043;
+      border: 1px solid rgba(46, 160, 67, 0.3);
+    }
+    .changelog-date {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--muted, #666);
+    }
+    .changelog-lead {
+      font-size: 1.05rem;
+      line-height: 1.6;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    .changelog-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .changelog-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .changelog-list svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      color: var(--primary, #3D6FE1);
+    }
+    .changelog-platforms {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border, rgba(0, 0, 0, 0.08));
+    }
+    .platform-pill {
+      font-size: 11px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+      color: var(--muted, #666);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-(--text) antialiased" data-auth="public">
+  <div class="page-frame">
+    <header data-app-nav data-variant="public"></header>
+
+    <main class="marketing-frame marketing-main">
+      <section class="marketing-section" style="padding-top:12px;">
+        <div class="marketing-section-head">
+          <span class="marketing-kicker">Releases &amp; Updates</span>
+          <h1 class="marketing-section-title" style="font-size:clamp(2rem,5vw,2.75rem);">Changelog</h1>
+          <p class="marketing-sub" style="margin:14px auto 0;text-align:center;max-width:680px;">
+            Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
+          </p>
+        </div>
+
+        <div class="changelog-feed">
+          <!-- Build 54 -->
+          <article class="changelog-entry" id="v1.6.3-b54">
+            <div class="changelog-header">
+              <div class="changelog-version">
+                <span>1.6.3 (Build 54)</span>
+                <span class="changelog-badge badge-latest">Latest Beta</span>
+              </div>
+              <div class="changelog-date">September 15, 2026</div>
+            </div>
+            <div class="changelog-lead">
+              <strong>Account Balances Bank Review &amp; Comprehensive Security Hardening</strong> — Review, accept, or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts, coupled with battery-saving offline sync error handling and multi-account security isolation on shared devices.
+            </div>
+            <ul class="changelog-list">
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Account Balances Bank Review:</strong> Checking, savings, and investment accounts linked to an institution now display pending balance changes with one-tap Accept or Decline actions. Custom names, types, and notes are strictly preserved.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Sync Error &amp; Battery Protection:</strong> Halts retry loops immediately on terminal 4xx rejections (such as payload size limits or suspended accounts) with a clear status banner, saving battery and data rather than falsely claiming to be "Offline".</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Multi-Account Shared Device Isolation:</strong> Cold launch offline cache loading now validates authenticated user identity before reading disk snapshots, preventing prior user data exposure on shared phones.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Push Token Lifecycle Fix:</strong> Made push token retirement async during sign-out, guaranteeing unregistration before Keychain tokens are deleted. Tokens are automatically cleared upon account deletion.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>SSE Stream Stability:</strong> Fixed retain cycle memory leak in household live delta streams and added cancellation on view disposal.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Expanded Test Coverage:</strong> 108 test files passed in Vitest (1,364 tests), 100% Android unit tests, and 1,602 Swift core checks.</div>
+              </li>
+            </ul>
+            <div class="changelog-platforms">
+              <span class="platform-pill">iOS 1.6.3 (54)</span>
+              <span class="platform-pill">Android 1.6.3 (54)</span>
+              <span class="platform-pill">Web fihaven.app</span>
+              <span class="platform-pill">Server API</span>
+            </div>
+          </article>
+
+          <!-- Build 53 -->
+          <article class="changelog-entry" id="v1.6.3-b53">
+            <div class="changelog-header">
+              <div class="changelog-version">
+                <span>1.6.3 (Build 53)</span>
+                <span class="changelog-badge badge-stable">Beta</span>
+              </div>
+              <div class="changelog-date">September 2, 2026</div>
+            </div>
+            <div class="changelog-lead">
+              <strong>Linked Bank Account Picker for Asset Accounts</strong> — Pin checking, savings, or investment accounts to a specific bank institution directly from the account editor.
+            </div>
+            <ul class="changelog-list">
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Asset Account Link Picker:</strong> Pick the bank account a row follows so a sync can find it without relying on exact name matching. "Don't link this account" keeps an account manual.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Wider Post-Sync Prompt:</strong> The post-link / post-sync prompt now offers bank balance suggestions for asset accounts alongside credit cards.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Native Dependencies:</strong> Updated Compose BOM, Firebase BOM, Plaid Link SDK, and Gradle wrapper.</div>
+              </li>
+            </ul>
+            <div class="changelog-platforms">
+              <span class="platform-pill">iOS 1.6.3 (53)</span>
+              <span class="platform-pill">Android 1.6.3 (53)</span>
+              <span class="platform-pill">Web fihaven.app</span>
+            </div>
+          </article>
+
+          <!-- Version 1.6.2 -->
+          <article class="changelog-entry" id="v1.6.2">
+            <div class="changelog-header">
+              <div class="changelog-version">
+                <span>1.6.2</span>
+                <span class="changelog-badge badge-stable">Stable Release</span>
+              </div>
+              <div class="changelog-date">August 23, 2026</div>
+            </div>
+            <div class="changelog-lead">
+              <strong>Asset Accounts Tab &amp; Net Worth Tracking</strong> — Dedicated Balances tab separating checking, savings, and investments from liabilities, complete with net worth computation and bank suggestions.
+            </div>
+            <ul class="changelog-list">
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Balances Tab:</strong> Centralized place to track liquid cash, emergency funds, and investments with clear asset-to-debt visualization.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Build Counter Alignment:</strong> Aligned iOS and Android build numbers to a single unified counter starting at build 49.</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Account Proposal Queue:</strong> Backend support for matching depository institution accounts to user-defined balances.</div>
+              </li>
+            </ul>
+            <div class="changelog-platforms">
+              <span class="platform-pill">iOS 1.6.2 (49-52)</span>
+              <span class="platform-pill">Android 1.6.2 (49-52)</span>
+              <span class="platform-pill">Web</span>
+            </div>
+          </article>
+        </div>
+
+        <div style="margin-top:40px;text-align:center;padding:24px;border:1px solid var(--border, rgba(0,0,0,0.08));border-radius:12px;background:var(--card-bg, rgba(255,255,255,0.6));">
+          <p style="margin:0 0 10px 0;font-size:0.95rem;color:var(--text);">Looking for the full technical commit log or earlier version history?</p>
+          <a href="https://github.com/Greigh/FiHaven/blob/main/CHANGELOG.md" target="_blank" rel="noopener" class="appbar-cta appbar-cta-primary" style="display:inline-block;">View Complete Git Changelog &rarr;</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer-brand">
+        <strong style="color:var(--text);">FiHaven</strong> — no ads, no data sales.
+      </div>
+      <div class="site-footer-links" data-public-footer>
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/faq">FAQ</a>
+        <a href="/changelog" aria-current="page">Changelog</a>
+        <a href="/bill-tracker-app">Bill Tracker Guide</a>
+        <a href="/security">Security</a>
+        <a href="/contact">Contact</a>
+        <a href="/login">Log In</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/refunds">Refunds</a>
+        <a href="/delete-account">Delete Account</a>
+      </div>
+      <div class="site-footer-credit">Made with <i class="heart">♥</i> by <a href="https://danielhipskind.com" target="_blank" rel="noopener">Daniel Hipskind</a></div>
+      <div class="site-footer-legal">© 2026 Greigh Studios LLC · <a href="https://github.com/Greigh/FiHaven/blob/main/LICENSE" target="_blank" rel="noopener">Source available</a> · <a href="https://github.com/Greigh/FiHaven" target="_blank" rel="noopener">GitHub</a></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/public-entry.js"></script>
+</body>
+</html>

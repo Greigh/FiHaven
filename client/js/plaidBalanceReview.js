@@ -52,9 +52,9 @@ export function pendingBalanceProposals() {
 }
 
 function rememberResolved(fingerprint, decision) {
-  const list = Array.isArray(settings.plaidBalanceResolved)
-    ? settings.plaidBalanceResolved.slice()
-    : [];
+  const list = (Array.isArray(settings.plaidBalanceResolved)
+    ? settings.plaidBalanceResolved
+    : []).filter((r) => ((r && r.fingerprint) || r) !== fingerprint);
   list.push({ fingerprint, decision, at: new Date().toISOString() });
   settings.plaidBalanceResolved = list.slice(-RESOLVED_CAP);
   settings.plaidBalanceProposals = (settings.plaidBalanceProposals || [])
@@ -90,11 +90,11 @@ export function declineBalanceProposal(proposal) {
 }
 
 export function acceptAllBalanceProposals(list) {
-  (list || pendingBalanceProposals()).forEach(acceptBalanceProposal);
+  (list || pendingBalanceProposals()).slice().forEach(acceptBalanceProposal);
 }
 
 export function declineAllBalanceProposals(list) {
-  (list || pendingBalanceProposals()).forEach(declineBalanceProposal);
+  (list || pendingBalanceProposals()).slice().forEach(declineBalanceProposal);
 }
 
 export function plaidBalanceMode() {
@@ -145,9 +145,9 @@ export function accountProposalComparison(proposal, accountList) {
 }
 
 function rememberAccountResolved(fingerprint, decision) {
-  const list = Array.isArray(settings.plaidBalanceResolved)
-    ? settings.plaidBalanceResolved.slice()
-    : [];
+  const list = (Array.isArray(settings.plaidBalanceResolved)
+    ? settings.plaidBalanceResolved
+    : []).filter((r) => ((r && r.fingerprint) || r) !== fingerprint);
   list.push({ fingerprint, decision, at: new Date().toISOString() });
   settings.plaidBalanceResolved = list.slice(-RESOLVED_CAP);
   settings.plaidAccountProposals = (settings.plaidAccountProposals || [])
@@ -179,9 +179,9 @@ export function declineAccountProposal(proposal) {
 }
 
 export function acceptAllAccountProposals(list) {
-  (list || pendingAccountProposals()).forEach(acceptAccountProposal);
+  (list || pendingAccountProposals()).slice().forEach(acceptAccountProposal);
 }
 
 export function declineAllAccountProposals(list) {
-  (list || pendingAccountProposals()).forEach(declineAccountProposal);
+  (list || pendingAccountProposals()).slice().forEach(declineAccountProposal);
 }

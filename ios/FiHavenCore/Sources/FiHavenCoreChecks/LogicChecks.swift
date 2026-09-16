@@ -102,6 +102,22 @@ func runDateLogicChecks() {
         checkEqual(DateLogic.resolveTimeZone("America/New_York").identifier, "America/New_York", "valid tz")
         checkEqual(DateLogic.resolveTimeZone("auto"), TimeZone.current, "auto → device")
         checkEqual(DateLogic.resolveTimeZone("Not/AZone"), TimeZone.current, "invalid → device")
+
+        // Clamping behavior on months with fewer days (e.g. Feb, Apr)
+        let cal = DateLogic.calendar(tz: tz)
+        let apr31 = DateLogic.dateForDay(31, year: 2026, month: 4, cal: cal)
+        let apr31Comp = cal.dateComponents([.year, .month, .day], from: apr31)
+        checkEqual(apr31Comp.day, 30, "April 31 clamps to 30")
+
+        let feb31NonLeap = DateLogic.dateForDay(31, year: 2026, month: 2, cal: cal)
+        let febComp = cal.dateComponents([.year, .month, .day], from: feb31NonLeap)
+        checkEqual(febComp.day, 28, "Feb 31 in non-leap year clamps to 28")
+
+        let feb31Leap = DateLogic.dateForDay(31, year: 2024, month: 2, cal: cal)
+        let febLeapComp = cal.dateComponents([.year, .month, .day], from: feb31Leap)
+        checkEqual(febLeapComp.day, 29, "Feb 31 in leap year clamps to 29")
+
+        checkEqual(DateLogic.currentMonthKey(tz: tz, now: now), "2026-06", "currentMonthKey matches monthKey")
     }
 }
 

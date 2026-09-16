@@ -81,19 +81,35 @@ function buildIcs(user, data) {
     'X-WR-TIMEZONE:UTC',
   ];
 
+  const currencyCode = (data.settings && data.settings.currency) || 'USD';
+  let formatter;
+  try {
+    formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currencyCode,
+    });
+  } catch (_) {
+    formatter = { format: (n) => `$${Number(n).toFixed(2)}` };
+  }
+
   function emit(kind, item) {
     if (!item.dueDay) return;
-    const day = Math.min(parseInt(item.dueDay, 10), 28);
+    const rawDay = parseInt(item.dueDay, 10) || 1;
     for (let m = 0; m < LOOKAHEAD_MONTHS; m++) {
-      const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() + m, day));
+      const targetYear = now.getFullYear();
+      const targetMonth = now.getMonth() + m;
+      const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+      const day = Math.min(rawDay, daysInTargetMonth);
+      const d = new Date(Date.UTC(targetYear, targetMonth, day));
       if (d < new Date(now.getTime() - 86400000)) continue;
       const dEnd = new Date(d.getTime() + 86400000);
       const amount = kind === 'card'
         ? parseFloat(item.minPayment || 0)
         : parseFloat(item.amount || 0);
+      const formattedAmount = formatter.format(amount);
       const title = kind === 'card'
-        ? `${item.name} payment · $${amount.toFixed(2)}`
-        : `${item.name} · $${amount.toFixed(2)}`;
+        ? `${item.name} payment · ${formattedAmount}`
+        : `${item.name} · ${formattedAmount}`;
       const uid = `${kind}-${item.id}-${vdate(d)}@fihaven`;
 
       lines.push(
@@ -144,4 +160,5 @@ router.get('/:token.ics', (req, res) => {
   res.send(body);
 });
 
+router.buildIcs = buildIcs;
 module.exports = router;

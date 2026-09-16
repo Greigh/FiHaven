@@ -194,27 +194,47 @@ async function getAccounts(accessToken) {
   return { item: resp.data.item, accounts: resp.data.accounts || [] };
 }
 
+const MAX_SYNC_PAGES = 50;
+
 // Cursor-based transactions sync. Paginates until caught up and
 // returns the diff plus the next cursor. We don't persist individual
 // transactions yet (no transactions UI) — advancing the cursor proves
 // the pipeline and leaves a hook for future bill auto-matching.
 async function syncTransactions(accessToken, cursor) {
-  let added = [];
-  let modified = [];
-  let removed = [];
+  const added = [];
+  const modified = [];
+  const removed = [];
   let next = cursor || null;
   let hasMore = true;
-  while (hasMore) {
+  let pages = 0;
+  while (hasMore && pages < MAX_SYNC_PAGES) {
+    pages += 1;
     const resp = await client().transactionsSync({
       access_token: accessToken,
       cursor: next || undefined,
     });
-    const d = resp.data;
-    added = added.concat(d.added || []);
-    modified = modified.concat(d.modified || []);
-    removed = removed.concat(d.removed || []);
+    const d = resp.data || {};
+    if (Array.isArray(d.added) && d.added.length) {
+      for (let i = 0; i < d.added.length; i += 1000) {
+        added.push(...d.added.slice(i, i + 1000));
+      }
+    }
+    if (Array.isArray(d.modified) && d.modified.length) {
+      for (let i = 0; i < d.modified.length; i += 1000) {
+        modified.push(...d.modified.slice(i, i + 1000));
+      }
+    }
+    if (Array.isArray(d.removed) && d.removed.length) {
+      for (let i = 0; i < d.removed.length; i += 1000) {
+        removed.push(...d.removed.slice(i, i + 1000));
+      }
+    }
+    // Cursor stall detection: if cursor does not advance despite has_more, break to prevent infinite loop.
+    if (d.has_more && d.next_cursor === next) {
+      break;
+    }
     next = d.next_cursor;
-    hasMore = d.has_more;
+    hasMore = !!d.has_more;
   }
   return { added, modified, removed, cursor: next };
 }
@@ -226,7 +246,18 @@ async function removeItem(accessToken) {
 /* ── Webhook verification ────────────────────────────────────── */
 
 const crypto = require('crypto');
+const MAX_JWK_CACHE = 50;
 const _jwkCache = new Map(); // kid → JWK (Plaid keys are stable per kid)
+
+function isKeyExpired(jwk) {
+  if (!jwk) return true;
+  if (!jwk.expired_at) return false;
+  return Number(jwk.expired_at) <= Math.floor(Date.now() / 1000);
+}
+
+function _clearJwkCache() {
+  _jwkCache.clear();
+}
 
 // Verify a Plaid webhook: the `Plaid-Verification` header is an ES256 JWT
 // whose `request_body_sha256` claim must equal sha256(raw body), signed by
@@ -243,10 +274,18 @@ async function verifyWebhook(headerJwt, rawBody) {
     if (header.alg !== 'ES256' || !header.kid) return false;
 
     let jwk = _jwkCache.get(header.kid);
+    if (jwk && isKeyExpired(jwk)) {
+      _jwkCache.delete(header.kid);
+      jwk = null;
+    }
     if (!jwk) {
       const resp = await client().webhookVerificationKeyGet({ key_id: header.kid });
-      jwk = resp.data.key;
-      if (!jwk || jwk.expired_at) return false;
+      jwk = resp.data && resp.data.key;
+      if (!jwk || isKeyExpired(jwk)) return false;
+      if (_jwkCache.size >= MAX_JWK_CACHE) {
+        const oldestKey = _jwkCache.keys().next().value;
+        if (oldestKey !== undefined) _jwkCache.delete(oldestKey);
+      }
       _jwkCache.set(header.kid, jwk);
     }
 
@@ -264,8 +303,11 @@ async function verifyWebhook(headerJwt, rawBody) {
     if (!claims.iat || Math.abs(Date.now() / 1000 - claims.iat) > 300) return false;
 
     const bodyHash = crypto.createHash('sha256').update(rawBody).digest('hex');
-    return typeof claims.request_body_sha256 === 'string' &&
-      crypto.timingSafeEqual(Buffer.from(bodyHash), Buffer.from(claims.request_body_sha256));
+    if (typeof claims.request_body_sha256 !== 'string') return false;
+    const expectedBuf = Buffer.from(bodyHash);
+    const actualBuf = Buffer.from(claims.request_body_sha256);
+    if (expectedBuf.length !== actualBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, actualBuf);
   } catch (_) {
     return false;
   }
@@ -284,6 +326,8 @@ module.exports = {
   getAccounts,
   syncTransactions,
   removeItem,
+  _jwkCache,
+  _clearJwkCache,
   // Re-export the at-rest helpers so the route/db layer encrypts the
   // access_token without reaching into mfa.js directly.
   encryptToken: encrypt,

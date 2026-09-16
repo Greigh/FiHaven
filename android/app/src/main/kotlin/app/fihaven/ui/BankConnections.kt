@@ -100,6 +100,7 @@ fun BankConnections(vm: AppViewModel) {
                     // by default. Ask now rather than leaving the user with a
                     // connected bank and an empty Spending tab.
                     if (ok && repairId == null) showImportPrompt = true
+                    if (ok) vm.reload()
                     load()
                 }
             }
@@ -192,7 +193,7 @@ fun BankConnections(vm: AppViewModel) {
                         s.items.forEach { item ->
                             BankItemRow(
                                 item,
-                                onDisconnect = { scope.launch { runCatching { vm.api.plaidRemove(item.id) }; load() } },
+                                onDisconnect = { scope.launch { runCatching { vm.api.plaidRemove(item.id) }; vm.reload(); load() } },
                                 onReconnect = { accountSelection -> reconnect(item.id, accountSelection) },
                             )
                             HorizontalDivider(color = Ct.colors.border)

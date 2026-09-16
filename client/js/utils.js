@@ -129,10 +129,17 @@ export function offsetDate(offset) {
   return d;
 }
 
+export function dateForDueDay(year, month, dueDay) {
+  var d = parseInt(dueDay, 10);
+  if (!d) return new Date(year, month, 1);
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(d, daysInMonth));
+}
+
 export function daysUntilDue(dueDay) {
   var t         = todayInTz();
-  var thisMonth = new Date(t.getFullYear(), t.getMonth(), dueDay);
-  var nextMonth = new Date(t.getFullYear(), t.getMonth() + 1, dueDay);
+  var thisMonth = dateForDueDay(t.getFullYear(), t.getMonth(), dueDay);
+  var nextMonth = dateForDueDay(t.getFullYear(), t.getMonth() + 1, dueDay);
   var diff      = Math.round((thisMonth - t) / 864e5);
   return diff < -1 ? Math.round((nextMonth - t) / 864e5) : diff;
 }
@@ -145,11 +152,10 @@ export function effectiveDaysUntilDue(dueDay, type, refId, mk) {
   mk = mk || currentPeriodKey();
   if (type && refId != null && isFullyPaid(type, refId, mk)) {
     var t = todayInTz();
-    var d = parseInt(dueDay);
-    var thisMonth = new Date(t.getFullYear(), t.getMonth(), d);
+    var thisMonth = dateForDueDay(t.getFullYear(), t.getMonth(), dueDay);
     var target = thisMonth > t
       ? thisMonth
-      : new Date(t.getFullYear(), t.getMonth() + 1, d);
+      : dateForDueDay(t.getFullYear(), t.getMonth() + 1, dueDay);
     return Math.round((target - t) / 864e5);
   }
   return daysUntilDue(dueDay);
@@ -174,12 +180,11 @@ export function effectiveDaysUntilBillDue(bill, mk) {
 // marking it.
 export function nextDueDate(dueDay) {
   if (!dueDay) return null;
-  var d         = parseInt(dueDay);
   var t         = todayInTz();
-  var thisMonth = new Date(t.getFullYear(), t.getMonth(), d);
+  var thisMonth = dateForDueDay(t.getFullYear(), t.getMonth(), dueDay);
   return thisMonth >= t
     ? thisMonth
-    : new Date(t.getFullYear(), t.getMonth() + 1, d);
+    : dateForDueDay(t.getFullYear(), t.getMonth() + 1, dueDay);
 }
 
 // "YYYY-MM-DD" for a Date, in its own local fields (which todayInTz()

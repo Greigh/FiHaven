@@ -65,7 +65,9 @@ function billDueOn(bill, date) {
   }
 
   const dueDay = dd || anchor.getDate();
-  const dueThisMonth = atMidnight(new Date(d.getFullYear(), d.getMonth(), dueDay));
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const effectiveDay = Math.min(dueDay, daysInMonth);
+  const dueThisMonth = atMidnight(new Date(d.getFullYear(), d.getMonth(), effectiveDay));
   if (ymd(dueThisMonth) !== ymd(d)) return false;
   const monthsDiff = (d.getFullYear() - anchor.getFullYear()) * 12 + (d.getMonth() - anchor.getMonth());
   return monthsDiff >= 0 && monthsDiff % spec.step === 0;

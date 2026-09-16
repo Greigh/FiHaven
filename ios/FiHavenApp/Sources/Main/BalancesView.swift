@@ -56,6 +56,24 @@ struct BalancesView: View {
             if !proposals.isEmpty {
                 Section {
                     ForEach(proposals) { proposalRow($0) }
+                    if proposals.count > 1 {
+                        HStack(spacing: 12) {
+                            Spacer()
+                            Button("Accept all") {
+                                for p in proposals { store.acceptAccountProposal(p) }
+                            }
+                            .font(Theme.ui(13, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            Button("Decline all") {
+                                for p in proposals { store.declineAccountProposal(p) }
+                            }
+                            .font(Theme.ui(13))
+                            .foregroundStyle(Theme.muted)
+                        }
+                        .buttonStyle(.borderless)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
                 } header: {
                     Text("Bank sync review")
                 }

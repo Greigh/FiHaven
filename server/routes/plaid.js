@@ -388,8 +388,8 @@ function serializeItem(item) {
    Returns false when nothing was imported because the user hasn't opted in —
    the caller must then leave the sync cursor alone. See plaidMerge.js. */
 function mergePlaidTransactions(userId, sync) {
-  const data = dbApi.getUserData(userId);
-  const { transactions, merged } = mergeTransactions(data.settings, data.transactions, sync);
+  const data = dbApi.getUserData(userId) || {};
+  const { transactions, merged } = mergeTransactions(data.settings || {}, data.transactions || [], sync);
   if (transactions) {
     data.transactions = transactions;
     dbApi.upsertUserData(userId, data);
@@ -491,16 +491,7 @@ router.post('/item/:id/repaired', requireAuth, requireVerified, requireCsrf, req
   const item = dbApi.findPlaidItemById(id, req.user.id);
   if (!item) return sendError(res, 404, 'not-found');
   try {
-    const accessToken = plaid.decryptToken(item.access_token_enc);
-    const { accounts } = await plaid.getAccounts(accessToken);
-    saveAccounts(item.id, accounts);
-    afterAccountsSaved(req.user.id);
-    try {
-      const sync = await plaid.syncTransactions(accessToken, item.cursor);
-      mergePlaidTransactions(req.user.id, sync);
-      if (sync.cursor && sync.cursor !== item.cursor) dbApi.setPlaidItemCursor(item.id, sync.cursor);
-    } catch (_) { /* transactions optional */ }
-    dbApi.setPlaidItemStatus(item.id, 'active', null);
+    await syncItem(item, req.user.id);
   } catch (err) {
     dbApi.setPlaidItemStatus(item.id, 'error', String(err?.response?.data?.error_code || err.message));
   }
@@ -610,6 +601,7 @@ router.post('/item/:id/remove', requireAuth, requireVerified, requireCsrf, requi
     logPlaidErr('item/remove', err);
   }
   dbApi.deletePlaidItem(id, req.user.id);
+  refreshBalanceProposals(req.user.id);
   res.json({ ok: true });
 });
 

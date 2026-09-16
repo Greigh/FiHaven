@@ -48,7 +48,8 @@ object BillSchedule {
         }
 
         val dueDay = bill.dueDay ?: a.dayOfMonth
-        val dueThisMonth = date.withDayOfMonth(1).plusDays((dueDay - 1).toLong())
+        val effectiveDay = minOf(maxOf(1, dueDay), date.lengthOfMonth())
+        val dueThisMonth = date.withDayOfMonth(effectiveDay)
         if (DateLogic.ymd(dueThisMonth) != DateLogic.ymd(date)) return false
         val monthsDiff = (date.year - a.year) * 12 + (date.monthValue - a.monthValue)
         return monthsDiff >= 0 && monthsDiff % spec.step == 0

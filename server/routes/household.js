@@ -261,6 +261,8 @@ router.get(['/stream', '/stream/:since'], requireAuth, (req, res) => {
   };
   req.on('close', cleanup);
   res.on('close', cleanup);
+  req.on('error', cleanup);
+  res.on('error', cleanup);
 });
 
 module.exports = router;

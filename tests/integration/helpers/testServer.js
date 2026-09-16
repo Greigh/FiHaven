@@ -59,6 +59,7 @@ function createTestServer() {
   const billingRouter = require(path.join(SERVER_DIR, 'routes/billing'));
   const adminRouter = require(path.join(SERVER_DIR, 'routes/admin'));
   const feedbackRouter = require(path.join(SERVER_DIR, 'routes/feedback'));
+  const pushRouter = require(path.join(SERVER_DIR, 'routes/push'));
   const unsubscribeRouter = require(path.join(SERVER_DIR, 'routes/unsubscribe'));
 
   const dbApi = require(path.join(SERVER_DIR, 'db'));
@@ -66,7 +67,7 @@ function createTestServer() {
 
   const app = express();
   app.set('trust proxy', 1);
-  app.use(express.json());
+  app.use(express.json({ limit: '256kb' }));
   app.use(cookieParser());
   app.get('/health', healthHandler(dbApi));
   app.use(loadSession);
@@ -75,6 +76,7 @@ function createTestServer() {
   app.use('/api/account/mfa', requireVerified, mfaRouter);
   app.use('/api/data', requireVerified, dataRouter);
   app.use('/api/household', requireVerified, householdRouter);
+  app.use('/api/push', requireVerified, pushRouter);
   app.use('/api/billing', billingRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/feedback', feedbackRouter);

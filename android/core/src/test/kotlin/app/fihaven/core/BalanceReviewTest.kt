@@ -174,6 +174,18 @@ class BalanceReviewTest {
         assertEquals(3000.0, (next["income"] as JsonPrimitive).doubleOrNull())
     }
 
+    @Test fun deduplicatesFingerprintsInResolvedMemory() {
+        var s = settings("""{"plaidBalanceProposals":[{"id":"c1","proposedCurrent":2400,"fingerprint":"f1"}]}""")
+        s = BalanceReview.resolve(s, "f1", "accept")
+        s = BalanceReview.resolve(s, "f1", "decline")
+
+        val matches = s.plaidBalanceResolved.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull == "f1"
+        }
+        assertEquals(1, matches.size)
+        assertEquals("decline", (matches.single()["decision"] as? JsonPrimitive)?.contentOrNull)
+    }
+
     // ── Asset accounts (the Balances tab) ────────────────────────────
 
     private val accounts = listOf(

@@ -90,6 +90,11 @@ class OfflineCacheTest {
         assertNull(cache.read("next@test.com"))
         assertFalse(cache.hasPendingWrite("next@test.com"))
         assertNull(cache.readRaw()) // cleared, not merely ignored
+
+        // Also verify clean snapshot (pendingWrite = false) is cleared when read by different account
+        cache.write(sample("Alice's clean bills"), "alice@test.com", pendingWrite = false)
+        assertNull(cache.read("bob@test.com"))
+        assertNull(cache.readRaw())
     }
 
     @Test

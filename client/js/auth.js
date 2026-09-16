@@ -8,6 +8,7 @@
 
 import { nextFromSearch, loginWithNext, SAFE_NAV_TARGET } from './nextUrl.js';
 import { clearSessionCache } from './localCache.js';
+import { clearPlaidAccountCache } from './plaidAccounts.js';
 
   var API = '/api/auth';
   var csrfToken = null;
@@ -69,6 +70,7 @@ import { clearSessionCache } from './localCache.js';
   // never inherits it. The server copy is unaffected.
   function clearLocalData() {
     clearSessionCache();
+    clearPlaidAccountCache();
   }
 
   function logout() {
