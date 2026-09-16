@@ -124,8 +124,13 @@ describe('user_data encryption', () => {
     expect(dbApi.getUserData(userId).bills[0].name).toBe('Migrate Me');
   });
 
-  it('corrupt blob returns empty defaults', () => {
-    expect(dbApi.decodeUserDataBlob('not-valid-ciphertext!!!')).toEqual({
+  it('corrupt blob throws error to prevent data loss', () => {
+    expect(() => dbApi.decodeUserDataBlob('not-valid-ciphertext!!!')).toThrow('user-data-decryption-failed');
+    expect(() => dbApi.decodeUserDataBlob('{not json')).toThrow('user-data-decryption-failed');
+  });
+
+  it('empty or null blob returns empty defaults', () => {
+    expect(dbApi.decodeUserDataBlob(null)).toEqual({
       bills: [],
       cards: [],
       payments: [],
@@ -134,7 +139,7 @@ describe('user_data encryption', () => {
       transactions: [],
       settings: {},
     });
-    expect(dbApi.decodeUserDataBlob('{not json')).toEqual({
+    expect(dbApi.decodeUserDataBlob('')).toEqual({
       bills: [],
       cards: [],
       payments: [],
@@ -143,5 +148,15 @@ describe('user_data encryption', () => {
       transactions: [],
       settings: {},
     });
+  });
+
+  it('getUserData throws on corrupted stored data to prevent accidental data loss', () => {
+    const userId = dbApi.createUser('corrupt@test.com', 'hash').id;
+    dbApi.db.prepare(
+      `INSERT INTO user_data (user_id, data, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+    ).run(userId, 'corrupted-ciphertext-string', Date.now());
+
+    expect(() => dbApi.getUserData(userId)).toThrow('user-data-decryption-failed');
   });
 });

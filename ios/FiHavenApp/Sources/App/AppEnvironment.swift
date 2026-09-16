@@ -223,7 +223,7 @@ final class AppEnvironment: ObservableObject {
 
     func logout() async {
         store?.endSession()
-        PushRegistrar.shared.clear()
+        await PushRegistrar.shared.clear()
         try? await api.logout()
         billing.reset()
         store = nil
@@ -269,6 +269,7 @@ final class AppEnvironment: ObservableObject {
     /// deleted — by this point `currentUser` is already cleared.
     func didDeleteAccount(email: String? = nil) {
         store?.endSession()
+        PushRegistrar.shared.clearLocal()
         tokens.clear()
         billing.reset()
         store = nil
@@ -294,7 +295,7 @@ final class AppEnvironment: ObservableObject {
         // don't gate behind biometrics; a token-restored session (cold
         // launch) stays locked until unlocked.
         if fresh { biometric.markUnlocked() }
-        let store = AppStore(api: api)
+        let store = AppStore(api: api, expectedOwner: user.email)
         // Nothing is cached on disk, so a rejected token means the session is
         // unusable: return to sign-in instead of showing an empty dashboard.
         store.onSessionExpired = { [weak self] in

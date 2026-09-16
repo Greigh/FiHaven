@@ -92,11 +92,15 @@ function localParts(date, tz) {
 // Days from local-today until the next occurrence of a day-of-month
 // `dueDay`. Both dates are built in the same frame so there's no tz skew.
 function daysUntilDue(dueDay, lp) {
+  const daysThisMonth = new Date(Date.UTC(lp.y, lp.m, 0)).getUTCDate();
+  const effectiveDueDayThisMonth = Math.min(dueDay, daysThisMonth);
   const today = Date.UTC(lp.y, lp.m - 1, lp.d);
-  let due = Date.UTC(lp.y, lp.m - 1, dueDay);
+  let due = Date.UTC(lp.y, lp.m - 1, effectiveDueDayThisMonth);
   let diff = Math.round((due - today) / 864e5);
   if (diff < 0) {
-    due = Date.UTC(lp.y, lp.m, dueDay); // roll to next month
+    const daysNextMonth = new Date(Date.UTC(lp.y, lp.m + 1, 0)).getUTCDate();
+    const effectiveDueDayNextMonth = Math.min(dueDay, daysNextMonth);
+    due = Date.UTC(lp.y, lp.m, effectiveDueDayNextMonth); // roll to next month
     diff = Math.round((due - today) / 864e5);
   }
   return diff;

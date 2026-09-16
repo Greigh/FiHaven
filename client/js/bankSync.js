@@ -14,6 +14,7 @@
 import {
   pullFromServer, entitlement, flushLocalWrites, syncBlockedReason,
 } from './storage.svelte.js';
+import { clearPlaidAccountCache } from './plaidAccounts.js';
 
 function csrf() {
   return (window.AppAuth && window.AppAuth.getCsrfToken && window.AppAuth.getCsrfToken()) || '';
@@ -59,6 +60,7 @@ export function syncBanks(opts) {
     })
     .then((body) => {
       if (!body || !Array.isArray(body.items) || !body.items.length) return false;
+      clearPlaidAccountCache();
       // The sync merged into the server's copy; adopt it or the rows stay unseen.
       // A skipped pull (local edits still unsynced) means nothing was adopted,
       // so the caller has no reason to re-render.

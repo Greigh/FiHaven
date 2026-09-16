@@ -351,6 +351,7 @@ struct BankView: View {
                 message = .result(ok: ok, "Bank reconnected.", "Could not finish reconnecting.")
             }
             await load()
+            if ok { await env.store?.load() }
         }
     }
 
@@ -366,6 +367,7 @@ struct BankView: View {
                 if ok { showImportPrompt = true }
             }
             await load()
+            if ok { await env.store?.load() }
         }
     }
 
@@ -391,6 +393,7 @@ struct BankView: View {
         Task {
             try? await env.api.plaidRemove(itemId: id)
             await load()
+            await env.store?.load()
         }
     }
 

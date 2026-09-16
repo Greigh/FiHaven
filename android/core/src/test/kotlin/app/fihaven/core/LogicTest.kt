@@ -141,6 +141,22 @@ class DateLogicTest {
         assertEquals("2026-07", DateLogic.monthKey(DateLogic.nextDueDate(10, UTC, NOW)!!))
     }
 
+    @Test fun day31ClampingInShortMonths() {
+        val febNow = Instant.parse("2026-02-26T12:00:00Z")
+        assertEquals(2, DateLogic.daysUntilDue(31, UTC, febNow))
+        assertEquals(LocalDate.of(2026, 2, 28), DateLogic.nextDueDate(31, UTC, febNow))
+
+        val aprNow = Instant.parse("2026-04-29T12:00:00Z")
+        assertEquals(1, DateLogic.daysUntilDue(31, UTC, aprNow))
+        assertEquals(LocalDate.of(2026, 4, 30), DateLogic.nextDueDate(31, UTC, aprNow))
+
+        val bill31 = Bill(id = "b31", name = "End of Month", dueDay = 31, frequency = "Monthly")
+        assertTrue(BillSchedule.dueOn(bill31, LocalDate.of(2026, 2, 28), UTC))
+        assertFalse(BillSchedule.dueOn(bill31, LocalDate.of(2026, 2, 27), UTC))
+        assertTrue(BillSchedule.dueOn(bill31, LocalDate.of(2026, 4, 30), UTC))
+        assertFalse(BillSchedule.dueOn(bill31, LocalDate.of(2026, 4, 29), UTC))
+    }
+
     @Test fun monthsUntilAndLabels() {
         assertEquals(4, DateLogic.monthsUntil("2026-10-01", UTC, NOW))
         assertEquals(0, DateLogic.monthsUntil("2026-06-30", UTC, NOW))

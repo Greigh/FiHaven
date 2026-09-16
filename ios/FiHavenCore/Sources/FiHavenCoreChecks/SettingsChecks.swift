@@ -161,4 +161,40 @@ func runSettingsChecks() {
         check(CategoryIcon.isSafeDataURI("data:image/png;base64,abc"), "png data URI ok")
         check(!CategoryIcon.isSafeDataURI("data:text/plain;base64,abc"), "text data URI rejected")
     }
+
+    section("Settings — Plaid balance and account proposals round-trip and isolation") {
+        var s = Settings()
+        checkEqual(s.plaidBalanceMode, "review", "plaidBalanceMode default is review")
+        checkEqual(s.plaidBalanceProposals.count, 0, "proposals initially empty")
+        checkEqual(s.plaidAccountProposals.count, 0, "account proposals initially empty")
+        checkEqual(s.plaidBalanceResolved.count, 0, "resolved initially empty")
+
+        s.plaidBalanceMode = "prompt"
+        checkEqual(s.plaidBalanceMode, "prompt", "plaidBalanceMode set to prompt")
+
+        s.plaidBalanceProposals = [
+            ["id": .string("c1"), "proposedCurrent": .number(2450.50), "fingerprint": .string("c1:2450.50:")]
+        ]
+        s.plaidAccountProposals = [
+            ["id": .string("acct-1"), "proposedBalance": .number(5120.00), "fingerprint": .string("acct:acct-1:5120.00")]
+        ]
+        s.plaidBalanceResolved = [
+            ["fingerprint": .string("c1:2450.50:"), "decision": .string("accept")],
+            ["fingerprint": .string("acct:acct-1:5120.00"), "decision": .string("accept")]
+        ]
+
+        checkEqual(s.plaidBalanceProposals.count, 1, "card proposals stored")
+        checkEqual(s.plaidAccountProposals.count, 1, "account proposals stored separately")
+        checkEqual(s.plaidBalanceResolved.count, 2, "resolved decisions stored")
+
+        // Verify round-trip through JSON encoder/decoder
+        let encoded = try JSONEncoder().encode(s)
+        let restored = try JSONDecoder().decode(Settings.self, from: encoded)
+
+        checkEqual(restored.plaidBalanceMode, "prompt", "mode restored")
+        checkEqual(restored.plaidBalanceProposals.count, 1, "card proposals restored")
+        checkEqual(restored.plaidAccountProposals.count, 1, "account proposals restored")
+        checkEqual(restored.plaidBalanceResolved.count, 2, "resolved decisions restored")
+        checkEqual(restored.plaidAccountProposals[0]["fingerprint"]?.asString, "acct:acct-1:5120.00", "fingerprint intact")
+    }
 }

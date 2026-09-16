@@ -30,6 +30,7 @@ const PUBLIC_PAGES = [
   { path: '/terms',                     file: 'terms.html',                    changefreq: 'yearly',  priority: '0.3' },
   { path: '/privacy',                   file: 'privacy.html',                  changefreq: 'yearly',  priority: '0.3' },
   { path: '/refunds',                   file: 'refunds.html',                  changefreq: 'yearly',  priority: '0.3' },
+  { path: '/changelog',                 file: 'changelog.html',                changefreq: 'weekly',  priority: '0.7' },
   { path: '/delete-account',            file: 'delete-account.html',           changefreq: 'yearly',  priority: '0.3' },
 ];
 

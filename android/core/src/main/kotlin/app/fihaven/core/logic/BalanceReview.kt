@@ -164,7 +164,10 @@ object BalanceReview {
     // Record an answer in the shared, capped fingerprint list. Both queues go
     // through this so one can never trim the other's history differently.
     private fun rememberResolved(settings: JsonObject, fingerprint: String, decision: String): JsonObject {
-        val resolved = (settings.plaidBalanceResolved + buildJsonObject {
+        val filtered = settings.plaidBalanceResolved.filter {
+            (it["fingerprint"] as? JsonPrimitive)?.contentOrNull != fingerprint
+        }
+        val resolved = (filtered + buildJsonObject {
             put("fingerprint", fingerprint)
             put("decision", decision)
         }).takeLast(RESOLVED_CAP)

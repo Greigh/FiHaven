@@ -508,6 +508,22 @@ describe('utils — due-date math', () => {
     expect(effectiveDaysUntilDue(28, 'card', 'c1')).toBeGreaterThan(20);
     vi.useRealTimers();
   });
+
+  it('clamps day 31 bills to the end of short months in daysUntilDue and nextDueDate', () => {
+    vi.useFakeTimers();
+    // February 26, 2026 (non-leap year, 28 days in Feb)
+    vi.setSystemTime(new Date(2026, 1, 26));
+    expect(daysUntilDue(31)).toBe(2);
+    expect(nextDueDate(31)?.getDate()).toBe(28);
+    expect(nextDueDate(31)?.getMonth()).toBe(1); // February
+
+    // April 29, 2026 (30 days in April)
+    vi.setSystemTime(new Date(2026, 3, 29));
+    expect(daysUntilDue(31)).toBe(1);
+    expect(nextDueDate(31)?.getDate()).toBe(30);
+    expect(nextDueDate(31)?.getMonth()).toBe(3); // April
+    vi.useRealTimers();
+  });
 });
 
 /* The bill flavour of the same idea: once this period is settled, the row should

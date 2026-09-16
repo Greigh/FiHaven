@@ -26,6 +26,7 @@ if (process.env.FIHAVEN_TEST_DB_PATH) {
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -966,6 +967,11 @@ const stmt = {
        platform = excluded.platform,
        updated_at = excluded.updated_at`
   ),
+  trimPushDevices: db.prepare(
+    `DELETE FROM push_devices WHERE user_id = ? AND token NOT IN (
+       SELECT token FROM push_devices WHERE user_id = ? ORDER BY updated_at DESC, rowid DESC LIMIT ?
+     )`
+  ),
   deletePushDevice: db.prepare(
     `DELETE FROM push_devices WHERE user_id = ? AND token = ?`
   ),
@@ -1147,7 +1153,13 @@ function setOnboarded(userId) { stmt.setOnboarded.run(userId); }
 // summary scheduler. Small user counts make a full scan fine.
 function allUsersWithData() {
   return stmt.allUsersWithData.all().map((r) => {
-    const data = decodeUserDataBlob(r.data);
+    let data;
+    try {
+      data = decodeUserDataBlob(r.data);
+    } catch (err) {
+      console.error(`[db] Skipping user ${r.id} in allUsersWithData:`, err?.message || err);
+      data = { ...EMPTY_DATA };
+    }
     return {
       id: r.id,
       email: r.email,
@@ -1220,8 +1232,19 @@ const EMPTY_DATA = { bills: [], cards: [], payments: [], accounts: [], goals: []
 function decodeUserDataBlob(raw) {
   if (raw == null || raw === '') return { ...EMPTY_DATA };
   const s = String(raw).trim();
+  if (!s) return { ...EMPTY_DATA };
+  let json;
+  if (s.startsWith('{')) {
+    json = s;
+  } else {
+    try {
+      json = mfa.decrypt(s);
+    } catch (err) {
+      console.error('[db] Failed to decrypt user data blob:', err?.message || err);
+      throw new Error('user-data-decryption-failed');
+    }
+  }
   try {
-    const json = s.startsWith('{') ? s : mfa.decrypt(s);
     const parsed = JSON.parse(json);
     return {
       bills: Array.isArray(parsed.bills) ? parsed.bills : [],
@@ -1235,8 +1258,9 @@ function decodeUserDataBlob(raw) {
           ? parsed.settings
           : {},
     };
-  } catch (_) {
-    return { ...EMPTY_DATA };
+  } catch (err) {
+    console.error('[db] Failed to parse user data JSON:', err?.message || err);
+    throw new Error('user-data-decryption-failed');
   }
 }
 
@@ -1695,8 +1719,14 @@ function householdEventSeq(householdId)      { return stmt.maxHouseholdEventSeq.
 function pruneHouseholdEvents(beforeMs)      { return stmt.pruneHouseholdEvents.run(beforeMs).changes; }
 
 /* ── Push device wrappers ─────────────────────────────────────── */
+const MAX_PUSH_DEVICES_PER_USER = 10;
+const upsertPushDeviceTx = db.transaction((userId, platform, token, now) => {
+  stmt.upsertPushDevice.run(userId, platform, token, now);
+  stmt.trimPushDevices.run(userId, userId, MAX_PUSH_DEVICES_PER_USER);
+});
+
 function upsertPushDevice(userId, platform, token) {
-  stmt.upsertPushDevice.run(userId, platform, token, Date.now());
+  upsertPushDeviceTx(userId, platform, token, Date.now());
 }
 function deletePushDevice(userId, token) {
   return stmt.deletePushDevice.run(userId, token).changes;

@@ -13,15 +13,15 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.3] Current Pre-Release — 2026-09-02
+## [1.6.3] Current Pre-Release — 2026-09-15
 
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.3 (53) — **link a checking, savings or investment row to a specific bank account** from the account editor, the "Linked bank account" picker credit cards have carried since the 1.6.1 train. An asset account has no card digits and no issuer behind it — only the name you gave it — so a sync often could not tell which bank account it was; pinning it is what puts the bank's balance on the Balances tab as an Accept/Decline. The prompt right after you link a bank, or after a manual sync, now covers those account balances too, not just cards. |
-| **Android** | 1.6.3 (versionCode 53) — the same "Linked bank account" picker on asset rows, the same prompt widened to account balances. Also rolls up the Compose, Firebase, Plaid SDK, JUnit and Gradle-wrapper bumps merged since build 52. |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — the Balances tab now says a row's bank account can be set when its name isn't enough to match on its own, and the post-link prompt offers account-balance suggestions beside card ones. Plus a mobile layout fix for the marketing site's "shipped" band. |
-| **Server** | **No runtime change, no migration, nobody is signed out.** The only server edit is a test-visibility export. |
+| **iOS** | 1.6.3 (54) — **Account Balances bank suggestion review**: accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts. Also patches terminal 4xx HTTP sync infinite retry loops (`SyncState.rejected`), multi-account offline cache isolation on shared devices, unregistration race on logout, and memory leaks in SSE live feeds. |
+| **Android** | 1.6.3 (versionCode 54) — Account Balances bank review (Accept / Decline) on checking and savings accounts; terminal 4xx error handling (`SyncState.Rejected`); authenticated offline cache scoping; and null error-stream safety in `DefaultHttpTransport`. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — new dedicated `/changelog` page presenting release history and technical changelogs; full bank account balance review in Account Balances; security hardening on auth and session handling. |
+| **Server** | Enforces 256kb payload threshold with `413 payload-too-large`, strict 403 soft-suspension enforcement on Bearer auth, push device token purge on account deletion, and Family entitlement on household SSE streams. |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -30,52 +30,79 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version bumps 1.6.2 → 1.6.3.** The build number continues 52 → 53
+> **Marketing version is 1.6.3.** The build number continues 53 → 54
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
 > `scripts/nativeVersions.test.js` keeps the four version sites in agreement).
 
-> **No server deploy is required, and no one is signed out.** The account-proposal
-> backend — `autoLinkAssetAccounts` and the `plaidAccountProposals` queue —
-> shipped with build 52. This build is the client half: the editor picker that
-> lets a sync find an asset account in the first place, and the prompt that
-> surfaces its suggestion.
+> **No forced sign-out, no data migration.**
 
 ### Summary
 
-> 1.6.3 opens with one change, finishing work the 1.6.2 train started. Build 50
-> gave asset accounts their own tab and let a linked bank *suggest* a balance for
-> one; build 52 shipped the server side of that. Build 53 closes the gap that
-> made the suggestion hard to reach.
+> 1.6.3 build 54 brings full bank balance review directly into the Account Balances tab across Web, iOS, and Android. Checking, savings, and investment accounts linked to a bank institution now surface pending balance updates with an explicit Accept or Decline action. Accepting updates the account balance to match the institution while preserving custom names, notes, and overrides; declining keeps your manual entry untouched and suppresses repeat prompts.
 >
-> A card carries its last four digits and an issuer, so a sync can match it on
-> its own. A checking or savings row carries neither — only whatever you named it
-> — so more often than not the sync had nothing to match on and no suggestion
-> ever appeared. Cards have had a **Linked bank account** picker for exactly this
-> since the 1.6.1 train; asset rows now have the same one, in the account editor.
-> Pick the bank account a row follows and the bank's balance for it shows up on
-> the Balances tab to Accept or Decline, or pick **Don't link this account** to
-> keep it out of bank matching entirely. A previously-linked account that no
-> longer resolves is kept and labelled rather than silently dropped.
->
-> The prompt that appears right after you link a bank, or after a manual sync,
-> used to offer card balance suggestions only. It now lists account balances in
-> the same prompt, and the wording moves from "Current Balance updates" to "bank
-> balance suggestions" to match.
->
-> Android additionally rolls up the dependency bumps merged since build 52 — the
-> Compose BOM (2026.08.00), Firebase BOM (34.18.0), Plaid Link SDK (6.2.1), JUnit
-> (6.1.3) and the Gradle wrapper (9.7.1) — none of which change behaviour.
+> In addition, this build delivers a comprehensive audit and hardening pass across the native clients and server interactions:
+> - **Sync Reliability & Battery Savings**: Halts retry loops immediately on terminal 4xx rejections (such as payload size limits or suspended accounts) with a clear `SyncState.Rejected` banner instead of misleading "Offline" status.
+> - **Multi-Account Security on Shared Devices**: Ensures offline cold launch validates authenticated account ownership before reading device caches, preventing previous users' cached finances from being disclosed to a subsequent sign-in.
+> - **Push Notification Reliability**: Eliminates a race condition during sign-out so device tokens are guaranteed to unregister before Keychain session tokens are cleared, and automatically purges push tokens on account deletion.
+> - **Memory & Stream Stability**: Fixes background memory retain cycles in live household delta SSE streams.
 
 ### What made up this version
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [54](#163-build-54--2026-09-15) | 2026-09-15 | Account Balances bank review (Accept/Decline), terminal 4xx retry fix, multi-account offline isolation, push token lifecycle fix, and test expansion across all platforms |
 | [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
 
 Store copy for every build of this train is in
 [`docs/release-notes/v1.6.3/`](docs/release-notes/v1.6.3/).
+
+---
+
+## [1.6.3 build 54] — 2026-09-15
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.3 (54) — **Account Balances bank suggestion review**: accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts. Also patches terminal 4xx HTTP sync infinite retry loops (`SyncState.rejected`), multi-account offline cache isolation on shared devices, unregistration race on logout, and memory leaks in SSE live feeds. |
+| **Android** | 1.6.3 (versionCode 54) — Account Balances bank review (Accept / Decline) on checking and savings accounts; terminal 4xx error handling (`SyncState.Rejected`); authenticated offline cache scoping; and null error-stream safety in `DefaultHttpTransport`. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — new dedicated `/changelog` page presenting release history and technical changelogs; full bank account balance review in Account Balances; security hardening on auth and session handling. |
+| **Server** | Enforces 256kb payload threshold with `413 payload-too-large`, strict 403 soft-suspension enforcement on Bearer auth, push device token purge on account deletion, and Family entitlement on household SSE streams. |
+
+> **Build bump.** The build number continues 53 → 54 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> Build 54 brings full bank balance review directly into the Account Balances tab across Web, iOS, and Android. Checking, savings, and investment accounts linked to a bank institution now surface pending balance updates with an explicit Accept or Decline action. Accepting updates the account balance to match the institution while preserving custom names, notes, and overrides; declining keeps your manual entry untouched and suppresses repeat prompts.
+>
+> In addition, this build delivers a comprehensive audit and hardening pass across the native clients and server interactions:
+> - **Sync Reliability & Battery Savings**: Halts retry loops immediately on terminal 4xx rejections (such as payload size limits or suspended accounts) with a clear `SyncState.Rejected` banner instead of misleading "Offline" status.
+> - **Multi-Account Security on Shared Devices**: Ensures offline cold launch validates authenticated account ownership before reading device caches, preventing previous users' cached finances from being disclosed to a subsequent sign-in.
+> - **Push Notification Reliability**: Eliminates a race condition during sign-out so device tokens are guaranteed to unregister before Keychain session tokens are cleared, and automatically purges push tokens on account deletion.
+> - **Memory & Stream Stability**: Fixes background memory retain cycles in live household delta SSE streams.
+
+### Technical changelog
+
+**Account Balances Bank Review (`client/svelte/BalancesView.svelte`, `android/app/src/main/kotlin/app/fihaven/ui/BalancesScreen.kt`, `ios/FiHavenApp/Sources/Main/BalancesView.swift`)**
+- Added proposal banners in Account Balances displaying bank-suggested figures alongside current balances and deltas.
+- Integrated `acceptAccountProposal` / `declineAccountProposal` with persistent fingerprint tracking in `plaidBalanceResolved`.
+
+**Native Client & Server Contract Hardening**
+- `ios/FiHavenApp/Sources/Store/AppStore.swift` & `android/app/src/main/kotlin/app/fihaven/AppViewModel.kt`: Added `.rejected` / `SyncState.Rejected` sync state, halting retry loops on 400..499 (excluding 429).
+- Scoped offline cache reads to authenticated owner (`cache.read(owner:)`) to prevent cross-account disclosures on shared devices.
+- `ios/FiHavenApp/Sources/Notifications/PushRegistrar.swift` & `AppEnvironment.swift`: Made token unregistration `async` and awaited prior to `api.logout()`. Added `clearLocal()` on account deletion.
+- `ios/FiHavenApp/Sources/Settings/HouseholdView.swift`: Resolved strong self retain cycle and added `deinit` stream cancellation.
+- `android/core/.../HttpTransport.kt`: Safely guarded against null error streams without calling `conn.inputStream` on HTTP errors.
+
+**Tests**
+- `tests/integration/nativeContractAudit.server.integration.test.js`: Added end-to-end integration tests covering token auth mode negotiation, 413 payload limits, 403 account suspension, push token lifecycle & purge, and household SSE streaming over Bearer auth.
+- `android/core/src/test/kotlin/app/fihaven/core/net/HttpTransportTest.kt`: Unit tests for `DefaultHttpTransport`.
+- `android/core/src/test/kotlin/app/fihaven/core/ApiClientTest.kt`: Wire protocol tests for push registration and error code mappings.
+- `android/core/src/test/kotlin/app/fihaven/core/OfflineCacheTest.kt`: Clean-synced cross-account isolation test.
+- `ios/FiHavenCore/Sources/FiHavenCoreChecks/`: Expanded to 1,602 checks covering push wire formats, 413/403 user messages, cross-account cache scoping, and DateLogic short-month clamping.
 
 ---
 

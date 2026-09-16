@@ -56,7 +56,9 @@ export function billAnchor(bill) {
 }
 
 function dateForDueDay(year, month, dueDay) {
-  return atMidnight(new Date(year, month, dueDay));
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const effectiveDay = Math.min(dueDay, daysInMonth);
+  return atMidnight(new Date(year, month, effectiveDay));
 }
 
 /** True if `date` is a scheduled due date for this bill. */

@@ -71,6 +71,11 @@ func runOfflineCacheChecks() {
                   "and its pending write is not adopted")
             check(cache.readRaw() == nil,
                   "the mismatched snapshot is cleared, not just ignored")
+
+            // Test non-pending snapshot is also purged when read by another owner
+            cache.write(data: sample("Alice's clean snapshot"), owner: "alice@test.com", pendingWrite: false)
+            check(cache.read(owner: "bob@test.com") == nil, "bob cannot read alice's clean snapshot")
+            check(cache.readRaw() == nil, "alice's snapshot is cleared from disk on mismatched read")
         }
     }
 

@@ -499,33 +499,27 @@ extension AppStore {
                 data.cards[i].currentBalance = p.proposedCurrent
                 if let lim = p.limit { data.cards[i].limit = lim }
             }
-            var resolved = data.settings.plaidBalanceResolved
-            resolved.append([
-                "fingerprint": .string(p.fingerprint),
-                "decision": .string("accept"),
-                "at": .string(ISO8601DateFormatter().string(from: Date())),
-            ])
-            if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
-            data.settings.plaidBalanceResolved = resolved
-            data.settings.plaidBalanceProposals = data.settings.plaidBalanceProposals.filter {
-                $0["fingerprint"]?.asString != p.fingerprint
-            }
+            Self.resolveBalanceProposal(&data, fingerprint: p.fingerprint, decision: "accept")
         }
     }
 
     func declineBalanceProposal(_ p: BalanceProposal) {
         mutate { data in
-            var resolved = data.settings.plaidBalanceResolved
-            resolved.append([
-                "fingerprint": .string(p.fingerprint),
-                "decision": .string("decline"),
-                "at": .string(ISO8601DateFormatter().string(from: Date())),
-            ])
-            if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
-            data.settings.plaidBalanceResolved = resolved
-            data.settings.plaidBalanceProposals = data.settings.plaidBalanceProposals.filter {
-                $0["fingerprint"]?.asString != p.fingerprint
-            }
+            Self.resolveBalanceProposal(&data, fingerprint: p.fingerprint, decision: "decline")
+        }
+    }
+
+    private static func resolveBalanceProposal(_ data: inout AppData, fingerprint: String, decision: String) {
+        var resolved = data.settings.plaidBalanceResolved.filter { $0["fingerprint"]?.asString != fingerprint }
+        resolved.append([
+            "fingerprint": .string(fingerprint),
+            "decision": .string(decision),
+            "at": .string(ISO8601DateFormatter().string(from: Date())),
+        ])
+        if resolved.count > 200 { resolved = Array(resolved.suffix(200)) }
+        data.settings.plaidBalanceResolved = resolved
+        data.settings.plaidBalanceProposals = data.settings.plaidBalanceProposals.filter {
+            $0["fingerprint"]?.asString != fingerprint
         }
     }
 
@@ -585,7 +579,7 @@ extension AppStore {
     }
 
     private static func resolveAccountProposal(_ data: inout AppData, fingerprint: String, decision: String) {
-        var resolved = data.settings.plaidBalanceResolved
+        var resolved = data.settings.plaidBalanceResolved.filter { $0["fingerprint"]?.asString != fingerprint }
         resolved.append([
             "fingerprint": .string(fingerprint),
             "decision": .string(decision),

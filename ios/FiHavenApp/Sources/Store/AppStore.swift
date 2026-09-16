@@ -3,7 +3,7 @@ import SwiftUI
 import FiHavenCore
 
 enum SyncState: Equatable {
-    case idle, saving, saved, offline
+    case idle, saving, saved, offline, rejected
 
     var label: String {
         switch self {
@@ -14,6 +14,7 @@ enum SyncState: Equatable {
         // network is attempted, this can honestly say the edit is safe: it
         // survives the app being killed and is replayed on the next launch.
         case .offline: return "Offline — saved on this device"
+        case .rejected: return "Sync rejected by server (data exceeds limit)"
         }
     }
 }
@@ -62,6 +63,7 @@ final class AppStore: ObservableObject {
     /// scoped to it so one user's snapshot can never be adopted — or pushed —
     /// into another's account.
     private var owner: String = ""
+    private var expectedOwner: String = ""
 
     /// Called when the server rejects our token. A dead session can't be
     /// papered over with the offline banner: the edits are safe on disk, but
@@ -69,8 +71,9 @@ final class AppStore: ObservableObject {
     /// is still to sign out.
     var onSessionExpired: (() -> Void)?
 
-    init(api: APIClient, cache: OfflineCache = OfflineCache()) {
+    init(api: APIClient, expectedOwner: String = "", cache: OfflineCache = OfflineCache()) {
         self.api = api
+        self.expectedOwner = expectedOwner
         self.cache = cache
         // A settled registration can flip push health, which decides whether
         // local reminders stand down — so re-run the schedule whenever it does.
@@ -125,8 +128,10 @@ final class AppStore: ObservableObject {
         } catch {
             // Unreachable server. Before the cache existed this kept whatever
             // was in memory — nothing at all on a cold launch — so the app
-            // opened empty. Fall back to the last snapshot we stored.
-            if let cached = cache.readRaw() {
+            // opened empty. Fall back to the last snapshot we stored, guarded by
+            // account ownership so another user's snapshot is never adopted.
+            let fallback = expectedOwner.isEmpty ? cache.readRaw() : cache.read(owner: expectedOwner)
+            if let cached = fallback {
                 owner = cached.owner
                 data = cached.data
                 Money.setCurrency(data.settings.currency)
@@ -358,6 +363,7 @@ final class AppStore: ObservableObject {
         // next account a snapshot that isn't theirs.
         cache.clear()
         owner = ""
+        expectedOwner = ""
     }
 
     private func scheduleSave() {
@@ -393,6 +399,14 @@ final class AppStore: ObservableObject {
                 onSessionExpired?()
                 sessionEnded = true
                 break
+            } catch let error as APIError {
+                if case .http(let status, _) = error, (400..<500).contains(status), status != 429 {
+                    syncState = .rejected
+                    break
+                }
+                syncState = .offline
+                try? await Task.sleep(for: delay)
+                if delay < .seconds(60) { delay = delay * 2 }
             } catch {
                 syncState = .offline
                 try? await Task.sleep(for: delay)

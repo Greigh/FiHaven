@@ -49,6 +49,19 @@ describe('server billSchedule — billDueOn', () => {
     expect(billDueOn(annual, new Date(2026, 5, 10))).toBe(true);
     expect(billDueOn(annual, new Date(2026, 6, 10))).toBe(false);
   });
+
+  it('clamps day 31 bills to the last day of short months', () => {
+    const bill = { dueDay: 31, frequency: 'Monthly' };
+    // April has 30 days
+    expect(billDueOn(bill, new Date(2026, 3, 30))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 3, 29))).toBe(false);
+    // February 2026 has 28 days
+    expect(billDueOn(bill, new Date(2026, 1, 28))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 1, 27))).toBe(false);
+    // March has 31 days
+    expect(billDueOn(bill, new Date(2026, 2, 31))).toBe(true);
+    expect(billDueOn(bill, new Date(2026, 2, 30))).toBe(false);
+  });
 });
 
 describe('server billSchedule — nextBillDueDate / daysUntilBillDue', () => {

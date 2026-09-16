@@ -99,6 +99,19 @@ describe('mail.js', () => {
       secure: false,      // 465 only
       requireTLS: false,  // 587 only
     });
+    expect(createTransportMock.mock.calls[0][0].tls).toEqual({ rejectUnauthorized: false });
+  });
+
+  it('transporter() sets rejectUnauthorized: false only on loopback', () => {
+    // smtp.test was configured in beforeEach
+    mail.transporter();
+    expect(createTransportMock.mock.calls[0][0].tls).toBeUndefined();
+
+    process.env.SMTP_HOST = '127.0.0.1';
+    clearModule('./mail');
+    mail = require('./mail');
+    mail.transporter();
+    expect(createTransportMock.mock.calls[1][0].tls).toEqual({ rejectUnauthorized: false });
   });
 
   it('transporter() caches the transport instance', () => {

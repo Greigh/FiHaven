@@ -122,10 +122,10 @@ describe('rateLimit.js', () => {
     expect(check('1.2.3.4', 'live@test.com').allowed).toBe(false);
   });
 
-  it('registers an hourly prune timer when the module loads', () => {
+  it('registers a periodic prune timer when the module loads', () => {
     const intervalSpy = vi.spyOn(global, 'setInterval');
     loadRateLimit();
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60 * 60 * 1000);
+    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 10 * 60 * 1000);
     intervalSpy.mockRestore();
   });
 });
@@ -270,5 +270,14 @@ describe('rateLimit.js — account-wide budget', () => {
 
     vi.advanceTimersByTime(rl.ACCOUNT_WINDOW_MS);
     expect(rl.checkAccount('victim@test.com').allowed).toBe(true);
+  });
+
+  it('caps map size at MAX_MAP_ENTRIES and prunes/evicts on overflow', () => {
+    const rl = loadRateLimit();
+    expect(rl.MAX_MAP_ENTRIES).toBe(10000);
+    for (let i = 0; i < 10050; i++) {
+      rl.record(`10.0.${Math.floor(i / 256)}.${i % 256}`, `user${i}@test.com`);
+    }
+    expect(rl.check('99.99.99.99', 'new@test.com').allowed).toBe(true);
   });
 });

@@ -41,15 +41,17 @@ function transporter() {
   if (cached) return cached;
   const host = process.env.SMTP_HOST || 'localhost';
   const port = parseInt(process.env.SMTP_PORT || '25', 10);
+  const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   const opts = {
     host,
     port,
-    // Local loopback won't have a valid TLS cert; STARTTLS is fine
-    // for external hops because Postfix handles it.
+    // Local loopback won't have a valid TLS cert; remote relays must verify TLS
     secure: port === 465,
     requireTLS: port === 587,
-    tls: { rejectUnauthorized: false },
   };
+  if (isLoopback) {
+    opts.tls = { rejectUnauthorized: false };
+  }
   if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     opts.auth = { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS };
   }

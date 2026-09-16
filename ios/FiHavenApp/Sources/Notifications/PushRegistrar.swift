@@ -176,10 +176,20 @@ final class PushRegistrar {
         }
     }
 
-    func clear() {
-        Task { await retireStored() }
+    func clear() async {
+        await retireStored()
         enabled = false
         self.token = nil
+    }
+
+    /// Clear local push state without unregistering from the server (e.g. after
+    /// the account has already been permanently deleted server-side).
+    func clearLocal() {
+        lastToken = nil
+        setRegistered(ready: nil)
+        enabled = false
+        self.token = nil
+        onRegistrationSettled?()
     }
 
     private func sync() async {

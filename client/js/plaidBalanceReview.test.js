@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   proposalComparison, balanceFingerprint,
   accountProposalComparison, accountBalanceFingerprint,
+  pendingAccountProposals, acceptAccountProposal, declineAccountProposal,
+  acceptAllAccountProposals, declineAllAccountProposals,
 } from './plaidBalanceReview.js';
+import { accounts, settings, setAccounts, setSettings } from './storage.svelte.js';
 
 // `currentBalance` is the live figure a bank suggestion replaces; a card that
 // never had one falls back to its statement balance, same as the Cards list.
@@ -114,3 +117,111 @@ describe('accountBalanceFingerprint', () => {
     expect(accountBalanceFingerprint('a1', 4200)).not.toBe(accountBalanceFingerprint('a1', 4200.01));
   });
 });
+
+describe('account proposal queue & resolution', () => {
+  beforeEach(() => {
+    setAccounts([
+      { id: 'acct-1', name: 'Checking', type: 'checking', balance: 1200, notes: 'Direct deposit' },
+      { id: 'acct-2', name: 'High Yield Savings', type: 'savings', balance: 5000, notes: 'Emergency fund' },
+    ]);
+    setSettings({
+      income: 0,
+      plaidAccountProposals: [
+        { id: 'acct-1', proposedBalance: 1350, fingerprint: 'acct:acct-1:1350.00' },
+        { id: 'acct-2', proposedBalance: 5120, fingerprint: 'acct:acct-2:5120.00' },
+      ],
+      plaidBalanceResolved: [],
+    });
+  });
+
+  it('filters out already-resolved account proposals', () => {
+    expect(pendingAccountProposals()).toHaveLength(2);
+
+    setSettings({
+      ...settings,
+      plaidBalanceResolved: [{ fingerprint: 'acct:acct-1:1350.00', decision: 'accept' }],
+    });
+
+    const pending = pendingAccountProposals();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe('acct-2');
+  });
+
+  it('accepts an account proposal: updates balance and preserves all user fields', () => {
+    const proposal = { id: 'acct-1', proposedBalance: 1350, fingerprint: 'acct:acct-1:1350.00' };
+    const ok = acceptAccountProposal(proposal);
+
+    expect(ok).toBe(true);
+    const updated = accounts.find((a) => a.id === 'acct-1');
+    expect(updated.balance).toBe(1350);
+    // User fields stay pristine
+    expect(updated.name).toBe('Checking');
+    expect(updated.type).toBe('checking');
+    expect(updated.notes).toBe('Direct deposit');
+
+    // Dropped from the proposals queue
+    expect(settings.plaidAccountProposals.map((p) => p.id)).toEqual(['acct-2']);
+    // Fingerprint recorded in resolved memory
+    const resolved = settings.plaidBalanceResolved;
+    expect(resolved).toEqual(
+      expect.arrayContaining([expect.objectContaining({ fingerprint: 'acct:acct-1:1350.00', decision: 'accept' })])
+    );
+  });
+
+  it('declines an account proposal: preserves typed balance and remembers decision', () => {
+    const proposal = { id: 'acct-2', proposedBalance: 5120, fingerprint: 'acct:acct-2:5120.00' };
+    const ok = declineAccountProposal(proposal);
+
+    expect(ok).toBe(true);
+    const kept = accounts.find((a) => a.id === 'acct-2');
+    expect(kept.balance).toBe(5000);
+
+    // Dropped from queue and recorded as decline
+    expect(settings.plaidAccountProposals.map((p) => p.id)).toEqual(['acct-1']);
+    expect(settings.plaidBalanceResolved).toEqual(
+      expect.arrayContaining([expect.objectContaining({ fingerprint: 'acct:acct-2:5120.00', decision: 'decline' })])
+    );
+  });
+
+  it('handles accepting a proposal whose account was deleted', () => {
+    const orphan = { id: 'gone', proposedBalance: 999, fingerprint: 'acct:gone:999.00' };
+    const ok = acceptAccountProposal(orphan);
+
+    expect(ok).toBe(false);
+    expect(settings.plaidBalanceResolved).toEqual(
+      expect.arrayContaining([expect.objectContaining({ fingerprint: 'acct:gone:999.00', decision: 'decline' })])
+    );
+  });
+
+  it('acceptAllAccountProposals updates all accounts in queue safely', () => {
+    acceptAllAccountProposals();
+
+    expect(accounts.find((a) => a.id === 'acct-1').balance).toBe(1350);
+    expect(accounts.find((a) => a.id === 'acct-2').balance).toBe(5120);
+    expect(settings.plaidAccountProposals).toEqual([]);
+    expect(pendingAccountProposals()).toHaveLength(0);
+  });
+
+  it('declineAllAccountProposals keeps all accounts unchanged safely', () => {
+    declineAllAccountProposals();
+
+    expect(accounts.find((a) => a.id === 'acct-1').balance).toBe(1200);
+    expect(accounts.find((a) => a.id === 'acct-2').balance).toBe(5000);
+    expect(settings.plaidAccountProposals).toEqual([]);
+    expect(pendingAccountProposals()).toHaveLength(0);
+  });
+
+  it('deduplicates fingerprints in plaidBalanceResolved to preserve resolution capacity', () => {
+    const proposal = { id: 'acct-1', proposedBalance: 1350, fingerprint: 'acct:acct-1:1350.00' };
+    acceptAccountProposal(proposal);
+    declineAccountProposal(proposal);
+
+    const matches = (settings.plaidBalanceResolved || []).filter(
+      (r) => ((r && r.fingerprint) || r) === proposal.fingerprint
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].decision).toBe('decline');
+  });
+});
+
+

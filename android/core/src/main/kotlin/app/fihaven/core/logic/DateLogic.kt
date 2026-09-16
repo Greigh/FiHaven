@@ -24,11 +24,12 @@ object DateLogic {
     fun currentMonthKey(zone: ZoneId, now: Instant = Instant.now()): String =
         monthKey(today(zone, now))
 
-    /// Day-of-month within a given month's frame, rolling over out-of-range
-    /// days like JS `new Date(y, m, dueDay)` (e.g. day 31 of a 30-day month
-    /// becomes the 1st of the next month).
-    private fun dateForDay(firstOfMonth: LocalDate, dueDay: Int): LocalDate =
-        firstOfMonth.plusDays((dueDay - 1).toLong())
+    /// Day-of-month within a given month's frame, clamping to the last day of
+    /// the month if dueDay exceeds the month length (e.g. day 31 in April becomes April 30).
+    private fun dateForDay(firstOfMonth: LocalDate, dueDay: Int): LocalDate {
+        val effectiveDay = minOf(maxOf(1, dueDay), firstOfMonth.lengthOfMonth())
+        return firstOfMonth.withDayOfMonth(effectiveDay)
+    }
 
     fun daysUntilDue(dueDay: Int, zone: ZoneId, now: Instant = Instant.now()): Int {
         val today = today(zone, now)

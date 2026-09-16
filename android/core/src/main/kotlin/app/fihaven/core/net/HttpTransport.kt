@@ -37,7 +37,7 @@ class DefaultHttpTransport : HttpTransport {
         }
         try {
             val status = conn.responseCode
-            val stream = if (status in 200..299) conn.inputStream else (conn.errorStream ?: conn.inputStream)
+            val stream = if (status in 200..299) conn.inputStream else conn.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             HttpResponse(status, body)
         } finally {

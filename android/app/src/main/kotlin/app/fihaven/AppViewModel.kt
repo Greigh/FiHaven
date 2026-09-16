@@ -137,7 +137,7 @@ sealed interface Session {
 }
 
 /// Live data-save state, shown in Settings to reassure that data auto-syncs.
-enum class SyncState { Idle, Saving, Saved, Offline }
+enum class SyncState { Idle, Saving, Saved, Offline, Rejected }
 
 /// Mirrors the iOS AppEnvironment: owns the API client + token store and
 /// the auth state machine, and holds the loaded AppData.
@@ -541,7 +541,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *
      *  @return whether a cached snapshot was adopted. */
     private fun restoreFromCache(): Boolean {
-        val cached = cache.readRaw() ?: return false
+        val owner = currentUser?.email.orEmpty()
+        val cached = (if (owner.isNotEmpty()) cache.read(owner) else cache.readRaw()) ?: return false
         dataOwner = cached.owner
         _data.value = cached.data
         Money.setCurrency(cached.data.settings.currency)
@@ -891,7 +892,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  [onEntity] for each delta until the coroutine is cancelled. Uses
      *  HttpURLConnection directly — the core transport is request/response. */
     suspend fun streamHousehold(since: Long, onEntity: (SharedEntity) -> Unit) = withContext(Dispatchers.IO) {
-        val url = URL(BuildConfig.API_BASE.trimEnd('/') + "/api/household/stream/" + since)
+        val url = URL(api.baseUrl.trimEnd('/') + "/api/household/stream/" + since)
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 15_000
@@ -960,11 +961,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         try {
             api.deleteAccount(password, code, confirm)
             endSession()
+            PushRegistrar.clear()
             tokens.clear()
+            _authError.value = null
             _session.value = Session.SignedOut
             _data.value = AppData()
             _entitlement.value = Entitlement()
-        _billingPortal.value = false
+            _billingPortal.value = false
+            _dataLoaded.value = false
+            _dataError.value = null
         } catch (e: ApiError) {
             onError(e.userMessage)
         } catch (e: Exception) {
@@ -1023,9 +1028,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     cache.markSynced()
                     break
                 }
-                if (result.exceptionOrNull() is ApiError.Unauthenticated) {
+                val ex = result.exceptionOrNull()
+                if (ex is ApiError.Unauthenticated) {
                     onSessionExpired()
                     sessionEnded = true
+                    break
+                }
+                if (ex is ApiError.Http && ex.status in 400..499 && ex.status != 429) {
+                    _syncState.value = SyncState.Rejected
                     break
                 }
                 _syncState.value = SyncState.Offline

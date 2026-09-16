@@ -229,6 +229,7 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
                             // now written to the device first and replayed on
                             // the next launch, so closing the app is safe.
                             SyncState.Offline -> "☁ Can’t reach FiHaven — saved on this device and still retrying. Your changes will sync when you’re back online."
+                            SyncState.Rejected -> "☁ Sync rejected by server — data exceeds limit. Edits remain on this device."
                             else -> "☁ Synced to your account — changes save automatically across devices."
                         },
                         color = Ct.colors.muted, fontSize = 12.5.sp,

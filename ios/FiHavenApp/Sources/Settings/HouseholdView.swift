@@ -21,6 +21,10 @@ final class HouseholdModel: ObservableObject {
         self.myEmail = myEmail
     }
 
+    deinit {
+        streamTask?.cancel()
+    }
+
     var view: HouseholdView? { info?.household }
 
     func load() async {
@@ -54,10 +58,11 @@ final class HouseholdModel: ObservableObject {
 
     private func startStream(since: Int64) {
         stopStream()
+        let api = self.api
         streamTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                for try await ent in self.api.householdStream(since: since) {
+                for try await ent in api.householdStream(since: since) {
+                    guard let self else { break }
                     self.apply(ent)
                 }
             } catch { /* dropped; reload on next appear */ }

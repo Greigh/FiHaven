@@ -30,6 +30,8 @@ class ApiClient(
     private val tokens: TokenStore,
     private val transport: HttpTransport = DefaultHttpTransport(),
 ) {
+    val baseUrl: String get() = config.baseUrl
+
     // ── request building (internal so tests can assert it) ───────────
     internal fun makeRequest(
         path: String,

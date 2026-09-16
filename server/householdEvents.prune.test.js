@@ -105,3 +105,45 @@ describe('householdEvents — per-user stream cap', () => {
     expect(fresh.ended).toBe(false);
   });
 });
+
+describe('householdEvents — dead connection eviction on record', () => {
+  let householdEvents;
+
+  beforeEach(() => {
+    clearModule('./householdEvents');
+    clearModule('./db');
+    stubModule('./db', { insertHouseholdEvent: vi.fn(() => 1) });
+    householdEvents = require('./householdEvents');
+  });
+
+  it('evicts destroyed or ended responses during record fanout', () => {
+    const liveRes = { write: vi.fn() };
+    const destroyedRes = { destroyed: true, write: vi.fn() };
+    const endedRes = { writableEnded: true, write: vi.fn() };
+    const failingRes = {
+      write: vi.fn(() => {
+        throw new Error('broken pipe');
+      }),
+    };
+
+    householdEvents.subscribe(10, liveRes, 1);
+    householdEvents.subscribe(10, destroyedRes, 1);
+    householdEvents.subscribe(10, endedRes, 1);
+    householdEvents.subscribe(10, failingRes, 1);
+
+    householdEvents.record(10, { type: 'card', id: 1 });
+
+    expect(liveRes.write).toHaveBeenCalledOnce();
+    expect(destroyedRes.write).not.toHaveBeenCalled();
+    expect(endedRes.write).not.toHaveBeenCalled();
+    expect(failingRes.write).toHaveBeenCalledOnce();
+
+    // On second record, only liveRes remains subscribed
+    liveRes.write.mockClear();
+    failingRes.write.mockClear();
+
+    householdEvents.record(10, { type: 'card', id: 2 });
+    expect(liveRes.write).toHaveBeenCalledOnce();
+    expect(failingRes.write).not.toHaveBeenCalled();
+  });
+});

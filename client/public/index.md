@@ -20,7 +20,7 @@ A focused bill and debt dashboard for people who'd rather spend a calm five minu
 
 Just shipped · 1.6.1
 
-Card debt no longer counts your loans — a tracked mortgage had been landing in the card total on every platform. The dashboard is laid out like the rest of the app, and a shared household now separates card debt from loan debt. Plus signing out ends the session for real, archiving genuinely silences a bill or card, and asking an AI assistant about FiHaven finally gets a real answer. [See what's new →](https://github.com/Greigh/FiHaven/blob/main/CHANGELOG.md)
+Card debt no longer counts your loans — a tracked mortgage had been landing in the card total on every platform. The dashboard is laid out like the rest of the app, and a shared household now separates card debt from loan debt. Plus signing out ends the session for real, archiving genuinely silences a bill or card, and asking an AI assistant about FiHaven finally gets a real answer. [See what's new →](https://fihaven.app/changelog)
 
 Everything in one workspace
 

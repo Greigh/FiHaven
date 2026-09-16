@@ -164,4 +164,59 @@ func runAPIChecks() async {
         check(req?.url?.absoluteString == "http://localhost:5222/api/card-presets",
               "GET /api/card-presets URL")
     }
+
+    await sectionAsync("APIClient — registerPushDevice sends platform and token") {
+        MockURLProtocol.reset()
+        let client = APIClient(config: cfg, tokens: InMemoryTokenStore("t"),
+                               session: MockURLProtocol.session())
+        MockURLProtocol.handler = { _ in
+            (200, Data(#"{"ok":true,"ready":true}"#.utf8))
+        }
+        let ready = try await client.registerPushDevice(platform: "ios", token: "device-push-token-123")
+        check(ready, "registerPushDevice returns ready true")
+
+        let req = MockURLProtocol.lastRequest
+        check(req?.url?.absoluteString == "http://localhost:5222/api/push/register",
+              "POST /api/push/register URL")
+        check(req?.httpMethod == "POST", "POST method")
+        check(req?.value(forHTTPHeaderField: "Authorization") == "Bearer t", "Bearer auth")
+        if let body = MockURLProtocol.lastBody,
+           let obj = try? JSONDecoder().decode([String: String].self, from: body) {
+            checkEqual(obj["platform"], "ios", "platform is ios")
+            checkEqual(obj["token"], "device-push-token-123", "token matches")
+        } else {
+            check(false, "push registration body did not decode")
+        }
+    }
+
+    await sectionAsync("APIClient — unregisterPushDevice sends token") {
+        MockURLProtocol.reset()
+        let client = APIClient(config: cfg, tokens: InMemoryTokenStore("t"),
+                               session: MockURLProtocol.session())
+        MockURLProtocol.handler = { _ in
+            (200, Data(#"{"ok":true}"#.utf8))
+        }
+        try await client.unregisterPushDevice(token: "device-push-token-123")
+
+        let req = MockURLProtocol.lastRequest
+        check(req?.url?.absoluteString == "http://localhost:5222/api/push/unregister",
+              "POST /api/push/unregister URL")
+        check(req?.httpMethod == "POST", "POST method")
+        if let body = MockURLProtocol.lastBody,
+           let obj = try? JSONDecoder().decode([String: String].self, from: body) {
+            checkEqual(obj["token"], "device-push-token-123", "token matches")
+        } else {
+            check(false, "push unregister body did not decode")
+        }
+    }
+
+    await sectionAsync("APIClient — 413 and 403 error codes map to user-friendly messages") {
+        let err413 = APIError.http(status: 413, code: "payload-too-large")
+        checkEqual(err413.serverCode, "payload-too-large", "413 serverCode")
+        checkEqual(err413.userMessage, "Changes are too large to save to the server.", "413 message")
+
+        let err403 = APIError.http(status: 403, code: "account-suspended")
+        checkEqual(err403.serverCode, "account-suspended", "403 serverCode")
+        checkEqual(err403.userMessage, "This account has been suspended. Contact support if you think that's a mistake.", "403 message")
+    }
 }

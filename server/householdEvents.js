@@ -110,7 +110,15 @@ function record(householdId, entity) {
   if (set && set.size) {
     const data = frame(seq, entity);
     for (const res of set) {
-      try { res.write(data); } catch (_) { /* dropped; close handler cleans up */ }
+      if (res.destroyed || res.writableEnded) {
+        unsubscribe(householdId, res);
+        continue;
+      }
+      try {
+        res.write(data);
+      } catch (_) {
+        unsubscribe(householdId, res);
+      }
     }
   }
   return seq;

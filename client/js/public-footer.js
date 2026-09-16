@@ -19,6 +19,7 @@ var FOOTER_LINKS = [
   { href: '/security', label: 'Security' },
   { href: '/contact',  label: 'Contact' },
   { href: '/login',    label: 'Log In' },
+  { href: '/changelog', label: 'Changelog' },
   { href: '/terms',    label: 'Terms' },
   { href: '/privacy',  label: 'Privacy' },
   { href: '/refunds',  label: 'Refunds' },

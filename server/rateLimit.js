@@ -33,6 +33,7 @@ const ACCOUNT_WINDOW_MS = 60 * 60 * 1000;
 // durable table while keeping their own window lengths.
 const ACCOUNT_PREFIX = 'acct:';
 
+const MAX_MAP_ENTRIES = 10000;
 const attempts = new Map(); // key -> { count, windowStart, windowMs }
 
 // { load(), save(key, count, windowStart), remove(key), prune(before) }
@@ -84,6 +85,16 @@ function getState(key) {
   const windowMs = windowFor(key);
   let state = attempts.get(key);
   if (!state || Date.now() - state.windowStart > windowMs) {
+    if (attempts.size >= MAX_MAP_ENTRIES) {
+      prune();
+      if (attempts.size >= MAX_MAP_ENTRIES) {
+        let evicted = 0;
+        for (const k of attempts.keys()) {
+          attempts.delete(k);
+          if (++evicted >= 1000) break;
+        }
+      }
+    }
     state = freshState(windowMs);
     attempts.set(key, state);
   }
@@ -139,7 +150,7 @@ function prune() {
   if (store) store.prune(now - Math.max(WINDOW_MS, ACCOUNT_WINDOW_MS));
 }
 
-setInterval(prune, 60 * 60 * 1000).unref();
+setInterval(prune, 10 * 60 * 1000).unref();
 
 // The per-IP flood guard (formerly ipRateLimiter here) now lives in
 // index.js, backed by express-rate-limit. This module keeps the
@@ -150,4 +161,5 @@ module.exports = {
   prune, attachStore,
   MAX_ATTEMPTS, WINDOW_MS,
   ACCOUNT_MAX_ATTEMPTS, ACCOUNT_WINDOW_MS,
+  MAX_MAP_ENTRIES,
 };

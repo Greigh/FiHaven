@@ -7,12 +7,14 @@ struct SyncOfflineBanner: View {
 
     var body: some View {
         Group {
-            if store.syncState == .offline, !dismissed {
+            if (store.syncState == .offline || store.syncState == .rejected), !dismissed {
                 HStack(alignment: .center, spacing: 10) {
-                    Image(systemName: "icloud.slash")
+                    Image(systemName: store.syncState == .rejected ? "exclamationmark.triangle" : "icloud.slash")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Theme.orange)
-                    Text("Offline — your changes are saved on this device and will sync when you’re back online.")
+                        .foregroundStyle(store.syncState == .rejected ? Theme.red : Theme.orange)
+                    Text(store.syncState == .rejected
+                        ? "Sync rejected — data exceeds server limit. Edits remain on this device."
+                        : "Offline — your changes are saved on this device and will sync when you’re back online.")
                         .font(Theme.ui(13, weight: .medium))
                         .foregroundStyle(Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
@@ -26,7 +28,7 @@ struct SyncOfflineBanner: View {
                             .padding(6)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss offline notice")
+                    .accessibilityLabel("Dismiss sync notice")
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -42,12 +44,14 @@ struct SyncOfflineBanner: View {
                 .padding(.top, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Offline. Your changes are saved on this device and will sync when you are back online.")
+                .accessibilityLabel(store.syncState == .rejected
+                    ? "Sync rejected. Data exceeds server limit. Edits remain on this device."
+                    : "Offline. Your changes are saved on this device and will sync when you are back online.")
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: store.syncState == .offline)
+        .animation(.easeInOut(duration: 0.2), value: store.syncState)
         .onChange(of: store.syncState) { _, new in
-            if new != .offline { dismissed = false }
+            if new != .offline && new != .rejected { dismissed = false }
         }
     }
 }

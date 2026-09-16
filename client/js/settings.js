@@ -2830,6 +2830,7 @@ import {
       if (!res) return;
       if (res.outcome === 'linked') showMessage('plaid', 'Bank linked.', false);
       else if (res.outcome === 'reconnected') showMessage('plaid', 'Bank reconnected.', false);
+      else if (res.outcome === 'already_linked') showMessage('plaid', 'That bank is already linked.', false);
       else if (res.outcome === 'error') {
         showMessage('plaid', res.reason || 'Bank linking failed. Please try again.', true);
       }

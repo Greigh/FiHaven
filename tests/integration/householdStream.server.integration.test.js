@@ -133,4 +133,15 @@ describe('integration — household live stream (SSE)', () => {
     await resp.text().catch(() => {});
     ac.abort();
   });
+
+  it('cleans up stream when client abruptly aborts', async () => {
+    const { partner } = await couple('abort');
+    const ac = new AbortController();
+    const resp = await fetch(`${base}/api/household/stream`, { headers: { Cookie: partner.cookie }, signal: ac.signal });
+    expect(resp.status).toBe(200);
+    ac.abort();
+
+    const check = await fetch(`${base}/health`);
+    expect(check.status).toBe(200);
+  });
 });

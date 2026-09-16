@@ -87,16 +87,29 @@ function loadPlaidLink() {
       onSuccess: function (publicToken, metadata) {
         setStatus('Linking your accounts…');
         if (stash.mode === 'update' && stash.itemId != null) {
-          plaidFetch('item/' + stash.itemId + '/repaired', 'POST').then(function () {
-            report('reconnected');
-            done('/settings');
+          plaidFetch('item/' + stash.itemId + '/repaired', 'POST').then(function (res) {
+            if (res && res.ok) {
+              report('reconnected');
+              done('/settings');
+            } else {
+              fail('Could not finish reconnecting. Please try again.');
+            }
           }).catch(function () { fail('Could not finish reconnecting. Please try again.'); });
         } else {
           plaidFetch('link/exchange', 'POST', {
             public_token: publicToken,
             institution: metadata && metadata.institution,
-          }).then(function () { report('linked'); done('/settings'); })
-            .catch(function () { fail('Could not finish linking. Please try again.'); });
+          }).then(function (res) {
+            if (res && res.ok) {
+              report('linked');
+              done('/settings');
+            } else if (res && res.status === 409) {
+              report('already_linked');
+              done('/settings');
+            } else {
+              fail('Could not finish linking. Please try again.');
+            }
+          }).catch(function () { fail('Could not finish linking. Please try again.'); });
         }
       },
       onExit: function (err) {

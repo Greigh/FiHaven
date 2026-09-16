@@ -211,4 +211,19 @@ final class BalanceProposalTests: XCTestCase {
         store.acceptAccountProposal(store.pendingAccountProposals()[0])
         XCTAssertEqual(store.data.settings.plaidBalanceResolved.count, 2)
     }
+
+    func testResolvedDeduplicationPreservesCapacity() {
+        let store = TestStore.make()
+        seed(store)
+        seedAccounts(store)
+        let p = proposal(id: "c1", current: 2400, fingerprint: "1:2400.00:")
+        store.mutate { $0.settings.plaidBalanceProposals = [p] }
+        store.acceptBalanceProposal(store.pendingBalanceProposals()[0])
+        store.mutate { $0.settings.plaidBalanceProposals = [p] }
+        store.declineBalanceProposal(store.pendingBalanceProposals()[0])
+
+        let matches = store.data.settings.plaidBalanceResolved.filter { $0["fingerprint"]?.asString == "1:2400.00:" }
+        XCTAssertEqual(matches.count, 1, "only one entry retained per fingerprint")
+        XCTAssertEqual(matches.first?["decision"]?.asString, "decline")
+    }
 }

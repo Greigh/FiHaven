@@ -1,19 +1,56 @@
 <div align="center">
 
-<img src="client/public/icon.svg" alt="FiHaven logo" width="120" height="120" />
-<img src="docs/maintainer/iap-promo/feature-graphic.png" alt="FiHaven Promo" />
+<a href="https://fihaven.app">
+  <img src="client/public/icon.svg" alt="FiHaven logo" width="108" height="108" style="border-radius: 24px;" />
+</a>
 
 # FiHaven
 
-**Quiet money. Calm month.**
+### Quiet money. Calm month.
 
-A calm, manual-first money dashboard — bills, cards, loans, budget, and
-debt payoff — with full native iOS/macOS and Android apps on a shared
-backend.
+A focused, manual-first personal finance and debt dashboard — recurring bills, credit cards (with 0% APR promo tracking), loans, income, asset accounts, period-aware budget lenses, individual spend, and debt payoff planners — with native iOS, macOS, and Android apps on a shared server-synced backend.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml) [![Android](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml) [![iOS](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml) [![CodeQL (JS/TS)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL%20%28JS%2FTS%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml) [![CodeQL (Swift)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-swift.yml?branch=main&label=CodeQL%20%28Swift%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-swift.yml) [![CodeQL (Kotlin)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-android.yml?branch=main&label=CodeQL%20%28Kotlin%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-android.yml) [![Dependency Review](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Greigh/FiHaven/actions/workflows/dependency-review.yml) [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
+<p align="center">
+  <a href="https://fihaven.app" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/Website-fihaven.app-5856D6?style=for-the-badge&logo=safari&logoColor=white" alt="Website" />
+  </a>
+  &nbsp;
+  <a href="https://apps.apple.com/us/app/fihaven/id6781084347" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/App_Store-iOS%20%2F%20macOS-007AFF?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" />
+  </a>
+  &nbsp;
+  <a href="https://play.google.com/store/apps/details?id=app.fihaven" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/Google_Play-Android-34A853?style=for-the-badge&logo=google-play&logoColor=white" alt="Get it on Google Play" />
+  </a>
+  &nbsp;
+  <a href="https://testflight.apple.com/join/SdN4yuuH" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/TestFlight-Beta-FFA500?style=for-the-badge&logo=apple&logoColor=white" alt="Join TestFlight Beta" />
+  </a>
+</p>
 
-[![Version](https://img.shields.io/badge/version-1.6.3-brightgreen)](https://github.com/Greigh/FiHaven/releases) [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE) [![Node](https://img.shields.io/badge/node-%3E%3D24.16.0-green)](https://nodejs.org/) [![Swift](https://img.shields.io/badge/Swift-6.3.1-orange)](https://swift.org) [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-blue)](https://kotlinlang.org) [![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers) [![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
+<p align="center">
+  <img src="docs/maintainer/iap-promo/feature-graphic.png" alt="FiHaven Feature Preview" width="840" style="max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.12);" />
+</p>
+
+<!-- CI & Build status -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ci.yml?branch=main&label=CI)](https://github.com/Greigh/FiHaven/actions/workflows/ci.yml)
+[![Android CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/android.yml?branch=main&label=Android)](https://github.com/Greigh/FiHaven/actions/workflows/android.yml)
+[![iOS CI](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/ios.yml?branch=main&label=iOS)](https://github.com/Greigh/FiHaven/actions/workflows/ios.yml)
+[![CodeQL (JS/TS)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql.yml?branch=main&label=CodeQL%20%28JS%2FTS%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql.yml)
+[![CodeQL (Swift)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-swift.yml?branch=main&label=CodeQL%20%28Swift%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-swift.yml)
+[![CodeQL (Kotlin)](https://img.shields.io/github/actions/workflow/status/Greigh/FiHaven/codeql-android.yml?branch=main&label=CodeQL%20%28Kotlin%29)](https://github.com/Greigh/FiHaven/actions/workflows/codeql-android.yml)
+[![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
+
+<!-- Platform & Environment -->
+[![Version](https://img.shields.io/badge/version-1.6.3%20(build%2054)-brightgreen)](https://github.com/Greigh/FiHaven/releases)
+[![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D22.11.0%20%7C%2024-green)](https://nodejs.org/)
+[![Swift](https://img.shields.io/badge/Swift-6.3-orange)](https://swift.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-blue)](https://kotlinlang.org)
+[![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)](https://svelte.dev)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![GitHub stars](https://img.shields.io/github/stars/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/Greigh/FiHaven?style=flat-square)](https://github.com/Greigh/FiHaven/commits)
 
 </div>
 
@@ -43,16 +80,30 @@ Android (Play).
 
 ---
 
+## Available platforms
+
+<a id="available-platforms"></a>
+
+| Platform | Channel / Store | Status | Details & Requirements |
+|:---|:---|:---:|:---|
+| 🌐 **Web App** | [**fihaven.app**](https://fihaven.app) | **Live** | Desktop & mobile browser, responsive PWA with offline caching |
+| 🍏 **iOS / iPadOS** | [**App Store**](https://apps.apple.com/us/app/fihaven/id6781084347) (ID: `6781084347`)<br>*(Beta: [TestFlight](https://testflight.apple.com/join/SdN4yuuH))* | **Live** (1.6.3 b54) | iOS / iPadOS 18.6+, native SwiftUI, StoreKit 2, Face ID / Touch ID |
+| 🖥️ **macOS** | [**Mac App Store**](https://apps.apple.com/us/app/fihaven/id6781084347)<br>*(Designed for iPad)* | **Live** (1.6.3 b54) | Apple Silicon Mac (M1 or later), macOS 15+ |
+| ▶️ **Android** | [**Google Play**](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>*(Beta: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven))* | **Live** (1.6.3 b54) | Android 8.0+ (API 26+), Jetpack Compose, Play Billing, KeyStore biometric lock |
+
+---
+
 ## Contents
 
 | Getting started | Reference | Operations |
 |---|---|---|
-| [Highlights](#highlights) | [Project structure](#project-structure) | [Production deploy](#production-deploy) |
-| [**Features** (the full list)](#features) | [npm scripts](#npm-scripts) | [Admin & promo codes](#admin--promo-codes) |
-| [Free vs Pro](#free-vs-pro) | [Environment](#environment) | [SEO + standards](#seo--standards) |
-| [Stack](#stack) | [URLs](#urls) | [Roadmap & gaps](#roadmap--gaps) |
-| [Quick start](#quick-start) | [API](#api) | [License](#license) |
-| [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android) | [How a few things work](#how-a-few-things-work) | |
+| [Available platforms](#available-platforms) | [Project structure](#project-structure) | [Production deploy](#production-deploy) |
+| [Highlights](#highlights) | [npm scripts](#npm-scripts) | [Admin & promo codes](#admin--promo-codes) |
+| [**Features** (the full list)](#features) | [Environment](#environment) | [SEO + standards](#seo--standards) |
+| [Free vs Pro](#free-vs-pro) | [URLs](#urls) | [Roadmap & gaps](#roadmap--gaps) |
+| [Stack](#stack) | [API](#api) | [License](#license) |
+| [Quick start](#quick-start) | [How a few things work](#how-a-few-things-work) | |
+| [Native apps (iOS / macOS / Android)](#native-apps-ios--macos--android) | | |
 
 Changelog: [CHANGELOG.md](CHANGELOG.md).
 
@@ -140,6 +191,7 @@ normally on all three platforms unless noted.
 | **Account Balances tab** | Checking, savings, investments, property, cash — the accounts you own, editable in one place |
 | **Net worth** | Read-only assets-minus-debts rollup over those accounts plus card and loan debt |
 | **Bank balance suggestions** *(Pro)* | With a bank linked, a depository/investment account can propose its own balance — Accept or Decline, never an overwrite, and a decline isn't re-asked until the bank's figure changes. Every linked row prints "Bank says X · as of &lt;date&gt;" because the figures are cached, not live |
+| **Asset account pinning** *(Pro)* | Pin checking, savings, or investment accounts directly to a linked bank account from the editor, putting bank balance suggestions on the Balances tab even when account names differ |
 | **Savings goals** | Target amount, target date, and a suggested monthly contribution that feeds the budget lens |
 
 ### Budget
@@ -217,8 +269,9 @@ normally on all three platforms unless noted.
 |---|---|
 | **Manual-first by construction** | Synced transactions are additive, tagged `source:'plaid'`, deduped by Plaid id, outflows only, marked 🏦 — they never overwrite or delete what you typed |
 | **Opt-in gates** | Purchases and balances are separate switches, both **off** until you say yes; the sync cursor only advances when the merge actually ran, so enabling it later doesn't cost you the backlog |
-| **Balance proposals** | Statement balances are never silently rewritten — a sync queues Accept/Decline proposals, separately for cards and asset accounts |
+| **Balance proposals** | Statement and account balances are never silently rewritten — a sync queues Accept/Decline proposals for cards and asset accounts |
 | **Card ↔ account matching** | Three tiers server-side (explicit pin, last-4, issuer + product name), written back as `plaidAccountId`, with a durable **"Don't link this card"** opt-out |
+| **Asset account pinning** | Link checking, savings, or investment accounts to a specific bank account directly in the editor, with a durable **"Don't link this account"** opt-out |
 | **Reconnect ("update mode")** | A first-class flow on web, iOS, and Android when a bank drops the connection — a broken link never breaks the dashboard |
 | **OAuth returns** | Web `/plaid-oauth`, Android package return, iOS Universal Link at `/plaid` — bank OAuth never dumps you in a browser |
 
@@ -235,7 +288,7 @@ normally on all three platforms unless noted.
 | **Email verification & recovery** | Verify-email (including correcting a mistyped signup address), forgot/reset password, and a lost-2FA recovery flow, all on single-use tokens |
 | **Bot & abuse protection** | Cloudflare Turnstile, honeypot + timing checks, per-IP `express-rate-limit`, and an in-memory login throttle keyed by IP + email |
 | **Encryption at rest** | AES-256-GCM over TOTP secrets, Plaid access tokens, and every user's `user_data` blob. Session ids, email tokens and OAuth handoff codes are SHA-256-hashed rather than encrypted — they are random secrets we only need to recognise, never to read back |
-| **Biometric app lock** *(native)* | Face ID / Touch ID / device credential, bound to a hardware AndroidKeyStore key on Android |
+| **Biometric app lock** *(native)* | Face ID / Touch ID / device credential, bound to a hardware AndroidKeyStore key on Android; native token storage secured via Android Keystore AES-256-GCM (`PrefsTokenStore`) |
 | **Server-side page gates** | Private pages are gated by Express, not just JS, so they hold with scripting off |
 | **Session hygiene** | Changing your password signs out every *other* device; admins can force-logout a user. Sessions are addressed by hash, so nothing downstream of the lookup ever holds the credential |
 
@@ -292,7 +345,7 @@ automation and insight tools. **Creating** a household is the Family plan only. 
 | Spending tab, cash-flow history chart, monthly rollover review | **Spending insights** (period-over-period) | Household rollup — shared bills, card debt, loan debt, goals |
 | Dashboard widgets + layouts, native tab-bar customizer, snooze, sort/filter | **Rewards optimizer** + card preset database, **perks/credits tracker**, **card-linked offers**, annual-fee assessment | |
 | Subscription **detection** (flagged bills + recurring transactions) | **Subscription action panel** — cancel links, duplicates, trial reminders | |
-| **Join** a Family household (view shared bills, cards, goals) | **Autopay auto-mark**, **bank sync (Plaid)** + balance proposals + reconciliation | |
+| **Join** a Family household (view shared bills, cards, goals) | **Autopay auto-mark**, **bank sync (Plaid)** + balance proposals (cards & accounts) + reconciliation | |
 | Email / push / local reminders, weekly digest, monthly summary | | |
 | Light/dark, time zones, 10 currencies, MFA + passkeys, biometric app lock, export/import/delete | | |
 
@@ -313,11 +366,13 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | Layer | What |
 |---|---|
 | **Frontend pages** | Svelte 5 (runes) for each dashboard tab, vanilla JS for navbar / modals / auth / theme |
-| **Build** | [Vite 8](https://vitejs.dev) multi-page, with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
-| **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a small Tailwind v4 utility build. Fully responsive — phones get a hamburger drawer and stacked-card tables |
-| **Server** | Node 24 + Express 5, [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for storage |
+| **Build** | [Vite 8](https://vitejs.dev) multi-page (Vite 8.3), with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
+| **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a Tailwind CSS v4 utility build (`@tailwindcss/cli` 4.3). Fully responsive — phones get a hamburger drawer and stacked-card tables |
+| **Server** | Node 24 (engines `>=22.11.0`) + Express 5 (`5.2.1`), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (`13.0.3`) for storage |
 | **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite (SHA-256-hashed at rest), HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
-| **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/), email sign-in codes via [nodemailer](https://nodemailer.com/), bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
+| **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/) 14, email sign-in codes via [nodemailer](https://nodemailer.com/) 10, bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
+| **Native (iOS / macOS)** | Swift 6.3 / SwiftUI on a shared Swift core (`ios/FiHavenCore`), StoreKit 2 subscriptions, bundled fonts, Face ID / Touch ID, deployment target iOS 18.6+ |
+| **Native (Android)** | Kotlin 2.4 / Jetpack Compose BOM 2026.08 on a shared Kotlin core (`android/core`), Play Billing, AES-256-GCM hardware KeyStore token storage, minSdk 26, targetSdk 36 |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Paddle](https://paddle.com) (merchant of record), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
@@ -332,13 +387,13 @@ other apps on the same host.
 
 ## Quick start
 
-Requires **Node ≥ 24** (see `engines` in `package.json`; for native
+Requires **Node ≥ 22.11** (Node 24 recommended; see `engines` in `package.json`; for native
 `fetch`, `--watch`, and the better-sqlite3 / bcrypt prebuilds).
 
 ```bash
-git clone <repo> fihaven
+git clone https://github.com/Greigh/FiHaven.git fihaven
 cd fihaven
-npm install
+npm install              # or: bun install
 cp .env.example .env      # then fill in at least the Turnstile keys
 npm run dev
 ```
@@ -360,26 +415,30 @@ Every `.env*` file except [`.env.example`](.env.example) is **gitignored**, so
 nothing here ships a working key — including `.env.development`, which the
 loader reads if you create one but the repo does not carry.
 
-> You can also hit Express directly at
-> <http://localhost:5222/> if you don't need HMR — same
-> content, same auth flow, no Vite layer.
+> [!TIP]
+> You can also hit Express directly at <http://localhost:5222/> if you don't need HMR — same content, same auth flow, no Vite layer.
 
 ---
 
 ## Native apps (iOS / macOS / Android)
 
-FiHaven also ships native clients that talk to this same backend over
+FiHaven ships full native clients that talk to this same backend over
 token/Bearer auth and reproduce the web's business logic, look, and
-FiHaven Pro subscription. Each has its own README:
+FiHaven Pro subscription.
 
 - **[iOS / macOS](ios/README.md)** — SwiftUI app on a shared Swift core
-  (`ios/`), StoreKit 2 subscriptions, dark-mode toggle, bundled fonts.
+  (`ios/FiHavenCore`), StoreKit 2 subscriptions, dark-mode toggle, bundled fonts.
+  - 🍏 **App Store:** [Download on the App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (ID: `6781084347`)
+  - 🧪 **TestFlight Beta:** [Join the TestFlight Beta](https://testflight.apple.com/join/SdN4yuuH)
 - **[Android](android/README.md)** — Jetpack Compose app on a shared
-  Kotlin core (`android/`), Play Billing, encrypted token storage.
+  Kotlin core (`android/core`), Play Billing, hardware KeyStore encrypted token storage.
+  - ▶️ **Google Play:** [Get it on Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)
+  - 🧪 **Play Open Testing:** [Join Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
 Both apps follow a shared API + data + design + billing contract. FiHaven Pro
 entitlement is server-authoritative and unified across web (Paddle), iOS
-(StoreKit), and Android (Play) — see [the API section](#api).
+(StoreKit), and Android (Play) — see [the API section](#api). Versioning uses
+a single shared build counter across both stores (currently **v1.6.3, build 54**).
 
 ### Running the tests
 
@@ -1276,19 +1335,19 @@ Universal Link at `/plaid` (so bank OAuth does not dump users in the browser).
 Webhooks are ES256-JWT-verified in production, and re-auth ("update mode") is a
 first-class Reconnect flow on web, iOS, and Android.
 
-**Which card is which account.** `plaidBalances.js` matches server-side in three
+**Which card or asset is which account.** `plaidBalances.js` matches server-side in three
 tiers — an explicit pin, then last-4 digits, then issuer + product name — and a
 confident match is *written onto the card* as `plaidAccountId` (`autoLinkCards`).
-That matters because per-card spending resolves a bank charge by account id
-alone, so an unrecorded match left purchases unattributed and the editor still
-reading "Match automatically". Pinning is idempotent, never overrides a pin the
-user made, skips archived and ambiguous cards, and repairs a pin left behind by
-a disconnected or relinked bank (whose account ids no longer exist). The
-sentinel `plaidAccountId: "none"` — the editor's **Don't link this card** — is a
-durable refusal: clearing the picker back to automatic isn't one, since the next
-sync would just match it again. It rides in the existing field because native
-`Card` is a fixed struct that strips unknown keys, so a separate opt-out flag
-would be dropped by any client build predating it.
+Asset accounts (checking, savings, investments) can likewise be pinned to a specific
+bank account directly from the account editor (`autoLinkAssetAccounts`), which is what
+puts the bank's balance on the Balances tab as an Accept/Decline proposal. That matters
+because an asset row has no card digits or issuer name to match on automatically. Pinning
+is idempotent, never overrides a pin the user made, skips archived rows, and repairs a
+pin left behind by a disconnected or relinked bank. The sentinel `plaidAccountId: "none"`
+— the editor's **Don't link this card** / **Don't link this account** — is a durable
+refusal: clearing the picker back to automatic isn't one, since the next sync would just
+match it again. It rides in the existing field because native `Card` and `Account` models
+strip unknown keys, so a separate opt-out flag would be dropped by any client build predating it.
 
 ### Responsive / mobile layout
 
@@ -1516,8 +1575,9 @@ person asks a question); crawlers that exist to bulk-collect training
 text are refused (`GPTBot`, `ClaudeBot`, `CCBot`, `Amazonbot`,
 `meta-externalagent`, `Bytespider`).
 
-> **robots.txt is advisory — Cloudflare is the enforcing layer.** The
-> zone's AI Crawl Control settings decide what actually gets a 403.
+> [!WARNING]
+> **robots.txt is advisory — Cloudflare is the enforcing layer.**
+> The zone's AI Crawl Control settings decide what actually gets a 403.
 > Keep Cloudflare's **"Manage your robots.txt"** feature **off**: when on,
 > it prepends a managed block that disallowed `Google-Extended` (opting
 > the site out of Gemini's answers) and duplicated user-agent groups
@@ -1548,6 +1608,7 @@ you publish another machine-readable file, add it to that expression and to
 `SHOULD_EXEMPT` in [`check-crawler-policy.js`](scripts/check-crawler-policy.js)
 together** — the check fails if they disagree.
 
+> [!NOTE]
 > Edits to that rule propagate unevenly across edge PoPs for a minute or
 > two, so a single `curl` right after a change can report either state.
 > Sample it a few times before believing it.
@@ -1567,12 +1628,12 @@ dated release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ### Store distribution
 
-| Platform | Status |
-|---|---|
-| **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | Live on the [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (id `6781084347`); TestFlight is the pre-release track |
-| **Android** | Live on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`); Open testing is the pre-release track |
-| **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
+| Platform | Channel | Status | Links & Identifiers |
+|---|---|:---:|---|
+| **Web** | Web App / PWA | **Live** | [fihaven.app](https://fihaven.app) |
+| **iOS / iPadOS** | Apple App Store | **Live** | [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (App ID: `6781084347`)<br>Pre-release: [TestFlight Beta](https://testflight.apple.com/join/SdN4yuuH) |
+| **Android** | Google Play Store | **Live** | [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>Pre-release: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven) |
+| **macOS** | Mac App Store | **Live** | [Mac App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (Runs via **My Mac (Designed for iPad)** on Apple Silicon) |
 
 ### Platform parity
 
@@ -1595,6 +1656,8 @@ differs enough to be worth writing down.
 | Household **share/unshare** bills, cards, goals | Settings → Family | Settings → Family | Settings → Family |
 | Household rollup (shared totals) | Dashboard card | Settings → Family | Settings → Family |
 | Plaid bank linking + balance proposals (Pro) | Yes | Yes | Yes |
+| **Pin checking/savings/investments to bank account** | Balances tab | Account editor | Account editor |
+| **Bank balance suggestions on asset accounts (Pro)** | Balances tab | Balances tab | Balances tab |
 | **Admin console** (users, card presets, promo codes) | Admin panel | Settings → Admin | Settings → Admin |
 | Correct a mistyped signup address | Verify screen | Verify screen | Verify screen |
 | Passwordless passkey **sign-in** | Login | Login (autofill) | Login |
@@ -1638,6 +1701,8 @@ Genuinely not shipped, or shipped with a caveat:
   replaces deprecated `androidx.security:security-crypto`.
 - **LinkKit dSYM** — `Scripts/generate-linkkit-dsym.sh` + `ios-testflight.sh` generate a
   dSYM from the embedded Plaid binary before export so TestFlight symbol upload is clean.
+- **Security hardening** — Input sanitization, Turnstile bot verification, hardened
+  regexes against ReDoS, and strict CSP with verified script and style hashes.
 
 ---
 

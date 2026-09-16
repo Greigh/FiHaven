@@ -34,7 +34,7 @@ export const DATA_CACHE_KEYS = [
  *  data, and a merge measured against the wrong account's ancestor would read
  *  every one of the next user's records as a deliberate local deletion. */
 export const SESSION_KEYS = DATA_CACHE_KEYS.concat([
-  'fh_data_owner', 'fh_pending_sync', 'fh_sync_base',
+  'fh_data_owner', 'fh_pending_sync', 'fh_sync_base', 'fh_plaid_oauth',
 ]);
 
 /** Remove every session-scoped key. Safe when storage is unavailable. */

@@ -88,7 +88,7 @@ public extension APIClient {
                     req.timeoutInterval = TimeInterval(Int.max)
                     req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+                    let (bytes, response) = try await self.session.bytes(for: req)
                     guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                         continuation.finish(throwing: APIError.http(status: status, code: nil))
