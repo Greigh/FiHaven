@@ -3,8 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.3 — **build 54 on both stores** (marketing bump 1.6.2 → 1.6.3; the build number is one shared counter and continued 53 → 54 without resetting)  
-**Current build's store copy:** [`../release-notes/v1.6.3/ios54-android54.md`](../release-notes/v1.6.3/ios54-android54.md)  
+**Version train:** 1.6.4 — **build 55 on both stores** (marketing bump 1.6.2 → 1.6.4; the build number is one shared counter and continued 55 → 55 without resetting)  
+**Current build's store copy:** [`../release-notes/v1.6.4/ios55-android55.md`](../release-notes/v1.6.4/ios55-android55.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -80,9 +80,8 @@ The current train is **1.6.3**, opened by build 53. Per-build copy for testers
 (Play "What's new", TestFlight "What to Test") is in
 [`../release-notes/v1.6.3/`](../release-notes/v1.6.3/), one file per build; the
 current build is
-[`ios54-android54.md`](../release-notes/v1.6.3/ios54-android54.md). Build 54
-needs **no server migration and signs no one out** — it delivers security hardening,
-memory leak fixes, Plaid webhook idempotency, and the public `/changelog/` portal.
+[`ios55-android55.md`](../release-notes/v1.6.4/ios55-android55.md). Build 55
+needs **no server migration and signs no one out** — Account Balances bank review, security hardening, memory leak fixes, and public changelog
 
 There is no combined "release as a whole" copy for 1.6.3 yet; write one
 (`../release-notes/v1.6.3/appstore-1.6.3.md`, patterned on

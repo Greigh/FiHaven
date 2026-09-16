@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.3 (54) — **Account Balances bank suggestion review**: accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts. Also patches terminal 4xx HTTP sync infinite retry loops (`SyncState.rejected`), multi-account offline cache isolation on shared devices, unregistration race on logout, and memory leaks in SSE live feeds. |
-| **Android** | 1.6.3 (versionCode 54) — Account Balances bank review (Accept / Decline) on checking and savings accounts; terminal 4xx error handling (`SyncState.Rejected`); authenticated offline cache scoping; and null error-stream safety in `DefaultHttpTransport`. |
+| **iOS** | 1.6.4 (55) — **Account Balances bank suggestion review**: accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts. Also patches terminal 4xx HTTP sync infinite retry loops (`SyncState.rejected`), multi-account offline cache isolation on shared devices, unregistration race on logout, and memory leaks in SSE live feeds. |
+| **Android** | 1.6.4 (versionCode 55) — Account Balances bank review (Accept / Decline) on checking and savings accounts; terminal 4xx error handling (`SyncState.Rejected`); authenticated offline cache scoping; and null error-stream safety in `DefaultHttpTransport`. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) — new dedicated `/changelog` page presenting release history and technical changelogs; full bank account balance review in Account Balances; security hardening on auth and session handling. |
 | **Server** | Enforces 256kb payload threshold with `413 payload-too-large`, strict 403 soft-suspension enforcement on Bearer auth, push device token purge on account deletion, and Family entitlement on household SSE streams. |
 
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.3.** The build number continues 53 → 54
+> **Marketing version is 1.6.3.** The build number continues 55 → 55
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -52,11 +52,32 @@ Each release below uses two layers:
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [55](#164-build-55--2026-09-15) | 2026-09-15 | Account Balances bank review, security hardening, memory leak fixes, and public changelog |
 | [54](#163-build-54--2026-09-15) | 2026-09-15 | Account Balances bank review (Accept/Decline), terminal 4xx retry fix, multi-account offline isolation, push token lifecycle fix, and test expansion across all platforms |
 | [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
 
 Store copy for every build of this train is in
 [`docs/release-notes/v1.6.3/`](docs/release-notes/v1.6.3/).
+
+---
+
+## [1.6.4 build 55] — 2026-09-15
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.4 (55) — Account Balances bank review, security hardening, memory leak fixes, and public changelog |
+| **Android** | 1.6.4 (versionCode 55) — Account Balances bank review, security hardening, memory leak fixes, and public changelog |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 55 |
+
+> **Build bump.** The build number continues 54 → 55 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> Account Balances bank review, security hardening, memory leak fixes, and public changelog
 
 ---
 
