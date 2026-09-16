@@ -10,7 +10,17 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.6.3 (Build 54) Latest Beta
+1.6.4 (Build 55) Latest Beta
+
+September 15, 2026
+
+**Account Balances bank review, security hardening, memory leak fixes, and public changelog**
+
+- Account Balances bank review, security hardening, memory leak fixes, and public changelog
+
+iOS 1.6.4 (55) Android 1.6.4 (55) Web fihaven.app Server API
+
+1.6.3 (Build 54) Beta
 
 September 15, 2026
 

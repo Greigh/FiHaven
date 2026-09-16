@@ -268,8 +268,8 @@ function main() {
   // 5. README.md
   let readmeContent = fs.readFileSync(PATHS.readme, 'utf8');
   readmeContent = readmeContent.replace(
-    /\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-[^)]+\)\]/,
-    `[![Version](https://img.shields.io/badge/version-${encodeURIComponent(nextVersion)}%20(build%20${nextBuild})-brightgreen)]`
+    /\[!\[Version\]\(https:\/\/img\.shields\.io\/badge\/version-.*?-brightgreen\)/,
+    `[![Version](https://img.shields.io/badge/version-${encodeURIComponent(nextVersion)}%20(build%20${nextBuild})-brightgreen)`
   );
   readmeContent = readmeContent.replace(
     /\|\s*\*\*Live\*\*\s*\(\d+\.\d+\.\d+\s+b\d+\)\s*\|/g,
@@ -300,8 +300,8 @@ function main() {
   // 7. docs/maintainer/store-launch-checklist.md
   let storeChecklist = fs.readFileSync(PATHS.storeChecklist, 'utf8');
   storeChecklist = storeChecklist.replace(
-    /The \*\*current train is \d+\.\d+\.\d+, build \d+ on both stores\*\*/,
-    `The **current train is ${nextVersion}, build ${nextBuild} on both stores**`
+    /The \*\*current train is \d+\.\d+\.\d+,\s*build \d+ on both stores\*\*/,
+    `The **current train is ${nextVersion},\nbuild ${nextBuild} on both stores**`
   );
   storeChecklist = storeChecklist.replace(
     /`versionName \(versionCode\)` \(e\.g\. `\d+\.\d+\.\d+ \(\d+\)`\)/,
