@@ -1,0 +1,22 @@
+# Keeps one draft GitHub release listing the PRs merged since the last
+# release (prereleases included, so the draft is the next build's version).
+# Release notes are still written by hand in CHANGELOG.md and
+# docs/release-notes; this draft is the checklist of what landed.
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+include-pre-releases: true
+categories:
+  - title: 'Features'
+    labels:
+      - 'enhancement'
+  - title: 'Fixes'
+    labels:
+      - 'bug'
+  - title: 'Dependencies'
+    labels:
+      - 'dependencies'
+change-template: '- $TITLE (#$NUMBER)'
+template: |
+  ## Changes since $PREVIOUS_TAG
+
+  $CHANGES
