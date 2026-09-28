@@ -140,13 +140,13 @@ dependencies {
 
     // Plaid Link for in-app bank connections (Pro). Drives the existing
     // /api/plaid link-token + exchange endpoints.
-    implementation("com.plaid.link:sdk-core:6.2.1")
+    implementation("com.plaid.link:sdk-core:6.2.2")
 
     // Google Sign-In via Credential Manager (returns an OIDC ID token we post
     // to /api/auth/oauth/google).
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
 
     // Custom Tabs for the Sign in with Apple web flow.
     implementation("androidx.browser:browser:1.10.0")

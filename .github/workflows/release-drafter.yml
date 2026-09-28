@@ -14,4 +14,9 @@ jobs:
 
     steps:
       - name: Run release drafter
-        uses: release-drafter/release-drafter@v6
+        uses: release-drafter/release-drafter@v7
+        with:
+          # The next marketing version. GitHub's newest release (v1.6.3) lags
+          # the stores, so Release Drafter can't infer it; bump this whenever
+          # a new version train opens.
+          version: 1.6.6

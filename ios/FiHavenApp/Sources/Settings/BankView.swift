@@ -25,7 +25,7 @@ struct BankView: View {
     @State private var status: PlaidStatus?
     @State private var message: BankMessage?
     @State private var busy = false
-    @State private var handler: Handler?
+    @State private var linkSession: PlaidLinkSession?
     @State private var showImportPrompt = false
     @State private var promptAcceptAll = false
     @State private var pendingPromptCount = 0
@@ -266,27 +266,26 @@ struct BankView: View {
     @MainActor
     private func present(token: String) {
         busy = false
-        var config = LinkTokenConfiguration(token: token, onSuccess: { success in
+        let config = LinkTokenConfiguration(token: token, onSuccess: { success in
             ActivePlaidLink.clear()
             let token = success.publicToken
             Task { @MainActor in self.exchange(token) }
-        })
-        config.onExit = { exit in
+        }, onExit: { exit in
             ActivePlaidLink.clear()
             let result = Self.exitMessage(exit, cancelled: "Linking cancelled.")
             Task { @MainActor in self.message = result }
-        }
-        switch Plaid.create(config) {
-        case .success(let h):
-            handler = h
-            ActivePlaidLink.handler = h
+        }, onEvent: nil, onLoad: nil)
+        do {
+            let session = try Plaid.createPlaidLinkSession(configuration: config)
+            linkSession = session
+            ActivePlaidLink.session = session
             if let vc = Self.topViewController() {
-                h.open(presentUsing: .viewController(vc))
+                session.open(using: .viewController(vc))
             } else {
                 ActivePlaidLink.clear()
                 message = .error("Could not present Plaid Link.")
             }
-        case .failure:
+        } catch {
             message = .error("Could not start linking. Please try again.")
         }
     }
@@ -319,26 +318,25 @@ struct BankView: View {
     @MainActor
     private func presentUpdate(token: String, itemId: Int) {
         busy = false
-        var config = LinkTokenConfiguration(token: token, onSuccess: { _ in
+        let config = LinkTokenConfiguration(token: token, onSuccess: { _ in
             ActivePlaidLink.clear()
             Task { @MainActor in self.repaired(itemId) }
-        })
-        config.onExit = { exit in
+        }, onExit: { exit in
             ActivePlaidLink.clear()
             let result = Self.exitMessage(exit, cancelled: "Reconnect cancelled.")
             Task { @MainActor in self.message = result }
-        }
-        switch Plaid.create(config) {
-        case .success(let h):
-            handler = h
-            ActivePlaidLink.handler = h
+        }, onEvent: nil, onLoad: nil)
+        do {
+            let session = try Plaid.createPlaidLinkSession(configuration: config)
+            linkSession = session
+            ActivePlaidLink.session = session
             if let vc = Self.topViewController() {
-                h.open(presentUsing: .viewController(vc))
+                session.open(using: .viewController(vc))
             } else {
                 ActivePlaidLink.clear()
                 message = .error("Could not present Plaid Link.")
             }
-        case .failure:
+        } catch {
             message = .error("Could not start reconnect. Please try again.")
         }
     }
