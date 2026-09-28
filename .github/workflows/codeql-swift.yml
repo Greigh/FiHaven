@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -34,7 +34,7 @@ jobs:
       # LinkKit ships a large binary framework in-repo; re-cloning it every run
       # cost minutes. Keyed on the committed lockfile so a version bump busts it.
       - name: Cache Swift package checkouts
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ios/FiHavenApp/.spm-cache
           key: spm-${{ runner.os }}-${{ hashFiles('ios/FiHavenApp/xcshareddata/swiftpm/Package.resolved') }}

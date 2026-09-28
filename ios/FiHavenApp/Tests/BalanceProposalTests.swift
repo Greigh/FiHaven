@@ -215,12 +215,16 @@ final class BalanceProposalTests: XCTestCase {
     func testResolvedDeduplicationPreservesCapacity() {
         let store = TestStore.make()
         seed(store)
-        seedAccounts(store)
         let p = proposal(id: "c1", current: 2400, fingerprint: "1:2400.00:")
         store.mutate { $0.settings.plaidBalanceProposals = [p] }
-        store.acceptBalanceProposal(store.pendingBalanceProposals()[0])
+        let pending = store.pendingBalanceProposals()[0]
+        store.acceptBalanceProposal(pending)
+        // Re-seeding the same fingerprint must not surface it again — pending
+        // stays empty, so decline the captured proposal (same as Android's
+        // direct resolve) to confirm the memory replaces rather than stacks.
         store.mutate { $0.settings.plaidBalanceProposals = [p] }
-        store.declineBalanceProposal(store.pendingBalanceProposals()[0])
+        XCTAssertTrue(store.pendingBalanceProposals().isEmpty)
+        store.declineBalanceProposal(pending)
 
         let matches = store.data.settings.plaidBalanceResolved.filter { $0["fingerprint"]?.asString == "1:2400.00:" }
         XCTAssertEqual(matches.count, 1, "only one entry retained per fingerprint")

@@ -17,9 +17,10 @@ struct FiHavenApp: App {
                 // Applied above the whole hierarchy so the choice also
                 // covers the auth/loading screens, not just signed-in.
                 .preferredColorScheme(theme.preference.colorScheme)
-                // Complete Google Sign-In and Plaid OAuth Universal Link returns.
+                // Complete Google Sign-In returns; Plaid's OAuth Universal Link
+                // is claimed so it never reaches GIDSignIn.
                 .onOpenURL { url in
-                    if ActivePlaidLink.resume(from: url) { return }
+                    if ActivePlaidLink.claims(url) { return }
                     GIDSignIn.sharedInstance.handle(url)
                 }
                 .onChange(of: scenePhase) { _, phase in

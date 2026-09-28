@@ -36,13 +36,13 @@ packages:
   # existing /api/plaid link-token + exchange endpoints.
   LinkKit:
     url: https://github.com/plaid/plaid-link-ios-spm
-    exactVersion: 6.4.7
+    exactVersion: 7.2.0
   # Google Sign-In: returns an OIDC ID token we post to
   # /api/auth/oauth/google. Needs GIDClientID + the reversed-client-id URL
   # scheme in Info.plist (both set below).
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
-    from: 7.1.0
+    from: 10.0.0
 
 targets:
   FiHaven:
