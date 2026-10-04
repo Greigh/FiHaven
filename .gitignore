@@ -9,6 +9,8 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+.freebuff/
+handoff.md 
 
 # ── Dependencies & build output ──────────────────────────────────────────────
 node_modules/
@@ -37,6 +39,11 @@ mail-server-logins.md
 
 # ── Local runtime data (SQLite + MFA key; created on first `npm run dev`) ───
 /data/
+# A dev server pointed at server/fihaven.db instead of data/cleartab.db leaves
+# a real database in the tree; it is never the file to commit.
+server/*.db
+server/*.db-wal
+server/*.db-shm
 
 # ── Maintainer-local docs (templates live under docs/maintainer/) ────────────
 docs/local/
@@ -63,3 +70,6 @@ ios/FiHavenApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-512.png
 
 # ── Test reports (written by `vitest --reporter=junit`, an artifact) ──────────
 test-report.junit.xml
+
+# Playwright MCP scratch output
+.playwright-mcp/

@@ -40,10 +40,8 @@ const INLINE_SCRIPT_HASHES = [
   "'sha256-mR59x0idOhjPq9cQO1dF3RJ1JNucX4BsdliBrgLrMZM='",
   // application/ld+json structured data — non-executable, but script-src
   // still governs the element. (faq.html's FAQPage, home.html's WebSite graph.)
-  "'sha256-PbWbEur8ikvbId6C8XU7Y75h+iDB9j7GI5xIOqge2ik='",
+  "'sha256-JmmCJ7XOlPsUN8o4/O8o+236nNw+NPJ3Ve0yOztTk4A='",
   "'sha256-XA5shDCeaVFBEBuJ3uT+QIigT2wA/AcS/KIjYvjZziI='",
-  // home.html app-store badge switcher.
-  "'sha256-HDaFQ449HYIS93STaGFZa9VrVx2GQCHO0bGOA+3MJgM='",
   // client/public/ — copied verbatim into dist, not Vite-processed: the OAuth
   // return pages the Android sign-in flow lands on, and the offline fallback
   // page (its retry script must run with no network).

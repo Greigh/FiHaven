@@ -354,6 +354,12 @@ fihaven/
 | `npm run generate:pdfs` | Export `docs/*-policy.md` to `docs/pdf/*.pdf` via headless Chrome (`CHROME_PATH` optional). |
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
+| `npm test` | Vitest run over `client/js`, `server/`, and `tests/integration`. |
+| `npm run csp:hashes` | Regenerate `INLINE_SCRIPT_HASHES` after editing an inline `<script>` in `client/*.html`. |
+| `npm run csp:check` | Verify every inline script's hash is in the CSP allowlist. |
+| `npm run sh:check` | `bash -n` over every `*.sh` in the tree — catches a syntax error before a sweep or deploy finds it. |
+| `npm run notes:check` | Measures the fenced paste blocks in `docs/release-notes/**` against the store caps (Play 500, TestFlight/App Store 4000) and flags a stated count that has drifted from its block. |
+| `npm run ci` | `csp:check` + `sh:check` + `notes:check` + `build`. |
 ---
 
 ## Environment
@@ -997,12 +1003,12 @@ ideas are tracked separately by the maintainers
 | Platform | Status |
 |---|---|
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
-| **iOS** | TestFlight beta — **1.6.1 (6)** — not on the public App Store yet |
-| **Android** | Closed testing on Google Play — **1.6.1 (29)** — public listing coming soon |
+| **iOS** | Live on the [App Store](https://apps.apple.com/app/fihaven-budget-planner/id6781084347) — **1.6.1** |
+| **Android** | Live on [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) — **1.6.1** |
 | **macOS** | Runs as **My Mac (Designed for iPad)** — not a standalone Mac app |
 
-Marketing copy on some public pages still says mobile apps are “coming soon” until
-store listings go live.
+TestFlight and Play testing tracks still carry beta builds ahead of each public
+release — join links are in [CHANGELOG.md](CHANGELOG.md).
 
 ### Platform parity
 

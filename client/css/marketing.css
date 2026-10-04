@@ -565,25 +565,24 @@
   gap: 22px;
   text-align: center;
 }
-.app-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  justify-content: center;
-}
+/* The web badge is a custom pill sharing a row with the official
+   App Store / Google Play artwork — same 51px height and a corner
+   radius matching theirs (~9px at this size). var(--text) /
+   var(--surface) keep it dark-on-light and invert it in dark mode,
+   the same way the Apple badge flips. */
 .app-badge {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 18px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 0 16px;
+  height: 51px;
+  border-radius: 9px;
   background: var(--text);
   color: var(--surface);
-  min-width: 210px;
 }
 .app-badge[aria-disabled="true"] { cursor: default; opacity: .94; }
-/* Every badge is a live link now (web, TestFlight, Play open testing), so they
-   need to read as clickable rather than as static chips. */
+/* display:inline-flex beats the [hidden] UA rule. */
+.app-badge[hidden] { display: none; }
 a.app-badge {
   transition: transform .2s ease, box-shadow .2s ease;
 }
@@ -591,7 +590,7 @@ a.app-badge:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px color-mix(in srgb, var(--text) 22%, transparent);
 }
-.app-badge svg { width: 26px; height: 26px; flex: none; }
+.app-badge svg { width: 23px; height: 23px; flex: none; }
 .app-badge-text {
   display: flex;
   flex-direction: column;

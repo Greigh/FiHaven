@@ -27,6 +27,10 @@ changelog never recorded build numbers, the file is `store-notes.md`.
 | TestFlight — What to Test | 4000 | |
 
 Each file states its own Play count so you can see the headroom before editing.
+`npm run notes:check` ([`scripts/store-notes.js`](../../scripts/store-notes.js))
+enforces all of it — block lengths against the caps and stated counts against
+their blocks — and runs in `npm run ci` and the pre-commit hook when a file
+under this directory is staged.
 
 ## A caveat on the older folders
 

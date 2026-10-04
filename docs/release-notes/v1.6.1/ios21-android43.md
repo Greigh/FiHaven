@@ -18,7 +18,7 @@ Limits: **Google Play "What's new" is 500 characters** per language (hard cap, t
 
 ## Google Play — What's new (en-US)
 
-> 453 / 500 characters (counted with newlines, as the console does).
+> 454 / 500 characters (counted with newlines, as the console does).
 
 ```
 Signing out now stops your bill reminders. They were scheduled on the phone rather than in your account, so they kept arriving — and came back after a restart — until you signed in again.
@@ -37,7 +37,7 @@ Bug fixes and security updates.
 
 ## TestFlight — What to Test
 
-> 3494 / 4000 characters.
+> 3495 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 21
