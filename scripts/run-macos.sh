@@ -476,6 +476,31 @@ install_macos_app() {
     "$ls_register" -f "$dest" >/dev/null 2>&1 || true
   fi
 
+  # An unsigned build still ships the restricted entitlements Xcode embeds for
+  # the App Store target — application-identifier, team-identifier, the
+  # developer.* grants, the sandbox — and the kernel kills a process whose
+  # entitlements its signature cannot vouch for (launchd error 162). Keeping
+  # only app-sandbox is not enough either: secinit traps making a container
+  # for a binary with no signing identity. Re-signing ad-hoc with an empty
+  # entitlement set is what makes the installed copy launchable; everything
+  # that was dropped — sandbox, Sign in with Apple, associated domains, the
+  # shipped keychain group — is exactly what --sign buys back.
+  if [ "$SIGN" != "1" ]; then
+    local unsigned_ent
+    unsigned_ent="$(mktemp -t fihaven-unsigned-entitlements)"
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+      '<plist version="1.0"><dict></dict></plist>' >"$unsigned_ent"
+    if codesign --force --deep --sign - --entitlements "$unsigned_ent" "$dest" >/dev/null 2>&1; then
+      echo "run-macos: re-signed ad-hoc, entitlements dropped — unsigned builds cannot keep the shipped sandbox or developer.* grants and still launch"
+    else
+      echo "run-macos: ad-hoc re-sign failed — the installed copy will not launch" >&2
+      rm -f "$unsigned_ent"
+      return 1
+    fi
+    rm -f "$unsigned_ent"
+  fi
+
   # Read back what was installed rather than trusting the copy. The two numbers
   # are the pair the stores are told, so a mismatch here is the file-level check
   # that the bundle that landed is the bundle that was built.
