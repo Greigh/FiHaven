@@ -81,7 +81,9 @@ struct AuthView: View {
                         },
                         onHeight: { h in
                             performWithAnimation(!reduceMotion) { turnstileHeight = min(max(h, 0), 120) }
+                            #if DEBUG
                             revealSecurityCheck()
+                            #endif
                         }
                     )
                     .id(captchaReloadID)
