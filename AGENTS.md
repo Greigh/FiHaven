@@ -15,6 +15,12 @@
   anything beyond `actions/*`. Runner logs: `journalctl -u forgejo-runner`
   on the VPS (root@82.25.91.225).
 
+## Commit style
+
+- NEVER add AI attribution to commits or PRs: no "Generated with Devin",
+  no `Co-Authored-By: Devin`, no tool-name trailers of any kind. Commit
+  messages read as the maintainer's own.
+
 ## Test hygiene
 
 - Anything that loads `server/db.js` must be hermetic: set
