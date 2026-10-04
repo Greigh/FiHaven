@@ -12,9 +12,11 @@ A focused bill and debt dashboard for people who'd rather spend a calm five minu
 
 [Create your free account](https://fihaven.app/login) See how it works
 
+[![Download on the App Store]()](https://apps.apple.com/app/fihaven-budget-planner/id6781084347) [![Get it on Google Play]()](https://play.google.com/store/apps/details?id=app.fihaven)
+
 - No credit card required
 - Hashed passwords, secure sessions
-- Synced on web, iPhone & iPad
+- Synced on web, iPhone, iPad & Android
 - On the App Store & Google Play
 - MFA, passkeys & bio-lock
 
@@ -148,7 +150,7 @@ Everywhere you are
 
 One account syncs across the web app and both native clients. Add a bill on your phone, mark it paid on your laptop — same data, same calm dashboard. Bank linking and Pro work everywhere. FiHaven is live on the App Store and Google Play today.
 
-[Download on the**App Store**](https://apps.apple.com/us/app/fihaven/id6781084347) [Get it on**Google Play**](https://play.google.com/store/apps/details?id=app.fihaven)
+[Use it now on the**Web**](https://fihaven.app/login) [![Download on the App Store]()](https://apps.apple.com/app/fihaven-budget-planner/id6781084347) [![Get it on Google Play]()](https://play.google.com/store/apps/details?id=app.fihaven)
 
 Same account on web, iPhone, iPad, and Android. Mac users can run the iPad app on Apple Silicon. Questions? [daniel@fihaven.app](mailto:daniel@fihaven.app).
 

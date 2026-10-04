@@ -22,7 +22,7 @@ Confused by a feature, stuck on onboarding, promo code didn’t work, or a charg
 
 #### Getting the apps
 
-FiHaven is on [the App Store](https://apps.apple.com/us/app/fihaven/id6781084347) and [Google Play](https://play.google.com/store/apps/details?id=app.fihaven). Trouble installing or signing in?
+FiHaven is on the [App Store](https://apps.apple.com/app/fihaven-budget-planner/id6781084347) and [Google Play](https://play.google.com/store/apps/details?id=app.fihaven), plus the web app. Trouble installing or signing in?
 
 [daniel@fihaven.app](mailto:daniel@fihaven.app)
 

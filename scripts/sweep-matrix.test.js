@@ -550,17 +550,15 @@ describe('the signed-out samples', () => {
     const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     const introView = read('ios/FiHavenApp/Sources/Auth/IntroView.swift');
     const authView = read('ios/FiHavenApp/Sources/Auth/AuthView.swift');
-    const turnstile = read('ios/FiHavenApp/Sources/Auth/TurnstileView.swift');
     expect(introView).toContain('[IntroView] showing step');
     expect(authView).toContain('[AuthView] sign-in screen shown');
-    // The stalled sample asks for the reveal transition. The log line
-    // interpolates the enum, so what the source can be checked for is the
-    // template and the three cases it can print.
-    expect(authView).toContain('security check \\(captchaReveal) -> \\(next)');
-    expect(authView).toContain('security check deadline reached');
-    for (const c of ['case hidden', 'case shown', 'case shownFresh']) {
-      expect(turnstile, `CaptchaReveal should still declare ${c}`).toContain(c);
-    }
+    // The stalled sample asks for the reveal transition. This tree's app
+    // hides the widget behind `turnstileHidden` and reveals it on the first
+    // height report or the 12 s deadline — both funnel through
+    // revealSecurityCheck(), which logs the line the sample greps for.
+    expect(authView).toContain('turnstileHidden = true');
+    expect(authView).toContain('revealSecurityCheck()');
+    expect(authView).toContain('security check hidden -> shown');
     // And the flags the env asks for are real hooks.
     expect(read('ios/FiHavenApp/Sources/App/AppEnvironment.swift')).toContain('FH_SIGNED_OUT');
     expect(read('ios/FiHavenApp/Sources/RootView.swift')).toContain('FH_INTRO_SEEN');
