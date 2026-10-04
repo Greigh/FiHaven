@@ -46,7 +46,7 @@ const INLINE_SCRIPT_HASHES = [
   // application/ld+json structured data — non-executable, but script-src
   // still governs the element. One per page that carries a graph.
   "'sha256-cOlgc+GH17pvyWW6f1tDQh9ZzNGB1wFfeuSQoE605c8='",   // bill-tracker-app
-  "'sha256-d+3PmsTGuTjmuLoKnV5RQKZuH0ChLzEdxqHWwt4Tlns='",   // contact
+  "'sha256-g0FGBI7AUn2yMmoJEuzzc1Rfgl4rHyiOIC4jNZBEmLk='",   // contact
   "'sha256-uQ3OJDm1QL/5f/FCOuUNFI2uh6PjLMcHFfZ071hot64='",   // faq
   "'sha256-7zmQDR95YJ8xn8dUHL9gYujafeBDphRdFMECgTpJb24='",   // home
   "'sha256-UuB16srnzFcaJreOuqElKFG4R2dbS6z8IXF7v8I+4iw='",   // mint-alternative

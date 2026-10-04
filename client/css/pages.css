@@ -1143,7 +1143,7 @@ input[type="file"]::file-selector-button:hover {
 
 /* ── Official store badges ───────────────────────────────────
    The unmodified Apple and Google badge artwork (public/) shared
-   by the hero, the apps section, and every public footer.
+   by the hero and the apps section.
 
    --badge-h is the shared *visual* height. Google's official PNG
    ships ~16% transparent padding on every side (564×168 of art
@@ -1181,13 +1181,6 @@ input[type="file"]::file-selector-button:hover {
 .marketing-hero-text .store-badges,
 .marketing-apps .store-badges {
   --badge-h: 51px;
-}
-
-/* Full-width row under the footer links, centered. */
-.site-footer-badges {
-  grid-column: 1 / -1;
-  justify-self: center;
-  padding-top: 2px;
 }
 
 .legal-page {

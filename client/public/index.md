@@ -152,7 +152,7 @@ One account syncs across the web app and both native clients. Add a bill on your
 
 [Use it now on the**Web**](https://fihaven.app/login) [![Download on the App Store]()](https://apps.apple.com/app/fihaven-budget-planner/id6781084347) [![Get it on Google Play]()](https://play.google.com/store/apps/details?id=app.fihaven)
 
-Same account on web, iPhone, iPad, and Android. Mac users can run the iPad app on Apple Silicon. Questions? [daniel@fihaven.app](mailto:daniel@fihaven.app).
+Same account on web, iPhone, iPad, and Android. Mac users can run the iPad app on Apple Silicon. Questions? [support@fihaven.app](mailto:support@fihaven.app).
 
 ## Take a quiet five minutes back.
 
