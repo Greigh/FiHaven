@@ -757,7 +757,12 @@ the template: `bash scripts/examples/rollback.example.sh --list` — see
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run paddle:webhook` | Local Paddle webhook signature/delivery check. |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
-
+| `npm test` | Vitest run over `client/js`, `server/`, and `tests/integration`. |
+| `npm run csp:hashes` | Regenerate `INLINE_SCRIPT_HASHES` after editing an inline `<script>` in `client/*.html`. |
+| `npm run csp:check` | Verify every inline script's hash is in the CSP allowlist. |
+| `npm run sh:check` | `bash -n` over every `*.sh` in the tree — catches a syntax error before a sweep or deploy finds it. |
+| `npm run notes:check` | Measures the fenced paste blocks in `docs/release-notes/**` against the store caps (Play 500, TestFlight/App Store 4000) and flags a stated count that has drifted from its block. |
+| `npm run ci` | `csp:check` + `sitemap:check` + `markdown:check` + `sh:check` + `notes:check` + `build`. |
 ---
 
 ## Environment

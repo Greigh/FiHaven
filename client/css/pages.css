@@ -1141,6 +1141,55 @@ input[type="file"]::file-selector-button:hover {
   border-bottom-color: var(--accent);
 }
 
+/* ── Official store badges ───────────────────────────────────
+   The unmodified Apple and Google badge artwork (public/) shared
+   by the hero, the apps section, and every public footer.
+
+   --badge-h is the shared *visual* height. Google's official PNG
+   ships ~16% transparent padding on every side (564×168 of art
+   inside 646×250), so it renders ~1.49× and pulls the padding back
+   with negative margins to land at the same height as Apple's SVG. */
+.store-badges {
+  --badge-h: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.store-badge {
+  display: inline-flex;
+  transition: transform .2s ease;
+}
+
+.store-badge:hover {
+  transform: translateY(-2px);
+}
+
+.store-badge img {
+  display: block;
+  height: var(--badge-h);
+  width: auto;
+}
+
+.store-badge img.store-badge-play {
+  height: calc(var(--badge-h) * 1.488);
+  margin: calc(var(--badge-h) * -0.244) 0;
+}
+
+/* Hero and apps section: sized to match the .btn-lg call to action. */
+.marketing-hero-text .store-badges,
+.marketing-apps .store-badges {
+  --badge-h: 51px;
+}
+
+/* Full-width row under the footer links, centered. */
+.site-footer-badges {
+  grid-column: 1 / -1;
+  justify-self: center;
+  padding-top: 2px;
+}
+
 .legal-page {
   width: min(900px, calc(100% - 24px));
   margin: 0 auto;

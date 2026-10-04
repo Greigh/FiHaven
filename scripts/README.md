@@ -11,6 +11,8 @@
 | [`generate-icons.sh`](generate-icons.sh) | Regenerate iOS/Android launcher icons from `client/public/icon.svg` (`npm run generate:icons`). |
 | [`ios-testflight.sh`](ios-testflight.sh) | Archive FiHaven for iOS and upload to App Store Connect / TestFlight (`./scripts/ios-testflight.sh`). |
 | [`mail-check.js`](mail-check.js) | Outbound-email smoke test — verifies SMTP reachability and (with a recipient arg) sends a test message. Reads `SMTP_*` / `MAIL_FROM` / `MAIL_CHECK_TO` from `.env`; `upload.sh` runs it post-deploy. |
+| [`sh-parse.js`](sh-parse.js) | `bash -n` over every `*.sh` in the tree (`npm run sh:check`); run by the pre-commit hook and `npm run ci`. |
+| [`store-notes.js`](store-notes.js) | Measures the fenced paste blocks in `docs/release-notes/**` against the store character caps and flags stated counts that have drifted (`npm run notes:check`); run by the pre-commit hook and `npm run ci`. |
 | [`examples/upload.example.sh`](examples/upload.example.sh) | Deploy template — copy to gitignored `upload.sh` at repo root. |
 | [`examples/rollback.example.sh`](examples/rollback.example.sh) | Restore a pre-deploy backup on the VPS (`npm run rollback`). |
 | [`dev/generate-pdfs.js`](dev/generate-pdfs.js) | Export `docs/*-policy.md` to `docs/pdf/` (`npm run generate:pdfs`). Local maintainer tool. |
