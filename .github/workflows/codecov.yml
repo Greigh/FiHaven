@@ -24,8 +24,14 @@ jobs:
       - name: Run tests
         run: npx vitest run --coverage
 
+      # Forgejo resolves `uses:` against data.forgejo.org, which mirrors
+      # actions/* but not codecov/* — the action clone 404s and the whole job
+      # dies before checkout. The standalone CLI uploads from anywhere.
       - name: Upload results to Codecov
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          curl -sSfLo /tmp/codecov-cli https://cli.codecov.io/latest/linux/codecov
+          chmod +x /tmp/codecov-cli
+          /tmp/codecov-cli upload-process -t "$CODECOV_TOKEN" || true
         if: ${{ !cancelled() }}

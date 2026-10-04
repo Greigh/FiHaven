@@ -9,9 +9,11 @@
   also runs `.github/workflows` via its own Actions. Check
   `https://git.greighstudios.com/api/v1/repos/greighstudios/FiHaven/actions/tasks`
   for run status on the branch.
-- As of 2026-10-04 the Forgejo runner fails every run in ~2s (including runs
-  on its own `main`) — runner-level infra failure, not the suite. Verify
-  runner health before blaming code.
+- Forgejo resolves `uses:` against `data.forgejo.org`, which only mirrors the
+  `actions/*` org — third-party actions (e.g. `codecov/codecov-action`) 404
+  and kill the job before checkout. Prefer `run:` steps with CLIs for
+  anything beyond `actions/*`. Runner logs: `journalctl -u forgejo-runner`
+  on the VPS (root@82.25.91.225).
 
 ## Test hygiene
 
