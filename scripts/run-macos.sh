@@ -281,9 +281,11 @@ if [ "$BUILD" = "1" ]; then
     exit 1
   fi
   # The project is generated (and git-ignored), so regenerate it when the spec
-  # is newer — otherwise a change to project.yml, like a new scheme variable or
-  # a new source file, silently does not reach the build.
-  if [ ! -d "$PROJECT" ] || [ "$SPEC" -nt "$PROJECT/project.pbxproj" ]; then
+  # is newer — or when any source file is, since a new .swift file does not
+  # touch project.yml at all — otherwise a change to project.yml, like a new
+  # scheme variable or a new source file, silently does not reach the build.
+  if [ ! -d "$PROJECT" ] || [ "$SPEC" -nt "$PROJECT/project.pbxproj" ] \
+    || [ -n "$(find "$PROJECT_DIR/Sources" -name '*.swift' -newer "$PROJECT/project.pbxproj" -print -quit 2>/dev/null)" ]; then
     (cd "$PROJECT_DIR" && xcodegen generate >/dev/null)
   fi
   # Signing is a *build setting* rather than a `codesign` afterwards, so

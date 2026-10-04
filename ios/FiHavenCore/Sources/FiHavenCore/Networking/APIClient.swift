@@ -45,6 +45,13 @@ public final class APIClient: Sendable {
         if let token = tokens.get() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        #if DEBUG
+        // Sweep diagnosis: fhLog is app-module only, so the core writes
+        // stderr directly — same unbuffered channel fhLog uses.
+        if ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1" {
+            FileHandle.standardError.write(Data(("[API] \(path) token=\(req.value(forHTTPHeaderField: "Authorization") != nil)\n").utf8))
+        }
+        #endif
         if tokenMode {
             req.setValue("token", forHTTPHeaderField: "X-Auth-Mode")
         }
@@ -66,6 +73,21 @@ public final class APIClient: Sendable {
     /// `internal` so the account/MFA extension can reuse it.
     @discardableResult
     func send(_ req: URLRequest) async throws -> Data {
+        #if DEBUG
+        // FH_FAULT is how a sweep photographs a dead server: it fails the
+        // data calls while leaving /api/auth alone — pointing FH_BASE at a
+        // dead port would break sign-in too, and every capture would be the
+        // same auth screen.
+        if let fault = ProcessInfo.processInfo.environment["FH_FAULT"],
+           !fault.isEmpty,
+           let path = req.url?.path, !path.hasPrefix("/api/auth/") {
+            switch fault {
+            case "transport": throw APIError.transport("FH_FAULT=transport")
+            case "api": throw APIError.http(status: 503, code: "fh-fault")
+            default: break
+            }
+        }
+        #endif
         let data: Data
         let response: URLResponse
         do {

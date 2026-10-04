@@ -196,5 +196,10 @@ struct IntroView: View {
             .padding(.horizontal, 24)
         }
         .padding(.bottom, 30)
+        #if DEBUG
+        // Evidence for the sweep's signed-out "intro" sample: the log has to
+        // say the tour is what's on screen.
+        .onAppear { fhLog("[IntroView] showing step \(step + 1)") }
+        #endif
     }
 }

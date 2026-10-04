@@ -22,8 +22,10 @@ if (process.env.FIHAVEN_DB_PATH && !process.env.FIHAVEN_TEST_DB_PATH) {
   process.env.FIHAVEN_TEST_DB_PATH = process.env.FIHAVEN_DB_PATH;
 }
 
+const bcrypt = require('bcrypt');
 const dbApi = require('../server/db');
 const billing = require('../server/billing');
+const { ACTIVE_BCRYPT_COST } = require('../server/util');
 
 function monthKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -118,9 +120,13 @@ function buildSampleData() {
 function usage() {
   console.log(`FiHaven sample data seeder
 
-  seed-user-data.js <email> [--force] [--verify] [--onboard] [--pro]
+  seed-user-data.js <email> [--create --password P] [--empty] [--force]
+                      [--verify] [--onboard] [--pro]
                       [--pro-since-days N] [--name "Display Name"]
 
+  --create           Create the account when it does not exist (--password required)
+  --password         Password for --create (hashed with the app's bcrypt cost)
+  --empty            Leave the account with no rows (paired with --force, clears any it has)
   --force            Replace existing data even when bills/cards are present
   --verify           Mark the account email-verified
   --onboard          Mark first-run onboarding complete
@@ -140,6 +146,9 @@ function parseFlags(argv) {
   const flags = new Set(argv.filter((a) => a.startsWith('--')).map((a) => a.slice(2).split('=')[0]));
   return {
     email,
+    create: flags.has('create'),
+    empty: flags.has('empty'),
+    password: getVal('password'),
     force: flags.has('force'),
     verify: flags.has('verify'),
     onboard: flags.has('onboard'),
@@ -172,26 +181,37 @@ function grantCompPro(userId, proSinceDays) {
 }
 
 function main() {
-  const { email, force, verify, onboard, pro, proSinceDays, name } = parseFlags(process.argv.slice(2));
+  const { email, create, empty, password, force, verify, onboard, pro, proSinceDays, name } = parseFlags(process.argv.slice(2));
   if (!email) {
     usage();
     process.exit(1);
   }
 
-  const user = dbApi.findUserByEmail(email.trim().toLowerCase());
+  let user = dbApi.findUserByEmail(email.trim().toLowerCase());
   if (!user) {
-    console.error(`✗ No user "${email}". Create the account first, then re-run.`);
-    process.exit(1);
+    if (!create) {
+      console.error(`✗ No user "${email}". Create the account first, or pass --create --password <pw>.`);
+      process.exit(1);
+    }
+    if (!password) {
+      console.error('✗ --create needs --password <pw> — the sweep account has to be able to sign in.');
+      process.exit(1);
+    }
+    const hash = bcrypt.hashSync(password, ACTIVE_BCRYPT_COST);
+    user = dbApi.createUser(email.trim().toLowerCase(), hash);
+    console.log(`  Created user #${user.id}`);
   }
 
   const existing = dbApi.getUserData(user.id);
   const hasData = existing.bills.length > 0 || existing.cards.length > 0;
-  if (hasData && !force) {
+  if (hasData && !force && !empty) {
     console.log(`○ ${email} already has data (${existing.bills.length} bills, ${existing.cards.length} cards). Use --force to replace.`);
     process.exit(0);
   }
 
-  const data = buildSampleData();
+  const data = empty
+    ? { bills: [], cards: [], payments: [], accounts: [], goals: [], transactions: [], settings: {} }
+    : buildSampleData();
   dbApi.upsertUserData(user.id, data);
 
   const now = Date.now();

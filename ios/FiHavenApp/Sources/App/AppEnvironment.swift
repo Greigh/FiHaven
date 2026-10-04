@@ -29,22 +29,40 @@ final class AppEnvironment: ObservableObject {
     /// that an account was deleted, which the user sees after being returned
     /// to sign-in. Cleared on the next sign-in attempt.
     @Published var authNotice: String?
+    /// Set when the Keychain refused to persist this launch's session token —
+    /// the Mac banner reads it. Nothing sets it on this branch; the producer
+    /// (`KeychainTokenStore.takeWriteRefusal`) arrives with the session-
+    /// persistence half of the release train.
+    @Published var sessionSaveNotice: String?
     @Published private(set) var working = false
     @Published private(set) var store: AppStore?
 
     private var authStartedAt = APIClient.now()
 
     init() {
-        let tokenStore = KeychainTokenStore(service: "app.fihaven")
+        #if DEBUG
+        // Unsigned builds (simulator sweeps, direct-exec) have no
+        // application-identifier, so the keychain rejects every item with
+        // errSecMissingEntitlement — the token silently never persists, the
+        // first data call 401s, and the session flips straight back to
+        // signed-out. FH_AUTOLOGIN identifies a harness launch; it keeps the
+        // token in memory instead, which is all a one-launch capture needs.
+        let tokenStore: TokenStore =
+            ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1"
+                ? InMemoryTokenStore()
+                : KeychainTokenStore(service: "app.fihaven")
+        #else
+        let tokenStore: TokenStore = KeychainTokenStore(service: "app.fihaven")
+        #endif
         let config = Self.resolveConfig()
-        print("[AppEnvironment] API base URL = \(config.baseURL.absoluteString)")
+        fhLog("[AppEnvironment] API base URL = \(config.baseURL.absoluteString)")
         let api = APIClient(config: config, tokens: tokenStore)
         self.tokens = tokenStore
         self.api = api
         self.billing = StoreManager(api: api)
         self.session = .signedOut
         PushRegistrar.shared.configure(api: api)
-        print("[AppEnvironment] Initialized — deferring bootstrap to first view task")
+        fhLog("[AppEnvironment] Initialized — deferring bootstrap to first view task")
     }
 
     /// Pick the API base URL. A `FH_BASE` environment variable (set in the
@@ -80,12 +98,25 @@ final class AppEnvironment: ObservableObject {
     func markAuthStarted() { authStartedAt = APIClient.now() }
 
     func bootstrap() async {
-        print("[AppEnvironment] bootstrap() begin")
+        fhLog("[AppEnvironment] bootstrap() begin")
+        #if DEBUG
+        // FH_SIGNED_OUT=1 keeps a session an earlier sweep cell left in the
+        // keychain from putting the signed-in shell back on screen. It must
+        // also beat FH_AUTOLOGIN: the sweep exports autologin for every cell,
+        // signed-out ones included, so clearing alone would sign straight
+        // back in and every intro/auth capture would be the dashboard.
+        if ProcessInfo.processInfo.environment["FH_SIGNED_OUT"] == "1" {
+            tokens.clear()
+            session = .signedOut
+            fhLog("[AppEnvironment] bootstrap() FH_SIGNED_OUT; session=signedOut")
+            return
+        }
+        #endif
         if tokens.get() != nil {
             do {
                 if let user = try await api.me() {
                     await enterSignedIn(user)
-                    print("[AppEnvironment] bootstrap() restored session; entering signed-in")
+                    fhLog("[AppEnvironment] bootstrap() restored session; entering signed-in")
                     return
                 }
                 // The server answered and said this token belongs to nobody, so
@@ -110,11 +141,11 @@ final class AppEnvironment: ObservableObject {
                 startedAtOverride: APIClient.now() - 3000
             )
             if case .loading = session { session = .signedOut }
-            print("[AppEnvironment] bootstrap() auto-login path completed; session=\(String(describing: session))")
+            fhLog("[AppEnvironment] bootstrap() auto-login path completed; session=\(String(describing: session))")
             return
         }
         session = .signedOut
-        print("[AppEnvironment] bootstrap() finished; session=signedOut")
+        fhLog("[AppEnvironment] bootstrap() finished; session=signedOut")
     }
 
     func login(
@@ -277,13 +308,13 @@ final class AppEnvironment: ObservableObject {
     // ── helpers ──────────────────────────────────────────────────────
 
     private func enterSignedIn(_ user: User, fresh: Bool = false) async {
-        print("[AppEnvironment] enterSignedIn(fresh:\(fresh)) begin")
+        fhLog("[AppEnvironment] enterSignedIn(fresh:\(fresh)) begin")
         // Unconfirmed email → the verify screen, never the dashboard. The
         // server also returns email-unverified on data calls, but gating
         // here avoids loading the store at all.
         guard user.emailVerified else {
             session = .unverified(user)
-            print("[AppEnvironment] enterSignedIn end; session=\(session)")
+            fhLog("[AppEnvironment] enterSignedIn end; session=\(session)")
             return
         }
         // A fresh password/MFA sign-in already authenticated the user, so
@@ -308,16 +339,22 @@ final class AppEnvironment: ObservableObject {
         // flicker, then start StoreKit (authoritative refresh + listener).
         billing.seed(store.data.entitlement)
         #if DEBUG
+        // FH_DEV_ENTITLEMENT wins over the seeded value — applied here so it
+        // holds even when StoreKit start is skipped, which is the sweep's
+        // default shape.
+        billing.applyDevEntitlement()
+        #endif
+        #if DEBUG
         // Default to skipping StoreKit in Debug unless explicitly overridden
         if ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] == "0" {
             await billing.start()
         } else {
-            print("[AppEnvironment] Skipping StoreKit start (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
+            fhLog("[AppEnvironment] Skipping StoreKit start (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
         }
         #else
         await billing.start()
         #endif
-        print("[AppEnvironment] enterSignedIn end; session=\(session)")
+        fhLog("[AppEnvironment] enterSignedIn end; session=\(session)")
     }
 
     private func runAuth(_ op: @escaping () async throws -> Void) async {

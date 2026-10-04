@@ -104,13 +104,26 @@ struct MoreView: View {
     }
 
     /// DEBUG: `FH_ROUTE=budget` auto-pushes a sub-screen for screenshots.
+    /// `FH_SCREEN` does the same when the sweep named a screen that lives
+    /// here — MainTabView already landed on "more" for those — but a bottom
+    /// bar name must not push a copy of itself if More is opened later.
     private func applyDebugRoute() {
         #if DEBUG
-        guard path.isEmpty,
-              let raw = ProcessInfo.processInfo.environment["FH_ROUTE"] else { return }
+        guard path.isEmpty else { return }
+        let e = ProcessInfo.processInfo.environment
+        let raw: String
+        if let route = e["FH_ROUTE"] {
+            raw = route
+        } else if let screen = e["FH_SCREEN"] {
+            if let item = TabItem(rawValue: screen), !overflow.contains(item) { return }
+            raw = screen
+        } else { return }
         if raw == "pro" { path.append(MoreDest.pro) }
         else if raw == "settings" { path.append(MoreDest.settings) }
+        else if raw == "about" { path.append(MoreDest.about) }
         else if let item = TabItem(rawValue: raw) { path.append(MoreDest.tab(item)) }
+        else { return }
+        SweepProbe.renderedScreen = raw
         #endif
     }
 }
