@@ -21,6 +21,11 @@ struct AuthView: View {
     /// doesn't trip it, short enough that nobody is left guessing.
     private static let captchaDeadline: Duration = .seconds(12)
 
+    /// DEBUG + `FH_TURNSTILE_SITEKEY` only: the widget mounts invisible and
+    /// reveals when Cloudflare draws it, or at a deadline when it can't —
+    /// the stalled state the sweep photographs.
+    @State private var turnstileHidden = false
+
     var body: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
@@ -76,9 +81,11 @@ struct AuthView: View {
                         },
                         onHeight: { h in
                             performWithAnimation(!reduceMotion) { turnstileHeight = min(max(h, 0), 120) }
+                            revealSecurityCheck()
                         }
                     )
                     .id(captchaReloadID)
+                    .opacity(turnstileHidden ? 0 : 1)
                     .frame(height: turnstileHeight)
                     .frame(maxWidth: .infinity)
                     .transition(.opacity)
@@ -202,11 +209,41 @@ struct AuthView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
-        .onAppear { env.markAuthStarted() }
+        .onAppear {
+            env.markAuthStarted()
+            #if DEBUG
+            fhLog("[AuthView] sign-in screen shown")
+            if ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil {
+                turnstileHidden = true
+            }
+            #endif
+        }
         // Conditional-UI passkey check: surfaces a saved passkey in the
         // QuickType bar while the email field is focused (silent otherwise).
         .task { await env.loginWithPasskey(auto: true) }
+        #if DEBUG
+        // The stalled-check deadline: under a FH_TURNSTILE_SITEKEY override
+        // the widget stays hidden until Cloudflare draws it (onHeight), and
+        // at 12 s it shows anyway — an answer that can't be answered should
+        // still be something a person can see.
+        .task {
+            guard ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil else { return }
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
+            revealSecurityCheck()
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Shows the Turnstile widget once, logging the reveal the auth-stalled
+    /// sweep sample greps for. Both reveal paths funnel here — the first
+    /// height report (Cloudflare drew it) and the deadline (it didn't).
+    private func revealSecurityCheck() {
+        guard turnstileHidden else { return }
+        turnstileHidden = false
+        fhLog("[AuthView] security check hidden -> shown")
+    }
+    #endif
 
     private var canSubmit: Bool {
         !env.working && email.contains("@") && password.count >= 6 && captchaToken != nil
@@ -300,12 +337,12 @@ struct AuthView: View {
                 // Backing out of the sheet is a deliberate choice, not an error
                 // worth shouting about.
                 if ns.code == GIDSignInError.canceled.rawValue { return }
-                print("[AuthView] Google sign-in failed: \(ns.domain) \(ns.code) — \(ns.localizedDescription)")
+                fhLog("[AuthView] Google sign-in failed: \(ns.domain) \(ns.code) — \(ns.localizedDescription)")
                 env.authError = "Google sign-in failed. \(ns.localizedDescription)"
                 return
             }
             guard let idToken = result?.user.idToken?.tokenString else {
-                print("[AuthView] Google sign-in returned no ID token")
+                fhLog("[AuthView] Google sign-in returned no ID token")
                 env.authError = "Google didn't return a sign-in token. Please try again."
                 return
             }

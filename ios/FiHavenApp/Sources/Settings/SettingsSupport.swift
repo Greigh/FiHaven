@@ -22,15 +22,6 @@ enum CommonTimeZones {
     }
 }
 
-/// Decode a `data:image/...;base64,XXXX` URL into a UIImage (the TOTP QR).
-func imageFromDataURL(_ string: String) -> UIImage? {
-    guard let commaIndex = string.firstIndex(of: ","),
-          let data = Data(base64Encoded: String(string[string.index(after: commaIndex)...])) else {
-        return nil
-    }
-    return UIImage(data: data)
-}
-
 /// Wraps UIActivityViewController for share/export.
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]

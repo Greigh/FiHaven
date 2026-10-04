@@ -46,8 +46,21 @@ struct MainTabView: View {
             if ProcessInfo.processInfo.environment["FH_SCREEN"] == "paywall" {
                 debugPaywall = true
             }
+            // A sweep's screen choice wins over the synced landingView, and
+            // the via= line is how the run's log says where it went — the
+            // table's "rendered" check reads it because a PNG cannot say
+            // which screen it is.
+            if let (raw, sel, via) = debugSelection() {
+                selection = sel
+                didApplyLanding = true
+                fhLog("[Shell] screen=\(raw) via=\(via)")
+            }
+            SweepProbe.renderedScreen = selection
             #endif
         }
+        #if DEBUG
+        .onChange(of: selection) { _, new in SweepProbe.renderedScreen = new }
+        #endif
         // Open to the user's saved default view, once the data has loaded.
         .task(id: store.loaded) {
             guard store.loaded, !didApplyLanding, let t = landingSelection() else { return }
@@ -82,6 +95,27 @@ struct MainTabView: View {
         guard let lv = store.data.settings.landingView, let item = TabItem(rawValue: lv) else { return nil }
         return shownBottom.contains(item) ? item.rawValue : "more"
     }
+
+    #if DEBUG
+    /// `FH_SCREEN`/`FH_TAB`/`FH_ROUTE` → (name, shell tag, route). A bottom-bar
+    /// tab selects itself (`via=tab`); a screen that lives under "More" selects
+    /// `more` and MoreView pushes the destination onto its stack (`via=more`) —
+    /// the same hop a tap takes. `nil` means the name doesn't route, so the
+    /// capture's `screen=` says what actually rendered instead.
+    private func debugSelection() -> (String, String, String)? {
+        let e = ProcessInfo.processInfo.environment
+        guard let raw = e["FH_SCREEN"] ?? e["FH_TAB"] ?? e["FH_ROUTE"] else { return nil }
+        if raw == "paywall" { return nil }
+        if raw == "getpro" { return billing.isPro ? nil : (raw, "getpro", "tab") }
+        if let item = TabItem(rawValue: raw) {
+            return shownBottom.contains(item)
+                ? (raw, item.rawValue, "tab")
+                : (raw, "more", "more")
+        }
+        if raw == "pro" || raw == "settings" || raw == "about" { return (raw, "more", "more") }
+        return nil
+    }
+    #endif
 
     /// DEBUG: `FH_TAB=bills` (etc.) picks the launch tab for screenshots.
     static func initialTab() -> String {
