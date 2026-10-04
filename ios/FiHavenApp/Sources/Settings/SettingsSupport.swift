@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Curated IANA timezones for the Settings picker (mirrors tz.js).
 enum CommonTimeZones {
@@ -23,6 +25,7 @@ enum CommonTimeZones {
 }
 
 /// Wraps UIActivityViewController for share/export.
+#if os(iOS)
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -30,6 +33,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+#endif
 
 struct ShareItem: Identifiable {
     let id = UUID()

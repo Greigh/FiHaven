@@ -5,7 +5,7 @@ import FiHavenCore
 enum MoreDest: Hashable { case tab(TabItem), pro, settings, about }
 
 /// External links surfaced from "More" → "Help & feedback".
-private enum MoreLink {
+enum MoreLink {
     static let website = URL(string: "https://fihaven.app/")!
     static let github = URL(string: "https://github.com/Greigh/FiHaven")!
     static let bugReport = URL(string: "https://github.com/Greigh/FiHaven/issues/new?template=bug_report.md")!
@@ -57,7 +57,7 @@ struct MoreView: View {
                         .listRowSeparator(.hidden)
                 }
             }
-            .listStyle(.insetGrouped)
+            .ctGroupedList()
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())

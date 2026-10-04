@@ -32,8 +32,8 @@ struct ReauthField: View {
             } else {
                 HStack {
                     TextField("6-digit code", text: $code)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
+                        .ctKeyboardType(.numberPad)
+                        .ctTextContentType(.oneTimeCode)
                         .onChange(of: code) { _, new in proof = .emailedCode(new) }
                     Button(sending ? "Sending…" : (sent ? "Resend" : "Send code")) {
                         Task { await send() }

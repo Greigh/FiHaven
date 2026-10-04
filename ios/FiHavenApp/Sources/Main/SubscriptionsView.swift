@@ -251,15 +251,15 @@ private struct ManageLinkSheet: View {
             Form {
                 Section {
                     TextField("https://…/account/subscriptions", text: $url)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
+                        .ctAutocapitalization(.never)
+                        .ctKeyboardType(.URL)
                         .autocorrectionDisabled()
                 } footer: {
                     Text(message ?? "Saves to your bill when linked, and can be shared with FiHaven.")
                 }
             }
             .navigationTitle(item.manageUrl == nil ? "Add manage link" : "Change manage link")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

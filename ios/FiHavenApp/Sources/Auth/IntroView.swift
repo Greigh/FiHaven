@@ -57,7 +57,9 @@ struct IntroView: View {
                     heroView(pages[i]).tag(i)
                 }
             }
+            #if canImport(UIKit)
             .tabViewStyle(.page(indexDisplayMode: .never))
+            #endif
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

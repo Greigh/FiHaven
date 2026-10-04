@@ -259,7 +259,7 @@ struct GoalEditorView: View {
                 }
             }
             .navigationTitle(goal == nil ? "New Goal" : "Edit Goal")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -344,7 +344,7 @@ struct TransactionEditorView: View {
                 }
             }
             .navigationTitle(edit == nil ? "Add transaction" : "Edit transaction")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -405,7 +405,7 @@ struct CategoryBudgetsView: View {
                     }
                 }
             }
-            .navigationTitle("Category budgets").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Category budgets").ctInlineTitle()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }

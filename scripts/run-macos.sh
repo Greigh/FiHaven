@@ -479,22 +479,56 @@ install_macos_app() {
   # An unsigned build still ships the restricted entitlements Xcode embeds for
   # the App Store target — application-identifier, team-identifier, the
   # developer.* grants, the sandbox — and the kernel kills a process whose
-  # entitlements its signature cannot vouch for (launchd error 162). Keeping
-  # only app-sandbox is not enough either: secinit traps making a container
-  # for a binary with no signing identity. Re-signing ad-hoc with an empty
-  # entitlement set is what makes the installed copy launchable; everything
-  # that was dropped — sandbox, Sign in with Apple, associated domains, the
-  # shipped keychain group — is exactly what --sign buys back.
+  # signature cannot vouch for them (launchd error 162). What gets re-signed
+  # here depends on the best identity on the machine:
+  #
+  #   Developer ID — a real signature, so the security.* set survives; only the
+  #     profile-gated keys come out (identifiers, get-task-allow, aps, every
+  #     developer.*). Sandboxed, TCC-stable, and its implied application
+  #     identifier is the shipped app's own, so the Keychain treats it as the
+  #     same program rather than a stranger.
+  #   ad-hoc — no identity at all, so every entitlement goes: even the sandbox
+  #     alone traps secinit making a container for a binary nobody can name.
+  #
+  # What is dropped either way — Sign in with Apple, associated domains, push,
+  # shared keychain groups — is what --sign buys back.
   if [ "$SIGN" != "1" ]; then
-    local unsigned_ent
+    local unsigned_ent devid k
     unsigned_ent="$(mktemp -t fihaven-unsigned-entitlements)"
-    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
-      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-      '<plist version="1.0"><dict></dict></plist>' >"$unsigned_ent"
-    if codesign --force --deep --sign - --entitlements "$unsigned_ent" "$dest" >/dev/null 2>&1; then
-      echo "run-macos: re-signed ad-hoc, entitlements dropped — unsigned builds cannot keep the shipped sandbox or developer.* grants and still launch"
+    devid="$(security find-identity -v -p codesigning 2>/dev/null \
+      | sed -n "s/.*\"\(Developer ID Application: [^\"]*($TEAM)\)\".*/\1/p" | head -1)"
+    [ -z "$devid" ] && devid="$(security find-identity -v -p codesigning 2>/dev/null \
+      | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+    if [ -n "$devid" ]; then
+      codesign -d --entitlements :- "$dest" >"$unsigned_ent" 2>/dev/null || :
+      if ! plutil -lint "$unsigned_ent" >/dev/null 2>&1; then
+        # CODE_SIGNING_ALLOWED=NO leaves the bundle unsigned, so there is
+        # nothing embedded to dump — start from the source entitlement set.
+        cp "$ROOT/ios/FiHavenApp/FiHaven.macOS.entitlements" "$unsigned_ent" 2>/dev/null \
+          || printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<plist version="1.0"><dict/></plist>' >"$unsigned_ent"
+      fi
+      # Keep only the sandbox set; every developer.*/aps key needs a real
+      # provisioning profile, which only --sign produces.
+      while IFS= read -r k; do
+        case "$k" in
+          com.apple.security.*) ;;
+          *) /usr/libexec/PlistBuddy -c "Delete :$k" "$unsigned_ent" 2>/dev/null ;;
+        esac
+      done < <(/usr/libexec/PlistBuddy -c 'Print' "$unsigned_ent" 2>/dev/null \
+        | sed -n 's/^    \([^ ]*\) =.*/\1/p')
     else
-      echo "run-macos: ad-hoc re-sign failed — the installed copy will not launch" >&2
+      printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+        '<plist version="1.0"><dict/></plist>' >"$unsigned_ent"
+    fi
+    if codesign --force --deep --sign "${devid:--}" --entitlements "$unsigned_ent" "$dest" >/dev/null 2>&1; then
+      if [ -n "$devid" ]; then
+        echo "run-macos: re-signed with $devid — sandbox entitlements kept, profile-gated keys dropped"
+      else
+        echo "run-macos: re-signed ad-hoc, entitlements dropped — an unsigned build cannot keep the shipped sandbox or developer.* grants and still launch"
+      fi
+    else
+      echo "run-macos: re-sign failed — the installed copy will not launch" >&2
       rm -f "$unsigned_ent"
       return 1
     fi

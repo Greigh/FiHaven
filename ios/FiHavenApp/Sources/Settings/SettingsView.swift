@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit) && !canImport(UIKit)
+import AppKit
+#endif
 import FiHavenCore
 
 enum SettingsSheet: String, Identifiable {
@@ -56,9 +59,11 @@ struct SettingsView: View {
                 // Straight to the connections themselves — a "Bank" screen whose
                 // only row was "Bank connections" made you tap twice to reach
                 // the one thing it held.
+                #if os(iOS)
                 groupRow("Bank", "building.columns.fill", "Linked accounts") {
                     BankView()
                 }
+                #endif
                 groupRow("Data", "externaldrive.fill", "Export, clear, delete") {
                     detail("Data") { dataSection }
                 }
@@ -78,7 +83,7 @@ struct SettingsView: View {
             }
             signOutSection
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Settings")
@@ -86,7 +91,9 @@ struct SettingsView: View {
         .sheet(item: $sheet, onDismiss: { Task { await loadMfa() } }) { which in
             sheetView(which)
         }
+#if os(iOS)
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
+#endif
     }
 
     /// A landing row that drills into a settings detail screen.
@@ -112,7 +119,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func detail<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         List { content() }
-            .listStyle(.insetGrouped)
+            .ctGroupedList()
             .scrollContentBackground(.hidden)
             .background(Theme.bg.ignoresSafeArea())
             .brandedNavigationBar(title)
@@ -632,7 +639,11 @@ struct SettingsView: View {
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("fihaven-account-data.json")
             try data.write(to: url)
+            #if os(iOS)
             shareItem = ShareItem(url: url)
+            #else
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+            #endif
         } catch {
             exportError = "Couldn’t export — try again"
         }

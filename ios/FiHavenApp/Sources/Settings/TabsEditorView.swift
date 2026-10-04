@@ -26,8 +26,8 @@ struct TabsEditorView: View {
                     .onMove { from, to in more.move(fromOffsets: from, toOffset: to); persist() }
             }
         }
-        .environment(\.editMode, .constant(.active))
-        .listStyle(.insetGrouped)
+        .ctAlwaysEditing()
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Tabs")

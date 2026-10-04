@@ -152,7 +152,7 @@ struct HouseholdSettingsView: View {
                 joinOrCreateSections()
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Family")
@@ -213,7 +213,7 @@ struct HouseholdSettingsView: View {
         }
         Section("Have an invite code?") {
             TextField("Paste your invite code", text: $joinCode)
-                .textInputAutocapitalization(.never)
+                .ctAutocapitalization(.never)
                 .autocorrectionDisabled()
             Button("Join household") {
                 Task { await model.accept(token: joinCode.trimmingCharacters(in: .whitespaces)); joinCode = "" }
@@ -275,7 +275,7 @@ struct HouseholdSettingsView: View {
             if view.memberMax >= 2 {
                 Section("Invite someone") {
                     TextField("name@email.com", text: $inviteEmail)
-                        .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .ctKeyboardType(.emailAddress).ctAutocapitalization(.never).autocorrectionDisabled()
                     Button("Send invite") {
                         Task { await model.invite(email: inviteEmail.trimmingCharacters(in: .whitespaces)); inviteEmail = "" }
                     }.disabled(model.busy || inviteEmail.isEmpty)

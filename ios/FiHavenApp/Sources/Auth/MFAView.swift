@@ -32,8 +32,8 @@ struct MFAView: View {
                     FieldLabel(text: "Code")
                     TextField("123456", text: $code)
                         .font(Theme.mono(20, weight: .medium))
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
+                        .ctKeyboardType(.numberPad)
+                        .ctTextContentType(.oneTimeCode)
                         .autocorrectionDisabled()
                         .accessibilityLabel("Verification code")
                         .onChange(of: code) { _, newValue in

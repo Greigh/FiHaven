@@ -3,7 +3,9 @@ import GoogleSignIn
 
 @main
 struct FiHavenApp: App {
+    #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
     @StateObject private var env = AppEnvironment()
     @StateObject private var theme = ThemeStore()
     @Environment(\.scenePhase) private var scenePhase
@@ -20,7 +22,9 @@ struct FiHavenApp: App {
                 // Complete Google Sign-In returns; Plaid's OAuth Universal Link
                 // is claimed so it never reaches GIDSignIn.
                 .onOpenURL { url in
+                    #if os(iOS)
                     if ActivePlaidLink.claims(url) { return }
+                    #endif
                     GIDSignIn.sharedInstance.handle(url)
                 }
                 .onChange(of: scenePhase) { _, phase in

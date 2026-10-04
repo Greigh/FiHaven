@@ -133,7 +133,7 @@ struct ProLockedView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(feature.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .ctInlineTitle()
         .accessibilityElement(children: .contain)
         .sheet(isPresented: $showPaywall) { PaywallView() }
     }
@@ -153,7 +153,7 @@ struct PaywallView: View {
             ScrollView { PaywallContent() }
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("FiHaven Pro")
-                .navigationBarTitleDisplayMode(.inline)
+                .ctInlineTitle()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 }

@@ -23,7 +23,7 @@ struct ReminderDaysView: View {
                 Text(footer)
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Remind me")

@@ -381,7 +381,7 @@ private struct RolloverReviewView: View {
                 }
             }
             .navigationTitle("Review bills")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
@@ -407,7 +407,7 @@ private struct RolloverReviewView: View {
             HStack(spacing: 2) {
                 Text("$").foregroundStyle(Theme.muted)
                 TextField("0.00", text: binding(for: bill))
-                    .keyboardType(.decimalPad)
+                    .ctKeyboardType(.decimalPad)
                     .multilineTextAlignment(.leading)
             }
             .frame(width: 104, alignment: .leading)

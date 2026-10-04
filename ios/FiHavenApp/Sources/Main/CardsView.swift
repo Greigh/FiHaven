@@ -332,7 +332,7 @@ struct CardsView: View {
                     }
                 }
                 .navigationTitle(isLoanView ? "Filter loans" : "Filter cards")
-                .navigationBarTitleDisplayMode(.inline)
+                .ctInlineTitle()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Clear") { fBalance = false; fPromo = false; fOverdue = false }
@@ -342,7 +342,7 @@ struct CardsView: View {
                     }
                 }
             }
-            .presentationDetents([.medium])
+            .ctDetents([.medium])
         }
     }
 
@@ -610,7 +610,7 @@ struct AccountEditorView: View {
                 }
             }
             .navigationTitle(account == nil ? "New Account" : "Edit Account")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

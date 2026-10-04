@@ -1,5 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import FiHavenCore
 
 /// Draws one layer of a bundled issuer brand mark (`IssuerLogos`) as a vector.
@@ -100,11 +104,19 @@ enum IssuerTile {
         // A plate's own surface is the light one, so it keeps a dark floor in
         // both themes; a brand tile follows the theme.
         if plated { return Color.black.opacity(0.16) }
+        #if canImport(UIKit)
         return Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(white: 1, alpha: 0.17)
                 : UIColor(white: 0, alpha: 0.10)
         })
+        #else
+        return Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: 0.17)
+                : NSColor(white: 0, alpha: 0.10)
+        }))
+        #endif
     }
 }
 

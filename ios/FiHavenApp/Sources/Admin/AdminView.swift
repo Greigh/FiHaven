@@ -143,7 +143,7 @@ struct AdminUsersList: View {
         List {
             Section {
                 TextField("Search by email or name", text: $query)
-                    .textInputAutocapitalization(.never)
+                    .ctAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .onChange(of: query) { _, _ in scheduleSearch() }
             }
@@ -170,7 +170,7 @@ struct AdminUsersList: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .task { if result == nil { await load() } }
@@ -307,7 +307,7 @@ struct AdminUserSheet: View {
                     }
                     // Blank means "the plan's default length"; lifetime ignores it.
                     TextField("Days (optional)", text: $days)
-                        .keyboardType(.numberPad)
+                        .ctKeyboardType(.numberPad)
                     Button("Grant Pro") { run { try await env.api.adminGrantPro(userId: user.id, plan: plan, days: Int(days)) ; note = "Granted \(plan)." } }
                     if user.revocable {
                         Button("Revoke what this console granted", role: .destructive) {
@@ -361,7 +361,7 @@ struct AdminUserSheet: View {
                     // The typed-email echo is the safety catch, same as the web
                     // console — the server rejects a mismatch outright.
                     TextField("Type \(user.email) to confirm", text: $confirmEmail)
-                        .textInputAutocapitalization(.never)
+                        .ctAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Button("Delete account permanently", role: .destructive) { confirmingDelete = true }
                         .disabled(confirmEmail.lowercased() != user.email.lowercased())
@@ -375,7 +375,7 @@ struct AdminUserSheet: View {
                 }
             }
             .navigationTitle(user.email)
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
@@ -471,7 +471,7 @@ struct AdminPromosList: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .task { if promos.isEmpty { await load() } }
@@ -517,16 +517,16 @@ struct AdminPromoCreateSheet: View {
     var body: some View {
         SheetForm(title: "New promo code", busy: busy, error: errorText, saveTitle: "Create", onSave: save) {
             TextField("Code (blank to generate)", text: $code)
-                .textInputAutocapitalization(.characters)
+                .ctAutocapitalization(.characters)
                 .autocorrectionDisabled()
             Picker("Plan", selection: $plan) {
                 ForEach(["trial", "monthly", "three_month", "yearly", "family", "lifetime"], id: \.self) {
                     Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0)
                 }
             }
-            TextField("Days granted", text: $days).keyboardType(.numberPad)
+            TextField("Days granted", text: $days).ctKeyboardType(.numberPad)
             TextField("Max redemptions (blank = unlimited)", text: $maxRedemptions)
-                .keyboardType(.numberPad)
+                .ctKeyboardType(.numberPad)
             TextField("Note", text: $note)
         }
     }
@@ -569,7 +569,7 @@ struct AdminPresetsList: View {
         List {
             Section {
                 TextField("Search issuer or card", text: $query)
-                    .textInputAutocapitalization(.never)
+                    .ctAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .onChange(of: query) { _, _ in scheduleSearch() }
                 Button {
@@ -616,7 +616,7 @@ struct AdminPresetsList: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .task { if result == nil { await load() } }
@@ -701,17 +701,17 @@ struct AdminPresetSheet: View {
                 Section("Earning") {
                     LabeledContent("Base rate") {
                         TextField("1", value: $preset.rewardBase, format: .number)
-                            .keyboardType(.decimalPad)
+                            .ctKeyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("Point value (¢)") {
                         TextField("1", value: $preset.pointValue, format: .number)
-                            .keyboardType(.decimalPad)
+                            .ctKeyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("Rotating rate") {
                         TextField("—", value: $preset.rotatingRate, format: .number)
-                            .keyboardType(.decimalPad)
+                            .ctKeyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
                 }
@@ -720,9 +720,9 @@ struct AdminPresetSheet: View {
                     ForEach($categories) { $row in
                         HStack {
                             TextField("Category", text: $row.name)
-                                .textInputAutocapitalization(.never)
+                                .ctAutocapitalization(.never)
                             TextField("Rate", text: $row.rate)
-                                .keyboardType(.decimalPad)
+                                .ctKeyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                                 .frame(width: 70)
                         }
@@ -746,7 +746,7 @@ struct AdminPresetSheet: View {
                 }
             }
             .navigationTitle(isNew ? "New preset" : preset.label)
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

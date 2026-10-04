@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import UIKit
 import FiHavenCore
@@ -50,7 +51,7 @@ struct BankView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         // Reached straight from Settings › Bank, so it wears that title and the
@@ -428,3 +429,4 @@ struct BankView: View {
         return top
     }
 }
+#endif

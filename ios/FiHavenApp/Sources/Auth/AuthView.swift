@@ -40,9 +40,9 @@ struct AuthView: View {
                 VStack(spacing: 14) {
                     field("Email") {
                         TextField("you@example.com", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
+                            .ctTextContentType(.emailAddress)
+                            .ctKeyboardType(.emailAddress)
+                            .ctAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
                     field("Password") {
@@ -325,11 +325,8 @@ struct AuthView: View {
     /// Present Google Sign-In (GIDClientID is read from Info.plist) and post
     /// the returned ID token to the server.
     private func handleGoogle() {
-        guard let root = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap({ $0.windows })
-            .first(where: { $0.isKeyWindow })?.rootViewController else { return }
-        GIDSignIn.sharedInstance.signIn(withPresenting: root) { result, error in
+        guard let presenter = authPresenter() else { return }
+        GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { result, error in
             // Every failure here used to `return` silently, so a Google sign-in
             // that didn't complete looked exactly like the button doing nothing:
             // the web flow closed and the login screen sat there with no reason

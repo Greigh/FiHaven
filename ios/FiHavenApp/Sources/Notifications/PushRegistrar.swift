@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 import FiHavenCore
 
@@ -227,3 +228,26 @@ final class PushRegistrar {
         catch { print("[Push] unregister failed:", error.localizedDescription) }
     }
 }
+#else
+import FiHavenCore
+
+/// APNs registration isn't wired into the macOS target — the registrar's
+/// API stays callable so shared call sites don't fork, but it reports
+/// unhealthy and every operation is a no-op.
+@MainActor
+final class PushRegistrar {
+    static let shared = PushRegistrar()
+
+    var onRegistrationSettled: (() -> Void)?
+
+    var healthy: Bool { false }
+
+    func configure(api: APIClient) {}
+    func setEnabled(_ on: Bool) {}
+    func noteDeviceToken(_ token: String) {}
+    func noteRegistrationFailure(_ detail: String) {}
+    func syncIfNeeded(settings: Settings) {}
+    func clear() async {}
+    func clearLocal() {}
+}
+#endif

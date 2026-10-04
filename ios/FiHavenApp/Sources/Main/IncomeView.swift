@@ -167,7 +167,7 @@ struct IncomeEditorView: View {
                             Text("Hours / week")
                             Spacer()
                             TextField("40", value: $hoursPerWeek, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                                .ctKeyboardType(.decimalPad).multilineTextAlignment(.trailing)
                         }
                     }
                 }
@@ -181,7 +181,7 @@ struct IncomeEditorView: View {
                 }
             }
             .navigationTitle(source == nil ? "New Income" : "Edit Income")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -233,7 +233,7 @@ struct IncomeAdjustmentEditorView: View {
                         Text("Amount")
                         Spacer()
                         TextField("0", value: $amount, format: .number)
-                            .keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
+                            .ctKeyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
                     }
                     Picker("Applies", selection: $kind) {
                         Text("Just this month").tag("once")
@@ -252,7 +252,7 @@ struct IncomeAdjustmentEditorView: View {
                 }
             }
             .navigationTitle(adjustment == nil ? "New Adjustment" : "Edit Adjustment")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

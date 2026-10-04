@@ -8,6 +8,8 @@
 	<string>FiHaven</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -35,8 +37,6 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.finance</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Greigh Studios LLC. All rights reserved.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -44,6 +44,8 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock FiHaven with Face ID.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Greigh Studios LLC. All rights reserved.</string>
 	<key>TurnstileSiteKey</key>
 	<string>$(TURNSTILE_SITEKEY)</string>
 	<key>UIAppFonts</key>

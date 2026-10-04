@@ -109,6 +109,8 @@ targets:
     dependencies:
       - package: FiHavenCore
       - package: LinkKit
+        # Plaid's Link SDK is iOS-only — nothing links it in a macOS build.
+        platformFilter: iOS
       - package: GoogleSignIn
         product: GoogleSignIn
     postbuildScripts:
@@ -135,6 +137,10 @@ targets:
         # Copyright holder of FiHaven — shown in Finder/Get Info and read by
         # App Store Connect. Must match the LICENSE Schedule A holder.
         NSHumanReadableCopyright: © 2026 Greigh Studios LLC. All rights reserved.
+        # Dock/Finder icon on macOS — the catalog's AppIcon set carries both
+        # the iOS and mac slots, so actool writes AppIcon.icns from the same
+        # appiconset iOS already uses.
+        CFBundleIconName: AppIcon
         UILaunchScreen:
           UIColorName: LaunchBg
           UIImageName: LaunchIcon
@@ -197,6 +203,16 @@ targets:
         # concurrency churn; can be bumped to 6 later.
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
+        # The Mac build is a *native* macOS app over the same sources — macosx
+        # in SUPPORTED_PLATFORMS is what makes `-destination 'platform=macOS'`
+        # produce a Contents/MacOS bundle rather than the "Designed for iPad"
+        # repackaging of the iOS product.
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator macosx"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        # The iOS entitlement set (aps, SIWA, associated domains) does not
+        # apply on macOS — the Mac gets the sandbox set instead, which is what
+        # a Mac App Store receipt requires.
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: FiHaven.macOS.entitlements
         # The "Generate LinkKit dSYM" post-build script must read the embedded
         # Plaid LinkKit.framework and run dsymutil on it. Under the user-script
         # sandbox that read is denied ("Operation not permitted"), which fails

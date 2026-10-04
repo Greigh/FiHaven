@@ -329,7 +329,7 @@ struct RewardsView: View {
                             HStack(spacing: 4) {
                                 Text("used $").font(Theme.ui(11)).foregroundStyle(Theme.muted)
                                 TextField("0", value: usedBinding(c, p), format: .number)
-                                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 56)
+                                    .ctKeyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 56)
                                     .accessibilityLabel("Amount used of \(p.label)")
                             }
                             Text(rem < 0.005 ? "✓" : Money.fmt(rem))
@@ -613,7 +613,7 @@ private struct RewardRateReportSheet: View {
                         Text("Should be")
                         Spacer()
                         TextField("0", text: $rate)
-                            .keyboardType(.decimalPad)
+                            .ctKeyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 70)
                         if usesPoints {
@@ -657,7 +657,7 @@ private struct RewardRateReportSheet: View {
                 }
             }
             .navigationTitle("Report a wrong rate")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

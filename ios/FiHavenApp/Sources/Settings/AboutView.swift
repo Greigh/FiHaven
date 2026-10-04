@@ -61,7 +61,7 @@ struct AboutView: View {
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("About")

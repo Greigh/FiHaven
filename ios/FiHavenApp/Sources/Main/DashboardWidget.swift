@@ -77,10 +77,10 @@ struct DashboardLayoutView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
-        .environment(\.editMode, .constant(.active))
+        .ctAlwaysEditing()
         .brandedNavigationBar("Dashboard")
         .onAppear(perform: seed)
     }

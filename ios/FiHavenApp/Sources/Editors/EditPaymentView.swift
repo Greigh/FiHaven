@@ -26,7 +26,7 @@ struct EditPaymentView: View {
                 }
             }
             .navigationTitle("Edit payment")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

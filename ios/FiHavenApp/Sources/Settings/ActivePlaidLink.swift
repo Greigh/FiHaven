@@ -1,3 +1,4 @@
+#if os(iOS)
 import Foundation
 import LinkKit
 
@@ -21,3 +22,4 @@ enum ActivePlaidLink {
         session = nil
     }
 }
+#endif
