@@ -337,12 +337,16 @@ struct AuthView: View {
                 // worth shouting about.
                 if ns.code == GIDSignInError.canceled.rawValue { return }
                 fhLog("[AuthView] Google sign-in failed: \(ns.domain) \(ns.code) — \(ns.localizedDescription)")
-                env.authError = "Google sign-in failed. \(ns.localizedDescription)"
+                Task { @MainActor in
+                    env.authError = "Google sign-in failed. \(ns.localizedDescription)"
+                }
                 return
             }
             guard let idToken = result?.user.idToken?.tokenString else {
                 fhLog("[AuthView] Google sign-in returned no ID token")
-                env.authError = "Google didn't return a sign-in token. Please try again."
+                Task { @MainActor in
+                    env.authError = "Google didn't return a sign-in token. Please try again."
+                }
                 return
             }
             let name = result?.user.profile?.name
@@ -367,3 +371,4 @@ struct AuthView: View {
         }
     }
 }
+
