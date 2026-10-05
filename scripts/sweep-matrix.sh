@@ -192,13 +192,17 @@ sweep_states() {
   local password="${FH_SWEEP_EMPTY_PASSWORD:-demopassword11}"
   local entry row
   for entry in "${SWEEP_STATES[@]}"; do
-    # Parameter expansion rather than `sed`, so a password with a `&` or a `|`
-    # in it is substituted literally instead of meaning something to the
-    # pattern that replaces it. The placeholders are `@EMAIL@` / `@PASSWORD@`
+    # Prefix/suffix surgery rather than `sed` or `${var//p/r}`, so a
+    # password with a `&` or a `|` in it is substituted literally — on bash
+    # 5.2+ `${var//p/r}` treats an unescaped `&` in the replacement as the
+    # matched text (patsub_replacement), which is the sed behaviour this
+    # exists to avoid. The placeholders are `@EMAIL@` / `@PASSWORD@`
     # rather than bare words because the words themselves are in the row
     # already — `FH_DEV_EMAIL=EMAIL` replaced the key along with the value.
-    row="${entry//@EMAIL@/$email}"
-    printf '%s\n' "${row//@PASSWORD@/$password}"
+    row="$entry"
+    case "$row" in *@EMAIL@*) row="${row%%@EMAIL@*}$email${row#*@EMAIL@}" ;; esac
+    case "$row" in *@PASSWORD@*) row="${row%%@PASSWORD@*}$password${row#*@PASSWORD@}" ;; esac
+    printf '%s\n' "$row"
   done
 }
 
