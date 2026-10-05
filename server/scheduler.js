@@ -483,7 +483,11 @@ async function runChecks(now = new Date(), deps = {}) {
     try { isPro = !!billing.computeEntitlement(u.id).pro; } catch (_) { isPro = false; }
     if (s.autopayMark && isPro) {
       const markHour = Math.min(23, Math.max(0, parseInt(s.autopayMarkHour, 10) || 9));
-      if (lp.hour === markHour && u.last_autopay_day !== lp.ymd) {
+      // Claim the day before doing the work: under more than one process,
+      // every worker passes the in-memory check, but only one can flip the
+      // column — so the blob write below happens once, not once per worker.
+      if (lp.hour === markHour && u.last_autopay_day !== lp.ymd &&
+          (typeof db.claimAutopayDay !== 'function' || db.claimAutopayDay(u.id, lp.ymd))) {
         try {
           // Re-read the blob immediately before mutating it. `u.data` is a
           // snapshot taken at the top of this pass, and a pass awaits SMTP for
@@ -513,7 +517,14 @@ async function runChecks(now = new Date(), deps = {}) {
           // read the freshly-marked payments too.
           u.data = fresh;
           if (db.setAutopayDay) db.setAutopayDay(u.id, lp.ymd);
-        } catch (e) { console.error('autopay-mark failed', u.email, e && e.message); }
+        } catch (e) {
+          // Give the day back so the next tick retries instead of the mark
+          // being skipped for the rest of it.
+          if (typeof db.releaseAutopayDay === 'function') {
+            db.releaseAutopayDay(u.id, u.last_autopay_day, lp.ymd);
+          }
+          console.error('autopay-mark failed', u.email, e && e.message);
+        }
       }
     }
 
@@ -524,7 +535,11 @@ async function runChecks(now = new Date(), deps = {}) {
       // Bill reminders — bills due `leadDays` out, and (if enabled) on the due
       // day itself. One email per distinct lead so the "due in N days" copy
       // stays accurate when both fire the same day.
-      if (s.billReminders && u.last_reminder_day !== lp.ymd) {
+      if (s.billReminders && u.last_reminder_day !== lp.ymd &&
+          // Claim today's send before doing it: every worker passes the
+          // in-memory check in a multi-process deploy, but only one can
+          // flip the column — the others skip instead of double-sending.
+          (typeof db.claimReminderDay !== 'function' || db.claimReminderDay(u.id, lp.ymd))) {
         const today = atMidnight(new Date(lp.y, lp.m - 1, lp.d));
         const leads = reminderOffsets(s);
         const cfg = getPeriodConfig(s);
@@ -550,10 +565,14 @@ async function runChecks(now = new Date(), deps = {}) {
         // Stamp even with 0 due, so we don't rescan all day — but never stamp a
         // send that failed, or it's silently dropped instead of retried.
         if (delivered) db.setReminderDay(u.id, lp.ymd);
+        else if (typeof db.releaseReminderDay === 'function') {
+          db.releaseReminderDay(u.id, u.last_reminder_day, lp.ymd);
+        }
       }
 
       // Trial-ending reminders — same lead window as bill reminders.
-      if (s.billReminders && u.last_trial_reminder_day !== lp.ymd) {
+      if (s.billReminders && u.last_trial_reminder_day !== lp.ymd &&
+          (typeof db.claimTrialReminderDay !== 'function' || db.claimTrialReminderDay(u.id, lp.ymd))) {
         const leads = reminderOffsets(s);
         let delivered = true;
         for (const days of leads) {
@@ -569,12 +588,16 @@ async function runChecks(now = new Date(), deps = {}) {
           }
         }
         if (delivered && db.setTrialReminderDay) db.setTrialReminderDay(u.id, lp.ymd);
+        else if (typeof db.releaseTrialReminderDay === 'function') {
+          db.releaseTrialReminderDay(u.id, u.last_trial_reminder_day, lp.ymd);
+        }
       }
 
       // Card-linked offer expiry reminders — Pro (offers are a Pro Rewards
       // feature). Uses the same lead window as bill reminders. Nudges the
       // user to use an activated offer before it lapses.
-      if (s.offerReminders && isPro && u.last_offer_reminder_day !== lp.ymd) {
+      if (s.offerReminders && isPro && u.last_offer_reminder_day !== lp.ymd &&
+          (typeof db.claimOfferReminderDay !== 'function' || db.claimOfferReminderDay(u.id, lp.ymd))) {
         const leads = reminderOffsets(s);
         let delivered = true;
         for (const days of leads) {
@@ -590,11 +613,15 @@ async function runChecks(now = new Date(), deps = {}) {
           }
         }
         if (delivered && db.setOfferReminderDay) db.setOfferReminderDay(u.id, lp.ymd);
+        else if (typeof db.releaseOfferReminderDay === 'function') {
+          db.releaseOfferReminderDay(u.id, u.last_offer_reminder_day, lp.ymd);
+        }
       }
 
       // Weekly digest — once a week (Monday), upcoming bills + balances.
       const weekKey = isoWeekKey(lp);
-      if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey) {
+      if (s.weeklyDigest && isoWeekday(lp) === 0 && u.last_digest_week !== weekKey &&
+          (typeof db.claimDigestWeek !== 'function' || db.claimDigestWeek(u.id, weekKey))) {
         const digest = weeklyDigest(u.data, lp);
         const ok = await trySend('digest', u.email,
           () => mailer.sendWeeklyDigest(u.email, digest, currency, u.id));
@@ -603,10 +630,14 @@ async function runChecks(now = new Date(), deps = {}) {
             () => push.sendWeeklyDigestPush(u.id, digest, currency));
         }
         if (ok && db.setDigestWeek) db.setDigestWeek(u.id, weekKey);
+        else if (!ok && typeof db.releaseDigestWeek === 'function') {
+          db.releaseDigestWeek(u.id, u.last_digest_week, weekKey);
+        }
       }
 
       // Monthly summary — the 1st of the local month.
-      if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym) {
+      if (s.monthlySummary && lp.d === 1 && u.last_summary_month !== lp.ym &&
+          (typeof db.claimSummaryMonth !== 'function' || db.claimSummaryMonth(u.id, lp.ym))) {
         const summary = summarize(u.data, lp);
         const ok = await trySend('summary', u.email,
           () => mailer.sendMonthlySummary(u.email, summary, currency, u.id));
@@ -615,6 +646,9 @@ async function runChecks(now = new Date(), deps = {}) {
             () => push.sendMonthlySummaryPush(u.id, summary, currency));
         }
         if (ok) db.setSummaryMonth(u.id, lp.ym);
+        else if (typeof db.releaseSummaryMonth === 'function') {
+          db.releaseSummaryMonth(u.id, u.last_summary_month, lp.ym);
+        }
       }
     }
   }

@@ -46,32 +46,40 @@
     <div class="goals-list">
       {#each goals as g, i (g.id)}
         {@const sug = suggested(g)}
+        <!-- Household-shared goals are a read-only overlay (see
+             householdMerge.js): inline edits would mutate only the local
+             mirror and revert on the next sync. -->
         <div class="goal-card">
           <div class="goal-row-top">
             <input class="goal-name" type="text" placeholder="Goal name (e.g. Emergency fund)"
-              value={g.name} oninput={(e) => updateGoal(i, { name: e.currentTarget.value })} />
-            <button class="budget-income-remove" type="button" aria-label="Remove goal"
-              onclick={() => removeGoal(i)}>×</button>
+              value={g.name} readonly={!!g._householdShared}
+              oninput={(e) => updateGoal(i, { name: e.currentTarget.value })} />
+            {#if g._householdShared}
+              <span class="badge badge-blue" title="Shared by a household member">Shared</span>
+            {:else}
+              <button class="budget-income-remove" type="button" aria-label="Remove goal"
+                onclick={() => removeGoal(i)}>×</button>
+            {/if}
           </div>
           <div class="goal-bar"><div class="goal-bar-fill" style="width:{pct(g)}%;"></div></div>
           <div class="goal-fields">
             <label class="goal-field">
               <span>Saved</span>
               <div class="goal-amount"><span>$</span>
-                <input type="number" step="50" placeholder="0" value={g.saved || ''}
+                <input type="number" step="50" placeholder="0" value={g.saved || ''} readonly={!!g._householdShared}
                   oninput={(e) => updateGoal(i, { saved: parseFloat(e.currentTarget.value) || 0 })} />
               </div>
             </label>
             <label class="goal-field">
               <span>Target</span>
               <div class="goal-amount"><span>$</span>
-                <input type="number" step="100" placeholder="0" value={g.target || ''}
+                <input type="number" step="100" placeholder="0" value={g.target || ''} readonly={!!g._householdShared}
                   oninput={(e) => updateGoal(i, { target: parseFloat(e.currentTarget.value) || 0 })} />
               </div>
             </label>
             <label class="goal-field">
               <span>Target date</span>
-              <input type="date" value={g.targetDate || ''}
+              <input type="date" value={g.targetDate || ''} readonly={!!g._householdShared}
                 onchange={(e) => updateGoal(i, { targetDate: e.currentTarget.value })} />
             </label>
           </div>

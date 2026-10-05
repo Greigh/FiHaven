@@ -139,8 +139,33 @@ function populateBillCardOptions(selectedId) {
     : '';
 }
 
+// Household-shared items are a read-only overlay in the personal lists:
+// editing one here would write to the personal `cards`/`bills` array —
+// forking a copy that syncs to /api/data while the shared entity stays
+// put — instead of updating the household entity it came from.
+function refuseSharedEdit(item) {
+  if (!item || !item._householdShared) return false;
+  alert('Shared items are managed by the household member who added them — adjust sharing under Settings → Family.');
+  return true;
+}
+
+// Resolve a bill/card id to its record when — and only when — it is a
+// household-shared overlay row. Used to refuse writes that would land in
+// the PERSONAL lists: a payment against a shared entity id, or a $0/skip
+// stamped on someone else's item, syncs to /api/data as this user's own
+// data while the shared entity never learns of it.
+function sharedItemById(type, refId) {
+  const list = (type === 'card') ? cards : bills;
+  const it = list.find((x) => String(x.id) === String(refId));
+  return (it && it._householdShared) ? it : null;
+}
+
 export function openBillModal(idx) {
   editBillId = (idx === undefined) ? null : idx;
+  if (refuseSharedEdit(editBillId !== null ? bills[editBillId] : null)) {
+    editBillId = null;
+    return;
+  }
   document.getElementById('bill-modal-title').textContent = editBillId !== null ? 'Edit Bill' : 'Add Bill';
 
   var b = (editBillId !== null) ? bills[editBillId] : {};
@@ -356,11 +381,14 @@ function renderRotatingToggles(cats) {
   if (!editRotatingPool.length) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
   var rate = editRotatingRate || 5;
+  // Pool entries arrive from stored data — possibly another household
+  // member's shared entity — so they are escaped like any other
+  // user-controlled string before touching innerHTML.
   var chips = editRotatingPool.map(function (cat) {
     var on = parseFloat(cats[cat]) > 0;
     return '<label class="reward-rot-chip' + (on ? ' on' : '') + '">' +
-      '<input type="checkbox" data-rotating-cat="' + cat + '"' + (on ? ' checked' : '') + '/>' +
-      '<span>' + cat + '</span></label>';
+      '<input type="checkbox" data-rotating-cat="' + escHtml(cat) + '"' + (on ? ' checked' : '') + '/>' +
+      '<span>' + escHtml(cat) + '</span></label>';
   }).join('');
   box.innerHTML =
     '<div class="reward-rot-head">Rotating ' + rate + '% — tick this quarter’s active categories</div>' +
@@ -581,6 +609,10 @@ function collectRewardCategories() {
 
 export function openCardModal(idx, defaultType) {
   editCardId = (idx === undefined) ? null : idx;
+  if (refuseSharedEdit(editCardId !== null ? cards[editCardId] : null)) {
+    editCardId = null;
+    return;
+  }
 
   var c = (editCardId !== null) ? cards[editCardId] : {};
   document.getElementById('c-type').value      = c.type        || defaultType || 'card';
@@ -939,6 +971,7 @@ function updateGoalHint() {
 // from history and totals). Matched by the active period (date range),
 // so it works in calendar / start-day / rolling modes. Reversible.
 export function skipMonth(type, refId, name) {
+  if (refuseSharedEdit(sharedItemById(type, refId))) return;
   const bounds = boundsForKey(currentPeriodKey());
   const exists = payments.some(
     (p) => p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds)
@@ -985,6 +1018,7 @@ export function skipMonth(type, refId, name) {
 // the user is the only one who knows, and this lets them say so in a tap
 // instead of opening the editor to type a zero.
 export function confirmZeroAmount(type, refId) {
+  if (refuseSharedEdit(sharedItemById(type, refId))) return;
   if (type === 'bill') {
     const b = bills.find((x) => String(x.id) === String(refId));
     if (!b) return;
@@ -1000,6 +1034,7 @@ export function confirmZeroAmount(type, refId) {
 }
 
 export function unskipMonth(type, refId) {
+  if (refuseSharedEdit(sharedItemById(type, refId))) return;
   const bounds = boundsForKey(currentPeriodKey());
   setPayments(payments.filter(
     (p) => !(p.skipped && p.type === type && String(p.refId) === String(refId) && paymentInBounds(p, bounds))
@@ -1010,6 +1045,7 @@ export function unskipMonth(type, refId) {
 
 // Open the pay-modal in CREATE mode for a given bill/card row.
 export function openPayModal(type, refId, name, defaultAmt) {
+  if (refuseSharedEdit(sharedItemById(type, refId))) return;
   editPaymentId   = null;
   pendingPayType  = type;
   pendingPayRefId = refId;

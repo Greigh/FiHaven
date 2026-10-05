@@ -222,6 +222,77 @@ function leave(user) {
 
 const SHAREABLE_KINDS = new Set(['bill', 'card', 'goal', 'account', 'transaction']);
 
+/* The fields each kind is allowed to carry. Shared entity `data` is
+   user-supplied JSON that lands verbatim in every other member's client —
+   anything outside this list is dropped before it can reach a render sink
+   (the H1 audit fix escaped the one dangerous sink; this allowlist makes
+   the boundary permanent). Keep in sync with the constructors in
+   client/js/modals.js, client/svelte/{GoalsPanel,BalancesView,SpendingPanel}.svelte
+   and server/plaidMerge.js (toLocalTx). */
+const ENTITY_FIELDS = {
+  bill: new Set([
+    'id', 'name', 'business', 'category', 'amount', 'dueDay', 'frequency',
+    'startDate', 'endDate', 'trialEnds', 'cardId', 'notes', 'autopay',
+    'autopayDay', 'archived', 'manageUrl',
+  ]),
+  card: new Set([
+    'id', 'name', 'type', 'issuer', 'lastDigits', 'network', 'plaidAccountId',
+    'balance', 'currentBalance', 'limit', 'minPayment', 'recommendedPayment',
+    'regularAPR', 'annualFee', 'feeMonth', 'hasPromo', 'promoAPR',
+    'promoEndDate', 'promoBalance', 'promoPayoffPrompted', 'dueDay', 'autopay',
+    'autopayDay', 'notes', 'rewardBase', 'rewardCategories', 'perks', 'offers',
+    'pointValue', 'rotatingPool', 'rotatingRate', 'presetId',
+    'acceptedPresetUpdatedAt', 'declinedPresetUpdatedAt', 'archived',
+  ]),
+  goal: new Set(['id', 'name', 'target', 'saved', 'targetDate', 'notes']),
+  account: new Set(['id', 'name', 'type', 'balance', 'notes', 'plaidAccountId']),
+  transaction: new Set([
+    'id', 'date', 'amount', 'category', 'autoCategory', 'merchant', 'note',
+    'account', 'source', 'plaidId', 'pending', 'accountId',
+  ]),
+};
+
+// Nested payloads that also need their own key scrub before storing.
+const PERK_FIELDS = new Set(['id', 'label', 'amount', 'frequency']);
+const OFFER_FIELDS = new Set(['id', 'merchant', 'detail', 'expires', 'used']);
+
+function scrubObjectList(value, fields) {
+  if (!Array.isArray(value)) return value;
+  return value
+    .filter((v) => v && typeof v === 'object' && !Array.isArray(v))
+    .map((v) => {
+      const out = {};
+      for (const k of Object.keys(v)) if (fields.has(k)) out[k] = v[k];
+      return out;
+    });
+}
+
+// Returns a copy of `item` holding only the keys the kind allows, with the
+// nested collections scrubbed to their own field sets.
+function sanitizeEntityData(kind, item) {
+  const allowed = ENTITY_FIELDS[kind];
+  if (!allowed || !item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const out = {};
+  for (const k of Object.keys(item)) {
+    if (allowed.has(k)) out[k] = item[k];
+  }
+  if (kind === 'card') {
+    if (Array.isArray(out.perks)) out.perks = scrubObjectList(out.perks, PERK_FIELDS);
+    if (Array.isArray(out.offers)) out.offers = scrubObjectList(out.offers, OFFER_FIELDS);
+    if (Array.isArray(out.rotatingPool)) {
+      out.rotatingPool = out.rotatingPool.filter((c) => typeof c === 'string');
+    }
+    if (out.rewardCategories && typeof out.rewardCategories === 'object' && !Array.isArray(out.rewardCategories)) {
+      const rates = {};
+      for (const [cat, rate] of Object.entries(out.rewardCategories)) {
+        if (typeof rate === 'number' && Number.isFinite(rate)) rates[String(cat).slice(0, 100)] = rate;
+      }
+      out.rewardCategories = rates;
+    }
+  }
+  return out;
+}
+
 function requireMembership(userId) {
   const mem = membership(userId);
   if (!mem) throw new Error('not-in-household');
@@ -266,10 +337,12 @@ function shareEntity(user, kind, item) {
   requireActive(mem.household_id);
   if (!SHAREABLE_KINDS.has(kind)) throw new Error('invalid-kind');
   if (!item || item.id == null) throw new Error('invalid-item');
+  const data = sanitizeEntityData(kind, item);
+  if (!data || data.id == null) throw new Error('invalid-item');
   const now = nextStamp(dbApi.getHouseholdEntity(mem.household_id, kind, item.id));
   dbApi.upsertHouseholdEntity({
     household_id: mem.household_id, kind, id: String(item.id),
-    data: JSON.stringify(item), owner_user_id: user.id,
+    data: JSON.stringify(data), owner_user_id: user.id,
     updated_at: now, updated_by: user.id, deleted: 0,
   });
   const ent = mapEntity(dbApi.getHouseholdEntity(mem.household_id, kind, item.id));
@@ -288,10 +361,12 @@ function updateEntity(user, kind, id, item, baseUpdatedAt) {
   if (!existing || existing.deleted) throw new Error('entity-not-found');
   if (baseUpdatedAt != null && existing.updated_at > Number(baseUpdatedAt)) throw new Error('conflict');
   if (!item || item.id == null) throw new Error('invalid-item');
+  const data = sanitizeEntityData(kind, item);
+  if (!data || data.id == null) throw new Error('invalid-item');
   const now = nextStamp(existing);
   dbApi.upsertHouseholdEntity({
     household_id: mem.household_id, kind, id: String(id),
-    data: JSON.stringify(item), owner_user_id: existing.owner_user_id,
+    data: JSON.stringify(data), owner_user_id: existing.owner_user_id,
     updated_at: now, updated_by: user.id, deleted: 0,
   });
   const ent = mapEntity(dbApi.getHouseholdEntity(mem.household_id, kind, id));

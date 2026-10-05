@@ -4,9 +4,9 @@
    Every shared-entity change is appended to the household_events
    log (durable, for reconnect catch-up) and pushed to any open
    SSE connections for that household. The subscriber registry is
-   in-memory and per-process — fine for a single Node instance;
-   a multi-instance deployment would swap this for Redis pub/sub
-   (the durable log already makes that a drop-in).
+   in-memory and per-process; under a multi-process deploy (PM2
+   cluster mode) each worker additionally tails the durable log and
+   relays foreign rows to its own subscribers — see initCrossProcess.
 ═════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -24,40 +24,101 @@ const byUser = new Map();
 // oldest so the count can't grow without bound.
 const MAX_STREAMS_PER_USER = 6;
 
+/* ── Cross-worker relay ───────────────────────────────────────
+   The durable log doubles as the pub/sub bus: each cluster worker tails
+   household_events for rows past its cursor and fans them out to ITS OWN
+   subscribers, so a write on worker A reaches members connected to worker
+   B within ~RELAY_MS. Rows this process wrote are skipped via selfSeqs —
+   record() already delivered them. Fork mode never pays for any of this:
+   the poller only starts when cluster.isWorker is true. */
+const RELAY_MS = 750;
+const RELAY_BATCH = 500;
+// Self-written seqs the poller must not re-deliver locally. Bounded — a
+// seq evicted after this many newer events may double-deliver one frame,
+// which the client applies idempotently anyway.
+const SELF_SEQ_CAP = 16384;
+let relayTimer = null;
+let relaySeq = 0;
+const selfSeqs = new Set();
+
+function noteSelf(seq) {
+  selfSeqs.add(seq);
+  if (selfSeqs.size > SELF_SEQ_CAP) selfSeqs.delete(selfSeqs.values().next().value);
+}
+
+function fanout(householdId, seq, entity) {
+  const set = subscribers.get(householdId);
+  if (!set || !set.size) return;
+  const data = frame(seq, entity);
+  for (const res of set) {
+    if (res.destroyed || res.writableEnded) {
+      unsubscribe(householdId, res);
+      continue;
+    }
+    try {
+      res.write(data);
+    } catch (_) {
+      unsubscribe(householdId, res);
+    }
+  }
+}
+
+function pollRelay() {
+  let rows;
+  try {
+    rows = dbApi.listHouseholdEventsSinceSeq(relaySeq, RELAY_BATCH);
+  } catch (err) {
+    console.error('household relay poll failed:', err && err.message);
+    return;
+  }
+  for (const row of rows) {
+    relaySeq = row.seq;
+    if (selfSeqs.has(row.seq)) continue;
+    let payload;
+    try { payload = JSON.parse(row.payload); } catch (_) { continue; }
+    if (payload && payload.entity) fanout(row.household_id, row.seq, payload.entity);
+  }
+}
+
 /**
- * Boot-time guard for the per-process assumption above.
+ * Boot hook for multi-process deploys.
  *
- * The deploy runs `pm2 start server/index.js --name fihaven` with no
- * `-i` and no ecosystem file, which is fork mode: exactly one process,
- * so every SSE connection and every write share one `subscribers` map
- * and the fan-out is complete.
+ * Fork mode (the deployment PM2 actually uses — `pm2 start index.js` with
+ * no -i) is one process, so local fan-out is complete and this returns
+ * without starting anything.
  *
- * Cluster mode would break that *quietly*. A change written on instance
- * A reaches only the subscribers holding a connection to instance A, so
- * household members land on different instances and simply stop seeing
- * each other's edits — while every request still returns 200 and the
- * durable log still records everything. That reads as flaky sync rather
- * than an outage, which is the kind of fault that survives for months.
+ * Cluster mode would previously split the household silently: a change
+ * written on worker A reached only A's subscribers, so members on other
+ * workers saw flaky sync while every request still returned 200 and the
+ * durable log recorded everything. Now each worker also tails that log —
+ * this starts the tail (cursor at the current tip; a reconnecting client
+ * catches real history via ?since=, not via the relay) and logs once so
+ * an operator knows which path is live.
  *
- * PM2's cluster mode runs the app as a Node cluster worker; fork mode
- * does not. `cluster.isWorker` therefore tells the two apart with no
- * dependency on PM2's own env vars.
- *
- * This warns rather than exits on purpose: refusing to boot would turn a
- * degraded feature into a site outage, which is the worse trade.
+ * Rate limits and login throttling no longer need the warning: the
+ * express-rate-limit store (server/rateLimitStore.js) and the login
+ * throttle (server/rateLimit.js) are both SQLite-backed, and scheduler
+ * send marks are claimed atomically — all exact across workers.
  *
  * @param {(msg: string) => void} [log] injectable for tests
  * @returns {boolean} true when a multi-process deployment was detected
  */
-function warnIfMultiProcess(log = console.warn) {
+function initCrossProcess(log = console.log) {
   if (!cluster.isWorker) return false;
+  try {
+    relaySeq = dbApi.maxHouseholdEventSeqAll().s;
+  } catch (err) {
+    console.error('household relay cursor init failed:', err && err.message);
+    relaySeq = 0; // replay from the log start — clients dedupe by entity stamp
+  }
+  relayTimer = setInterval(pollRelay, RELAY_MS);
+  relayTimer.unref();
   log(
-    '[household] SSE fan-out is per-process, but this process is a cluster ' +
-      'worker. Live household sync will only reach members connected to this ' +
-      'same instance — every request still succeeds, so it will look like ' +
-      'flaky sync rather than an outage. Run PM2 in fork mode (no -i), or ' +
-      'move the subscriber registry in server/householdEvents.js to Redis ' +
-      'pub/sub (the durable household_events log makes that a drop-in).',
+    '[fihaven] Multi-process deploy detected (cluster worker): household SSE ' +
+      'relays writes through the durable household_events log to members on ' +
+      'other workers (~1s extra latency, no loss), and express-rate-limit ' +
+      'tiers share a SQLite store so limits stay exact instead of multiplying ' +
+      'by worker count. Fork mode (no -i) still has zero relay latency.',
   );
   return true;
 }
@@ -103,24 +164,13 @@ function frame(seq, entity) {
   return `id: ${seq}\nevent: entity\ndata: ${JSON.stringify({ seq, entity })}\n\n`;
 }
 
-// Persist a delta and fan it out live. Returns the new seq.
+// Persist a delta and fan it out live. Returns the new seq. The seq is
+// noted as self-written first so a cluster-mode relay poll doesn't echo
+// the row back to this process's own subscribers a moment later.
 function record(householdId, entity) {
   const seq = dbApi.insertHouseholdEvent(householdId, JSON.stringify({ entity }));
-  const set = subscribers.get(householdId);
-  if (set && set.size) {
-    const data = frame(seq, entity);
-    for (const res of set) {
-      if (res.destroyed || res.writableEnded) {
-        unsubscribe(householdId, res);
-        continue;
-      }
-      try {
-        res.write(data);
-      } catch (_) {
-        unsubscribe(householdId, res);
-      }
-    }
-  }
+  noteSelf(seq);
+  fanout(householdId, seq, entity);
   return seq;
 }
 
@@ -156,5 +206,6 @@ function pruneEvents(now = Date.now()) {
 
 module.exports = {
   subscribe, unsubscribe, record, replayFrames, pruneEvents,
-  warnIfMultiProcess, MAX_REPLAY, RETENTION_MS, MAX_STREAMS_PER_USER,
+  initCrossProcess, pollRelay,
+  MAX_REPLAY, RETENTION_MS, MAX_STREAMS_PER_USER, RELAY_MS,
 };

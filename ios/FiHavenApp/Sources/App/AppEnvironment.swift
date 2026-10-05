@@ -60,7 +60,9 @@ final class AppEnvironment: ObservableObject {
         self.tokens = tokenStore
         self.api = api
         self.billing = StoreManager(api: api)
-        self.session = .signedOut
+        // Leave `session` at its declared .loading: assigning .signedOut here
+        // made every launch — even one with a valid Keychain token — render
+        // the auth screen for a frame before bootstrap restored the session.
         PushRegistrar.shared.configure(api: api)
         fhLog("[AppEnvironment] Initialized — deferring bootstrap to first view task")
     }

@@ -59,6 +59,21 @@ final class AppStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private let debounce: Duration = .milliseconds(800)
     private let cache: OfflineCache
+
+    /// Serial persistence lane for every cache access. The whole-snapshot
+    /// JSON encode + atomic write ran on the main actor inside `mutate` —
+    /// a hitch on every edit that grows with the data set. One lane keeps
+    /// writes in edit order, and a sign-out `clear` queued behind pending
+    /// writes can't be overtaken by a stale write for the signed-out
+    /// account.
+    private let persistQueue = DispatchQueue(label: "app.fihaven.cache")
+
+    /// Run `work` on the persistence lane and await its result.
+    private func persist<T: Sendable>(_ work: @Sendable @escaping () -> T) async -> T {
+        await withCheckedContinuation { cont in
+            persistQueue.async { cont.resume(returning: work()) }
+        }
+    }
     /// Account the loaded data belongs to. Every cache read and write is
     /// scoped to it so one user's snapshot can never be adopted — or pushed —
     /// into another's account.
@@ -91,7 +106,7 @@ final class AppStore: ObservableObject {
             // than anything the server can return, and `PUT /api/data`
             // replaces the blob wholesale — so adopting the server copy here
             // would silently delete them. Keep the cached snapshot and push.
-            if let cached = cache.read(owner: serverOwner), cached.pendingWrite {
+            if let cached = await persist({ [cache] in cache.read(owner: serverOwner) }), cached.pendingWrite {
                 owner = serverOwner
                 data = cached.data
                 // The entitlement is the server's to decide, never the
@@ -106,7 +121,8 @@ final class AppStore: ObservableObject {
                 Money.setCurrency(data.settings.currency)
                 loaded = true
                 syncState = .saved
-                cache.write(data: data, owner: owner, pendingWrite: false)
+                let snapshot = data, snapshotOwner = owner
+                await persist { [cache] in cache.write(data: snapshot, owner: snapshotOwner, pendingWrite: false) }
             }
 
             runAutopayMark()
@@ -130,7 +146,10 @@ final class AppStore: ObservableObject {
             // was in memory — nothing at all on a cold launch — so the app
             // opened empty. Fall back to the last snapshot we stored, guarded by
             // account ownership so another user's snapshot is never adopted.
-            let fallback = expectedOwner.isEmpty ? cache.readRaw() : cache.read(owner: expectedOwner)
+            let expected = expectedOwner
+            let fallback = expected.isEmpty
+                ? await persist { [cache] in cache.readRaw() }
+                : await persist { [cache] in cache.read(owner: expected) }
             if let cached = fallback {
                 owner = cached.owner
                 data = cached.data
@@ -195,7 +214,8 @@ final class AppStore: ObservableObject {
         Money.setCurrency(data.settings.currency)
         // Adopting a server copy makes the cache stale; re-write it so an
         // offline launch shows the imported rows too.
-        cache.write(data: data, owner: owner, pendingWrite: false)
+        let snapshot = data, snapshotOwner = owner
+        await persist { [cache] in cache.write(data: snapshot, owner: snapshotOwner, pendingWrite: false) }
     }
 
     /// Opt-in: auto-mark autopay bills/cards paid once their due date in the
@@ -332,8 +352,14 @@ final class AppStore: ObservableObject {
         block(&data)
         // Disk before network, always. The window between an edit and the
         // debounced PUT is exactly the window in which a kill, a crash, or a
-        // dead connection used to lose it outright.
-        cache.write(data: data, owner: owner, pendingWrite: true)
+        // dead connection used to lose it outright. The encode+write runs on
+        // the persistence lane — FIFO keeps writes in edit order, and the
+        // snapshot+owner are captured now so a later account switch can't
+        // stamp this write as theirs.
+        let snapshot = data, snapshotOwner = owner
+        persistQueue.async { [cache] in
+            _ = cache.write(data: snapshot, owner: snapshotOwner, pendingWrite: true)
+        }
         scheduleSave()
     }
 
@@ -360,8 +386,13 @@ final class AppStore: ObservableObject {
         // The cache holds this user's bills, cards and spending. Leaving it on
         // a device nobody is signed into is the same disclosure the web's
         // sign-out cache-clear exists to prevent — and it would also offer the
-        // next account a snapshot that isn't theirs.
-        cache.clear()
+        // next account a snapshot that isn't theirs. `sync` drains the lane:
+        // any pending write serializing an edit for this account completes
+        // first, then the clear runs before endSession returns — a kill after
+        // sign-out can't leave the file behind, and a stale write can't
+        // overtake the clear. Deadlock-safe: nothing on persistQueue calls
+        // back into endSession.
+        persistQueue.sync { [cache] in cache.clear() }
         owner = ""
         expectedOwner = ""
     }
@@ -393,7 +424,7 @@ final class AppStore: ObservableObject {
                 syncState = .saved
                 // Only an accepted write retires the pending flag. Anything
                 // else leaves it set so the next launch replays the snapshot.
-                cache.markSynced()
+                await persist { [cache] in cache.markSynced() }
                 break
             } catch APIError.unauthenticated {
                 onSessionExpired?()

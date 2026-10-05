@@ -186,9 +186,11 @@ router.post('/reset', async (req, res) => {
   const pwError = checkPasswordPolicy(body.password, user.email);
   if (pwError) return sendError(res, 400, pwError);
 
+  // Claim before acting: a concurrent replay must see the token spent,
+  // not run the password change twice.
+  if (!tokens.consume(found.id)) return sendError(res, 400, 'invalid-token');
   const hash = await bcrypt.hash(body.password, ACTIVE_BCRYPT_COST);
   dbApi.updateUserPassword(user.id, hash);
-  tokens.consume(found.id);
   dbApi.deleteUserSessions(user.id);
 
   return res.json({ ok: true });
@@ -238,8 +240,9 @@ router.post('/recover-2fa/request', async (req, res) => {
 router.post('/recover-2fa/confirm', (req, res) => {
   const found = tokens.check((req.body || {}).token, 'recover-2fa');
   if (!found) return sendError(res, 400, 'invalid-token');
+  // Claim first: two simultaneous submits of one link must not both wipe.
+  if (!tokens.consume(found.id)) return sendError(res, 400, 'invalid-token');
   dbApi.recover2faWipe(found.userId);
-  tokens.consume(found.id);
   return res.json({ ok: true });
 });
 
@@ -250,8 +253,10 @@ router.post('/recover-2fa/confirm', (req, res) => {
 router.post('/verify-email', (req, res) => {
   const found = tokens.check((req.body || {}).token, 'verify-email');
   if (!found) return sendError(res, 400, 'invalid-token');
+  // Claim first — see /reset. The verify write is idempotent either way,
+  // but the single-use rule shouldn't depend on that.
+  if (!tokens.consume(found.id)) return sendError(res, 400, 'invalid-token');
   dbApi.setEmailVerified(found.userId, Date.now());
-  tokens.consume(found.id);
   return res.json({ ok: true });
 });
 
@@ -505,8 +510,14 @@ router.post('/mfa/verify', async (req, res) => {
     for (const row of rows) {
       if (row.used_at) continue;
       if (await mfa.compareBackupCode(code, row.code_hash)) {
-        dbApi.markBackupCodeUsed(row.id);
-        dbApi.deleteChallenge(ch.id);
+        // Both gates are atomic claims: only one request can flip the backup
+        // code's used_at AND only one can consume this exact challenge row —
+        // so a simultaneous double-submit can't mint two sessions off one
+        // code the way the check-then-delete sequence could.
+        if (!dbApi.markBackupCodeUsed(row.id)) break;
+        if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+          return sendError(res, 401, 'mfa-token-invalid');
+        }
         return finishLogin(res, req, account);
       }
     }
@@ -516,7 +527,11 @@ router.post('/mfa/verify', async (req, res) => {
   // Email-code path takes priority when an email code is outstanding.
   if (ch.kind === 'mfa-login-email' && ch.payload) {
     if (await mfa.compareEmailCode(code, ch.payload)) {
-      dbApi.deleteChallenge(ch.id);
+      // Single use must be atomic: compare-then-delete let two concurrent
+      // requests both pass and each mint a session off one emailed code.
+      if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+        return sendError(res, 401, 'mfa-token-invalid');
+      }
       return finishLogin(res, req, account);
     }
     return sendError(res, 401, recordMfaFailure(ch));
@@ -534,7 +549,9 @@ router.post('/mfa/verify', async (req, res) => {
   if (!totpCheck.valid || !dbApi.claimTotpStep(account.id, totpCheck.step)) {
     return sendError(res, 401, recordMfaFailure(ch));
   }
-  dbApi.deleteChallenge(ch.id);
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return sendError(res, 401, 'mfa-token-invalid');
+  }
   return finishLogin(res, req, account);
 });
 
@@ -592,7 +609,11 @@ router.post('/passkey/login/finish', async (req, res) => {
   }
   const newCounter = (verification.authenticationInfo && verification.authenticationInfo.newCounter) || credential.counter || 0;
   dbApi.bumpPasskeyUsage(credential.id, newCounter);
-  dbApi.deleteChallenge(ch.id);
+  // Atomic consume: a replayed assertion used to pass verify on both
+  // requests and mint two sessions; only the claim winner proceeds.
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return sendError(res, 401, 'challenge-invalid');
+  }
 
   const account = dbApi.findUserById(credential.user_id);
   if (!account) return sendError(res, 401, 'passkey-unknown');
@@ -661,7 +682,9 @@ router.post('/mfa/passkey/finish', async (req, res) => {
   }
   const newCounter = (verification.authenticationInfo && verification.authenticationInfo.newCounter) || credential.counter || 0;
   dbApi.bumpPasskeyUsage(credential.id, newCounter);
-  dbApi.deleteChallenge(ch.id);
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return sendError(res, 401, 'mfa-token-invalid');
+  }
 
   const account = dbApi.findUserById(ch.user_id);
   if (!account) return sendError(res, 401, 'mfa-token-invalid');
