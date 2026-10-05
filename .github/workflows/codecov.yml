@@ -27,11 +27,17 @@ jobs:
       # Forgejo resolves `uses:` against data.forgejo.org, which mirrors
       # actions/* but not codecov/* — the action clone 404s and the whole job
       # dies before checkout. The standalone CLI uploads from anywhere.
+      # The upload is best-effort end to end: cli.codecov.io has had TLS
+      # outages that failed otherwise-green runs, so a dead endpoint skips
+      # the upload rather than turning the job red.
       - name: Upload results to Codecov
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
-          curl -sSfLo /tmp/codecov-cli https://cli.codecov.io/latest/linux/codecov
-          chmod +x /tmp/codecov-cli
-          /tmp/codecov-cli upload-process -t "$CODECOV_TOKEN" || true
+          if curl -sSfLo /tmp/codecov-cli https://cli.codecov.io/latest/linux/codecov; then
+            chmod +x /tmp/codecov-cli
+            /tmp/codecov-cli upload-process -t "$CODECOV_TOKEN" || true
+          else
+            echo "::warning::codecov CLI download failed — skipping coverage upload"
+          fi
         if: ${{ !cancelled() }}
