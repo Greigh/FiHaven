@@ -648,6 +648,9 @@ struct MacSummaryStrip<Content: View>: View {
         // type, not in the same box.
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        // The strip is a bar, not a chip: it spans the pane so its bottom
+        // border draws the line between summary and table edge to edge.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surface)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Theme.border).frame(height: 1)

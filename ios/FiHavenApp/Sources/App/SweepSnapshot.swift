@@ -80,6 +80,10 @@ enum SweepSnapshot {
         // own backing store is what keeps Screen Recording permission out of
         // a sweep that should run unattended. CGWindowList and ScreenCaptureKit
         // both need that grant even for our own window.
+        if ProcessInfo.processInfo.environment["FH_DUMP_VIEWS"] == "1" {
+            fhLog("[V] window app=\(window.effectiveAppearance.name.rawValue) bg=\(window.backgroundColor) opaque=\(window.isOpaque)")
+            dumpView(content, depth: 0)
+        }
         guard let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds) else {
             fhLog("[Snapshot] FAILED bitmap rep")
             return
@@ -98,6 +102,30 @@ enum SweepSnapshot {
         } catch {
             fhLog("[Snapshot] FAILED \(error.localizedDescription)")
         }
+    }
+
+    /// `FH_DUMP_VIEWS=1`: the window's real view tree — which NSView carries
+    /// the opaque light surface a screenshot keeps blaming on SwiftUI.
+    private static func dumpView(_ v: NSView, depth: Int) {
+        var extra = ""
+        if v.isHidden { extra += " hidden" }
+        if v.alphaValue < 1 { extra += " a=\(v.alphaValue)" }
+        if v.isOpaque { extra += " OPAQUE" }
+        if let vev = v as? NSVisualEffectView {
+            extra += " material=\(vev.material.rawValue) blend=\(vev.blendingMode.rawValue) state=\(vev.state.rawValue)"
+        }
+        if let sv = v as? NSScrollView {
+            extra += " drawsBg=\(sv.drawsBackground) bg=\(sv.backgroundColor)"
+        }
+        if let tv = v as? NSTableView {
+            extra += " tblBg=\(tv.backgroundColor)"
+        }
+        if let bg = v.layer?.backgroundColor, bg.alpha > 0 {
+            extra += " layerBg=\(bg)"
+        }
+        let f = v.frame
+        fhLog("[V] \(String(repeating: "  ", count: depth))\(type(of: v)) f=(\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height))) app=\(v.effectiveAppearance.name.rawValue)\(extra)")
+        v.subviews.forEach { dumpView($0, depth: depth + 1) }
     }
     #endif
 }

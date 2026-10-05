@@ -146,28 +146,44 @@ struct MacShellView: View {
 
     var body: some View {
         NavigationSplitView {
-            // The footer is a *sibling* of the list rather than a
-            // `safeAreaInset` on it.
+            // The footer is a *sibling* of the rows rather than a
+            // `safeAreaInset` on them.
             //
-            // The sidebar is an AppKit `NSOutlineView` inside a scroll view,
-            // and it does not take SwiftUI's safe-area inset: pinning the
-            // footer with `safeAreaInset(edge: .bottom)` drew it straight over
-            // the last rows, so "Suggest a feature" ended up printed on top of
-            // the credit. Stacked instead, the list gets the room above the
-            // footer and scrolls inside it, and the column's own material
-            // stays behind the footer without being asked for.
+            // A scroll view does not take SwiftUI's safe-area inset: pinning
+            // the footer with `safeAreaInset(edge: .bottom)` drew it straight
+            // over the last rows, so "Suggest a feature" ended up printed on
+            // top of the credit. Stacked instead, the catalog gets the room
+            // above the footer and scrolls inside it, and the column's own
+            // material stays behind the footer without being asked for.
             //
             // The footer is still not a list row: it is the bottom of the
             // column, not another destination, and a sidebar row is a single
             // line tall — the Pro card's second line was truncated to an
             // ellipsis inside the list.
             VStack(spacing: 0) {
-                List(selection: $nav.screen) {
-                    sidebar
+                // A `ViewThatFits`, not a `ScrollView`: on this macOS the
+                // sidebar column's scroll container never composites — the
+                // rows it holds are in the view tree but paint nothing, and
+                // the column reads as a white blank. The catalog is ~660pt
+                // tall against a ~790pt column, so it nearly always fits on
+                // the plain stack; the scroll fallback exists for very small
+                // windows, where a clipped list beats a blank one.
+                ViewThatFits(in: .vertical) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        sidebar
+                    }
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            sidebar
+                        }
+                    }
                 }
-                .listStyle(.sidebar)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 sidebarFooter
             }
+            .background(Theme.bg)
             .navigationTitle("FiHaven")
             // The column's width, and why it is a floor as well as a default.
             //
@@ -342,37 +358,46 @@ struct MacShellView: View {
         // one place Free/Pro is visible without opening Settings. It goes away
         // while searching: it is not a screen and there is nothing to match.
         if screenQuery.isEmpty {
-            Section {
-                accountHeader
-            }
+            accountHeader
         }
 
+        // Caption labels rather than `Section`s — the rows live in a plain
+        // stack (see `body`), not a `List`, so grouping is spelled out.
+
         if !shownBottom.isEmpty {
-            Section {
-                ForEach(shownBottom) { row(.tab($0)) }
-            }
+            ForEach(shownBottom) { row(.tab($0)) }
         }
 
         if !shownOverflow.isEmpty {
-            Section("More") {
-                ForEach(shownOverflow) { row(.tab($0)) }
-            }
+            sidebarCaption("More")
+            ForEach(shownOverflow) { row(.tab($0)) }
         }
 
         if matchesSearch(MacScreen.settings.title) || matchesSearch(MacScreen.about.title) {
-            Section {
-                if matchesSearch(MacScreen.settings.title) { row(.settings) }
-                if matchesSearch(MacScreen.about.title) { row(.about) }
-            }
+            if matchesSearch(MacScreen.settings.title) { row(.settings) }
+            if matchesSearch(MacScreen.about.title) { row(.about) }
         }
 
         if !helpLinks.isEmpty {
-            Section("Help & feedback") {
-                ForEach(helpLinks, id: \.icon) { link in
-                    linkRow(link.url, link.title, link.icon)
-                }
+            sidebarCaption("Help & feedback")
+            ForEach(helpLinks, id: \.icon) { link in
+                linkRow(link.url, link.title, link.icon)
             }
         }
+    }
+
+    /// The muted group label that stands where a `Section` header would —
+    /// it is not a row, so selection can never land on it.
+    private func sidebarCaption(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(Theme.ui(10, weight: .bold))
+            .tracking(0.6)
+            .foregroundStyle(Theme.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 8)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// What sits below the list: the Pro pitch for Free users, then the credit.
@@ -498,14 +523,14 @@ struct MacShellView: View {
     }
 
     /// A catalog row, with the count it leads with where there is one.
-    @ViewBuilder
     private func row(_ screen: MacScreen) -> some View {
-        let label = Label(screen.title, systemImage: screen.symbol)
-            .tag(screen)
-        if let count = badge(for: screen), count > 0 {
-            label.badge(count)
-        } else {
-            label
+        MacSidebarRow(
+            title: screen.title,
+            icon: screen.symbol,
+            count: badge(for: screen),
+            selected: nav.screen == screen
+        ) {
+            nav.screen = screen
         }
     }
 
@@ -536,14 +561,20 @@ struct MacShellView: View {
     /// saying it leaves the app.
     private func linkRow(_ url: URL, _ title: String, _ icon: String) -> some View {
         Link(destination: url) {
-            HStack(spacing: 4) {
-                Label(title, systemImage: icon)
-                Spacer(minLength: 0)
+            MacSidebarRowChrome(selected: false) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 18, alignment: .center)
+                    .foregroundStyle(Theme.muted)
+                Text(title)
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Theme.muted)
             }
-            .foregroundStyle(Theme.text)
         }
         .accessibilityHint("Opens in browser")
     }
@@ -558,18 +589,86 @@ struct MacShellView: View {
     // ── Detail ───────────────────────────────────────────────────────
     @ViewBuilder
     private var detail: some View {
-        switch nav.screen {
-        case .some(.tab(let item)): item.macDestination
-        case .some(.pro): ProView()
-        case .some(.settings): SettingsView(user: user)
-        case .some(.about): AboutView()
-        case nil:
-            ContentUnavailableView(
-                "No screen selected",
-                systemImage: "sidebar.left",
-                description: Text("Pick a screen from the sidebar.")
-            )
+        Group {
+            switch nav.screen {
+            case .some(.tab(let item)): item.macDestination
+            case .some(.pro): ProView()
+            case .some(.settings): SettingsView(user: user)
+            case .some(.about): AboutView()
+            case nil:
+                ContentUnavailableView(
+                    "No screen selected",
+                    systemImage: "sidebar.left",
+                    description: Text("Pick a screen from the sidebar.")
+                )
+            }
         }
+        // The pane paints its own canvas: a `Table` fills with its own
+        // surface, but a screen whose content stops early — a summary strip,
+        // a `.rows` table — would otherwise show the bare split-view backdrop
+        // through it, which is window-material, not theme.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.bg.ignoresSafeArea())
     }
 }
+
+/// One line of the source list — the shape `List(selection:)` could not
+/// render. A real `Button` row means the hover and selected pills are the
+/// app's own, and VoiceOver gets a labelled control rather than a cell.
+private struct MacSidebarRow: View {
+    let title: String
+    let icon: String
+    var count: Int? = nil
+    var selected: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            MacSidebarRowChrome(selected: selected) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 18, alignment: .center)
+                    .foregroundStyle(selected ? Theme.accent : Theme.muted)
+                Text(title)
+                    .font(Theme.ui(13))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if let count, count > 0 {
+                    Text(count, format: .number)
+                        .font(Theme.mono(11))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Theme.surface2, in: Capsule())
+                }
+            }
+        }
+        .ctPlainButton()
+    }
+}
+
+/// The row's frame and its hover/selected pill, shared by the button rows
+/// and the external-link rows so the two stay identical.
+private struct MacSidebarRowChrome<Content: View>: View {
+    let selected: Bool
+    @ViewBuilder var content: () -> Content
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8, content: content)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(selected ? Theme.accent.opacity(0.16)
+                          : hovering ? Theme.surface2.opacity(0.7) : .clear)
+            )
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
 #endif
