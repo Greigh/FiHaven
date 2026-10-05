@@ -147,6 +147,63 @@ struct TransactionCommands: Commands {
     }
 }
 
+/// The "Go" menu — the screen catalog, plus the ⌘⇧] / ⌘⇧[ pair every tabbed
+/// Mac app steps through its screens with.
+///
+/// `advance(by:in:)` takes the order rather than reading it, because the
+/// sidebar's grouping is *user* state (the saved tab order lives on `store`,
+/// which does not exist until a session is signed in) while this menu lives on
+/// the scene. Catalog order is the order the menu walks.
+struct GoCommands: Commands {
+    @ObservedObject var nav: MacNavigation
+
+    private var order: [MacScreen] {
+        TabItem.allCases.map(MacScreen.tab) + [.pro, .settings, .about]
+    }
+
+    var body: some Commands {
+        CommandMenu("Go") {
+            ForEach(order, id: \.self) { screen in
+                Button {
+                    nav.screen = screen
+                } label: {
+                    if nav.screen == screen {
+                        Label(screen.title, systemImage: "checkmark")
+                    } else {
+                        Text(screen.title)
+                    }
+                }
+            }
+            Divider()
+            Button("Next Screen") { nav.advance(by: 1, in: order) }
+                .keyboardShortcut("]", modifiers: [.command, .shift])
+            Button("Previous Screen") { nav.advance(by: -1, in: order) }
+                .keyboardShortcut("[", modifiers: [.command, .shift])
+        }
+    }
+}
+
+/// What ⌘, opens — the same Settings screen the sidebar mounts, when there
+/// is a session to edit it for. Without one the pane says why it is empty
+/// rather than showing a form with nothing behind it.
+struct MacSettingsScene: View {
+    @EnvironmentObject var env: AppEnvironment
+
+    var body: some View {
+        if case .signedIn(let user) = env.session, let store = env.store {
+            SettingsView(user: user)
+                .environmentObject(store)
+                .environmentObject(env.billing)
+        } else {
+            ContentUnavailableView(
+                "No account signed in",
+                systemImage: "gearshape",
+                description: Text("Settings are available once you are signed in.")
+            )
+        }
+    }
+}
+
 /// The Help menu's list of what the keyboard does.
 ///
 /// It sits beside the commands that implement the bindings, so a binding added

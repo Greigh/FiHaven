@@ -303,6 +303,14 @@ struct MacShellView: View {
             fhLog("[MacShell] tabs=[\(tabs)] more=[\(rest)] badges=[\(badges)] proUpsell=\(!billing.isPro) selected=\(nav.screen?.rawValue ?? "none")")
             #endif
         }
+        #if DEBUG
+        // The snapshot writer reports what the detail actually shows; iOS's
+        // tab shell feeds it in `MainTabView`, and this is that shell's mirror.
+        .task { SweepProbe.renderedScreen = nav.screen?.rawValue ?? "none" }
+        .onChange(of: nav.screen) { _, new in
+            SweepProbe.renderedScreen = new?.rawValue ?? "none"
+        }
+        #endif
     }
 
     // ── Sidebar ──────────────────────────────────────────────────────
@@ -551,7 +559,7 @@ struct MacShellView: View {
     @ViewBuilder
     private var detail: some View {
         switch nav.screen {
-        case .some(.tab(let item)): item.destination
+        case .some(.tab(let item)): item.macDestination
         case .some(.pro): ProView()
         case .some(.settings): SettingsView(user: user)
         case .some(.about): AboutView()

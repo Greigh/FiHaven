@@ -532,7 +532,7 @@ struct RewardsView: View {
 }
 
 /// Report a wrong preset rate to FiHaven (and optionally fix the local card).
-private struct RewardRateReportSheet: View {
+struct RewardRateReportSheet: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var billing: StoreManager
     @Environment(\.dismiss) private var dismiss

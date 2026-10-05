@@ -34,9 +34,15 @@ struct RootView: View {
                 } else if !user.onboarded {
                     OnboardingView()
                 } else if let store = env.store {
+                    #if os(macOS)
+                    MacShellView(user: user)
+                        .environmentObject(store)
+                        .environmentObject(env.billing)
+                    #else
                     MainTabView(user: user)
                         .environmentObject(store)
                         .environmentObject(env.billing)
+                    #endif
                 } else {
                     LoadingView()
                 }

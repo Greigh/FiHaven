@@ -200,42 +200,50 @@ struct SubscriptionsView: View {
     }
 
     private func subStatus(_ s: SubscriptionsFinder.Item) -> SubStatus {
-        if s.duplicate {
-            return SubStatus(icon: A11y.subscriptionStatusIcon("duplicate"), text: "Possible duplicate", tone: .warning)
-        }
-        if s.trialSoon, let d = s.trialDaysLeft {
-            return SubStatus(icon: A11y.subscriptionStatusIcon("trial"), text: "Trial ends in \(d) days", tone: .accent)
-        }
-        if let d = s.trialDaysLeft, d < 0 {
-            return SubStatus(icon: A11y.subscriptionStatusIcon("trial"), text: "Trial ended", tone: .neutral)
-        }
-        if let up = s.priceUp {
-            return SubStatus(icon: A11y.subscriptionStatusIcon("priceUp"), text: "Price increased from \(Money.fmt(up))", tone: .warning)
-        }
-        if s.stale {
-            return SubStatus(icon: A11y.subscriptionStatusIcon("stale"), text: "Unused 60+ days", tone: .warning)
-        }
-        if let next = s.nextDue {
-            return SubStatus(icon: "calendar", text: "Next: \(subFriendlyDate(next))", tone: .neutral)
-        }
-        let fallback = s.source == "bill" ? "Tracked bill" : "Recurring charge"
-        return SubStatus(icon: "info.circle", text: fallback, tone: .neutral)
+        let st = subscriptionStatus(s, tz: store.tz)
+        return SubStatus(icon: st.icon, text: st.text, tone: st.tone)
     }
+}
 
-    private func subFriendlyDate(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.calendar = DateLogic.calendar(tz: store.tz)
-        f.timeZone = store.tz
-        f.locale = Locale(identifier: "en_US")
-        f.dateFormat = Calendar.current.component(.year, from: date) == Calendar.current.component(.year, from: Date())
-            ? "MMM d" : "MMM d, yyyy"
-        return f.string(from: date)
+/// The badge a subscription row carries, as a plain tuple so the Mac table —
+/// which does not know this file's `SubStatus` — can read it too. `tz` is the
+/// viewer's; the candidate's dates mean something different a timezone over.
+func subscriptionStatus(_ s: SubscriptionsFinder.Item, tz: TimeZone) -> (icon: String, text: String, tone: A11y.MoneyTone) {
+    if s.duplicate {
+        return (A11y.subscriptionStatusIcon("duplicate"), "Possible duplicate", .warning)
     }
+    if s.trialSoon, let d = s.trialDaysLeft {
+        return (A11y.subscriptionStatusIcon("trial"), "Trial ends in \(d) days", .accent)
+    }
+    if let d = s.trialDaysLeft, d < 0 {
+        return (A11y.subscriptionStatusIcon("trial"), "Trial ended", .neutral)
+    }
+    if let up = s.priceUp {
+        return (A11y.subscriptionStatusIcon("priceUp"), "Price increased from \(Money.fmt(up))", .warning)
+    }
+    if s.stale {
+        return (A11y.subscriptionStatusIcon("stale"), "Unused 60+ days", .warning)
+    }
+    if let next = s.nextDue {
+        return ("calendar", "Next: \(subFriendlyDate(next, tz: tz))", .neutral)
+    }
+    let fallback = s.source == "bill" ? "Tracked bill" : "Recurring charge"
+    return ("info.circle", fallback, .neutral)
+}
+
+fileprivate func subFriendlyDate(_ date: Date, tz: TimeZone) -> String {
+    let f = DateFormatter()
+    f.calendar = DateLogic.calendar(tz: tz)
+    f.timeZone = tz
+    f.locale = Locale(identifier: "en_US")
+    f.dateFormat = Calendar.current.component(.year, from: date) == Calendar.current.component(.year, from: Date())
+        ? "MMM d" : "MMM d, yyyy"
+    return f.string(from: date)
 }
 
 /// Add or change a subscription's manage/cancel link. Mirrors the web's
 /// `SubscriptionsPanel` link form.
-private struct ManageLinkSheet: View {
+struct ManageLinkSheet: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
 
