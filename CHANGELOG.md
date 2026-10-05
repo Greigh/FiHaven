@@ -13,15 +13,15 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.3] Current Pre-Release — 2026-09-15
+## [1.6.7] Current Pre-Release — 2026-10-04
 
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.4 (55) — **Account Balances bank suggestion review**: accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts. Also patches terminal 4xx HTTP sync infinite retry loops (`SyncState.rejected`), multi-account offline cache isolation on shared devices, unregistration race on logout, and memory leaks in SSE live feeds. |
-| **Android** | 1.6.4 (versionCode 55) — Account Balances bank review (Accept / Decline) on checking and savings accounts; terminal 4xx error handling (`SyncState.Rejected`); authenticated offline cache scoping; and null error-stream safety in `DefaultHttpTransport`. |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — new dedicated `/changelog` page presenting release history and technical changelogs; full bank account balance review in Account Balances; security hardening on auth and session handling. |
-| **Server** | Enforces 256kb payload threshold with `413 payload-too-large`, strict 403 soft-suspension enforcement on Bearer auth, push device token purge on account deletion, and Family entitlement on household SSE streams. |
+| **iOS** | 1.6.7 (58) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
+| **Android** | 1.6.7 (versionCode 58) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — live App Store / Google Play badges on every page, the `/changelog` page, and the privacy page's on-device-storage disclosure. |
+| **Server** | Full security audit landed: household entity field allowlists, a shared SQLite rate-limit store, cross-process SSE relay, atomic credential consumption, and enforced Content-Security-Policy. |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.3.** The build number continues 55 → 55
+> **Marketing version is 1.6.7.** The build number continues 55 → 58
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -40,24 +40,101 @@ Each release below uses two layers:
 
 ### Summary
 
-> 1.6.3 build 54 brings full bank balance review directly into the Account Balances tab across Web, iOS, and Android. Checking, savings, and investment accounts linked to a bank institution now surface pending balance updates with an explicit Accept or Decline action. Accepting updates the account balance to match the institution while preserving custom names, notes, and overrides; declining keeps your manual entry untouched and suppresses repeat prompts.
+> 1.6.7 build 58 ships the whole 1.6.6 train — **FiHaven is a native Mac app now**, not the iPad build on Apple Silicon: a source-list sidebar in a real Mac window, sortable tables with multi-select bulk actions on every list screen, and the entire app drivable from the keyboard. iPhone, iPad, Android, web, and the server gain the rest of the train: the sign-in security check reveals itself on the card, setup asks for reminders and App Lock up front, a payoff plan that would never clear says so, Android keeps its session when the app is killed, and the server enforces its Content-Security-Policy.
 >
-> In addition, this build delivers a comprehensive audit and hardening pass across the native clients and server interactions:
-> - **Sync Reliability & Battery Savings**: Halts retry loops immediately on terminal 4xx rejections (such as payload size limits or suspended accounts) with a clear `SyncState.Rejected` banner instead of misleading "Offline" status.
-> - **Multi-Account Security on Shared Devices**: Ensures offline cold launch validates authenticated account ownership before reading device caches, preventing previous users' cached finances from being disclosed to a subsequent sign-in.
-> - **Push Notification Reliability**: Eliminates a race condition during sign-out so device tokens are guaranteed to unregister before Keychain session tokens are cleared, and automatically purges push tokens on account deletion.
-> - **Memory & Stream Stability**: Fixes background memory retain cycles in live household delta SSE streams.
+> This build also lands a **complete security and correctness audit** (`docs/AUDIT.md`) across the Node/SQLite server, the web client, and both native apps — every finding fixed:
+> - **Stored XSS closed end-to-end**: shared household entities are scrubbed by a per-kind server-side allowlist, render read-only across the UI, and the one raw-HTML sink is escaped.
+> - **Session durability**: Android no longer wipes your sign-in, offline cache, and pending edits on a transient network error; iOS no longer flashes the sign-in screen on a valid-token cold launch.
+> - **One credential, one action**: email tokens, backup codes, re-auth codes, MFA challenges, and passkey completions are all atomic claims now — a replayed or racing request loses.
+> - **Multi-process correctness**: rate limits live in SQLite shared across workers, and household SSE events relay through the durable event log, so PM2 cluster mode works instead of multiplying limits and splitting live sync.
+> - **No duplicate scheduled mail**: reminder/digest/summary sends claim their marker atomically before sending.
+> - **Native persistence lanes**: whole-dataset writes moved off the UI thread on both platforms, and sign-out cache clearing is synchronous on that lane.
 
 ### What made up this version
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [58](#167-build-58--2026-10-04) | 2026-10-04 | The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
 | [55](#164-build-55--2026-09-15) | 2026-09-15 | Account Balances bank review, security hardening, memory leak fixes, and public changelog |
 | [54](#163-build-54--2026-09-15) | 2026-09-15 | Account Balances bank review (Accept/Decline), terminal 4xx retry fix, multi-account offline isolation, push token lifecycle fix, and test expansion across all platforms |
 | [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
 
 Store copy for every build of this train is in
-[`docs/release-notes/v1.6.3/`](docs/release-notes/v1.6.3/).
+[`docs/release-notes/v1.6.7/`](docs/release-notes/v1.6.7/).
+
+---
+
+## [1.6.7 build 58] — 2026-10-04
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.7 (58) — The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
+| **Android** | 1.6.7 (versionCode 58) — The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 58 |
+
+> **Build bump.** The build number continues 55 → 58 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients
+
+### Technical changelog
+
+**Security audit (`docs/AUDIT.md`) — all findings fixed:**
+
+- **Server**: per-kind field allowlist + nested scrubbing on household `shareEntity`/`updateEntity` (`server/household.js`); shared SQLite rate-limit store for all limiter tiers (`server/rateLimitStore.js`, `rate_limit_hits` table); cross-process SSE relay via the durable `household_events` log (`server/householdEvents.js` `initCrossProcess`); atomic scheduler marker claims with release-on-failure (`server/db.js` `claim*`/`release*`); atomic single-use on email tokens, backup codes, challenges, MFA finishers, and passkey completion (`consumeChallenge`, `used_at IS NULL` claims).
+- **Web**: `renderRotatingToggles` escapes categories; shared household rows are read-only everywhere (Shared badge; Pay/Skip/$0, Edit/Archive/Delete, payoff-link writes all guard `_householdShared`); privacy page documents localStorage and the native offline cache.
+- **iOS/macOS**: serial persistence lane for `OfflineCache` with a synchronous drain on sign-out; `.loading` session state survives init (no auth flash); per-config `INFOPLIST_FILE` — Release ATS is strict, Debug carries `NSAllowsLocalNetworking` via `Sources/Info.Debug.plist` + `Scripts/sync-debug-plist.sh`, drift gated by `scripts/check-debug-plist.js` in `npm run ci`; `PushRegistrar` logs through `os.Logger`.
+- **Android**: serial `Dispatchers.IO` persistence lane, blocking clear on sign-out; bootstrap clears the token only on a definitive unauthenticated `me()` — transport errors keep session, cache, pending writes, and reminders.
+
+**1.6.6 train (builds 56–58):**
+
+- **macOS**: real desktop build — source-list sidebar, sortable multi-select tables on all list screens, full keyboard map (Help ▸ Keyboard Shortcuts), Pro/paywall panels sized for windows, Settings as a column of panes; per-appearance theme colors.
+- **Setup**: seven-step post-verification wizard — reminders and App Lock asks on-screen with their reasons, skippable, named rail on Mac.
+- **Sign-in**: security check reveals on the card instead of hiding behind a spinner; Android session survives process death.
+- **Payoff**: a balance that never clears under minimums says so instead of quoting a fictitious saving.
+- **Server**: CSP enforced by default; reminder pass can't lose an hour.
+- **Site**: live App Store / Google Play badges on public footers, stale-copy scrub, `support@fihaven.app` contact, `/changelog` feed.
+
+**Build/tooling:** `scripts/sweep-matrix.sh` literal-safe credential substitution (bash 5.2 `patsub_replacement` fix); Codecov upload tolerates an unreachable CLI endpoint; `plist:check` in `npm run ci`.
+
+---
+
+## [1.6.6 build 57] — 2026-10-02
+
+| | |
+|---|---|
+| **Status** | Shipped to TestFlight / Play open testing |
+| **iOS** | 1.6.6 (57) — native macOS app: sidebar, sortable tables, bulk actions, keyboard-driven |
+| **Android** | 1.6.6 (versionCode 57) — setup wizard, sign-in state fix, reminder-pass fix, enforced CSP |
+| **Server** | CSP enforced by default; reminder-pass hour fix |
+
+> Backfilled record — this build shipped from the pre-port lineage; the committed section was lost with it. Store copy: [`docs/release-notes/v1.6.6/ios57-android57.md`](docs/release-notes/v1.6.6/ios57-android57.md).
+
+### Summary
+
+> Build 57 was the native macOS app: FiHaven's Mac build stopped being the iPad app run on Apple Silicon — a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and the whole app driven from the keyboard. Android carried the setup wizard with its two permission asks, the sign-in state fix, the reminder-pass fix, and the server's enforced Content-Security-Policy.
+
+---
+
+## [1.6.5 build 56] — 2026-09-30
+
+| | |
+|---|---|
+| **Status** | Shipped to TestFlight / Play open testing |
+| **iOS** | 1.6.5 (56) — bug fixes, stability improvements, subsystem audit refinements |
+| **Android** | 1.6.5 (versionCode 56) — same train |
+| **Server** | In lockstep |
+
+> Backfilled record — this build shipped from the pre-port lineage; the committed section was lost with it. Store copy: [`docs/release-notes/v1.6.5/ios56-android56.md`](docs/release-notes/v1.6.5/ios56-android56.md).
+
+### Summary
+
+> Build 56 carried the bug-fix and stability pass that the 1.6.6 train was drafted on top of.
 
 ---
 

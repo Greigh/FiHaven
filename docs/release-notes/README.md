@@ -44,6 +44,9 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.7](v1.6.7/ios58-android58.md) | iOS 58 · Android 58 | 2026-10-04 | **Build 58**: The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients. **No server migration, no sign-out** |
+| [1.6.6](v1.6.6/ios57-android57.md) | iOS 57 · Android 57 | 2026-10-02 | **Build 57**: The native macOS app — sidebar, sortable multi-select tables, keyboard-driven; Android setup wizard, sign-in state fix, reminder-pass fix, enforced CSP. Shipped from the pre-port lineage. **No server migration, no sign-out** |
+| [1.6.5](v1.6.5/ios56-android56.md) | iOS 56 · Android 56 | 2026-09-30 | **Build 56**: Bug fixes, stability improvements, and subsystem audit refinements. Shipped from the pre-port lineage. **No server migration, no sign-out** |
 | [1.6.4](v1.6.4/ios55-android55.md) | iOS 55 · Android 55 | 2026-09-15 | **Build 55**: Account Balances bank review, security hardening, memory leak fixes, and public changelog. **No server migration, no sign-out** |
 | [**1.6.2 — release**](v1.6.2/appstore-1.6.2.md) | the version as a whole | 2026-08-23 | **App Store and Google Play copy for the public 1.6.2 release**, covering builds 49–52 together. Leads with the one-time sign-out and the credit-card-payment fix; short variants for both stores, plus promotional text |
 | [1.6.3](v1.6.3/ios54-android54.md) | iOS 54 · Android 54 | 2026-09-15 | **Build 54**: Security hardening & memory leak audit across Android, iOS, and server. Memory leak prevention (SSE feeds, event listeners), cryptographic key zeroization in memory, race condition safety for bank syncs, Plaid webhook idempotency, and public `/changelog/` release notes portal. **No server migration, no sign-out** |

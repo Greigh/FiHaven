@@ -15,9 +15,8 @@ everything drafted alongside it.
 is 1.6.7**; the build number continues 57 → 58 (it is one shared counter across
 both stores and does not reset on a marketing bump — the rule from build 49 onward).
 
-**Written ahead of the cut.** Every version site in this tree still reads 1.6.6 /
-build 57; drafting this file moved nothing. The sites and the one command that
-moves them are at the bottom of this file.
+This file was drafted ahead of the cut on the pre-port lineage and shipped with
+the port — the sites now read 1.6.7 / build 58.
 
 **No forced sign-out, no data migration.** Build 58 is the native macOS app —
 FiHaven's Mac build stops being the iPad app run on Apple Silicon and becomes a
@@ -31,7 +30,7 @@ app is killed, and the server enforces its Content-Security-Policy.
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer — newlines count). **TestFlight "What to Test" is
 4000.** **App Store "What's New" is 4000.** Measured lengths of the three blocks
-below: Play **362 / 500**, TestFlight **3,634 / 4000**, App Store **3,003 / 4000**.
+below: Play **436 / 500**, TestFlight **3,865 / 4000**, App Store **3,003 / 4000**.
 The 1.6.6 copy sat one character under the TestFlight cap; this re-cut keeps the
 Mac guidance and buys ~360 characters of headroom back, so the next build can say
 what changed instead of landing on the cap again.
@@ -47,7 +46,7 @@ what changed instead of landing on the cap again.
 > this listing.
 
 ```
-BETA: setup now asks for reminders and App Lock up front, with the reason for each on screen. Sign-in keeps its state when Android closes the app in the background, reminders can no longer lose an hour to a slow pass, the server now enforces its security policy by default, and a payoff plan for a balance that never clears says so instead of inventing a saving.
+BETA: setup now asks for reminders and App Lock up front, with the reason for each on screen. Sign-in keeps its state when Android closes the app in the background, reminders can no longer lose an hour to a slow pass, the server now enforces its security policy by default, a payoff plan for a balance that never clears says so instead of inventing a saving, and a full security audit landed across sign-in, sync, and household sharing.
 ```
 
 ---
@@ -57,7 +56,7 @@ BETA: setup now asks for reminders and App Lock up front, with the reason for ea
 > Under 4000 characters. This is the 1.6.6 guidance re-cut for the build that
 > actually ships it: the five-screens bullet folded into the opening line, the
 > phone-side tail dropped (TestFlight testers are on iOS), and the long bullets
-> tightened — so the body sits ~360 characters under the cap instead of one
+> tightened — so the body sits ~135 characters under the cap instead of one
 > character under it. Build 58 is the one to break: it is the first native macOS
 > build, and the keyboard bindings are its newest part.
 
@@ -80,6 +79,8 @@ Please try, on a Mac:
 • The security check: when it needs a person, the widget should appear on the card rather than behind a spinner.
 • Payoff: the plan should never quote a "saving" against paying minimums on a balance they would never clear — it says so instead.
 • Setup: the wizard after you confirm your email is seven steps now — your data, reminders, App Lock and security join goals and your home. Reminders and App Lock ask on the step next to the reason, and both can be stepped past; saying no leaves the setting off and says where to turn it back on. On the Mac the steps are a named rail.
+
+• The audit: this build is also a full security pass over sign-in, sync, household sharing, and the local cache. Nothing should change for you — but if sign-in, sync, reminders, or a household update misbehaves at all, report it.
 
 On iPhone and iPad this build should behave as build 55 did, apart from the setup change and the security check. The Content-Security-Policy is enforced now — if a screen blanks or sign-in stalls, send me the browser console output.
 ```
