@@ -164,12 +164,46 @@
         </div>
 
         <div class="changelog-feed">
+          <!-- Build 59 -->
+          <article class="changelog-entry" id="v1.6.7-b59">
+            <div class="changelog-header">
+              <div class="changelog-version">
+                <span>1.6.7 (Build 59)</span>
+                <span class="changelog-badge badge-latest">Latest Beta</span>
+              </div>
+              <div class="changelog-date">October 6, 2026</div>
+            </div>
+            <div class="changelog-lead">
+              <strong>Pipeline and CI fixes; no user-facing changes since build 58</strong>
+            </div>
+            <ul class="changelog-list">
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>Same app as build 58</strong> — this build ships release-pipeline repairs; the 1.6.6 train (native Mac app, setup wizard, payoff honesty, surviving sessions, enforced CSP) is unchanged</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div><strong>CI green on both remotes</strong> — jobs that can't run on the Forgejo mirror now skip instead of dying at action-clone, and coverage uploads moved to the standalone Codecov CLI</div>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <div>Android build unpinned from a stale Java-runtime download URL that was failing every CI run at startup</div>
+              </li>
+            </ul>
+            <div class="changelog-platforms">
+              <span class="platform-pill">iOS 1.6.7 (59)</span>
+              <span class="platform-pill">Android 1.6.7 (59)</span>
+              <span class="platform-pill">Web fihaven.app</span>
+              <span class="platform-pill">Server API</span>
+            </div>
+          </article>
+
           <!-- Build 58 -->
           <article class="changelog-entry" id="v1.6.7-b58">
             <div class="changelog-header">
               <div class="changelog-version">
                 <span>1.6.7 (Build 58)</span>
-                <span class="changelog-badge badge-latest">Latest Beta</span>
+                <span class="changelog-badge badge-stable">Beta</span>
               </div>
               <div class="changelog-date">October 4, 2026</div>
             </div>

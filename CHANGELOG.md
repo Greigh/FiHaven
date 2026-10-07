@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.7 (58) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
-| **Android** | 1.6.7 (versionCode 58) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
+| **iOS** | 1.6.7 (59) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
+| **Android** | 1.6.7 (versionCode 59) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) — live App Store / Google Play badges on every page, the `/changelog` page, and the privacy page's on-device-storage disclosure. |
 | **Server** | Full security audit landed: household entity field allowlists, a shared SQLite rate-limit store, cross-process SSE relay, atomic credential consumption, and enforced Content-Security-Policy. |
 
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.7.** The build number continues 55 → 58
+> **Marketing version is 1.6.7.** The build number continues 58 → 59
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -54,6 +54,7 @@ Each release below uses two layers:
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [59](#167-build-59--2026-10-06) | 2026-10-06 | Pipeline and CI fixes; no user-facing changes since build 58 |
 | [58](#167-build-58--2026-10-04) | 2026-10-04 | The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
 | [55](#164-build-55--2026-09-15) | 2026-09-15 | Account Balances bank review, security hardening, memory leak fixes, and public changelog |
 | [54](#163-build-54--2026-09-15) | 2026-09-15 | Account Balances bank review (Accept/Decline), terminal 4xx retry fix, multi-account offline isolation, push token lifecycle fix, and test expansion across all platforms |
@@ -61,6 +62,51 @@ Each release below uses two layers:
 
 Store copy for every build of this train is in
 [`docs/release-notes/v1.6.7/`](docs/release-notes/v1.6.7/).
+
+---
+
+## [1.6.7 build 59] — 2026-10-06
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.7 (59) — Pipeline and CI fixes; no user-facing changes since build 58 |
+| **Android** | 1.6.7 (versionCode 59) — Pipeline and CI fixes; no user-facing changes since build 58 |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 59 |
+
+> **Build bump.** The build number continues 58 → 59 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> Pipeline and CI fixes; no user-facing changes since build 58
+
+### Technical changelog
+
+This build carries the merge of `main` into the train branch — every change is
+release infrastructure, not app code:
+
+- **Forgejo Actions fully green for the first time.** Forgejo resolves `uses:`
+  against `data.forgejo.org`, which mirrors only the `actions/*` org —
+  `github/codeql-action`, `release-drafter/release-drafter`, and
+  `maxim-lobanov/setup-xcode` all 404'd at clone time and killed their jobs
+  before checkout on every `main` push plus the weekly CodeQL cron. Those jobs
+  now carry `if: github.server_url == 'https://github.com'` and skip cleanly on
+  the mirror: CodeQL ×3, iOS core+app, Release Drafter, Android.
+- **Coverage upload moved off the action.** `codecov/codecov-action` can't
+  resolve on the mirror either; `codecov.yml` uploads with the standalone
+  Codecov CLI and treats an unreachable endpoint as a skip, not a failure.
+- **Gradle daemon JVM unpinned.** `android/gradle/gradle-daemon-jvm.properties`
+  — snapshot-leaked `updateDaemonJvm` output — pinned the daemon to JBR 21 via
+  exact foojay disco URLs, and the linux-x64 ID began returning 400, failing
+  every build at daemon startup. The file is gone; the daemon runs on the
+  ambient JDK (temurin 17 in CI) and the compile toolchains
+  (`jvmToolchain(17)`) resolve locally.
+- **Dependabot, noted not fixed.** The npm_and_yarn security-update job trips
+  on `bun.lock` sitting next to `package-lock.json`; routine version-update
+  PRs are unaffected. Fixing it is a `dependabot.yml` decision.
 
 ---
 

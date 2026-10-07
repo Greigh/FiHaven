@@ -44,6 +44,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.6.7](v1.6.7/ios59-android59.md) | iOS 59 · Android 59 | 2026-10-06 | **Build 59**: Pipeline and CI fixes; no user-facing changes since build 58. **No server migration, no sign-out** |
 | [1.6.7](v1.6.7/ios58-android58.md) | iOS 58 · Android 58 | 2026-10-04 | **Build 58**: The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients. **No server migration, no sign-out** |
 | [1.6.6](v1.6.6/ios57-android57.md) | iOS 57 · Android 57 | 2026-10-02 | **Build 57**: The native macOS app — sidebar, sortable multi-select tables, keyboard-driven; Android setup wizard, sign-in state fix, reminder-pass fix, enforced CSP. Shipped from the pre-port lineage. **No server migration, no sign-out** |
 | [1.6.5](v1.6.5/ios56-android56.md) | iOS 56 · Android 56 | 2026-09-30 | **Build 56**: Bug fixes, stability improvements, and subsystem audit refinements. Shipped from the pre-port lineage. **No server migration, no sign-out** |

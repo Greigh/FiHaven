@@ -42,7 +42,7 @@ A focused, manual-first personal finance and debt dashboard — recurring bills,
 [![Coverage](https://img.shields.io/codecov/c/gh/Greigh/FiHaven?branch=main&label=Coverage)](https://codecov.io/gh/Greigh/FiHaven)
 
 <!-- Platform & Environment -->
-[![Version](https://img.shields.io/badge/version-1.6.7%20(build%2058)-brightgreen)](https://github.com/Greigh/FiHaven/releases)
+[![Version](https://img.shields.io/badge/version-1.6.7%20(build%2059)-brightgreen)](https://github.com/Greigh/FiHaven/releases)
 [![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.11.0%20%7C%2024-green)](https://nodejs.org/)
 [![Swift](https://img.shields.io/badge/Swift-6.3-orange)](https://swift.org)
@@ -87,9 +87,9 @@ Android (Play).
 | Platform | Channel / Store | Status | Details & Requirements |
 |:---|:---|:---:|:---|
 | 🌐 **Web App** | [**fihaven.app**](https://fihaven.app) | **Live** | Desktop & mobile browser, responsive PWA with offline caching |
-| 🍏 **iOS / iPadOS** | [**App Store**](https://apps.apple.com/us/app/fihaven/id6781084347) (ID: `6781084347`)<br>*(Beta: [TestFlight](https://testflight.apple.com/join/SdN4yuuH))* | **Live** (1.6.7 b58) | iOS / iPadOS 18.6+, native SwiftUI, StoreKit 2, Face ID / Touch ID |
-| 🖥️ **macOS** | [**Mac App Store**](https://apps.apple.com/us/app/fihaven/id6781084347)<br>*(Designed for iPad)* | **Live** (1.6.7 b58) | Apple Silicon Mac (M1 or later), macOS 15+ |
-| ▶️ **Android** | [**Google Play**](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>*(Beta: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven))* | **Live** (1.6.7 b58) | Android 8.0+ (API 26+), Jetpack Compose, Play Billing, KeyStore biometric lock |
+| 🍏 **iOS / iPadOS** | [**App Store**](https://apps.apple.com/us/app/fihaven/id6781084347) (ID: `6781084347`)<br>*(Beta: [TestFlight](https://testflight.apple.com/join/SdN4yuuH))* | **Live** (1.6.7 b59) | iOS / iPadOS 18.6+, native SwiftUI, StoreKit 2, Face ID / Touch ID |
+| 🖥️ **macOS** | [**Mac App Store**](https://apps.apple.com/us/app/fihaven/id6781084347)<br>*(Designed for iPad)* | **Live** (1.6.7 b59) | Apple Silicon Mac (M1 or later), macOS 15+ |
+| ▶️ **Android** | [**Google Play**](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>*(Beta: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven))* | **Live** (1.6.7 b59) | Android 8.0+ (API 26+), Jetpack Compose, Play Billing, KeyStore biometric lock |
 
 ---
 
@@ -438,7 +438,7 @@ FiHaven Pro subscription.
 Both apps follow a shared API + data + design + billing contract. FiHaven Pro
 entitlement is server-authoritative and unified across web (Paddle), iOS
 (StoreKit), and Android (Play) — see [the API section](#api). Versioning uses
-a single shared build counter across both stores (currently **v1.6.7, build 58**).
+a single shared build counter across both stores (currently **v1.6.7, build 59**).
 
 ### Running the tests
 
