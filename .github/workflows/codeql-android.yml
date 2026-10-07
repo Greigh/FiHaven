@@ -18,6 +18,9 @@ jobs:
   java-kotlin:
     name: Analyze Java / Kotlin
     runs-on: ubuntu-latest
+    # GitHub-only: github/codeql-action isn't mirrored by data.forgejo.org, so
+    # on Forgejo the action clone 404s and the job dies before checkout.
+    if: github.server_url == 'https://github.com'
 
     permissions:
       actions: read

@@ -15,6 +15,10 @@ jobs:
   javascript-typescript:
     name: Analyze JavaScript / TypeScript
     runs-on: ubuntu-latest
+    # GitHub-only: Forgejo resolves `uses:` against data.forgejo.org, which
+    # doesn't mirror github/codeql-action — the clone 404s before checkout.
+    # Even run manually, the SARIF upload targets GitHub's code-scanning API.
+    if: github.server_url == 'https://github.com'
 
     permissions:
       actions: read

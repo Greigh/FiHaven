@@ -9,6 +9,10 @@ on:
 jobs:
   core:
     runs-on: macos-latest
+    # GitHub-only: maxim-lobanov/setup-xcode isn't mirrored by
+    # data.forgejo.org, and the Forgejo fleet has no macOS runner to begin
+    # with — the job would pend forever or die cloning the action.
+    if: github.server_url == 'https://github.com'
 
     steps:
       - name: Check out repository
@@ -38,6 +42,9 @@ jobs:
   app:
     runs-on: macos-latest
     needs: core
+    # GitHub-only — same constraints as `core` above (and `needs` would
+    # cascade-skip it anyway).
+    if: github.server_url == 'https://github.com'
 
     steps:
       - name: Check out repository
