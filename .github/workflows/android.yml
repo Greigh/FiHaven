@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # GitHub-only: the Forgejo runner's image has no Android SDK, so the
+    # Gradle steps fail after checkout on every run there. Revisit if the
+    # runner image ever gains one.
+    if: github.server_url == 'https://github.com'
 
     steps:
       - name: Check out repository

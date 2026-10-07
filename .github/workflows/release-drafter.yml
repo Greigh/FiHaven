@@ -11,6 +11,10 @@ permissions:
 jobs:
   update_release_draft:
     runs-on: ubuntu-latest
+    # GitHub-only: release-drafter/release-drafter isn't in the actions/* org
+    # that data.forgejo.org mirrors — on Forgejo the clone 404s before
+    # checkout. The release draft it maintains lives on GitHub anyway.
+    if: github.server_url == 'https://github.com'
 
     steps:
       - name: Run release drafter

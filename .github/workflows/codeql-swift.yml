@@ -18,6 +18,10 @@ jobs:
   swift:
     name: Analyze Swift
     runs-on: macos-latest
+    # GitHub-only: github/codeql-action isn't mirrored by data.forgejo.org,
+    # and the Forgejo runner fleet has no macOS runner regardless — the job
+    # would sit queued forever.
+    if: github.server_url == 'https://github.com'
 
     permissions:
       actions: read
