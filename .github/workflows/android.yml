@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # GitHub-only: the Gradle steps fail on every Forgejo run — that runner's
+    # image doesn't carry the Android toolchain the build needs. Revisit if
+    # the image ever gains one.
+    if: github.server_url == 'https://github.com'
 
     steps:
       - name: Check out repository
