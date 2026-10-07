@@ -8,10 +8,10 @@
 #
 # Auth (pick one):
 #   • Xcode account (interactive first upload), or
-#   • App Store Connect API key:
-#       export APP_STORE_CONNECT_API_KEY_ID=...
-#       export APP_STORE_CONNECT_API_ISSUER_ID=...
-#       export APP_STORE_CONNECT_API_KEY_PATH=~/path/to/AuthKey_XXXX.p8
+#   • App Store Connect API key (exported, or in repo-root .env — auto-loaded):
+#       APP_STORE_CONNECT_API_KEY_ID=...
+#       APP_STORE_CONNECT_API_ISSUER_ID=...
+#       APP_STORE_CONNECT_API_KEY_PATH=~/path/to/AuthKey_XXXX.p8
 #
 # Usage (from repo root):
 #   ./scripts/ios-testflight.sh
@@ -38,6 +38,33 @@ ARCHIVE="$APP_DIR/build/FiHaven.xcarchive"
 EXPORT_DIR="$APP_DIR/build/export"
 EXPORT_PLIST="$APP_DIR/ExportOptions.plist"
 SCHEME="FiHaven"
+
+# Soft-load repo-root .env so APP_STORE_CONNECT_API_* work without exporting by
+# hand — same semantics as loadEnvFile() in scripts/play-upload.js: comments
+# skipped, already-set vars win, one layer of matching quotes stripped.
+# Parsed line-by-line rather than `source`d: .env isn't guaranteed to be valid
+# shell (a stray backtick or unquoted metachar can make it unloadable).
+load_env_file() {
+  local env_file="$ROOT/.env" line key val first last
+  [[ -f $env_file ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    line="${line%$'\r'}"
+    [[ $line =~ ^[[:space:]]*# ]] && continue
+    if [[ $line =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+      val="${val%"${val##*[![:space:]]}"}"
+      if [[ ${#val} -ge 2 ]]; then
+        first="${val:0:1}"; last="${val:$((${#val}-1)):1}"
+        if [[ ( $first == '"' && $last == '"' ) || ( $first == "'" && $last == "'" ) ]]; then
+          val="${val:1:$((${#val}-2))}"
+        fi
+      fi
+      [[ -z ${!key:-} ]] && export "$key=$val"
+    fi
+  done < "$env_file"
+}
+load_env_file
 
 archive_only=false
 build_arg=""
