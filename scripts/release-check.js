@@ -41,13 +41,14 @@ const ROOT = path.resolve(__dirname, '..');
 // release commits, file headers, or generated docs.
 const AI_SIGNATURE_PATTERNS = [
   // Co-author trailers from AI tools
-  { pattern: /Co-authored-by:\s*(?:Claude|ChatGPT|GPT|Gemini|Copilot|Bard|AI|Assistant)\b/i, label: 'AI co-author trailer' },
+  { pattern: /Co-authored-by:\s*(?:Claude|ChatGPT|GPT|Gemini|Copilot|Bard|Devin|AI|Assistant)\b/i, label: 'AI co-author trailer' },
+  { pattern: /co-authored-by:\s*[^<]*devin/i, label: 'Devin co-author' },
   { pattern: /co-authored-by:\s*[<][^>]*[Cc]laude[^>]*[>]/i, label: 'Claude co-author' },
   { pattern: /co-authored-by:\s*[<][^>]*[Cc]hat[Gg]pt[^>]*[>]/i, label: 'ChatGPT co-author' },
   { pattern: /co-authored-by:\s*[<][^>]*[Gg]emini[^>]*[>]/i, label: 'Gemini co-author' },
 
   // Generated-by markers
-  { pattern: /generated\s+(?:with|by)\s+(?:Claude|ChatGPT|GPT|Gemini|Copilot|AI|an?\s+AI|code\s+generation)/i, label: 'AI generation marker' },
+  { pattern: /generated\s+(?:with|by)\s+(?:Claude|ChatGPT|GPT|Gemini|Copilot|Devin|AI|an?\s+AI|code\s+generation)/i, label: 'AI generation marker' },
   { pattern: /generated\s+by\s+(?:Claude|ChatGPT|GPT|Gemini|Copilot)/i, label: 'AI generator attribution' },
 
   // AI signature lines
@@ -116,18 +117,13 @@ function run(cmd, opts = {}) {
 function checkCommitMessages() {
   console.log('Checking commit messages for AI signatures...\n');
 
-  const logOutput = run(`git log -${COMMITS_TO_CHECK} --format='%H||%s||%b||%b'`, { maxBuffer: 10 * 1024 * 1024 });
-  if (!logOutput) {
+  const failures = [];
+
+  const rawLog = run(`git log -${COMMITS_TO_CHECK} --format=%H%n---COMMIT---`, { maxBuffer: 10 * 1024 * 1024 });
+  if (!rawLog) {
     console.log('  ⚠ Could not read commit history — skipping commit check');
     return [];
   }
-
-  const failures = [];
-  const commits = logOutput.split('%n').filter(Boolean);
-
-  // git log format with %n for newlines is tricky; use a different approach
-  const rawLog = run(`git log -${COMMITS_TO_CHECK} --format=%H%n---COMMIT---`, { maxBuffer: 10 * 1024 * 1024 });
-  if (!rawLog) return [];
 
   const commitHashes = rawLog.split('---COMMIT---').filter(Boolean);
   let idx = 0;

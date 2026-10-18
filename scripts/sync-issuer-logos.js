@@ -218,6 +218,22 @@ ${rows}
 `;
 }
 
+/** Regenerate both native tables; returns { written: [abs paths] }. */
+function write() {
+  const entries = readEntries();
+  const written = [];
+  for (const [file, contents] of [
+    [SWIFT_OUT, swiftSource(entries)],
+    [KOTLIN_OUT, kotlinSource(entries)],
+  ]) {
+    const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+    if (current === contents) continue;
+    fs.writeFileSync(file, contents);
+    written.push(file);
+  }
+  return { written, entries };
+}
+
 function main() {
   const check = process.argv.includes('--check');
   const entries = readEntries();
@@ -250,4 +266,6 @@ function main() {
   console.log(`${entries.length} issuer marks synced`);
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { readEntries, write };

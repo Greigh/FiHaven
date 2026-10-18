@@ -68,13 +68,13 @@ const ARTIFACTS = [
   {
     name: 'sitemap.xml',
     run: () => {
-      const { changed, kept } = require('./generate-sitemap').write();
+      const { changed, provisional } = require('./generate-sitemap').write();
       return {
         written: changed ? ['client/public/sitemap.xml'] : [],
         // A page with uncommitted edits has no commit date to stamp, so its
-        // <lastmod> is whatever the file already said — correct locally, and
-        // provisional until the page is committed and this runs again.
-        notes: kept.map((p) => `${p} kept its existing <lastmod> — the page has uncommitted edits`),
+        // <lastmod> is today — right once the commit lands today, and
+        // re-asked-for by --check if the commit lands on a later day.
+        notes: provisional.map((p) => `${p} got today's <lastmod> — the page has uncommitted edits`),
       };
     },
     count: () => `${require('./indexnow-urls').PUBLIC_PAGES.length} URLs`,

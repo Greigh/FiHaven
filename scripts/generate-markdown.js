@@ -229,6 +229,18 @@ function build() {
   }));
 }
 
+/** Write each stale rendition; returns the absolute paths written. */
+function write() {
+  const written = [];
+  for (const { file, body } of build()) {
+    const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+    if (current === body) continue;
+    fs.writeFileSync(file, body);
+    written.push(file);
+  }
+  return written;
+}
+
 function main() {
   const check = process.argv.includes('--check');
   const outputs = build();
@@ -256,4 +268,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { pageToMarkdown, build };
+module.exports = { pageToMarkdown, build, write };

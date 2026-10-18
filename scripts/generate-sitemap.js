@@ -28,6 +28,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { PUBLIC_PAGES, publicOrigin } = require('./indexnow-urls');
+const { isDirty } = require('./worktree');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'client', 'public', 'sitemap.xml');
@@ -36,10 +37,13 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/* Last commit date (YYYY-MM-DD) for a client page, or today if
-   git has nothing to say about it. */
-function lastModified(file) {
+/* Last commit date (YYYY-MM-DD) for a client page. A page with
+   uncommitted changes — or one git doesn't know about yet — has no
+   commit date that could describe this build of it, so it gets today:
+   the same answer the incoming commit's date will give. */
+function lastModified(file, { git } = {}) {
   const rel = path.join('client', file);
+  if (isDirty(rel, { git })) return today();
   try {
     const out = execFileSync('git', ['log', '-1', '--format=%cs', '--', rel], {
       cwd: ROOT,
@@ -52,14 +56,32 @@ function lastModified(file) {
   }
 }
 
-function buildXml() {
+/** loc-path → <lastmod> map of the sitemap on disk ({} when absent). */
+function currentLastmods() {
+  if (!fs.existsSync(OUT)) return {};
+  const xml = fs.readFileSync(OUT, 'utf8');
+  const map = {};
+  for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>\s*<lastmod>([^<]+)<\/lastmod>/g)) {
+    map[m[1]] = m[2];
+  }
+  return map;
+}
+
+function buildXml({ exemptDirty = false } = {}) {
   const origin = publicOrigin();
+  // --check mode: a dirty page's <lastmod> is a commit value — it cannot be
+  // known until the commit lands, so whatever the file already says is the
+  // expected value. Everything else about the page is still compared.
+  const existing = exemptDirty ? currentLastmods() : {};
   const entries = PUBLIC_PAGES.map((p) => {
     const loc = p.path === '/' ? `${origin}/` : `${origin}${p.path}`;
+    const rel = path.join('client', p.file);
+    const lastmod =
+      exemptDirty && existing[loc] && isDirty(rel) ? existing[loc] : lastModified(p.file);
     return [
       '  <url>',
       `    <loc>${loc}</loc>`,
-      `    <lastmod>${lastModified(p.file)}</lastmod>`,
+      `    <lastmod>${lastmod}</lastmod>`,
       `    <changefreq>${p.changefreq}</changefreq>`,
       `    <priority>${p.priority}</priority>`,
       '  </url>',
@@ -76,13 +98,29 @@ function buildXml() {
   ].join('\n');
 }
 
-function main() {
+/**
+ * Regenerate the sitemap. Returns { changed, provisional } — provisional is
+ * the list of page paths whose <lastmod> is today() because their source has
+ * uncommitted changes (or is untracked): the right answer only if the commit
+ * lands today.
+ */
+function write() {
   const xml = buildXml();
+  const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  const changed = current !== xml;
+  if (changed) fs.writeFileSync(OUT, xml);
+  const provisional = PUBLIC_PAGES
+    .filter((p) => isDirty(path.join('client', p.file)))
+    .map((p) => p.path);
+  return { changed, provisional };
+}
+
+function main() {
   const check = process.argv.includes('--check');
   const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
 
   if (check) {
-    if (current !== xml) {
+    if (current !== buildXml({ exemptDirty: true })) {
       console.error('sitemap.xml is out of date — run `npm run sitemap`.');
       process.exit(1);
     }
@@ -90,8 +128,13 @@ function main() {
     return;
   }
 
-  fs.writeFileSync(OUT, xml);
+  const { provisional } = write();
   console.log(`Wrote ${path.relative(ROOT, OUT)} — ${PUBLIC_PAGES.length} URLs.`);
+  for (const p of provisional) {
+    console.log(`  ${p}: <lastmod> stamped with today — the source has uncommitted changes`);
+  }
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { buildXml, write, today, lastModified };

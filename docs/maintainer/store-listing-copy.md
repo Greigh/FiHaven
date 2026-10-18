@@ -3,7 +3,7 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.6.7 — **build 59 on both stores** (marketing bump 1.6.2 → 1.6.7; the build number is one shared counter and continued 58 → 59 without resetting)  
+**Version train:** 1.6.7 — **build 59 on both stores** (still 1.6.7; the build number is one shared counter and continued 58 → 59 without resetting)  
 **Current build's store copy:** [`../release-notes/v1.6.7/ios59-android59.md`](../release-notes/v1.6.7/ios59-android59.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
