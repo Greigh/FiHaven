@@ -301,6 +301,6 @@ Paste-ready listing text: [`store-listing-copy.md`](store-listing-copy.md).
 | iOS crashes | App Store Connect → Crashes (symbols uploaded with archive) |
 | Android crashes / ANRs | Play Console → Vitals (+ native symbols + `mapping.txt`) |
 | Support | `support@fihaven.app` / https://fihaven.app/contact |
-| Hotfix | `npm run deploy` / `deploy:ios` / `deploy:android`; `npm run rollback` if needed |
+| Hotfix | `npm run deploy` / `deploy:ios` / `deploy:android`; rollback runs from the template: `bash scripts/examples/rollback.example.sh --list` |
 
 No third-party crash SDK by design (privacy policy).

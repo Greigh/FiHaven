@@ -100,7 +100,7 @@ already in every capture; the iPad is not. An iPad in portrait is 1032pt and in
 Split View is about 507pt, with Slide Over narrower still, and those are the
 widths at which the iPad's own layouts decide what to drop — the adaptive
 `TabView` sidebar, the two-column stacks `MacPaneColumns` grew. Nothing in
-`npm run run:ios -- --sweep` photographs any of them.
+`scripts/run-ios.sh --sweep` photographs any of them.
 
 **Why it was left** The device *is* the width axis on iOS, and picking a narrower
 device photographs a different product rather than the same one at another size:
