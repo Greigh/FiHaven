@@ -46,8 +46,15 @@ set -euo pipefail
 #                   first; one subdirectory per device, so a two-device run
 #                   keeps its captures apart)
 #   --delay N       --sweep seconds to settle before each capture (default 8)
-#   --only a,b      --sweep a subset, by screen name (e.g. bills,cards)
+#   --only a,b      --sweep a subset, by screen name (e.g. bills,cards) — the
+#                   signed-out samples (intro, auth, auth-stalled) are names
+#                   too, not screens
 #   --states a,b    --sweep a subset, by state (default: all of them)
+#   --viewport WxH  --sweep with the app laid out inside a WxH letterbox rather
+#                   than the device's own window — the narrow multitasking and
+#                   landscape geometries `simctl` cannot produce. WxH:compact
+#                   also asks for the compact size class, which is what a real
+#                   iPad split gives a narrow app (FH_VIEWPORT).
 #   --diff DIR      after the sweep, compare it against an earlier sweep in DIR
 #                   and report which screens moved (see scripts/sweep-diff.js).
 #                   Usable without --sweep to compare two runs you already have:
@@ -110,6 +117,7 @@ while [ $# -gt 0 ]; do
     --device) shift; DEVICE="${1:-}" ;;
     --out) shift; OUT_DIR="${1:-}" ;;
     --delay) shift; SWEEP_DELAY="${1:-}" ;;
+    --viewport) shift; FH_VIEWPORT="${1:-}" ;;
     --only) shift; ONLY="${1:-}" ;;
     --states) shift; STATES="${1:-}" ;;
     --diff) shift; DIFF_OLD="${1:-}" ;;
@@ -122,6 +130,11 @@ done
 
 if [ -n "$RUN_FOR" ] && ! [[ "$RUN_FOR" =~ ^[0-9]+$ ]]; then
   echo "run-ios: --seconds wants a whole number, got '$RUN_FOR'" >&2
+  exit 2
+fi
+
+if [ -n "${FH_VIEWPORT:-}" ] && ! [[ "$FH_VIEWPORT" =~ ^[0-9]+x[0-9]+(:compact)?$ ]]; then
+  echo "run-ios: --viewport wants WxH or WxH:compact, got '$FH_VIEWPORT'" >&2
   exit 2
 fi
 
@@ -276,13 +289,24 @@ build_app() {
 # one cell's `FH_DEV_ENTITLEMENT=free` is not still set on the next cell's
 # `FH_DEV_ENTITLEMENT=active`.
 launch_env() {
+  local pairs="$1" mode="${2:-}"
   local -a envv=()
   local key value kv
-  for key in FH_BASE FH_SKIP_STOREKIT FH_AUTOLOGIN FH_DEV_EMAIL FH_DEV_PASSWORD; do
+  for key in FH_BASE FH_SKIP_STOREKIT FH_VIEWPORT; do
     value="${!key:-}"
     [ -n "$value" ] && envv+=("SIMCTL_CHILD_$key=$value")
   done
-  for kv in ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} $1; do
+  # The signed-out samples are the screens that exist before there is a
+  # session. A sweep always exports FH_AUTOLOGIN for the signed-in cells, so
+  # without this gate it would sign the sample straight back in and
+  # `FH_SIGNED_OUT=1` — in the sample's own env — would have nothing to do.
+  if [ "$mode" != "signedout" ]; then
+    for key in FH_AUTOLOGIN FH_DEV_EMAIL FH_DEV_PASSWORD; do
+      value="${!key:-}"
+      [ -n "$value" ] && envv+=("SIMCTL_CHILD_$key=$value")
+    done
+  fi
+  for kv in ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} $pairs; do
     envv+=("SIMCTL_CHILD_${kv%%=*}=${kv#*=}")
   done
   printf '%s\n' "${envv[@]}"
@@ -296,11 +320,13 @@ launch_env() {
 # process that does not need the app's terminal, and a pty here would only add
 # a way for the run to hang.
 capture_cell() {
-  local udid="$1" png="$2" log="$3" state_env="$4" raw="$5" delay="$6"
+  local udid="$1" png="$2" log="$3" state_env="$4" raw="$5" delay="$6" mode="${7:-}"
   local -a envv=()
   local envv_one
-  while IFS= read -r envv_one; do envv+=("$envv_one"); done < <(launch_env "$state_env")
-  envv+=("SIMCTL_CHILD_FH_SCREEN=$raw")
+  while IFS= read -r envv_one; do envv+=("$envv_one"); done < <(launch_env "$state_env" "$mode")
+  # The signed-out samples pass an empty raw: there is no `FH_SCREEN` for a
+  # launch that has no shell to select one in.
+  [ -n "$raw" ] && envv+=("SIMCTL_CHILD_FH_SCREEN=$raw")
   xcrun simctl terminate "$udid" "$BUNDLE" 2>/dev/null || true
   sleep 1
   env "${envv[@]}" xcrun simctl launch --console "$udid" "$BUNDLE" >"$log" 2>&1 &
@@ -311,6 +337,154 @@ capture_cell() {
   xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null 2>&1 || true
   xcrun simctl terminate "$udid" "$BUNDLE" 2>/dev/null || true
   wait "$runner" 2>/dev/null || true
+}
+
+# Record one capture: every check the sweep makes of a file on disk, its log
+# and the run's own bookkeeping, in one place so a signed-in cell and a
+# signed-out sample cannot drift apart.
+#
+#   ios_record_cell <png> <log> <title> <raw> <state> <evidence> <differs>
+#                   <expected_screen> <blank_bytes>
+#
+# Sets `SWEEP_ROW` to the table row and updates `missing`, `flagged`, `seen`,
+# `happy_seen` and `device_pixels` — `sweep_device`'s locals, which are in
+# scope here because bash is dynamically scoped, and the reason this is a
+# function rather than a block copied for the signed-out samples.
+#
+# `expected_screen` is what `[Shell] screen=` should say: the raw name for a
+# signed-in cell, empty for a signed-out sample, where no shell is mounted and
+# the check has nothing to hold against.
+ios_record_cell() {
+  local png="$1" log="$2" title="$3" raw="$4" state="$5" evidence="$6" differs="$7" expected_screen="$8" blank_bytes="$9"
+  local note="" pixels="—" size="—" gate_word="—" vp="—"
+  if [ ! -f "$png" ]; then
+    note="no capture — see $(basename "$log")"
+    missing=$((missing + 1))
+  else
+    local bytes; bytes="$(stat -f%z "$png" 2>/dev/null || echo 0)"
+    pixels="$(file_pixels "$png")"
+    size="$(file_size "$bytes")"
+    [ -n "$device_pixels" ] || device_pixels="$pixels"
+
+    # The logical size the layout answered, when one was asked for. The PNG's
+    # pixel dimensions are the *canvas* — a letterboxed run still photographs
+    # the device screen — so the viewport column reads the app's own
+    # `[Viewport]` line rather than the image. `?` when a forced run logged
+    # none: the hook did not land, which is exactly what the column is for.
+    if [ -n "${FH_VIEWPORT:-}" ]; then
+      vp="$(grep -oE 'forced [0-9]+x[0-9]+' "$log" | tail -1 | awk '{print $2}')"
+      if [ -n "$vp" ]; then
+        grep -q 'class=compact' "$log" && vp="$vp:c"
+      else
+        vp="?"
+      fi
+    fi
+
+    # The one thing a file on disk cannot tell you: which screen the app had
+    # selected when `simctl` took the picture. A mismatch means `FH_SCREEN`
+    # did not land, which is the failure a full table of plausible PNGs
+    # would hide — and on iOS it is likelier than on the Mac, because the
+    # route depends on the account's tab layout and its entitlement.
+    #
+    # A signed-out launch passes an empty expectation and skips the check:
+    # the shell is not on screen, so there is nothing the name could hold.
+    if [ -n "$expected_screen" ]; then
+      local rendered; rendered="$(grep -o 'screen=[a-z]*' "$log" | tail -1 | cut -d= -f2)"
+      if [ -z "$rendered" ]; then
+        note="$(note_join "$note" "screen unconfirmed")"
+      elif [ "$rendered" != "$expected_screen" ]; then
+        note="$(note_join "$note" "rendered '$rendered'")"
+      fi
+    fi
+    # Whether this capture is the product or the upsell, from the app's own
+    # answer. On the phone this is the state that most needs saying out
+    # loud: five of the seventeen screens are paywalls for a free account,
+    # and without the column a `free` sweep is seventeen rows that all say
+    # `ok`.
+    local gate; gate="$(sweep_gate "$log")"
+    gate_word="$(sweep_gate_word "$gate")"
+    local gate_note; gate_note="$(sweep_gate_finding "$state" "$gate")"
+    if [ -n "$gate_note" ]; then
+      note="$(note_join "$note" "$gate_note")"
+    fi
+    # The state has to say it happened: a state that sets itself up has to
+    # say so in its own log, because a PNG cannot tell a paywall from a
+    # product and the run that cannot tell them is the one that photographs
+    # the wrong one and calls it a review. Every state has to have signed
+    # in, or the capture is the sign-in screen.
+    if [ -n "$evidence" ]; then
+      local missing_evidence
+      missing_evidence="$(sweep_evidence_missing "$log" "$evidence")"
+      if [ -n "$missing_evidence" ]; then
+        note="$(note_join "$note" "no '$missing_evidence' in log")"
+      fi
+    fi
+    if [ "$bytes" -lt "$blank_bytes" ]; then
+      note="$(note_join "$note" "looks blank at $size")"
+    fi
+    if [ -n "$device_pixels" ] && [ "$pixels" != "$device_pixels" ]; then
+      note="$(note_join "$note" "got $pixels, device is $device_pixels")"
+    fi
+    # Two screens with the same bytes means the route did not apply — the
+    # one failure a sweep has to notice, because the table would otherwise
+    # report a full set of captures.
+    #
+    # The qualifications are the gate and the screen, as on the Mac.
+    # Five screens share one `ProLockedView`, so two *paywalled* captures
+    # are byte-identical by construction and an unqualified `identical to`
+    # reads a free tier's matched upsells as a routing failure. And the
+    # same screen in two states legitimately shares bytes when neither
+    # state has to look different — `differs=yes` pairs are owned by the
+    # `same as happy` check below, so this one stays for two *different*
+    # screens with one picture. `seen` keeps each cell's gate and stem
+    # alongside its hash so the note can say which case a match is.
+    local hash; hash="$(shasum -a 256 "$png" | cut -d' ' -f1)"
+    if [ -n "$seen" ]; then
+      local twin_line twin_gate twin_stem twin_screen
+      twin_line="$(printf '%s' "$seen" | grep -m1 "^$hash " || true)"
+      if [ -n "$twin_line" ]; then
+        twin_gate="$(printf '%s' "$twin_line" | cut -d' ' -f2)"
+        twin_stem="$(printf '%s' "$twin_line" | cut -d' ' -f3)"
+        twin_screen="${twin_stem#*-}"; twin_screen="${twin_screen%%__*}"
+        if [ "$twin_screen" = "$raw" ]; then
+          :
+        elif [ "$gate" = "locked" ] && [ "$twin_gate" = "locked" ]; then
+          note="$(note_join "$note" "identical to $twin_stem (both paywalled)")"
+        else
+          note="$(note_join "$note" "identical to $twin_stem")"
+        fi
+      fi
+    fi
+    seen="$seen$hash $gate $stem.png
+  "
+    # The same screen in a state that *has* to look different, photographed
+    # exactly as `happy` did. The file-level check above catches two
+    # identical captures, but not a whole column that is wrong in the same
+    # direction — which is what a fault hook that did not compile looks like.
+    # Only meaningful when `happy` is in the run, since that is the baseline.
+    if [ "$differs" = "yes" ]; then
+      local baseline
+      baseline="$(printf '%s' "$happy_seen" | awk -v k="$raw" '$1 == k { print $2; exit }')"
+      if [ -n "$baseline" ] && [ "$baseline" = "$hash" ]; then
+        note="$(note_join "$note" "same as happy")"
+      fi
+    elif [ "$state" = "happy" ]; then
+      happy_seen="$happy_seen$raw $hash $gate
+"
+    elif [ "$state" = "free" ]; then
+      # The gate the Pro run showed on this screen, read from the log rather
+      # than from a list of gated screens — so it cannot name the wrong five.
+      local pro_gate
+      pro_gate="$(printf '%s' "$happy_seen" | awk -v k="$raw" '$1 == k { print $3; exit }')"
+      gate_note="$(sweep_gate_missing_note "$pro_gate" "$state" "$gate")"
+      if [ -n "$gate_note" ]; then
+        note="$(note_join "$note" "$gate_note")"
+      fi
+    fi
+  fi
+  [ -n "$note" ] || note="ok"
+  [ "$note" = "ok" ] || flagged=$((flagged + 1))
+  SWEEP_ROW="$(printf '%s|%s|%s|%s.png|%s|%s|%s|%s|%s' "$idx" "$state" "$title" "$stem" "$vp" "$pixels" "$size" "$gate_word" "$note")"
 }
 
 # ── the sweep ───────────────────────────────────────────────────────────────
@@ -334,24 +508,46 @@ sweep_device() {
     echo "run-ios: --states also sweeping $added — the two tiers are one review, and a Pro screen photographed as a paywall is the failure the pair exists to catch"
     STATES="${STATES:+$STATES,}$added"
   fi
-  chosen="$(sweep_choose run-ios --only "$ONLY" "$(printf '%s\n' "${SWEEP_SCREENS[@]}")")" || return $?
+  # `--only` selects from both matrices at once: the seventeen screens and the
+  # signed-out samples, which are not screen × state cells at all. One list to
+  # validate and order, then split — the loop below runs `chosen`, the block
+  # after it runs `chosen_out`.
+  local chosen chosen_all chosen_out entry
+  chosen_all="$(sweep_choose run-ios --only "$ONLY" "$(printf '%s\n' "${SWEEP_SCREENS[@]}" "${SWEEP_SIGNED_OUT[@]}")")" || return $?
+  chosen=""
+  chosen_out=""
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    if sweep_is_signed_out "$(sweep_field "$entry" 1)"; then
+      chosen_out="$chosen_out$entry
+"
+    else
+      chosen="$chosen$entry
+"
+    fi
+  done <<< "$chosen_all"
   chosen_states="$(sweep_choose run-ios --states "$STATES" "$(sweep_states)")" || return $?
 
   # Counted through a here-string, not an unquoted expansion: half these rows
   # are titles with spaces in them, and word-splitting them counts 3 screens
   # as 4 and 3 states as 16.
-  local screens states
+  local screens states out_count
   screens="$(grep -c . <<< "$chosen" || true)"
   states="$(grep -c . <<< "$chosen_states" || true)"
-  local total=$((screens * states))
+  out_count="$(grep -c . <<< "$chosen_out" || true)"
+  local total=$((screens * states + out_count))
 
-  local per_state="" entry raw title state state_entry
+  local per_state="" raw title state state_entry
   local seed
   while IFS= read -r seed; do
     [ -n "$seed" ] || continue
     per_state="$per_state$(sweep_field "$seed" 1)|0|0
 "
   done <<< "$chosen_states"
+  if [ "$out_count" -gt 0 ]; then
+    per_state="${per_state}signedout|0|0|signed out — no session|$out_count
+"
+  fi
 
   rm -rf "$out"
   mkdir -p "$out"
@@ -366,7 +562,7 @@ sweep_device() {
   # `ipad@example.com` with `--force` on every sweep would wipe a real person's
   # local rows to save them a command. One request decides, and the remedy is
   # only taken when it is needed.
-  if [ "$total" -gt 0 ] && sweep_needs_dev_account "$chosen_states"; then
+  if [ "$screens" -gt 0 ] && sweep_needs_dev_account "$chosen_states"; then
     local dev_email="${FH_DEV_EMAIL:-ipad@example.com}"
     local dev_password="${FH_DEV_PASSWORD:-IpAd-Demo-Pass!2026}"
     local dev_why
@@ -400,7 +596,7 @@ sweep_device() {
   # on every row of the table, seventeen times over. Preparation belongs to the
   # script whose job is preparing accounts, so it is asked for here rather than
   # grown here.
-  if [ "$total" -gt 0 ] && grep -q '^empty|' <<< "$chosen_states"; then
+  if [ "$screens" -gt 0 ] && grep -q '^empty|' <<< "$chosen_states"; then
     local empty_email="${FH_SWEEP_EMPTY_EMAIL:-fhsweep-empty@fihaven.app}"
     local empty_password="${FH_SWEEP_EMPTY_PASSWORD:-demopassword11}"
     # Seed into the database the server is actually using. The seeder resolves
@@ -455,7 +651,7 @@ sweep_device() {
   fi
 
   echo
-  echo "run-ios: $name ($udid) — $screens screen(s) x $states state(s) = $total into $out"
+  echo "run-ios: $name ($udid) — $screens screen(s) x $states state(s) + $out_count signed-out = $total into $out"
   # Booted before installed: `simctl install` needs a running simulator, and a
   # build does not.
   boot_device "$udid"
@@ -508,102 +704,62 @@ sweep_device() {
 
       capture_cell "$udid" "$png" "$log" "$state_env" "$raw" "$SWEEP_DELAY"
 
-      local note="" pixels="—" size="—" gate_word="—"
-      if [ ! -f "$png" ]; then
-        note="no capture — see $(basename "$log")"
-        missing=$((missing + 1))
-      else
-        local bytes; bytes="$(stat -f%z "$png" 2>/dev/null || echo 0)"
-        pixels="$(file_pixels "$png")"
-        size="$(file_size "$bytes")"
-        [ -n "$device_pixels" ] || device_pixels="$pixels"
-
-        # The one thing a file on disk cannot tell you: which screen the app had
-        # selected when `simctl` took the picture. A mismatch means `FH_SCREEN`
-        # did not land, which is the failure a full table of plausible PNGs
-        # would hide — and on iOS it is likelier than on the Mac, because the
-        # route depends on the account's tab layout and its entitlement.
-        local rendered; rendered="$(grep -o 'screen=[a-z]*' "$log" | tail -1 | cut -d= -f2)"
-        if [ -z "$rendered" ]; then
-          note="$(note_join "$note" "screen unconfirmed")"
-        elif [ "$rendered" != "$raw" ]; then
-          note="$(note_join "$note" "rendered '$rendered'")"
-        fi
-        # Whether this capture is the product or the upsell, from the app's own
-        # answer. On the phone this is the state that most needs saying out
-        # loud: five of the seventeen screens are paywalls for a free account,
-        # and without the column a `free` sweep is seventeen rows that all say
-        # `ok`.
-        local gate; gate="$(sweep_gate "$log")"
-        gate_word="$(sweep_gate_word "$gate")"
-        local gate_note; gate_note="$(sweep_gate_finding "$state" "$gate")"
-        if [ -n "$gate_note" ]; then
-          note="$(note_join "$note" "$gate_note")"
-        fi
-        # The state has to say it happened: a state that sets itself up has to
-        # say so in its own log, because a PNG cannot tell a paywall from a
-        # product and the run that cannot tell them is the one that photographs
-        # the wrong one and calls it a review. Every state has to have signed
-        # in, or the capture is the sign-in screen.
-        if [ -n "$state_evidence" ]; then
-          local missing_evidence
-          missing_evidence="$(sweep_evidence_missing "$log" "$state_evidence")"
-          if [ -n "$missing_evidence" ]; then
-            note="$(note_join "$note" "no '$missing_evidence' in log")"
-          fi
-        fi
-        if [ "$bytes" -lt "$SWEEP_BLANK_BYTES" ]; then
-          note="$(note_join "$note" "looks blank at $size")"
-        fi
-        if [ -n "$device_pixels" ] && [ "$pixels" != "$device_pixels" ]; then
-          note="$(note_join "$note" "got $pixels, device is $device_pixels")"
-        fi
-        # Two screens with the same bytes means the route did not apply — the
-        # one failure a sweep has to notice, because the table would otherwise
-        # report a full set of captures.
-        local hash; hash="$(shasum -a 256 "$png" | cut -d' ' -f1)"
-        if [ -n "$seen" ]; then
-          local twin; twin="$(printf '%s' "$seen" | grep -m1 "^$hash " | cut -d' ' -f2)"
-          [ -n "$twin" ] && note="$(note_join "$note" "identical to $twin")"
-        fi
-        seen="$seen$hash $stem.png
-  "
-        # The same screen in a state that *has* to look different, photographed
-        # exactly as `happy` did. The file-level check above catches two
-        # identical captures, but not a whole column that is wrong in the same
-        # direction — which is what a fault hook that did not compile looks like.
-        # Only meaningful when `happy` is in the run, since that is the baseline.
-        if [ "$state_differs" = "yes" ]; then
-          local baseline
-          baseline="$(printf '%s' "$happy_seen" | awk -v k="$raw" '$1 == k { print $2; exit }')"
-          if [ -n "$baseline" ] && [ "$baseline" = "$hash" ]; then
-            note="$(note_join "$note" "same as happy")"
-          fi
-        elif [ "$state" = "happy" ]; then
-          happy_seen="$happy_seen$raw $hash $gate
-"
-        elif [ "$state" = "free" ]; then
-          # The gate the Pro run showed on this screen, read from the log rather
-          # than from a list of gated screens — so it cannot name the wrong five.
-          local pro_gate
-          pro_gate="$(printf '%s' "$happy_seen" | awk -v k="$raw" '$1 == k { print $3; exit }')"
-          gate_note="$(sweep_gate_missing_note "$pro_gate" "$state" "$gate")"
-          if [ -n "$gate_note" ]; then
-            note="$(note_join "$note" "$gate_note")"
-          fi
-        fi
-      fi
-      [ -n "$note" ] || note="ok"
-      [ "$note" = "ok" ] || flagged=$((flagged + 1))
-      rows+=("$(printf '%s|%s|%s|%s.png||%s|%s|%s|%s' "$idx" "$state" "$title" "$stem" "$pixels" "$size" "$gate_word" "$note")")
-      per_state="$(printf '%s' "$per_state" | awk -F'|' -v k="$state" \
-          -v m="$((missing - before_missing))" -v f="$((flagged - before_flagged))" '
-        $1 == k { print $1 "|" $2 + m "|" $3 + f; next } { print }')"
+      # Every check of the capture is in `ios_record_cell`; the signed-out
+      # block at the end of this function runs the same one.
+      ios_record_cell "$png" "$log" "$title" "$raw" "$state" "$state_evidence" "$state_differs" "$raw" "$SWEEP_BLANK_BYTES"
+      rows+=("$SWEEP_ROW")
+      per_state="$(sweep_tally_add "$per_state" "$state" \
+        "$((missing - before_missing))" "$((flagged - before_flagged))")"
     done <<< "$chosen_states"
   done <<< "$chosen"
 
+  # ── the signed-out samples ───────────────────────────────────────────
+  #
+  # The three screens that exist only before there is a session. They are not
+  # states of the matrix above — every one of those signs in — so each is one
+  # launch with its own setup, and `FH_SIGNED_OUT=1` keeps a token left by the
+  # cell before it from putting the shell back on screen. There is no
+  # `FH_SCREEN` and no `FH_AUTOLOGIN`: these are what the app shows when
+  # neither is set.
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    idx=$((idx + 1))
+    raw="$(sweep_field "$entry" 1)"
+    title="$(sweep_field "$entry" 2)"
+    local out_env out_evidence out_delay
+    out_env="$(sweep_field "$entry" 3)"
+    out_evidence="$(sweep_field "$entry" 4)"
+    out_delay="$(sweep_field "$entry" 5)"
+    # An entry with no delay of its own rides the run's. The stalled check
+    # needs longer than any signed-in cell: its reveal arrives either when
+    # Cloudflare draws the widget or at the 12-second deadline, whichever the
+    # network allows.
+    [ -n "$out_delay" ] || out_delay="$SWEEP_DELAY"
+
+    local before_missing=$missing before_flagged=$flagged
+    local stem; stem="$(printf '%02d-%s__signedout' "$idx" "$raw")"
+    local png="$out/$stem.png"
+    local log="$out/$stem.log"
+
+    printf 'run-ios: [%3d/%3d] %-19s %-8s → %s.png\n' "$idx" "$total" "$title" "out" "$stem"
+
+    capture_cell "$udid" "$png" "$log" "$out_env" "" "$out_delay" signedout
+
+    # A signed-out capture has no shell on screen, so it passes no expected
+    # screen; everything else is the same pipeline the signed-in cells use.
+    ios_record_cell "$png" "$log" "$title" "$raw" "signedout" "$out_evidence" "" "" "$SWEEP_SIGNED_OUT_BLANK_BYTES"
+    rows+=("$SWEEP_ROW")
+    # The tally line carries its own description and denominator (five
+    # fields), which `sweep_tally_add` keeps — rebuilding the line from the
+    # first three dropped both, and the `3/3` became `3/17`.
+    per_state="$(sweep_tally_add "$per_state" signedout \
+      "$((missing - before_missing))" "$((flagged - before_flagged))")"
+  done <<< "$chosen_out"
+
   local seconds=$((SECONDS - started))
-  sweep_table run-ios "" "$(printf '%s\n' ${rows[@]+"${rows[@]}"})" "$per_state" "$screens"
+  local ctx_header=""
+  [ -n "${FH_VIEWPORT:-}" ] && ctx_header="Viewport"
+  sweep_table run-ios "$ctx_header" "$(printf '%s\n' ${rows[@]+"${rows[@]}"})" "$per_state" "$screens"
   echo "run-ios: $name — $((total - missing))/$total captured, $missing missing, $flagged flagged, ${seconds}s"
   echo "run-ios: device screen: ${device_pixels:-unknown}"
   echo "run-ios: PNGs and per-screen app logs in $out"

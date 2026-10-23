@@ -67,4 +67,17 @@ describe('release versions agree across all four sites', () => {
     );
     expect(fs.existsSync(notes), `missing ${path.relative(ROOT, notes)}`).toBe(true);
   });
+
+  it('has no duplicate release sections in CHANGELOG.md', () => {
+    // A heading written twice leaves the release table pointing at the wrong
+    // body of notes — the markdown anchor resolves to the first match, so
+    // whichever section came second is unreachable from the table and the
+    // release reads as if it never shipped.
+    const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+    const headings = [...changelog.matchAll(/^## \[([^\]]+)\]/gm)].map(m => m[1]);
+    const seen = new Set();
+    const dupes = headings.filter(h => (seen.has(h) || !seen.add(h)));
+    expect(dupes, `duplicate CHANGELOG sections: ${[...new Set(dupes)].join(', ')}`)
+      .toEqual([]);
+  });
 });

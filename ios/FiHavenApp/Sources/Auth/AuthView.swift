@@ -51,7 +51,10 @@ struct AuthView: View {
             .task {
                 guard ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil else { return }
                 try? await Task.sleep(nanoseconds: 12_000_000_000)
-                revealSecurityCheck()
+                // Through a fresh task, as with the stalled notice below: a
+                // `.task` write inherits the mount transaction, which can
+                // freeze the reveal's opacity change at ~0 alpha.
+                Task { @MainActor in revealSecurityCheck() }
             }
             #endif
     }
@@ -270,8 +273,21 @@ struct AuthView: View {
                     .task(id: captchaReloadID) {
                         captchaStalled = false
                         try? await Task.sleep(for: Self.captchaDeadline)
+                        #if DEBUG
+                        fhLog("[AuthView] captcha deadline: cancelled=\(Task.isCancelled) token=\(captchaToken != nil)")
+                        #endif
                         guard !Task.isCancelled, captchaToken == nil else { return }
-                        performWithAnimation(!reduceMotion) { captchaStalled = true }
+                        // A `.task` closure keeps the transaction the view
+                        // mounted with — writing `captchaStalled` straight here
+                        // (or inside `withAnimation`, which nests under it)
+                        // makes the notice's insert animation start from a
+                        // stale begin-time and freeze at ~0 alpha: the row is
+                        // in the tree but never becomes visible. A fresh task
+                        // runs the write on a clean transaction, and the
+                        // animation then completes like any other insert.
+                        Task { @MainActor in
+                            performWithAnimation(!reduceMotion) { captchaStalled = true }
+                        }
                     }
 
                     if captchaStalled, captchaToken == nil {
@@ -404,6 +420,7 @@ struct AuthView: View {
         .frame(maxWidth: .infinity)
         .transition(.opacity)
         .accessibilityElement(children: .contain)
+        .onAppear { fhLog("[AuthView] stalled notice on screen") }
     }
 
     /// Sign-up consent — mirrors the web login terms notice; App Review expects

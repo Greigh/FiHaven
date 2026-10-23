@@ -13,7 +13,7 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.7] Current Pre-Release — 2026-10-04
+## [1.6.8] Current Pre-Release — 2026-10-04
 
 | | |
 |---|---|
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.7.** The build number continues 59 → 60
+> **Marketing version is 1.6.8.** The build number continues 59 → 60
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -83,6 +83,19 @@ Store copy for every build of this train is in
 ### Summary
 
 > An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+
+### Technical changelog
+
+Runtime-verified audit fixes landing after the build-60 cut:
+
+- **Stalled security-check notice actually renders** (`ios/FiHavenApp/Sources/Auth/AuthView.swift`): the 12-second Turnstile deadline flipped `captchaStalled` inside a `.task` closure that carried the view's original transaction — the notice entered the tree frozen mid-fade at ~5% opacity, displaced below its layout slot, on both iOS and macOS. The deadline (and the delayed `turnstileHidden` reveal, same exposure) now dispatches through a fresh `Task`, and the notice draws at full opacity in place — verified in `/tmp/fh-ios-stalled*` and `/tmp/fh-mac-stalled` captures plus a `[AuthView] stalled notice on screen` marker.
+- **iPhone/iPad sweep gains the signed-out samples and a real width axis** (`scripts/run-ios.sh`, `scripts/sweep-matrix.sh`, `ios/FiHavenApp/Sources/App/SweepSnapshot.swift`): `--only intro,auth,auth-stalled` launches the shared `SWEEP_SIGNED_OUT` samples through the same per-cell evidence pipeline as signed-in cells (3/3 captured, 0 flagged), and `--viewport WxH[:compact]` letterboxes the app into a logical canvas — orange-bordered, surrounded-dimmed, and logged as `[Viewport] forced WxH class=… canvas=…` so a capture's device pixels are never confused for the measured layout. Verified: iPad Pro 13 at `375x812:compact` renders the compact shell and at `1180x820` renders the regular one, each with the Viewport column recording what the app reported.
+- **macOS window floor is persistent, and 520pt restores hold** (`ios/FiHavenApp/Sources/Theme/PlatformStyle.swift`): a floor watcher re-asserts `contentMinSize` whenever anything replaces it — previously SwiftUI overwrote the guard's 640×520 with its own installed minimum, so the 520pt pin could be argued upward on every layout pass. Ordinary launches now restore a saved 640×520 or 1200×520 exactly (no 520→661 growth observed on the current layout), interactive drags cannot shrink below the floor, and `FH_WIN_TEST=1` exercises restore/resize/zoom through the same `NSWindow` calls a user's gestures invoke — `640x520 → resize 900x600 → zoom 1728x1016 zoomed=true`, `contentMinSize=640x520` held at settle. Full-screen transition could not be exercised: this session's launches cannot activate the process (`active=false`), and AppKit refuses full screen without it — recorded in `docs/maintainer/follow-ups.md`, not a defect.
+- **Signed-out snapshot line no longer leaks the last session's screen** (verified this audit): the snapshot writer gates `screen=` on the session, so a signed-out launch logs `screen=none` — confirmed in the auth-stalled capture log — instead of re-reporting whatever `nav.screen` the previous shell left in `UserDefaults`.
+- **`identical to` sweep check now says which sameness it found** (`scripts/run-ios.sh`, `scripts/run-macos.sh`): a byte-identical twin is qualified by gate (two paywalled captures of the shared `ProLockedView` are expected-identical) and skipped for same-screen state pairs — `happy`/`free` on an ungated screen are the same pixels by design, while the states that must differ are already owned by the `same as happy` check. Cross-screen identity still flags the routing failure the check exists for.
+- **`bump-build.js` keeps the train's version text in step**: a marketing bump now rewrites the `## [x.y.z] Current Pre-Release` heading and the `**Marketing version is…**` note alongside the build table — previously both stayed on the old version after every bump. `scripts/nativeVersions.test.js` additionally refuses duplicate `## [a.b.c build N]` headings, closing the double-`1.6.4 build 55` regression class for good.
+- **Turnstile lifecycle logging** (`ios/FiHavenApp/Sources/Auth/TurnstileView.swift`): token arrival, height callbacks, and error message types are now in the launch log, so a sweep can distinguish *solved* from *stalled-but-invisible* instead of inferring it from pixels.
+- **Mac sweep sidebar**: the source list is SwiftUI-hosted (`ViewThatFits` sidebar), so captures composite it — verified pixel-for-pixel at 1440×900 with all rows and the footer accessory present.
 
 ---
 

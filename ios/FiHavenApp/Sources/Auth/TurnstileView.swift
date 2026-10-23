@@ -115,12 +115,18 @@ struct TurnstileView {
                   let type = body["type"] as? String else { return }
             switch type {
             case "token":
+                // Logged without the token: the sweep reads these lines to
+                // tell a solved check from a stalled one, and the token is a
+                // credential — it does not belong in a capture log.
+                fhLog("[Turnstile] token")
                 onToken((body["token"] as? String) ?? "")
             case "height":
                 if let raw = body["value"] as? String, let v = Double(raw) {
+                    fhLog("[Turnstile] height \(Int(v))")
                     onHeight(CGFloat(v))
                 }
             default:
+                fhLog("[Turnstile] error type=\(type)")
                 onError()
             }
         }

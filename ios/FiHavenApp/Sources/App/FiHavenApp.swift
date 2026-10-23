@@ -84,6 +84,10 @@ struct FiHavenApp: App {
         #else
         WindowGroup {
             RootView()
+                // Outermost, below even the environment objects: the letterbox
+                // has to wrap *everything* a signed-out or signed-in launch
+                // draws, because the states it exists to photograph are both.
+                .ctViewport()
                 .environmentObject(env)
                 .environmentObject(theme)
                 .environmentObject(env.biometric)

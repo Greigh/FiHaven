@@ -129,4 +129,80 @@ enum SweepSnapshot {
     }
     #endif
 }
+
+#if canImport(UIKit)
+/// `FH_VIEWPORT=WxH` or `WxH:compact` — lays the whole app out inside a
+/// fixed-size letterbox so a sweep can exercise window sizes the simulator
+/// will not produce: a phone has one size, an iPad sim cannot be rotated or
+/// split by `simctl`, and a narrow multitasking layout is the case the size
+/// class actually changes for.
+///
+/// `:compact` also overrides `horizontalSizeClass`, because the size alone is
+/// not enough: SwiftUI's size class comes from the *window's* traits, not the
+/// frame a modifier wraps the content in — a 375pt letterbox on an iPad would
+/// otherwise lay out regular, which is the one answer the check exists to
+/// give. A real iPad split gives a narrow app the compact class, so the
+/// letterbox asks for it the same way.
+///
+/// The letterbox is deliberately visible — an orange hairline on a dim
+/// surround — because the capture has to say which size the layout answered:
+/// the PNG's device pixels are the *canvas*, and the table records the
+/// viewport from the `[Viewport]` log line, not from the image's size.
+extension View {
+    func ctViewport() -> some View {
+        modifier(ViewportForcer())
+    }
+}
+
+private struct ViewportForcer: ViewModifier {
+    /// The parsed `FH_VIEWPORT`, or nil for a normal full-window launch.
+    private static let spec: (size: CGSize, compact: Bool)? = {
+        let raw = ProcessInfo.processInfo.environment["FH_VIEWPORT"] ?? ""
+        let parts = raw.lowercased().split(separator: ":")
+        // `split` drops empty subsequences, so an unset or empty hook leaves
+        // `parts` empty — the parse must not index it, or every ordinary
+        // launch dies in `ContiguousArrayBuffer` before the first view.
+        guard let dims = parts.first?.split(separator: "x"), dims.count == 2,
+              let w = Double(dims[0]), let h = Double(dims[1]), w > 0, h > 0
+        else { return nil }
+        let compact = parts.count > 1 ? parts[1] == "compact" : false
+        return (CGSize(width: w, height: h), compact)
+    }()
+
+    @State private var logged = false
+
+    func body(content: Content) -> some View {
+        if let spec = Self.spec {
+            GeometryReader { geo in
+                ZStack {
+                    // The surround is what makes the letterbox legible in a
+                    // capture: a dim field outside the hairline, so the
+                    // screenshot itself says where the app's canvas ended.
+                    Color.black.opacity(0.55)
+                    content
+                        .frame(width: spec.size.width, height: spec.size.height)
+                        .clipped()
+                        .border(Color.orange, width: 1)
+                        .environment(\.horizontalSizeClass, spec.compact ? .compact : nil)
+                }
+                .onAppear {
+                    guard !logged else { return }
+                    logged = true
+                    fhLog("[Viewport] forced \(Int(spec.size.width))x\(Int(spec.size.height)) class=\(spec.compact ? "compact" : "device") canvas=\(Int(geo.size.width))x\(Int(geo.size.height))")
+                }
+            }
+            .ignoresSafeArea()
+        } else {
+            content
+        }
+    }
+}
+#endif
+#endif
+
+#if canImport(UIKit) && !DEBUG
+extension View {
+    /// `FH_VIEWPORT` is a sweep hook; Release builds have nothing to force.
+    func ctViewport() -> some View { self }
+}
 #endif

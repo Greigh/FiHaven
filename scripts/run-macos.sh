@@ -688,10 +688,10 @@ sweep_record_cell() {
     # selected when it took the picture. A mismatch means FH_ROUTE did not
     # land, which is the failure a full table of plausible PNGs would hide.
     #
-    # A signed-out launch passes an empty expectation and skips the check: the
-    # shell is not on screen, and the snapshot's `screen=` reads whatever nav
-    # value the last session left in UserDefaults — `about` on this machine.
-    # That is not a fact about the picture, and `none` is not either.
+    # A signed-out launch passes an empty expectation and skips the check:
+    # the shell is not on screen, and `screen=` reads `none` — the snapshot
+    # writer only fills it in for a signed-in session, so a stale value the
+    # last run's shell left in `SweepProbe.renderedScreen` cannot leak in.
     if [ -n "$expected_screen" ]; then
       local rendered; rendered="$(grep -o 'screen=[a-z]*' "$log" | tail -1 | cut -d= -f2)"
       if [ -z "$rendered" ]; then
@@ -775,12 +775,38 @@ sweep_record_cell() {
     # Two screens with the same bytes means the route did not apply — the
     # one failure a sweep has to notice, because the table would otherwise
     # report a full set of captures.
+    #
+    # The qualifications: gate, and screen. Five screens share one
+    # `ProLockedView`, so two *paywalled* captures are byte-identical by
+    # construction — `free`'s payoff and `free`'s rewards photograph the same
+    # upsell, and an unqualified `identical to` reads that as a routing
+    # failure on every tiered run. And the same screen in two states can
+    # legitimately share bytes: `happy` and `free` on an ungated screen are
+    # the same pixels by design — the states that must differ carry
+    # `differs=yes` and the `same as happy` check owns them, so this check
+    # stays for what it exists for, two *different* screens with one picture.
+    # `seen` keeps each cell's gate and stem alongside its hash so the note
+    # can say which case a match is.
     local hash; hash="$(shasum -a 256 "$png" | cut -d' ' -f1)"
     if [ -n "$seen" ]; then
-      local twin; twin="$(printf '%s' "$seen" | grep -m1 "^$hash " | cut -d' ' -f2)"
-      [ -n "$twin" ] && note="$(note_join "$note" "identical to $twin")"
+      local twin_line twin_gate twin_stem twin_screen
+      twin_line="$(printf '%s' "$seen" | grep -m1 "^$hash " || true)"
+      if [ -n "$twin_line" ]; then
+        twin_gate="$(printf '%s' "$twin_line" | cut -d' ' -f2)"
+        twin_stem="$(printf '%s' "$twin_line" | cut -d' ' -f3)"
+        # The stem is `NN-screen__state.png`; the screen is the part a
+        # route failure would change.
+        twin_screen="${twin_stem#*-}"; twin_screen="${twin_screen%%__*}"
+        if [ "$twin_screen" = "$raw" ]; then
+          :
+        elif [ "$gate" = "locked" ] && [ "$twin_gate" = "locked" ]; then
+          note="$(note_join "$note" "identical to $twin_stem (both paywalled)")"
+        else
+          note="$(note_join "$note" "identical to $twin_stem")"
+        fi
+      fi
     fi
-    seen="$seen$hash $stem.png
+    seen="$seen$hash $gate $stem.png
   "
     # The other duplicate, and the one that matters more: the same screen in
     # a state that *has* to look different, photographed exactly as `happy`
@@ -1180,6 +1206,12 @@ if [ -n "$RUN_FOR" ]; then
   pkill -f "$BIN" 2>/dev/null || true
   sleep 1
   pkill -KILL -f "$BIN" 2>/dev/null || true
+  # The pkills match by command line, and a process they miss — wedged in a
+  # syscall, a pattern that did not fit — makes `wait` below hold the cell
+  # open for as long as the app decides to live; one such miss already
+  # turned a 24-second bound into a 922-second capture. A kill by PID
+  # cannot pattern-miss, and on a bounded run there is no state to spare.
+  kill -9 "$RUNNER" 2>/dev/null || true
 fi
 
 wait "$RUNNER" 2>/dev/null || true
