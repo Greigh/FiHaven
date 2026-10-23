@@ -156,11 +156,17 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # Required to use Face ID for the optional app lock.
         NSFaceIDUsageDescription: Unlock FiHaven with Face ID.
-        # Bundled fonts (OFL): Manrope (variable, UI) + IBM Plex Mono
-        # (numbers). Files live in Sources/Resources/Fonts and are copied
-        # into the bundle root, so list bare filenames.
+        # Bundled fonts (OFL): static Manrope faces (UI) + IBM Plex Mono
+        # (numbers). Static faces, not the variable file — CoreText on
+        # macOS cannot apply weights to a bundled variable font.
+        # Files live in Sources/Resources/Fonts and are copied into the
+        # bundle root, so list bare filenames.
         UIAppFonts:
-          - Manrope-Variable.ttf
+          - Manrope-Regular.ttf
+          - Manrope-Medium.ttf
+          - Manrope-SemiBold.ttf
+          - Manrope-Bold.ttf
+          - Manrope-ExtraBold.ttf
           - IBMPlexMono-Regular.ttf
           - IBMPlexMono-Medium.ttf
         # Cloudflare Turnstile public sitekey, driven by the build setting

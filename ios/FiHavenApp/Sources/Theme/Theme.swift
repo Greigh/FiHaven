@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 import FiHavenCore
 #if canImport(UIKit)
 import UIKit
@@ -45,19 +46,50 @@ enum Theme {
     static let radiusPill: CGFloat = 11
 
     // ── Type ─────────────────────────────────────────────────────────
-    // Bundled OFL fonts: Manrope (variable wght axis) for UI, IBM Plex
-    // Mono for numbers. Manrope's default instance is ExtraLight, so we
-    // always pin an explicit weight. `relativeTo` ties each size to a
-    // Dynamic Type text style so Larger Text scales across the app.
+    // Bundled OFL fonts: static Manrope faces for UI, IBM Plex Mono for
+    // numbers. The faces are instanced statics, not the variable file:
+    // CoreText on macOS cannot apply a requested weight to a bundled
+    // variable font ("Unable to update Font Descriptor's weight") and
+    // every text fell back to Manrope's default instance — ExtraLight.
+    // PostScript names are the reliable lookup for Font.custom.
+    // `relativeTo` ties each size to a Dynamic Type text style so Larger
+    // Text scales across the app.
+    //
+    // macOS does not honour UIAppFonts — it is iOS-only, so without this
+    // registration every Font.custom fell back to the system face and the
+    // whole app rendered in San Francisco. The static let is lazy: it runs
+    // once, the first time any Theme font is built.
+    private static let registerBundledFonts: Void = {
+        for name in [
+            "Manrope-Regular", "Manrope-Medium", "Manrope-SemiBold",
+            "Manrope-Bold", "Manrope-ExtraBold",
+            "IBMPlexMono-Regular", "IBMPlexMono-Medium",
+        ] {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
+        }
+    }()
+    private static func manrope(_ weight: Font.Weight) -> String {
+        _ = registerBundledFonts
+        switch weight {
+        case .ultraLight, .thin, .light, .regular: return "Manrope-Regular"
+        case .medium: return "Manrope-Medium"
+        case .semibold: return "Manrope-SemiBold"
+        case .bold: return "Manrope-Bold"
+        case .heavy, .black: return "Manrope-ExtraBold"
+        default: return "Manrope-Regular"
+        }
+    }
     static func title(_ size: CGFloat, relativeTo style: Font.TextStyle = .title) -> Font {
-        .custom("Manrope", size: size, relativeTo: style).weight(.heavy)
+        .custom(manrope(.heavy), size: size, relativeTo: style)
     }
     static func ui(
         _ size: CGFloat,
         weight: Font.Weight = .regular,
         relativeTo style: Font.TextStyle = .body
     ) -> Font {
-        .custom("Manrope", size: size, relativeTo: style).weight(weight)
+        .custom(manrope(weight), size: size, relativeTo: style)
     }
     static func mono(
         _ size: CGFloat,
@@ -66,7 +98,8 @@ enum Theme {
     ) -> Font {
         // Two static faces bundled (Regular + Medium); map heavier UI
         // weights onto Medium.
-        .custom(
+        _ = registerBundledFonts
+        return .custom(
             weight == .regular ? "IBMPlexMono-Regular" : "IBMPlexMono-Medium",
             size: size,
             relativeTo: style
