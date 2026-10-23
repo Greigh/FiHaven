@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import SwiftUI
 import FiHavenCore
 
@@ -35,6 +36,21 @@ final class AppEnvironment: ObservableObject {
     /// persistence half of the release train.
     @Published var sessionSaveNotice: String?
     @Published private(set) var working = false
+
+    /// The sentence the banner shows when a token write was refused — it has
+    /// to name the cost, not just the fact: the session works for this run
+    /// and is gone on the next launch.
+    static func sessionSaveNotice(forWriteStatus status: OSStatus) -> String? {
+        guard status != errSecSuccess else { return nil }
+        return "This build couldn't store your sign-in, so you'll be asked to sign in again the next time FiHaven launches."
+    }
+
+    /// The sentence the next launch's sign-in screen shows when a refused
+    /// write is the reason there's no session — it carries the status so a
+    /// report can be matched against it.
+    static func writeRefusalExplanation(forStatus status: OSStatus) -> String {
+        "You were signed out because your last sign-in couldn't be stored on this device (keychain status \(status))."
+    }
     @Published private(set) var store: AppStore?
 
     private var authStartedAt = APIClient.now()
@@ -50,9 +66,9 @@ final class AppEnvironment: ObservableObject {
         let tokenStore: TokenStore =
             ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1"
                 ? InMemoryTokenStore()
-                : KeychainTokenStore(service: "app.fihaven")
+                : KeychainTokenStore(service: KeychainTokenStore.serviceName)
         #else
-        let tokenStore: TokenStore = KeychainTokenStore(service: "app.fihaven")
+        let tokenStore: TokenStore = KeychainTokenStore(service: KeychainTokenStore.serviceName)
         #endif
         let config = Self.resolveConfig()
         fhLog("[AppEnvironment] API base URL = \(config.baseURL.absoluteString)")
@@ -127,9 +143,20 @@ final class AppEnvironment: ObservableObject {
                 // not discard a working session's reminders.)
                 tokens.clear()
                 NotificationScheduler.cancelAll()
+                // If the keychain refused to *save* a session earlier, this is
+                // the sign-in screen that gets to explain the involuntary
+                // sign-out — taken once, so it can't follow the user around.
+                if let refusal = (tokens as? KeychainTokenStore)?.takeWriteRefusal() {
+                    authNotice = Self.writeRefusalExplanation(forStatus: refusal)
+                }
             } catch {
-                // Transient failure with a stored token: fall through to
-                // signed-out rather than trapping on a blank screen.
+                // A thrown 401 is the other refusal shape — the credential is
+                // dead and the token must not be carried into the next request.
+                // Everything else is transient: fall through to signed-out
+                // rather than trapping on a blank screen.
+                if let error = error as? APIError, error.isCredentialRejection {
+                    tokens.clear()
+                }
             }
         }
         if autoLoginRequested {
@@ -341,6 +368,12 @@ final class AppEnvironment: ObservableObject {
         }
         self.store = store
         session = .signedIn(user)
+        // A fresh sign-in just wrote the token — if the keychain refused, the
+        // session works for this run but the person should know the cost
+        // before the next launch delivers it.
+        if fresh, let store = tokens as? KeychainTokenStore {
+            sessionSaveNotice = Self.sessionSaveNotice(forWriteStatus: store.lastWriteStatus)
+        }
         await store.load()
         // Seed the entitlement from the data fetch to avoid a gating
         // flicker, then start StoreKit (authoritative refresh + listener).

@@ -14,7 +14,14 @@ var products: [Product] = [
 ]
 
 var targets: [Target] = [
-    .target(name: "FiHavenCore"),
+    .target(
+        name: "FiHavenCore",
+        // `xcodebuild` compiles a package dependency with its own conditions —
+        // the app target's DEBUG does not reach in here. FH_FAULT is a debug
+        // hook that must exist in the very build the sweep photographs, so the
+        // target defines it for itself.
+        swiftSettings: [.define("DEBUG", .when(configuration: .debug))]
+    ),
     // XCTest suite, run with `swift test` from ios/FiHavenCore. Test targets
     // are built only by `swift test`, never by the app that links this
     // package, so this stays outside the FH_INCLUDE_CHECKS gate below.
