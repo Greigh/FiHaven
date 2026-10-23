@@ -16,12 +16,26 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.viewinterop.AndroidView
 import org.json.JSONObject
 
+/**
+ * How much of the widget Cloudflare is allowed to draw before a person is
+ * actually needed. [InteractionOnly] keeps the widget off the form while the
+ * challenge runs in the background; [Always] is Cloudflare's own default and
+ * emits no attribute at all.
+ *
+ * Mirrors iOS `TurnstileAppearance` in `TurnstileView.swift`.
+ */
+enum class TurnstileAppearance(val dataAttribute: String?) {
+    InteractionOnly("interaction-only"),
+    Always(null),
+}
+
 /** Cloudflare Turnstile widget in a WebView — mirrors iOS TurnstileView. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun TurnstileView(
     siteKey: String,
     baseUrl: String = "https://fihaven.app",
+    appearance: TurnstileAppearance = TurnstileAppearance.InteractionOnly,
     reloadKey: Any,
     onToken: (String) -> Unit,
     onError: () -> Unit = {},
@@ -54,7 +68,7 @@ fun TurnstileView(
                     )
                     loadDataWithBaseURL(
                         baseUrl,
-                        turnstileHtml(siteKey),
+                        turnstileHtml(siteKey, appearance),
                         "text/html",
                         "UTF-8",
                         null,
@@ -106,7 +120,12 @@ private class TurnstileBridge(
     }
 }
 
-private fun turnstileHtml(siteKey: String): String = """
+private fun turnstileHtml(
+    siteKey: String,
+    appearance: TurnstileAppearance = TurnstileAppearance.InteractionOnly,
+): String {
+    val appearanceAttr = appearance.dataAttribute?.let { "\n         data-appearance=\"$it\"" } ?: ""
+    return """
 <!DOCTYPE html>
 <html>
 <head>
@@ -120,7 +139,7 @@ private fun turnstileHtml(siteKey: String): String = """
 <body>
   <div class="wrap">
     <div class="cf-turnstile"
-         data-sitekey="$siteKey"
+         data-sitekey="$siteKey"$appearanceAttr
          data-theme="auto"
          data-refresh-expired="auto"
          data-retry="auto"
@@ -145,3 +164,4 @@ private fun turnstileHtml(siteKey: String): String = """
 </body>
 </html>
 """.trimIndent()
+}

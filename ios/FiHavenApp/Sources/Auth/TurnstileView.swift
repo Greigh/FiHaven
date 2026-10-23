@@ -9,8 +9,28 @@ import WebKit
 /// Also reports the widget's rendered height so the caller can size the
 /// frame to fit — invisible-mode sitekeys render nothing, so the host can
 /// collapse the space instead of leaving an awkward fixed-height gap.
+/// How much of the widget Cloudflare is allowed to draw before a person is
+/// actually needed. `interactionOnly` keeps the widget off the form while the
+/// challenge runs in the background; `always` is Cloudflare's own default and
+/// emits no attribute at all.
+enum TurnstileAppearance {
+    case interactionOnly
+    case always
+
+    /// The value for the widget's `data-appearance` attribute, or nil to leave
+    /// the attribute out — `data-appearance=""` is not a value Cloudflare
+    /// documents, and the default it falls back to is `always` anyway.
+    var dataAttribute: String? {
+        switch self {
+        case .interactionOnly: "interaction-only"
+        case .always: nil
+        }
+    }
+}
+
 struct TurnstileView {
     let siteKey: String
+    var appearance: TurnstileAppearance = .interactionOnly
     var baseURL: URL? = AppConfig.turnstileBaseURL
     var onToken: (String) -> Void
     var onError: () -> Void = {}
@@ -37,7 +57,7 @@ struct TurnstileView {
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
         #endif
-        webView.loadHTMLString(Self.html(siteKey: siteKey), baseURL: baseURL)
+        webView.loadHTMLString(Self.html(siteKey: siteKey, appearance: appearance), baseURL: baseURL)
         return webView
     }
 
@@ -103,8 +123,9 @@ extension TurnstileView: NSViewRepresentable {
 #endif
 
 extension TurnstileView {
-    static func html(siteKey: String) -> String {
-        """
+    static func html(siteKey: String, appearance: TurnstileAppearance = .interactionOnly) -> String {
+        let appearanceAttr = appearance.dataAttribute.map { "\n                 data-appearance=\"\($0)\"" } ?? ""
+        return """
         <!DOCTYPE html>
         <html>
         <head>
@@ -118,7 +139,7 @@ extension TurnstileView {
         <body>
           <div class="wrap">
             <div class="cf-turnstile"
-                 data-sitekey="\(siteKey)"
+                 data-sitekey="\(siteKey)"\(appearanceAttr)
                  data-theme="auto"
                  data-refresh-expired="auto"
                  data-retry="auto"
