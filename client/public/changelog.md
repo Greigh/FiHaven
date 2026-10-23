@@ -10,7 +10,17 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.6.7 (Build 59) Latest Beta
+1.6.8 (Build 60) Latest Beta
+
+October 22, 2026
+
+**An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.**
+
+- An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+
+iOS 1.6.8 (60) Android 1.6.8 (60) Web fihaven.app Server API
+
+1.6.7 (Build 59) Beta
 
 October 6, 2026
 
