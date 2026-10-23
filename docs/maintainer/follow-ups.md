@@ -86,6 +86,42 @@ explained.
 
 ---
 
+### The iPhone Duo's cover display keeps the inner window's geometry until the posture is cycled
+
+**Where** The `iPhone Duo` simulator (`iPhone19,4`, productClass V68 — Apple's
+foldable-iPhone profile, two displays: 466×678pt cover, 951×669pt inner).
+Driven by `npx hinge` (read angle) and `npx duoctl` (set posture:
+`open`/`close`/`book`/`tent`); `simctl` has no fold control, and
+`screenConfig geometry` only accepts each display's native mode.
+
+**What** After `duoctl close` — and again after `duoctl open` in the same
+session — every app on the cover display renders at the *inner* display's
+window geometry, clipped into the 466pt canvas. Observed on FiHaven and on
+the system Settings app identically, so it is a simulator runtime bug, not
+app code: a capture taken right after a fold looks like the app forgot to
+relayout, and it did not. Rebooting the sim, or cycling `duoctl open` →
+`close`, restores correct geometry. Separately: with the iOS 18
+`Tab`/`TabSection` + `sidebarAdaptable` shell, iOS 27.1 still presents the
+compact-width experience as a **right-edge icon rail** on both postures —
+no bottom bar on the cover, no labeled sidebar on the inner display. That
+is this runtime's own chrome choice (the same API gives iPad its top bar +
+sidebar toggle); a Duo capture showing the rail is not evidence the tab
+conversion failed.
+
+**Why it was left** Both are the simulator's behavior, not the app's — the
+rail is iOS's adaptive `TabView` presentation, and the stale geometry
+affects every app including the OS's own. Nothing in the codebase can
+correct either.
+
+**What it would take** Nothing in the app. For captures: after any posture
+change, either reboot the sim or verify with a control (e.g. Settings) that
+the window geometry matches the active display before photographing; and
+treat the rail as the Duo's expected chrome until a seed renders
+differently. Re-check on a newer iOS seed — both look like early-foldable-
+sim bugs that plausibly get fixed.
+
+---
+
 ### The phone sweep cannot photograph a narrow iPad, and no hook can rotate one
 
 **Where** `scripts/run-ios.sh` (no width or orientation axis) and
