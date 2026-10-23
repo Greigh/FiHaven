@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Curated IANA timezones for the Settings picker (mirrors tz.js).
 enum CommonTimeZones {
@@ -22,16 +24,8 @@ enum CommonTimeZones {
     }
 }
 
-/// Decode a `data:image/...;base64,XXXX` URL into a UIImage (the TOTP QR).
-func imageFromDataURL(_ string: String) -> UIImage? {
-    guard let commaIndex = string.firstIndex(of: ","),
-          let data = Data(base64Encoded: String(string[string.index(after: commaIndex)...])) else {
-        return nil
-    }
-    return UIImage(data: data)
-}
-
 /// Wraps UIActivityViewController for share/export.
+#if os(iOS)
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -39,6 +33,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+#endif
 
 struct ShareItem: Identifiable {
     let id = UUID()

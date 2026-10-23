@@ -32,7 +32,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 484 / 500 characters (counted with newlines, as the console does).
+> 492 / 500 characters (counted with newlines, as the console does).
 
 ```
 FiHaven Pro now opens straight onto the plans and prices instead of a button that reveals them, and the Family plan shows what it costs before you start buying.
@@ -50,7 +50,7 @@ Bug fixes and security updates.
 
 ## TestFlight — What to Test
 
-> 3440 / 4000 characters.
+> 3447 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 20

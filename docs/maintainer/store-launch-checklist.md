@@ -3,8 +3,8 @@
 Public App Store + Google Play launch. **Both listings went public on 2026-08-13
 on 1.6.1** — see §7. The freeze below was written for that launch (it froze at
 1.6.0, which became 1.6.1 through post-freeze patches); it is kept as the
-procedure to repeat, not as a live version pin. The **current train is 1.6.4,
-build 55 on both stores** — a beta build on TestFlight / Play open testing.
+procedure to repeat, not as a live version pin. The **current train is 1.6.7,
+build 59 on both stores** — a beta build on TestFlight / Play open testing.
 1.6.2 (build 52) is what the public listings are serving; 1.6.3 bumped the
 marketing version while the build number carried straight on.
 
@@ -80,7 +80,7 @@ anyone can join from the Play listing — manage the audience under
 `GOOGLE_PLAY_SA_LOCAL` (or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`) in `.env`.
 It does **not** auto-bump `versionCode` — pass `--version-code +1` (or an
 absolute N) when you need a new code. Play release names are
-`versionName (versionCode)` (e.g. `1.6.4 (55)`).
+`versionName (versionCode)` (e.g. `1.6.7 (59)`).
 
 If commit fails with **The caller does not have permission**: Play Console →
 **Users and permissions** → add the JSON `client_email` → grant **Manage
@@ -301,6 +301,6 @@ Paste-ready listing text: [`store-listing-copy.md`](store-listing-copy.md).
 | iOS crashes | App Store Connect → Crashes (symbols uploaded with archive) |
 | Android crashes / ANRs | Play Console → Vitals (+ native symbols + `mapping.txt`) |
 | Support | `support@fihaven.app` / https://fihaven.app/contact |
-| Hotfix | `npm run deploy` / `deploy:ios` / `deploy:android`; `npm run rollback` if needed |
+| Hotfix | `npm run deploy` / `deploy:ios` / `deploy:android`; rollback runs from the template: `bash scripts/examples/rollback.example.sh --list` |
 
 No third-party crash SDK by design (privacy policy).

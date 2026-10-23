@@ -28,7 +28,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 432 / 500 characters.
+> 450 / 500 characters.
 
 ```
 BETA: Review and accept or decline bank balance updates directly inside the Account Balances tab for checking, savings, and investment accounts.
@@ -42,7 +42,7 @@ Sync reliability and performance improvements: fixed offline retry behavior on s
 
 ## TestFlight — What to Test
 
-> 2150 / 4000 characters.
+> 1856 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 54 (BETA)

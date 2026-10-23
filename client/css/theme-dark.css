@@ -109,6 +109,13 @@
   background: rgba(255,255,255,.05);
 }
 
+/* The official App Store badge is a black pill that disappears on the
+   dark page background; inverting it yields Apple's white variant.
+   Google's badge is light artwork already, so it stays untouched. */
+[data-theme="dark"] .store-badge img.store-badge-apple {
+  filter: invert(1);
+}
+
 [data-theme="dark"] .data-table th {
   background: rgba(255,255,255,.04);
 }

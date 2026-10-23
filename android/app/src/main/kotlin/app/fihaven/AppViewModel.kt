@@ -80,14 +80,18 @@ import app.fihaven.core.net.MfaChallenge
 import app.fihaven.core.net.ReauthProof
 import app.fihaven.core.net.User
 import app.fihaven.data.PrefsTokenStore
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.HouseholdStreamFrame
@@ -149,10 +153,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  an edit the server hasn't accepted. See OfflineCache. */
     private val cache = OfflineCache(app.filesDir)
 
+    /** Serial IO queue for every cache access. The whole-snapshot
+     *  serialize+write ran on the UI thread inside `mutate` — a hitch on
+     *  every edit that grows with the data set. A dedicated scope (not
+     *  viewModelScope) so a sign-out `clear` queued just before
+     *  onCleared still executes — and its single lane keeps ordering:
+     *  writes land FIFO, and a clear can't be overtaken by a stale write
+     *  for the signed-out account. */
+    private val persistIo = Dispatchers.IO.limitedParallelism(1)
+    private val persistScope = CoroutineScope(SupervisorJob() + persistIo)
+
     /** Account the loaded data belongs to. Every cache read and write is
      *  scoped to it so one user's snapshot can never be adopted — or pushed —
      *  into another's account. */
     private var dataOwner: String = ""
+
+    override fun onCleared() {
+        persistScope.cancel()
+        super.onCleared()
+    }
 
     init {
         PushRegistrar.configure(app, api)
@@ -343,17 +362,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun bootstrap() = viewModelScope.launch {
         if (tokens.get() != null) {
+            var transient = false
             try {
                 val user = api.me()
                 if (user != null) { enterSignedIn(user); return@launch }
                 tokens.clear()
             } catch (_: Exception) {
-                tokens.clear()
+                // A thrown error is transient (offline, timeout, captive
+                // portal) — NOT proof the session died. Clearing the token
+                // and wiping the cache here used to sign the user out and
+                // destroy unsynced edits on every launch without a
+                // connection. Keep everything; the token retries on the
+                // next launch or the next sign-in, and reminders stay armed.
+                transient = true
             }
-            // A token that no longer resolves ends the session just as much as
-            // tapping Sign out does — and this path never goes through logout(),
-            // so without this the previous user's reminders stayed armed.
-            endSession()
+            // A token the server says belongs to nobody ends the session just
+            // as much as tapping Sign out does — and this path never goes
+            // through logout(), so without this the previous user's reminders
+            // stayed armed.
+            if (!transient) endSession()
         }
         _session.value = Session.SignedOut
     }
@@ -446,8 +473,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // The cache holds this user's bills, cards and spending. Leaving it on
         // a phone nobody is signed into is the same disclosure the reminder
         // cancellation above exists to prevent — and it would also offer the
-        // next account a snapshot that isn't theirs.
-        runCatching { cache.clear() }
+        // next account a snapshot that isn't theirs. runBlocking drains the
+        // serial lane: pending writes for this account finish first, then the
+        // clear runs before endSession returns — a kill after sign-out can't
+        // leave the file behind, a stale write can't overtake the clear, and
+        // it doesn't route through persistScope so onCleared can't drop it.
+        runBlocking { withContext(persistIo) { runCatching { cache.clear() } } }
         dataOwner = ""
     }
 
@@ -502,7 +533,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // than anything the server can return, and `PUT /api/data`
             // replaces the blob wholesale — so adopting the server copy here
             // would silently delete them. Keep the cached snapshot and push it.
-            val pending = cache.read(owner)?.takeIf { it.pendingWrite }
+            val pending = withContext(persistIo) { cache.read(owner) }?.takeIf { it.pendingWrite }
             if (pending != null) {
                 // The entitlement is the server's to decide, never the
                 // cache's: a stale snapshot must not confer Pro.
@@ -513,7 +544,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _data.value = applyEnvelopeRolloverIfNeeded(fetched)
                 Money.setCurrency(fetched.settings.currency)
                 _syncState.value = SyncState.Saved
-                cache.write(_data.value, owner, pendingWrite = false)
+                val snapshot = _data.value
+                withContext(persistIo) { cache.write(snapshot, owner, pendingWrite = false) }
             }
 
             fetched.entitlement?.let { _entitlement.value = it }
@@ -540,9 +572,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  written anywhere the app could read it back from.
      *
      *  @return whether a cached snapshot was adopted. */
-    private fun restoreFromCache(): Boolean {
+    private suspend fun restoreFromCache(): Boolean {
         val owner = currentUser?.email.orEmpty()
-        val cached = (if (owner.isNotEmpty()) cache.read(owner) else cache.readRaw()) ?: return false
+        val cached = withContext(persistIo) {
+            if (owner.isNotEmpty()) cache.read(owner) else cache.readRaw()
+        } ?: return false
         dataOwner = cached.owner
         _data.value = cached.data
         Money.setCurrency(cached.data.settings.currency)
@@ -616,7 +650,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         Money.setCurrency(fresh.settings.currency)
         // Adopting a server copy makes the cache stale; re-write it so an
         // offline launch shows the imported rows too.
-        cache.write(fresh, dataOwner, pendingWrite = false)
+        val owner = dataOwner
+        withContext(persistIo) { cache.write(fresh, owner, pendingWrite = false) }
     }
 
     /** Re-read the server copy (e.g. after a bank sync merged new purchases). */
@@ -624,7 +659,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = runCatching { api.fetchData() }.getOrNull() ?: return@launch
         _data.value = fresh
         Money.setCurrency(fresh.settings.currency)
-        cache.write(fresh, dataOwner, pendingWrite = false)
+        val owner = dataOwner
+        withContext(persistIo) { cache.write(fresh, owner, pendingWrite = false) }
     }
 
     fun retryDataLoad() = viewModelScope.launch {
@@ -999,8 +1035,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _data.value = transform(_data.value)
         // Disk before network, always. The window between an edit and the
         // debounced PUT is exactly the window in which a process death or a
-        // dead connection used to lose it outright.
-        cache.write(_data.value, dataOwner, pendingWrite = true)
+        // dead connection used to lose it outright. The serialize+write runs
+        // on the persistence queue — FIFO keeps writes in edit order and a
+        // snapshot+owner are captured now so a later account switch can't
+        // stamp this write as theirs.
+        val snapshot = _data.value
+        val owner = dataOwner
+        persistScope.launch { cache.write(snapshot, owner, pendingWrite = true) }
         scheduleSave()
     }
 
@@ -1025,7 +1066,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     _syncState.value = SyncState.Saved
                     // Only an accepted write retires the pending flag. Anything
                     // else leaves it set so the next launch replays the snapshot.
-                    cache.markSynced()
+                    withContext(persistIo) { cache.markSynced() }
                     break
                 }
                 val ex = result.exceptionOrNull()

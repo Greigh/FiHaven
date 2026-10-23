@@ -26,7 +26,17 @@ final class StoreManager: ObservableObject {
     /// sees the plain price instead of a trial that won't apply to them.
     @Published private(set) var introEligible: Set<String> = []
 
-    var isPro: Bool { entitlement.pro }
+    var isPro: Bool {
+        #if DEBUG
+        // FH_DEV_ENTITLEMENT is read live: a sweep cell's tier cannot depend
+        // on when StoreKit's refresh happened to land.
+        if let synth = Self.devEntitlement(
+            ProcessInfo.processInfo.environment["FH_DEV_ENTITLEMENT"] ?? "off") {
+            return synth.pro
+        }
+        #endif
+        return entitlement.pro
+    }
 
     /// Product ids — must match App Store Connect and the server's product
     /// map (server/billing.js DEFAULT_PRODUCTS).
@@ -206,6 +216,17 @@ final class StoreManager: ObservableObject {
         default:         return nil
         }
     }
+    /// `FH_DEV_ENTITLEMENT`, applied after sign-in so a sweep cell's
+    /// `happy`/`free` pair really is the two tiers. Environment only — the
+    /// dev-settings UserDefaults value must not leak into another launch —
+    /// and unconditional, so a `free` cell overrides a server-seeded Pro.
+    /// The `pro=` line is the sweep's tier evidence.
+    func applyDevEntitlement() {
+        guard let state = ProcessInfo.processInfo.environment["FH_DEV_ENTITLEMENT"],
+              let synth = Self.devEntitlement(state) else { return }
+        entitlement = synth
+        fhLog("[StoreManager] dev entitlement applied; pro=\(isPro)")
+    }
     #endif
 
     func loadProducts() async {
@@ -217,16 +238,16 @@ final class StoreManager: ObservableObject {
             introEligible = await Self.introEligibleIDs(items)
             #if DEBUG
             if items.isEmpty {
-                print("[StoreManager] Product.products returned [] for \(Self.productIDs). Check ASC metadata, Paid Apps Agreement, and that IAPs are attached to this version.")
+                fhLog("[StoreManager] Product.products returned [] for \(Self.productIDs). Check ASC metadata, Paid Apps Agreement, and that IAPs are attached to this version.")
             } else {
-                print("[StoreManager] loaded products: \(items.map(\.id))")
+                fhLog("[StoreManager] loaded products: \(items.map(\.id))")
             }
             #endif
         } catch {
             // Leave products empty (e.g. no StoreKit config / network):
             // the paywall still offers the promo-code path.
             #if DEBUG
-            print("[StoreManager] Product.products failed: \(error)")
+            fhLog("[StoreManager] Product.products failed: \(error)")
             #endif
         }
     }

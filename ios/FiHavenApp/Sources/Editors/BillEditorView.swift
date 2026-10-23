@@ -93,7 +93,7 @@ struct BillEditorView: View {
                 }
             }
             .navigationTitle(bill == nil ? "New Bill" : "Edit Bill")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

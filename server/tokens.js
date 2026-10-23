@@ -52,9 +52,12 @@ function check(raw, purpose) {
   return { id: row.id, userId: row.user_id };
 }
 
-// Mark a token consumed so the link can't be replayed.
+// Mark a token consumed so the link can't be replayed. Returns false when
+// the row was already used — the UPDATE is conditional, so the first caller
+// through wins and any concurrent replay sees a spent token instead of
+// re-running the action.
 function consume(id) {
-  dbApi.markEmailTokenUsed(id, Date.now());
+  return dbApi.markEmailTokenUsed(id, Date.now());
 }
 
 module.exports = { issue, check, consume, hash };

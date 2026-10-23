@@ -213,7 +213,11 @@ router.post('/email/confirm', requireAuth, requireCsrf, async (req, res) => {
   if (!await mfa.compareEmailCode(code, ch.payload)) {
     return sendError(res, 401, 'invalid-code');
   }
-  dbApi.deleteChallenge(ch.id);
+  // Atomic single-use: two concurrent submits of the enrolment code used to
+  // both pass compare and both flip the flag; only the claim winner proceeds.
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return sendError(res, 401, 'invalid-code');
+  }
   dbApi.setEmailMfa(req.user.id, true);
   res.json({ ok: true });
 });
@@ -384,7 +388,11 @@ router.post('/passkey/register-finish', requireAuth, requireCsrf, async (req, re
     console.error('passkey registration failed:', err && err.message);
     return sendError(res, 400, 'passkey-verify-failed');
   }
-  dbApi.deleteChallenge(ch.id);
+  // Atomic consume — a replayed registration response must not enroll the
+  // same credential twice; only the request that claims the row proceeds.
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return sendError(res, 400, 'bad-challenge');
+  }
 
   if (!verification.verified || !verification.registrationInfo) {
     return sendError(res, 400, 'passkey-verify-failed');

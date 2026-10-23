@@ -47,7 +47,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 419 / 500 characters (counted with newlines, as the console does).
+> 414 / 500 characters (counted with newlines, as the console does).
 
 ```
 Fixed: a bill saved without an amount no longer says it's paid.
@@ -63,7 +63,7 @@ Also: the ✕ that deleted a purchase in one tap is gone from Spending.
 
 ## TestFlight — What to Test
 
-> 2017 / 4000 characters.
+> 2002 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 25

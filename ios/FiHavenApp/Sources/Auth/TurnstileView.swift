@@ -9,7 +9,7 @@ import WebKit
 /// Also reports the widget's rendered height so the caller can size the
 /// frame to fit — invisible-mode sitekeys render nothing, so the host can
 /// collapse the space instead of leaving an awkward fixed-height gap.
-struct TurnstileView: UIViewRepresentable {
+struct TurnstileView {
     let siteKey: String
     var baseURL: URL? = AppConfig.turnstileBaseURL
     var onToken: (String) -> Void
@@ -20,27 +20,25 @@ struct TurnstileView: UIViewRepresentable {
         Coordinator(onToken: onToken, onError: onError, onHeight: onHeight)
     }
 
-    func makeUIView(context: Context) -> WKWebView {
+    func makeWebView(coordinator: Coordinator) -> WKWebView {
         let controller = WKUserContentController()
-        controller.add(context.coordinator, name: "turnstile")
+        controller.add(coordinator, name: "turnstile")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        #if canImport(UIKit)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
+        #else
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.underPageBackgroundColor = .clear
+        #endif
         webView.loadHTMLString(Self.html(siteKey: siteKey), baseURL: baseURL)
         return webView
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-
-    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
-        uiView.configuration.userContentController
-            .removeScriptMessageHandler(forName: "turnstile")
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
@@ -74,8 +72,38 @@ struct TurnstileView: UIViewRepresentable {
             }
         }
     }
+}
 
-    private static func html(siteKey: String) -> String {
+#if canImport(UIKit)
+extension TurnstileView: UIViewRepresentable {
+    func makeUIView(context: Context) -> WKWebView {
+        makeWebView(coordinator: context.coordinator)
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        uiView.configuration.userContentController
+            .removeScriptMessageHandler(forName: "turnstile")
+    }
+}
+#else
+extension TurnstileView: NSViewRepresentable {
+    func makeNSView(context: Context) -> WKWebView {
+        makeWebView(coordinator: context.coordinator)
+    }
+
+    func updateNSView(_ nsView: WKWebView, context: Context) {}
+
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        nsView.configuration.userContentController
+            .removeScriptMessageHandler(forName: "turnstile")
+    }
+}
+#endif
+
+extension TurnstileView {
+    static func html(siteKey: String) -> String {
         """
         <!DOCTYPE html>
         <html>

@@ -127,15 +127,19 @@ const sub = express.Router({ mergeParams: true });
 // ── Anti-DDoS: per-IP rate limits ───────────────────────────────
 // A broad global cap blunts floods across everything; tighter caps
 // guard the API and the unauthenticated auth surface. Backed by
-// express-rate-limit (in-memory, single process — front with a CDN/WAF
-// for volumetric attacks). Disabled under test so the suite isn't throttled.
+// express-rate-limit with a SQLite store — shared across workers, so a
+// PM2 cluster-mode deploy enforces exact limits instead of multiplying
+// them by the worker count (front with a CDN/WAF for volumetric attacks).
+// Disabled under test so the suite isn't throttled.
 const { rateLimit } = require('express-rate-limit');
+const { SqliteRateLimitStore } = require('./rateLimitStore');
 function ipLimiter({ windowMs, limit, name }) {
   return rateLimit({
     windowMs,
     limit,
     standardHeaders: true,
     legacyHeaders: true,
+    store: new SqliteRateLimitStore(name),
     handler: (req, res) => {
       const reset = req.rateLimit && req.rateLimit.resetTime;
       const retryAfter = reset
@@ -156,6 +160,13 @@ if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_RATE_LIMIT !== '1') {
   // Unauthenticated and it writes settings — keep the token-guessing
   // surface small (a legitimate opt-out is one or two requests).
   sub.use('/unsubscribe', ipLimiter({ windowMs: 60 * 1000, limit: 30, name: 'unsubscribe' }));
+  // Expired bucket rows would otherwise linger forever; a periodic sweep
+  // keeps the table at ~active-IPs size.
+  const rlSweep = setInterval(() => {
+    try { dbApi.pruneRateLimitHits(Date.now()); }
+    catch (err) { console.error('rate-limit prune failed:', err && err.message); }
+  }, 15 * 60 * 1000);
+  rlSweep.unref();
 }
 
 // API routes. The data + MFA mounts are gated behind requireVerified:
@@ -417,9 +428,10 @@ app.listen(PORT, () => {
   console.log(`FiHaven server listening on http://localhost:${PORT}`);
   console.log(`database: ${dbApi.DB_PATH}`);
   mfa.warnIfProductionFileKey();
-  // Live household sync degrades silently under PM2 cluster mode — see the
-  // header of server/householdEvents.js.
-  householdEvents.warnIfMultiProcess();
+  // Under PM2 cluster mode this starts the durable-log SSE relay so
+  // members on other workers still see each other's writes; fork mode is
+  // a no-op. See the header of server/householdEvents.js.
+  householdEvents.initCrossProcess();
   // Non-fatal SMTP health probe so "emails aren't working" is visible in the
   // boot logs instead of only surfacing as swallowed per-send errors.
   mail.verify()

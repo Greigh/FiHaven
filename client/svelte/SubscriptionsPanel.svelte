@@ -69,7 +69,9 @@
 
     if (item.billId != null) {
       const b = bills.find((x) => String(x.id) === String(item.billId));
-      if (b) { b.manageUrl = url; save('fh_bills', bills); }
+      // Shared bills are a read-only overlay — a manageUrl edit would fork
+      // them into the personal list on the next sync.
+      if (b && !b._householdShared) { b.manageUrl = url; save('fh_bills', bills); }
     }
 
     let shared = false;

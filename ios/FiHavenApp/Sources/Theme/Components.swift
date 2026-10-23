@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import FiHavenCore
 
 /// A surface "card": padded, rounded, hairline border — the web's `.card`.
@@ -97,12 +99,8 @@ extension View {
     /// Inline navigation bar with the FiHaven mark beside the screen title.
     func brandedNavigationBar(_ title: String) -> some View {
         navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    BrandedNavTitle(title: title)
-                }
-            }
+            .ctInlineTitle()
+            .ctBrandedTitle(title)
     }
 }
 
@@ -111,7 +109,7 @@ extension View {
 struct RevealableSecureField: View {
     let placeholder: String
     @Binding var text: String
-    var contentType: UITextContentType? = nil
+    var contentType: PlatformTextContentType? = nil
     @State private var reveal = false
     @FocusState private var focused: Bool
 
@@ -124,8 +122,8 @@ struct RevealableSecureField: View {
                     SecureField(placeholder, text: $text)
                 }
             }
-            .textContentType(contentType)
-            .textInputAutocapitalization(.never)
+            .ctTextContentType(contentType)
+            .ctAutocapitalization(.never)
             .autocorrectionDisabled()
             .focused($focused)
 
@@ -162,8 +160,13 @@ struct PrimaryButtonStyle: ButtonStyle {
 
 /// The web's footer credit: "Made with ♥ by Daniel Hipskind".
 struct MadeWithLove: View {
+    /// `.compact` fits the Mac sidebar, where the credit sits above the
+    /// build number in a `sidebarWidth` column.
+    enum Style { case regular, compact }
+    var style: Style = .regular
+
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: style == .compact ? 2 : 4) {
             Text("Made with")
             Image(systemName: "heart.fill")
                 .font(.caption2)
@@ -173,7 +176,7 @@ struct MadeWithLove: View {
             Link("Daniel Hipskind", destination: URL(string: "https://danielhipskind.com")!)
                 .foregroundStyle(Theme.accent)
         }
-        .font(Theme.ui(13))
+        .font(Theme.ui(style == .compact ? 10 : 13))
         .foregroundStyle(Theme.muted)
     }
 }
@@ -210,7 +213,7 @@ struct CurrencyField: View {
                 Text("$").foregroundStyle(Theme.muted)
                 TextField(placeholder, value: $value,
                           format: .number.precision(.fractionLength(0...2)))
-                    .keyboardType(.decimalPad)
+                    .ctKeyboardType(.decimalPad)
                     .multilineTextAlignment(.leading)
             }
             .frame(width: amountBoxWidth, alignment: .leading)
@@ -242,7 +245,7 @@ struct OptionalCurrencyField: View {
             HStack(spacing: 2) {
                 Text("$").foregroundStyle(Theme.muted)
                 TextField(placeholder, text: $text)
-                    .keyboardType(.decimalPad)
+                    .ctKeyboardType(.decimalPad)
                     .multilineTextAlignment(.leading)
                     .onChange(of: text) { _, new in
                         let trimmed = new.trimmingCharacters(in: .whitespaces)
@@ -278,7 +281,7 @@ struct PercentField: View {
             HStack(spacing: 2) {
                 TextField(placeholder, value: $value,
                           format: .number.precision(.fractionLength(0...2)))
-                    .keyboardType(.decimalPad)
+                    .ctKeyboardType(.decimalPad)
                     .multilineTextAlignment(.leading)
                 Text("%").foregroundStyle(Theme.muted)
             }
@@ -320,7 +323,7 @@ struct IconMark: View {
             IssuerMonogramView(text: text, color: color, size: size)
         case .image(let uri):
             if let ui = imageFromDataURL(uri) {
-                Image(uiImage: ui)
+                Image(platformImage: ui)
                     .resizable()
                     .scaledToFit()
                     .frame(width: size, height: size)

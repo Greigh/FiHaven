@@ -259,7 +259,7 @@ struct BillsView: View {
                     }
                 }
                 .navigationTitle("Filter bills")
-                .navigationBarTitleDisplayMode(.inline)
+                .ctInlineTitle()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Clear") {
@@ -271,7 +271,7 @@ struct BillsView: View {
                     }
                 }
             }
-            .presentationDetents([.medium])
+            .ctDetents([.medium])
         }
     }
 }

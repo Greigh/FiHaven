@@ -19,7 +19,14 @@ ensure_env_line() {
   if grep -q "^${key}=" .env 2>/dev/null; then
     warn ".env already has ${key}= — update manually if needed"
   else
-    echo "${key}=${value}" >> .env
+    # Quote when the value needs it: an unquoted space or shell metachar
+    # writes a line that `source` can't parse and dotenv reads wrong.
+    case "$value" in
+      *[[:space:]\<\>\(\)\&\;\`\'\"\$\|\\!]*)
+        echo "${key}=\"${value//\"/\\\"}\"" >> .env ;;
+      *)
+        echo "${key}=${value}" >> .env ;;
+    esac
     ok "Appended ${key} to .env"
   fi
 }
@@ -81,7 +88,7 @@ echo "  Firebase → Add Android app → package ${BUNDLE_ID} → download JSON"
 echo "  (NOT the BlueBubbles file — package must be app.fihaven)"
 read -r -p "Path to google-services.json [skip]: " GS_SRC
 if [[ -n "$GS_SRC" && -f "$GS_SRC" ]]; then
-  PKG="$(node -e "const j=require('fs').readFileSync('$GS_SRC','utf8'); const p=JSON.parse(j); console.log(p.client?.[0]?.client_info?.android_client_info?.package_name||'');")"
+  PKG="$(node -e 'const p=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); console.log(p.client?.[0]?.client_info?.android_client_info?.package_name||"")' "$GS_SRC")"
   if [[ "$PKG" != "$BUNDLE_ID" ]]; then
     warn "Package in JSON is '${PKG}', expected '${BUNDLE_ID}' — wrong file?"
     read -r -p "Copy anyway? [y/N]: " CONF

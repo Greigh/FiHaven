@@ -43,11 +43,22 @@ struct ProGate<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        if billing.isPro {
-            content()
-        } else {
-            ProLockedView(feature: feature)
+        Group {
+            if billing.isPro {
+                content()
+            } else {
+                ProLockedView(feature: feature)
+            }
         }
+        #if DEBUG
+        // The sweep's gate column is the app's own answer, not the pixels:
+        // `locked=true` under `happy` means the run photographed a paywall
+        // where the product should be.
+        .onAppear { fhLog("[ProGate] feature=\(feature) locked=\(!billing.isPro)") }
+        .onChange(of: billing.isPro) { _, pro in
+            fhLog("[ProGate] feature=\(feature) locked=\(!pro)")
+        }
+        #endif
     }
 }
 
@@ -122,7 +133,7 @@ struct ProLockedView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(feature.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .ctInlineTitle()
         .accessibilityElement(children: .contain)
         .sheet(isPresented: $showPaywall) { PaywallView() }
     }
@@ -142,7 +153,7 @@ struct PaywallView: View {
             ScrollView { PaywallContent() }
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("FiHaven Pro")
-                .navigationBarTitleDisplayMode(.inline)
+                .ctInlineTitle()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 }

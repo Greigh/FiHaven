@@ -36,9 +36,11 @@ We use your information to:
 
 We do not sell your personal information, and we do not use it for advertising.
 
-### 3. Cookies
+### 3. Cookies and on-device storage
 
-FiHaven uses a single essential cookie to keep you signed in. It is marked HttpOnly (not readable by scripts) and contains only an opaque session identifier — never your password or financial data. It is removed when you log out or when the session expires. We also use a short-lived token to protect against cross-site request forgery on actions you take while signed in. We do not use advertising or analytics cookies. (The mobile apps sign in with a token stored securely on your device rather than a cookie — see “Mobile applications” below.)
+FiHaven uses a single essential cookie to keep you signed in. It is marked HttpOnly (not readable by scripts) and contains only an opaque session identifier — never your password or financial data. It is removed when you log out or when the session expires. We also use a short-lived token to protect against cross-site request forgery on actions you take while signed in. We do not use advertising or analytics cookies.
+
+To keep the app fast and to keep working when you’re offline, FiHaven also stores a copy of the data you’re signed in to — your bills, cards, payments, accounts, savings goals, imported transactions, and settings — in your browser’s local storage and, in the native apps, in a private file inside the app’s sandboxed storage. This local copy stays on your device; it is never sent to anyone but our own server, and only as the normal sync that saves your edits. Edits you make while offline are marked as pending in that same local copy so they can be pushed when you’re back online instead of being lost. The stored copy is bound to the account that created it — a different account signing in on the same device never sees it — and it is erased when you sign out, delete your account, or clear the app’s/browser’s site data. (The mobile apps sign in with a token stored securely on your device rather than a cookie — see “Mobile applications” below.)
 
 ### 4. Third-party services
 
@@ -66,6 +68,7 @@ Your Pro entitlement is computed on our server and applies across the web, iOS, 
 Native FiHaven apps for iOS and Android store and sync the same data through the same secure API as the website, under this same policy. A few app-specific notes:
 
 - Your sign-in token is stored in the device’s secure storage (the iOS Keychain or Android encrypted storage), not in a cookie.
+- For offline access, the apps keep a local copy of your synced data inside the app’s private storage — on iOS it is additionally protected by the system’s file encryption. As described in “Cookies and on-device storage”, that copy is bound to your account and erased on sign-out.
 - An optional biometric lock (Face ID, Touch ID, or fingerprint) can be enabled, with a configurable grace period before re-prompting. It is enforced on your device by the operating system; we never receive your biometric data.
 - In-app purchases are processed by Apple or Google as described above.
 - The apps do not include third-party advertising or analytics SDKs.

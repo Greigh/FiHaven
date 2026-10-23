@@ -88,7 +88,7 @@ struct BudgetRuleSettingsView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .ctGroupedList()
         .scrollContentBackground(.hidden)
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Budget lens")
@@ -102,7 +102,7 @@ struct BudgetRuleSettingsView: View {
                 get: { Double(get()) },
                 set: { set(min(100, max(0, Int($0)))) }
             ), format: .number)
-            .keyboardType(.numberPad)
+            .ctKeyboardType(.numberPad)
             .multilineTextAlignment(.trailing)
             .frame(width: 56)
             Text("%").foregroundStyle(Theme.muted)

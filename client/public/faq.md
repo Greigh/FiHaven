@@ -159,4 +159,4 @@ Yes — **both are live in the public stores**.
 - **Android** — install it from [Google Play](https://play.google.com/store/apps/details?id=app.fihaven).
 - **Web** — no install at all. [Sign in](https://fihaven.app/login) and you have the full product.
 
-Every version signs in to the same account and syncs the same data. Trouble with an install? [daniel@fihaven.app](mailto:daniel@fihaven.app).
+Every version signs in to the same account and syncs the same data. Trouble with an install? [support@fihaven.app](mailto:support@fihaven.app).

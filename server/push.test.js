@@ -8,6 +8,16 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 
+// The platformReady cases require './push' without stubbing './db', which
+// loads db.js for real — and db.js opens data/cleartab.db, the developer's
+// actual database. When that file carries a schema newer than this tree's
+// (e.g. sessions.id_hash), module load throws. Point it at a scratch file
+// per run so the suite never touches real data.
+process.env.FIHAVEN_TEST_DB_PATH = path.join(
+  os.tmpdir(),
+  `fihaven-push-test-${process.pid}-${Date.now()}.db`
+);
+
 function stubModule(modulePath, exports) {
   const resolved = modulePath.startsWith('.')
     ? require.resolve(modulePath, { paths: [serverDir] })

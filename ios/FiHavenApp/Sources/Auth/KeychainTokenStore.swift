@@ -24,6 +24,11 @@ final class KeychainTokenStore: TokenStore, @unchecked Sendable {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1" {
+            fhLog("[Keychain] token get status=\(status)")
+        }
+        #endif
         guard status == errSecSuccess, let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
@@ -38,11 +43,20 @@ final class KeychainTokenStore: TokenStore, @unchecked Sendable {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         let status = SecItemUpdate(baseQuery() as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
+        // Any update failure — not just errSecItemNotFound — falls back to
+        // Add. errSecMissingEntitlement and friends used to swallow the write
+        // whole: the token silently never persisted and the next data call
+        // ended the session.
+        if status != errSecSuccess {
             var add = baseQuery()
             add[kSecValueData as String] = data
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(add as CFDictionary, nil)
+            let addStatus = SecItemAdd(add as CFDictionary, nil)
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["FH_AUTOLOGIN"] == "1" {
+                fhLog("[Keychain] token set update=\(status) add=\(addStatus)")
+            }
+            #endif
         }
     }
 

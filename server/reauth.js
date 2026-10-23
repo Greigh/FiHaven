@@ -147,8 +147,13 @@ async function verify(user, body) {
     return { status: 401, error: 'invalid-reauth-code' };
   }
 
-  // Single use — a confirmed code must not authorize a second action.
-  dbApi.deleteChallenge(ch.id);
+  // Single use — a confirmed code must not authorize a second action. The
+  // consume is atomic (exact row instance), so two concurrent submits of one
+  // code can't both get here — the loser reads 'invalid-reauth-code' instead
+  // of re-running the sensitive action.
+  if (!dbApi.consumeChallenge(ch.id, ch.created_at)) {
+    return { status: 401, error: 'invalid-reauth-code' };
+  }
   return null;
 }
 

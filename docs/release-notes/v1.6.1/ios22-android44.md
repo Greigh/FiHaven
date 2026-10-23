@@ -68,7 +68,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 486 / 500 characters (counted with newlines, as the console does).
+> 485 / 500 characters (counted with newlines, as the console does).
 
 ```
 FiHaven works offline now.
@@ -87,7 +87,7 @@ Plus a security pass over sign-in and purchases. Google and Apple sign-ins can n
 
 ## TestFlight — What to Test
 
-> 3960 / 4000 characters.
+> 3959 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 22

@@ -173,7 +173,7 @@ struct PayView: View {
                 }
             }
             .navigationTitle("Pay · \(target.name)")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

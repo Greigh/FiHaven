@@ -58,7 +58,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 ## Google Play — What's new (en-US)
 
-> 189 / 500 characters (counted with newlines, as the console does).
+> 188 / 500 characters (counted with newlines, as the console does).
 >
 > Android has no user-facing change in this build. Say so rather than dressing
 > up a dependency bump.
@@ -75,7 +75,7 @@ Nothing changes in how the app looks or works.
 
 ## TestFlight — What to Test
 
-> 2071 / 4000 characters.
+> 2060 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 24

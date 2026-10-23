@@ -2,6 +2,8 @@ import SwiftUI
 import FiHavenCore
 #if canImport(UIKit)
 import UIKit
+#else
+import AppKit
 #endif
 
 /// Design tokens ported from client/css/tokens.css. Each color resolves
@@ -78,13 +80,34 @@ enum Theme {
             uiColor(traits.userInterfaceStyle == .dark ? dark : light)
         })
         #else
-        return rgb(light)
+        return Color(nsColor: nsDynamic { isDark($0) ? dark : light })
         #endif
     }
 
     #if canImport(UIKit)
     private static func uiColor(_ hex: UInt) -> UIColor {
         UIColor(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+    #else
+    /// Whether an appearance is a dark variant — `bestMatch` rather than a
+    /// name compare, so vibrant/accessibility-derived darks still count.
+    private static func isDark(_ appearance: NSAppearance) -> Bool {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    /// The macOS half of `dyn`/`brand`/`chip`: a dynamic `NSColor` whose
+    /// provider re-runs whenever the effective appearance changes.
+    private static func nsDynamic(_ pick: @escaping (NSAppearance) -> UInt) -> NSColor {
+        NSColor(name: nil) { appearance in nsColor(pick(appearance)) }
+    }
+
+    private static func nsColor(_ hex: UInt) -> NSColor {
+        NSColor(
             red: CGFloat((hex >> 16) & 0xFF) / 255,
             green: CGFloat((hex >> 8) & 0xFF) / 255,
             blue: CGFloat(hex & 0xFF) / 255,
@@ -103,7 +126,10 @@ enum Theme {
             return uiColor(UInt(BrandColor.legible(color, on: surface)))
         })
         #else
-        return rgb(UInt(BrandColor.legible(color, on: 0xFFFFFF)))
+        return Color(nsColor: nsDynamic { appearance in
+            let surface: UInt32 = isDark(appearance) ? 0x17181B : 0xFFFFFF
+            return UInt(BrandColor.legible(color, on: surface))
+        })
         #endif
     }
 
@@ -118,7 +144,10 @@ enum Theme {
             return uiColor(UInt(BrandColor.legible(readable, on: surface, minContrast: 1.6)))
         })
         #else
-        return rgb(UInt(readable))
+        return Color(nsColor: nsDynamic { appearance in
+            let surface: UInt32 = isDark(appearance) ? 0x17181B : 0xFFFFFF
+            return UInt(BrandColor.legible(readable, on: surface, minContrast: 1.6))
+        })
         #endif
     }
 

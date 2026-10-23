@@ -84,7 +84,7 @@ Plus a round of security and reliability work across the app and our servers.
 If the full note reads long against the listing, this keeps the two things a
 customer must know and drops the enumerated tail.
 
-> 1152 / 4000 characters.
+> 2440 / 4000 characters.
 
 ```
 You'll be asked to sign in once after updating. That's expected — it comes with a security improvement to how sign-ins are stored, and it only happens this once.
@@ -128,7 +128,7 @@ Income and Account Balances are their own tabs. Snooze a bill or card until tomo
 For a localized listing, or if the note above reads long against the store
 page. Keeps the two things a customer must know and nothing else.
 
-> 348 / 500 characters.
+> 472 / 500 characters.
 
 ```
 You'll be signed out once after updating. That's expected, and it only happens this once.

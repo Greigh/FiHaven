@@ -67,7 +67,7 @@ struct CardEditorView: View {
                     TextField("Issuer / Bank", text: $issuer)
                         .onChange(of: issuer) { _, _ in trySuggestPreset() }
                     TextField("Ends in (Last 4/5 digits)", text: $lastDigits)
-                        .keyboardType(.numberPad)
+                        .ctKeyboardType(.numberPad)
                         .onChange(of: lastDigits) { _, newValue in
                             if newValue.count > 5 {
                                 lastDigits = String(newValue.prefix(5))
@@ -111,7 +111,7 @@ struct CardEditorView: View {
                             HStack(spacing: 2) {
                                 Text("$").foregroundStyle(Theme.muted)
                                 TextField("0", text: $currentBalance)
-                                    .keyboardType(.decimalPad)
+                                    .ctKeyboardType(.decimalPad)
                                     .multilineTextAlignment(.leading)
                             }
                             .frame(width: 132, alignment: .leading)
@@ -189,14 +189,14 @@ struct CardEditorView: View {
                             Text("Base reward rate")
                             Spacer()
                             TextField("0", value: $rewardBase, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                                .ctKeyboardType(.decimalPad).multilineTextAlignment(.trailing)
                             Text("%").foregroundStyle(Theme.muted)
                         }
                         HStack {
                             Text("Point value")
                             Spacer()
                             TextField("1.0", value: $pointValue, format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                                .ctKeyboardType(.decimalPad).multilineTextAlignment(.trailing)
                             Text("¢/pt").foregroundStyle(Theme.muted)
                         }
                         ForEach(Rewards.categories, id: \.self) { cat in
@@ -205,7 +205,7 @@ struct CardEditorView: View {
                                     Text(cat)
                                     Spacer()
                                     TextField("—", value: catBinding(cat), format: .number)
-                                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 64)
+                                        .ctKeyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 64)
                                     Text("%").foregroundStyle(Theme.muted)
                                 }
                             }
@@ -288,7 +288,7 @@ struct CardEditorView: View {
                 }
             }
             .navigationTitle(card == nil ? (type == "loan" ? "New Loan" : "New Card") : (type == "loan" ? "Edit Loan" : "Edit Card"))
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

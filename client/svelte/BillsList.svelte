@@ -245,7 +245,10 @@
             </div>
 
             <div class="card-row-actions">
-              {#if !ended && !notStarted}
+              <!-- Pay/skip on a shared row would record a PERSONAL payment
+                   against another member's entity — their copy never learns
+                   of it. Shared items are a read-only overlay. -->
+              {#if !ended && !notStarted && !b._householdShared}
                 {#if state === 'skipped'}
                   <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('bill', String(b.id))}>
                     Undo skip
@@ -304,11 +307,18 @@
                   {/if}
                 {/if}
               {/if}
-              <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
-              {#if useArchive}
-                <button class="btn btn-ghost btn-sm" onclick={() => archiveBill(b)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+              <!-- Household-shared rows are a read-only overlay (see
+                   householdMerge.js): edit/archive/delete would fork a
+                   personal copy instead of updating the shared entity. -->
+              {#if !b._householdShared}
+                <button class="btn btn-ghost btn-sm" onclick={() => editBillById(String(b.id))}>Edit</button>
+                {#if useArchive}
+                  <button class="btn btn-ghost btn-sm" onclick={() => archiveBill(b)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+                {:else}
+                  <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+                {/if}
               {:else}
-                <button class="btn btn-danger btn-sm" onclick={() => deleteBill(b)}>Del</button>
+                <span class="badge badge-blue" title="Shared by a household member">Shared</span>
               {/if}
             </div>
           </header>
@@ -373,8 +383,12 @@
           <div class="archived-row">
             <span class="archived-name"><IconMark info={categoryIconInfo(b.category, settings)} /> {b.name}</span>
             <span class="archived-amt">{fmt(b.amount)}</span>
-            <button class="btn btn-ghost btn-xs" onclick={() => restoreBill(b)}>Restore</button>
-            <button class="btn btn-danger btn-xs" onclick={() => deleteBill(b)}>Delete forever</button>
+            {#if b._householdShared}
+              <span class="badge badge-blue" title="Shared by a household member">Shared</span>
+            {:else}
+              <button class="btn btn-ghost btn-xs" onclick={() => restoreBill(b)}>Restore</button>
+              <button class="btn btn-danger btn-xs" onclick={() => deleteBill(b)}>Delete forever</button>
+            {/if}
           </div>
         {/each}
       </div>

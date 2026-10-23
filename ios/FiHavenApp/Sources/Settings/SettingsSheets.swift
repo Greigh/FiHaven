@@ -46,7 +46,7 @@ struct ChangeEmailSheet: View {
             Text("You'll need to verify the new address before it takes effect.")
                 .font(Theme.ui(13)).foregroundStyle(Theme.muted)
             TextField("New email", text: $newEmail)
-                .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                .ctKeyboardType(.emailAddress).ctAutocapitalization(.never).autocorrectionDisabled()
             RevealableSecureField(placeholder: "Current password", text: $password, contentType: .password)
         }
     }
@@ -124,14 +124,14 @@ struct DeleteAccountSheet: View {
                 }
                 Section {
                     TextField("Authenticator code (if 2FA is on)", text: $code)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
+                        .ctKeyboardType(.numberPad)
+                        .ctTextContentType(.oneTimeCode)
                 } footer: {
                     Text("Required only if you have two-factor authentication enabled.")
                 }
                 Section {
                     TextField(deleteConfirmPhrase, text: $confirmText)
-                        .textInputAutocapitalization(.characters)
+                        .ctAutocapitalization(.characters)
                         .autocorrectionDisabled()
                 } header: {
                     Text("Type \(deleteConfirmPhrase) to confirm")
@@ -140,7 +140,7 @@ struct DeleteAccountSheet: View {
                     Section { FormErrorBanner(message: errorText) }
                 }
             }
-            .navigationTitle("Delete account").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Delete account").ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .destructiveAction) {
@@ -203,14 +203,14 @@ struct ClearDataSheet: View {
                 Section {
                     ReauthField(proof: $proof)
                     TextField("Authenticator code (if 2FA is on)", text: $code)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
+                        .ctKeyboardType(.numberPad)
+                        .ctTextContentType(.oneTimeCode)
                 }
                 if let errorText {
                     Section { FormErrorBanner(message: errorText) }
                 }
             }
-            .navigationTitle("Clear data").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Clear data").ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .destructiveAction) {
@@ -262,7 +262,7 @@ struct TotpSetupSheet: View {
                 case .scan:
                     Section("Scan in your authenticator app") {
                         if let setup, let img = imageFromDataURL(setup.qrDataUrl) {
-                            Image(uiImage: img).resizable().interpolation(.none)
+                            Image(platformImage: img).resizable().interpolation(.none)
                                 .frame(width: 200, height: 200).frame(maxWidth: .infinity)
                                 .accessibilityLabel("Authenticator QR code")
                                 .accessibilityHint("Scan with your authenticator app")
@@ -271,7 +271,7 @@ struct TotpSetupSheet: View {
                             LabeledContent("Secret", value: setup.secret)
                                 .font(Theme.mono(13))
                         }
-                        TextField("6-digit code", text: $code).keyboardType(.numberPad)
+                        TextField("6-digit code", text: $code).ctKeyboardType(.numberPad)
                     }
                 case .done:
                     Section("Save these backup codes") {
@@ -285,7 +285,7 @@ struct TotpSetupSheet: View {
                 }
                 if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
-            .navigationTitle("Authenticator app").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Authenticator app").ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(step == .done ? "Done" : "Cancel") { dismiss() }
@@ -327,7 +327,7 @@ struct TotpDisableSheet: View {
     var body: some View {
         SheetForm(title: "Turn off authenticator", busy: busy, error: errorText, saveTitle: "Turn off", destructive: true, onSave: disable) {
             ReauthField(proof: $proof)
-            TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
+            TextField("Current 6-digit code", text: $code).ctKeyboardType(.numberPad)
         }
     }
 
@@ -354,7 +354,7 @@ struct BackupCodesSheet: View {
                 if codes.isEmpty {
                     Section("Confirm to regenerate") {
                         ReauthField(proof: $proof)
-                        TextField("Current 6-digit code", text: $code).keyboardType(.numberPad)
+                        TextField("Current 6-digit code", text: $code).ctKeyboardType(.numberPad)
                     }
                 } else {
                     Section("New backup codes") {
@@ -366,7 +366,7 @@ struct BackupCodesSheet: View {
                 }
                 if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
-            .navigationTitle("Backup codes").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Backup codes").ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(codes.isEmpty ? "Cancel" : "Done") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -409,12 +409,12 @@ struct EmailEnableSheet: View {
                     Section("Confirm it's you") { ReauthField(proof: $proof) }
                 case .code:
                     Section("Enter the code we emailed to \(email)") {
-                        TextField("6-digit code", text: $code).keyboardType(.numberPad)
+                        TextField("6-digit code", text: $code).ctKeyboardType(.numberPad)
                     }
                 }
                 if let errorText { Section { FormErrorBanner(message: errorText) } }
             }
-            .navigationTitle("Email codes").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Email codes").ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -499,7 +499,7 @@ struct TimezoneSheet: View {
                     }
                 }
             }
-            .navigationTitle("Time zone").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Time zone").ctInlineTitle()
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
     }
@@ -525,7 +525,7 @@ struct SheetForm<Content: View>: View {
                 Section { content() }
                 if let error { Section { FormErrorBanner(message: error) } }
             }
-            .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(title).ctInlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: destructive ? .destructiveAction : .confirmationAction) {

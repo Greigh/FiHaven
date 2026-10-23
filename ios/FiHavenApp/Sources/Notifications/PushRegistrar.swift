@@ -1,5 +1,13 @@
+#if os(iOS)
 import UIKit
+import OSLog
 import FiHavenCore
+
+/// os_log, not print: these fire in release builds (that is the point — the
+/// persisted `lastFailure` aside, `log show` on a TestFlight device is how an
+/// APNs problem is diagnosed), and print() dumps them to stdout as well.
+/// Error domains/codes only — no tokens or PII.
+private let pushLog = Logger(subsystem: "app.fihaven", category: "push")
 
 /// Receives the APNs device token and uploads it when push is enabled.
 final class AppDelegate: NSObject, UIApplicationDelegate {
@@ -25,7 +33,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) {
         let ns = error as NSError
         let detail = "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
-        print("[Push] APNs registration FAILED —", detail)
+        pushLog.error("APNs registration FAILED — \(detail, privacy: .public)")
         Task { @MainActor in PushRegistrar.shared.noteRegistrationFailure(detail) }
     }
 }
@@ -208,7 +216,7 @@ final class PushRegistrar {
             lastToken = token
             setRegistered(ready: ready)
         } catch {
-            print("[Push] register failed:", error.localizedDescription)
+            pushLog.error("register failed: \(error.localizedDescription, privacy: .public)")
         }
         onRegistrationSettled?()
     }
@@ -224,6 +232,29 @@ final class PushRegistrar {
     private func unregister(_ token: String) async {
         guard let api else { return }
         do { try await api.unregisterPushDevice(token: token) }
-        catch { print("[Push] unregister failed:", error.localizedDescription) }
+        catch { pushLog.error("unregister failed: \(error.localizedDescription, privacy: .public)") }
     }
 }
+#else
+import FiHavenCore
+
+/// APNs registration isn't wired into the macOS target — the registrar's
+/// API stays callable so shared call sites don't fork, but it reports
+/// unhealthy and every operation is a no-op.
+@MainActor
+final class PushRegistrar {
+    static let shared = PushRegistrar()
+
+    var onRegistrationSettled: (() -> Void)?
+
+    var healthy: Bool { false }
+
+    func configure(api: APIClient) {}
+    func setEnabled(_ on: Bool) {}
+    func noteDeviceToken(_ token: String) {}
+    func noteRegistrationFailure(_ detail: String) {}
+    func syncIfNeeded(settings: Settings) {}
+    func clear() async {}
+    func clearLocal() {}
+}
+#endif

@@ -19,8 +19,13 @@ struct NetWorthView: View {
         "cash":       ("Cash", "💵"),
         "other":      ("Other", "📦"),
     ]
-    private func icon(_ t: String) -> String { Self.types[t]?.icon ?? "📦" }
-    private func label(_ t: String) -> String { Self.types[t]?.label ?? "Other" }
+    private func icon(_ t: String) -> String { Self.kindIcon(t) }
+    private func label(_ t: String) -> String { Self.kindLabel(t) }
+
+    /// The Mac tables surface the same label/icon per account kind; keep the
+    /// mapping in one place.
+    static func kindLabel(_ t: String) -> String { types[t]?.label ?? "Other" }
+    static func kindIcon(_ t: String) -> String { types[t]?.icon ?? "📦" }
 
     var body: some View {
         List {

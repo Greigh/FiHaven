@@ -573,7 +573,12 @@
           </div>
 
           <div class="card-row-actions">
-            {#if state === 'skipped'}
+            <!-- Pay/skip on a shared row would record a PERSONAL payment
+                 against another member's entity — their copy never learns
+                 of it. Shared items are a read-only overlay. -->
+            {#if c._householdShared}
+              <!-- read-only; the Shared badge renders below -->
+            {:else if state === 'skipped'}
               <button class="btn btn-ghost btn-sm" onclick={() => unskipMonth('card', String(c.id))}>
                 Undo skip
               </button>
@@ -616,11 +621,18 @@
                 </button>
               {/if}
             {/if}
-            <button class="btn btn-ghost btn-sm" onclick={() => editCard(i)} title="Edit card">Edit</button>
-            {#if useArchive}
-              <button class="btn btn-ghost btn-sm" onclick={() => archiveCardObj(c)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+            <!-- Household-shared rows are a read-only overlay (see
+                 householdMerge.js): edit/archive/delete would fork a
+                 personal copy instead of updating the shared entity. -->
+            {#if !c._householdShared}
+              <button class="btn btn-ghost btn-sm" onclick={() => editCard(i)} title="Edit card">Edit</button>
+              {#if useArchive}
+                <button class="btn btn-ghost btn-sm" onclick={() => archiveCardObj(c)} title="Archive — hides it but keeps a restorable copy">Archive</button>
+              {:else}
+                <button class="btn btn-danger btn-sm" onclick={() => deleteCard(i)} title="Delete card">Del</button>
+              {/if}
             {:else}
-              <button class="btn btn-danger btn-sm" onclick={() => deleteCard(i)} title="Delete card">Del</button>
+              <span class="badge badge-blue" title="Shared by a household member">Shared</span>
             {/if}
           </div>
         </header>
@@ -752,8 +764,12 @@
           <div class="archived-row">
             <span class="archived-name">{c.type === 'loan' ? '🏦' : '💳'} {c.name}</span>
             <span class="archived-amt">{fmt(c.balance || 0)}</span>
-            <button class="btn btn-ghost btn-xs" onclick={() => restoreCardObj(c)}>Restore</button>
-            <button class="btn btn-danger btn-xs" onclick={() => deleteCardObj(c)}>Delete forever</button>
+            {#if c._householdShared}
+              <span class="badge badge-blue" title="Shared by a household member">Shared</span>
+            {:else}
+              <button class="btn btn-ghost btn-xs" onclick={() => restoreCardObj(c)}>Restore</button>
+              <button class="btn btn-danger btn-xs" onclick={() => deleteCardObj(c)}>Delete forever</button>
+            {/if}
           </div>
         {/each}
       </div>

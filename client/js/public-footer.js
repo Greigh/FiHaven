@@ -54,12 +54,12 @@ function renderPublicFooter(container) {
   var path = currentPath();
   if (container.querySelector('a[href]')) {
     markActive(container, path);
-    return;
+  } else {
+    container.innerHTML = FOOTER_LINKS.map(function (link) {
+      return '<a href="' + link.href + '"' +
+        (isActive(link.href, path) ? ' aria-current="page"' : '') + '>' + link.label + '</a>';
+    }).join('');
   }
-  container.innerHTML = FOOTER_LINKS.map(function (link) {
-    return '<a href="' + link.href + '"' +
-      (isActive(link.href, path) ? ' aria-current="page"' : '') + '>' + link.label + '</a>';
-  }).join('');
 }
 
 function initPublicFooters() {

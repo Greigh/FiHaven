@@ -70,7 +70,7 @@ For support, contact daniel@fihaven.app.
 
 ## TestFlight — What to Test
 
-> 3961 / 4000 characters.
+> 3769 / 4000 characters.
 
 ```
 WHAT'S NEW IN BUILD 49 (BETA)

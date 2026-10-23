@@ -15,7 +15,15 @@ struct RootView: View {
             case .loading:
                 LoadingView()
             case .signedOut:
+                #if DEBUG
+                // FH_INTRO_SEEN=0|1 pins the first-run gate for sweep captures;
+                // unset, the stored flag decides as usual.
+                if let forced = ProcessInfo.processInfo.environment["FH_INTRO_SEEN"] {
+                    if forced == "1" { AuthView() } else { IntroView() }
+                } else if introSeen { AuthView() } else { IntroView() }
+                #else
                 if introSeen { AuthView() } else { IntroView() }
+                #endif
             case .mfa(let challenge):
                 MFAView(challenge: challenge)
             case .unverified(let user):
@@ -26,9 +34,15 @@ struct RootView: View {
                 } else if !user.onboarded {
                     OnboardingView()
                 } else if let store = env.store {
+                    #if os(macOS)
+                    MacShellView(user: user)
+                        .environmentObject(store)
+                        .environmentObject(env.billing)
+                    #else
                     MainTabView(user: user)
                         .environmentObject(store)
                         .environmentObject(env.billing)
+                    #endif
                 } else {
                     LoadingView()
                 }
@@ -36,11 +50,15 @@ struct RootView: View {
         }
         .animationIfAllowed(.easeInOut(duration: 0.2), value: isSignedIn)
         .task {
+            #if DEBUG
+            // Scheduled before bootstrap so the delay covers sign-in too.
+            SweepSnapshot.schedule(env: env)
+            #endif
             // Defer heavy startup until after first frame to avoid launch aborts
             await Task.yield()
-            print("[RootView] starting bootstrap")
+            fhLog("[RootView] starting bootstrap")
             await env.bootstrap()
-            print("[RootView] bootstrap finished")
+            fhLog("[RootView] bootstrap finished")
 
             // Under the debugger, allow a tiny delay or complete skip of StoreKit
             #if DEBUG
@@ -49,14 +67,14 @@ struct RootView: View {
             }
             // Default to skipping StoreKit in Debug builds unless explicitly overridden
             if ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] != "0" {
-                print("[RootView] skipping StoreKit (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
+                fhLog("[RootView] skipping StoreKit (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
                 return
             }
             #endif
 
-            print("[RootView] starting StoreKit")
+            fhLog("[RootView] starting StoreKit")
             await env.billing.start()
-            print("[RootView] StoreKit started")
+            fhLog("[RootView] StoreKit started")
         }
     }
 

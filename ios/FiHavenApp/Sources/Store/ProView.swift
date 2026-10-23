@@ -14,6 +14,6 @@ struct ProView: View {
         ScrollView { PaywallContent() }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("FiHaven Pro")
-            .navigationBarTitleDisplayMode(.inline)
+            .ctInlineTitle()
     }
 }

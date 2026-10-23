@@ -285,7 +285,7 @@ function main() {
   let storeListing = fs.readFileSync(PATHS.storeListing, 'utf8');
   storeListing = storeListing.replace(
     /\*\*Version train:\*\* \d+\.\d+\.\d+ — \*\*build \d+ on both stores\*\*[^)]*\)/,
-    `**Version train:** ${nextVersion} — **build ${nextBuild} on both stores** (marketing bump ${currentVersion === nextVersion ? '1.6.2 → ' + nextVersion : currentVersion + ' → ' + nextVersion}; the build number is one shared counter and continued ${currentBuild} → ${nextBuild} without resetting)`
+    `**Version train:** ${nextVersion} — **build ${nextBuild} on both stores** (${currentVersion === nextVersion ? `still ${nextVersion}` : `marketing bump ${currentVersion} → ${nextVersion}`}; the build number is one shared counter and continued ${currentBuild} → ${nextBuild} without resetting)`
   );
   storeListing = storeListing.replace(
     /\*\*Current build's store copy:\*\* \[`\.\.\/release-notes\/v[^`]+`\]\([^)]+\)/,
@@ -494,6 +494,9 @@ Paste into App Store Connect → Version → What's New in This Version.
   try {
     console.log('  → Generating client/public/changelog.md...');
     execSync('node scripts/generate-markdown.js', { cwd: ROOT, stdio: 'pipe' });
+
+    console.log('  → Regenerating sitemap (changelog lastmod = today)...');
+    execSync('node scripts/generate-sitemap.js', { cwd: ROOT, stdio: 'pipe' });
 
     console.log('  → Running nativeVersions parity test...');
     execSync('npx vitest run scripts/nativeVersions.test.js', { cwd: ROOT, stdio: 'pipe' });

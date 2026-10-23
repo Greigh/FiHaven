@@ -10,7 +10,31 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.6.4 (Build 55) Latest Beta
+1.6.7 (Build 59) Latest Beta
+
+October 6, 2026
+
+**Pipeline and CI fixes; no user-facing changes since build 58**
+
+- **Same app as build 58** — this build ships release-pipeline repairs; the 1.6.6 train (native Mac app, setup wizard, payoff honesty, surviving sessions, enforced CSP) is unchanged
+- **CI green on both remotes** — jobs that can't run on the Forgejo mirror now skip instead of dying at action-clone, and coverage uploads moved to the standalone Codecov CLI
+- Android build unpinned from a stale Java-runtime download URL that was failing every CI run at startup
+
+iOS 1.6.7 (59) Android 1.6.7 (59) Web fihaven.app Server API
+
+1.6.7 (Build 58) Beta
+
+October 4, 2026
+
+**The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients**
+
+- **FiHaven is a real Mac app** — source-list sidebar, sortable tables with multi-select bulk actions on every list screen, and full keyboard bindings
+- **Full security audit landed** — household field allowlists close stored XSS, sign-in survives transient errors, single-use credentials are atomic, and multi-process deploys share rate limits and live sync
+- Seven-step setup wizard, the security-check reveal, an honest payoff plan, and an enforced Content-Security-Policy
+
+iOS 1.6.7 (58) Android 1.6.7 (58) Web fihaven.app Server API
+
+1.6.4 (Build 55) Beta
 
 September 15, 2026
 

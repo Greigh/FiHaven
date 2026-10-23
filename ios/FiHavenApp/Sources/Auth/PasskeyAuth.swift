@@ -1,6 +1,10 @@
 import AuthenticationServices
 import FiHavenCore
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Drives a passwordless passkey assertion with the platform authenticator
 /// (Face ID / Touch ID, iCloud Keychain, or a third-party credential manager
@@ -34,11 +38,15 @@ final class PasskeyAuth: NSObject {
 
         return try await withCheckedThrowingContinuation { cont in
             self.continuation = cont
+            #if canImport(UIKit)
             if autoFill {
                 controller.performAutoFillAssistedRequests()
             } else {
                 controller.performRequests()
             }
+            #else
+            controller.performRequests()
+            #endif
         }
     }
 
@@ -76,9 +84,13 @@ extension PasskeyAuth: ASAuthorizationControllerDelegate {
 
 extension PasskeyAuth: ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        #if os(iOS)
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap { $0.windows }.first { $0.isKeyWindow }
         return window ?? ASPresentationAnchor()
+        #else
+        return NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow ?? ASPresentationAnchor()
+        #endif
     }
 }
 

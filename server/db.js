@@ -333,6 +333,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_household_events_hh ON household_events(household_id, seq);
 
+  -- Shared express-rate-limit buckets. One row per (tier:ip); a multi-process
+  -- deploy (PM2 cluster mode) hits the same SQLite file, so limits stay exact
+  -- rather than multiplying by worker count.
+  CREATE TABLE IF NOT EXISTS rate_limit_hits (
+    key      TEXT PRIMARY KEY,
+    hits     INTEGER NOT NULL,
+    reset_at INTEGER NOT NULL          -- epoch ms, fixed-window expiry
+  );
+
   -- Registered device tokens for server push (APNs / FCM).
   CREATE TABLE IF NOT EXISTS push_devices (
     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -607,7 +616,12 @@ const stmt = {
   findEmailTokenByHash: db.prepare(
     `SELECT id, user_id, purpose, expires_at, used_at FROM email_tokens WHERE token_hash = ?`
   ),
-  markEmailTokenUsed: db.prepare(`UPDATE email_tokens SET used_at = ? WHERE id = ?`),
+  // Conditional so two concurrent presentations of one token can't both win:
+  // the loser sees changes=0 and its caller must treat the token as spent —
+  // the same rule consumeOAuthHandoff already applies to OAuth codes.
+  markEmailTokenUsed: db.prepare(
+    `UPDATE email_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL`
+  ),
   deleteEmailTokensByPurpose: db.prepare(
     `DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`
   ),
@@ -643,6 +657,56 @@ const stmt = {
   setDigestWeek: db.prepare(`UPDATE users SET last_digest_week = ? WHERE id = ?`),
   setTrialReminderDay: db.prepare(`UPDATE users SET last_trial_reminder_day = ? WHERE id = ?`),
   setOfferReminderDay: db.prepare(`UPDATE users SET last_offer_reminder_day = ? WHERE id = ?`),
+  /* Multi-process-safe "sent today" claims for the scheduler. An
+     unconditional SET can't dedupe two workers that both read a stale
+     marker before either wrote it — each would send. claim() only
+     transitions the column when it isn't already today's value, so
+     exactly one worker wins the right to send; release() restores the
+     pre-claim value (still conditioned on it being ours) when the send
+     failed so the next tick retries instead of the day being silently
+     skipped. Column names are compile-time constants, never user input. */
+  claimReminderDay: db.prepare(
+    `UPDATE users SET last_reminder_day = ? WHERE id = ?
+       AND (last_reminder_day IS NULL OR last_reminder_day <> ?)`
+  ),
+  releaseReminderDay: db.prepare(
+    `UPDATE users SET last_reminder_day = ? WHERE id = ? AND last_reminder_day = ?`
+  ),
+  claimSummaryMonth: db.prepare(
+    `UPDATE users SET last_summary_month = ? WHERE id = ?
+       AND (last_summary_month IS NULL OR last_summary_month <> ?)`
+  ),
+  releaseSummaryMonth: db.prepare(
+    `UPDATE users SET last_summary_month = ? WHERE id = ? AND last_summary_month = ?`
+  ),
+  claimAutopayDay: db.prepare(
+    `UPDATE users SET last_autopay_day = ? WHERE id = ?
+       AND (last_autopay_day IS NULL OR last_autopay_day <> ?)`
+  ),
+  releaseAutopayDay: db.prepare(
+    `UPDATE users SET last_autopay_day = ? WHERE id = ? AND last_autopay_day = ?`
+  ),
+  claimDigestWeek: db.prepare(
+    `UPDATE users SET last_digest_week = ? WHERE id = ?
+       AND (last_digest_week IS NULL OR last_digest_week <> ?)`
+  ),
+  releaseDigestWeek: db.prepare(
+    `UPDATE users SET last_digest_week = ? WHERE id = ? AND last_digest_week = ?`
+  ),
+  claimTrialReminderDay: db.prepare(
+    `UPDATE users SET last_trial_reminder_day = ? WHERE id = ?
+       AND (last_trial_reminder_day IS NULL OR last_trial_reminder_day <> ?)`
+  ),
+  releaseTrialReminderDay: db.prepare(
+    `UPDATE users SET last_trial_reminder_day = ? WHERE id = ? AND last_trial_reminder_day = ?`
+  ),
+  claimOfferReminderDay: db.prepare(
+    `UPDATE users SET last_offer_reminder_day = ? WHERE id = ?
+       AND (last_offer_reminder_day IS NULL OR last_offer_reminder_day <> ?)`
+  ),
+  releaseOfferReminderDay: db.prepare(
+    `UPDATE users SET last_offer_reminder_day = ? WHERE id = ? AND last_offer_reminder_day = ?`
+  ),
   getUserData: db.prepare(`SELECT data FROM user_data WHERE user_id = ?`),
   upsertUserData: db.prepare(
     `INSERT INTO user_data (user_id, data, updated_at) VALUES (?, ?, ?)
@@ -677,8 +741,10 @@ const stmt = {
   listBackupCodes: db.prepare(
     `SELECT id, code_hash, used_at FROM user_backup_codes WHERE user_id = ? ORDER BY id`
   ),
+  // Conditional so two concurrent submits of one backup code can't both win:
+  // the loser sees changes=0 and must be treated as a failed guess.
   markBackupUsed: db.prepare(
-    `UPDATE user_backup_codes SET used_at = ? WHERE id = ?`
+    `UPDATE user_backup_codes SET used_at = ? WHERE id = ? AND used_at IS NULL`
   ),
   deleteBackupCodes: db.prepare(`DELETE FROM user_backup_codes WHERE user_id = ?`),
 
@@ -715,7 +781,9 @@ const stmt = {
      VALUES (@id, @user_id, @kind, @payload, @created_at, @expires_at, @attempts, @sends)`
   ),
   findChallenge: db.prepare(
-    `SELECT id, user_id, kind, payload, expires_at, attempts, sends FROM mfa_challenges WHERE id = ?`
+    // created_at is the consume key: a re-send rewrites the row under the
+    // same id, so the verifier must be able to say "this exact row".
+    `SELECT id, user_id, kind, payload, created_at, expires_at, attempts, sends FROM mfa_challenges WHERE id = ?`
   ),
   bumpChallengeAttempts: db.prepare(
     `UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?`
@@ -724,6 +792,15 @@ const stmt = {
     `UPDATE mfa_challenges SET sends = sends + 1 WHERE id = ?`
   ),
   deleteChallenge: db.prepare(`DELETE FROM mfa_challenges WHERE id = ?`),
+  // Single-use consume for a challenge a caller just verified. Conditioning
+  // on created_at (not merely id) binds the delete to the exact row instance
+  // that was checked — a re-send replaces the row under the same id with a
+  // new code AND a new created_at, so a stale verification can't claim a
+  // fresher challenge. Returns changes: 1 = this caller consumed it, 0 =
+  // someone else already did (or it was re-issued).
+  consumeChallenge: db.prepare(
+    `DELETE FROM mfa_challenges WHERE id = ? AND created_at = ?`
+  ),
   pruneChallenges: db.prepare(`DELETE FROM mfa_challenges WHERE expires_at < ?`),
 
   /* ── Login throttle (durable backing for rateLimit.js) ─── */
@@ -943,8 +1020,18 @@ const stmt = {
     `SELECT seq, payload FROM household_events
        WHERE household_id = ? AND seq > ? ORDER BY seq LIMIT ?`
   ),
+  // Global (all-household) variant for the cross-worker SSE relay: every
+  // cluster worker tails the log and fans foreign rows out to its own local
+  // subscribers.
+  listHouseholdEventsSinceSeq: db.prepare(
+    `SELECT seq, household_id, payload FROM household_events
+       WHERE seq > ? ORDER BY seq LIMIT ?`
+  ),
   maxHouseholdEventSeq: db.prepare(
     `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events WHERE household_id = ?`
+  ),
+  maxHouseholdEventSeqAll: db.prepare(
+    `SELECT COALESCE(MAX(seq), 0) AS s FROM household_events`
   ),
   // Age-based retention for the delta log. Clients re-fetch a full snapshot on
   // every connect (and every navigation), so an event older than the window is
@@ -952,6 +1039,28 @@ const stmt = {
   // continuously for weeks, which the session TTLs rule out.
   pruneHouseholdEvents: db.prepare(
     `DELETE FROM household_events WHERE created_at < ?`
+  ),
+
+  /* ── Rate-limit buckets (shared across processes via SQLite) ── */
+  rateLimitHitUpsert: db.prepare(
+    `INSERT INTO rate_limit_hits (key, hits, reset_at) VALUES (?, 1, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         hits = CASE WHEN rate_limit_hits.reset_at <= ? THEN 1
+                     ELSE rate_limit_hits.hits + 1 END,
+         reset_at = CASE WHEN rate_limit_hits.reset_at <= ? THEN ?
+                         ELSE rate_limit_hits.reset_at END`
+  ),
+  rateLimitHitGet: db.prepare(
+    `SELECT hits, reset_at FROM rate_limit_hits WHERE key = ?`
+  ),
+  rateLimitDecrementStmt: db.prepare(
+    `UPDATE rate_limit_hits SET hits = MAX(hits - 1, 0) WHERE key = ?`
+  ),
+  rateLimitResetStmt: db.prepare(
+    `DELETE FROM rate_limit_hits WHERE key = ?`
+  ),
+  rateLimitPruneStmt: db.prepare(
+    `DELETE FROM rate_limit_hits WHERE reset_at < ?`
   ),
 
   /* ── Push device tokens (APNs / FCM) ─────────────────────────── */
@@ -1130,7 +1239,9 @@ function deleteUserSessions(userId) {
 /* ── Email tokens (verify / reset / recover) ────────────────── */
 function insertEmailToken(row) { stmt.insertEmailToken.run(row); }
 function findEmailTokenByHash(tokenHash) { return stmt.findEmailTokenByHash.get(tokenHash); }
-function markEmailTokenUsed(id, ts) { stmt.markEmailTokenUsed.run(ts, id); }
+// Returns true only for the request that actually transitioned the row —
+// the conditional UPDATE above makes a concurrent replay return 0 changes.
+function markEmailTokenUsed(id, ts) { return stmt.markEmailTokenUsed.run(ts, id).changes === 1; }
 function deleteEmailTokensByPurpose(userId, purpose) {
   stmt.deleteEmailTokensByPurpose.run(userId, purpose);
 }
@@ -1185,6 +1296,37 @@ function setSummaryMonth(userId, ym) { stmt.setSummaryMonth.run(ym, userId); }
 function setDigestWeek(userId, week) { stmt.setDigestWeek.run(week, userId); }
 function setTrialReminderDay(userId, ymd) { stmt.setTrialReminderDay.run(ymd, userId); }
 function setOfferReminderDay(userId, ymd) { stmt.setOfferReminderDay.run(ymd, userId); }
+
+/* Atomic claim/release pairs for the scheduler's per-period send marks.
+   claimX returns true only to the worker that first transitions the column
+   to the new value — every other worker sees changes=0 and must skip the
+   send. releaseX restores the previous marker (only while the column still
+   holds the claimed value, so a re-claim by a later tick can't be erased). */
+function claimAutopayDay(userId, ymd) { return stmt.claimAutopayDay.run(ymd, userId, ymd).changes === 1; }
+function releaseAutopayDay(userId, prev, ymd) { stmt.releaseAutopayDay.run(prev, userId, ymd); }
+function claimReminderDay(userId, ymd) { return stmt.claimReminderDay.run(ymd, userId, ymd).changes === 1; }
+function releaseReminderDay(userId, prev, ymd) { stmt.releaseReminderDay.run(prev, userId, ymd); }
+function claimSummaryMonth(userId, ym) { return stmt.claimSummaryMonth.run(ym, userId, ym).changes === 1; }
+function releaseSummaryMonth(userId, prev, ym) { stmt.releaseSummaryMonth.run(prev, userId, ym); }
+function claimDigestWeek(userId, week) { return stmt.claimDigestWeek.run(week, userId, week).changes === 1; }
+function releaseDigestWeek(userId, prev, week) { stmt.releaseDigestWeek.run(prev, userId, week); }
+function claimTrialReminderDay(userId, ymd) { return stmt.claimTrialReminderDay.run(ymd, userId, ymd).changes === 1; }
+function releaseTrialReminderDay(userId, prev, ymd) { stmt.releaseTrialReminderDay.run(prev, userId, ymd); }
+function claimOfferReminderDay(userId, ymd) { return stmt.claimOfferReminderDay.run(ymd, userId, ymd).changes === 1; }
+function releaseOfferReminderDay(userId, prev, ymd) { stmt.releaseOfferReminderDay.run(prev, userId, ymd); }
+
+/* ── Rate-limit buckets ───────────────────────────────────────
+   The upsert + read-back runs in one transaction, so workers in separate
+   processes serialize at the SQLite file and each sees an exact shared
+   count — the in-memory store would give every worker its own counter. */
+const rateLimitHitTxn = db.transaction((key, now, windowMs) => {
+  stmt.rateLimitHitUpsert.run(key, now + windowMs, now, now, now + windowMs);
+  return stmt.rateLimitHitGet.get(key);
+});
+function rateLimitHit(key, now, windowMs) { return rateLimitHitTxn(key, now, windowMs); }
+function rateLimitDecrement(key) { stmt.rateLimitDecrementStmt.run(key); }
+function rateLimitReset(key) { stmt.rateLimitResetStmt.run(key); }
+function pruneRateLimitHits(now) { return stmt.rateLimitPruneStmt.run(now).changes; }
 
 // Stamped only when a credential was actually presented (password, passkey,
 // OAuth provider, or the signup that created the account). Resuming a stored
@@ -1323,7 +1465,9 @@ function deleteTotp(userId)       { stmt.deleteTotp.run(userId); }
 /* ── Backup-code wrappers ───────────────────────────────────── */
 function insertBackupCode(userId, hash) { stmt.insertBackupCode.run(userId, hash); }
 function listBackupCodes(userId)        { return stmt.listBackupCodes.all(userId); }
-function markBackupCodeUsed(id)         { stmt.markBackupUsed.run(Date.now(), id); }
+// True only for the request that transitioned the row — a concurrent
+// replay of the same backup code sees changes=0 and must not proceed.
+function markBackupCodeUsed(id)         { return stmt.markBackupUsed.run(Date.now(), id).changes === 1; }
 function deleteBackupCodes(userId)      { stmt.deleteBackupCodes.run(userId); }
 
 /* ── Passkey wrappers ───────────────────────────────────────── */
@@ -1346,6 +1490,11 @@ function insertChallenge(row) {
 }
 function findChallenge(id)              { return stmt.findChallenge.get(id); }
 function deleteChallenge(id)            { stmt.deleteChallenge.run(id); }
+// Atomically consume exactly the challenge row that was read — see the
+// prepared statement. True only for the request that got here first.
+function consumeChallenge(id, createdAt) {
+  return stmt.consumeChallenge.run(id, createdAt).changes === 1;
+}
 function pruneChallenges()              { return stmt.pruneChallenges.run(Date.now()).changes; }
 
 /* ── Login-throttle wrappers ────────────────────────────────── */
@@ -1789,6 +1938,23 @@ module.exports = {
   setDigestWeek,
   setTrialReminderDay,
   setOfferReminderDay,
+  claimAutopayDay,
+  releaseAutopayDay,
+  claimReminderDay,
+  releaseReminderDay,
+  claimSummaryMonth,
+  releaseSummaryMonth,
+  claimDigestWeek,
+  releaseDigestWeek,
+  claimTrialReminderDay,
+  releaseTrialReminderDay,
+  claimOfferReminderDay,
+  releaseOfferReminderDay,
+  // Rate-limit buckets (shared across workers)
+  rateLimitHit,
+  rateLimitDecrement,
+  rateLimitReset,
+  pruneRateLimitHits,
   getUserData,
   upsertUserData,
   decodeUserDataBlob,
@@ -1819,6 +1985,7 @@ module.exports = {
   insertChallenge,
   findChallenge,
   deleteChallenge,
+  consumeChallenge,
   bumpChallengeAttempts,
   bumpChallengeSends,
   // Login throttle
