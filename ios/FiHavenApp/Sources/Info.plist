@@ -45,7 +45,11 @@
 	<string>$(TURNSTILE_SITEKEY)</string>
 	<key>UIAppFonts</key>
 	<array>
-		<string>Manrope-Variable.ttf</string>
+		<string>Manrope-Regular.ttf</string>
+		<string>Manrope-Medium.ttf</string>
+		<string>Manrope-SemiBold.ttf</string>
+		<string>Manrope-Bold.ttf</string>
+		<string>Manrope-ExtraBold.ttf</string>
 		<string>IBMPlexMono-Regular.ttf</string>
 		<string>IBMPlexMono-Medium.ttf</string>
 	</array>

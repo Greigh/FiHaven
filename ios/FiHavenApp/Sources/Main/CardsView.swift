@@ -113,7 +113,7 @@ struct CardsView: View {
         }()
         (
             Text(lead).foregroundStyle(Theme.muted)
-            + Text(arrow + Money.fmt(p.proposedCurrent)).foregroundStyle(tone).fontWeight(.semibold)
+            + Text(arrow + Money.fmt(p.proposedCurrent)).foregroundStyle(tone).font(Theme.ui(12, weight: .semibold))
             + Text(tail).foregroundStyle(Theme.muted)
         )
         .font(Theme.ui(12))
