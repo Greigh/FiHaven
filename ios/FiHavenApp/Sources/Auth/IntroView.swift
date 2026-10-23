@@ -150,7 +150,7 @@ struct IntroView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 32)
-        .ctReadableColumn()
+        .ctPageWidth(Theme.columnMaxWidth)
     }
 
     /// A soft gradient disc with the FiHaven mark (page 1) or page glyph.
@@ -198,7 +198,7 @@ struct IntroView: View {
             .buttonStyle(PrimaryButtonStyle(enabled: true))
         }
         .padding(.horizontal, 24)
-        .ctReadableColumn()
+        .ctPageWidth(Theme.columnMaxWidth)
         .padding(.bottom, 30)
         #if DEBUG
         // Evidence for the sweep's signed-out "intro" sample: the log has to
