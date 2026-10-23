@@ -177,6 +177,11 @@ struct MacShellView: View {
                             sidebar
                         }
                     }
+                    // The catalog overflows by only a few tens of points at
+                    // the sizes it can realistically hit — a permanent 17pt
+                    // scroller beside the divider reads as broken. Wheel and
+                    // trackpad scroll still work with the indicator hidden.
+                    .scrollIndicators(.never)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
@@ -395,7 +400,7 @@ struct MacShellView: View {
             .foregroundStyle(Theme.muted)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 8)
-            .padding(.top, 14)
+            .padding(.top, 10)
             .padding(.bottom, 4)
             .accessibilityAddTraits(.isHeader)
     }
@@ -658,7 +663,11 @@ private struct MacSidebarRowChrome<Content: View>: View {
     var body: some View {
         HStack(spacing: 8, content: content)
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            // 4pt, not 5: the catalog measured 718pt against the column's
+            // 690 at the default window height, which is what pushed the
+            // sidebar into its scroll fallback for a ~28pt shortfall. The
+            // ~40pt this returns fits the plain stack again.
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .background(
