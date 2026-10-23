@@ -77,6 +77,7 @@ struct IncomeView: View {
                 }
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Income")

@@ -31,6 +31,21 @@ struct AboutView: View {
                 Button("View source") { openURL(Self.repoURL) }
             }
 
+            Section("Help & feedback") {
+                Button { openURL(MoreLink.website) } label: {
+                    LabeledContent("Website") { Image(systemName: "arrow.up.right.square") }
+                }
+                .accessibilityHint("Opens in browser")
+                Button { openURL(MoreLink.bugReport) } label: {
+                    LabeledContent("Report a bug") { Image(systemName: "arrow.up.right.square") }
+                }
+                .accessibilityHint("Opens in browser")
+                Button { openURL(MoreLink.suggestion) } label: {
+                    LabeledContent("Suggest a feature") { Image(systemName: "arrow.up.right.square") }
+                }
+                .accessibilityHint("Opens in browser")
+            }
+
             Section("Legal") {
                 Button { openURL(Self.privacyURL) } label: {
                     LabeledContent("Privacy Policy") { Image(systemName: "arrow.up.right.square") }
@@ -63,6 +78,7 @@ struct AboutView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("About")
     }

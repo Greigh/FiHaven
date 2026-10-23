@@ -85,6 +85,7 @@ struct SubscriptionsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .searchable(text: $searchText, prompt: "Search subscriptions")
         .brandedNavigationBar("Subscriptions")

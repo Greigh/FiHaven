@@ -118,6 +118,7 @@ struct BalancesView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Balances")
         .toolbar {
@@ -181,6 +182,7 @@ struct BalancesView: View {
                     Text(Money.fmt(liquid))
                         .font(Theme.mono(15, weight: .medium))
                         .foregroundStyle(Theme.text)
+                        .ctAmountLine()
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -188,6 +190,7 @@ struct BalancesView: View {
                     Text(Money.fmt(total - liquid))
                         .font(Theme.mono(15, weight: .medium))
                         .foregroundStyle(Theme.text)
+                        .ctAmountLine()
                 }
             }
         }

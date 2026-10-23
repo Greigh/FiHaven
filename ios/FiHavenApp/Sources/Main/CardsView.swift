@@ -251,6 +251,7 @@ struct CardsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .searchable(text: $searchText, prompt: isLoanView ? "Search loans" : "Search cards")
         .brandedNavigationBar(isLoanView ? "Loans" : "Cards")
@@ -470,6 +471,7 @@ struct CardsView: View {
                 .foregroundStyle(Theme.muted)
             Spacer()
             Text(amount).font(Theme.mono(12, weight: .semibold)).foregroundStyle(Theme.text)
+                .ctAmountLine()
         }
     }
 

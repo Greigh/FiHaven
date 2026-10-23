@@ -232,6 +232,9 @@ struct SemanticAmount: View {
             Text(value)
                 .font(font)
                 .foregroundStyle(tone.color)
+                // One line: a wrapped amount reads as a broken figure.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             if let statusWords {
                 Text(statusWords)
                     .font(Theme.ui(11, weight: .medium))

@@ -36,6 +36,7 @@ struct DashboardView: View {
                 }
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar(store.monthLabel)
@@ -511,6 +512,10 @@ private struct UpcomingRow: View {
                     Text(A11y.paidStateLabel(state))
                         .font(Theme.ui(9, weight: .medium))
                         .foregroundStyle(labelColor)
+                        // The caption lives in a fixed 44pt column; at the
+                        // largest text sizes it must shrink, not wrap "Unpai d".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 .frame(width: 44)
                 .accessibilityHidden(true)
@@ -525,6 +530,7 @@ private struct UpcomingRow: View {
                     Text(item.name)
                         .font(Theme.ui(15, weight: .medium))
                         .foregroundStyle(Theme.text)
+                        .lineLimit(2)
                     // Who it's actually paid to — the name above is often a nickname.
                     if !item.business.isEmpty {
                         Text(item.business)
@@ -533,13 +539,19 @@ private struct UpcomingRow: View {
                             .lineLimit(1)
                     }
                 }
+                .layoutPriority(1)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(Money.fmt(state == .full ? goal : remaining))
                         .font(Theme.mono(15, weight: .medium))
                         .foregroundStyle(Theme.text)
+                        // An amount must never wrap mid-figure ("$450.0\n0"):
+                        // one line, and shrink before squeezing the name away.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .layoutPriority(2)
                     if item.autopay {
                         Text("autopay")
                             .font(Theme.mono(9))

@@ -68,6 +68,7 @@ struct BudgetView: View {
                 }
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Budget")

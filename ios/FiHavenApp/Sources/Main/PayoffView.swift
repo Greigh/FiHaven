@@ -61,6 +61,7 @@ struct PayoffView: View {
                 calculatorTools
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Payoff")
@@ -286,6 +287,7 @@ struct PayoffView: View {
             Text(label).font(Theme.ui(12)).foregroundStyle(Theme.muted)
             Spacer()
             Text(value).font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.text)
+                .ctAmountLine()
         }
     }
 

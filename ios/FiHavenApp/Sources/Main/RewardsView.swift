@@ -47,6 +47,7 @@ struct RewardsView: View {
                 }
             }
             .padding(16)
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Rewards")
