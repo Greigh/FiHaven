@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.7 (59) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
-| **Android** | 1.6.7 (versionCode 59) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
+| **iOS** | 1.6.8 (60) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
+| **Android** | 1.6.8 (versionCode 60) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) — live App Store / Google Play badges on every page, the `/changelog` page, and the privacy page's on-device-storage disclosure. |
 | **Server** | Full security audit landed: household entity field allowlists, a shared SQLite rate-limit store, cross-process SSE relay, atomic credential consumption, and enforced Content-Security-Policy. |
 
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.7.** The build number continues 58 → 59
+> **Marketing version is 1.6.7.** The build number continues 59 → 60
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -54,6 +54,7 @@ Each release below uses two layers:
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
 | [59](#167-build-59--2026-10-06) | 2026-10-06 | Pipeline and CI fixes; no user-facing changes since build 58 |
 | [58](#167-build-58--2026-10-04) | 2026-10-04 | The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
 | [55](#164-build-55--2026-09-15) | 2026-09-15 | Account Balances bank review, security hardening, memory leak fixes, and public changelog |
@@ -62,6 +63,26 @@ Each release below uses two layers:
 
 Store copy for every build of this train is in
 [`docs/release-notes/v1.6.7/`](docs/release-notes/v1.6.7/).
+
+---
+
+## [1.6.8 build 60] — 2026-10-22
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.6.8 (60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
+| **Android** | 1.6.8 (versionCode 60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 60 |
+
+> **Build bump.** The build number continues 59 → 60 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
 
 ---
 
