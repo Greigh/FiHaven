@@ -82,6 +82,13 @@ extension View {
         #endif
     }
 
+    /// Cap a view at a page measure and re-center it in the space offered —
+    /// the page-width cap is a layout promise: no screen stretches on a wide
+    /// iPad window. On a phone-width window it is a no-op.
+    func ctPageWidth(_ maxWidth: CGFloat = Theme.pageMaxWidth) -> some View {
+        frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+    }
+
     /// Cap a scrolling content column at a readable measure on wide windows
     /// (iPad, a foldable's inner display) — full-width rows are hard to scan
     /// at 1000pt. Width-driven rather than size-class-driven, so it also
@@ -91,7 +98,7 @@ extension View {
     /// pane widths.
     func ctReadableColumn() -> some View {
         #if canImport(UIKit)
-        containerRelativeFrame(.horizontal) { width, _ in min(width, 780) }
+        containerRelativeFrame(.horizontal) { width, _ in min(width, Theme.readableMaxWidth) }
         #else
         self
         #endif

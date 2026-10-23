@@ -130,7 +130,8 @@ struct ProLockedView: View {
                 .padding(.top, 4)
         }
         .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ctPageWidth(Theme.columnMaxWidth)
+        .frame(maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(feature.title)
         .ctInlineTitle()

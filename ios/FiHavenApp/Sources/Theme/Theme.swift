@@ -45,6 +45,17 @@ enum Theme {
     static let radiusCard: CGFloat = 14
     static let radiusPill: CGFloat = 11
 
+    // ── Width measures ───────────────────────────────────────────────
+    /// The outermost edge a page may reach on a wide window — past ~1180pt
+    /// rows become unscannable. `ctPageWidth()` applies it.
+    static let pageMaxWidth: CGFloat = 1180
+    /// The single-column measure for auth, onboarding, and paywall-style
+    /// screens — the form column AuthView already pins to.
+    static let columnMaxWidth: CGFloat = 460
+    /// The comfortable measure for main-screen content (lists, cards,
+    /// tables) on wide windows — narrower than a page, roomier than a form.
+    static let readableMaxWidth: CGFloat = 780
+
     // ── Type ─────────────────────────────────────────────────────────
     // Bundled OFL fonts: static Manrope faces for UI, IBM Plex Mono for
     // numbers. The faces are instanced statics, not the variable file:

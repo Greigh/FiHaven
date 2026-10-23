@@ -101,7 +101,7 @@ struct OnboardingView: View {
                     }
                 }
                 .padding(.horizontal, 28)
-                .ctReadableColumn()
+                .ctPageWidth(Theme.columnMaxWidth)
                 .padding(.vertical, 12)
             }
 
@@ -123,7 +123,7 @@ struct OnboardingView: View {
 
             footer
                 .padding(.horizontal, 24)
-                .ctReadableColumn()
+                .ctPageWidth(Theme.columnMaxWidth)
                 .padding(.bottom, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
