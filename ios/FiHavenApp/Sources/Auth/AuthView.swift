@@ -6,6 +6,7 @@ import GoogleSignIn
 struct AuthView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     enum Mode { case login, signup }
     @State private var mode: Mode = .login
@@ -27,17 +28,185 @@ struct AuthView: View {
     @State private var turnstileHidden = false
 
     var body: some View {
+        layout
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.bg.ignoresSafeArea())
+            .onAppear {
+                env.markAuthStarted()
+                #if DEBUG
+                fhLog("[AuthView] sign-in screen shown")
+                if ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil {
+                    turnstileHidden = true
+                }
+                #endif
+            }
+            // Conditional-UI passkey check: surfaces a saved passkey in the
+            // QuickType bar while the email field is focused (silent otherwise).
+            .task { await env.loginWithPasskey(auto: true) }
+            #if DEBUG
+            // The stalled-check deadline: under a FH_TURNSTILE_SITEKEY override
+            // the widget stays hidden until Cloudflare draws it (onHeight), and
+            // at 12 s it shows anyway — an answer that can't be answered should
+            // still be something a person can see.
+            .task {
+                guard ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil else { return }
+                try? await Task.sleep(nanoseconds: 12_000_000_000)
+                revealSecurityCheck()
+            }
+            #endif
+    }
+
+    // ── Layout ────────────────────────────────────────────────────────
+    // On the Mac the phone's centered column reads as a card floating in a
+    // void, so the window gets the split it has room for: a brand pane on the
+    // left carrying the intro's pitch, the form centered in the rest.
+    @ViewBuilder
+    private var layout: some View {
+        #if os(macOS)
+        HStack(spacing: 0) {
+            brandPane
+            // Centered when it fits, scrolling when the window is shorter
+            // than the form — the same ViewThatFits idiom the shell sidebar
+            // uses for its catalog. The candidates must NOT carry an
+            // infinite frame: accepting the proposal would make the plain
+            // column always "fit" and the fallback would never fire.
+            ViewThatFits(in: .vertical) {
+                formColumn
+                ScrollView {
+                    formColumn
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.bg)
+        }
+        #else
         VStack(spacing: 0) {
             Spacer(minLength: 0)
+            formColumn
+            Spacer(minLength: 0)
+        }
+        #endif
+    }
 
-            VStack(spacing: 22) {
-                Wordmark(size: 38)
+    #if os(macOS)
+    /// The left pane: the intro page's hero — disc, pitch, feature list —
+    /// plus the credit where a Mac panel conventionally bottoms out.
+    private var brandPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: 48)
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Theme.accent.opacity(0.20), Theme.accent.opacity(0.05)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 120, height: 120)
+                BrandMark(size: 62)
+            }
+            Spacer().frame(height: 30)
+            Text("Five calm minutes a week instead of a frantic afternoon every payday.")
+                .font(Theme.ui(22, weight: .semibold))
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer().frame(height: 26)
+            VStack(alignment: .leading, spacing: 14) {
+                brandFeature("list.bullet.rectangle.fill", "Track recurring bills in one place")
+                brandFeature("creditcard.fill", "Credit cards & 0% promo periods")
+                brandFeature("chart.line.uptrend.xyaxis", "A clear plan to pay down debt")
+            }
+            Spacer()
+            MadeWithLove(style: .compact)
+            Spacer().frame(height: 26)
+        }
+        .padding(.horizontal, 44)
+        // 280 + the form's ~360 fits the window's 640pt floor; above that
+        // the pane opens at 440 and can grow to 500.
+        .frame(minWidth: 280, idealWidth: 440, maxWidth: 500)
+        .frame(maxHeight: .infinity)
+        .background(
+            ZStack {
+                Theme.bg
+                LinearGradient(
+                    colors: [Theme.accent.opacity(0.10), Theme.accent.opacity(0.03)],
+                    startPoint: .top, endPoint: .bottom)
+            }
+        )
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Theme.border).frame(width: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
 
-                Text(mode == .login ? "Welcome back" : "Create your account")
-                    .font(Theme.ui(16))
-                    .foregroundStyle(Theme.muted)
+    private func brandFeature(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Theme.ui(14))
+                .foregroundStyle(Theme.text)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+    #endif
 
-                VStack(spacing: 14) {
+    /// Wordmark + heading + card + mode toggle — what a phone shows as the
+    /// whole screen, and what the Mac shows inside the right pane.
+    private var formColumn: some View {
+        VStack(spacing: 22) {
+            #if os(macOS)
+            // The brand pane owns the wordmark; the pane's own heading is
+            // the greeting, promoted to a real title.
+            Text(mode == .login ? "Welcome back" : "Create your account")
+                .font(Theme.ui(22, weight: .bold))
+                .foregroundStyle(Theme.text)
+            #else
+            Wordmark(size: 38)
+
+            Text(mode == .login ? "Welcome back" : "Create your account")
+                .font(Theme.ui(16))
+                .foregroundStyle(Theme.muted)
+            #endif
+
+            formCard
+
+            Button {
+                performWithAnimation(!reduceMotion) {
+                    mode = (mode == .login ? .signup : .login)
+                }
+                env.authError = nil
+            } label: {
+                Text(mode == .login
+                     ? "No account? Create one"
+                     : "Already have an account? Sign in")
+                    .font(Theme.ui(14, weight: .medium))
+                    .foregroundStyle(Theme.accent)
+            }
+            // macOS's default button style would draw this as a bordered
+            // push-button — a grey slab where a text link belongs.
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 22)
+        .frame(maxWidth: 460)
+    }
+
+    /// The form body — card-wrapped on iOS, bare on the Mac pane, where a
+    /// bordered card floating on the pane background is the muddy look the
+    /// old screenshot had.
+    @ViewBuilder
+    private var formCard: some View {
+        #if os(macOS)
+        formBody
+        #else
+        formBody.ctCard(padding: 20)
+        #endif
+    }
+
+    private var formBody: some View {
+        VStack(spacing: 14) {
                     field("Email") {
                         TextField("you@example.com", text: $email)
                             .ctTextContentType(.emailAddress)
@@ -149,7 +318,10 @@ struct AuthView: View {
                     } onCompletion: { result in
                         handleApple(result)
                     }
-                    .signInWithAppleButtonStyle(.black)
+                    // .black disappears into the dark surface — `.white` is
+                    // the style Apple ships for dark backgrounds.
+                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                    .cornerRadius(Theme.radiusPill)
                     .frame(height: 48)
                     .disabled(env.working)
 
@@ -165,13 +337,14 @@ struct AuthView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white)
+                            RoundedRectangle(cornerRadius: Theme.radiusPill, style: .continuous).fill(.white)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: Theme.radiusPill, style: .continuous)
                                 .stroke(Color(white: 0.85), lineWidth: 1)
                         )
                     }
+                    .buttonStyle(.plain)
                     .disabled(env.working)
 
                     // Passwordless passkey sign-in (explicit). The conditional
@@ -186,54 +359,12 @@ struct AuthView: View {
                             .foregroundStyle(Theme.accent)
                             .frame(maxWidth: .infinity, minHeight: 36)
                         }
+                        // A text link, not a bordered push-button (macOS's
+                        // default style would box it).
+                        .buttonStyle(.plain)
                         .disabled(env.working)
                     }
                 }
-                .ctCard(padding: 20)
-
-                Button {
-                    performWithAnimation(!reduceMotion) {
-                        mode = (mode == .login ? .signup : .login)
-                    }
-                    env.authError = nil
-                } label: {
-                    Text(mode == .login
-                         ? "No account? Create one"
-                         : "Already have an account? Sign in")
-                        .font(Theme.ui(14, weight: .medium))
-                        .foregroundStyle(Theme.accent)
-                }
-            }
-            .padding(.horizontal, 22)
-            .frame(maxWidth: 460)
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
-        .onAppear {
-            env.markAuthStarted()
-            #if DEBUG
-            fhLog("[AuthView] sign-in screen shown")
-            if ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil {
-                turnstileHidden = true
-            }
-            #endif
-        }
-        // Conditional-UI passkey check: surfaces a saved passkey in the
-        // QuickType bar while the email field is focused (silent otherwise).
-        .task { await env.loginWithPasskey(auto: true) }
-        #if DEBUG
-        // The stalled-check deadline: under a FH_TURNSTILE_SITEKEY override
-        // the widget stays hidden until Cloudflare draws it (onHeight), and
-        // at 12 s it shows anyway — an answer that can't be answered should
-        // still be something a person can see.
-        .task {
-            guard ProcessInfo.processInfo.environment["FH_TURNSTILE_SITEKEY"] != nil else { return }
-            try? await Task.sleep(nanoseconds: 12_000_000_000)
-            revealSecurityCheck()
-        }
-        #endif
     }
 
     #if DEBUG
@@ -268,6 +399,7 @@ struct AuthView: View {
             }
             .font(Theme.ui(13, weight: .semibold))
             .foregroundStyle(Theme.accent)
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
         .transition(.opacity)
