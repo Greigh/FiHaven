@@ -37,7 +37,33 @@ struct TurnstileView {
     var onHeight: (CGFloat) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onToken: onToken, onError: onError, onHeight: onHeight)
+        Coordinator(baseURL: baseURL, onToken: onToken, onError: onError, onHeight: onHeight)
+    }
+
+    /// The set of documents the challenge WebView may navigate to. The page is
+    /// a static string of ours, so this isn't about hostile content — it's
+    /// about keeping the WebView's own surface small. It hands whatever
+    /// document it shows an injected message handler that reports the captcha
+    /// token, and that token is what the sign-in request carries, so the set of
+    /// documents it can reach is worth pinning: the policy failing open is a
+    /// hole, and failing closed breaks sign-in for everyone.
+    enum TurnstileNavigationPolicy {
+        /// Only the document's own base URL (which Turnstile checks the
+        /// sitekey against) and Cloudflare's challenge origins may navigate.
+        /// Everything else — non-web schemes, missing hosts, frames the
+        /// widget loads itself — passes through untouched: none of them can
+        /// reach the handler cross-origin, and cancelling navigations we
+        /// cannot classify would break the widget.
+        static func allows(_ url: URL?, baseHost: String?) -> Bool {
+            guard let url,
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "https" || scheme == "http",
+                  let host = url.host?.lowercased(), !host.isEmpty else {
+                return true
+            }
+            if let baseHost, host == baseHost.lowercased() { return true }
+            return host == "cloudflare.com" || host.hasSuffix(".cloudflare.com")
+        }
     }
 
     func makeWebView(coordinator: Coordinator) -> WKWebView {
@@ -48,6 +74,7 @@ struct TurnstileView {
         config.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = coordinator
         #if canImport(UIKit)
         webView.isOpaque = false
         webView.backgroundColor = .clear
@@ -61,14 +88,20 @@ struct TurnstileView {
         return webView
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let onToken: (String) -> Void
         let onError: () -> Void
         let onHeight: (CGFloat) -> Void
+        /// The document's own host — the one URL besides Cloudflare's that may
+        /// navigate inside this WebView, since `loadHTMLString` reports it as
+        /// the page's URL and denying it would stop the widget from starting.
+        let baseHost: String?
 
-        init(onToken: @escaping (String) -> Void,
+        init(baseURL: URL?,
+             onToken: @escaping (String) -> Void,
              onError: @escaping () -> Void,
              onHeight: @escaping (CGFloat) -> Void) {
+            self.baseHost = baseURL?.host
             self.onToken = onToken
             self.onError = onError
             self.onHeight = onHeight
@@ -90,6 +123,15 @@ struct TurnstileView {
             default:
                 onError()
             }
+        }
+
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            decisionHandler(
+                TurnstileNavigationPolicy.allows(navigationAction.request.url,
+                                                 baseHost: baseHost) ? .allow : .cancel
+            )
         }
     }
 }

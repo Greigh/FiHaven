@@ -38,6 +38,7 @@ public final class APIClient: Sendable {
         method: Method,
         body: AnyEncodable? = nil,
         tokenMode: Bool = false,
+        anonymous: Bool = false,
         query: [URLQueryItem]? = nil
     ) throws -> URLRequest {
         // `path` is a path only — a "?" inside it would be percent-encoded by
@@ -52,7 +53,11 @@ public final class APIClient: Sendable {
         }
         var req = URLRequest(url: url)
         req.httpMethod = method.rawValue
-        if let token = tokens.get() {
+        // `anonymous` marks the calls that *establish* a session — they must
+        // not carry the stored credential they are replacing: a server that
+        // validates the header would answer 401 `unauthenticated`, which the
+        // app then reads as "your session expired" for a brand-new sign-in.
+        if !anonymous, let token = tokens.get() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         #if DEBUG
@@ -72,6 +77,27 @@ public final class APIClient: Sendable {
         return req
     }
 
+    /// The fault FH_FAULT asks `send` to throw for a URL, or nil to let the
+    /// request through. `/api/auth/` paths are always exempt: failing sign-in
+    /// would strand a sweep on the auth screen, and every capture would be of
+    /// the same thing. Unknown values degrade to no fault — a typo in the
+    /// sweep's state table must not conjure a state nobody asked for.
+    /// Compiled only in debug builds; tests exercise it directly.
+    static func faultInjected(for url: URL) -> APIError? {
+        #if DEBUG
+        guard let fault = ProcessInfo.processInfo.environment["FH_FAULT"],
+              !fault.isEmpty,
+              !url.path.hasPrefix("/api/auth/") else { return nil }
+        switch fault {
+        case "transport": return .transport("FH_FAULT=transport")
+        case "api": return .http(status: 503, code: "fh-fault")
+        default: return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
     /// Sends a request, mapping non-2xx into APIError.
     ///
     /// A 401 only means `.unauthenticated` — "your session expired" — when the
@@ -83,21 +109,13 @@ public final class APIClient: Sendable {
     /// `internal` so the account/MFA extension can reuse it.
     @discardableResult
     func send(_ req: URLRequest) async throws -> Data {
-        #if DEBUG
         // FH_FAULT is how a sweep photographs a dead server: it fails the
         // data calls while leaving /api/auth alone — pointing FH_BASE at a
         // dead port would break sign-in too, and every capture would be the
         // same auth screen.
-        if let fault = ProcessInfo.processInfo.environment["FH_FAULT"],
-           !fault.isEmpty,
-           let path = req.url?.path, !path.hasPrefix("/api/auth/") {
-            switch fault {
-            case "transport": throw APIError.transport("FH_FAULT=transport")
-            case "api": throw APIError.http(status: 503, code: "fh-fault")
-            default: break
-            }
+        if let url = req.url, let fault = Self.faultInjected(for: url) {
+            throw fault
         }
-        #endif
         let data: Data
         let response: URLResponse
         do {
@@ -143,7 +161,7 @@ public final class APIClient: Sendable {
             captchaToken: captchaToken, loginStartedAt: loginStartedAt, website: ""
         )
         let req = try makeRequest(path: "api/auth/signup", method: .POST,
-                                  body: AnyEncodable(body), tokenMode: true)
+                                  body: AnyEncodable(body), tokenMode: true, anonymous: true)
         let data = try await send(req)
         return try storeSession(from: data)
     }
@@ -159,7 +177,7 @@ public final class APIClient: Sendable {
             captchaToken: captchaToken, loginStartedAt: loginStartedAt, website: ""
         )
         let req = try makeRequest(path: "api/auth/login", method: .POST,
-                                  body: AnyEncodable(body), tokenMode: true)
+                                  body: AnyEncodable(body), tokenMode: true, anonymous: true)
         let data = try await send(req)
 
         if let mfa = try? JSONDecoder().decode(MfaResponse.self, from: data),
@@ -176,7 +194,7 @@ public final class APIClient: Sendable {
     public func verifyMfa(mfaToken: String, code: String) async throws -> AuthSession {
         let body = MfaVerifyRequest(mfaToken: mfaToken, code: code)
         let req = try makeRequest(path: "api/auth/mfa/verify", method: .POST,
-                                  body: AnyEncodable(body), tokenMode: true)
+                                  body: AnyEncodable(body), tokenMode: true, anonymous: true)
         let data = try await send(req)
         return try storeSession(from: data)
     }
@@ -187,7 +205,7 @@ public final class APIClient: Sendable {
     public func oauthSignIn(provider: String, idToken: String, name: String? = nil) async throws -> LoginOutcome {
         let body = OAuthSignInRequest(idToken: idToken, name: name)
         let req = try makeRequest(path: "api/auth/oauth/\(provider)", method: .POST,
-                                  body: AnyEncodable(body), tokenMode: true)
+                                  body: AnyEncodable(body), tokenMode: true, anonymous: true)
         let data = try await send(req)
         if let mfa = try? JSONDecoder().decode(MfaResponse.self, from: data),
            mfa.mfaRequired == true {
@@ -202,7 +220,7 @@ public final class APIClient: Sendable {
     // ── Passkey login (passwordless first factor) ────────────────────
     /// Begin a passwordless passkey login: returns the challenge to sign.
     public func passkeyLoginStart() async throws -> PasskeyLoginStart {
-        let req = try makeRequest(path: "api/auth/passkey/login/start", method: .POST, tokenMode: true)
+        let req = try makeRequest(path: "api/auth/passkey/login/start", method: .POST, tokenMode: true, anonymous: true)
         let data = try await send(req)
         guard let raw = try? JSONDecoder().decode(PasskeyLoginStartRaw.self, from: data) else {
             throw APIError.decoding("passkey-options")
@@ -219,7 +237,7 @@ public final class APIClient: Sendable {
     public func passkeyLoginFinish(challengeId: String, response: PasskeyAssertionResponse) async throws -> AuthSession {
         let body = PasskeyLoginFinishBody(challengeId: challengeId, response: response)
         let req = try makeRequest(path: "api/auth/passkey/login/finish", method: .POST,
-                                  body: AnyEncodable(body), tokenMode: true)
+                                  body: AnyEncodable(body), tokenMode: true, anonymous: true)
         let data = try await send(req)
         return try storeSession(from: data)
     }
@@ -228,7 +246,7 @@ public final class APIClient: Sendable {
     public func sendEmailCode(mfaToken: String) async throws {
         let body = MfaTokenRequest(mfaToken: mfaToken)
         let req = try makeRequest(path: "api/auth/mfa/email/send", method: .POST,
-                                  body: AnyEncodable(body))
+                                  body: AnyEncodable(body), anonymous: true)
         try await send(req)
     }
 

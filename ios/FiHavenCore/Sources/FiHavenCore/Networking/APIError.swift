@@ -15,6 +15,20 @@ public enum APIError: Error, Equatable, Sendable {
         return nil
     }
 
+    /// Whether the server refused the *credential* — the one failure a stored
+    /// session must sign out on. A 401 arrives as `.unauthenticated` only
+    /// when the body carries no code; every coded 401 arrives as `.http`, and
+    /// matching on the case alone would let those through as "transient".
+    /// Everything else — offline, a server fault, a decode failure — is not
+    /// the server judging the token, and must not end the session.
+    public var isCredentialRejection: Bool {
+        switch self {
+        case .unauthenticated: return true
+        case .http(let status, _): return status == 401
+        case .decoding, .transport: return false
+        }
+    }
+
     /// A short human-readable message for the known codes
     /// (docs/native-contract.md §3.4).
     public var userMessage: String {
