@@ -42,6 +42,11 @@ struct MainTabView: View {
     @State private var selection: String = MainTabView.initialTab()
     @State private var debugPaywall = false
     @State private var didApplyLanding = false
+    /// A launch-time target (debug screen or synced landing view) that must
+    /// be re-asserted when `isPro` settles: the flip rebuilds the tab set,
+    /// moving destinations between the bar and More, and a section
+    /// selection made before it can stick to the slot instead of the tab.
+    @State private var pendingSelection: String?
 
     // Free users give up one bottom slot to the "Get Pro" tab.
     private var bottomCount: Int { billing.isPro ? maxBottomTabs : maxBottomTabs - 1 }
@@ -66,12 +71,17 @@ struct MainTabView: View {
                         NavigationStack { ProView() }
                     }
                 }
-                TabSection("More") {
-                    ForEach(moreItems) { item in
-                        Tab(item.menuTitle, systemImage: item.symbol, value: item.rawValue) {
-                            NavigationStack { item.destination }
-                        }
+                // The rest are top-level Tabs too: compact puts them under the
+                // system's More overflow and the sidebar lists them before the
+                // app group. They must not sit in the More section — on iPad
+                // the last bar tab's value resolves into the section's first
+                // child instead of its own destination.
+                ForEach(moreItems) { item in
+                    Tab(item.menuTitle, systemImage: item.symbol, value: item.rawValue) {
+                        NavigationStack { item.destination }
                     }
+                }
+                TabSection("App") {
                     Tab("Settings", systemImage: "gearshape.fill", value: "settings") {
                         NavigationStack { SettingsView(user: user) }
                     }
@@ -99,6 +109,7 @@ struct MainTabView: View {
             // which screen it is.
             if let (raw, sel, via) = debugSelection() {
                 selection = sel
+                pendingSelection = sel
                 didApplyLanding = true
                 fhLog("[Shell] screen=\(raw) via=\(via)")
             }
@@ -120,9 +131,21 @@ struct MainTabView: View {
         .onChange(of: selection) { _, new in shellNav.selected = new }
         // Open to the user's saved default view, once the data has loaded.
         .task(id: store.loaded) {
-            guard store.loaded, !didApplyLanding, let t = landingSelection() else { return }
+            guard store.loaded else { return }
+            if let t = pendingSelection {
+                selection = t
+                pendingSelection = nil
+            }
+            guard !didApplyLanding, let t = landingSelection() else { return }
             didApplyLanding = true
             selection = t
+            pendingSelection = t
+        }
+        .onChange(of: billing.isPro) { _, _ in
+            if let t = pendingSelection {
+                selection = t
+                pendingSelection = nil
+            }
         }
         .sheet(isPresented: $debugPaywall) { PaywallView() }
         .alert(
