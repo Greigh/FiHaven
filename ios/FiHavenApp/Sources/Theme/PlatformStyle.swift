@@ -410,16 +410,18 @@ private final class FrameGuardView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not a nib view") }
 
-    #if DEBUG
     deinit {
+        floorTimer?.invalidate()
+        #if DEBUG
         if let frameWatcher { NotificationCenter.default.removeObserver(frameWatcher) }
+        #endif
     }
-    #endif
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }
         window.contentMinSize = minimumSize
+        window.minSize = minimumSize
         guard !applied else { return }
         applied = true
         // SwiftUI sizes the window itself during the layout pass that follows
@@ -427,6 +429,32 @@ private final class FrameGuardView: NSView {
         // `viewDidMoveToWindow` is immediately overwritten by a window as tall
         // as the display. One turn of the run loop later it sticks.
         DispatchQueue.main.async { [weak self] in self?.apply(to: window) }
+    }
+
+    /// Re-asserts the drag floor while the window lives; see `floorTimer`.
+    ///
+    /// The floor is `contentMinSize` because on this window — a
+    /// `fullSizeContentView` one, the pinned-run logs show content and frame
+    /// measuring the same — it is the frame floor to two views' accuracy.
+    /// Setting it can grow a window that is currently below the floor: that
+    /// clamp is the point of it, and a timer callback is outside the layout
+    /// cycle a `setFrame` must not be made inside (see `watchFrame`).
+    private var floorTimer: Timer?
+
+    private func watchFloor(of window: NSWindow) {
+        // The same 400ms the snapshot re-assertion in `FiHavenApp` polls the
+        // pin at, for the same reason: there is no notification for the write
+        // being undone, so the floor is kept, not enforced once.
+        floorTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) {
+            [weak self, weak window] timer in
+            guard let self, let window else {
+                timer.invalidate()
+                return
+            }
+            if window.contentMinSize != self.minimumSize {
+                window.contentMinSize = self.minimumSize
+            }
+        }
     }
 
     private func apply(to window: NSWindow) {
@@ -452,6 +480,10 @@ private final class FrameGuardView: NSView {
             // and that is the one bound SwiftUI cannot overrule.
             window.contentMinSize = forced
             window.contentMaxSize = forced
+            // `viewDidMoveToWindow` already installed `minSize = minimumSize`
+            // for the ordinary floor; a pin below that floor would otherwise
+            // be clamped by it. The pin's own size is the floor for this run.
+            window.minSize = forced
             window.setFrame(frame, display: true)
             // The same one-turn-later re-assert the restored path gets from
             // `viewDidMoveToWindow`, and the size the window actually settled
@@ -486,6 +518,41 @@ private final class FrameGuardView: NSView {
         frame = Self.clamp(frame, to: visible)
         window.setFrame(frame, display: true)
         fhLog("[Window] \(autosaveName) frame \(Int(frame.width))x\(Int(frame.height)) restored=\(usable != nil) in \(Int(visible.width))x\(Int(visible.height)) visible")
+
+        // The drag floor. `window.contentMinSize = minimumSize` in
+        // `viewDidMoveToWindow` asks for it once, but SwiftUI owns that knob:
+        // `updateAnimatedWindowSize` writes the content's minimum over it on
+        // any layout pass whose answer changed — 236x222 replaced the guard's
+        // 640x520 inside the first second, which is how the window came to be
+        // draggable down to a strip every layout here can scroll inside.
+        // Nothing announces the install — it is not a resize, and a layout
+        // pass that changes no frame reaches no observer — so the floor is
+        // re-asserted on the timer instead, the same way the pin is.
+        watchFloor(of: window)
+
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FH_WIN_TEST"] == "1" {
+            runWindowTest(window)
+        }
+        if ProcessInfo.processInfo.environment["FH_DIAG_FRAME"] == "1" {
+            // The question the diag answers is what SwiftUI installs over the
+            // guard's `contentMinSize` once its own layout settles — the floor
+            // that decides whether a restored 520pt window stays 520 or grows
+            // to the content's minimum plus chrome. A settled read, not an
+            // install-time one: the override lands during the first layout
+            // passes, after `apply` has already run.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                let min = window.contentMinSize
+                let fmin = window.minSize
+                let zoom = window.styleMask.contains(.resizable)
+                let fs = window.collectionBehavior.contains(.fullScreenPrimary)
+                    || window.collectionBehavior.contains(.fullScreenAuxiliary)
+                    || !window.collectionBehavior.contains(.fullScreenNone)
+                fhLog("[DiagFrame] settled window=\(Int(window.frame.width))x\(Int(window.frame.height)) contentMinSize=\(Int(min.width))x\(Int(min.height)) minSize=\(Int(fmin.width))x\(Int(fmin.height)) guardMin=\(Int(self.minimumSize.width))x\(Int(self.minimumSize.height)) resizable=\(zoom) fullScreen=\(fs)")
+                Self.describeFrameProposers(window)
+            }
+        }
+        #endif
     }
 
     #if DEBUG
@@ -548,6 +615,83 @@ private final class FrameGuardView: NSView {
                 fhLog("[Window] \(self.autosaveName) pinned \(Int(size.width))x\(Int(size.height)); put back from \(key)\(sofar)")
                 if ProcessInfo.processInfo.environment["FH_DIAG_FRAME"] == "1" {
                     Self.describeFrameProposers(watched)
+                }
+            }
+        }
+    }
+
+    /// `FH_WIN_TEST=1` — exercise the controls a real user has — drag-resize,
+    /// the green zoom light, and full-screen — through the same NSWindow calls
+    /// those gestures make, logging the frame AppKit actually settled at after
+    /// each one. Scripting cannot reach this app (it declares no dictionary,
+    /// and Accessibility automation cannot see the window either), so the
+    /// verification that a restored-and-floored window still resizes, zooms,
+    /// and enters and leaves full screen is done from inside.
+    ///
+    /// Sizes are logged as `window WxH` — the whole frame, chrome included,
+    /// so the numbers match what a person drags.
+    private func runWindowTest(_ window: NSWindow) {
+        let startFrame = window.frame
+        func line(_ step: String) {
+            let f = window.frame
+            let fs = window.styleMask.contains(.fullScreen)
+            let zm = window.isZoomed
+            fhLog("[WinTest] \(step) → window \(Int(f.width))x\(Int(f.height)) zoomed=\(zm) fullScreen=\(fs)")
+        }
+        line("start")
+        // The capability bits a toggle depends on — a `fullScreenNone`
+        // collection behavior or a missing `.fullScreenPrimary` is the
+        // difference between a refused toggle and a broken one.
+        fhLog("[WinTest] styleMask=\(window.styleMask.rawValue) collectionBehavior=\(window.collectionBehavior.rawValue) activation=\(NSApp.activationPolicy().rawValue) active=\(NSApp.isActive)")
+        // The lifecycle tells apart a refused toggle (a fail notification or
+        // silence) from a transition that started and died on the way back.
+        for (name, label) in [
+            (Notification.Name("NSWindowWillEnterFullScreenNotification"), "will-enter"),
+            (Notification.Name("NSWindowDidEnterFullScreenNotification"), "did-enter"),
+            (Notification.Name("NSWindowDidFailToEnterFullScreenNotification"), "FAILED-to-enter"),
+            (Notification.Name("NSWindowWillExitFullScreenNotification"), "will-exit"),
+            (Notification.Name("NSWindowDidExitFullScreenNotification"), "did-exit"),
+        ] {
+            NotificationCenter.default.addObserver(
+                forName: name, object: window, queue: .main
+            ) { _ in fhLog("[WinTest] \(label)") }
+        }
+        // A legal manual resize: smaller than the screen, above the floor.
+        // `setFrame` is the same call a finished edge-drag ends in.
+        var grow = window.frame
+        grow.size = NSSize(width: 900, height: 600)
+        window.setFrame(grow, display: true)
+        line("resize to 900x600")
+        // A drag below the floor: AppKit clamps the call the way the live
+        // resize loop would clamp the pointer.
+        var shrink = window.frame
+        shrink.size = NSSize(width: 400, height: 300)
+        window.setFrame(shrink, display: true)
+        line("resize below floor (asked 400x300)")
+        // Zoom — the green light. Asynchronous: the zoom animation runs over
+        // the next half-second, so the read is deferred.
+        window.zoom(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            line("zoom")
+            // Full-screen in, then back out — the transition pairs a real
+            // user hits hardest when a floor or a pin has fought them. The
+            // window has to be on the active space and owned by the active
+            // app for the transition to take; a sweep launch never activates,
+            // so activate first — without it the toggle is a silent no-op.
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            fhLog("[WinTest] before toggle active=\(NSApp.isActive) key=\(window.isKeyWindow) onScreen=\(window.isOnActiveSpace)")
+            window.toggleFullScreen(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                line("full-screen entered")
+                window.toggleFullScreen(nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    line("full-screen exited")
+                    // The autosave name is adopted on this path, so whatever
+                    // the test leaves behind is the frame the next ordinary
+                    // launch restores — put the window back where it started.
+                    window.setFrame(startFrame, display: true)
+                    line("restored start")
                 }
             }
         }

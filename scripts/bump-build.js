@@ -397,6 +397,17 @@ Paste into App Store Connect → Version → What's New in This Version.
     /The build number continues \d+ → \d+/,
     `The build number continues ${currentBuild} → ${nextBuild}`
   );
+  // The pre-release section's own version strings ride along too — a
+  // marketing bump that only rewrote the table rows left "Marketing version
+  // is 1.6.7" under a heading whose iOS row already said 1.6.8.
+  changelog = changelog.replace(
+    /^## \[\d+\.\d+\.\d+\] (Current Pre-Release)/m,
+    `## [${nextVersion}] $1`
+  );
+  changelog = changelog.replace(
+    /\*\*Marketing version is \d+\.\d+\.\d+\.\*\*/,
+    `**Marketing version is ${nextVersion}.**`
+  );
 
   const buildAnchor = `${nextVersion.replace(/\./g, '')}-build-${nextBuild}--${isoDate}`;
   const tableRow = `| [${nextBuild}](#${buildAnchor}) | ${isoDate} | ${notes} |`;
