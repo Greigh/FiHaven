@@ -101,6 +101,7 @@ struct OnboardingView: View {
                     }
                 }
                 .padding(.horizontal, 28)
+                .ctReadableColumn()
                 .padding(.vertical, 12)
             }
 
@@ -122,6 +123,7 @@ struct OnboardingView: View {
 
             footer
                 .padding(.horizontal, 24)
+                .ctReadableColumn()
                 .padding(.bottom, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
