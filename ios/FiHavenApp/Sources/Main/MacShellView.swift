@@ -188,7 +188,11 @@ struct MacShellView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 sidebarFooter
             }
-            .background(Theme.bg)
+            // The rail is chrome, not canvas: macOS puts the sidebar a step
+            // *lighter* than the content it frames, which is `surface` here —
+            // the same family the cards and tables are drawn in. On `bg` the
+            // rail read as a third, darker tone the design has no name for.
+            .background(Theme.surface)
             .navigationTitle("FiHaven")
             // The column's width, and why it is a floor as well as a default.
             //
@@ -520,7 +524,8 @@ struct MacShellView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+        // surface2: the rail itself is `surface` — the card stays one step up.
+        .background(Theme.surface2, in: RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .stroke(Theme.border, lineWidth: 1)

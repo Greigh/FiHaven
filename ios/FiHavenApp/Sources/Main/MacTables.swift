@@ -784,7 +784,7 @@ struct MacBillsTable: View {
                 .width(min: 54, ideal: 70)
             }
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         // The selection is the target, not the clicked row: `ids` is every
         // selected bill, so one right-click marks a dozen paid.
         .contextMenu(forSelectionType: String.self) { ids in
@@ -1060,7 +1060,7 @@ struct MacCardsTable: View {
             }
             .width(min: 70, ideal: 90)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
@@ -1348,7 +1348,7 @@ struct MacSpendingTable: View {
             }
             .width(min: 84, ideal: 110)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
@@ -1568,7 +1568,7 @@ struct MacSubscriptionsTable: View {
             }
             .width(min: 84, ideal: 110)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
@@ -1721,7 +1721,7 @@ struct MacNetWorthTable: View {
             }
             .width(min: 90, ideal: 120)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if accounts.isEmpty {
                 ContentUnavailableView(
@@ -1844,7 +1844,7 @@ struct MacHistoryTable: View {
             }
             .width(min: 84, ideal: 110)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
@@ -1979,7 +1979,7 @@ struct MacRewardsTable: View {
             }
             .width(min: 200, ideal: 320)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .modifier(TableKeyboard(actions: rowActions, selection: $selection,
                                 addTitle: nil, add: {}, tables: tables))
     }
@@ -2080,7 +2080,7 @@ struct MacIncomeTable: View {
             }
             .width(min: 90, ideal: 120)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if sources.isEmpty {
                 ContentUnavailableView(
@@ -2166,7 +2166,7 @@ struct MacIncomeAdjustmentsTable: View {
             }
             .width(min: 90, ideal: 130)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if adjustments.isEmpty {
                 ContentUnavailableView(
@@ -2296,7 +2296,7 @@ struct MacBalancesTable: View {
             }
             .width(min: 90, ideal: 120)
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if accounts.isEmpty {
                 ContentUnavailableView(
@@ -2474,7 +2474,7 @@ struct MacPayoffTable: View {
                 .width(min: 100, ideal: 150)
             }
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if rows.isEmpty {
                 ContentUnavailableView(
@@ -2626,7 +2626,7 @@ struct MacBudgetLensTable: View {
                 .width(min: 60, ideal: 80)
             }
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if rows.isEmpty {
                 ContentUnavailableView(
@@ -2716,6 +2716,22 @@ enum MacTablePlacement {
 }
 
 extension View {
+    /// The Mac table's surface: the pane's `bg`, rows edge-to-edge.
+    ///
+    /// The default `.inset` style draws rounded "empty row" tiles over the
+    /// whole scrollable region — under a four-row table it fills the pane
+    /// with hundreds of gray pills, the unnamed tone that read as the app
+    /// being two colors at once. `.bordered` draws real rows edge-to-edge
+    /// with hairline separators and leaves the rest of the pane flat, and
+    /// hiding the scroll content background lets the pane's own `bg` show
+    /// instead of the table's material.
+    @ViewBuilder
+    func macTableSurface() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .tableStyle(.bordered(alternatesRowBackgrounds: false))
+    }
+
     /// Places a Mac table as `MacTablePlacement` describes it.
     ///
     /// `.fills` floors at one row's height, so a table with nothing in it is
@@ -2807,7 +2823,7 @@ struct MacGoalsTable: View {
                 .width(min: 80, ideal: 110)
             }
         }
-        .alternatingRowBackgrounds()
+        .macTableSurface()
         .overlay {
             if rows.isEmpty {
                 ContentUnavailableView(
