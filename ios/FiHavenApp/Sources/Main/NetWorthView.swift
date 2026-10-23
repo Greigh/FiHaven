@@ -57,6 +57,7 @@ struct NetWorthView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Net Worth")
     }
@@ -79,6 +80,7 @@ struct NetWorthView: View {
                     Text(Money.fmt(store.assets))
                         .font(Theme.mono(15, weight: .medium))
                         .foregroundStyle(Theme.green)
+                        .ctAmountLine()
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -86,6 +88,7 @@ struct NetWorthView: View {
                     Text(Money.fmt(store.liabilities))
                         .font(Theme.mono(15, weight: .medium))
                         .foregroundStyle(Theme.red)
+                        .ctAmountLine()
                 }
             }
         }

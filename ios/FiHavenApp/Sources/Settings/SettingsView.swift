@@ -85,6 +85,7 @@ struct SettingsView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Settings")
         .task { await loadMfa() }
@@ -121,6 +122,7 @@ struct SettingsView: View {
         List { content() }
             .ctGroupedList()
             .scrollContentBackground(.hidden)
+            .ctReadableList()
             .background(Theme.bg.ignoresSafeArea())
             .brandedNavigationBar(title)
     }

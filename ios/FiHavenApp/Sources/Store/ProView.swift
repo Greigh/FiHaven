@@ -11,7 +11,7 @@ import SwiftUI
 /// summary that used to sit here.
 struct ProView: View {
     var body: some View {
-        ScrollView { PaywallContent() }
+        ScrollView { PaywallContent().ctReadableColumn() }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("FiHaven Pro")
             .ctInlineTitle()

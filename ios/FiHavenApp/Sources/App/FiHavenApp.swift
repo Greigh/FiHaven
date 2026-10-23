@@ -5,6 +5,9 @@ import GoogleSignIn
 struct FiHavenApp: App {
     #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    // Owned by the app rather than the window: `.commands` lives on the
+    // scene, so the keyboard can only reach state declared here.
+    @StateObject private var shellNav = ShellNavigation()
     #else
     // Owned by the app rather than the window: `.commands` lives on the
     // scene, so the menu bar can only reach state declared here.
@@ -84,6 +87,7 @@ struct FiHavenApp: App {
                 .environmentObject(env)
                 .environmentObject(theme)
                 .environmentObject(env.biometric)
+                .environmentObject(shellNav)
                 // Applied above the whole hierarchy so the choice also
                 // covers the auth/loading screens, not just signed-in.
                 .preferredColorScheme(theme.preference.colorScheme)
@@ -106,6 +110,7 @@ struct FiHavenApp: App {
                     }
                 }
         }
+        .commands { ShellGoCommands(nav: shellNav, billing: env.billing) }
         #endif
     }
 

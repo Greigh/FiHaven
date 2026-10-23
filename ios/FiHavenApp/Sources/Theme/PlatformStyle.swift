@@ -82,6 +82,39 @@ extension View {
         #endif
     }
 
+    /// Cap a scrolling content column at a readable measure on wide windows
+    /// (iPad, a foldable's inner display) — full-width rows are hard to scan
+    /// at 1000pt. Width-driven rather than size-class-driven, so it also
+    /// fires on a compact-but-wide foldable screen; on a phone it is a no-op.
+    /// Apply to the column *inside* a ScrollView so the scroll region and
+    /// its background still run edge to edge. Mac screens manage their own
+    /// pane widths.
+    func ctReadableColumn() -> some View {
+        #if canImport(UIKit)
+        containerRelativeFrame(.horizontal) { width, _ in min(width, 780) }
+        #else
+        self
+        #endif
+    }
+
+    /// The same cap for `List` screens: the list shrinks to the measure and
+    /// the second frame re-expands so the (hidden scroll-background) page
+    /// background still paints the margins.
+    func ctReadableList() -> some View {
+        #if canImport(UIKit)
+        containerRelativeFrame(.horizontal) { width, _ in min(width, 780) }
+            .frame(maxWidth: .infinity)
+        #else
+        self
+        #endif
+    }
+
+    /// One line for a money figure: a wrapped amount reads as a broken
+    /// number ("$450.0\n0") — at larger text sizes it shrinks instead.
+    func ctAmountLine() -> some View {
+        lineLimit(1).minimumScaleFactor(0.6)
+    }
+
     /// Sheet detents are a touch affordance; a Mac sheet sizes to its content.
     func ctDetents(_ detents: [CTSheetDetent]) -> some View {
         #if canImport(UIKit)

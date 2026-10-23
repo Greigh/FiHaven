@@ -64,6 +64,7 @@ struct CalendarView: View {
                 selectedList
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar(store.monthLabel)

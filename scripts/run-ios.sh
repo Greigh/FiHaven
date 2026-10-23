@@ -24,10 +24,11 @@ set -euo pipefail
 #      in the bottom bar is not a row in More, and which of the two a screen is
 #      depends on the account: the user's own tab layout, and the entitlement,
 #      because Free users give up a bottom slot to "Get Pro". `payoff` is a
-#      bottom tab for a Pro account and a More row for a free one. So the sweep
-#      names a screen with `FH_SCREEN` and the shell resolves where it lives,
-#      logging `[Shell] screen=<raw> via=<tab|more>` — the line the table's
-#      "rendered" check reads, because a PNG cannot say which screen it is.
+#      bottom tab for a Pro account and a More-section tab for a free one. So
+#      the sweep names a screen with `FH_SCREEN` and the shell selects that
+#      tab by tag, logging `[Shell] screen=<raw> via=tab` — the line the
+#      table's "rendered" check reads, because a PNG cannot say which screen
+#      it is.
 #
 # Usage:
 #   scripts/run-ios.sh                            # build, install, launch, stay in front

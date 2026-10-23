@@ -123,6 +123,7 @@ struct SpendingView: View {
                 }
             }
             .padding()
+            .ctReadableColumn()
         }
         .background(Theme.bg.ignoresSafeArea())
         .searchable(text: $searchText, prompt: "Search spending")

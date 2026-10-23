@@ -205,6 +205,7 @@ struct BillsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .searchable(text: $searchText, prompt: "Search bills")
         .brandedNavigationBar("Bills")
@@ -304,9 +305,13 @@ private struct BillRow: View {
                         Text(bus).font(Theme.ui(12)).foregroundStyle(Theme.muted).lineLimit(1)
                     }
                 }
-                Spacer()
+                .layoutPriority(1)
+                Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(Money.fmt(bill.amountOrZero)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
+                        // One line, shrink before wrap: a wrapped amount reads
+                        // as a broken figure ("$450.0\n0").
+                        .lineLimit(1).minimumScaleFactor(0.6).layoutPriority(2)
                     if bill.autopay {
                         Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
                             .font(Theme.mono(9)).foregroundStyle(Theme.muted)
