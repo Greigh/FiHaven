@@ -86,6 +86,10 @@ bank-link. Real tap-throughs also performed during interactive sessions.
   transition run pending the sweep releasing the simulator; FH_VIEWPORT
   results are forced-viewport validation only.
 
+| F9 | macOS sheet captures: `cacheDisplay` renders the window's own backing store — attached sheets never appear (whole first presentation run photographed the shell) | capture the `attachedSheet`'s contentView when one is up; verify with `screencapture -l<wid>` | real capture confirms sheets present and populated |
+| F10 | `cacheDisplay` misses AppKit-bridged controls (pop-up buttons, steppers, bordered buttons render as blank boxes in sheet PNGs) — capture artifact, verified NOT an app defect via `screencapture` | inherent to the sandbox-free path; note on sheet captures | discrimination capture: `/tmp/fh-win2.png` |
+| F11 | Transaction/bill editor sheet on macOS clips its label column at the left edge ("Amount" → "ount") — sheet narrower than the form's minimum | unfixed — low severity, labels still legible from field context | `/tmp/fh-win2.png` |
+
 ## Unverified / blocked
 
 - Android presentations are in-screen dialogs (no shell-level hook) —

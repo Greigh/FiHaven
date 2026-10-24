@@ -70,8 +70,13 @@ enum SweepSnapshot {
     }
     #elseif canImport(AppKit)
     @MainActor private static func write(to path: String, env: AppEnvironment) {
-        guard let window = NSApp.windows.first(where: { $0.isVisible && !($0 is NSPanel) }),
-              let content = window.contentView else {
+        // An attached sheet is its own panel surface — the window's backing
+        // store never contains it, so a sweep that photographs the window
+        // alone misses every `FH_PRESENT` capture. When one is up, the sheet
+        // IS the thing under audit: photograph its content instead.
+        var target = NSApp.windows.first(where: { $0.isVisible && !($0 is NSPanel) })
+        if let sheet = target?.attachedSheet { target = sheet }
+        guard let window = target, let content = window.contentView else {
             fhLog("[Snapshot] FAILED no window")
             return
         }
