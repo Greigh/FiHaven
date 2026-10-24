@@ -114,10 +114,18 @@ struct MainTabView: View {
                 fhLog("[Shell] screen=\(raw) via=\(via)")
             }
             SweepProbe.renderedScreen = selection
+            fhLog("[Shell] rendered=\(selection)")
             #endif
         }
         #if DEBUG
-        .onChange(of: selection) { _, new in SweepProbe.renderedScreen = new }
+        // The sweep's rendered-screen evidence has to be the tag that is
+        // actually selected, not the route a launch requested — under a
+        // transport fault the Pro tab does not exist, a `FH_SCREEN=pro`
+        // request falls back to dashboard, and only this line says so.
+        .onChange(of: selection) { _, new in
+            SweepProbe.renderedScreen = new
+            fhLog("[Shell] rendered=\(new)")
+        }
         #endif
         // The scene's Go commands write `requested`; apply it if the tag is a
         // live tab, then clear so the same key can repeat later. `onReceive`

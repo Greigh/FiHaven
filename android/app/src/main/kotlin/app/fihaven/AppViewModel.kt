@@ -482,9 +482,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dataOwner = ""
     }
 
-    /// DEBUG screenshot helper: log in as the dev demo account.
-    fun devAutoLogin() =
-        login("demo@fihaven.app", "demopassword11", "dev-bypass-token", ApiClient.now() - 3000)
+    /// DEBUG screenshot helper: log in as a dev account. Defaults to the
+    /// seeded demo account; the audit sweep passes `login_email`/`login_pass`
+    /// extras for the account the state needs (empty vs. populated Pro).
+    fun devAutoLogin(email: String = "demo@fihaven.app", password: String = "demopassword11") =
+        login(email, password, "dev-bypass-token", ApiClient.now() - 3000)
+
+    /// DEBUG screenshot helper: force the data-load error screen after
+    /// sign-in — the same `dataError` a dead server produces, without
+    /// breaking the sign-in that gets the session there. It re-asserts
+    /// because a successful load clears `dataError` — a one-shot write
+    /// would photograph the screen that recovered, not the one that failed.
+    fun devDataFault(message: String = "Couldn't load your data.") {
+        if (!BuildConfig.DEBUG) return
+        viewModelScope.launch {
+            while (true) {
+                _dataError.value = message
+                kotlinx.coroutines.delay(500)
+            }
+        }
+    }
 
     private suspend fun enterSignedIn(user: User, fresh: Boolean = false) {
         // Unconfirmed email → the verify screen, never the dashboard. The

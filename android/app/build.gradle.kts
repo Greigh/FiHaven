@@ -72,7 +72,11 @@ android {
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
+            // `-PfhApiBase=http://10.0.2.2:5222` points a debug build at the
+            // local dev server; the default keeps production's value so a
+            // plain `./gradlew assembleDebug` is unchanged.
+            val apiBase = findProperty("fhApiBase") as String? ?: "https://fihaven.app"
+            buildConfigField("String", "API_BASE", "\"$apiBase\"")
         }
         getByName("release") {
             isMinifyEnabled = true

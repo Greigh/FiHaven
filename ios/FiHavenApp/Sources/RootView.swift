@@ -38,10 +38,16 @@ struct RootView: View {
                     MacShellView(user: user)
                         .environmentObject(store)
                         .environmentObject(env.billing)
+                        #if DEBUG
+                        .ctAuditPresentation(store: store)
+                        #endif
                     #else
                     MainTabView(user: user)
                         .environmentObject(store)
                         .environmentObject(env.billing)
+                        #if DEBUG
+                        .ctAuditPresentation(store: store)
+                        #endif
                     #endif
                 } else {
                     LoadingView()

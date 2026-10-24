@@ -2,6 +2,7 @@ import Foundation
 
 #if DEBUG
 import SwiftUI
+import FiHavenCore
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -204,5 +205,177 @@ private struct ViewportForcer: ViewModifier {
 extension View {
     /// `FH_VIEWPORT` is a sweep hook; Release builds have nothing to force.
     func ctViewport() -> some View { self }
+}
+#endif
+
+#if DEBUG
+/// `FH_PRESENT=<name>` — presents a named editor, sheet, or full-screen view
+/// over the live shell so a sweep can photograph views that only exist
+/// behind user gestures (every `.sheet` editor, the settings sheets, the
+/// onboarding gate, and the signed-out-only screens when a session is up).
+///
+/// Resolution is *lazy*: names that need a fixture (`bill-edit` needs a
+/// bill) wait for the store to load and report `[Present] UNSATISFIED`
+/// instead of silently photographing the shell behind a never-opened
+/// editor — a missing fixture is a failed capture, not a quiet pass.
+///
+/// Names (`<x>` marks a fixture-dependent one — first row is used):
+///   bill-new bill-edit<x> card-new card-edit<x> pay<x> pay-card<x>
+///   tx-new tx-edit<x> edit-payment<x> income-new income-edit<x>
+///   income-adj-new account-new account-edit<x> goal-new goal-edit<x>
+///   settings settings-sheet:<id> onboarding verify-email paywall pro
+///   bank admin tabs-editor
+///
+/// `settings-sheet:<id>` takes a `SettingsSheet` raw value:
+///   changeName changeEmail changePassword clearData deleteAccount
+///   totpSetup totpDisable emailEnable emailDisable backupCodes timezone
+enum AuditPresent {
+    /// `String` is already Identifiable-compatible via `.id = self` below.
+    static var spec: String? {
+        let raw = ProcessInfo.processInfo.environment["FH_PRESENT"] ?? ""
+        return raw.isEmpty ? nil : raw
+    }
+}
+
+private struct AuditSheet: Identifiable { let id: String }
+
+extension View {
+    /// Wraps the signed-in shell so `FH_PRESENT` can mount a sheet on top of
+    /// whichever presentation the platform uses — the presentation a real
+    /// `.sheet` gets, on the real window/tabs, not a stand-in.
+    func ctAuditPresentation(store: AppStore) -> some View {
+        modifier(AuditPresentation(store: store))
+    }
+}
+
+private struct AuditPresentation: ViewModifier {
+    @EnvironmentObject var env: AppEnvironment
+    @EnvironmentObject var theme: ThemeStore
+    @EnvironmentObject var biometric: BiometricStore
+    @ObservedObject var store: AppStore
+    @State private var sheetID: AuditSheet?
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $sheetID) { id in
+                sheetView(id.id)
+                    .environmentObject(env)
+                    .environmentObject(theme)
+                    .environmentObject(biometric)
+                    .environmentObject(store)
+                    .environmentObject(env.billing)
+            }
+            .task {
+                guard let spec = AuditPresent.spec else { return }
+                // Fixture-dependent names wait for the data they need; a
+                // spec that can never resolve is reported rather than
+                // photographed as the shell.
+                var waited = 0
+                while !Task.isCancelled, waited < 80 {
+                    if ready(spec) {
+                        fhLog("[Present] showing \(spec)")
+                        sheetID = AuditSheet(id: spec)
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    waited += 1
+                }
+                fhLog("[Present] UNSATISFIED \(spec) — fixture never arrived")
+            }
+    }
+
+    /// Whether the spec's prerequisites exist yet.
+    private func ready(_ spec: String) -> Bool {
+        switch spec {
+        case "bill-edit": return !store.data.bills.isEmpty
+        case "card-edit": return !store.data.cards.isEmpty
+        case "pay": return !store.data.bills.isEmpty
+        case "pay-card": return !store.data.cards.isEmpty
+        case "tx-edit": return !store.data.transactions.isEmpty
+        case "edit-payment": return !store.data.payments.isEmpty
+        case "income-edit": return !store.data.settings.incomes.isEmpty
+        case "account-edit": return !store.data.accounts.isEmpty
+        case "goal-edit": return !store.data.goals.isEmpty
+        default: return store.loaded || spec == "settings"
+        }
+    }
+
+    @ViewBuilder
+    private func sheetView(_ spec: String) -> some View {
+        let parts = spec.split(separator: ":").map(String.init)
+        switch parts[0] {
+        case "bill-new": BillEditorView(bill: nil)
+        case "bill-edit": BillEditorView(bill: store.data.bills.first)
+        case "card-new": CardEditorView(card: nil, defaultType: "card")
+        case "card-edit": CardEditorView(card: store.data.cards.first, defaultType: store.data.cards.first?.type ?? "card")
+        case "pay":
+            if let b = store.data.bills.first {
+                PayView(target: PayTarget(type: "bill", refId: String(b.id), name: b.name))
+            }
+        case "pay-card":
+            if let c = store.data.cards.first {
+                PayView(target: PayTarget(type: "card", refId: String(c.id), name: c.name))
+            }
+        case "tx-new": TransactionEditorView()
+        case "tx-edit": TransactionEditorView(edit: store.data.transactions.first)
+        case "edit-payment": EditPaymentView(payment: store.data.payments.first!)
+        case "income-new": IncomeEditorView(source: nil)
+        case "income-edit": IncomeEditorView(source: store.data.settings.incomes.first)
+        case "income-adj-new":
+            IncomeAdjustmentEditorView(adjustment: nil, monthKey: Income.periodAnchorMonth(store.currentBounds))
+        case "account-new": AccountEditorView(account: nil)
+        case "account-edit": AccountEditorView(account: store.data.accounts.first)
+        case "goal-new": GoalEditorView(goal: nil)
+        case "goal-edit": GoalEditorView(goal: store.data.goals.first)
+        case "settings": SettingsView(user: env.currentUser!)
+        // The drill-downs are `NavigationLink` destinations inside Settings,
+        // not sheets — each still mounts fine inside the sheet's own
+        // navigation context, wrapped in a NavigationStack so its title and
+        // back affordance render as they do under the real push.
+        case "household-settings":
+            NavigationStack {
+                HouseholdSettingsView(api: env.api, myEmail: env.currentUser?.email ?? "")
+            }
+        case "budget-rules": NavigationStack { BudgetRuleSettingsView() }
+        case "reminder-days": NavigationStack { ReminderDaysView() }
+        case "about": NavigationStack { AboutView() }
+        case "mfa":
+            // A synthesized challenge: the real one arrives only as a
+            // session branch, which a signed-in sweep cannot reach — and the
+            // view's layout is the thing under review, not the token.
+            MFAView(challenge: MfaChallenge(mfaToken: "sweep", methods: ["totp", "email"]))
+        case "settings-sheet": settingsSheet(parts.count > 1 ? parts[1] : "")
+        case "onboarding": OnboardingView()
+        case "verify-email": VerifyEmailView(user: env.currentUser!)
+        case "paywall": PaywallView()
+        case "pro": ProView()
+        case "tabs-editor": TabsEditorView()
+        #if canImport(UIKit)
+        case "bank": BankView()
+        #endif
+        case "admin": AdminView()
+        default:
+            Text("FH_PRESENT: unknown spec '\(spec)'")
+        }
+    }
+
+    @ViewBuilder
+    private func settingsSheet(_ id: String) -> some View {
+        let user = env.currentUser
+        switch id {
+        case "changeName": ChangeNameSheet(current: user!)
+        case "changeEmail": ChangeEmailSheet(current: user!)
+        case "changePassword": ChangePasswordSheet()
+        case "clearData": ClearDataSheet()
+        case "deleteAccount": DeleteAccountSheet()
+        case "totpSetup": TotpSetupSheet()
+        case "totpDisable": TotpDisableSheet()
+        case "emailEnable": EmailEnableSheet(email: user?.email ?? "")
+        case "emailDisable": EmailDisableSheet()
+        case "backupCodes": BackupCodesSheet()
+        case "timezone": TimezoneSheet()
+        default: Text("FH_PRESENT: unknown settings-sheet '\(id)'")
+        }
+    }
 }
 #endif

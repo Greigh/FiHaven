@@ -144,6 +144,7 @@ CONFIG=""
 APPS_DIR="${FH_MAC_APPS_DIR:-/Applications}"
 RUN_FOR=""
 SWEEP=0
+PRESENTS=0
 STATES=""
 # The data-free account the `empty` state signs in as is
 # `FH_SWEEP_EMPTY_EMAIL` / `FH_SWEEP_EMPTY_PASSWORD`, and the defaults for both
@@ -164,6 +165,7 @@ while [ $# -gt 0 ]; do
     --config) shift; CONFIG="${1:-}" ;;
     --seconds) shift; RUN_FOR="${1:-}" ;;
     --sweep) SWEEP=1 ;;
+    --presents) SWEEP=1; PRESENTS=1 ;;
     --out) shift; OUT_DIR="${1:-}" ;;
     --delay) shift; SWEEP_DELAY="${1:-}" ;;
     --size) shift; SWEEP_SIZE="${1:-}" ;;
@@ -862,24 +864,41 @@ sweep_main() {
     echo "run-macos: --states also sweeping $added — the two tiers are one review, and a Pro screen photographed as a paywall is the failure the pair exists to catch"
     STATES="${STATES:+$STATES,}$added"
   fi
-  # `--only` selects from both matrices at once: the seventeen screens and the
-  # signed-out samples, which are not screen × state cells at all. One list to
-  # validate and order, then split — the loop below runs `chosen`, the block
-  # after it runs `chosen_out`.
-  local chosen chosen_all chosen_out chosen_states entry
-  chosen_all="$(sweep_choose run-macos --only "$ONLY" "$(printf '%s\n' "${SWEEP_SCREENS[@]}" "${SWEEP_SIGNED_OUT[@]}")")" || return $?
-  chosen=""
-  chosen_out=""
-  while IFS= read -r entry; do
-    [ -n "$entry" ] || continue
-    if sweep_is_signed_out "$(sweep_field "$entry" 1)"; then
-      chosen_out="$chosen_out$entry
-"
+  # `--only` selects across three lists at once: the screens, the signed-out
+  # samples and — under `--presents` — the presentation rows. Presentation
+  # names start `present-`, so a name the screen list does not know is not a
+  # typo, it is a request for the other matrix. The names are partitioned
+  # first so each `sweep_choose` only ever sees names from its own list.
+  local only_screens="" only_presents="" only_name
+  for only_name in $(printf '%s' "$ONLY" | tr ',' ' '); do
+    [ -n "$only_name" ] || continue
+    if sweep_is_present "$only_name"; then
+      only_presents="${only_presents:+$only_presents,}$only_name"
     else
-      chosen="$chosen$entry
-"
+      only_screens="${only_screens:+$only_screens,}$only_name"
     fi
-  done <<< "$chosen_all"
+  done
+  local chosen chosen_all chosen_out chosen_states entry
+  if [ -n "$ONLY" ] && [ -z "$only_screens" ]; then
+    # Every name in --only was a presentation; the screen matrix has nothing
+    # selected rather than everything.
+    chosen=""
+    chosen_out=""
+  else
+    chosen_all="$(sweep_choose run-macos --only "$only_screens" "$(printf '%s\n' "${SWEEP_SCREENS[@]}" "${SWEEP_SIGNED_OUT[@]}")")" || return $?
+    chosen=""
+    chosen_out=""
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      if sweep_is_signed_out "$(sweep_field "$entry" 1)"; then
+        chosen_out="$chosen_out$entry
+"
+      else
+        chosen="$chosen$entry
+"
+      fi
+    done <<< "$chosen_all"
+  fi
   chosen_states="$(sweep_choose run-macos --states "$STATES" "$(sweep_states)")" || return $?
 
   # Declared here rather than beside the capture loop, because the state tally
@@ -894,6 +913,19 @@ sweep_main() {
   states="$(grep -c . <<< "$chosen_states" || true)"
   out_count="$(grep -c . <<< "$chosen_out" || true)"
   local total=$((screens * states + out_count))
+  # `--presents` adds the presentation matrix: every sheet/editor/full-screen
+  # flow, mounted by `FH_PRESENT` over the live shell — one launch each, in
+  # the state its row declares (see SWEEP_PRESENTS).
+  local chosen_presents="" present_count=0
+  if [ "$PRESENTS" = "1" ]; then
+    if [ -n "$ONLY" ] && [ -z "$only_presents" ]; then
+      chosen_presents=""
+    else
+      chosen_presents="$(sweep_choose run-macos --only "$only_presents" "$(sweep_presents)")" || return $?
+    fi
+    present_count="$(grep -c . <<< "$chosen_presents" || true)"
+    total=$((total + present_count))
+  fi
   # The tally lists the states that were swept and then the signed-out samples
   # as their own line: they are not account states, and there are three of them
   # rather than seventeen screens. A run that asked for only signed-out samples
@@ -1070,7 +1102,7 @@ sweep_main() {
       # Word-splitting `$state_env` is the point: it is a list of KEY=VALUE
       # pairs, which is the same shape `PASSTHROUGH` already carries, and the
       # child's argument parser exports them.
-      "$SELF" --no-build --seconds "$((SWEEP_DELAY + 6))" \
+      "$SELF" --no-build --seconds "$((SWEEP_DELAY + 8))" \
         ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} \
         $state_env \
         "FH_SCREEN=$raw" "FH_SNAPSHOT=$png" "FH_SNAPSHOT_DELAY=$SWEEP_DELAY" \
@@ -1132,6 +1164,54 @@ sweep_main() {
     per_state="$(sweep_tally_add "$per_state" signedout \
       "$((missing - before_missing))" "$((flagged - before_flagged))")"
   done <<< "$chosen_out"
+
+  # ── the presentations ─────────────────────────────────────────────────
+  #
+  # Editors, settings sheets and the full-screen flows — the views that only
+  # exist behind a gesture, mounted by `FH_PRESENT` over the live shell so
+  # the capture is the real presentation container, not a stand-in. Each row
+  # declares its own state: most want `happy` because a fixture row has to
+  # exist for an editor to edit, and the paywall wants `free` because that
+  # is the tier that sees it.
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    idx=$((idx + 1))
+    raw="$(sweep_field "$entry" 1)"
+    title="$(sweep_field "$entry" 2)"
+    local spec p_state
+    spec="$(sweep_field "$entry" 3)"
+    p_state="$(sweep_field "$entry" 4)"
+    # The state's env joined with the presentation — read from the full state
+    # table, not `chosen_states`: a `--states` filter narrows the screen
+    # matrix, not what a presentation is allowed to run under.
+    local state_env=""
+    while IFS= read -r state_entry; do
+      [ -n "$state_entry" ] || continue
+      if [ "$(sweep_field "$state_entry" 1)" = "$p_state" ]; then
+        state_env="$(sweep_field "$state_entry" 3)"
+      fi
+    done <<< "$(sweep_states)"
+    local before_missing=$missing before_flagged=$flagged
+    local stem; stem="$(printf '%02d-%s__%s' "$idx" "$raw" "$p_state")"
+    local png="$OUT_DIR/$stem.png"
+    local log="$OUT_DIR/$stem.log"
+    printf 'run-macos: [%2d/%2d] %-19s %-8s → %s.png\n' "$idx" "$total" "$title" "$p_state" "$stem"
+    # Presentations get two extra seconds over a screen cell: the shell has
+    # to sign in and load before the hook's poll finds its fixture.
+    "$SELF" --no-build --seconds "$((SWEEP_DELAY + 10))" \
+      ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} \
+      $state_env \
+      "FH_PRESENT=$spec" "FH_SNAPSHOT=$png" "FH_SNAPSHOT_DELAY=$SWEEP_DELAY" \
+      "FH_WINDOW=$SWEEP_SIZE" "FH_AUTOLOGIN=1" >"$log" 2>&1 || true
+    # The hook's own line is the evidence: `[Present] showing <spec>` means
+    # the sheet mounted; its absence means the capture photographed the
+    # shell behind a presentation that never happened.
+    sweep_record_cell "$png" "$log" "$title" "$raw" "$p_state" \
+      "session=signedIn,[Present] showing $spec" "" "" "$SWEEP_BLANK_BYTES"
+    rows+=("$SWEEP_ROW")
+    per_state="$(sweep_tally_add "$per_state" "$p_state" \
+      "$((missing - before_missing))" "$((flagged - before_flagged))")"
+  done <<< "$chosen_presents"
 
   local seconds=$((SECONDS - started))
   sweep_table run-macos Window "$(printf '%s\n' ${rows[@]+"${rows[@]}"})" "$per_state" "$screens"

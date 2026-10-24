@@ -132,6 +132,101 @@ SWEEP_SIGNED_OUT=(
   "auth-stalled|Sign in — stalled security check|FH_SIGNED_OUT=1 FH_INTRO_SEEN=1 FH_TURNSTILE_SITEKEY=3x00000000000000000000AC|security check hidden -> shown|14"
 )
 
+# ── the presentations ─────────────────────────────────────────────────────
+#
+# The screens above are destinations; these are the views that only exist
+# behind a gesture: every `.sheet` editor, the settings sheets, and the
+# full-screen flows a destination never routes to. They are their own list
+# rather than more `SWEEP_SCREENS` rows because what they need is different —
+# a presentation, not a route — and because a list of screens pretending they
+# are screens is how editors end up never photographed.
+#
+# Each is mounted by `FH_PRESENT=<spec>` (see `AuditPresentation` in
+# `SweepSnapshot.swift`), presented over the live shell in the real
+# presentation container, and photographed by the same pipeline as the
+# destination cells.
+#
+# Rows are `raw|Title|spec|state|needs`:
+#
+#   raw       filename stem; the state column says `sheet`/`view`
+#   spec      the `FH_PRESENT` value, including `settings-sheet:<id>`
+#   state     the sign-in state it runs under, from `SWEEP_STATES` — most
+#             want `happy` (fixture rows exist); `free` for the ones whose
+#             content changes with the tier (the paywall and the editors
+#             that gate fields on Pro)
+#   needs     `fixture` when the spec resolves against a seeded row (the
+#             hook logs UNSATISFIED rather than photograph a missing one)
+#
+# The evidence every row shares is the hook's own `[Present] showing <spec>`
+# — a capture without that line photographed the shell, not the sheet, and
+# the record check flags it the same way a misrouted `FH_SCREEN` is flagged.
+SWEEP_PRESENTS=(
+  "present-bill-new|Add bill|bill-new|happy|"
+  "present-bill-edit|Edit bill|bill-edit|happy|fixture"
+  "present-card-new|Add account|card-new|happy|"
+  "present-card-edit|Edit account|card-edit|happy|fixture"
+  "present-pay|Pay a bill|pay|happy|fixture"
+  "present-pay-card|Pay a card|pay-card|happy|fixture"
+  "present-tx-new|Add transaction|tx-new|happy|"
+  "present-tx-edit|Edit transaction|tx-edit|happy|fixture"
+  "present-edit-payment|Edit payment|edit-payment|happy|fixture"
+  "present-income-new|Add income source|income-new|happy|"
+  "present-income-edit|Edit income source|income-edit|happy|fixture"
+  "present-income-adj|Add income adjustment|income-adj-new|happy|"
+  "present-account-new|Add account balance|account-new|happy|"
+  "present-account-edit|Edit account balance|account-edit|happy|fixture"
+  "present-goal-new|Add goal|goal-new|happy|"
+  "present-goal-edit|Edit goal|goal-edit|happy|fixture"
+  "present-paywall|Paywall — free tier|paywall|free|"
+  "present-pro|FiHaven Pro detail|pro|happy|"
+  "present-tabs-editor|Edit tabs|tabs-editor|happy|"
+  "present-admin|Admin|admin|happy|"
+  "present-onboarding|Onboarding|onboarding|happy|"
+  "present-verify-email|Verify email|verify-email|happy|"
+  "present-ss-changeName|Change name|settings-sheet:changeName|happy|"
+  "present-ss-changeEmail|Change email|settings-sheet:changeEmail|happy|"
+  "present-ss-changePassword|Change password|settings-sheet:changePassword|happy|"
+  "present-ss-clearData|Clear data|settings-sheet:clearData|happy|"
+  "present-ss-deleteAccount|Delete account|settings-sheet:deleteAccount|happy|"
+  "present-ss-totpSetup|Authenticator setup|settings-sheet:totpSetup|happy|"
+  "present-ss-totpDisable|Authenticator off|settings-sheet:totpDisable|happy|"
+  "present-ss-emailEnable|Enable email sign-in|settings-sheet:emailEnable|happy|"
+  "present-ss-emailDisable|Disable email sign-in|settings-sheet:emailDisable|happy|"
+  "present-ss-backupCodes|Backup codes|settings-sheet:backupCodes|happy|"
+  "present-ss-timezone|Timezone|settings-sheet:timezone|happy|"
+  "present-bank|Bank linking|bank|happy|"
+  "present-household|Household settings|household-settings|happy|"
+  "present-budget-rules|Budget rule settings|budget-rules|happy|"
+  "present-reminder-days|Reminder days|reminder-days|happy|"
+  "present-about|About & licenses|about|happy|"
+  "present-mfa|Two-factor verification|mfa|happy|"
+)
+
+# A presentation row's env additions: `FH_PRESENT` plus the state it runs
+# under. Kept here so both sweeps spell it identically.
+sweep_present_env() {
+  printf 'FH_PRESENT=%s' "$1"
+}
+
+# The presentation list, one row per line — the same shape `sweep_states`
+# prints, so a reader that walks either list walks them the same way.
+sweep_presents() {
+  local entry
+  for entry in "${SWEEP_PRESENTS[@]}"; do
+    printf '%s\n' "$entry"
+  done
+}
+
+# Does <name> appear as a presentation row? Used by `--only` validation so a
+# presentation is addressable the same way a screen is.
+sweep_is_present() {
+  local want="$1" entry
+  for entry in "${SWEEP_PRESENTS[@]}"; do
+    [ "$(sweep_field "$entry" 1)" = "$want" ] && return 0
+  done
+  return 1
+}
+
 # Below this, a 2x window capture is a flat colour rather than a screen. A real
 # one is hundreds of KB. No dependency needed to notice: a blank image is the
 # one thing PNG compression is good at.

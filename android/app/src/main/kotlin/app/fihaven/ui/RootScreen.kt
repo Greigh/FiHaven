@@ -47,6 +47,8 @@ fun RootScreen(
     autoLogin: Boolean,
     initialTab: String? = null,
     initialRoute: String? = null,
+    loginEmail: String = "demo@fihaven.app",
+    loginPass: String = "demopassword11",
 ) {
     val session by vm.session.collectAsStateWithLifecycle()
     val locked by vm.locked.collectAsStateWithLifecycle()
@@ -55,7 +57,16 @@ fun RootScreen(
     val dataError by vm.dataError.collectAsStateWithLifecycle()
 
     LaunchedEffect(session, autoLogin) {
-        if (autoLogin && session is Session.SignedOut) vm.devAutoLogin()
+        if (autoLogin && session is Session.SignedOut) vm.devAutoLogin(loginEmail, loginPass)
+        // A sweep cell relaunches onto a persisted session: if the account it
+        // restored is not the account this cell asked for, sign out so the
+        // SignedOut branch below logs the right one in — otherwise an `empty`
+        // capture photographs the populated account it replaced.
+        if (autoLogin && session is Session.SignedIn &&
+            (session as Session.SignedIn).user.email != loginEmail
+        ) {
+            vm.logout()
+        }
     }
 
     // Re-engage the lock when the app leaves the foreground.
