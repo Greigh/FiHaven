@@ -88,7 +88,7 @@ Android (Play).
 |:---|:---|:---:|:---|
 | 🌐 **Web App** | [**fihaven.app**](https://fihaven.app) | **Live** | Desktop & mobile browser, responsive PWA with offline caching |
 | 🍏 **iOS / iPadOS** | [**App Store**](https://apps.apple.com/us/app/fihaven/id6781084347) (ID: `6781084347`)<br>*(Beta: [TestFlight](https://testflight.apple.com/join/SdN4yuuH))* | **Live** (1.6.8 b60) | iOS / iPadOS 18.6+, native SwiftUI, StoreKit 2, Face ID / Touch ID |
-| 🖥️ **macOS** | [**Mac App Store**](https://apps.apple.com/us/app/fihaven/id6781084347)<br>*(Designed for iPad)* | **Live** (1.6.8 b60) | Apple Silicon Mac (M1 or later), macOS 15+ |
+| 🖥️ **macOS** | [**Mac App Store**](https://apps.apple.com/us/app/fihaven/id6781084347)<br>*(native Mac app)* | **Live** (1.6.8 b60) | Apple Silicon Mac (M1 or later), macOS 15+ |
 | ▶️ **Android** | [**Google Play**](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>*(Beta: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven))* | **Live** (1.6.8 b60) | Android 8.0+ (API 26+), Jetpack Compose, Play Billing, KeyStore biometric lock |
 
 ---
@@ -1638,7 +1638,7 @@ dated release notes are in [CHANGELOG.md](CHANGELOG.md).
 | **Web** | Web App / PWA | **Live** | [fihaven.app](https://fihaven.app) |
 | **iOS / iPadOS** | Apple App Store | **Live** | [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (App ID: `6781084347`)<br>Pre-release: [TestFlight Beta](https://testflight.apple.com/join/SdN4yuuH) |
 | **Android** | Google Play Store | **Live** | [Google Play](https://play.google.com/store/apps/details?id=app.fihaven) (`app.fihaven`)<br>Pre-release: [Play Open Testing](https://play.google.com/store/apps/details?id=app.fihaven) |
-| **macOS** | Mac App Store | **Live** | [Mac App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (Runs via **My Mac (Designed for iPad)** on Apple Silicon) |
+| **macOS** | Mac App Store | **Live** | [Mac App Store](https://apps.apple.com/us/app/fihaven/id6781084347) (**native macOS app** — sidebar, sortable tables, keyboard-driven; Apple Silicon, macOS 15+) |
 
 ### Platform parity
 
