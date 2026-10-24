@@ -43,7 +43,12 @@ Fixture: `node scripts/seed-user-data.js ipad@example.com --create --verify
 | iPhone 17e (1170×2532) | 122 (85 screens×states + 3 signed-out + 34 presentations) + 15 reruns | all captured; 9 initial flags were fixture-miss races → clean after reseed + evidence polling | `/tmp/fh-sweep-iphone`, `/tmp/fh-sweep-presents-*` |
 | iPad Pro 13 (2064×2752) | 88 + 127 (full matrix + presentations) | 0 missing, 0 flagged (screen pass); presentation pass running | `/tmp/fh-sweep-ipad`, `/tmp/fh-sweep-ipad-presents` |
 | macOS (1440×900 + 640×520 floor) | 88 + 127 | 0 missing, 0 flagged | `/tmp/fh-sweep-macos`, `/tmp/fh-sweep-macos-p` |
-| Android phone (1080×2400, emulator) | 85 + 85 | 0 missing; 1 flag (`more__free` raced spinner → recapture) | `/tmp/fh-sweep-android`, `/tmp/fh-sweep-android2` |
+| Android phone (1080×2400, emulator) | 85 + 85 + 59 | 0 missing; 1 flag (`more__free` raced spinner → recapture); presentations 59/59 | `/tmp/fh-sweep-android`, `/tmp/fh-sweep-android2`, `/tmp/fh-sweep-android-pres` |
+| Android tablet (2560×1600, emulator) | 59 presentations | all mounted; 4 initial flags were expect-string/spec-routing issues → clean | `/tmp/fh-sweep-pres-fix3` |
+| Android phone — TalkBack / font 1.3 / density 420 / dark | manual passes | 0 clickable nodes without labeled descendants; focus ring visible; no truncation | interactive session |
+| iPhone 17e — Accessibility XL / dark theme | targeted captures | see F12–F15 below | `/tmp/fh-ios-*.png` |
+| iPad Pro 13 — real rotation | XCUITest suite | all pass incl. signed-in shell | test run |
+| iPhone Air "Duo" (foldable sim) | inner + cover | both render; cover gets adaptive rail (see notes) | interactive session |
 
 Presentation inventory exercised as real sheets/pushes over the live shell
 with seeded data: bill-edit, card-edit, pay, pay-card, tx-edit,
@@ -89,14 +94,52 @@ bank-link. Real tap-throughs also performed during interactive sessions.
 | F9 | macOS sheet captures: `cacheDisplay` renders the window's own backing store — attached sheets never appear (whole first presentation run photographed the shell) | capture the `attachedSheet`'s contentView when one is up; verify with `screencapture -l<wid>` | real capture confirms sheets present and populated |
 | F10 | `cacheDisplay` misses AppKit-bridged controls (pop-up buttons, steppers, bordered buttons render as blank boxes in sheet PNGs) — capture artifact, verified NOT an app defect via `screencapture` | inherent to the sandbox-free path; note on sheet captures | discrimination capture: `/tmp/fh-win2.png` |
 | F11 | macOS editor sheets sized to `Form`'s columns ideal (~470pt): labels clipped at the leading edge, and the 50/50 label column read as dead space; the paywall sheet sized to the ScrollView ideal (470x480) and hid plans + CTA below the fold | `.ctEditorSheetWidth()` (grouped form style + 460/500pt width floor) on every editor/settings sheet; paywall gets a 540x720 min | **fixed** (26041bf) — real captures: `/tmp/fh-f11c-sheet.png`, `/tmp/fh-pw2.png` |
+| F12 | iOS intro clipped the feature card mid-line at Accessibility XL — non-scrollable pager hero overflowed its fixed slot | ScrollView wrapper around hero content; pager/footer unchanged | **fixed** (fea6861) — `/tmp/fh-ios-intro-xl.png` |
+| F13 | iOS dashboard stat cards truncated amounts at XL (`$4,9...`) — fixed-width side-by-side pair | adaptive: cards stack full-width at accessibility sizes | **fixed** (fea6861) — `/tmp/fh-ios-axl3.png` |
+| F14 | iOS dashboard rows broke words at XL ("tomorro w", "Snooz e"), amounts collapsed to `$...` | row rework: due/action labels lineLimit+minScale; explicit a11y element split | **fixed** (fea6861) — same capture |
+| F15 | Trailing amount column lost width at *default* size too (`$8...` + `aut\nopa\ny`): `layoutPriority(2)` sat on the inner `Text`, not the column — the name column outbid it | priority moved to the trailing `VStack`; amount one line w/ minScale; same fix in `BillRow`/`CardRow` | **fixed** (fea6861) — `/tmp/fh-ios-rowfix.png` |
+| F16 | macOS `.inset` List footers never wrap — ~19 long explanations clipped at one line at 470pt (`.fixedSize` does NOT rescue footer cells) | long footer text moved into section content, which wraps naturally | **fixed** (fea6861) — `bank`, `reminder-days`, `budget-rules` recaptured |
+| F17 | Android `devPresent` spec-stealing: the first screen to mount consumed any spec (unmatched `when` cleared `vm.devPresent`), so nested settings/bank presentations landed on the wrong screen | screens clear the spec only when their own spec matches | **fixed** (fea6861) — 59/59 presentations on tablet |
+
+## Accessibility & environment results this pass
+
+- **TalkBack (Android)**: enabled on phone emulator; traversal exercised.
+  Initial raw dump showed 20 clickable nodes with no direct `content-desc`,
+  but hierarchy analysis confirmed **every** clickable has a labeled
+  descendant within its bounds — TalkBack announces all dashboard controls.
+  Focus ring renders visibly on the title.
+- **Font scaling**: Android fontScale 1.3 renders cleanly — due-date text
+  wraps instead of truncating; all actions reachable.
+- **Density**: Android wm density 420 renders correctly.
+- **Dark mode**: Android dark verified. iOS `simctl ui` reports dark but
+  does not propagate to the runtime on this host (even System Settings
+  rendered light) — dark verified instead by forcing FiHaven's stored
+  theme preference, which exercises the real `.preferredColorScheme(.dark)`
+  path end-to-end. macOS direct dark capture blocked by Spaces/window
+  activation — the same `Theme` code path is covered by the iOS result.
+- **iOS larger text**: Accessibility XL verified after fixes F12–F14 on
+  intro, dashboard, Bills, Cards.
+- **Foldable (iPhone Air "Duo" sim)**: inner display (2007×2853) renders
+  the dashboard correctly with the adaptive nav rail; cover display
+  (1398×2034, 466pt wide) also gets the rail — correct per
+  `.sidebarAdaptable` semantics since the cover reports regular width.
+  Real posture transitions are **not** simctl-controllable (verified:
+  no posture verb; `screenConfig power` wedges the display stack — the
+  sim required reboot). Cover/inner geometry was validated by powering
+  each display and capturing the live layout.
+- **Cross-account save boundary (F7)**: runtime-verified end-to-end —
+  queued an offline write on the populated account (13 bills), switched
+  in-process to the empty account, then confirmed via the API: pop blob
+  intact (13 bills, payments 6→7, sha `17520955d2d7b3fa`), empty blob
+  still empty (sha `f524de831e8459fd`). No cross-account write.
 
 ## Unverified / blocked
 
-- Android presentations are in-screen dialogs (no shell-level hook) —
-  covered via screen sweeps + interactive sessions; a `FH_PRESENT`
-  equivalent is future tooling work.
-- TalkBack/VoiceOver end-to-end passes not yet run; larger-text and
-  reduced-motion configurations pending.
-- Android tablet form factor — pending emulator provisioning.
-- Duo (foldable) inner/cover postures — not yet captured; blocked on a foldable emulator profile.
+- VoiceOver (iOS) end-to-end pass not yet run — simctl offers no VoiceOver
+  control; needs on-device or XCUITest accessibility audit.
+- Reduced-motion configuration captures pending on all platforms.
+- macOS dark-mode capture blocked by Spaces/window activation (F10-class
+  tooling limitation, not an app defect — iOS dark path verified instead).
+- Real foldable posture *transitions* unavailable in simulator tooling
+  (see notes above); inner + cover layouts captured statically.
 - F7 is now deterministically reproduced in unit tests and fixed at runtime; entries above referring to it as unreproduced/unfixed are superseded.
