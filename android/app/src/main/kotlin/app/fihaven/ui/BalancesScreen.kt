@@ -38,6 +38,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 
 /**
  * Balances tab ("Account Balances" in More) — the home for `accounts`, the
@@ -82,6 +84,21 @@ fun BalancesScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Account?>(null) }
     var creating by remember { mutableStateOf(false) }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "account-new" -> creating = true
+                "account-edit" -> editing = vm.data.value.accounts.firstOrNull()
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     // Depository/investment accounts across every linked bank, by account id.
     // Empty for Free users, for anyone with no bank linked, and whenever the

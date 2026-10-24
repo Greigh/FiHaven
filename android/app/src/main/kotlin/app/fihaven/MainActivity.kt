@@ -69,6 +69,11 @@ class MainActivity : FragmentActivity() {
                 if (intent.getBooleanExtra("datafault", false)) {
                     LaunchedEffect(Unit) { vm.devDataFault() }
                 }
+                // `--es present <spec>` mounts a real presentation (dialog,
+                // editor, settings sheet) once the account data loads.
+                intent.getStringExtra("present")?.let { spec ->
+                    LaunchedEffect(Unit) { vm.devPresent = spec }
+                }
             }
             // Web OAuth returns via https://fihaven.app/oauth/{provider}?code=…
             // (App Links) or legacy fihaven://oauth/{provider}?code=….

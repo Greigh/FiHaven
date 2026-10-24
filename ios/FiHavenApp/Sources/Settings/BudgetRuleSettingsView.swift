@@ -36,7 +36,8 @@ struct BudgetRuleSettingsView: View {
                     ForEach(Self.lensModes, id: \.0) { Text($0.1).tag($0.0) }
                 }
                 .pickerStyle(.menu)
-            } footer: {
+                // An `inset`-list footer clips at one line on macOS, so the
+                // long explanation sits in the section content, which wraps.
                 Text("Optional budget lens on the Budget tab — split presets, safe-to-spend, debt focus, or envelope lite (Pro). Off by default.")
                     .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
@@ -55,7 +56,6 @@ struct BudgetRuleSettingsView: View {
                         get: { store.data.settings.debtFocusExtra },
                         set: { store.setDebtFocusExtra($0) }
                     ))
-                } footer: {
                     Text("Planned dollars above minimums — same idea as the Payoff planner extra payment.")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }

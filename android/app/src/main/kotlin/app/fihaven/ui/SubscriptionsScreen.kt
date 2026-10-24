@@ -49,6 +49,9 @@ import app.fihaven.core.model.subscriptionDeclined
 import app.fihaven.core.model.subscriptionDetectMode
 import app.fihaven.ui.theme.Ct
 import kotlinx.coroutines.launch
+import app.fihaven.BuildConfig
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
@@ -64,6 +67,22 @@ fun SubscriptionsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() ->
     var editing by remember { mutableStateOf<Bill?>(null) }
     var linking by remember { mutableStateOf<SubscriptionsFinder.Item?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "sub-edit" -> editing = vm.data.value.bills.firstOrNull()
+                "manage-link" -> linking = allItems.firstOrNull { it.source == "tx" }
+                    ?: allItems.firstOrNull()
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     val tracked = allItems.filter { it.source == "bill" && matchesListSearch(searchQuery, it.name, it.merchantKey) }
     val candidates = allItems.filter { it.source == "tx" && matchesListSearch(searchQuery, it.name, it.merchantKey) }

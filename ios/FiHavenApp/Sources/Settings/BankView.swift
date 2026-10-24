@@ -131,7 +131,6 @@ struct BankView: View {
                             }
                         }
                     )).tint(Theme.accent)
-                } footer: {
                     Text("Off by default — FiHaven never changes the balances you typed. When on, synced figures become Current Balance suggestions (Statement Balance stays manual).")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
@@ -144,7 +143,6 @@ struct BankView: View {
                             Text("Review queue").tag("review")
                             Text("Ask after each sync").tag("prompt")
                         }
-                    } footer: {
                         Text("Review queue shows Accept/Decline on Cards. Ask after sync shows a dialog after Sync now.")
                             .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
@@ -162,7 +160,6 @@ struct BankView: View {
                             }
                         }
                     )).tint(Theme.accent)
-                } footer: {
                     Text("Off by default — your spending stays manual-entry. When on, outflows from your linked banks are added to Spending (tagged as bank purchases, and never overwrite anything you typed).")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
@@ -174,7 +171,6 @@ struct BankView: View {
                         Text("Suggested inbox").tag("inbox")
                         Text("Inline with actions").tag("inline")
                     }
-                } footer: {
                     Text("Recurring merchants stay as suggestions until you Accept, Decline, or add them as a Subscription.")
                         .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }

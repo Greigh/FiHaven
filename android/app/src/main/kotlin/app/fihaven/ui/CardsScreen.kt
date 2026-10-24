@@ -58,6 +58,8 @@ import java.util.UUID
 import app.fihaven.core.model.CardPerk
 import app.fihaven.core.model.CardOffer
 import app.fihaven.core.model.genId
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.core.logic.BalanceReview
 import app.fihaven.core.logic.Schedule
@@ -99,6 +101,23 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
     var fOverdue by remember { mutableStateOf(false) }
     var showArchived by remember { mutableStateOf(false) }
     val zone = vm.zone()
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "card-new" -> creating = true
+                "card-edit" -> editing = vm.data.value.cards.firstOrNull()
+                "pay-card" -> paying = vm.data.value.cards.firstOrNull()
+                "card-filters" -> showFilters = true
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     val creditCards = data.activeCreditCards
     val useArchive = data.settings.archiveInsteadOfDelete

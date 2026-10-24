@@ -305,10 +305,27 @@ private struct AuditPresentation: ViewModifier {
         }
     }
 
+    /// Specs that are navigation push destinations in production — they are
+    /// never `.sheet`s in the app, so mounting one inside the hook's sheet
+    /// leaves its `List`/`ScrollView` at its (tiny) ideal height. On macOS a
+    /// page spec gets the window-like size a pushed view would fill; iOS
+    /// sheets already get a generous detent.
+    private func isPageSpec(_ spec: String) -> Bool {
+        switch spec.split(separator: ":").first.map(String.init) ?? spec {
+        case "household-settings", "budget-rules", "reminder-days", "about",
+             "tabs-editor", "admin", "settings":
+            return true
+        default:
+            return false
+        }
+    }
+
     @ViewBuilder
     private func sheetView(_ spec: String) -> some View {
         let parts = spec.split(separator: ":").map(String.init)
-        switch parts[0] {
+        let specName = parts[0]
+        Group {
+            switch specName {
         case "bill-new": BillEditorView(bill: nil)
         case "bill-edit": BillEditorView(bill: store.data.bills.first)
         case "card-new": CardEditorView(card: nil, defaultType: "card")
@@ -354,14 +371,18 @@ private struct AuditPresentation: ViewModifier {
         case "verify-email": VerifyEmailView(user: env.currentUser!)
         case "paywall": PaywallView()
         case "pro": ProView()
-        case "tabs-editor": TabsEditorView()
+        case "tabs-editor": NavigationStack { TabsEditorView() }
         #if canImport(UIKit)
         case "bank": BankView()
         #endif
-        case "admin": AdminView()
+        case "admin": NavigationStack { AdminView() }
         default:
             Text("FH_PRESENT: unknown spec '\(spec)'")
+            }
         }
+        #if os(macOS)
+        .frame(minHeight: isPageSpec(spec) ? 560 : 0)
+        #endif
     }
 
     @ViewBuilder

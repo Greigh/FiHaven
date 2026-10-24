@@ -95,7 +95,21 @@ struct IntroView: View {
 
     // ── Hero: tinted badge + title/body (+ features on page 1) ───────
     // One page's hero, self-centering so it sits correctly inside the pager.
+    // At accessibility text sizes the content outgrows the viewport: the
+    // GeometryReader+ScrollView keeps it centered when it fits and lets it
+    // scroll when it doesn't, instead of clipping the feature card.
     private func heroView(_ page: Page) -> some View {
+        GeometryReader { geo in
+            ScrollView {
+                heroContent(page)
+                    .frame(minHeight: geo.size.height)
+            }
+        }
+        .padding(.horizontal, 32)
+        .ctPageWidth(Theme.columnMaxWidth)
+    }
+
+    private func heroContent(_ page: Page) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             VStack(spacing: 20) {
@@ -149,8 +163,6 @@ struct IntroView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 32)
-        .ctPageWidth(Theme.columnMaxWidth)
     }
 
     /// A soft gradient disc with the FiHaven mark (page 1) or page glyph.

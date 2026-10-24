@@ -45,6 +45,9 @@ import app.fihaven.core.model.SPENDING_CATEGORIES
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.categoryBudgets
 import app.fihaven.ui.theme.Ct
+import app.fihaven.BuildConfig
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
@@ -55,6 +58,22 @@ fun SpendingScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
     var editingBudgets by remember { mutableStateOf(false) }
     var dismissedDupes by remember { mutableStateOf(setOf<String>()) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "tx-new" -> addingTx = true
+                "tx-edit" -> editingTx = vm.data.value.transactions.firstOrNull()
+                "category-budgets" -> editingBudgets = true
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     // Bank-sync reconciliation: duplicate audit + uncorroborated manual entries.
     val today = app.fihaven.core.logic.DateLogic.today(vm.zone())

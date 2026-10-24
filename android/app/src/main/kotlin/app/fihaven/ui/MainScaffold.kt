@@ -58,6 +58,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -382,6 +384,16 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
     var editingCard by remember { mutableStateOf<Card?>(null) }
     var rolloverReview by remember { mutableStateOf(false) }
     val rolloverPrompt by vm.rolloverPrompt.collectAsStateWithLifecycle()
+
+    // DEBUG presentation hook: `--es present rollover-review` mounts the
+    // period-rollover review sheet once the account data has loaded.
+    LaunchedEffect(Unit) {
+        if (BuildConfig.DEBUG && vm.devPresent == "rollover-review") {
+            vm.dataLoaded.first { it }
+            rolloverReview = true
+            vm.devPresent = null
+        }
+    }
 
     // Skip an upcoming item — but for a card you still owe on, confirm first.
     val requestSkip: (UpcomingItem) -> Unit = { item ->

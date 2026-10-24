@@ -58,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.flow.first
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
@@ -146,6 +147,27 @@ fun SettingsScreen(vm: AppViewModel, user: User, padding: PaddingValues, onBack:
     // shows the category list; back returns there, then out to More.
     var group by remember { mutableStateOf<String?>(null) }
     if (group != null) BackHandler { group = null }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded. `group:<id>` opens a
+    // settings section, `dialog:<id>` opens one of the dialog dispatches
+    // below, `paywall` mounts the upgrade sheet.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when {
+                spec.startsWith("group:") -> { group = spec.removePrefix("group:"); vm.devPresent = null }
+                spec.startsWith("dialog:") -> { dialog = spec.removePrefix("dialog:"); vm.devPresent = null }
+                spec == "paywall" -> vm.devPresent = null
+                // Bank prompts mount inside the Bank section — navigate there
+                // and leave the spec for BankConnections to consume.
+                spec.startsWith("bank-") -> group = "bank"
+                // Another screen owns this spec — leave it for them.
+                else -> return@LaunchedEffect
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)) {
         ScreenHeader(
@@ -764,7 +786,8 @@ private fun defaultViewLabel(v: String?): String = when (v) {
 @Composable
 private fun MembershipCard(vm: AppViewModel, user: User, entitlement: Entitlement) {
     val isPro = entitlement.pro
-    var showPaywall by remember { mutableStateOf(false) }
+    // DEBUG: `present=paywall` mounts the upgrade sheet on first composition.
+    var showPaywall by remember { mutableStateOf(BuildConfig.DEBUG && vm.devPresent == "paywall") }
     CtCard(padding = 0) {
         Column {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

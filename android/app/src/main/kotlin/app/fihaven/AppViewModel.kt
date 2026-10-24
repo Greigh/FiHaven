@@ -147,7 +147,7 @@ enum class SyncState { Idle, Saving, Saved, Offline, Rejected }
 
 /// Mirrors the iOS AppEnvironment: owns the API client + token store and
 /// the auth state machine, and holds the loaded AppData.
-class AppViewModel(
+class AppViewModel @JvmOverloads constructor(
     app: Application,
     private val tokens: TokenStore = PrefsTokenStore(app),
     apiBase: String = BuildConfig.API_BASE,
@@ -919,6 +919,12 @@ class AppViewModel(
     // Simulates each Pro state without a real purchase. Local to the device;
     // never touches the server. devEntitlement() returns null in release.
     private val devEntKey = "fh_dev_entitlement"
+
+    /** DEBUG sweep hook: `--es present <spec>` mounts a named presentation
+     *  (editor dialog, settings sheet, paywall) over the live shell. Screens
+     *  read it once data has loaded, then clear it. Debug builds only. */
+    var devPresent: String? = null
+
     var devEntitlementOverride: String
         get() = introPrefs.getString(devEntKey, "off") ?: "off"
         set(value) {

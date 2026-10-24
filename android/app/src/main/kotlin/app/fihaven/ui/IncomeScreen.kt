@@ -36,9 +36,13 @@ import app.fihaven.core.logic.Income
 import app.fihaven.core.model.IncomeAdjustment
 import app.fihaven.core.model.IncomeSource
 import app.fihaven.core.model.genId
+import app.fihaven.core.model.incomeAdjustments
 import app.fihaven.core.model.incomes
 import app.fihaven.ui.theme.Ct
 import kotlin.math.abs
+import app.fihaven.BuildConfig
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 
 /// Paychecks and this period's income adjustments. Income used to be a pair
 /// of sections inside Budget, below the budget lens — it is a destination of
@@ -50,6 +54,26 @@ fun IncomeScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     var creating by remember { mutableStateOf(false) }
     var editingAdj by remember { mutableStateOf<IncomeAdjustment?>(null) }
     var creatingAdj by remember { mutableStateOf(false) }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "income-new" -> creating = true
+                "income-edit" -> editing = vm.data.value.settings.incomes.firstOrNull()
+                "income-adj-new" -> creatingAdj = true
+                // No seeded adjustment? Mount the editor through the real
+                // "+ Add" path so the presentation is still exercised.
+                "income-adj-edit" -> vm.data.value.settings.incomeAdjustments.firstOrNull()
+                    ?.let { editingAdj = it } ?: run { creatingAdj = true }
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     val bounds = vm.currentBounds()
     val cfg = vm.periodConfig()

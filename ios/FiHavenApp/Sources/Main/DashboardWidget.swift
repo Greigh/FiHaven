@@ -53,8 +53,8 @@ struct DashboardLayoutView: View {
                     Text("Widgets").tag("widgets")
                 }
                 .pickerStyle(.segmented)
-            } footer: {
                 Text("Classic is a fixed layout. Widgets lets you choose which cards appear and reorder them.")
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
 
             if store.data.settings.dashboardLayout == "widgets" {

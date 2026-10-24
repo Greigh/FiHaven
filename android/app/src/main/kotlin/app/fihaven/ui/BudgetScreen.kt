@@ -45,12 +45,30 @@ import app.fihaven.core.model.categoryBudgets
 import app.fihaven.core.model.envelopeRollover
 import app.fihaven.core.model.timezoneSetting
 import app.fihaven.ui.theme.Ct
+import app.fihaven.BuildConfig
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun BudgetScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var editingGoal by remember { mutableStateOf<SavingsGoal?>(null) }
     var creatingGoal by remember { mutableStateOf(false) }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "goal-new" -> creatingGoal = true
+                "goal-edit" -> editingGoal = vm.data.value.goals.firstOrNull()
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     val bounds = vm.currentBounds()
     val cfg = vm.periodConfig()

@@ -12,6 +12,7 @@ struct DashboardView: View {
     @State private var editingBill: Bill?
     @State private var editingCard: Card?
     @State private var rolloverReview = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// A pending "skip a card you still owe on" confirmation.
     private struct SkipPrompt: Identifiable {
@@ -135,9 +136,17 @@ struct DashboardView: View {
     // all along.
     private var summary: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 12) {
+            // At accessibility text sizes a half-width card can't hold a
+            // scaled amount even shrunk to its floor — give each stat the
+            // full row so the figure stays readable instead of truncating.
+            if dynamicTypeSize.isAccessibilitySize {
                 incomeStat
                 stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
+            } else {
+                HStack(spacing: 12) {
+                    incomeStat
+                    stat(store.owedLabel, Money.fmt(store.remainingThisMonth), Theme.accent)
+                }
             }
             statCard("Card debt", Money.fmt(store.cardDebt), store.cardDebt > 0 ? Theme.accent : Theme.green)
         }
@@ -503,6 +512,10 @@ private struct UpcomingRow: View {
     var onSnooze: () -> Void = {}
     var onConfirmZero: () -> Void = {}
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var amountText: String { Money.fmt(state == .full ? goal : remaining) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
@@ -539,61 +552,75 @@ private struct UpcomingRow: View {
                             .foregroundStyle(Theme.muted)
                             .lineLimit(1)
                     }
+                    // At accessibility sizes the trailing column can't hold a
+                    // scaled figure next to a wrapped name — drop the amount
+                    // under the name where it gets the row's full width.
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Text(amountText)
+                            .font(Theme.mono(15, weight: .medium))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        if item.autopay {
+                            Text("autopay")
+                                .font(Theme.mono(9))
+                                .foregroundStyle(Theme.muted)
+                        }
+                    }
                 }
                 .layoutPriority(1)
 
-                Spacer(minLength: 4)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer(minLength: 4)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(Money.fmt(state == .full ? goal : remaining))
-                        .font(Theme.mono(15, weight: .medium))
-                        .foregroundStyle(Theme.text)
-                        // An amount must never wrap mid-figure ("$450.0\n0"):
-                        // one line, and shrink before squeezing the name away.
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .layoutPriority(2)
-                    if item.autopay {
-                        Text("autopay")
-                            .font(Theme.mono(9))
-                            .foregroundStyle(Theme.muted)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(amountText)
+                            .font(Theme.mono(15, weight: .medium))
+                            .foregroundStyle(Theme.text)
+                            // An amount must never wrap mid-figure ("$450.0\n0"):
+                            // one line, and shrink before squeezing the name away.
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        if item.autopay {
+                            Text("autopay")
+                                .font(Theme.mono(9))
+                                .foregroundStyle(Theme.muted)
+                                // A fixed slot the name can't steal — at phone
+                                // widths it wrapped vertically ("aut\nopa\ny").
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .fixedSize()
+                        }
                     }
+                    // The priority belongs on the column: the name's VStack
+                    // outbid it and squeezed the amount to "$8…".
+                    .layoutPriority(2)
                 }
             }
             // Combined on the info half only, so the actions below stay their
             // own VoiceOver elements instead of being swallowed by the row.
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(item.name), \(statusLine), \(Money.fmt(state == .full ? goal : remaining))")
+            .accessibilityLabel("\(item.name), \(statusLine), \(amountText)")
             .accessibilityHint("Double tap to edit")
 
             // Actions spelled out, matching the Bills tab and the web dashboard.
-            HStack(spacing: 12) {
-                Text(statusLine)
-                    .font(Theme.ui(12))
-                    .foregroundStyle(skipped ? Theme.muted : labelColor)
-                Spacer()
-                if skipped {
-                    quickAction("Undo skip", Theme.accent, onUnskip)
-                } else if nothingDue {
-                    // A $0 row is settled with no payment behind it: Undo deletes
-                    // a payment record and would find none, leaving a button that
-                    // does nothing. There is also nothing to pay.
-                    EmptyView()
-                } else if state == .full {
-                    quickAction("Undo", Theme.muted, onUnmark)
-                } else if needsAmount {
-                    // Skip is meaningless on a row with no amount — it would hide
-                    // the row for one period and leave the real gap unanswered.
-                    // "It's $0" settles it for good, in a tap.
-                    quickAction("It's $0", Theme.muted, onConfirmZero)
-                    quickAction("Snooze", Theme.muted, onSnooze)
-                    quickAction("Pay", Theme.accent, onPay)
-                } else {
-                    quickAction("Skip", Theme.muted, onSkip)
-                    // Hide the row until tomorrow — a "seen it, not today"
-                    // gesture, kept on this device only (web parity).
-                    quickAction("Snooze", Theme.muted, onSnooze)
-                    quickAction("Pay", Theme.accent, onPay)
+            // At accessibility sizes the status line and buttons can't share
+            // one row — the buttons get their own so nothing breaks mid-word.
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(statusLine)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(skipped ? Theme.muted : labelColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                    actionsRow
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Text(statusLine)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(skipped ? Theme.muted : labelColor)
+                    Spacer()
+                    actionsRow
                 }
             }
         }
@@ -601,9 +628,44 @@ private struct UpcomingRow: View {
         .padding(.vertical, 12)
     }
 
+    @ViewBuilder private var actionsRow: some View {
+        if skipped {
+            quickAction("Undo skip", Theme.accent, onUnskip)
+        } else if nothingDue {
+            // A $0 row is settled with no payment behind it: Undo deletes
+            // a payment record and would find none, leaving a button that
+            // does nothing. There is also nothing to pay.
+            EmptyView()
+        } else if state == .full {
+            quickAction("Undo", Theme.muted, onUnmark)
+        } else if needsAmount {
+            // Skip is meaningless on a row with no amount — it would hide
+            // the row for one period and leave the real gap unanswered.
+            // "It's $0" settles it for good, in a tap.
+            HStack(spacing: 12) {
+                quickAction("It's $0", Theme.muted, onConfirmZero)
+                quickAction("Snooze", Theme.muted, onSnooze)
+                quickAction("Pay", Theme.accent, onPay)
+            }
+        } else {
+            HStack(spacing: 12) {
+                quickAction("Skip", Theme.muted, onSkip)
+                // Hide the row until tomorrow — a "seen it, not today"
+                // gesture, kept on this device only (web parity).
+                quickAction("Snooze", Theme.muted, onSnooze)
+                quickAction("Pay", Theme.accent, onPay)
+            }
+        }
+    }
+
     private func quickAction(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).font(Theme.ui(12, weight: .medium)).foregroundStyle(color)
+            Text(label)
+                .font(Theme.ui(12, weight: .medium))
+                .foregroundStyle(color)
+                // A button label must never break mid-word ("Snooz e").
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .buttonStyle(.plain)
     }

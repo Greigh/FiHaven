@@ -19,8 +19,8 @@ struct ReminderDaysView: View {
                 ForEach(Self.choices, id: \.self) { day in
                     row(day)
                 }
-            } footer: {
                 Text(footer)
+                    .font(Theme.ui(12)).foregroundStyle(Theme.muted)
             }
         }
         .ctGroupedList()
