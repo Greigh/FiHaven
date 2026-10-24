@@ -226,9 +226,12 @@ iOS dark also re-confirmed in the recordVideo dashboard capture.
 
 - All 17 screens × 5 states × signed-out samples + 39 presentations:
   **mounted + captured** on iPhone, iPad, macOS, Android phone/tablet.
-- **Inspected**: **every cell** — 538 canonical captures across iPhone,
-  iPad, macOS, Android phone, Android tablet — per the per-cell table in
-  "pass 3" below. Flagged and ambiguous cells were opened at full
+- **Inspected**: **every cell** — 529 canonical cells across iPhone (122),
+  iPad (127), macOS (127), Android phone (85), Android tablet (68),
+  rendered as 538 inspected captures — the nine iPad `present-*` cells
+  have two captures each (the misrouted original and its fix-run
+  replacement, both on file and both inspected) — per the per-cell table
+  in "pass 3" below. Flagged and ambiguous cells were opened at full
   resolution; ambiguous claims (right-edge clip, sheet button chrome) were
   settled against live-window `screencapture -l` captures, which cleared
   them as `FH_SNAPSHOT` offscreen-render artifacts. Invalid captures
@@ -252,15 +255,18 @@ iOS dark also re-confirmed in the recordVideo dashboard capture.
 
 ## Release-readiness statement — 2026-10-24
 
-**Candidate**: `port/stores-live-onto-remote-main` at the audit-fix HEAD —
-the 1.6.8 build-60 beta train plus this audit's fixes.
+**Candidate**: `main` at `37e91af` (GitHub and Forgejo agree) — the 1.6.8
+build-60 beta train, this audit's fixes, the payoff projection-cap
+wording, and the release-hardening gates.
 
 **Verified scope** (interaction-tested or inspected, not inferred):
 
 - All primary screens, settings destinations, sheets, editors, dialogs,
   onboarding/auth, paywall, offline/error/empty states — captured and
-  **per-cell visually inspected** (all 538 canonical cells, pass-3 table
-  below) on iPhone, iPad, macOS, Android phone, Android tablet.
+  **per-cell visually inspected** (529 canonical cells / 538 captures —
+  the difference is the nine iPad supersede-replacement recaptures —
+  pass-3 table below) on iPhone, iPad, macOS, Android phone, Android
+  tablet.
 - Light + dark appearance on iOS, Android, and macOS (real system dark).
 - Accessibility: VoiceOver navigation end-to-end on macOS (traversal,
   item chooser, activation); TalkBack labeling/focus + a complete pay task
