@@ -16,6 +16,15 @@ data class PayoffCardResult(
     val origBalance: Double,
     val paidOffMonth: Int?,
     val interestPaid: Double,
+    /** Balance left when the projection stopped — nonzero only for cards
+     *  that hit the 360-month cap unpaid. */
+    val endBalance: Double,
+    /** True only when the minimum payment cannot cover a month's interest
+     *  at the balance the projection stopped at, outside any promo window —
+     *  minimums provably never clear it. A card that is still declining when
+     *  the projection runs out of months is incomplete, not impossible:
+     *  $10,000 at 0% on $25/mo needs 400 months, but it clears. */
+    val nonAmortizing: Boolean,
 )
 
 data class PayoffResult(
@@ -43,6 +52,10 @@ object Payoff {
         var paidOffMonth: Int?,
         var interestPaid: Double,
         val housing: Boolean,
+        /** Whether the card sat inside its promo window in the most recent
+         *  month simulated — at the cap, promo interest suppression is what
+         *  keeps a small minimum ahead of a large balance. */
+        var inPromoNow: Boolean = false,
     )
 
     /** Mortgage / home-equity loans — PMI & escrow make sims approximate. */
@@ -104,6 +117,7 @@ object Payoff {
             for (c in sim) {
                 if (c.balance <= 0.01) continue
                 val inPromo = c.hasPromo && c.promoEnd != null && !c.promoEnd.isBefore(targetDate)
+                c.inPromoNow = inPromo
                 if (!inPromo && c.monthlyRate > 0) {
                     val interest = c.balance * c.monthlyRate
                     c.interestPaid += interest
@@ -152,8 +166,19 @@ object Payoff {
         return PayoffResult(
             months = month,
             totalInterest = (totalInterest * 100).roundToLong() / 100.0,
-            cards = sim.map {
-                PayoffCardResult(it.id, it.name, it.origBalance, it.paidOffMonth, it.interestPaid)
+            cards = sim.map { c ->
+                PayoffCardResult(
+                    c.id, c.name, c.origBalance, c.paidOffMonth, c.interestPaid,
+                    endBalance = c.balance,
+                    // Non-amortizing: the month's interest outruns the minimum,
+                    // so the balance can never decline. A promo still running
+                    // at the cap keeps even a tiny payment ahead, and a balance
+                    // that fell this month would eventually reach zero — both
+                    // are "ran out of projection", not "never clears".
+                    nonAmortizing = c.paidOffMonth == null
+                        && !c.inPromoNow
+                        && c.minPayment <= c.balance * c.monthlyRate,
+                )
             },
             payoffDate = firstThisMonth.plusMonths(month.toLong()),
         )

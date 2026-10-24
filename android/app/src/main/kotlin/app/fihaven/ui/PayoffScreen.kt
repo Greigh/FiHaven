@@ -125,12 +125,22 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                     )
                 }
             } else {
-                // A card with no paidOffMonth never cleared on minimums alone —
-                // that sim ran to its 360-month cap, so its "interest" is a debt
-                // that kept compounding. "save $X vs mins" against it reads as a
-                // promise; the honest sentence is that minimums never finish.
-                val minsNeverClear = simMin?.cards?.any { it.paidOffMonth == null } == true
-                val saves = ((simMin?.totalInterest ?: 0.0) - hero.totalInterest).coerceAtLeast(0.0)
+                // A card unpaid at the 360-month cap splits two ways: the
+                // projection ran out of months while the balance was still
+                // declining (incomplete), or the minimum cannot cover a
+                // month's interest at all (non-amortizing — minimums never
+                // clear it). Only the second is a "never". Either way the
+                // "save $X vs mins" comparison is forbidden: the mins sim's
+                // interest total is a truncated projection, not a real cost.
+                val minsUnpaid = simMin?.cards?.filter { it.paidOffMonth == null } ?: emptyList()
+                val minsNote = when {
+                    minsUnpaid.isEmpty() -> null
+                    minsUnpaid.any { it.nonAmortizing } -> " · minimums never clear this debt"
+                    else -> " · minimums not paid off within the 30-year projection"
+                }
+                val unfinished = hero.cards.any { it.paidOffMonth == null }
+                val saves = if (simMin != null && !unfinished && minsUnpaid.isEmpty())
+                    (simMin.totalInterest - hero.totalInterest).coerceAtLeast(0.0) else 0.0
                 CtCard {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -149,14 +159,19 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                             }
                         }
                         Text(
-                            "Debt-free by ${DateLogic.monthKeyLabel(DateLogic.monthKey(hero.payoffDate))}",
+                            if (unfinished) "Not paid off within the 30-year projection"
+                            else "Debt-free by ${DateLogic.monthKeyLabel(DateLogic.monthKey(hero.payoffDate))}",
                             color = Ct.colors.text, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         )
                         Text(
                             buildString {
-                                append("${hero.months} months · ${Money.fmt(hero.totalInterest)} interest")
-                                if (minsNeverClear) append(" · minimums never clear this debt")
-                                else if (saves > 0 && extra > 0) append(" · save ${Money.fmt(saves)} vs mins")
+                                if (unfinished) {
+                                    append("Projection capped at 360 months · ${Money.fmt(hero.totalInterest)} interest accrued")
+                                    if (minsUnpaid.any { it.nonAmortizing }) append(" · minimums never clear this debt")
+                                } else {
+                                    append("${hero.months} months · ${Money.fmt(hero.totalInterest)} interest")
+                                    append(minsNote ?: (if (saves > 0 && extra > 0) " · save ${Money.fmt(saves)} vs mins" else ""))
+                                }
                             },
                             color = Ct.colors.muted, fontSize = 13.sp,
                         )
@@ -231,7 +246,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                                         Text("Started at ${Money.fmt(c.origBalance)}", color = Ct.colors.muted, fontSize = 11.sp)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text(c.paidOffMonth?.let { "Month $it" } ?: "—", color = Ct.colors.text,
+                                        Text(c.paidOffMonth?.let { "Month $it" } ?: ">360 mo", color = Ct.colors.text,
                                             fontSize = 13.sp, style = MonoNumerals)
                                         Text("${Money.fmtShort(c.interestPaid)} interest", color = Ct.colors.muted,
                                             fontSize = 10.sp, style = MonoNumerals)
@@ -241,7 +256,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                                     val snowMo = simSnow?.cards?.firstOrNull { it.id == c.id }?.paidOffMonth
                                     val avalMo = simAval?.cards?.firstOrNull { it.id == c.id }?.paidOffMonth
                                     Text(
-                                        "Snowball: ${snowMo?.let { "$it mo" } ?: "—"} · Avalanche: ${avalMo?.let { "$it mo" } ?: "—"}",
+                                        "Snowball: ${snowMo?.let { "$it mo" } ?: ">360 mo"} · Avalanche: ${avalMo?.let { "$it mo" } ?: ">360 mo"}",
                                         color = Ct.colors.muted, fontSize = 11.sp,
                                     )
                                 }
@@ -275,12 +290,19 @@ private fun StrategyTile(
             if (best) Text("Best for you", color = Ct.colors.green, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             Text(title, color = Ct.colors.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = Ct.colors.muted, fontSize = 11.sp)
+            // An incomplete sim's payoffDate is just the cap month — showing
+            // it as a debt-free date would invent an outcome.
+            val incomplete = result.cards.any { it.paidOffMonth == null }
             Text(
-                DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)),
+                if (incomplete) ">30 yrs" else DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)),
                 color = if (selected) Ct.colors.accent else Ct.colors.text,
                 fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = MonoNumerals,
             )
-            Text("${result.months} mo · ${Money.fmtShort(result.totalInterest)} interest", color = Ct.colors.muted, fontSize = 11.sp)
+            Text(
+                if (incomplete) "projection capped · ${Money.fmtShort(result.totalInterest)} interest"
+                else "${result.months} mo · ${Money.fmtShort(result.totalInterest)} interest",
+                color = Ct.colors.muted, fontSize = 11.sp,
+            )
         }
     }
 }

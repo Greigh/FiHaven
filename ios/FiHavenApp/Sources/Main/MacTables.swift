@@ -2490,9 +2490,11 @@ struct MacPayoffTable: View {
                                 addTitle: nil, add: {}, tables: tables))
     }
 
-    /// A month number, or the em dash the plan owes when it never clears.
+    /// A month number, or the past-the-cap marker for a card the projection
+    /// did not retire — "ran out of months" is not the same claim as "never
+    /// clears", so the cell says so instead of an em dash.
     private func offLabel(_ month: Int?) -> String {
-        guard let month else { return "—" }
+        guard let month else { return ">360 mo" }
         return "Month \(month)"
     }
 
@@ -2537,11 +2539,12 @@ struct MacPayoffTable: View {
 /// `TableColumn(value:)` needs a key path, which cannot be a function call.
 struct MacPayoffRow: Identifiable {
     var card: PayoffCardResult
-    /// This account's month under the plan on screen; nil never clears.
+    /// This account's month under the plan on screen; nil means the
+    /// 360-month projection stopped before the balance did.
     var month: Int?
     /// The same under the compared plan, when one is shown.
     var comparedMonth: Int?
-    /// The month as something orderable. Never-clears sorts last.
+    /// The month as something orderable. Still-unpaid sorts last.
     var monthSortKey: Int { month ?? Int.max }
     /// The same for the comparison column. Absent comparison sorts last too.
     var comparedSortKey: Int { comparedMonth ?? Int.max }

@@ -35,8 +35,20 @@
   let simSnow = $derived.by(() => (debtCards.length ? runPayoffSim('snowball', extra, simOpts) : null));
   let simAval = $derived.by(() => (debtCards.length ? runPayoffSim('avalanche', extra, simOpts) : null));
 
-  let snowSaves = $derived(simMin && simSnow ? Math.max(0, simMin.totalInterest - simSnow.totalInterest) : 0);
-  let avalSaves = $derived(simMin && simAval ? Math.max(0, simMin.totalInterest - simAval.totalInterest) : 0);
+  // A sim that hit the 360-month cap with cards still unpaid is incomplete —
+  // its "interest total" is interest accrued inside a truncated projection,
+  // not a real cost to compare a plan against, so savings claims are gated
+  // on both sims actually finishing.
+  let simMinUnpaid = $derived(simMin ? simMin.cards.filter((c) => c.paidOffMonth === null) : []);
+  let minSimFinished = $derived(simMinUnpaid.length === 0);
+  let minsNonAmortizing = $derived(simMinUnpaid.some((c) => c.nonAmortizing));
+  const finished = (s) => !!s && s.cards.every((c) => c.paidOffMonth !== null);
+  let snowSaves = $derived(
+    simMin && simSnow && minSimFinished && finished(simSnow)
+      ? Math.max(0, simMin.totalInterest - simSnow.totalInterest) : 0);
+  let avalSaves = $derived(
+    simMin && simAval && minSimFinished && finished(simAval)
+      ? Math.max(0, simMin.totalInterest - simAval.totalInterest) : 0);
   let avalIsBest = $derived(!!(simAval && simSnow && simAval.totalInterest <= simSnow.totalInterest));
 
   let bestStrategy = $derived(avalIsBest ? 'avalanche' : 'snowball');
@@ -176,12 +188,24 @@
       {selected === 'avalanche' ? 'Avalanche' : 'Snowball'} plan
       {#if selected === bestStrategy && extra > 0}<span class="badge badge-green">Recommended</span>{/if}
     </div>
-    <div class="payoff-hero-title">Debt-free by {dateStr(heroSim)}</div>
+    <div class="payoff-hero-title">
+      {#if finished(heroSim)}Debt-free by {dateStr(heroSim)}{:else}Not paid off within the 30-year projection{/if}
+    </div>
     <div class="payoff-hero-sub">
-      {heroSim.months} month{heroSim.months === 1 ? '' : 's'}
-      · {fmt(heroSim.totalInterest)} interest
-      {#if heroSaves > 0 && extra > 0}
-        · save {fmt(heroSaves)} vs minimums only
+      {#if finished(heroSim)}
+        {heroSim.months} month{heroSim.months === 1 ? '' : 's'}
+        · {fmt(heroSim.totalInterest)} interest
+        {#if minsNonAmortizing}
+          · minimums never clear this debt
+        {:else if !minSimFinished}
+          · minimums not paid off within the 30-year projection
+        {:else if heroSaves > 0 && extra > 0}
+          · save {fmt(heroSaves)} vs minimums only
+        {/if}
+      {:else}
+        Projection capped at 360 months
+        · {fmt(heroSim.totalInterest)} interest accrued
+        {#if minsNonAmortizing}· minimums never clear this debt{/if}
       {/if}
     </div>
     <div class="payoff-hero-pick" role="group" aria-label="Strategy">
@@ -214,11 +238,13 @@
         <div class="payoff-stat-row">
           <div>
             <div class="plabel">Debt-free</div>
-            <div class="payoff-stat-date">{dateStr(s.sim)}</div>
+            <!-- A capped sim's payoffDate is just the cap month — showing it
+                 as a debt-free date would invent an outcome. -->
+            <div class="payoff-stat-date">{finished(s.sim) ? dateStr(s.sim) : '>30 yrs'}</div>
           </div>
           <div>
             <div class="plabel">Months</div>
-            <div class="payoff-stat-big">{s.sim.months}</div>
+            <div class="payoff-stat-big">{finished(s.sim) ? s.sim.months : '360+'}</div>
           </div>
         </div>
         <div class="payoff-strat-foot">
@@ -265,15 +291,15 @@
             {#if cell}
               {cell.label} <span class="muted">({cell.months} mo)</span>
             {:else}
-              <span class="muted">—</span>
+              <span class="muted">>360 mo</span>
             {/if}
           </div>
           {#if showCompare && simSnow && simAval}
             {@const snow = simSnow.cards.find((x) => x.id === c.id)}
             {@const aval = simAval.cards.find((x) => x.id === c.id)}
             <div class="payoff-account-compare">
-              Snowball: {snow?.paidOffMonth != null ? snow.paidOffMonth + ' mo' : '—'}
-              · Avalanche: {aval?.paidOffMonth != null ? aval.paidOffMonth + ' mo' : '—'}
+              Snowball: {snow?.paidOffMonth != null ? snow.paidOffMonth + ' mo' : '>360 mo'}
+              · Avalanche: {aval?.paidOffMonth != null ? aval.paidOffMonth + ' mo' : '>360 mo'}
             </div>
           {/if}
         </li>

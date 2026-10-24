@@ -61,6 +61,10 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
       promoEndDate: c.type !== 'loan' ? c.promoEndDate || null : null,
       paidOffMonth: null,
       interestPaid: 0,
+      // Whether the card sat inside its promo window in the most recent
+      // month simulated — at the cap, promo interest suppression is what
+      // keeps a small minimum ahead of a large balance.
+      inPromoNow:   false,
     };
   });
 
@@ -82,6 +86,7 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
       if (c.balance <= 0.01) return;
       const inPromo = c.hasPromo && c.promoEndDate &&
                       (new Date(c.promoEndDate) >= targetDate);
+      c.inPromoNow = inPromo;
       if (!inPromo && c.monthlyRate > 0) {
         const interest = c.balance * c.monthlyRate;
         c.interestPaid += interest;
@@ -125,6 +130,21 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
 
     extraPool += freedThisMonth;
   }
+
+  sim.forEach((c) => {
+    // Balance left when the projection stopped — nonzero only for cards
+    // that hit the 360-month cap unpaid.
+    c.endBalance = c.balance;
+    // Non-amortizing: the month's interest outruns the minimum, so the
+    // balance can never decline. A promo still running at the cap keeps
+    // even a tiny payment ahead, and a balance that fell this month would
+    // eventually reach zero — both are "ran out of projection", not
+    // "never clears". "$10,000 at 0% on $25/mo" needs 400 months, but it
+    // clears.
+    c.nonAmortizing = c.paidOffMonth === null &&
+                      !c.inPromoNow &&
+                      c.minPayment <= c.balance * c.monthlyRate;
+  });
 
   return {
     months:        month,

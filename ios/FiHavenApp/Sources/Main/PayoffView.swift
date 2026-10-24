@@ -105,13 +105,20 @@ struct PayoffView: View {
     }
 
     private func heroCard(_ r: PayoffResult) -> some View {
-        // A card with no paidOffMonth never cleared on minimums alone — the
-        // sim stopped at its 360-month cap, and its "interest" is a debt that
-        // kept compounding. "Save $X vs mins" against that number reads as a
-        // promise; the honest sentence is that minimums never finish.
-        let minsNeverClear = simMin?.cards.contains { $0.paidOffMonth == nil } ?? false
+        // A card unpaid at the 360-month cap splits two ways: the projection
+        // ran out of months while the balance was still declining (incomplete)
+        // or the minimum cannot cover a month's interest (non-amortizing —
+        // minimums never clear it). Only the second is a "never". Either way
+        // "save $X vs mins" is forbidden: the mins sim's interest total is a
+        // truncated projection, not a real cost to compare against.
+        let minsUnpaid = simMin?.cards.filter { $0.paidOffMonth == nil } ?? []
+        let minsNote: String? = minsUnpaid.isEmpty ? nil
+            : (minsUnpaid.contains { $0.nonAmortizing }
+               ? " · minimums never clear this debt"
+               : " · minimums not paid off within the 30-year projection")
+        let unfinished = r.cards.contains { $0.paidOffMonth == nil }
         let saves: Double = {
-            guard let m = simMin else { return 0 }
+            guard let m = simMin, !unfinished, minsUnpaid.isEmpty else { return 0 }
             return max(0, m.totalInterest - r.totalInterest)
         }()
         return VStack(alignment: .leading, spacing: 10) {
@@ -128,12 +135,17 @@ struct PayoffView: View {
                         .clipShape(Capsule())
                 }
             }
-            Text("Debt-free by \(payoffDateLabel(r.payoffDate))")
+            Text(unfinished
+                 ? "Not paid off within the 30-year projection"
+                 : "Debt-free by \(payoffDateLabel(r.payoffDate))")
                 .font(Theme.ui(24, weight: .bold))
                 .foregroundStyle(Theme.text)
-            Text("\(r.months) months · \(Money.fmt(r.totalInterest)) interest"
-                  + (minsNeverClear ? " · minimums never clear this debt"
-                     : (saves > 0 && extra > 0 ? " · save \(Money.fmt(saves)) vs mins" : "")))
+            Text((unfinished
+                  ? "Projection capped at 360 months · \(Money.fmt(r.totalInterest)) interest accrued"
+                  : "\(r.months) months · \(Money.fmt(r.totalInterest)) interest")
+                  + (unfinished
+                     ? (minsUnpaid.contains { $0.nonAmortizing } ? " · minimums never clear this debt" : "")
+                     : (minsNote ?? (saves > 0 && extra > 0 ? " · save \(Money.fmt(saves)) vs mins" : ""))))
                 .font(Theme.ui(13)).foregroundStyle(Theme.muted)
             Picker("Strategy", selection: $strategy) {
                 Text("Snowball").tag(PayoffStrategy.snowball)
@@ -165,8 +177,13 @@ struct PayoffView: View {
                 }
                 Text(title).font(Theme.ui(15, weight: .semibold)).foregroundStyle(Theme.text)
                 Text(sub).font(Theme.ui(11)).foregroundStyle(Theme.muted)
-                Text(payoffDateLabel(r.payoffDate)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.accent)
-                Text("\(r.months) mo · \(Money.fmtShort(r.totalInterest)) interest")
+                // An incomplete sim's payoffDate is just the cap month —
+                // showing it as a debt-free date would invent an outcome.
+                Text(r.cards.contains { $0.paidOffMonth == nil } ? ">30 yrs" : payoffDateLabel(r.payoffDate))
+                    .font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.accent)
+                Text(r.cards.contains { $0.paidOffMonth == nil }
+                     ? "projection capped · \(Money.fmtShort(r.totalInterest)) interest"
+                     : "\(r.months) mo · \(Money.fmtShort(r.totalInterest)) interest")
                     .font(Theme.ui(11)).foregroundStyle(Theme.muted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,7 +228,7 @@ struct PayoffView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text(c.paidOffMonth.map { "Month \($0)" } ?? "—")
+                                Text(c.paidOffMonth.map { "Month \($0)" } ?? ">360 mo")
                                     .font(Theme.mono(13, weight: .medium)).foregroundStyle(Theme.text)
                                 Text("\(Money.fmtShort(c.interestPaid)) interest")
                                     .font(Theme.mono(10)).foregroundStyle(Theme.muted)
@@ -219,7 +236,7 @@ struct PayoffView: View {
                         }
                         if showCompare, let snow = simSnow?.cards.first(where: { $0.id == c.id }),
                            let aval = simAval?.cards.first(where: { $0.id == c.id }) {
-                            Text("Snowball: \(snow.paidOffMonth.map { "\($0) mo" } ?? "—") · Avalanche: \(aval.paidOffMonth.map { "\($0) mo" } ?? "—")")
+                            Text("Snowball: \(snow.paidOffMonth.map { "\($0) mo" } ?? ">360 mo") · Avalanche: \(aval.paidOffMonth.map { "\($0) mo" } ?? ">360 mo")")
                                 .font(Theme.ui(11)).foregroundStyle(Theme.muted)
                         }
                     }
