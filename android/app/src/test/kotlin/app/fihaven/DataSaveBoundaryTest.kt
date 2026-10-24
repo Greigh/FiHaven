@@ -167,6 +167,19 @@ class DataSaveBoundaryTest {
         }
     }
 
+    /** Wait until a PUT matching [token]/[needle] is recorded or [ms] elapse.
+     *  The chain to that PUT — real login → real GET → disk read → debounced
+     *  save → real PUT — is several wall-clock hops; a loaded CI runner can
+     *  outrun a fixed settle, so assert on the write landing, not on time. */
+    private fun waitForPut(token: String, needle: String, ms: Long = 15000) {
+        val deadline = System.currentTimeMillis() + ms
+        while (System.currentTimeMillis() < deadline) {
+            if (puts.any { it.token == token && it.body.contains(needle) }) return
+            testDispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(50)
+        }
+    }
+
     private fun blobWith(email: String, billName: String) =
         """{"email":"$email","bills":[{"id":"b-$billName","name":"$billName","category":"Housing","amount":100.0,"dueDay":5,"frequency":"Monthly"}]}"""
 
@@ -290,10 +303,13 @@ class DataSaveBoundaryTest {
         settle(1500) // save failed; cache holds pendingWrite for r@x
 
         // Re-auth as the same account — the session must continue, not tear
-        // down, and the pending write must still reach the server.
+        // down, and the pending write must still reach the server. puts is
+        // cleared first: the failed 503 attempts already recorded would
+        // satisfy the poll before the replayed write lands.
         putStatus.set(200)
+        puts.clear()
         vm.devAutoLogin("r@x", "pw")
-        settle()
+        waitForPut("tok-r@x", "Offline-Edit")
 
         assertTrue(
             puts.any { it.token == "tok-r@x" && it.body.contains("Offline-Edit") },
