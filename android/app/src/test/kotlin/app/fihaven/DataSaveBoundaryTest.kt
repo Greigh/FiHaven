@@ -167,17 +167,22 @@ class DataSaveBoundaryTest {
         }
     }
 
+    /** Wait until [pred] holds or [ms] elapse — the right shape for steps
+     *  gated on real wall-clock work (HTTP, disk) rather than virtual time. */
+    private fun waitFor(ms: Long = 15000, pred: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + ms
+        while (System.currentTimeMillis() < deadline && !pred()) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(50)
+        }
+    }
+
     /** Wait until a PUT matching [token]/[needle] is recorded or [ms] elapse.
      *  The chain to that PUT — real login → real GET → disk read → debounced
      *  save → real PUT — is several wall-clock hops; a loaded CI runner can
      *  outrun a fixed settle, so assert on the write landing, not on time. */
     private fun waitForPut(token: String, needle: String, ms: Long = 15000) {
-        val deadline = System.currentTimeMillis() + ms
-        while (System.currentTimeMillis() < deadline) {
-            if (puts.any { it.token == token && it.body.contains(needle) }) return
-            testDispatcher.scheduler.advanceUntilIdle()
-            Thread.sleep(50)
-        }
+        waitFor(ms) { puts.any { it.token == token && it.body.contains(needle) } }
     }
 
     private fun blobWith(email: String, billName: String) =
@@ -192,7 +197,7 @@ class DataSaveBoundaryTest {
         putStatus.set(503) // saves keep failing so A's saveJob stays in retry
 
         vm.devAutoLogin("a@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         vm.mutate { it.copy(bills = it.bills + Bill(id = "e1", name = "A-Edit")) }
         settle(1500) // first attempt already failed; job is in backoff
 
@@ -233,7 +238,7 @@ class DataSaveBoundaryTest {
         Thread.sleep(300) // let A's request actually leave
         dataGetDelayMs.set(0)
         vm.devAutoLogin("b@x", "pw")
-        settle(8000)
+        settle(8000) // A's delayed response lands ~6s in — the window must outlast it
 
         assertTrue(
             vm.data.value.bills.none { it.name == "Late-A-Bill" },
@@ -256,7 +261,7 @@ class DataSaveBoundaryTest {
         blobs["e2@x"] = blobWith("e2@x", "InFlight")
         putDelayMs.set(2500)
         vm.devAutoLogin("e2@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         vm.mutate { it.copy(bills = it.bills + Bill(id = "i1", name = "In-Flight-Edit")) }
         Thread.sleep(400) // the save attempt is now inside the delayed PUT
 
@@ -274,7 +279,7 @@ class DataSaveBoundaryTest {
         blobs["m@x"] = blobWith("m@x", "Base")
         putDelayMs.set(2500)
         vm.devAutoLogin("m@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         vm.mutate { it.copy(bills = it.bills + Bill(id = "n1", name = "First-Save")) }
         Thread.sleep(400) // PUT 1 is inside the delayed request now
 
@@ -297,10 +302,10 @@ class DataSaveBoundaryTest {
         // write in the cache belongs to this account and must be replayed.
         blobs["r@x"] = blobWith("r@x", "Server-Copy")
         vm.devAutoLogin("r@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         putStatus.set(503)
         vm.mutate { it.copy(bills = it.bills + Bill(id = "r1", name = "Offline-Edit")) }
-        settle(1500) // save failed; cache holds pendingWrite for r@x
+        waitFor(15000) { puts.isNotEmpty() } // save attempt recorded; cache holds pendingWrite for r@x
 
         // Re-auth as the same account — the session must continue, not tear
         // down, and the pending write must still reach the server. puts is
@@ -327,7 +332,10 @@ class DataSaveBoundaryTest {
         dataGetStatus.set(500) // load fails; no cache → dataError, placeholder in memory
 
         vm.devAutoLogin("c@x", "pw")
-        settle()
+        // Wait for the load attempt to actually resolve — assertFalse on a
+        // load still in flight would pass vacuously, and a late success would
+        // then persist the mutation and fail the writes check below.
+        waitFor { vm.dataLoaded.value || vm.dataError.value != null }
         assertFalse(vm.dataLoaded.value)
 
         vm.mutate { it.copy(bills = it.bills + Bill(id = "x", name = "Phantom")) }
@@ -341,7 +349,7 @@ class DataSaveBoundaryTest {
     fun `normal sign-in, edit, and save still land`() {
         blobs["d@x"] = blobWith("d@x", "Existing")
         vm.devAutoLogin("d@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         assertTrue(vm.dataLoaded.value)
 
         vm.mutate { it.copy(bills = it.bills + Bill(id = "e9", name = "New-Bill")) }
@@ -357,7 +365,7 @@ class DataSaveBoundaryTest {
         blobs["e@x"] = blobWith("e@x", "Data")
         putStatus.set(503)
         vm.devAutoLogin("e@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         vm.mutate { it.copy(bills = it.bills + Bill(id = "e2", name = "Edit")) }
         settle(1200)
 
@@ -377,7 +385,7 @@ class DataSaveBoundaryTest {
         OfflineCache(cacheDir).write(pending, "f@x", pendingWrite = true)
 
         vm.devAutoLogin("f@x", "pw")
-        settle()
+        waitForPut("tok-f@x", "Pending-Offline-Edit")
 
         assertTrue(
             puts.any { it.token == "tok-f@x" && it.body.contains("Pending-Offline-Edit") },
@@ -389,7 +397,7 @@ class DataSaveBoundaryTest {
     fun `legitimately empty account can sign in and save`() {
         blobs["g@x"] = """{"email":"g@x"}""" // never stored a thing — legal empty
         vm.devAutoLogin("g@x", "pw")
-        settle()
+        waitFor { vm.dataLoaded.value }
         assertTrue(vm.dataLoaded.value)
 
         vm.mutate { it.copy(bills = it.bills + Bill(id = "g1", name = "First-Bill")) }
