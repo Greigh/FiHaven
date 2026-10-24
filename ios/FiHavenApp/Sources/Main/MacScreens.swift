@@ -411,12 +411,19 @@ struct MacIncomeScreen: View {
                 // ContentUnavailableView's icon + title + description needs
                 // ~140 — shorter and it renders clipped in half.
                 .macTablePlacement(.rows(store.data.settings.incomes.isEmpty ? 5 : store.data.settings.incomes.count))
+                // A .rows table sits in the scroll column, not the pane: the
+                // edge-to-edge square border macTableSurface draws for .fills
+                // tables reads as a box bleeding off the edges here. Inset it
+                // to the headers' margin and round the border into a card.
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+                .padding(.horizontal, 16)
 
                 MacSectionHeader(Income.adjustmentsLabel(for: store.periodConfig)) {
                     Button { creatingAdj = true } label: { Image(systemName: "plus") }
                         .ctPlainButton()
                         .accessibilityLabel("Add income adjustment")
                 }
+                .padding(.top, 12)
                 MacIncomeAdjustmentsTable(
                     adjustments: adjustments,
                     selection: $selAdjustments,
@@ -425,6 +432,9 @@ struct MacIncomeScreen: View {
                     emptyCopy: "No adjustments this period."
                 )
                 .macTablePlacement(.rows(adjustments.isEmpty ? 5 : adjustments.count))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
             }
         }
         .sheet(isPresented: $creating) { IncomeEditorView(source: nil).environmentObject(store) }
