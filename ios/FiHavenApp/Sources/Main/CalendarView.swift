@@ -83,7 +83,10 @@ struct CalendarView: View {
 
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: 6) {
-            ForEach(0..<leadingBlanks, id: \.self) { _ in Color.clear.frame(height: 44) }
+            // Blank ids run negative: `0..<leadingBlanks` overlaps the day ids
+            // `1...daysInMonth`, and LazyVGrid drops every duplicate — for a
+            // Thursday-first month that ate days 1–3.
+            ForEach(-leadingBlanks..<0, id: \.self) { _ in Color.clear.frame(height: 44) }
             ForEach(1...daysInMonth, id: \.self) { day in
                 dayCell(day)
             }

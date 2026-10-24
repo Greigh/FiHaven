@@ -384,14 +384,15 @@ struct MacIncomeScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 MacSummaryStrip {
+                    MacStripFigure(label: Income.baseIncomeLabel(for: store.periodConfig),
+                                   value: Money.fmt(baseIncome),
+                                   help: "Paychecks before this period's adjustments.")
                     MacStripFigure(label: Income.adjustmentsLabel(for: store.periodConfig),
+                                   value: "\(adjustmentsTotal >= 0 ? "+" : "")\(Money.fmt(adjustmentsTotal))",
+                                   tint: adjustmentsTotal < 0 ? Theme.red : Theme.green)
+                    MacStripFigure(label: Income.incomeLabel(for: store.periodConfig),
                                    value: Money.fmt(store.periodIncome),
                                    help: "This period's take-home after adjustments.")
-                    if adjustmentsTotal != 0 {
-                        MacStripFigure(label: "Adjustments",
-                                       value: "\(adjustmentsTotal >= 0 ? "+" : "")\(Money.fmt(adjustmentsTotal))",
-                                       tint: adjustmentsTotal < 0 ? Theme.red : Theme.green)
-                    }
                 }
 
                 MacSectionHeader("Income sources") {
@@ -406,7 +407,10 @@ struct MacIncomeScreen: View {
                     onEdit: { editing = $0 },
                     emptyCopy: "No income sources yet. Add your paycheck."
                 )
-                .macTablePlacement(.rows(max(store.data.settings.incomes.count, 1)))
+                // Empty floors at five rows: one row is 50pt, and the
+                // ContentUnavailableView's icon + title + description needs
+                // ~140 — shorter and it renders clipped in half.
+                .macTablePlacement(.rows(store.data.settings.incomes.isEmpty ? 5 : store.data.settings.incomes.count))
 
                 MacSectionHeader(Income.adjustmentsLabel(for: store.periodConfig)) {
                     Button { creatingAdj = true } label: { Image(systemName: "plus") }
@@ -420,7 +424,7 @@ struct MacIncomeScreen: View {
                     onEdit: { editingAdj = $0 },
                     emptyCopy: "No adjustments this period."
                 )
-                .macTablePlacement(.rows(max(adjustments.count, 1)))
+                .macTablePlacement(.rows(adjustments.isEmpty ? 5 : adjustments.count))
             }
         }
         .sheet(isPresented: $creating) { IncomeEditorView(source: nil).environmentObject(store) }
