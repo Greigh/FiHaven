@@ -565,10 +565,17 @@ struct MacPayoffScreen: View {
         VStack(spacing: 0) {
             if let hero {
                 MacSummaryStrip {
+                    // A capped sim's payoffDate is just the cap month —
+                    // presenting it as a debt-free date invents an outcome.
+                    let unfinished = hero.cards.contains { $0.paidOffMonth == nil }
                     MacStripFigure(
                         label: strategy == .avalanche ? "Avalanche" : "Snowball",
-                        value: hero.payoffDate.formatted(.dateTime.month(.abbreviated).year()),
-                        help: "Debt-free month at the extra payment below.")
+                        value: unfinished
+                            ? ">30 yrs"
+                            : hero.payoffDate.formatted(.dateTime.month(.abbreviated).year()),
+                        help: unfinished
+                            ? "Not paid off within the 30-year projection at the extra payment below."
+                            : "Debt-free month at the extra payment below.")
                     MacStripFigure(label: "Interest", value: Money.fmt(hero.totalInterest),
                                    help: "Interest paid over the life of the plan.")
                 }

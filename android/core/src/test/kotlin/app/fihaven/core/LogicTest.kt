@@ -550,6 +550,70 @@ class PayoffTest {
         assertTrue(small.paidOffMonth != null && big.paidOffMonth != null)
         assertTrue(small.paidOffMonth!! <= big.paidOffMonth!!)
     }
+
+    // ── 360-month cap semantics ────────────────────────────────────
+    // paidOffMonth == null means the *projection* stopped, nothing more.
+    // `nonAmortizing` is the stronger claim: the minimum cannot cover a
+    // month's interest, so the debt provably never clears on minimums.
+
+    @Test fun payoffBeforeTheCap() {
+        // $1,000 at 0% on $100/mo clears in 10 months — well inside the cap.
+        val r = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        assertEquals(10, r.cards[0].paidOffMonth)
+        assertEquals(0.0, r.cards[0].endBalance, 1e-6)
+        assertFalse(r.cards[0].nonAmortizing)
+    }
+
+    @Test fun payoffExactlyAtTheCap() {
+        // $3,600 at 0% on $10/mo clears in exactly month 360 — the cap is
+        // reached, not exceeded, so it is a completed outcome.
+        val r = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 3600.0, minPayment = 10.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        assertEquals(360, r.cards[0].paidOffMonth)
+        assertEquals(0.0, r.cards[0].endBalance, 1e-6)
+        assertFalse(r.cards[0].nonAmortizing)
+    }
+
+    @Test fun payoffJustPastTheCap() {
+        // $3,700 at 0% on $10/mo needs 370 months — the projection stops at
+        // 360 with $100 left, still declining. Incomplete, not impossible.
+        val r = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 3700.0, minPayment = 10.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val c = r.cards[0]
+        assertNull(c.paidOffMonth)
+        assertEquals(100.0, c.endBalance, 1e-6)
+        assertFalse(c.nonAmortizing)
+    }
+
+    @Test fun tenThousandAtZeroAprIsNotImpossible() {
+        // $10,000 at 0% on $25/mo needs 400 months: capped at 360 with
+        // $1,000 remaining — a slow payoff, not a debt that never clears.
+        val r = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 10000.0, minPayment = 25.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val c = r.cards[0]
+        assertEquals(360, r.months)
+        assertNull(c.paidOffMonth)
+        assertEquals(1000.0, c.endBalance, 1e-6)
+        assertFalse(c.nonAmortizing)
+    }
+
+    @Test fun genuinelyNonAmortizingBalance() {
+        // $10,000 at 24% accrues ~$200/mo; a $100 minimum can never keep up.
+        // Only this case earns "minimums never clear this debt".
+        val r = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 10000.0, minPayment = 100.0, regularAPR = 24.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val c = r.cards[0]
+        assertEquals(360, r.months)
+        assertNull(c.paidOffMonth)
+        assertTrue(c.endBalance > c.origBalance)
+        assertTrue(c.nonAmortizing)
+    }
 }
 
 class BudgetRulesTest {

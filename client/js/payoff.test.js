@@ -138,6 +138,62 @@ describe('payoff — runPayoffSim', () => {
 
     expect(withPromo.totalInterest).toBeLessThan(noPromo.totalInterest);
   });
+
+  // ── 360-month cap semantics ──────────────────────────────────────
+  // paidOffMonth === null means the *projection* stopped, nothing more.
+  // `nonAmortizing` is the stronger claim: the minimum cannot cover a
+  // month's interest, so the debt provably never clears on minimums.
+
+  it('clears before the cap — completed outcome', () => {
+    setCards([{ id: 'A', name: 'A', balance: 1000, minPayment: 100, regularAPR: 0 }]);
+    const c = runPayoffSim('none', 0).cards[0];
+    expect(c.paidOffMonth).toBe(10);
+    expect(c.endBalance).toBe(0);
+    expect(c.nonAmortizing).toBe(false);
+  });
+
+  it('clears exactly at the cap — completed outcome', () => {
+    // $3,600 at 0% on $10/mo pays off in exactly month 360.
+    setCards([{ id: 'A', name: 'A', balance: 3600, minPayment: 10, regularAPR: 0 }]);
+    const c = runPayoffSim('none', 0).cards[0];
+    expect(c.paidOffMonth).toBe(360);
+    expect(c.endBalance).toBe(0);
+    expect(c.nonAmortizing).toBe(false);
+  });
+
+  it('runs just past the cap — incomplete, not impossible', () => {
+    // $3,700 at 0% on $10/mo needs 370 months; the projection stops at 360
+    // with $100 left and the balance still declining.
+    setCards([{ id: 'A', name: 'A', balance: 3700, minPayment: 10, regularAPR: 0 }]);
+    const r = runPayoffSim('none', 0);
+    const c = r.cards[0];
+    expect(r.months).toBe(360);
+    expect(c.paidOffMonth).toBeNull();
+    expect(c.endBalance).toBeCloseTo(100, 6);
+    expect(c.nonAmortizing).toBe(false);
+  });
+
+  it('$10,000 at 0% on $25/mo is a slow payoff, not an impossible one', () => {
+    // 400 months needed; the cap leaves $1,000 unpaid — not "never clears".
+    setCards([{ id: 'A', name: 'A', balance: 10000, minPayment: 25, regularAPR: 0 }]);
+    const r = runPayoffSim('none', 0);
+    const c = r.cards[0];
+    expect(r.months).toBe(360);
+    expect(c.paidOffMonth).toBeNull();
+    expect(c.endBalance).toBeCloseTo(1000, 6);
+    expect(c.nonAmortizing).toBe(false);
+  });
+
+  it('marks a genuinely non-amortizing balance as never clearing', () => {
+    // $10,000 at 24% accrues ~$200/mo; a $100 minimum can never keep up.
+    setCards([{ id: 'A', name: 'A', balance: 10000, minPayment: 100, regularAPR: 24 }]);
+    const r = runPayoffSim('none', 0);
+    const c = r.cards[0];
+    expect(r.months).toBe(360);
+    expect(c.paidOffMonth).toBeNull();
+    expect(c.endBalance).toBeGreaterThan(c.origBalance);
+    expect(c.nonAmortizing).toBe(true);
+  });
 });
 
 describe('payoff — renderPayoff', () => {

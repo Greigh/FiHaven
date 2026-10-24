@@ -12,6 +12,15 @@ public struct PayoffCardResult: Equatable, Sendable, Identifiable {
     public var origBalance: Double
     public var paidOffMonth: Int?
     public var interestPaid: Double
+    /// Balance left when the projection stopped — nonzero only for cards
+    /// that hit the 360-month cap unpaid.
+    public var endBalance: Double
+    /// True only when the minimum payment cannot cover a month's interest
+    /// at the balance the projection stopped at, outside any promo window —
+    /// minimums provably never clear it. A card that is still declining when
+    /// the projection runs out of months is incomplete, not impossible:
+    /// "$10,000 at 0% on $25/mo" needs 400 months, but it clears.
+    public var nonAmortizing: Bool
 }
 
 public struct PayoffResult: Equatable, Sendable {
@@ -42,6 +51,10 @@ public enum Payoff {
         var paidOffMonth: Int?
         var interestPaid: Double
         var housing: Bool
+        /// Whether the card sat inside its promo window in the most recent
+        /// month simulated — at the cap, promo interest suppression is what
+        /// keeps a small minimum ahead of a large balance.
+        var inPromoNow: Bool = false
     }
 
     /// Mortgage / home-equity style loans — PMI & escrow make sims approximate.
@@ -113,6 +126,7 @@ public enum Payoff {
                 guard sim[i].balance > 0.01 else { continue }
                 let inPromo = sim[i].hasPromo
                     && (sim[i].promoEnd.map { $0 >= targetDate } ?? false)
+                sim[i].inPromoNow = inPromo
                 if !inPromo && sim[i].monthlyRate > 0 {
                     let interest = sim[i].balance * sim[i].monthlyRate
                     sim[i].interestPaid += interest
@@ -161,13 +175,22 @@ public enum Payoff {
         return PayoffResult(
             months: month,
             totalInterest: (totalInterest * 100).rounded() / 100,
-            cards: sim.map {
+            cards: sim.map { c in
                 PayoffCardResult(
-                    id: $0.id,
-                    name: $0.name,
-                    origBalance: $0.origBalance,
-                    paidOffMonth: $0.paidOffMonth,
-                    interestPaid: $0.interestPaid
+                    id: c.id,
+                    name: c.name,
+                    origBalance: c.origBalance,
+                    paidOffMonth: c.paidOffMonth,
+                    interestPaid: c.interestPaid,
+                    endBalance: c.balance,
+                    // Non-amortizing: the month's interest outruns the minimum,
+                    // so the balance can never decline. A promo still running
+                    // at the cap keeps even a tiny payment ahead, and a balance
+                    // that fell this month would eventually reach zero — both
+                    // are "ran out of projection", not "never clears".
+                    nonAmortizing: c.paidOffMonth == nil
+                        && !c.inPromoNow
+                        && c.minPayment <= c.balance * c.monthlyRate
                 )
             },
             payoffDate: DateLogic.dateForDay(1, year: baseYear, month: baseMonth + month, cal: cal)
