@@ -109,6 +109,7 @@ function buildSampleData() {
         { id: 'src-sample-2', label: 'Side consulting', amount: 400, frequency: 'monthly' },
       ],
       income: 4906.67,
+      budgetRule: '50-30-20',
       timezone: 'America/New_York',
       theme: 'light',
       paidGoalPolicy: 'recommended',

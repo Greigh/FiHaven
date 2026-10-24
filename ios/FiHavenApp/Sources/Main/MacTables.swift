@@ -2786,7 +2786,10 @@ struct MacGoalsTable: View {
                     .foregroundStyle(item.goal.name.isEmpty ? Theme.muted : Theme.text)
                     .lineLimit(1)
             }
-            .width(min: 130, ideal: 220)
+            // The narrow tier — the Budget side column — is 320pt, and three
+            // columns of intercell padding sit on top of these minimums. Mins
+            // that sum past ~270 draw a horizontal scrollbar under the table.
+            .width(min: 96, ideal: 220)
 
             // On the ratio itself, not on the target it happens to be measured
             // against: sorting a progress column by "biggest goal" is a
@@ -2794,14 +2797,14 @@ struct MacGoalsTable: View {
             TableColumn("Progress", value: \.goal.progress) { item in
                 goalProgress(item.goal)
             }
-            .width(min: 80, ideal: 120)
+            .width(min: 64, ideal: 120)
 
             TableColumn("Saved", value: \.goal.saved) { item in
                 Text(Money.fmt(item.goal.saved))
                     .font(Theme.mono(13, weight: .semibold))
                     .monospacedDigit()
             }
-            .width(min: 80, ideal: 110)
+            .width(min: 72, ideal: 110)
 
             if tier != .narrow {
                 TableColumn("Target", value: \.goal.target) { item in
