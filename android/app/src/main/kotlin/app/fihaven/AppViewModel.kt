@@ -534,10 +534,6 @@ class AppViewModel(
         // switch, debug autologin) must tear the old account down first:
         // its saveJob retry loop would otherwise keep running under the new
         // token and PUT the old account's snapshot over the new one's data.
-        // Signing straight over a still-live session (re-auth, account
-        // switch, debug autologin) must tear the old account down first:
-        // its saveJob retry loop would otherwise keep running under the new
-        // token and PUT the old account's snapshot over the new one's data.
         val prev = (_session.value as? Session.SignedIn)?.user
         if (prev != null && !prev.email.equals(user.email, ignoreCase = true)) {
             endSession()
@@ -577,9 +573,19 @@ class AppViewModel(
     private suspend fun loadData() {
         _dataLoaded.value = false
         _dataError.value = null
+        // The epoch this load belongs to. A slow `api/data` can outlive the
+        // session that asked for it — sign-in as B while A's GET is still in
+        // flight, then A's response arrives last. Applying it would put A's
+        // bills in memory under B's session (and the next save would write
+        // them to B's blob), so a response that arrives for a superseded
+        // epoch or a different account is dropped.
+        val epoch = sessionEpoch
         try {
             val fetched = api.fetchData()
             val owner = fetched.email.orEmpty()
+            if (epoch != sessionEpoch ||
+                !owner.equals(currentUser?.email.orEmpty(), ignoreCase = true)
+            ) return
             dataOwner = owner
 
             // Edits this device made but never got onto the server are newer
@@ -613,8 +619,10 @@ class AppViewModel(
             checkPresetUpdates()
             syncBanks()
         } catch (e: ApiError) {
+            if (epoch != sessionEpoch) return
             if (!restoreFromCache()) _dataError.value = e.userMessage
         } catch (e: Exception) {
+            if (epoch != sessionEpoch) return
             if (!restoreFromCache()) _dataError.value = e.message ?: "Couldn't load your data."
         }
     }

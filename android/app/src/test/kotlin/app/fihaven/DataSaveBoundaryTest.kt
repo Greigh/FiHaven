@@ -86,6 +86,7 @@ class DataSaveBoundaryTest {
     /** email → the JSON blob `GET /api/data` returns for that account. */
     private val blobs = mutableMapOf<String, String>()
     private val putStatus = AtomicInteger(200)
+    private val putDelayMs = AtomicLong(0)
     private val dataGetStatus = AtomicInteger(200)
     private val dataGetDelayMs = AtomicLong(0)
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -123,9 +124,15 @@ class DataSaveBoundaryTest {
                 }
                 path == "api/data" && ex.requestMethod == "PUT" -> {
                     val reqBody = ex.requestBody.readBytes().decodeToString()
+                    val delay = putDelayMs.get()
+                    if (delay > 0) Thread.sleep(delay)
                     puts += RecordedPut(token, reqBody)
                     code = putStatus.get()
                     body = if (code in 200..299) """{"ok":true}""" else """{"error":"unavailable"}"""
+                    // A real server stores what a successful PUT carried —
+                    // recording it lets the tests assert on the blob that
+                    // would exist afterward, not just on traffic seen.
+                    if (code in 200..299) blobs[email] = reqBody
                 }
                 else -> { code = 404; body = """{"error":"not found"}""" }
             }
@@ -146,6 +153,7 @@ class DataSaveBoundaryTest {
     @AfterEach
     fun tearDown() {
         server.stop(0)
+        cacheDir.deleteRecursively()
         Dispatchers.resetMain()
     }
 
@@ -185,10 +193,115 @@ class DataSaveBoundaryTest {
         val bad = puts.filter { it.token == "tok-b@x" }
             .filter { it.body.contains("Account-A-Bill") || it.body.contains("A-Edit") }
         assertTrue(bad.isEmpty(), "A's queued save wrote under B's token: $bad")
+        // The stored blob is the proof that matters: B's record must still be
+        // there with its own ID — an unexpected empty or foreign replacement
+        // fails even when no PUT above carried an obvious marker.
+        assertTrue(
+            blobs["b@x"]!!.contains("\"id\":\"b-Rent-Marker\""),
+            "B's stored record was replaced: ${blobs["b@x"]}",
+        )
         // And B's own data must be intact once loaded.
         assertTrue(
             vm.data.value.bills.any { it.name == "Rent-Marker" },
             "B's seeded data never loaded",
+        )
+    }
+
+    @Test
+    fun `a late data-load response for a superseded session is dropped`() {
+        // A's GET is delayed past B's whole sign-in. Without the epoch check
+        // the arriving response would install A's bills under B's session —
+        // and the next save would write them into B's blob.
+        blobs["a@x"] = blobWith("a@x", "Late-A-Bill")
+        blobs["b@x"] = blobWith("b@x", "B-Owns-This")
+
+        dataGetDelayMs.set(6000) // A's load lands after B has signed in
+        vm.devAutoLogin("a@x", "pw")
+        Thread.sleep(300) // let A's request actually leave
+        dataGetDelayMs.set(0)
+        vm.devAutoLogin("b@x", "pw")
+        settle(8000)
+
+        assertTrue(
+            vm.data.value.bills.none { it.name == "Late-A-Bill" },
+            "A's late load stomped B's session data",
+        )
+        assertTrue(
+            vm.data.value.bills.any { it.name == "B-Owns-This" },
+            "B's data never loaded after A's stale response",
+        )
+        assertTrue(
+            blobs["b@x"]!!.contains("B-Owns-This"),
+            "B's blob was overwritten by stale data: ${blobs["b@x"]}",
+        )
+    }
+
+    @Test
+    fun `a save response arriving after logout cannot write again`() {
+        // PUT takes 2.5s; logout lands mid-flight. The job must not schedule
+        // another attempt, and the post-logout state must not produce writes.
+        blobs["e2@x"] = blobWith("e2@x", "InFlight")
+        putDelayMs.set(2500)
+        vm.devAutoLogin("e2@x", "pw")
+        settle()
+        vm.mutate { it.copy(bills = it.bills + Bill(id = "i1", name = "In-Flight-Edit")) }
+        Thread.sleep(400) // the save attempt is now inside the delayed PUT
+
+        vm.logout()
+        settle()
+        val after = puts.count { it.token == "tok-e2@x" }
+        assertTrue(after <= 1, "save retried after logout: ${puts.filter { it.token == "tok-e2@x" }}")
+    }
+
+    @Test
+    fun `a newer edit during an in-flight save keeps its pending flag`() {
+        // PUT 1 leaves with snapshot S1; edit 2 lands on disk while PUT 1 is
+        // in flight; PUT 1's success must not mark S2 synced — the server
+        // never saw it.
+        blobs["m@x"] = blobWith("m@x", "Base")
+        putDelayMs.set(2500)
+        vm.devAutoLogin("m@x", "pw")
+        settle()
+        vm.mutate { it.copy(bills = it.bills + Bill(id = "n1", name = "First-Save")) }
+        Thread.sleep(400) // PUT 1 is inside the delayed request now
+
+        vm.mutate { it.copy(bills = it.bills + Bill(id = "n2", name = "Second-Edit")) }
+        settle(8000)
+
+        assertTrue(
+            puts.any { it.token == "tok-m@x" && it.body.contains("Second-Edit") },
+            "the newer edit was marked synced and never retried: $puts",
+        )
+        assertTrue(
+            blobs["m@x"]!!.contains("Second-Edit"),
+            "server blob missing the newer edit: ${blobs["m@x"]}",
+        )
+    }
+
+    @Test
+    fun `same-account reauthentication still pushes the pending offline edit`() {
+        // Same email signing in again is not an account switch — the pending
+        // write in the cache belongs to this account and must be replayed.
+        blobs["r@x"] = blobWith("r@x", "Server-Copy")
+        vm.devAutoLogin("r@x", "pw")
+        settle()
+        putStatus.set(503)
+        vm.mutate { it.copy(bills = it.bills + Bill(id = "r1", name = "Offline-Edit")) }
+        settle(1500) // save failed; cache holds pendingWrite for r@x
+
+        // Re-auth as the same account — the session must continue, not tear
+        // down, and the pending write must still reach the server.
+        putStatus.set(200)
+        vm.devAutoLogin("r@x", "pw")
+        settle()
+
+        assertTrue(
+            puts.any { it.token == "tok-r@x" && it.body.contains("Offline-Edit") },
+            "pending edit lost across same-account re-auth: $puts",
+        )
+        assertTrue(
+            blobs["r@x"]!!.contains("Offline-Edit"),
+            "server never received the replayed edit: ${blobs["r@x"]}",
         )
     }
 
