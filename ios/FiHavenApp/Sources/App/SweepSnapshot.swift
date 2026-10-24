@@ -1,7 +1,7 @@
 import Foundation
+import SwiftUI
 
 #if DEBUG
-import SwiftUI
 import FiHavenCore
 #if canImport(UIKit)
 import UIKit
