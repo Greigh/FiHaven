@@ -1196,12 +1196,14 @@ sweep_main() {
     local png="$OUT_DIR/$stem.png"
     local log="$OUT_DIR/$stem.log"
     printf 'run-macos: [%2d/%2d] %-19s %-8s → %s.png\n' "$idx" "$total" "$title" "$p_state" "$stem"
-    # Presentations get two extra seconds over a screen cell: the shell has
-    # to sign in and load before the hook's poll finds its fixture.
-    "$SELF" --no-build --seconds "$((SWEEP_DELAY + 10))" \
+    # The snapshot is in-app on a fixed delay, so it has to land after the
+    # hook mounts the sheet — sign-in + load + the hook's poll take ~9s on
+    # top of nothing. Half the SWEEP_DELAY on top of that is the empirical
+    # margin; the app lives 4s past it so the write can finish.
+    "$SELF" --no-build --seconds "$((SWEEP_DELAY + 14))" \
       ${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"} \
       $state_env \
-      "FH_PRESENT=$spec" "FH_SNAPSHOT=$png" "FH_SNAPSHOT_DELAY=$SWEEP_DELAY" \
+      "FH_PRESENT=$spec" "FH_SNAPSHOT=$png" "FH_SNAPSHOT_DELAY=$((SWEEP_DELAY + 10))" \
       "FH_WINDOW=$SWEEP_SIZE" "FH_AUTOLOGIN=1" >"$log" 2>&1 || true
     # The hook's own line is the evidence: `[Present] showing <spec>` means
     # the sheet mounted; its absence means the capture photographed the
