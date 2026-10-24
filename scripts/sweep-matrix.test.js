@@ -12,7 +12,13 @@ const iosSource = fs.readFileSync(path.join(SCRIPTS, 'run-ios.sh'), 'utf8');
 
 /** Run a snippet of bash with the shared matrix sourced, and hand back its output. */
 const inBash = (snippet, env = {}) => {
-  const r = spawnSync('bash', ['-c', `. "${path.join(SCRIPTS, 'sweep-matrix.sh')}"\n${snippet}`], {
+  // The script path goes in as $0, not into the command string — a checkout
+  // path with spaces or shell metacharacters must never reach `bash -c` as
+  // syntax (CodeQL js/shell-command-injection-from-environment).
+  const r = spawnSync('bash', [
+    '-c', '. "$0"\n' + snippet,
+    path.join(SCRIPTS, 'sweep-matrix.sh'),
+  ], {
     encoding: 'utf8',
     env: { ...process.env, ...env },
   });
