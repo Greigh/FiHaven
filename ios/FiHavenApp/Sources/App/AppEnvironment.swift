@@ -94,10 +94,15 @@ final class AppEnvironment: ObservableObject {
     /// and no rebuild. Otherwise DEBUG uses the local server, release uses
     /// production. Mirrors the FH_BASE knob in FiHavenCoreChecks.
     private static func resolveConfig() -> APIConfig {
+        #if DEBUG
+        // A release build must not follow an environment-set endpoint: on
+        // macOS a direct `FH_BASE=… ./FiHaven` launch would redirect every
+        // API call. The knob exists for schemes and sweeps, which are Debug.
         if let raw = ProcessInfo.processInfo.environment["FH_BASE"],
            !raw.isEmpty, let url = URL(string: raw) {
             return APIConfig(baseURL: url)
         }
+        #endif
         #if DEBUG
         #if targetEnvironment(simulator)
         // Simulator can talk to localhost
