@@ -303,8 +303,11 @@ class DataSaveBoundaryTest {
         settle(1500) // save failed; cache holds pendingWrite for r@x
 
         // Re-auth as the same account — the session must continue, not tear
-        // down, and the pending write must still reach the server.
+        // down, and the pending write must still reach the server. puts is
+        // cleared first: the failed 503 attempts already recorded would
+        // satisfy the poll before the replayed write lands.
         putStatus.set(200)
+        puts.clear()
         vm.devAutoLogin("r@x", "pw")
         waitForPut("tok-r@x", "Offline-Edit")
 
