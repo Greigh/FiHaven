@@ -44,5 +44,6 @@ struct EditPaymentView: View {
                 if let d = DateLogic.parseDate(payment.date, tz: store.tz) { date = d }
             }
         }
+        .ctEditorSheetWidth()
     }
 }

@@ -665,3 +665,23 @@ describe('the per-state line the table prints', () => {
     expect(out).toMatch(/happy\s+16\/17 captured, 2 flagged\s+a Pro subscriber with data/);
   });
 });
+
+describe('the sweep entry points', () => {
+  it('run-ios.sh does not call main as a bare trailing word', () => {
+    // Bash reads a script incrementally; a bare `main` at EOF starts before
+    // the parser has finished the file, so an edit that lands while a sweep
+    // runs corrupts the read position — the observed failure was
+    // "line N: syntax error near unexpected token `fi'" printed after the
+    // summary, with `bash -n` clean. The brace group forces the whole file
+    // to parse before anything executes.
+    const tail = iosSource.trimEnd().split('\n').pop();
+    expect(tail).toBe('{ main; exit $?; }');
+  });
+
+  it('every runner parses cleanly', () => {
+    for (const s of ['run-ios.sh', 'run-macos.sh', 'run-android.sh', 'sweep-matrix.sh']) {
+      const r = spawnSync('bash', ['-n', path.join(SCRIPTS, s)], { encoding: 'utf8' });
+      expect(r.status, `${s}: ${r.stderr}`).toBe(0);
+    }
+  });
+});

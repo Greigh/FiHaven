@@ -197,6 +197,7 @@ struct IncomeEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func save() {
@@ -267,6 +268,7 @@ struct IncomeAdjustmentEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func save() {

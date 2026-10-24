@@ -183,7 +183,15 @@ fun DataErrorScreen(message: String, onRetry: () -> Unit, onLogout: () -> Unit) 
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 20.dp),
         )
-        Text(message, color = Ct.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            // The heading already says "Couldn't load your data" — a failure
+            // message of the same words reads as a rendering bug, so fall back
+            // to guidance instead of repeating the title.
+            if (message.startsWith("Couldn't load")) "Check your connection and try again." else message,
+            color = Ct.colors.muted,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),

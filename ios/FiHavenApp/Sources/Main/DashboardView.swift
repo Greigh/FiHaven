@@ -390,6 +390,7 @@ private struct RolloverReviewView: View {
             .onAppear(perform: seed)
             .sheet(item: $editingBill, onDismiss: reseedEdited) { bill in BillEditorView(bill: bill) }
         }
+        .ctEditorSheetWidth()
     }
 
     // String binding on the amount: a blank field must stay blank so an

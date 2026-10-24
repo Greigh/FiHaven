@@ -300,6 +300,7 @@ struct CardEditorView: View {
             .onAppear(perform: load)
             .task { await loadBankAccounts() }
         }
+        .ctEditorSheetWidth()
     }
 
     // Auto-fill name/issuer/network (without clobbering non-empty fields) and

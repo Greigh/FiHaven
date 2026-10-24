@@ -277,6 +277,7 @@ struct GoalEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func amountRow(_ label: String, _ value: Binding<Double>) -> some View {
@@ -373,6 +374,7 @@ struct TransactionEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     /// Parse a "YYYY-MM-DD" day string to a Date (local noon avoids TZ drift).
@@ -409,5 +411,6 @@ struct CategoryBudgetsView: View {
             .navigationTitle("Category budgets").ctInlineTitle()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .ctEditorSheetWidth()
     }
 }

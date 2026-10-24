@@ -159,6 +159,12 @@ struct PaywallView: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 }
         }
+        // A Mac sheet sizes to the ScrollView's ideal — 470x480 — which put
+        // the plan cards and subscribe CTA below the fold. Buyers should not
+        // have to scroll to find the price.
+        #if !canImport(UIKit)
+        .frame(minWidth: 540, idealWidth: 560, minHeight: 720, idealHeight: 760)
+        #endif
     }
 }
 

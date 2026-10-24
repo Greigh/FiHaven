@@ -106,6 +106,7 @@ struct BillEditorView: View {
             }
             .onAppear(perform: load)
         }
+        .ctEditorSheetWidth()
     }
 
     private func load() {

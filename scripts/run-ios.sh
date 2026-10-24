@@ -959,4 +959,10 @@ single_run() {
   fi
 }
 
-main
+# `main` inside a brace group, not as the script's last bare word. Bash reads
+# a script incrementally, and a bare trailing call can start running before
+# the parser has consumed the whole file — an edit that lands mid-sweep then
+# corrupts the read position and reports a nonsense error like
+# "line 943: syntax error near unexpected token `fi'" at EOF. The `}` closes
+# the compound command, so nothing runs until the last byte is parsed.
+{ main; exit $?; }

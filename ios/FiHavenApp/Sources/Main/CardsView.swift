@@ -343,6 +343,7 @@ struct CardsView: View {
                     }
                 }
             }
+            .ctEditorSheetWidth()
             .ctDetents([.medium])
         }
     }
@@ -629,6 +630,7 @@ struct AccountEditorView: View {
             }
             .task { await loadBankAccounts() }
         }
+        .ctEditorSheetWidth()
     }
 
     /// Depository/investment accounts across every linked bank — the mirror of

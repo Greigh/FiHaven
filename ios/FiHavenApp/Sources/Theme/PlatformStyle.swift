@@ -122,6 +122,27 @@ extension View {
         lineLimit(1).minimumScaleFactor(0.6)
     }
 
+    /// Minimum width and grouped form style for a Mac editor/settings sheet.
+    ///
+    /// Two things went wrong in a Mac sheet, both visible in the same capture:
+    /// the sheet sized to the `Form`'s ideal width without the label column
+    /// (~470pt) and clipped every row label at the leading edge ("Amount" →
+    /// "ount"), and `.columns` — the platform default for a sheet — splits the
+    /// form 50/50, so the right-aligned labels floated in a half-width column
+    /// that read as a dead margin. `.grouped` renders the same stacked,
+    /// inset-grouped layout iOS gets: labels above their fields, no clipping,
+    /// and the width minimum keeps the sheet from sizing under the content.
+    /// No-op on iOS, where a sheet is display-width and `Form` is grouped
+    /// already.
+    func ctEditorSheetWidth() -> some View {
+        #if canImport(UIKit)
+        self
+        #else
+        formStyle(.grouped)
+            .frame(minWidth: 460, idealWidth: 500)
+        #endif
+    }
+
     /// Sheet detents are a touch affordance; a Mac sheet sizes to its content.
     func ctDetents(_ detents: [CTSheetDetent]) -> some View {
         #if canImport(UIKit)

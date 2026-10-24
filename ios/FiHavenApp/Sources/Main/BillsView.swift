@@ -272,6 +272,7 @@ struct BillsView: View {
                     }
                 }
             }
+            .ctEditorSheetWidth()
             .ctDetents([.medium])
         }
     }
