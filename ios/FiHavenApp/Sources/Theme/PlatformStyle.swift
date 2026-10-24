@@ -116,6 +116,20 @@ extension View {
         #endif
     }
 
+    /// The Mac-side readable cap for a pushed pane: `ctReadableList` is a
+    /// no-op on macOS because the Mac manages its own pane widths — and
+    /// until the About/Settings redesigns nothing did, so every pushed
+    /// settings screen sprawled edge to edge. Apply ahead of
+    /// `.background(Theme.bg…)` so the page fill still paints the margins.
+    /// A no-op on iOS, where `ctReadableList` already answers.
+    func ctReadablePane(_ maxWidth: CGFloat = 640) -> some View {
+        #if canImport(UIKit)
+        self
+        #else
+        frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+        #endif
+    }
+
     /// One line for a money figure: a wrapped amount reads as a broken
     /// number ("$450.0\n0") — at larger text sizes it shrinks instead.
     func ctAmountLine() -> some View {

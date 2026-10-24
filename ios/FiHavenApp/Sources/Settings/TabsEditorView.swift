@@ -29,6 +29,7 @@ struct TabsEditorView: View {
         .ctAlwaysEditing()
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadablePane()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Tabs")
         .onAppear(perform: load)
