@@ -61,9 +61,9 @@ bank-link. Real tap-throughs also performed during interactive sessions.
 | F3 | Android sweep cells raced cold-start on SwiftShader — solid-splash captures | `am start -W` + splash-retry in runner | rerun in progress |
 | F4 | Android restored stale session when account differed — empty-state cells photographed the wrong user | `devAutoLogin` re-signs when a signed-in session's email ≠ requested | rerun in progress |
 | F5 | Android debug was pinned to `https://fihaven.app` — could not audit against local fixture server | `FH_API_BASE` gradle property (debug only) + cleartext-to-10.0.2.2 network config | live data renders |
-| F6 | `DataErrorScreen` duplicated its message under the heading | (noted for design pass — copy duplication is a cosmetic finding) | captured |
-| F7 | **HIGH — reproduced:** dev account blob regressed to empty mid-sweep twice (~00:39 and again during the Android2 rerun). Android sign-in → raced/failed `loadData()` → a save PUTs an empty `AppData` over server data. `AppViewModel.kt:461` documents this exact race — a guard exists but a path still bypasses it. iOS likely shares the hazard class (blob shrank during the iPhone sweep too) | unfixed — real data-loss risk; needs a load-confirmed gate before any save, or a server-side empty-blob-reject | reproduced 2×; every Android `happy` cell after the wipe renders the empty UI instead |
-| F8 | `run-ios.sh` tail: benign post-sweep dispatch wart (`fi`/scope errors after table prints); `bash -n` clean | cosmetic harness wart | output intact |
+| F6 | `DataErrorScreen` duplicated its message under the heading — the fallback `e.message` repeated the title verbatim | fallback now shows guidance when the message restates the heading | **fixed** (26041bf) |
+| F7 | **HIGH — fixed.** Save boundary never checked WHICH session owned the data: sign-in over a live session left the old `saveJob`/retry PUTing the previous account's (empty) `_data` under the new token; a raced initial load could also PUT placeholder data. Both Android (`AppViewModel`, session epoch + loaded-gate) and iOS (`AppStore` same-owner push + `enterSignedIn` store teardown) shipped the fix; `markSynced` no longer stamps newer edits synced. `DataSaveBoundaryTest` — 6 deterministic cases, all pass; reverting the boundary fails the cross-account case by design. Runtime-verified: populated blob (5768B) survives the sign-in path that wiped it 2× before | **fixed** (26041bf); prior `happy`-state Android captures compromised by the wipe are INVALID |
+| F8 | `run-ios.sh` EOF dispatch wart: bare trailing `main` let bash run before parsing the file — a mid-sweep edit corrupted the read position (`syntax error near unexpected token 'fi'` at line 943, after a clean run) | entry wrapped in `{ main; exit $?; }` so the whole file parses first; regression test pins the dispatch form | **fixed** (26041bf) |
 
 ## Platform verification
 
@@ -88,7 +88,7 @@ bank-link. Real tap-throughs also performed during interactive sessions.
 
 | F9 | macOS sheet captures: `cacheDisplay` renders the window's own backing store — attached sheets never appear (whole first presentation run photographed the shell) | capture the `attachedSheet`'s contentView when one is up; verify with `screencapture -l<wid>` | real capture confirms sheets present and populated |
 | F10 | `cacheDisplay` misses AppKit-bridged controls (pop-up buttons, steppers, bordered buttons render as blank boxes in sheet PNGs) — capture artifact, verified NOT an app defect via `screencapture` | inherent to the sandbox-free path; note on sheet captures | discrimination capture: `/tmp/fh-win2.png` |
-| F11 | Transaction/bill editor sheet on macOS clips its label column at the left edge ("Amount" → "ount") — sheet narrower than the form's minimum | unfixed — low severity, labels still legible from field context | `/tmp/fh-win2.png` |
+| F11 | macOS editor sheets sized to `Form`'s columns ideal (~470pt): labels clipped at the leading edge, and the 50/50 label column read as dead space; the paywall sheet sized to the ScrollView ideal (470x480) and hid plans + CTA below the fold | `.ctEditorSheetWidth()` (grouped form style + 460/500pt width floor) on every editor/settings sheet; paywall gets a 540x720 min | **fixed** (26041bf) — real captures: `/tmp/fh-f11c-sheet.png`, `/tmp/fh-pw2.png` |
 
 ## Unverified / blocked
 
@@ -98,4 +98,5 @@ bank-link. Real tap-throughs also performed during interactive sessions.
 - TalkBack/VoiceOver end-to-end passes not yet run; larger-text and
   reduced-motion configurations pending.
 - Android tablet form factor — pending emulator provisioning.
-- Data-loss race (F7) unreproduced on demand.
+- Duo (foldable) inner/cover postures — not yet captured; blocked on a foldable emulator profile.
+- F7 is now deterministically reproduced in unit tests and fixed at runtime; entries above referring to it as unreproduced/unfixed are superseded.
