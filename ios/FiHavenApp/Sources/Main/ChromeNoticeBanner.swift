@@ -8,6 +8,7 @@ import SwiftUI
 /// the app is still doing correctly while the user should know about it — so
 /// the shape is written once here rather than twice in two files.
 struct ChromeNoticeBanner: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let icon: String
     let tint: Color
     let message: String
@@ -66,7 +67,7 @@ struct ChromeNoticeBanner: View {
         // under the titlebar. It was not the cause of the sizing fight measured
         // in `MacShellView` (a plain `Text` sibling reproduced it identically)
         // — with the column's ideal clamped there is nothing left to fight.
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel ?? [message, detail].compactMap { $0 }.joined(separator: ". "))
     }
@@ -124,6 +125,6 @@ struct SessionNotSavedBanner: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: env.sessionSaveNotice)
+        .animationIfAllowed(.easeInOut(duration: 0.2), value: env.sessionSaveNotice)
     }
 }

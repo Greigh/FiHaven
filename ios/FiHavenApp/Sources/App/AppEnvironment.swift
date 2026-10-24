@@ -2,6 +2,11 @@ import Foundation
 import Security
 import SwiftUI
 import FiHavenCore
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Top-level auth/session state.
 enum SessionState {
@@ -117,6 +122,11 @@ final class AppEnvironment: ObservableObject {
 
     func bootstrap() async {
         fhLog("[AppEnvironment] bootstrap() begin")
+        #if canImport(UIKit)
+        fhLog("[A11y] reduceMotion=\(UIAccessibility.isReduceMotionEnabled)")
+        #elseif canImport(AppKit)
+        fhLog("[A11y] reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)")
+        #endif
         #if DEBUG
         // FH_SIGNED_OUT=1 keeps a session an earlier sweep cell left in the
         // keychain from putting the signed-in shell back on screen. It must

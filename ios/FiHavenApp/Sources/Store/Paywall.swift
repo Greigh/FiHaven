@@ -174,6 +174,7 @@ struct PaywallView: View {
 /// only added a tap.
 struct PaywallContent: View {
     @EnvironmentObject var billing: StoreManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The plan the CTA will buy. Nil means "nothing tapped yet", which resolves
     /// to `defaultProduct` (yearly) — so the preselection survives products
@@ -272,7 +273,7 @@ struct PaywallContent: View {
                 ForEach(morePerks, id: \.1) { perk in perkRow(perk) }
             }
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { showAllPerks.toggle() }
+                performWithAnimation(!reduceMotion, .easeInOut(duration: 0.18)) { showAllPerks.toggle() }
             } label: {
                 HStack(spacing: 4) {
                     Text(showAllPerks ? "Show less" : "See everything in Pro")

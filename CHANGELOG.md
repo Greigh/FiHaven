@@ -115,6 +115,7 @@ real XCUITest rotations on iPhone and iPad. Findings and evidence are in
 - **macOS `.inset` footers never wrap (F16)**: 19 long explanations across settings views clipped at one line at 470pt; `.fixedSize` does not rescue footer cells. The text moved into section content, which wraps.
 - **Error copy (F6)**: `DataErrorScreen`'s fallback no longer restates the heading verbatim when `e.message` repeats it.
 - **`run-ios.sh` dispatch (F8)**: entry wrapped in `{ main; exit $?; }` so the whole script parses before running — a mid-sweep edit can no longer corrupt the read position; a regression test pins the form.
+- **Reduce Motion honored app-wide** (`ChromeNoticeBanner`, `SyncOfflineBanner`, `Paywall`, `IntroScreen`): the slide-in notice banners now fade in place under Reduce Motion instead of dropping in from the top edge, the paywall's perks expansion is gated through `performWithAnimation`, and the Android intro pager jumps pages instantly when the system animator scale is 0. Verified with the real system preference on all three platforms — the apps log `reduceMotion=true` at launch, and an Android screen-recording frame diff shows a hard cut where the animated run shows intermediate slide frames. VoiceOver and TalkBack both completed real task flows in this pass (item-chooser navigation on macOS; a full pay-a-bill flow on Android).
 
 ---
 

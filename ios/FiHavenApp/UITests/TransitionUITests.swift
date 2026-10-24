@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// Real system transitions, not forced viewports.
 ///
@@ -31,7 +32,7 @@ final class TransitionUITests: XCTestCase {
         for key in ["FH_BASE", "FH_DEV_EMAIL", "FH_DEV_PASSWORD",
                     "FH_DEV_ENTITLEMENT", "FH_AUTOLOGIN", "FH_SIGNED_OUT",
                     "FH_INTRO_SEEN", "FH_TURNSTILE_SITEKEY", "FH_SKIP_STOREKIT",
-                    "FH_ROUTE", "FH_SCREEN", "FH_TAB"] {
+                    "FH_ROUTE", "FH_SCREEN", "FH_TAB", "FH_PRESENT"] {
             if let v = env[key] { out[key] = v }
         }
         for (k, v) in extra { out[k] = v }
@@ -120,6 +121,43 @@ final class TransitionUITests: XCTestCase {
         XCTAssertTrue(next.waitForExistence(timeout: 8))
         XCTAssertTrue(next.isHittable, "Next not hittable after returning to portrait")
         attach("intro-portrait-return", of: app)
+    }
+
+    /// Reduce Motion: the app's own read of the system pref, plus a real
+    /// expand/collapse of the paywall perk list so the run's screen recording
+    /// carries the actual transition. The flag lives in the test process but
+    /// reads the same booted-simulator preference the app reads.
+    @MainActor func testReducedMotionPaywallExpand() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard env["FH_BASE"] != nil,
+              env["FH_DEV_EMAIL"] != nil,
+              env["FH_DEV_PASSWORD"] != nil else {
+            throw XCTSkip("paywall motion test needs FH_BASE + FH_DEV_* env")
+        }
+        let reduced = UIAccessibility.isReduceMotionEnabled
+        XCTContext.runActivity(named: "isReduceMotionEnabled=\(reduced)") { _ in }
+
+        let app = XCUIApplication()
+        app.launchEnvironment = launchEnv([
+            "FH_AUTOLOGIN": "1", "FH_INTRO_SEEN": "1",
+            "FH_DEV_ENTITLEMENT": "free",
+            "FH_SKIP_STOREKIT": "1", "FH_PRESENT": "paywall",
+        ])
+        app.launch()
+
+        let toggle = app.buttons["See everything in Pro"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 25),
+                      "perks toggle not shown — \(app.debugDescription.prefix(600))")
+        // Marker so the recording's transition window is findable.
+        print("[RM-TEST] flag=\(reduced) tapping perks toggle at \(Date().timeIntervalSince1970)")
+        toggle.tap()
+
+        // The sixth extra perk only exists expanded; hittability proves the
+        // list finished whatever transition it ran.
+        let last = app.staticTexts["Data export"]
+        XCTAssertTrue(last.waitForExistence(timeout: 8))
+        attach(reduced ? "paywall-expanded-reduced" : "paywall-expanded-animated", of: app)
+        print("[RM-TEST] expanded settled at \(Date().timeIntervalSince1970)")
     }
 
     // MARK: - Signed-in (needs the dev server env)

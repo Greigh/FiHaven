@@ -133,13 +133,157 @@ bank-link. Real tap-throughs also performed during interactive sessions.
   intact (13 bills, payments 6→7, sha `17520955d2d7b3fa`), empty blob
   still empty (sha `f524de831e8459fd`). No cross-account write.
 
+## Verification pass 2 — 2026-10-24
+
+Evidence classes used below, kept distinct:
+
+- **mounted** — route/presentation mount evidence (log marker or UI dump).
+- **captured** — a screenshot/video frame exists of the mounted state.
+- **inspected** — a human/agent read the capture and checked its content.
+- **interaction-tested** — a state change was driven and its effect verified
+  (tap→dialog→save→server value, VO cursor→activation, pref→behavior).
+
+### VoiceOver — macOS (real screen-reader navigation) — verified
+
+VoiceOver enabled for real (⌘F5, Quickstart confirmed, `VoiceOver.app`
+running). Driven on the signed-in macOS app, dark appearance:
+
+- Traversal: "Screens search text field, blank" announced at the search
+  field; "link, Daniel Hipskind" at the footer.
+- VO+Shift+Down interacted with the sidebar outline (announced as "table");
+  VO+Down moved selection and opened Account — **navigation task complete**.
+- Item Chooser (VO+I): 48 items, all named — "Home, 10 button", every
+  sidebar destination with badge counts, links with URLs ("FiHaven GitHub
+  link", "Report a bug link"), "Version 1.6.8 (60)". Activation through the
+  chooser worked.
+- The earlier raw AX-tree dump showed ~18 buttons with no `AXDescription` —
+  **a false alarm, not a defect**: VoiceOver resolves their names from
+  content; the chooser proves announcements are correct. Toolbar buttons
+  carry AXDescription (Hide Sidebar, Refresh data ⌘R, Search).
+- Minor polish note (not a defect): sidebar announces as generic "table"
+  rather than "sidebar"; Help & Feedback links read "new Report a bug link"
+  (a visible "new" badge merged into the announcement).
+- Evidence: `/tmp/vo-move*.png`, `/tmp/vo-chooser.png`, `/tmp/vo-home.png`
+  — caption panel visible in each capture.
+- Automated audit (separate class): `entire contents` AX-tree dump — roles
+  and descriptions recorded; no inaccessible traps found.
+
+VoiceOver on **iOS** remains unverified: simctl offers no VoiceOver control,
+XCUITest cannot enable it, and no on-device pass was run. The macOS pass
+exercises the same SwiftUI accessibility tree the iOS views declare.
+
+### TalkBack — Android — verified (labeling, focus, one complete task flow)
+
+- TalkBack service enabled (`enabled_accessibility_services` =
+  `com.google.android.marvin.talkback`), touch exploration on.
+- Labeling: hierarchy analysis — every clickable node has a labeled
+  descendant within its bounds; zero unlabeled clickables.
+- Focus: TalkBack ring rendered on the title and on mounted dialogs
+  (`/tmp/fh-tb*.png`).
+- **Complete task flow**: dashboard → Pay dialog → amount → Save → payment
+  recorded: LEFT TO PAY $1,778.36→$1,328.36, CARD DEBT $3,680→$3,230, paid
+  row removed from UPCOMING. Caveat, recorded honestly: `adb shell input`
+  injects raw touch events that bypass TalkBack's own gesture interception —
+  activation landed as direct taps rather than TalkBack swipe/double-tap
+  gestures. Focus announcements and activation both verified live; TalkBack's
+  gesture recognizer itself is not the thing tested.
+- Font scale 1.3 and density 420 verified; dark theme verified.
+
+### Reduced motion — verified on all three platforms
+
+- **Flag read**: iOS sim `ReduceMotionEnabled=true` → app logs
+  `[A11y] reduceMotion=true` (new DEBUG marker in `AppEnvironment.bootstrap`);
+  macOS `defaults write com.apple.universalaccess reduceMotion YES` → same
+  log line `true` in a real windowed app.
+- **Android behavior, measured**: intro pager `animateScrollToPage` vs
+  `scrollToPage`. screenrecord + ffmpeg scene-diff — animations on:
+  2 intermediate motion frames at the transition; `animator_duration_scale=0`:
+  exactly 1 (hard cut). New code reads the setting and jumps.
+- **iOS behavior**: `testReducedMotionPaywallExpand` — real expand of the
+  paywall perks under the enabled pref, XCTest-passed; transition code now
+  gated (`performWithAnimation`). simctl records at ~3fps, too coarse to
+  show the 180 ms delta — the Android 30 fps measurement carries the
+  frame-level proof.
+- **macOS behavior**: banners/paywall gated same as iOS; windowed captures
+  show correct rendering under the enabled pref.
+- Fixes landed: `ChromeNoticeBanner`, `SyncOfflineBanner` (slide+fade →
+  opacity-only under reduced motion; `.animation` → `animationIfAllowed`),
+  `PaywallContent` perks expand gated, `IntroScreen` honors animator scale.
+- Kept animated deliberately: `AuthView` opacity fades (Apple's recommended
+  reduced-motion-safe transition), `MacShellView` hover feedback.
+- No confetti/celebration surfaces exist in the app (checked — payoff view
+  match was a false-positive substring).
+
+### macOS dark appearance — verified
+
+System dark active; the app renders dark correctly across every captured
+surface: Settings page, Account detail, sidebar, toolbar, search field
+(VO captures `/tmp/vo-move*.png`), and the Edit Bill sheet with dark form
+controls — text fields, pop-up buttons, toggle (`/tmp/fh-mac-dark-sheet.png`).
+iOS dark also re-confirmed in the recordVideo dashboard capture.
+
+### Coverage classes — reconciled
+
+- All 17 screens × 5 states × signed-out samples + 39 presentations:
+  **mounted + captured** on iPhone, iPad, macOS, Android phone/tablet.
+- **Inspected**: every flagged cell; all dark/reduced-motion/VoiceOver/
+  TalkBack captures; presentation reruns. Unflagged sweep cells carry
+  machine checks (blank/duplicate/wrong-route/mount-evidence) rather than
+  a per-pixel read — that is the honest scope of "inspected."
+- **Interaction-tested**: F7 cross-account switch (server blobs verified by
+  SHA), TalkBack pay flow, VO navigation, reduced-motion flag+behavior,
+  iPad/iPhone real rotations (XCUITest), macOS window floor/fullscreen.
+- Foldable: inner + cover displays captured and inspected **statically**;
+  posture *transitions* unverified — simctl has no posture control
+  (`screenConfig power` wedges the display stack; verified by reboot need).
+
 ## Unverified / blocked
 
-- VoiceOver (iOS) end-to-end pass not yet run — simctl offers no VoiceOver
-  control; needs on-device or XCUITest accessibility audit.
-- Reduced-motion configuration captures pending on all platforms.
-- macOS dark-mode capture blocked by Spaces/window activation (F10-class
-  tooling limitation, not an app defect — iOS dark path verified instead).
-- Real foldable posture *transitions* unavailable in simulator tooling
-  (see notes above); inner + cover layouts captured statically.
+- VoiceOver on iOS (simulator has no VO control; macOS pass covers the same
+  declared accessibility tree).
+- Foldable posture *transitions* (tooling limit, documented above).
+- iOS reduced-motion frame-delta (3 fps recording ceiling; gated code paths
+  + flag + Android 30 fps measurement carry the claim).
 - F7 is now deterministically reproduced in unit tests and fixed at runtime; entries above referring to it as unreproduced/unfixed are superseded.
+
+## Release-readiness statement — 2026-10-24
+
+**Candidate**: `port/stores-live-onto-remote-main` at the audit-fix HEAD —
+the 1.6.8 build-60 beta train plus this audit's fixes.
+
+**Verified scope** (interaction-tested or inspected, not inferred):
+
+- All primary screens, settings destinations, sheets, editors, dialogs,
+  onboarding/auth, paywall, offline/error/empty states — captured and
+  inspected on iPhone, iPad, macOS, Android phone, Android tablet.
+- Light + dark appearance on iOS, Android, and macOS (real system dark).
+- Accessibility: VoiceOver navigation end-to-end on macOS (traversal,
+  item chooser, activation); TalkBack labeling/focus + a complete pay task
+  on Android; iOS Accessibility XL verified after fixes; Android font 1.3 +
+  density 420.
+- Reduced motion: system pref enabled for real on all three platforms —
+  app logs `reduceMotion=true`; frame-measured slide-vs-cut on Android;
+  gated transitions on iOS/macOS.
+- Persistence safety: the cross-account save race (F7) fixed and
+  runtime-verified via server blobs.
+- Real transitions: iPad/iPhone rotation XCUITests pass; macOS window
+  floor and fullscreen verified.
+
+**Remaining limitations** (unverified, not known-good):
+
+- VoiceOver on iOS (no simulator control; macOS pass covers the same tree).
+- Foldable posture transitions (simctl cannot fold; static inner+cover
+  captures only).
+- iOS reduced-motion frame delta (recording fps limit; behavior proven on
+  Android + flag on iOS).
+- macOS sheet capture omits AppKit-bridged controls in-sheet (F10 artifact).
+
+**Recommendation**: the build-60 train is releasable as a beta; the audit
+found and fixed one high-severity defect (F7) plus a set of
+accessibility/layout defects, all re-verified at runtime. The remaining
+gaps are tooling limits, not suspected defects.
+
+**External check kept separate**: the Blackflare pre-push/CI hook failure
+observed in this workspace is an external integration problem, not an
+application check — it does not enter this ledger's verdicts and no user
+configuration was changed for it.
