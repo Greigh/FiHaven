@@ -58,6 +58,8 @@ import app.fihaven.core.logic.PaidState
 import app.fihaven.core.model.categoryIcons
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.genId
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 import app.fihaven.core.model.archiveInsteadOfDelete
 import app.fihaven.core.model.CategoryIcon
 import app.fihaven.ui.theme.Ct
@@ -78,6 +80,24 @@ fun BillsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? 
     var fCategory by remember { mutableStateOf("All") }
     var showArchived by remember { mutableStateOf(false) }
     val zone = vm.zone()
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "bill-new" -> creating = true
+                "bill-edit" -> editing = vm.data.value.bills.firstOrNull()
+                "pay" -> paying = vm.data.value.bills.firstOrNull()
+                "bill-filters" -> showFilters = true
+                // Another screen owns this spec — leave it for them.
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
 
     val useArchive = data.settings.archiveInsteadOfDelete
     val archivedBills = data.archivedBills

@@ -78,8 +78,10 @@ import app.fihaven.core.net.ApiError
 import app.fihaven.core.net.LoginOutcome
 import app.fihaven.core.net.MfaChallenge
 import app.fihaven.core.net.ReauthProof
+import app.fihaven.core.net.TokenStore
 import app.fihaven.core.net.User
 import app.fihaven.data.PrefsTokenStore
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
@@ -145,13 +147,17 @@ enum class SyncState { Idle, Saving, Saved, Offline, Rejected }
 
 /// Mirrors the iOS AppEnvironment: owns the API client + token store and
 /// the auth state machine, and holds the loaded AppData.
-class AppViewModel(app: Application) : AndroidViewModel(app) {
-    private val tokens = PrefsTokenStore(app)
-    val api = ApiClient(ApiConfig(BuildConfig.API_BASE), tokens)
+class AppViewModel @JvmOverloads constructor(
+    app: Application,
+    private val tokens: TokenStore = PrefsTokenStore(app),
+    apiBase: String = BuildConfig.API_BASE,
+    cacheDir: File = app.filesDir,
+) : AndroidViewModel(app) {
+    val api = ApiClient(ApiConfig(apiBase), tokens)
 
     /** On-device copy of the signed-in user's data, plus the durable record of
      *  an edit the server hasn't accepted. See OfflineCache. */
-    private val cache = OfflineCache(app.filesDir)
+    private val cache = OfflineCache(cacheDir)
 
     /** Serial IO queue for every cache access. The whole-snapshot
      *  serialize+write ran on the UI thread inside `mutate` — a hitch on
@@ -167,6 +173,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  scoped to it so one user's snapshot can never be adopted — or pushed —
      *  into another's account. */
     private var dataOwner: String = ""
+
+    /** Bumped on every sign-in and teardown. A save scheduled before the bump
+     *  belongs to a dead session — the write boundary refuses it even if the
+     *  job outlived its cancel (e.g. a sign-in that skipped `logout()`). */
+    private var sessionEpoch = 0
 
     override fun onCleared() {
         persistScope.cancel()
@@ -227,9 +238,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             prefs.contains(BIO_LOCK_AFTER_KEY) -> prefs.getInt(BIO_LOCK_AFTER_KEY, BioLockDelay.IMMEDIATELY)
             prefs.contains(BIO_KEY) -> if (prefs.getBoolean(BIO_KEY, false)) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER
             else -> {
-                val can = BiometricManager.from(app).canAuthenticate(
-                    BiometricManager.Authenticators.BIOMETRIC_WEAK
-                ) == BiometricManager.BIOMETRIC_SUCCESS
+                // A device that can't answer the probe (no biometrics stack,
+                // headless unit test) behaves as if none exists.
+                val can = runCatching {
+                    BiometricManager.from(app).canAuthenticate(
+                        BiometricManager.Authenticators.BIOMETRIC_WEAK
+                    ) == BiometricManager.BIOMETRIC_SUCCESS
+                }.getOrDefault(false)
                 if (can) BioLockDelay.IMMEDIATELY else BioLockDelay.NEVER
             }
         }
@@ -442,15 +457,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun logout() = viewModelScope.launch {
         endSession()
-        PushRegistrar.clear()
+        runCatching { PushRegistrar.clear() }
         runCatching { api.logout() }
         _authError.value = null
         _session.value = Session.SignedOut
-        _data.value = AppData()
         _entitlement.value = Entitlement()
         _billingPortal.value = false
-        _dataLoaded.value = false
-        _dataError.value = null
     }
 
     /** Tear down everything that outlives the composition and would otherwise
@@ -468,6 +480,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun endSession() {
         saveJob?.cancel()
         saveJob = null
+        // New epoch: any saveJob snapshot captured before this point can never
+        // satisfy the write-boundary check again, even if it somehow outlives
+        // the cancel above.
+        sessionEpoch++
+        _data.value = AppData()
+        _dataLoaded.value = false
+        _dataError.value = null
         _syncState.value = SyncState.Idle
         runCatching { NotificationScheduler.cancelAll(getApplication()) }
         // The cache holds this user's bills, cards and spending. Leaving it on
@@ -482,9 +501,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dataOwner = ""
     }
 
-    /// DEBUG screenshot helper: log in as the dev demo account.
-    fun devAutoLogin() =
-        login("demo@fihaven.app", "demopassword11", "dev-bypass-token", ApiClient.now() - 3000)
+    /// DEBUG screenshot helper: log in as a dev account. Defaults to the
+    /// seeded demo account; the audit sweep passes `login_email`/`login_pass`
+    /// extras for the account the state needs (empty vs. populated Pro).
+    fun devAutoLogin(email: String = "demo@fihaven.app", password: String = "demopassword11") =
+        login(email, password, "dev-bypass-token", ApiClient.now() - 3000)
+
+    /// DEBUG screenshot helper: force the data-load error screen after
+    /// sign-in — the same `dataError` a dead server produces, without
+    /// breaking the sign-in that gets the session there. It re-asserts
+    /// because a successful load clears `dataError` — a one-shot write
+    /// would photograph the screen that recovered, not the one that failed.
+    fun devDataFault(message: String = "Couldn't load your data.") {
+        if (!BuildConfig.DEBUG) return
+        viewModelScope.launch {
+            while (true) {
+                _dataError.value = message
+                kotlinx.coroutines.delay(500)
+            }
+        }
+    }
 
     private suspend fun enterSignedIn(user: User, fresh: Boolean = false) {
         // Unconfirmed email → the verify screen, never the dashboard. The
@@ -494,10 +530,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _session.value = Session.Unverified(user)
             return
         }
+        // Signing straight over a still-live session (re-auth, account
+        // switch, debug autologin) must tear the old account down first:
+        // its saveJob retry loop would otherwise keep running under the new
+        // token and PUT the old account's snapshot over the new one's data.
+        val prev = (_session.value as? Session.SignedIn)?.user
+        if (prev != null && !prev.email.equals(user.email, ignoreCase = true)) {
+            endSession()
+        }
         // A fresh password/MFA sign-in already authenticated the user, so
         // don't gate behind biometrics; a token-restored session stays locked.
         if (fresh) _locked.value = false
         _session.value = Session.SignedIn(user)
+        sessionEpoch++
+        // Until loadData adopts a snapshot for *this* account, nothing in
+        // memory may be persisted — the save loop validates that at the write
+        // boundary, and mutate() refuses to persist while unloaded.
+        _dataLoaded.value = false
         loadData()
     }
 
@@ -524,9 +573,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadData() {
         _dataLoaded.value = false
         _dataError.value = null
+        // The epoch this load belongs to. A slow `api/data` can outlive the
+        // session that asked for it — sign-in as B while A's GET is still in
+        // flight, then A's response arrives last. Applying it would put A's
+        // bills in memory under B's session (and the next save would write
+        // them to B's blob), so a response that arrives for a superseded
+        // epoch or a different account is dropped.
+        val epoch = sessionEpoch
         try {
             val fetched = api.fetchData()
             val owner = fetched.email.orEmpty()
+            if (epoch != sessionEpoch ||
+                !owner.equals(currentUser?.email.orEmpty(), ignoreCase = true)
+            ) return
             dataOwner = owner
 
             // Edits this device made but never got onto the server are newer
@@ -539,10 +598,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // cache's: a stale snapshot must not confer Pro.
                 _data.value = pending.data.copy(entitlement = fetched.entitlement)
                 Money.setCurrency(pending.data.settings.currency)
+                _dataLoaded.value = true
                 scheduleSave()
             } else {
                 _data.value = applyEnvelopeRolloverIfNeeded(fetched)
                 Money.setCurrency(fetched.settings.currency)
+                _dataLoaded.value = true
                 _syncState.value = SyncState.Saved
                 val snapshot = _data.value
                 withContext(persistIo) { cache.write(snapshot, owner, pendingWrite = false) }
@@ -551,7 +612,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
             refreshEntitlement()
-            _dataLoaded.value = true
             refreshNotifications()
             refreshPush()
             checkNewMonth()
@@ -559,8 +619,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             checkPresetUpdates()
             syncBanks()
         } catch (e: ApiError) {
+            if (epoch != sessionEpoch) return
             if (!restoreFromCache()) _dataError.value = e.userMessage
         } catch (e: Exception) {
+            if (epoch != sessionEpoch) return
             if (!restoreFromCache()) _dataError.value = e.message ?: "Couldn't load your data."
         }
     }
@@ -857,6 +919,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Simulates each Pro state without a real purchase. Local to the device;
     // never touches the server. devEntitlement() returns null in release.
     private val devEntKey = "fh_dev_entitlement"
+
+    /** DEBUG sweep hook: `--es present <spec>` mounts a named presentation
+     *  (editor dialog, settings sheet, paywall) over the live shell. Screens
+     *  read it once data has loaded, then clear it. Debug builds only. */
+    var devPresent: String? = null
+
     var devEntitlementOverride: String
         get() = introPrefs.getString(devEntKey, "off") ?: "off"
         set(value) {
@@ -1033,6 +1101,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun mutate(transform: (AppData) -> AppData) {
         _data.value = transform(_data.value)
+        // Nothing may persist a snapshot that was never adopted as this
+        // account's data — a default AppData() written to disk or PUT under a
+        // live session is exactly the wipe this boundary exists to prevent.
+        if (!_dataLoaded.value) return
         // Disk before network, always. The window between an edit and the
         // debounced PUT is exactly the window in which a process death or a
         // dead connection used to lose it outright. The serialize+write runs
@@ -1048,6 +1120,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun scheduleSave() {
         _syncState.value = SyncState.Saving
         saveJob?.cancel()
+        // Capture what this save is for, not just when it runs: the snapshot,
+        // the account that owns it, and the session epoch it was scheduled
+        // under. The retry loop below validates all three at the write
+        // boundary — a job that survives a teardown or an account switch is
+        // refused before it can PUT, rather than trusting the cancel to have
+        // landed in time.
+        val snapshot = _data.value
+        val owner = dataOwner
+        val epoch = sessionEpoch
         saveJob = viewModelScope.launch {
             delay(800.milliseconds)
             // Retry with backoff until it lands, the session dies, or a newer
@@ -1058,15 +1139,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             var wait = 2.seconds
             var sessionEnded = false
             while (isActive) {
-                // Belt and braces alongside endSession()'s cancel: a save must
-                // never be attempted on behalf of a session that has ended.
-                if (_session.value !is Session.SignedIn) { sessionEnded = true; break }
-                val result = runCatching { api.saveData(_data.value) }
+                // Write boundary. Belt and braces alongside endSession()'s
+                // cancel: a save must never run for a session that ended, for
+                // a different account than the snapshot's owner, under a newer
+                // epoch, or while no account snapshot is loaded. Any of those
+                // means this PUT would overwrite the server with data that
+                // isn't this session's — the observed F7 wipe.
+                val sess = _session.value as? Session.SignedIn
+                if (sess == null ||
+                    owner.isEmpty() ||
+                    !sess.user.email.equals(owner, ignoreCase = true) ||
+                    dataOwner != owner ||
+                    epoch != sessionEpoch ||
+                    !_dataLoaded.value
+                ) { sessionEnded = true; break }
+                val result = runCatching { api.saveData(snapshot) }
                 if (result.isSuccess) {
                     _syncState.value = SyncState.Saved
-                    // Only an accepted write retires the pending flag. Anything
-                    // else leaves it set so the next launch replays the snapshot.
-                    withContext(persistIo) { cache.markSynced() }
+                    // Only an accepted write retires the pending flag — and
+                    // only for the snapshot the server actually accepted: an
+                    // edit that hit disk after the PUT keeps pendingWrite so
+                    // the next launch replays it instead of losing it.
+                    withContext(persistIo) { cache.markSynced(ifMatches = snapshot) }
                     break
                 }
                 val ex = result.exceptionOrNull()

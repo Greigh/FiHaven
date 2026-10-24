@@ -350,6 +350,10 @@ final class AppStore: ObservableObject {
     /// Mutate the in-memory data and schedule a debounced save.
     func mutate(_ block: (inout AppData) -> Void) {
         block(&data)
+        // Nothing may persist a snapshot that was never adopted as this
+        // account's data — a default AppData() written to disk or PUT under
+        // a live session is exactly the wipe this boundary exists to prevent.
+        guard loaded else { return }
         // Disk before network, always. The window between an edit and the
         // debounced PUT is exactly the window in which a kill, a crash, or a
         // dead connection used to lose it outright. The encode+write runs on
@@ -367,7 +371,7 @@ final class AppStore: ObservableObject {
     func flush() async {
         saveTask?.cancel()
         saveTask = nil
-        await push()
+        await push(snapshot: data, owner: owner, expected: expectedOwner, wasLoaded: loaded)
     }
 
     /// Tear down everything that outlives this store and would otherwise still
@@ -397,14 +401,31 @@ final class AppStore: ObservableObject {
         expectedOwner = ""
     }
 
+    /// Handoff to a fresh store for the *same* account: this store's writers
+    /// are killed so it can never push again, but the cache and reminders
+    /// stay — they belong to the account that just signed back in, and a
+    /// pending write in it is still owed to the server.
+    func supersede() {
+        saveTask?.cancel()
+        saveTask = nil
+        owner = ""
+        expectedOwner = ""
+    }
+
     private func scheduleSave() {
         syncState = .saving
         saveTask?.cancel()
+        // Capture what this save is for — snapshot + owning account — so the
+        // retry loop validates the write boundary instead of trusting that a
+        // cancel landed in time: a task that outlives a teardown must not PUT
+        // this account's data under a newer session's token.
+        let snapshot = data, snapshotOwner = owner, expected = expectedOwner
+        let wasLoaded = loaded
         saveTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: self.debounce)
             if Task.isCancelled { return }
-            await self.push()
+            await self.push(snapshot: snapshot, owner: snapshotOwner, expected: expected, wasLoaded: wasLoaded)
         }
     }
 
@@ -415,16 +436,31 @@ final class AppStore: ObservableObject {
     /// this task). It is no longer the only thing standing between an edit and
     /// oblivion — `mutate` has already written the snapshot to disk — so if the
     /// process dies mid-retry the next launch picks the edit up and pushes it.
-    private func push() async {
+    private func push(snapshot: AppData, owner snapshotOwner: String, expected: String, wasLoaded: Bool) async {
         var delay: Duration = .seconds(2)
         var sessionEnded = false
         while !Task.isCancelled {
+            // Write boundary: the scheduled snapshot may only be PUT while this
+            // store still owns it. A default/never-loaded blob, a store whose
+            // session was torn down (owner/expectedOwner cleared), or a store
+            // superseded by a different account all stop here — before the
+            // server is ever touched.
+            guard wasLoaded, loaded,
+                  !snapshotOwner.isEmpty,
+                  owner == snapshotOwner,
+                  expectedOwner == snapshotOwner,
+                  expected == snapshotOwner else {
+                sessionEnded = true
+                break
+            }
             do {
-                try await api.saveData(data)
+                try await api.saveData(snapshot)
                 syncState = .saved
-                // Only an accepted write retires the pending flag. Anything
-                // else leaves it set so the next launch replays the snapshot.
-                await persist { [cache] in cache.markSynced() }
+                // Only an accepted write retires the pending flag — and only
+                // when the disk still holds the snapshot the server accepted:
+                // a newer edit queued behind it must keep pendingWrite so the
+                // next launch replays it.
+                await persist { [cache] in cache.markSynced(ifMatches: snapshot) }
                 break
             } catch APIError.unauthenticated {
                 onSessionExpired?()

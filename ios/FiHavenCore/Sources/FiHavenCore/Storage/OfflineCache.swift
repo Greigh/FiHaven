@@ -84,9 +84,14 @@ public struct OfflineCache: Sendable {
     /// Flip only the pending flag, keeping the stored data. Used when a write
     /// lands: the cache is still the right offline copy, it's just no longer
     /// ahead of the server.
+    ///
+    /// `ifMatches` guards the gap between a server accept and this write: an
+    /// edit that landed on disk after the PUT must keep `pendingWrite` — the
+    /// server never saw it, so marking it synced would drop it.
     @discardableResult
-    public func markSynced() -> Bool {
+    public func markSynced(ifMatches expected: AppData? = nil) -> Bool {
         guard var snapshot = readRaw() else { return false }
+        if let expected, snapshot.data != expected { return false }
         guard snapshot.pendingWrite else { return true }
         snapshot.pendingWrite = false
         do {

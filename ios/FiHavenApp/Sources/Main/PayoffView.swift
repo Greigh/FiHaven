@@ -105,6 +105,11 @@ struct PayoffView: View {
     }
 
     private func heroCard(_ r: PayoffResult) -> some View {
+        // A card with no paidOffMonth never cleared on minimums alone — the
+        // sim stopped at its 360-month cap, and its "interest" is a debt that
+        // kept compounding. "Save $X vs mins" against that number reads as a
+        // promise; the honest sentence is that minimums never finish.
+        let minsNeverClear = simMin?.cards.contains { $0.paidOffMonth == nil } ?? false
         let saves: Double = {
             guard let m = simMin else { return 0 }
             return max(0, m.totalInterest - r.totalInterest)
@@ -127,7 +132,8 @@ struct PayoffView: View {
                 .font(Theme.ui(24, weight: .bold))
                 .foregroundStyle(Theme.text)
             Text("\(r.months) months · \(Money.fmt(r.totalInterest)) interest"
-                  + (saves > 0 && extra > 0 ? " · save \(Money.fmt(saves)) vs mins" : ""))
+                  + (minsNeverClear ? " · minimums never clear this debt"
+                     : (saves > 0 && extra > 0 ? " · save \(Money.fmt(saves)) vs mins" : "")))
                 .font(Theme.ui(13)).foregroundStyle(Theme.muted)
             Picker("Strategy", selection: $strategy) {
                 Text("Snowball").tag(PayoffStrategy.snowball)

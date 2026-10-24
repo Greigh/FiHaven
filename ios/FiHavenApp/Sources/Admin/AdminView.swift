@@ -314,10 +314,10 @@ struct AdminUserSheet: View {
                             run { _ = try await env.api.adminRevokePro(userId: user.id); note = "Comp grant revoked." }
                         }
                     }
+                    Text("Revoking pulls back comp grants and promos only. Store subscriptions are cancelled at the App Store, Play, or Paddle.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } header: {
                     Text("Pro")
-                } footer: {
-                    Text("Revoking pulls back comp grants and promos only. Store subscriptions are cancelled at the App Store, Play, or Paddle.")
                 }
 
                 Section {
@@ -351,10 +351,10 @@ struct AdminUserSheet: View {
                             note = user.isAdmin ? "Admin role removed." : "Now an admin."
                         }
                     }
+                    Text("Suspending leaves sessions alive so an open app shows the locked screen. Force sign-out drops them.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } header: {
                     Text("Access")
-                } footer: {
-                    Text("Suspending leaves sessions alive so an open app shows the locked screen. Force sign-out drops them.")
                 }
 
                 Section("Danger zone") {

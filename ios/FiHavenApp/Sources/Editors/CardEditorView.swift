@@ -136,9 +136,9 @@ struct CardEditorView: View {
                             ForEach(1...31, id: \.self) { Text("\($0)").tag($0) }
                         }
                     }
-                } footer: {
                     if type == "card" {
                         Text("Recommended payment is optional — leave it at 0 to default to the full balance (or the 0%-promo payoff).")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
                 }
 
@@ -160,10 +160,10 @@ struct CardEditorView: View {
                             Text("—").tag(0)
                             ForEach(1...12, id: \.self) { Text(Self.monthName($0)).tag($0) }
                         }
+                        Text("Powers the “is the fee worth it?” check on the Rewards tab — fee vs. the value of this card’s perks.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     } header: {
                         Text("Annual fee")
-                    } footer: {
-                        Text("Powers the “is the fee worth it?” check on the Rewards tab — fee vs. the value of this card’s perks.")
                     }
                 }
 
@@ -217,10 +217,10 @@ struct CardEditorView: View {
                                 Toggle(cat, isOn: rotBinding(cat))
                             }
                         }
+                        Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate; leave a category at 0 to use the base.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     } header: {
                         Text("Rewards")
-                    } footer: {
-                        Text("Powers the “which card should I use?” tool. A category bonus overrides the base rate; leave a category at 0 to use the base.")
                     }
 
                     Section {
@@ -243,10 +243,10 @@ struct CardEditorView: View {
                         } label: {
                             Label("Add credit", systemImage: "plus")
                         }
+                        Text("Recurring statement credits (e.g. travel or dining credits). Log how much you use each cycle on the Rewards tab.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     } header: {
                         Text("Credits & perks")
-                    } footer: {
-                        Text("Recurring statement credits (e.g. travel or dining credits). Log how much you use each cycle on the Rewards tab.")
                     }
 
                     Section {
@@ -267,10 +267,10 @@ struct CardEditorView: View {
                         } label: {
                             Label("Add offer", systemImage: "plus")
                         }
+                        Text("Amex/Chase/BofA deals you’ve activated. FiHaven keeps the expiry in front of you on the Rewards tab — it can’t activate them for you.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     } header: {
                         Text("Card-linked offers")
-                    } footer: {
-                        Text("Amex/Chase/BofA deals you’ve activated. FiHaven keeps the expiry in front of you on the Rewards tab — it can’t activate them for you.")
                     }
                 }
 
@@ -300,6 +300,7 @@ struct CardEditorView: View {
             .onAppear(perform: load)
             .task { await loadBankAccounts() }
         }
+        .ctEditorSheetWidth()
     }
 
     // Auto-fill name/issuer/network (without clobbering non-empty fields) and

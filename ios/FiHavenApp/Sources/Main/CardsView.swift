@@ -148,10 +148,10 @@ struct CardsView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    Text("Suggestions update Current Balance only. Decline remembers this figure until the bank changes.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } header: {
                     Text("Bank balance review")
-                } footer: {
-                    Text("Suggestions update Current Balance only. Decline remembers this figure until the bank changes.")
                 }
             }
             if !isLoanView && !baseCards.isEmpty {
@@ -343,6 +343,7 @@ struct CardsView: View {
                     }
                 }
             }
+            .ctEditorSheetWidth()
             .ctDetents([.medium])
         }
     }
@@ -597,8 +598,8 @@ struct AccountEditorView: View {
                                 Text("Previously linked account").tag(plaidAccountId)
                             }
                         }
-                    } footer: {
                         Text("Pick the bank account this row follows when its name isn't enough to match it on its own. The bank's balance then shows up here to Accept or Decline. \"Don't link this account\" keeps it out of bank matching entirely.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                     }
                 }
 
@@ -629,6 +630,7 @@ struct AccountEditorView: View {
             }
             .task { await loadBankAccounts() }
         }
+        .ctEditorSheetWidth()
     }
 
     /// Depository/investment accounts across every linked bank — the mirror of

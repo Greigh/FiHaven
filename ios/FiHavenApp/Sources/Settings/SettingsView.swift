@@ -596,10 +596,10 @@ struct SettingsView: View {
                 Text("Canceled — active until expiry").tag("canceled")
             }
             .pickerStyle(.inline)
+            Text("Simulates a Pro state for testing the UI. Local to this device — it never changes your real subscription or anything on the server. Debug builds only.")
+                .font(Theme.ui(12)).foregroundStyle(Theme.muted)
         } header: {
             Text("Subscription override")
-        } footer: {
-            Text("Simulates a Pro state for testing the UI. Local to this device — it never changes your real subscription or anything on the server. Debug builds only.")
         }
     }
     #endif

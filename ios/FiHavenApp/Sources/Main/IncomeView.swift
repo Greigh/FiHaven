@@ -197,6 +197,7 @@ struct IncomeEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func save() {
@@ -240,8 +241,8 @@ struct IncomeAdjustmentEditorView: View {
                         Text("Just this month").tag("once")
                         Text("Every month from now").tag("recurring")
                     }
-                } footer: {
                     Text("Use a negative amount to reduce income (e.g. unpaid time off). Recurring covers a raise or new ongoing income.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 }
                 if adjustment != nil {
                     Section {
@@ -267,6 +268,7 @@ struct IncomeAdjustmentEditorView: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func save() {

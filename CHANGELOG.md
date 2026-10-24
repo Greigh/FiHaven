@@ -54,7 +54,7 @@ Each release below uses two layers:
 
 | Build | Shipped | Headline |
 |---|---|---|
-| [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
+| [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
 | [59](#167-build-59--2026-10-06) | 2026-10-06 | Pipeline and CI fixes; no user-facing changes since build 58 |
 | [58](#167-build-58--2026-10-04) | 2026-10-04 | The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
 | [55](#164-build-55--2026-09-15) | 2026-09-15 | Account Balances bank review, security hardening, memory leak fixes, and public changelog |
@@ -71,8 +71,8 @@ Store copy for every build of this train is in
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.8 (60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
-| **Android** | 1.6.8 (versionCode 60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes. |
+| **iOS** | 1.6.8 (60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
+| **Android** | 1.6.8 (versionCode 60) — An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) |
 | **Server** | API in lockstep with client build 60 |
 
@@ -82,7 +82,9 @@ Store copy for every build of this train is in
 
 ### Summary
 
-> An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+> An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data.
+>
+> The audit ran every screen × data state × presentation on iPhone, iPad, macOS, Android phone, and Android tablet — with TalkBack, larger text, dark mode, and foldable postures exercised for real — and every confirmed defect it found is fixed in this build. Its most important catch: signing into a different account while a save was still in flight could write the previous session's data under the new account. That race is closed, and switching accounts mid-save keeps both datasets intact — verified against the live API, not just the UI.
 
 ### Technical changelog
 
@@ -96,6 +98,28 @@ Runtime-verified audit fixes landing after the build-60 cut:
 - **`bump-build.js` keeps the train's version text in step**: a marketing bump now rewrites the `## [x.y.z] Current Pre-Release` heading and the `**Marketing version is…**` note alongside the build table — previously both stayed on the old version after every bump. `scripts/nativeVersions.test.js` additionally refuses duplicate `## [a.b.c build N]` headings, closing the double-`1.6.4 build 55` regression class for good.
 - **Turnstile lifecycle logging** (`ios/FiHavenApp/Sources/Auth/TurnstileView.swift`): token arrival, height callbacks, and error message types are now in the launch log, so a sweep can distinguish *solved* from *stalled-but-invisible* instead of inferring it from pixels.
 - **Mac sweep sidebar**: the source list is SwiftUI-hosted (`ViewThatFits` sidebar), so captures composite it — verified pixel-for-pixel at 1440×900 with all rows and the footer accessory present.
+
+The full visual/UX audit then ran to completion — every screen × data/entitlement
+state × presentation on iPhone 17e, iPad Pro 13, macOS, Android phone, and an
+Android tablet, plus TalkBack traversal, font-scale 1.3, density 420, dark mode
+on both platforms, Accessibility XL text, foldable inner + cover displays, and
+real XCUITest rotations on iPhone and iPad. Findings and evidence are in
+`docs/maintainer/visual-audit-ledger.md`; everything it confirmed is fixed here:
+
+- **Cross-account save boundary — the audit's highest finding (F7)** (`android/app/src/main/kotlin/app/fihaven/AppViewModel.kt`, `ios/FiHavenApp/Sources/Store/AppStore.swift`, `ios/FiHavenApp/Sources/App/AppEnvironment.swift`): signing in over a live session left the previous session's `saveJob`/retry PUTing its data under the *new* token, and a raced initial load could PUT placeholder data over a real dataset. Saves are now bound to a loaded snapshot owned by the session that created them — session-epoch ownership on Android, a store torn down and replaced on `enterSignedIn` on iOS — and `markSynced` retires only the snapshot the server actually accepted. Deterministic coverage on both sides (`DataSaveBoundaryTest`, `SaveBoundaryTests`, plus a stateful-fake-backend integration case); runtime-verified end-to-end: an offline-queued write on the populated fixture survived an in-process switch to the empty account, both server blobs correct by SHA.
+- **Android `devPresent` presentation harness (F17)** (`MainActivity.kt`, `AppViewModel.kt`, per-screen composables, `scripts/run-android.sh --presents`): a DEBUG `present` extra mounts any dialog, editor, sheet, nested settings destination, or bank prompt by spec — the missing half of the Android audit, since those presentations previously existed only as in-screen state. A screen clears the spec only when it matches, so specs survive to their owner screen instead of being consumed by the first composable; 59/59 presentations captured on the tablet.
+- **macOS sheet capture (F9/F10)** (`SweepSnapshot.swift`, `run-macos.sh`): `cacheDisplay` photographs the window's own backing store, so attached sheets never appeared — the entire first presentation run captured the shell behind them. The snapshotter now captures the `attachedSheet`'s contentView. AppKit-bridged controls (pop-ups, steppers) still render blank in-sheet — a capture artifact, verified against `screencapture`, not an app defect.
+- **macOS sheet sizing (F11)** (`.ctEditorSheetWidth()`): editor and settings sheets sized to `Form`'s columns ideal (~470pt) clipped leading labels and read as dead space, and the paywall hid its plans and CTA below the fold. Every sheet now carries a grouped-form style with a 460–500pt floor; the paywall gets 540×720 minimum.
+- **iOS accessibility-size layout fixes (F12–F14)** (`IntroView.swift`, `DashboardView.swift`): the intro's feature card clipped mid-line at Accessibility XL (non-scrollable pager hero — now scrollable); dashboard stat cards truncated amounts (`$4,9…` — they stack full-width at accessibility sizes); row labels broke mid-word (`tomorro w`, `Snooz e`) and actions wrapped — line limits, minimum-scale factors, and an explicit accessibility element split fix all three.
+- **Trailing amount column loses its layout fight (F15)** (`DashboardView.swift`, `BillsView.swift`, `CardsView.swift`): `.layoutPriority(2)` sat on the inner `Text` while the name column outbid the enclosing trailing `VStack` — amounts clipped (`$8…`) and `autopay` wrapped letter-by-letter even at *default* size. Priority moved to the column; amounts render whole in `UpcomingRow`, `BillRow`, and `CardRow`.
+- **macOS `.inset` footers never wrap (F16)**: 19 long explanations across settings views clipped at one line at 470pt; `.fixedSize` does not rescue footer cells. The text moved into section content, which wraps.
+- **Error copy (F6)**: `DataErrorScreen`'s fallback no longer restates the heading verbatim when `e.message` repeats it.
+- **`run-ios.sh` dispatch (F8)**: entry wrapped in `{ main; exit $?; }` so the whole script parses before running — a mid-sweep edit can no longer corrupt the read position; a regression test pins the form.
+- **Reduce Motion honored app-wide** (`ChromeNoticeBanner`, `SyncOfflineBanner`, `Paywall`, `IntroScreen`): the slide-in notice banners now fade in place under Reduce Motion instead of dropping in from the top edge, the paywall's perks expansion is gated through `performWithAnimation`, and the Android intro pager jumps pages instantly when the system animator scale is 0. Verified with the real system preference on all three platforms — the apps log `reduceMotion=true` at launch, and an Android screen-recording frame diff shows a hard cut where the animated run shows intermediate slide frames. VoiceOver and TalkBack both completed real task flows in this pass (item-chooser navigation on macOS; a full pay-a-bill flow on Android).
+- **Calendar dropped the month's leading days (F18)** (`ios/FiHavenApp/Sources/Main/CalendarView.swift`): the leading blank cells took ids `0..<N` while the day cells took `1...daysInMonth`, so `LazyVGrid` discarded every day whose id collided with a blank — an October 1st–on-Thursday month rendered its first row as 4–10. Blank cells now take negative ids; all 31 days render on iPhone, iPad, and macOS.
+- **macOS Income summary mislabeled the total (F19)** (`MacScreens.swift`): the strip labeled `periodIncome` "Adjustments this month" — the headline figure wore the wrong name. It now shows the phone's three figures: Base monthly income, Adjustments, Monthly income.
+- **macOS Income adjustments empty state clipped (F20)**: the `ContentUnavailableView` overlay sat inside a one-row (50pt) table placement and rendered half-cut; empty income tables now floor at five rows so the empty state fits.
+- **Payoff "save vs mins" invented savings when minimums never clear (F21)** (`PayoffView.swift`, `PayoffScreen.kt`): a card whose minimum doesn't cover interest runs the minimums-only simulation to its 360-month cap, and comparing that runaway interest against the plan printed figures like "save $810,297.43 vs mins". Both platforms now say "minimums never clear this debt" instead — verified on device.
 
 ---
 

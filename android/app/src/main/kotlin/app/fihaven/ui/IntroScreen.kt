@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import android.provider.Settings
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -101,6 +103,18 @@ fun IntroScreen(vm: AppViewModel) {
     val step = pagerState.currentPage
     val last = step == pages.lastIndex
     val scope = rememberCoroutineScope()
+    // Honor the system "Remove animations" accessibility setting: a 0 animator
+    // duration scale means the user asked for no animation, so page turns jump
+    // instead of animating.
+    val context = LocalContext.current
+    val animationsRemoved = remember {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val goToPage: (Int) -> Unit = { target ->
+        scope.launch {
+            if (animationsRemoved) pagerState.scrollToPage(target) else pagerState.animateScrollToPage(target)
+        }
+    }
 
     Column(Modifier.authScreen().padding(horizontal = 24.dp)) {
         Row(
@@ -108,7 +122,7 @@ fun IntroScreen(vm: AppViewModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (step > 0) {
-                IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(step - 1) } }) {
+                IconButton(onClick = { goToPage(step - 1) }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Ct.colors.text)
                 }
             } else {
@@ -142,7 +156,7 @@ fun IntroScreen(vm: AppViewModel) {
             }
         }
         Button(
-            onClick = { if (!last) scope.launch { pagerState.animateScrollToPage(step + 1) } else vm.markIntroSeen() },
+            onClick = { if (!last) goToPage(step + 1) else vm.markIntroSeen() },
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),
         ) {

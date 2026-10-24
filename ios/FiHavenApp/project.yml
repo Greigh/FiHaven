@@ -56,6 +56,7 @@ targets:
       # `xcodebuild test -scheme FiHaven` runs the unit-test bundle below.
       testTargets:
         - FiHavenTests
+        - FiHavenUITests
       storeKitConfiguration: FiHaven.storekit
       # Scheme version stamp — matches attributes.LastUpgradeCheck above.
       lastUpgradeVersion: "2600"
@@ -275,5 +276,24 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # Simulator logic tests need no signing; keeps `xcodebuild test`
         # working without a provisioning profile.
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: "6.0"
+
+  # UI tests — the one harness that can drive *real* system transitions:
+  # `simctl` has no rotation or multitasking control, so `XCUIDevice.shared`
+  # .orientation` (a genuine SpringBoard rotation, not a letterbox) is the
+  # only supported way to watch the app move between portrait and landscape.
+  # Kept out of the scheme's testTargets on purpose: these launch the app
+  # against a live FH_BASE and are run on demand, not in `xcodebuild test`.
+  FiHavenUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: FiHaven
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
         CODE_SIGNING_ALLOWED: NO
         SWIFT_VERSION: "6.0"

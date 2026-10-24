@@ -88,6 +88,13 @@ public struct AuthSession: Equatable, Sendable {
 public struct MfaChallenge: Equatable, Sendable {
     public var mfaToken: String
     public var methods: [String]   // ⊆ ["passkey","totp","email"]
+
+    // A memberwise public init rather than the synthesized internal one —
+    // the DEBUG audit hook synthesizes a challenge to photograph MFAView.
+    public init(mfaToken: String, methods: [String]) {
+        self.mfaToken = mfaToken
+        self.methods = methods
+    }
 }
 
 /// The result of signup/login: either signed in, or MFA is required.

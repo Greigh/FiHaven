@@ -22,6 +22,14 @@ struct FiHavenApp: App {
         #if os(macOS)
         Window("FiHaven", id: "main") {
             RootView()
+                // The window's drag floor, declared where the owner reads it:
+                // `.automatic` resolves to `.contentMinSize` for this scene,
+                // so SwiftUI rewrites `window.contentMinSize` from the
+                // content's minimum on every layout pass. Declaring it here
+                // means the value SwiftUI installs *is* the floor — nothing
+                // outside the layout cycle has to argue with the owner.
+                .frame(minWidth: MacWindowDefaults.minSize.width,
+                       minHeight: MacWindowDefaults.minSize.height)
                 .environmentObject(env)
                 .environmentObject(theme)
                 .environmentObject(env.biometric)

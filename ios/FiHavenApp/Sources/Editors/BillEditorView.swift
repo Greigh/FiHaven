@@ -75,10 +75,10 @@ struct BillEditorView: View {
                     if hasEnd {
                         DatePicker("Stops", selection: $endDate, displayedComponents: .date)
                     }
+                    Text("A first due date sets the recurring due day. After a stop date the bill is marked Ended — kept in the list, but not counted toward totals, the calendar, or reminders.")
+                        .font(Theme.ui(12)).foregroundStyle(Theme.muted)
                 } header: {
                     Text("Active window")
-                } footer: {
-                    Text("A first due date sets the recurring due day. After a stop date the bill is marked Ended — kept in the list, but not counted toward totals, the calendar, or reminders.")
                 }
                 Section("Notes") {
                     TextField("Optional", text: $notes, axis: .vertical)
@@ -106,6 +106,7 @@ struct BillEditorView: View {
             }
             .onAppear(perform: load)
         }
+        .ctEditorSheetWidth()
     }
 
     private func load() {

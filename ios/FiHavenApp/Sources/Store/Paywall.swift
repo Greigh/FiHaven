@@ -159,6 +159,12 @@ struct PaywallView: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 }
         }
+        // A Mac sheet sizes to the ScrollView's ideal — 470x480 — which put
+        // the plan cards and subscribe CTA below the fold. Buyers should not
+        // have to scroll to find the price.
+        #if !canImport(UIKit)
+        .frame(minWidth: 540, idealWidth: 560, minHeight: 720, idealHeight: 760)
+        #endif
     }
 }
 
@@ -168,6 +174,7 @@ struct PaywallView: View {
 /// only added a tap.
 struct PaywallContent: View {
     @EnvironmentObject var billing: StoreManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The plan the CTA will buy. Nil means "nothing tapped yet", which resolves
     /// to `defaultProduct` (yearly) — so the preselection survives products
@@ -266,7 +273,7 @@ struct PaywallContent: View {
                 ForEach(morePerks, id: \.1) { perk in perkRow(perk) }
             }
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { showAllPerks.toggle() }
+                performWithAnimation(!reduceMotion, .easeInOut(duration: 0.18)) { showAllPerks.toggle() }
             } label: {
                 HStack(spacing: 4) {
                     Text(showAllPerks ? "Show less" : "See everything in Pro")

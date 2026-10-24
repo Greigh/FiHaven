@@ -47,6 +47,8 @@ import com.plaid.link.result.LinkError
 import com.plaid.link.result.LinkExit
 import com.plaid.link.result.LinkSuccess
 import kotlinx.coroutines.launch
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 
 /// Pro-gated bank linking via Plaid's native Link SDK. Status, balances,
 /// and disconnect all run through the existing /api/plaid endpoints; the
@@ -73,6 +75,17 @@ fun BankConnections(vm: AppViewModel) {
     var showImportPrompt by remember { mutableStateOf(false) }
     var showBalancePrompt by remember { mutableStateOf(false) }
     var showPaywall by remember { mutableStateOf(false) }
+
+    // DEBUG presentation hook: `--es present bank-import-prompt|bank-balance-prompt`
+    // mounts the post-link prompt directly.
+    LaunchedEffect(Unit) {
+        if (BuildConfig.DEBUG) {
+            when (vm.devPresent) {
+                "bank-import-prompt" -> { showImportPrompt = true; vm.devPresent = null }
+                "bank-balance-prompt" -> { showBalancePrompt = true; vm.devPresent = null }
+            }
+        }
+    }
 
     suspend fun load() { status = runCatching { vm.api.plaidStatus() }.getOrNull() }
     LaunchedEffect(Unit) { load() }

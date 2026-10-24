@@ -72,9 +72,14 @@ class OfflineCache(directory: File, filename: String = "fh-offline-cache.json") 
      * Flip only the pending flag, keeping the stored data. Used when a write
      * lands: the cache is still the right offline copy, it's just no longer
      * ahead of the server.
+     *
+     * [ifMatches] guards the gap between a server accept and this write: an
+     * edit that landed on disk after the PUT must keep `pendingWrite` set —
+     * the server never saw it, so marking it synced would drop it.
      */
-    fun markSynced(): Boolean {
+    fun markSynced(ifMatches: AppData? = null): Boolean {
         val snapshot = readRaw() ?: return false
+        if (ifMatches != null && snapshot.data != ifMatches) return false
         if (!snapshot.pendingWrite) return true
         return write(snapshot.data, snapshot.owner, pendingWrite = false)
     }

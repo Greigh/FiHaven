@@ -57,6 +57,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import app.fihaven.BuildConfig
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 
 private val prettyDate = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.US)
 
@@ -64,6 +67,21 @@ private val prettyDate = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.
 fun HistoryScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)? = null) {
     val data by vm.data.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Payment?>(null) }
+
+    // DEBUG presentation hook: `--es present <spec>` mounts the named
+    // presentation once the account data has loaded.
+    LaunchedEffect(Unit) {
+        val spec = if (BuildConfig.DEBUG) vm.devPresent else null
+        if (spec != null) {
+            vm.dataLoaded.first { it }
+            when (spec) {
+                "edit-payment" -> editing = vm.data.value.payments.firstOrNull()
+                else -> return@LaunchedEffect
+            }
+            vm.devPresent = null
+        }
+    }
+
     // Everything settled — paid AND skipped. A skip is a payment record flagged
     // `skipped` (amount 0): not money out, but a decision worth looking back on,
     // so it lists as a "Skipped" row and stays out of every total.

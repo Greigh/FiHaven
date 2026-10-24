@@ -50,6 +50,11 @@ set -euo pipefail
 #                   signed-out samples (intro, auth, auth-stalled) are names
 #                   too, not screens
 #   --states a,b    --sweep a subset, by state (default: all of them)
+#   --presents      sweep the presentation matrix instead of the screen
+#                   matrix: every sheet/editor/full-screen flow, mounted by
+#                   FH_PRESENT over the live shell — one launch each, in the
+#                   state its row declares (see SWEEP_PRESENTS). `--only`
+#                   selects presentation names (present-bill-edit, …).
 #   --viewport WxH  --sweep with the app laid out inside a WxH letterbox rather
 #                   than the device's own window — the narrow multitasking and
 #                   landscape geometries `simctl` cannot produce. WxH:compact
@@ -101,6 +106,7 @@ BUNDLE="app.fihaven"
 BUILD=1
 RUN_FOR=""
 SWEEP=0
+PRESENTS=0
 DEVICE=""
 OUT_DIR="/tmp/fh-sweep-ios"
 SWEEP_DELAY=8
@@ -114,6 +120,7 @@ while [ $# -gt 0 ]; do
     --no-build) BUILD=0 ;;
     --seconds) shift; RUN_FOR="${1:-}" ;;
     --sweep) SWEEP=1 ;;
+    --presents) SWEEP=1; PRESENTS=1 ;;
     --device) shift; DEVICE="${1:-}" ;;
     --out) shift; OUT_DIR="${1:-}" ;;
     --delay) shift; SWEEP_DELAY="${1:-}" ;;
@@ -331,7 +338,21 @@ capture_cell() {
   sleep 1
   env "${envv[@]}" xcrun simctl launch --console "$udid" "$BUNDLE" >"$log" 2>&1 &
   local runner=$!
-  sleep "$delay"
+  # Presentation cells pass `delay` as `poll:<evidence>` — the capture waits
+  # for the hook's own log line instead of a fixed sleep, so a fixture that
+  # loads at 3s or 12s is photographed after it mounted, not whenever the
+  # timer happened to land.
+  if [[ "$delay" == poll:* ]]; then
+    local want="${delay#poll:}" waited=0
+    while [ "$waited" -lt 40 ]; do
+      grep -qF -- "$want" "$log" 2>/dev/null && break
+      sleep 1; waited=$((waited + 1))
+    done
+    # A beat after the mount log so the sheet animation has finished.
+    sleep 2
+  else
+    sleep "$delay"
+  fi
   # `--type=png` is the default; stated so a future `--type=heic` on this line
   # cannot quietly make every `sips` probe below report `?`.
   xcrun simctl io "$udid" screenshot --type=png "$png" >/dev/null 2>&1 || true
@@ -389,7 +410,13 @@ ios_record_cell() {
     # A signed-out launch passes an empty expectation and skips the check:
     # the shell is not on screen, so there is nothing the name could hold.
     if [ -n "$expected_screen" ]; then
-      local rendered; rendered="$(grep -o 'screen=[a-z]*' "$log" | tail -1 | cut -d= -f2)"
+      # `rendered=` is the tag actually selected at capture time; `screen=` is
+      # the route the launch requested. Under a fault they differ — a Pro tab
+      # that does not exist falls back to dashboard — and comparing the
+      # request is how a wrong capture once read `ok`.
+      local rendered
+      rendered="$(grep -o 'rendered=[a-z-]*' "$log" | tail -1 | cut -d= -f2)"
+      [ -z "$rendered" ] && rendered="$(grep -o 'screen=[a-z]*' "$log" | tail -1 | cut -d= -f2)"
       if [ -z "$rendered" ]; then
         note="$(note_join "$note" "screen unconfirmed")"
       elif [ "$rendered" != "$expected_screen" ]; then
@@ -508,24 +535,41 @@ sweep_device() {
     echo "run-ios: --states also sweeping $added — the two tiers are one review, and a Pro screen photographed as a paywall is the failure the pair exists to catch"
     STATES="${STATES:+$STATES,}$added"
   fi
-  # `--only` selects from both matrices at once: the seventeen screens and the
-  # signed-out samples, which are not screen × state cells at all. One list to
-  # validate and order, then split — the loop below runs `chosen`, the block
-  # after it runs `chosen_out`.
-  local chosen chosen_all chosen_out entry
-  chosen_all="$(sweep_choose run-ios --only "$ONLY" "$(printf '%s\n' "${SWEEP_SCREENS[@]}" "${SWEEP_SIGNED_OUT[@]}")")" || return $?
-  chosen=""
-  chosen_out=""
-  while IFS= read -r entry; do
-    [ -n "$entry" ] || continue
-    if sweep_is_signed_out "$(sweep_field "$entry" 1)"; then
-      chosen_out="$chosen_out$entry
-"
+  # `--only` selects across three lists at once: the screens, the signed-out
+  # samples and — under `--presents` — the presentation rows. Presentation
+  # names start `present-`, so a name the screen list does not know is not a
+  # typo, it is a request for the other matrix. The names are partitioned
+  # first so each `sweep_choose` only ever sees names from its own list.
+  local only_screens="" only_presents="" only_name
+  for only_name in $(printf '%s' "$ONLY" | tr ',' ' '); do
+    [ -n "$only_name" ] || continue
+    if sweep_is_present "$only_name"; then
+      only_presents="${only_presents:+$only_presents,}$only_name"
     else
-      chosen="$chosen$entry
-"
+      only_screens="${only_screens:+$only_screens,}$only_name"
     fi
-  done <<< "$chosen_all"
+  done
+  local chosen chosen_all chosen_out entry
+  if [ -n "$ONLY" ] && [ -z "$only_screens" ]; then
+    # Every name in --only was a presentation; the screen matrix has nothing
+    # selected rather than everything.
+    chosen=""
+    chosen_out=""
+  else
+    chosen_all="$(sweep_choose run-ios --only "$only_screens" "$(printf '%s\n' "${SWEEP_SCREENS[@]}" "${SWEEP_SIGNED_OUT[@]}")")" || return $?
+    chosen=""
+    chosen_out=""
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      if sweep_is_signed_out "$(sweep_field "$entry" 1)"; then
+        chosen_out="$chosen_out$entry
+"
+      else
+        chosen="$chosen$entry
+"
+      fi
+    done <<< "$chosen_all"
+  fi
   chosen_states="$(sweep_choose run-ios --states "$STATES" "$(sweep_states)")" || return $?
 
   # Counted through a here-string, not an unquoted expansion: half these rows
@@ -536,6 +580,19 @@ sweep_device() {
   states="$(grep -c . <<< "$chosen_states" || true)"
   out_count="$(grep -c . <<< "$chosen_out" || true)"
   local total=$((screens * states + out_count))
+  # `--presents` swaps the screen x state matrix for the presentation list —
+  # one launch each, under the state its row declares. It is selected here so
+  # the run summary's total covers it.
+  local chosen_presents="" present_count=0
+  if [ "$PRESENTS" = "1" ]; then
+    if [ -n "$ONLY" ] && [ -z "$only_presents" ]; then
+      chosen_presents=""
+    else
+      chosen_presents="$(sweep_choose run-ios --only "$only_presents" "$(sweep_presents)")" || return $?
+    fi
+    present_count="$(grep -c . <<< "$chosen_presents" || true)"
+    total=$((total + present_count))
+  fi
 
   local per_state="" raw title state state_entry
   local seed
@@ -756,6 +813,52 @@ sweep_device() {
       "$((missing - before_missing))" "$((flagged - before_flagged))")"
   done <<< "$chosen_out"
 
+  # ── the presentations ─────────────────────────────────────────────────
+  #
+  # Editors, settings sheets and the full-screen flows — the views that only
+  # exist behind a gesture, mounted by `FH_PRESENT` over the live shell so
+  # the capture is the real presentation container, not a stand-in. Each row
+  # declares its own state: most want `happy` because a fixture row has to
+  # exist for an editor to edit, and the paywall wants `free` because that
+  # is the tier that sees it.
+  if [ "$PRESENTS" = "1" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      idx=$((idx + 1))
+      raw="$(sweep_field "$entry" 1)"
+      title="$(sweep_field "$entry" 2)"
+      local spec p_state
+      spec="$(sweep_field "$entry" 3)"
+      p_state="$(sweep_field "$entry" 4)"
+      # The state's env joined with the presentation: `FH_DEV_ENTITLEMENT=active`
+      # for `happy`, `…=free` for the paywall, and `FH_PRESENT=<spec>` for
+      # both. Read from the full state table, not `chosen_states` — a
+      # `--states` filter narrows the screen matrix, not what a presentation
+      # is allowed to run under.
+      local state_env=""
+      while IFS= read -r state_entry; do
+        [ -n "$state_entry" ] || continue
+        if [ "$(sweep_field "$state_entry" 1)" = "$p_state" ]; then
+          state_env="$(sweep_field "$state_entry" 3)"
+        fi
+      done <<< "$(sweep_states)"
+      local before_missing=$missing before_flagged=$flagged
+      local stem; stem="$(printf '%02d-%s__%s' "$idx" "$raw" "$p_state")"
+      local png="$out/$stem.png"
+      local log="$out/$stem.log"
+      printf 'run-ios: [%3d/%3d] %-19s %-8s → %s.png\n' "$idx" "$total" "$title" "$p_state" "$stem"
+      capture_cell "$udid" "$png" "$log" "$state_env FH_PRESENT=$spec" "" "poll:[Present]"
+      # The hook's own line is the evidence: `[Present] showing <spec>` means
+      # the sheet mounted; its absence means the capture photographed the
+      # shell behind a presentation that never happened.
+      ios_record_cell "$png" "$log" "$title" "$raw" "$p_state" \
+        "session=signedIn,[Present] showing $spec" "" "" "$SWEEP_BLANK_BYTES"
+      rows+=("$SWEEP_ROW")
+      per_state="$(sweep_tally_add "$per_state" "$p_state" \
+        "$((missing - before_missing))" "$((flagged - before_flagged))")"
+    done <<< "$chosen_presents"
+  fi
+
   local seconds=$((SECONDS - started))
   local ctx_header=""
   [ -n "${FH_VIEWPORT:-}" ] && ctx_header="Viewport"
@@ -856,4 +959,10 @@ single_run() {
   fi
 }
 
-main
+# `main` inside a brace group, not as the script's last bare word. Bash reads
+# a script incrementally, and a bare trailing call can start running before
+# the parser has consumed the whole file — an edit that lands mid-sweep then
+# corrupts the read position and reports a nonsense error like
+# "line 943: syntax error near unexpected token `fi'" at EOF. The `}` closes
+# the compound command, so nothing runs until the last byte is parsed.
+{ main; exit $?; }

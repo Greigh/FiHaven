@@ -204,6 +204,7 @@ struct PayView: View {
                 Text("This card is paid off. Remove the 0% promo?")
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private var payHintFooter: some View {

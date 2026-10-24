@@ -3,6 +3,7 @@ import SwiftUI
 /// Compact chrome banner when cloud sync failed — local edits remain on-device.
 struct SyncOfflineBanner: View {
     @EnvironmentObject var store: AppStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dismissed = false
 
     var body: some View {
@@ -42,14 +43,14 @@ struct SyncOfflineBanner: View {
                 )
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(store.syncState == .rejected
                     ? "Sync rejected. Data exceeds server limit. Edits remain on this device."
                     : "Offline. Your changes are saved on this device and will sync when you are back online.")
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: store.syncState)
+        .animationIfAllowed(.easeInOut(duration: 0.2), value: store.syncState)
         .onChange(of: store.syncState) { _, new in
             if new != .offline && new != .rejected { dismissed = false }
         }

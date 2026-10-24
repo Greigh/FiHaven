@@ -45,6 +45,8 @@ class MainActivity : FragmentActivity() {
         // ones that change auth or app state are DEBUG-only. `tab`/`route` are
         // just navigation hints and stay live.
         val autoLogin = BuildConfig.DEBUG && intent.getBooleanExtra("autologin", false)
+        val loginEmail = intent.getStringExtra("login_email") ?: "demo@fihaven.app"
+        val loginPass = intent.getStringExtra("login_pass") ?: "demopassword11"
         val tab = intent.getStringExtra("tab")
         val route = intent.getStringExtra("route")
         val themeOverride = if (BuildConfig.DEBUG) intent.getStringExtra("theme") else null
@@ -55,6 +57,23 @@ class MainActivity : FragmentActivity() {
             if (BuildConfig.DEBUG && (bioDemo || bioLock)) {
                 BiometricAuth.demoMode = true
                 LaunchedEffect(Unit) { if (bioLock) vm.demoLock() }
+            }
+            // DEBUG sweep hook: `--es entitlement free|active|expired|grace|canceled`
+            // drives the same dev override the in-app debug menu sets.
+            if (BuildConfig.DEBUG) {
+                intent.getStringExtra("entitlement")?.let { ent ->
+                    LaunchedEffect(Unit) { vm.devEntitlementOverride = ent }
+                }
+                // `--ez datafault true` lands the signed-in session on the
+                // data-error screen — the offline/error matrix states.
+                if (intent.getBooleanExtra("datafault", false)) {
+                    LaunchedEffect(Unit) { vm.devDataFault() }
+                }
+                // `--es present <spec>` mounts a real presentation (dialog,
+                // editor, settings sheet) once the account data loads.
+                intent.getStringExtra("present")?.let { spec ->
+                    LaunchedEffect(Unit) { vm.devPresent = spec }
+                }
             }
             // Web OAuth returns via https://fihaven.app/oauth/{provider}?code=…
             // (App Links) or legacy fihaven://oauth/{provider}?code=….
@@ -95,7 +114,10 @@ class MainActivity : FragmentActivity() {
             }
             CompositionLocalProvider(LocalThemeController provides themeController) {
                 FiHavenTheme(pref = themeController.pref) {
-                    RootScreen(vm = vm, autoLogin = autoLogin, initialTab = tab, initialRoute = route)
+                    RootScreen(
+                        vm = vm, autoLogin = autoLogin, initialTab = tab, initialRoute = route,
+                        loginEmail = loginEmail, loginPass = loginPass,
+                    )
                 }
             }
         }

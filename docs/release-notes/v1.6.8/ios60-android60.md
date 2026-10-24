@@ -12,7 +12,7 @@ This is **the copy actually being shipped**, not a reconstruction. Source: the
 is 1.6.8**; the build number continues 59 → 60 (it is one shared counter across
 both stores and does not reset on a marketing bump — the rule from build 49 onward).
 
-**No forced sign-out, no data migration.** An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+**No forced sign-out, no data migration.** An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data.
 
 Limits: **Google Play "What's new" is 500 characters** per language (hard cap,
 the console rejects longer). **TestFlight "What to Test" is 4000.**
@@ -24,7 +24,7 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 > Short release summary (under 500 characters).
 
 ```
-BETA: An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+BETA: An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data.
 ```
 
 ---
@@ -38,11 +38,19 @@ WHAT'S NEW IN BUILD 60 (BETA)
 
 No sign-out this time, and no data reset.
 
-An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.
+An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data.
+
+Worth exercising: sign in, make an edit while offline (airplane mode), then sign out and into a second account — both datasets should stay intact. And bump Dynamic Type up a few notches: amounts and labels should stay whole everywhere.
 ```
 
 ---
 
 ## App Store — What's New (only if promoting build 60 to release)
 
-Paste into App Store Connect → Version → What's New in This Version.
+Paste into App Store Connect → Version → What's New in This Version. The same
+text applies to the **Mac App Store** listing — build 60 runs as a native Mac
+app, not "Designed for iPad".
+
+```text
+An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data.
+```

@@ -149,6 +149,7 @@ struct DeleteAccountSheet: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func delete() async {
@@ -219,6 +220,7 @@ struct ClearDataSheet: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func clear() async {
@@ -299,6 +301,7 @@ struct TotpSetupSheet: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func beginSetup() async {
@@ -376,6 +379,7 @@ struct BackupCodesSheet: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func regen() async {
@@ -425,6 +429,7 @@ struct EmailEnableSheet: View {
                 }
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private func sendCode() async {
@@ -502,6 +507,7 @@ struct TimezoneSheet: View {
             .navigationTitle("Time zone").ctInlineTitle()
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
+        .ctEditorSheetWidth()
     }
 }
 
@@ -534,5 +540,6 @@ struct SheetForm<Content: View>: View {
             }
             .onAppear(perform: onAppear)
         }
+        .ctEditorSheetWidth()
     }
 }

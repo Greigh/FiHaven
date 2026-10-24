@@ -277,6 +277,7 @@ struct ManageLinkSheet: View {
             }
             .onAppear { url = item.manageUrl ?? "" }
         }
+        .ctEditorSheetWidth()
     }
 
     private func save() {

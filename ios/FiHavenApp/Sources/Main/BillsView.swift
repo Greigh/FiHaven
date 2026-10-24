@@ -272,6 +272,7 @@ struct BillsView: View {
                     }
                 }
             }
+            .ctEditorSheetWidth()
             .ctDetents([.medium])
         }
     }
@@ -311,12 +312,16 @@ private struct BillRow: View {
                     Text(Money.fmt(bill.amountOrZero)).font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.text)
                         // One line, shrink before wrap: a wrapped amount reads
                         // as a broken figure ("$450.0\n0").
-                        .lineLimit(1).minimumScaleFactor(0.6).layoutPriority(2)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                     if bill.autopay {
                         Text(bill.autopayDay.map { "autopay · day \($0)" } ?? "autopay")
                             .font(Theme.mono(9)).foregroundStyle(Theme.muted)
+                            .lineLimit(1).minimumScaleFactor(0.7).fixedSize()
                     }
                 }
+                // Priority on the column, not the amount: a long name used to
+                // squeeze this side until "autopay" wrapped mid-word.
+                .layoutPriority(2)
             }
             HStack(spacing: 16) {
                 Text(statusLine).font(Theme.ui(12)).foregroundStyle(skipped ? Theme.muted : statusColor)

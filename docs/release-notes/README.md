@@ -44,7 +44,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
-| [1.6.8](v1.6.8/ios60-android60.md) | iOS 60 · Android 60 | 2026-10-22 | **Build 60**: An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes.. **No server migration, no sign-out** |
+| [1.6.8](v1.6.8/ios60-android60.md) | iOS 60 · Android 60 | 2026-10-22 | **Build 60**: An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. **No server migration, no sign-out** |
 | [1.6.7](v1.6.7/ios59-android59.md) | iOS 59 · Android 59 | 2026-10-06 | **Build 59**: Pipeline and CI fixes; no user-facing changes since build 58. **No server migration, no sign-out** |
 | [1.6.7](v1.6.7/ios58-android58.md) | iOS 58 · Android 58 | 2026-10-04 | **Build 58**: The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients. **No server migration, no sign-out** |
 | [1.6.6](v1.6.6/ios57-android57.md) | iOS 57 · Android 57 | 2026-10-02 | **Build 57**: The native macOS app — sidebar, sortable multi-select tables, keyboard-driven; Android setup wizard, sign-in state fix, reminder-pass fix, enforced CSP. Shipped from the pre-port lineage. **No server migration, no sign-out** |

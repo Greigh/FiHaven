@@ -72,7 +72,11 @@ android {
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE", "\"https://fihaven.app\"")
+            // `-PfhApiBase=http://10.0.2.2:5222` points a debug build at the
+            // local dev server; the default keeps production's value so a
+            // plain `./gradlew assembleDebug` is unchanged.
+            val apiBase = findProperty("fhApiBase") as String? ?: "https://fihaven.app"
+            buildConfigField("String", "API_BASE", "\"$apiBase\"")
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -115,6 +119,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))

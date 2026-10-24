@@ -677,6 +677,7 @@ struct RewardRateReportSheet: View {
                 usePoints = usesPoints
             }
         }
+        .ctEditorSheetWidth()
     }
 
     private var shownLabel: String {

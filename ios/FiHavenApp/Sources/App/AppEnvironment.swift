@@ -2,6 +2,11 @@ import Foundation
 import Security
 import SwiftUI
 import FiHavenCore
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Top-level auth/session state.
 enum SessionState {
@@ -117,6 +122,11 @@ final class AppEnvironment: ObservableObject {
 
     func bootstrap() async {
         fhLog("[AppEnvironment] bootstrap() begin")
+        #if canImport(UIKit)
+        fhLog("[A11y] reduceMotion=\(UIAccessibility.isReduceMotionEnabled)")
+        #elseif canImport(AppKit)
+        fhLog("[A11y] reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)")
+        #endif
         #if DEBUG
         // FH_SIGNED_OUT=1 keeps a session an earlier sweep cell left in the
         // keychain from putting the signed-in shell back on screen. It must
@@ -350,6 +360,22 @@ final class AppEnvironment: ObservableObject {
             session = .unverified(user)
             fhLog("[AppEnvironment] enterSignedIn end; session=\(session)")
             return
+        }
+        // Signing straight over a still-live session (re-auth, account
+        // switch, debug autologin) must tear the old store down first: its
+        // saveTask retry loop would otherwise keep running under the shared
+        // API client's new token and PUT the old account's snapshot over the
+        // new one's data — the observed F7 wipe.
+        if let old = store {
+            if case .signedIn(let prev) = session,
+               prev.email.caseInsensitiveCompare(user.email) == .orderedSame {
+                // Same account signing back in: kill the old writer without
+                // the sign-out teardown (cache + reminders still belong here).
+                old.supersede()
+            } else {
+                old.endSession()
+            }
+            store = nil
         }
         // A fresh password/MFA sign-in already authenticated the user, so
         // don't gate behind biometrics; a token-restored session (cold

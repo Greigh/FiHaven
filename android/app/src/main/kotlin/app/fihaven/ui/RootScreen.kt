@@ -47,6 +47,8 @@ fun RootScreen(
     autoLogin: Boolean,
     initialTab: String? = null,
     initialRoute: String? = null,
+    loginEmail: String = "demo@fihaven.app",
+    loginPass: String = "demopassword11",
 ) {
     val session by vm.session.collectAsStateWithLifecycle()
     val locked by vm.locked.collectAsStateWithLifecycle()
@@ -55,7 +57,16 @@ fun RootScreen(
     val dataError by vm.dataError.collectAsStateWithLifecycle()
 
     LaunchedEffect(session, autoLogin) {
-        if (autoLogin && session is Session.SignedOut) vm.devAutoLogin()
+        if (autoLogin && session is Session.SignedOut) vm.devAutoLogin(loginEmail, loginPass)
+        // A sweep cell relaunches onto a persisted session: if the account it
+        // restored is not the account this cell asked for, sign out so the
+        // SignedOut branch below logs the right one in — otherwise an `empty`
+        // capture photographs the populated account it replaced.
+        if (autoLogin && session is Session.SignedIn &&
+            (session as Session.SignedIn).user.email != loginEmail
+        ) {
+            vm.logout()
+        }
     }
 
     // Re-engage the lock when the app leaves the foreground.
@@ -172,7 +183,15 @@ fun DataErrorScreen(message: String, onRetry: () -> Unit, onLogout: () -> Unit) 
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 20.dp),
         )
-        Text(message, color = Ct.colors.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            // The heading already says "Couldn't load your data" — a failure
+            // message of the same words reads as a rendering bug, so fall back
+            // to guidance instead of repeating the title.
+            if (message.startsWith("Couldn't load")) "Check your connection and try again." else message,
+            color = Ct.colors.muted,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = Ct.colors.accent),

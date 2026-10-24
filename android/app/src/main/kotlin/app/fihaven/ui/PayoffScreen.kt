@@ -125,6 +125,11 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                     )
                 }
             } else {
+                // A card with no paidOffMonth never cleared on minimums alone —
+                // that sim ran to its 360-month cap, so its "interest" is a debt
+                // that kept compounding. "save $X vs mins" against it reads as a
+                // promise; the honest sentence is that minimums never finish.
+                val minsNeverClear = simMin?.cards?.any { it.paidOffMonth == null } == true
                 val saves = ((simMin?.totalInterest ?: 0.0) - hero.totalInterest).coerceAtLeast(0.0)
                 CtCard {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -150,7 +155,8 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         Text(
                             buildString {
                                 append("${hero.months} months · ${Money.fmt(hero.totalInterest)} interest")
-                                if (saves > 0 && extra > 0) append(" · save ${Money.fmt(saves)} vs mins")
+                                if (minsNeverClear) append(" · minimums never clear this debt")
+                                else if (saves > 0 && extra > 0) append(" · save ${Money.fmt(saves)} vs mins")
                             },
                             color = Ct.colors.muted, fontSize = 13.sp,
                         )

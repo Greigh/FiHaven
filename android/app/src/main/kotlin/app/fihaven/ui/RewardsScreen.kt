@@ -46,6 +46,8 @@ import app.fihaven.core.model.perkUsage
 import app.fihaven.ui.theme.Ct
 import app.fihaven.ui.theme.MonoNumerals
 import kotlinx.coroutines.launch
+import app.fihaven.BuildConfig
+import kotlinx.coroutines.flow.first
 
 /**
  * "Maximize rewards" tool: pick a spending category and see which card earns
@@ -58,6 +60,16 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
     var category by remember { mutableStateOf("Dining") }
     var merchantQuery by remember { mutableStateOf("") }
     var showRateReport by remember { mutableStateOf(false) }
+
+    // DEBUG presentation hook: `--es present rate-report` mounts the report
+    // dialog once the account data has loaded.
+    LaunchedEffect(Unit) {
+        if (BuildConfig.DEBUG && vm.devPresent == "rate-report") {
+            vm.dataLoaded.first { it }
+            showRateReport = true
+            vm.devPresent = null
+        }
+    }
 
     // Annualized category spend from manual + bank-synced transactions; feeds
     // the rewards estimate in the fee check and the offer-use detection.

@@ -122,6 +122,27 @@ extension View {
         lineLimit(1).minimumScaleFactor(0.6)
     }
 
+    /// Minimum width and grouped form style for a Mac editor/settings sheet.
+    ///
+    /// Two things went wrong in a Mac sheet, both visible in the same capture:
+    /// the sheet sized to the `Form`'s ideal width without the label column
+    /// (~470pt) and clipped every row label at the leading edge ("Amount" →
+    /// "ount"), and `.columns` — the platform default for a sheet — splits the
+    /// form 50/50, so the right-aligned labels floated in a half-width column
+    /// that read as a dead margin. `.grouped` renders the same stacked,
+    /// inset-grouped layout iOS gets: labels above their fields, no clipping,
+    /// and the width minimum keeps the sheet from sizing under the content.
+    /// No-op on iOS, where a sheet is display-width and `Form` is grouped
+    /// already.
+    func ctEditorSheetWidth() -> some View {
+        #if canImport(UIKit)
+        self
+        #else
+        formStyle(.grouped)
+            .frame(minWidth: 460, idealWidth: 500)
+        #endif
+    }
+
     /// Sheet detents are a touch affordance; a Mac sheet sizes to its content.
     func ctDetents(_ detents: [CTSheetDetent]) -> some View {
         #if canImport(UIKit)
@@ -411,7 +432,6 @@ private final class FrameGuardView: NSView {
     required init?(coder: NSCoder) { fatalError("not a nib view") }
 
     deinit {
-        floorTimer?.invalidate()
         #if DEBUG
         if let frameWatcher { NotificationCenter.default.removeObserver(frameWatcher) }
         #endif
@@ -420,6 +440,14 @@ private final class FrameGuardView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }
+        // One-time, not kept: `.automatic` resizability resolves to
+        // `.contentMinSize` for this scene, so SwiftUI rewrites
+        // `window.contentMinSize` from the content's minimum on every layout
+        // pass — and the scene's content declares `MacWindowDefaults.minSize`
+        // as that minimum (see FiHavenApp.swift), so the value it installs is
+        // this floor. These writes cover only the attach-before-layout gap;
+        // `minSize` is the whole-window knob SwiftUI does not own, and stays
+        // as the drag floor's backstop.
         window.contentMinSize = minimumSize
         window.minSize = minimumSize
         guard !applied else { return }
@@ -429,32 +457,6 @@ private final class FrameGuardView: NSView {
         // `viewDidMoveToWindow` is immediately overwritten by a window as tall
         // as the display. One turn of the run loop later it sticks.
         DispatchQueue.main.async { [weak self] in self?.apply(to: window) }
-    }
-
-    /// Re-asserts the drag floor while the window lives; see `floorTimer`.
-    ///
-    /// The floor is `contentMinSize` because on this window — a
-    /// `fullSizeContentView` one, the pinned-run logs show content and frame
-    /// measuring the same — it is the frame floor to two views' accuracy.
-    /// Setting it can grow a window that is currently below the floor: that
-    /// clamp is the point of it, and a timer callback is outside the layout
-    /// cycle a `setFrame` must not be made inside (see `watchFrame`).
-    private var floorTimer: Timer?
-
-    private func watchFloor(of window: NSWindow) {
-        // The same 400ms the snapshot re-assertion in `FiHavenApp` polls the
-        // pin at, for the same reason: there is no notification for the write
-        // being undone, so the floor is kept, not enforced once.
-        floorTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) {
-            [weak self, weak window] timer in
-            guard let self, let window else {
-                timer.invalidate()
-                return
-            }
-            if window.contentMinSize != self.minimumSize {
-                window.contentMinSize = self.minimumSize
-            }
-        }
     }
 
     private func apply(to window: NSWindow) {
@@ -519,16 +521,14 @@ private final class FrameGuardView: NSView {
         window.setFrame(frame, display: true)
         fhLog("[Window] \(autosaveName) frame \(Int(frame.width))x\(Int(frame.height)) restored=\(usable != nil) in \(Int(visible.width))x\(Int(visible.height)) visible")
 
-        // The drag floor. `window.contentMinSize = minimumSize` in
-        // `viewDidMoveToWindow` asks for it once, but SwiftUI owns that knob:
-        // `updateAnimatedWindowSize` writes the content's minimum over it on
-        // any layout pass whose answer changed — 236x222 replaced the guard's
-        // 640x520 inside the first second, which is how the window came to be
-        // draggable down to a strip every layout here can scroll inside.
-        // Nothing announces the install — it is not a resize, and a layout
-        // pass that changes no frame reaches no observer — so the floor is
-        // re-asserted on the timer instead, the same way the pin is.
-        watchFloor(of: window)
+        // The drag floor needs no keeper here. SwiftUI owns `contentMinSize`
+        // — `updateAnimatedWindowSize` writes the content's minimum over it on
+        // any layout pass whose answer changed (236x222 once replaced the
+        // guard's 640x520 inside the first second) — and the scene's content
+        // now declares that minimum as `MacWindowDefaults.minSize`, so what
+        // the owner installs and what the floor asks are the same number.
+        // `window.minSize`, written once at attach, is the backstop SwiftUI
+        // leaves alone.
 
         #if DEBUG
         if ProcessInfo.processInfo.environment["FH_WIN_TEST"] == "1" {
@@ -676,10 +676,26 @@ private final class FrameGuardView: NSView {
             // Full-screen in, then back out — the transition pairs a real
             // user hits hardest when a floor or a pin has fought them. The
             // window has to be on the active space and owned by the active
-            // app for the transition to take; a sweep launch never activates,
-            // so activate first — without it the toggle is a silent no-op.
-            NSApp.activate(ignoringOtherApps: true)
+            // app for the transition to take; a sweep launch never activates.
+            // `activate(ignoringOtherApps:)` cannot fix that — it is a no-op
+            // since macOS 14 — so the modern call is used, and the toggle
+            // waits on activation rather than racing it.
+            NSApp.activate()
             window.makeKeyAndOrderFront(nil)
+            self.attemptFullScreen(window, tries: 20, startFrame: startFrame, line: line)
+        }
+    }
+
+    /// Waits for real activation before toggling, then completes the
+    /// enter/exit pair. `NSApp.activate()` is asynchronous and can be
+    /// refused outright in a session that cannot foreground apps, so the
+    /// toggle polls instead of firing once into a known-inactive window —
+    /// that is what turned a timing question into a false "does not enter"
+    /// verdict.
+    private func attemptFullScreen(_ window: NSWindow, tries: Int,
+                                   startFrame: NSRect, line: @escaping (String) -> Void) {
+        fhLog("[WinTest] awaiting activation active=\(NSApp.isActive) tries=\(tries)")
+        if NSApp.isActive || tries <= 0 {
             fhLog("[WinTest] before toggle active=\(NSApp.isActive) key=\(window.isKeyWindow) onScreen=\(window.isOnActiveSpace)")
             window.toggleFullScreen(nil)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
@@ -694,6 +710,10 @@ private final class FrameGuardView: NSView {
                     line("restored start")
                 }
             }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            self.attemptFullScreen(window, tries: tries - 1, startFrame: startFrame, line: line)
         }
     }
 
