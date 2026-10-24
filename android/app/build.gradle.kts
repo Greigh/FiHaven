@@ -104,7 +104,14 @@ android {
             isReturnDefaultValues = true
             all {
                 it.useJUnitPlatform()
-                it.testLogging { events("passed", "failed", "skipped") }
+                it.testLogging {
+                    events("passed", "failed", "skipped")
+                    // Failure messages carry the recorded traffic dump these
+                    // tests assert on; print them so CI failures are legible
+                    // without downloading the XML report.
+                    showExceptions = true
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                }
             }
         }
     }
