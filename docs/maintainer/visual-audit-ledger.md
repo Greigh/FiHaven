@@ -62,7 +62,7 @@ bank-link. Real tap-throughs also performed during interactive sessions.
 | F4 | Android restored stale session when account differed — empty-state cells photographed the wrong user | `devAutoLogin` re-signs when a signed-in session's email ≠ requested | rerun in progress |
 | F5 | Android debug was pinned to `https://fihaven.app` — could not audit against local fixture server | `FH_API_BASE` gradle property (debug only) + cleartext-to-10.0.2.2 network config | live data renders |
 | F6 | `DataErrorScreen` duplicated its message under the heading | (noted for design pass — copy duplication is a cosmetic finding) | captured |
-| F7 | Dev account blob regressed to empty mid-sweep (~00:39→00:45); save-after-failed-load suspected — app may PUT an empty `AppData` after a raced load | not yet fixed — needs dedicated repro; seeder restores data | logged as real data-loss risk |
+| F7 | **HIGH — reproduced:** dev account blob regressed to empty mid-sweep twice (~00:39 and again during the Android2 rerun). Android sign-in → raced/failed `loadData()` → a save PUTs an empty `AppData` over server data. `AppViewModel.kt:461` documents this exact race — a guard exists but a path still bypasses it. iOS likely shares the hazard class (blob shrank during the iPhone sweep too) | unfixed — real data-loss risk; needs a load-confirmed gate before any save, or a server-side empty-blob-reject | reproduced 2×; every Android `happy` cell after the wipe renders the empty UI instead |
 | F8 | `run-ios.sh` tail: benign post-sweep dispatch wart (`fi`/scope errors after table prints); `bash -n` clean | cosmetic harness wart | output intact |
 
 ## Platform verification
