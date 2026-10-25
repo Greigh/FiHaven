@@ -268,14 +268,17 @@ struct CalendarView: View {
     }
 
     private var macBody: some View {
-        GeometryReader { pane in
+        // One month scan per render — itemsByDay walks every bill over every
+        // day, so asking for it per cell pays that cost ~42 times.
+        let dayItems = displayItemsByDay
+        return GeometryReader { pane in
             VStack(spacing: 0) {
                 macTitleRow
                 macWeekdayHeader
                 if pane.size.width >= 880 {
                     HStack(alignment: .top, spacing: 16) {
-                        macGrid
-                        macInspector
+                        macGrid(items: dayItems)
+                        macInspector(items: dayItems)
                             .frame(width: 300)
                     }
                     .padding(.horizontal, 16)
@@ -286,9 +289,9 @@ struct CalendarView: View {
                     // width and the day's list scrolls underneath.
                     ScrollView {
                         VStack(spacing: 12) {
-                            macGrid
+                            macGrid(items: dayItems)
                                 .frame(height: max(400, pane.size.height * 0.62))
-                            macInspector
+                            macInspector(items: dayItems)
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
@@ -343,12 +346,12 @@ struct CalendarView: View {
     /// The month grid: hairline-separated cells that share the pane's height,
     /// with due items drawn as chips inside their day the way a calendar's
     /// events sit inside theirs.
-    private var macGrid: some View {
+    private func macGrid(items dayItems: [Int: [DayItem]]) -> some View {
         VStack(spacing: 1) {
             ForEach(Array(displayWeeks.enumerated()), id: \.offset) { _, week in
                 HStack(spacing: 1) {
                     ForEach(week, id: \.self) { d in
-                        macCell(d)
+                        macCell(d, items: d.inMonth ? (dayItems[d.day] ?? []) : [])
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -362,8 +365,7 @@ struct CalendarView: View {
         )
     }
 
-    private func macCell(_ d: MacCalDay) -> some View {
-        let items = d.inMonth ? (displayItemsByDay[d.day] ?? []) : []
+    private func macCell(_ d: MacCalDay, items: [DayItem]) -> some View {
         let isToday = d.inMonth && monthOffset == 0 && d.day == todayDay
         let isSelected = d.inMonth && d.day == selectedDay
         return VStack(alignment: .leading, spacing: 4) {
@@ -430,8 +432,8 @@ struct CalendarView: View {
 
     /// The selected day, beside the grid the way Calendar's inspector sits
     /// beside its month — the same due rows the phone shows below it.
-    private var macInspector: some View {
-        let items = selectedDay == 0 ? [] : (displayItemsByDay[selectedDay] ?? [])
+    private func macInspector(items dayItems: [Int: [DayItem]]) -> some View {
+        let items = selectedDay == 0 ? [] : (dayItems[selectedDay] ?? [])
         return VStack(alignment: .leading, spacing: 8) {
             Text(selectedDay == 0
                  ? "Choose a day"
