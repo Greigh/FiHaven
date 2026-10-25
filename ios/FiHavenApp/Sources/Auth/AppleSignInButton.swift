@@ -55,9 +55,9 @@ private struct MacAppleSignInButton: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ASAuthorizationAppleIDButton {
         let button = ASAuthorizationAppleIDButton(type: .continue, style: .white)
-        // Matches the Google button's `RoundedRectangle(cornerRadius: 8)`, so
-        // the two read as one pair rather than one Apple-shaped and one not.
-        button.cornerRadius = 8
+        // Matches the Google button's pill radius, so the two read as one
+        // pair rather than one Apple-shaped and one not.
+        button.cornerRadius = Theme.radiusPill
         button.target = context.coordinator
         button.action = #selector(Coordinator.authorize(_:))
         return button

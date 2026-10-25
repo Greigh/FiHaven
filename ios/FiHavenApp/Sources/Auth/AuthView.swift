@@ -6,7 +6,6 @@ import GoogleSignIn
 struct AuthView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
 
     enum Mode { case login, signup }
     @State private var mode: Mode = .login
@@ -329,17 +328,14 @@ struct AuthView: View {
                     }
                     .padding(.vertical, 2)
 
-                    SignInWithAppleButton(.continue) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { result in
+                    // AppleSignInButton rather than SignInWithAppleButton:
+                    // the hosted ASAuthorizationAppleIDButton reports a
+                    // 130×30 intrinsic size on macOS, so a bare .frame leaves
+                    // it narrower than the Google button below — the wrapper
+                    // answers the layout proposal instead.
+                    AppleSignInButton(disabled: env.working) { result in
                         handleApple(result)
                     }
-                    // .black disappears into the dark surface — `.white` is
-                    // the style Apple ships for dark backgrounds.
-                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                    .cornerRadius(Theme.radiusPill)
-                    .frame(height: 48)
-                    .disabled(env.working)
 
                     // Google Sign-In (GoogleSignIn SDK) → /api/auth/oauth/google.
                     // White button + official "G" mark, sized to match the
