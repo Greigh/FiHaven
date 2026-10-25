@@ -18,8 +18,8 @@ Each release below uses two layers:
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.7.0 (61) — The Mac app gets its design pass: a branded About, a profile-and-tiles Settings home, a true month-view Calendar, side-by-side Income panels, and sign-in buttons that actually match — plus payoff recommendations that never compare truncated simulations. |
-| **Android** | 1.7.0 (versionCode 61) — Payoff recommendations that never compare truncated simulations, and the shared "projection capped" honesty wording. |
+| **iOS** | 1.7.0 (62) — The Mac app gets its design pass: a branded About, a profile-and-tiles Settings home, a true month-view Calendar, side-by-side Income panels, and sign-in buttons that actually match — plus payoff recommendations that never compare truncated simulations. |
+| **Android** | 1.7.0 (versionCode 62) — Payoff recommendations that never compare truncated simulations, and the shared "projection capped" honesty wording. |
 | **Web** | Live at [fihaven.app](https://fihaven.app) — payoff tiles label capped interest as what it is: interest accrued inside the 30-year projection. |
 | **Server** | No changes this train — API in lockstep with build 60. |
 
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.7.0.** The build number continues 60 → 61
+> **Marketing version is 1.7.0.** The build number continues 61 → 62
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -40,7 +40,7 @@ Each release below uses two layers:
 
 ### Summary
 
-> 1.7.0 is the Mac design pass. Build 60 made FiHaven a native Mac app; build 61 makes it look like one. About gains a branded hero and real link cards, Settings opens on a profile card and a tile grid instead of an edge-to-edge list, and every settings page reads inside a readable-width column. The Income screen splits into two side-by-side cards that fill the window, and Calendar stops being a column of dots — it's a true month view with due items inside the cells, the neighbouring months dimmed at the edges, and month paging.
+> 1.7.0 is the Mac design pass. Build 60 made FiHaven a native Mac app; builds 61–62 make it look like one. About gains a branded hero and real link cards, Settings opens on a profile card and a tile grid instead of an edge-to-edge list, and every settings page reads inside a readable-width column. The Income screen splits into two side-by-side cards that fill the window, and Calendar stops being a column of dots — it's a true month view with due items inside the cells, the neighbouring months dimmed at the edges, and month paging.
 >
 > The payoff screens get an honesty fix on every platform: a simulation that runs into the 30-year projection cap never had a real "total interest", yet the apps compared those truncated totals to crown a "Best for you" strategy — and web tiles labeled the truncated number plain "Interest". Recommendations now come only from simulations that finished, and capped totals say "interest accrued within the projection" everywhere.
 
@@ -48,6 +48,7 @@ Each release below uses two layers:
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [62](#170-build-62--2026-10-24) | 2026-10-24 | Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
 | [61](#170-build-61--2026-10-24) | 2026-10-24 | A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations. |
 | [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
 | [59](#167-build-59--2026-10-06) | 2026-10-06 | Pipeline and CI fixes; no user-facing changes since build 58 |
@@ -58,6 +59,26 @@ Each release below uses two layers:
 
 Store copy for every build of this train is in
 [`docs/release-notes/v1.7.0/`](docs/release-notes/v1.7.0/).
+
+---
+
+## [1.7.0 build 62] — 2026-10-24
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.7.0 (62) — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
+| **Android** | 1.7.0 (versionCode 62) — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 62 |
+
+> **Build bump.** The build number continues 61 → 62 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.
 
 ---
 

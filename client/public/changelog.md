@@ -10,7 +10,17 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.7.0 (Build 61) Latest Beta
+1.7.0 (Build 62) Latest Beta
+
+October 24, 2026
+
+**Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.**
+
+- Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.
+
+iOS 1.7.0 (62) Android 1.7.0 (62) Web fihaven.app Server API
+
+1.7.0 (Build 61) Beta
 
 October 24, 2026
 

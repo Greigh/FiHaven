@@ -3,8 +3,8 @@
 Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](../../client/privacy.html) and the review notes in [`store-launch-checklist.md`](store-launch-checklist.md).
 
 **Bundle / application ID:** `app.fihaven`  
-**Version train:** 1.7.0 — **build 61 on both stores** (marketing bump 1.6.8 → 1.7.0; the build number is one shared counter and continued 60 → 61 without resetting)  
-**Current build's store copy:** [`../release-notes/v1.7.0/ios61-android61.md`](../release-notes/v1.7.0/ios61-android61.md)  
+**Version train:** 1.7.0 — **build 62 on both stores** (still 1.7.0; the build number is one shared counter and continued 61 → 62 without resetting)  
+**Current build's store copy:** [`../release-notes/v1.7.0/ios62-android62.md`](../release-notes/v1.7.0/ios62-android62.md)  
 **Publisher / seller of record:** Greigh Studios LLC (Michigan, United States)  
 **Copyright:** © 2026 Greigh Studios LLC  
 **Support:** https://fihaven.app/contact · support@fihaven.app  
@@ -80,8 +80,8 @@ The current train is **1.6.3**, opened by build 53. Per-build copy for testers
 (Play "What's new", TestFlight "What to Test") is in
 [`../release-notes/v1.6.3/`](../release-notes/v1.6.3/), one file per build; the
 current build is
-[`ios61-android61.md`](../release-notes/v1.7.0/ios61-android61.md). Build 61
-needs **no server migration and signs no one out** — A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations.
+[`ios62-android62.md`](../release-notes/v1.7.0/ios62-android62.md). Build 62
+needs **no server migration and signs no one out** — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.
 
 There is no combined "release as a whole" copy for 1.6.3 yet; write one
 (`../release-notes/v1.6.3/appstore-1.6.3.md`, patterned on
