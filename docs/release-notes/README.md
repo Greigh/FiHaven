@@ -44,6 +44,7 @@ voice — accurate as to what shipped, but not a record of what was published.
 
 | Version | Builds | Date | Notes |
 |---|---|---|---|
+| [1.7.0](v1.7.0/ios61-android61.md) | iOS 61 · Android 61 | 2026-10-24 | **Build 61**: A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations.. **No server migration, no sign-out** |
 | [1.6.8](v1.6.8/ios60-android60.md) | iOS 60 · Android 60 | 2026-10-22 | **Build 60**: An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. **No server migration, no sign-out** |
 | [1.6.7](v1.6.7/ios59-android59.md) | iOS 59 · Android 59 | 2026-10-06 | **Build 59**: Pipeline and CI fixes; no user-facing changes since build 58. **No server migration, no sign-out** |
 | [1.6.7](v1.6.7/ios58-android58.md) | iOS 58 · Android 58 | 2026-10-04 | **Build 58**: The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients. **No server migration, no sign-out** |

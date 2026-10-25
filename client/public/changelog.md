@@ -10,7 +10,17 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.6.8 (Build 60) Latest Beta
+1.7.0 (Build 61) Latest Beta
+
+October 24, 2026
+
+**A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations.**
+
+- A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations.
+
+iOS 1.7.0 (61) Android 1.7.0 (61) Web fihaven.app Server API
+
+1.6.8 (Build 60) Beta
 
 October 22, 2026
 
