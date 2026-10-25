@@ -30,8 +30,16 @@ Paste-ready text for public listings. Keep in sync with [`client/privacy.html`](
 
 ### Promotional Text (≤170)
 
+Updates anytime without a new binary — keep it release-specific. Current:
+
 ```
-Track bills, cards, and loans in one calm dashboard. Budget lenses, rewards tips, and 0% promo alerts—optional bank sync. Synced on iPhone, iPad, and web.
+1.7.0 makes the Mac app feel native: a true month-view calendar, side-by-side Income panels, and honest payoff plans that never lean on truncated math.
+```
+
+Evergreen fallback once the train is old news (~125):
+
+```
+See every due date at a glance, plan payoff with real math, and keep your money organized without turning it into a second job.
 ```
 
 ### Description
@@ -39,20 +47,54 @@ Track bills, cards, and loans in one calm dashboard. Budget lenses, rewards tips
 Paste into App Store Connect → App Information / version Description. **No Android mentions.** Include the Terms link (required when using Apple’s standard EULA).
 
 ```
-FiHaven is a calm, manual-first money dashboard for bills, credit cards, loans, budget, and debt payoff — with the same account on iPhone, iPad, and the web.
+QUIET MONEY. CALM MONTH.
 
-• Track recurring bills, cards (including 0% promo periods), and loans
-• Budget lenses and a clear “cushion after bills” view
-• Log spending; optional Pro bank sync via Plaid never overwrites what you typed
-• Rewards tips and avalanche / snowball payoff planning (Pro)
-• Reminders by email and optional on-device notifications
-• Sign in with Apple or Google, plus optional MFA (authenticator, passkey, or email)
+FiHaven is a manual-first money app for people who want clarity without noise. Track bills, credit cards, and loans; plan your budget; log spending; and see what's due next — synced across iPhone, iPad, and Mac.
 
-Free to use. FiHaven Pro unlocks payoff, calendar, history, rewards optimizer, category budgets, optional bank linking, and family sharing. Subscriptions auto-renew unless canceled at least 24 hours before the period ends; manage in Settings → Apple ID → Subscriptions.
+You enter the numbers. FiHaven helps you stay on top of due dates, minimum payments, and what 0% promos really cost when they end — without turning your finances into a second job.
 
-Privacy Policy: https://fihaven.app/privacy
-Terms of Use (EULA): https://fihaven.app/terms
-Support: https://fihaven.app/contact
+• See upcoming payments at a glance on a customizable Dashboard
+• Add recurring bills, card balances, loan minimums, and 0% promo end dates
+• Mark items paid, track partial payments, or skip a month when life happens
+• Plan income by pay period, set savings goals, and optional budget lenses (50/30/20, safe-to-spend, debt focus, and more)
+• Log spending by category and watch what's left in the month
+• Get alerts for promo cliffs, high card utilization, and subscription trials ending soon
+• Optional on-device bill reminders and email digests
+• A real native Mac app — sidebar, month-view calendar, and the whole app driven from the keyboard
+• Sign in with email, Apple, or Google — your data stays in sync on every device
+
+FREE INCLUDES
+
+Unlimited bills, cards, and loans · Dashboard & widgets · Budget & income planning · Spending log · Savings goals · Net worth view · Export your data · Delete your account anytime
+
+FIHAVEN PRO
+
+Upgrade when you want the full toolkit:
+
+• Payoff Planner — snowball and avalanche strategies with a debt-free date
+• Calendar — every due date in one view, plus a private iCal feed
+• Payment History — searchable record of what you've paid
+• Rewards Optimizer — pick the best card for each purchase category
+• Subscription Finder — surfaces recurring charges, duplicates, price hikes, and trials
+• Category budgets & spending insights — track categories against limits
+• Envelope budgeting — assign income to goals and categories
+• Optional bank linking — connect accounts through Plaid when you want read-only sync
+• Autopay auto-mark — mark autopay bills paid on due dates
+• Household sharing — share selected bills, cards, and goals with family
+
+Pro is an optional auto-renewing subscription. Manage or cancel anytime in your Apple ID subscription settings. Free tier features remain free.
+
+YOUR DATA, YOUR CONTROL
+
+FiHaven does not sell your data or show ads. Export everything as JSON or CSV. Enable two-factor authentication, passkeys, or biometrics for extra account security. Bank linking is optional — the app works fully with manual entry. FiHaven is source-available — read the code yourself at github.com/greigh/FiHaven.
+
+IMPORTANT
+
+FiHaven is a personal organization tool. It does not move money, connect to lenders, or provide financial, tax, or investment advice. Calculations and payoff projections are estimates for planning only. You are responsible for your payments and financial decisions.
+
+Questions or feedback: support@fihaven.app
+Terms of Use (EULA): https://fihaven.app/terms · Privacy Policy: https://fihaven.app/privacy
+Learn more: https://github.com/greigh/FiHaven
 ```
 
 ### License / EULA
@@ -70,24 +112,26 @@ Do **not** reuse the app icon. Each promoted subscription needs a **unique** 102
 
 ### Keywords (≤100 chars, comma-separated)
 
+No spaces after commas — they count. `money` is already indexed via the
+subtitle, so it isn't repeated here. Current (96 chars):
+
 ```
-bills,budget,debt,payoff,credit cards,loans,finance,money,plaid,tracker
+budget,bill,tracker,debt,payoff,snowball,avalanche,spending,credit,card,income,reminder,calendar
 ```
 
-### What's New — current train (1.6.3)
+### What's New — current train (1.7.0)
 
-The current train is **1.6.3**, opened by build 53. Per-build copy for testers
-(Play "What's new", TestFlight "What to Test") is in
-[`../release-notes/v1.6.3/`](../release-notes/v1.6.3/), one file per build; the
+The current train is **1.7.0**, opened by build 61 and respun at 62. Per-build
+copy for testers (Play "What's new", TestFlight "What to Test") and the App
+Store What's New paste block are in
+[`../release-notes/v1.7.0/`](../release-notes/v1.7.0/), one file per build; the
 current build is
 [`ios62-android62.md`](../release-notes/v1.7.0/ios62-android62.md). Build 62
-needs **no server migration and signs no one out** — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.
+needs **no server migration and signs no one out** — the Mac design pass plus
+the payoff honesty fix, and a calendar that responds instantly.
 
-There is no combined "release as a whole" copy for 1.6.3 yet; write one
-(`../release-notes/v1.6.3/appstore-1.6.3.md`, patterned on
-[`v1.6.2/appstore-1.6.2.md`](../release-notes/v1.6.2/appstore-1.6.2.md)) when the
-train goes to public review. Play's **500-character** cap is the binding one, so
-its note is always a separate edit rather than a trim of Apple's.
+Play's **500-character** cap is the binding one, so its note is always a
+separate edit rather than a trim of Apple's.
 
 ### What's New (1.6.2)
 
