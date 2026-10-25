@@ -331,8 +331,8 @@ Required device sizes per current ASC (typically 6.7" iPhone + 13" iPad). Sugges
 
 | Field | Value |
 |---|---|
-| App name | FiHaven |
-| Short description (≤80) | Calm bills, cards & budget — manual-first money dashboard with optional Pro tools. |
+| App name | FiHaven: Bill & Debt Tracker |
+| Short description (≤80) | Private bill & debt tracker. Payoffs, 0% promo alerts — no bank linking required. |
 | Application ID | `app.fihaven` |
 | Category | Finance |
 | Contact email | support@fihaven.app |
@@ -341,15 +341,53 @@ Required device sizes per current ASC (typically 6.7" iPhone + 13" iPad). Sugges
 ### Full description
 
 ```
-FiHaven is a calm, manual-first money dashboard for bills, credit cards, loans, budget, and debt payoff — synced with the same account on web and Android.
+Swap frantic paydays for a calm, predictable month. FiHaven is a private, manual-first money app for people who want clarity without the noise. Track bills, credit cards, and loans; plan your budget; log spending; and see what's due next — instantly synced to your account on Android and the web.
 
-Track what’s due, see your cushion after bills, plan payoff (avalanche / snowball), and get rewards tips. Optional Pro bank linking via Plaid adds transactions without overwriting what you entered.
+Unlike traditional budgeting apps that force you to hand over your banking credentials, FiHaven operates on a privacy-first model. We offer powerful manual tracking alongside optional bank syncing. You enter the numbers, and FiHaven helps you stay on top of due dates, minimum payments, 0% promo deadlines, and what's left after obligations — without turning your finances into a second job.
 
-Free to start. FiHaven Pro is an auto-renewing subscription managed in Google Play.
+QUIET MONEY. CALM MONTH.
 
-Privacy: https://fihaven.app/privacy
-Terms: https://fihaven.app/terms
-Support: https://fihaven.app/contact
+• See upcoming payments at a glance on a customizable Dashboard
+• Add recurring bills, card balances, loan minimums, and 0% promo end dates
+• Mark items paid, track partial payments, or skip a month when life happens
+• Plan income by pay period, set savings goals, and use optional budget lenses (50/30/20, safe-to-spend, debt focus, and more)
+• Log spending by category and review your 12-month cash-flow history
+• Automatically spot recurring charges and get alerts for promo cliffs or high card utilization
+• Set optional on-device bill reminders, weekly digests, and monthly summaries
+• Sign in securely with email or Google — your data stays in sync everywhere
+• Join an existing Family household to view shared finances for free
+
+FREE INCLUDES
+
+Unlimited bills, cards, and loans · Dashboard & widgets · Budget & income planning · Spending log · Savings goals · Net worth view · Subscription detection · Export your data · Delete your account anytime
+
+FIHAVEN PRO
+
+Upgrade when you want the full automation and insight toolkit:
+
+• Payoff Planner — map out snowball and avalanche strategies with a concrete debt-free date
+• Visual Calendar — see every due date in a month grid, plus export a private iCal feed
+• Payment History — a fully searchable record of what you've paid
+• Rewards Optimizer — pick the best card for each purchase category, track statement credits, and assess annual fees
+• Subscription Manager — track recurring charges, duplicates, free-trial expirations, and access direct manage/cancel links
+• Category budgets & insights — track categories against limits and view period-over-period trends
+• Envelope budgeting — assign income directly to goals and categories
+• Optional bank linking — securely connect accounts through Plaid for smart balance proposals and read-only sync
+• Autopay auto-mark — automatically mark autopay bills as paid on their due dates
+• Household sharing — create a Family plan to share selected bills, cards, and goals via live sync
+
+Pro is an optional auto-renewing subscription. Manage or cancel anytime in your Google Play subscription settings (Google Play → Payments & subscriptions). Free tier features remain free.
+
+YOUR DATA, YOUR CONTROL
+
+FiHaven does not sell your data or show ads. Export everything as JSON or CSV. Secure your account with two-factor authentication (TOTP), passkeys, or a biometric app lock. Bank linking is completely optional — the app works perfectly with manual entry.
+
+IMPORTANT
+
+FiHaven is a personal organization tool. It does not move money, connect to lenders, or provide financial, tax, or investment advice. Calculations and payoff projections are estimates for planning only. You are responsible for your payments and financial decisions.
+
+Questions or feedback: support@fihaven.app
+Terms: https://fihaven.app/terms · Privacy: https://fihaven.app/privacy
 ```
 
 ### Data safety (declare)

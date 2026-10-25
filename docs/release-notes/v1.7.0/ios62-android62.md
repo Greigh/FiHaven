@@ -62,6 +62,41 @@ PLEASE TRY ON IPHONE/IPAD:
 
 ---
 
+## Mac App Store — debut version record (first macOS release)
+
+This is the **first** macOS version on the App Store — the record is a debut,
+not an update. Description/name/subtitle/keywords are shared with iOS (use
+the listing copy in `docs/maintainer/store-listing-copy.md`); these fields are
+the per-platform ones:
+
+**What's New** on the macOS version record — written as a debut:
+
+```
+FiHaven comes to Mac — the manual-first money app, rebuilt for the big screen.
+
+A real native Mac app, not a stretched iPad window: a source-list sidebar, sortable tables on every list, and the whole app driven from the keyboard.
+
+• A true month-view Calendar — due items inside day cells, month paging, and a side inspector for the day's bills
+• Income in two side-by-side panels that reflow gracefully on narrow windows
+• Settings as a profile card and tile grid; every pane reads at a comfortable width
+• About & licenses as a branded pane — VoiceOver reads every link's name, not just "button"
+• The same bills, budgets, payoff planner, and reminders — synced with your iPhone and iPad
+
+Sign in once and everything is where you left it.
+```
+
+**Promotional text:** reuse the 1.7.0 line (already Mac-forward).
+**Categories:** Finance primary, Productivity secondary.
+**Screenshots:** Mac-native — 1280×800, 1440×900, 2560×1600, or 2880×1800.
+Suggested set: two-pane sign-in, Calendar month view, Income panels, Settings
+grid, Dashboard.
+**Review note:** macOS debut — same feature set as iOS, native SwiftUI/AppKit
+UI; include the demo account credentials.
+**Purchase:** confirm universal purchase with iOS so existing Pro users get
+the Mac app included.
+
+---
+
 ## App Store — What's New (only if promoting build 62 to release)
 
 Paste into App Store Connect → Version → What's New in This Version
