@@ -2028,10 +2028,14 @@ struct MacIncomeTable: View {
     let onEdit: (IncomeSource) -> Void
     let emptyCopy: String
 
-    /// 220 + 130 + 120 + 130 = 600 wide, 350 without the monthly column.
+    /// 220 + 130 + 80 + 130 + 120 = 680 wide; dropping Hours fits 460.
+    /// Narrow keeps the source, its cadence, and its per-period figure —
+    /// "Per month" is the derived column, so it is the one a narrow pane
+    /// does without, and with the screen's card inset the pane below it can
+    /// be ~340pt, which the kept minimums still fit.
     var body: some View {
         GeometryReader { pane in
-            table(MacTableWidth.fit(pane.size.width, wide: 600, medium: 350))
+            table(MacTableWidth.fit(pane.size.width, wide: 680, medium: 460))
         }
     }
 
@@ -2043,14 +2047,14 @@ struct MacIncomeTable: View {
                     .foregroundStyle(src.label.isEmpty ? Theme.muted : Theme.text)
                     .lineLimit(1)
             }
-            .width(min: 140, ideal: 220)
+            .width(min: 110, ideal: 220)
 
             TableColumn("Every", value: \.frequency) { src in
                 Text(src.frequencyLabel())
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
             }
-            .width(min: 90, ideal: 130)
+            .width(min: 70, ideal: 130)
 
             if tier != .narrow {
                 TableColumn("Hours", value: \.hoursPerWeek) { src in
@@ -2060,16 +2064,16 @@ struct MacIncomeTable: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .width(min: 60, ideal: 80)
-            }
 
-            TableColumn("Per month", value: \.amount) { src in
-                Text(Money.fmt(Income.monthly(of: src)))
-                    .font(Theme.mono(12))
-                    .foregroundStyle(Theme.muted)
-                    .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                TableColumn("Per month", value: \.amount) { src in
+                    Text(Money.fmt(Income.monthly(of: src)))
+                        .font(Theme.mono(12))
+                        .foregroundStyle(Theme.muted)
+                        .monospacedDigit()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .width(min: 80, ideal: 130)
             }
-            .width(min: 90, ideal: 130)
 
             TableColumn("Amount", value: \.amount) { src in
                 Text(Money.fmt(src.amount))
@@ -2078,7 +2082,7 @@ struct MacIncomeTable: View {
                     .monospacedDigit()
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .width(min: 90, ideal: 120)
+            .width(min: 80, ideal: 120)
         }
         .macTableSurface()
         .overlay {
@@ -2123,10 +2127,12 @@ struct MacIncomeAdjustmentsTable: View {
     let onEdit: (IncomeAdjustment) -> Void
     let emptyCopy: String
 
-    /// 240 + 120 + 170 + 130 = 660 wide, 490 without the kind.
+    /// 240 + 120 + 170 + 130 = 660 wide; narrow without the kind needs the
+    /// three kept minimums plus padding, so the tier switch happens at 430
+    /// — inside the screen's card inset the narrow pane can be ~340pt.
     var body: some View {
         GeometryReader { pane in
-            table(MacTableWidth.fit(pane.size.width, wide: 660, medium: 490))
+            table(MacTableWidth.fit(pane.size.width, wide: 660, medium: 430))
         }
     }
 
@@ -2138,7 +2144,7 @@ struct MacIncomeAdjustmentsTable: View {
                     .foregroundStyle(adj.label.isEmpty ? Theme.muted : Theme.text)
                     .lineLimit(1)
             }
-            .width(min: 150, ideal: 240)
+            .width(min: 120, ideal: 240)
 
             if tier != .narrow {
                 TableColumn("Kind", value: \.kind) { adj in
@@ -2155,7 +2161,7 @@ struct MacIncomeAdjustmentsTable: View {
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
             }
-            .width(min: 110, ideal: 170)
+            .width(min: 96, ideal: 170)
 
             TableColumn("Amount", value: \.amount) { adj in
                 Text("\(adj.amount >= 0 ? "+" : "")\(Money.fmt(adj.amount))")
@@ -2164,7 +2170,7 @@ struct MacIncomeAdjustmentsTable: View {
                     .monospacedDigit()
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .width(min: 90, ideal: 130)
+            .width(min: 84, ideal: 130)
         }
         .macTableSurface()
         .overlay {

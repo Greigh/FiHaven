@@ -154,6 +154,7 @@ struct HouseholdSettingsView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadablePane()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Family")
         .task { await model.load() }

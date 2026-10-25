@@ -90,6 +90,7 @@ struct BudgetRuleSettingsView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadablePane()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Budget lens")
     }

@@ -25,6 +25,7 @@ struct ReminderDaysView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadablePane()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Remind me")
     }

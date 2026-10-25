@@ -79,6 +79,7 @@ struct DashboardLayoutView: View {
         }
         .ctGroupedList()
         .scrollContentBackground(.hidden)
+        .ctReadablePane()
         .background(Theme.bg.ignoresSafeArea())
         .ctAlwaysEditing()
         .brandedNavigationBar("Dashboard")

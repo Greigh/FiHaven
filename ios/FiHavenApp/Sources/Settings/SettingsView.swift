@@ -28,8 +28,25 @@ struct SettingsView: View {
     private var current: User { env.currentUser ?? user }
 
     var body: some View {
-        // Grouped landing: each row drills into a focused detail screen so the
-        // settings aren't one long scroll.
+        Group {
+            #if canImport(UIKit)
+            listBody
+            #else
+            macBody
+            #endif
+        }
+        .task { await loadMfa() }
+        .sheet(item: $sheet, onDismiss: { Task { await loadMfa() } }) { which in
+            sheetView(which)
+        }
+#if os(iOS)
+        .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
+#endif
+    }
+
+    /// Grouped landing: each row drills into a focused detail screen so the
+    /// settings aren't one long scroll.
+    private var listBody: some View {
         List {
             Section {
                 groupRow("Account", "person.crop.circle.fill", "Profile, email, password") {
@@ -88,14 +105,128 @@ struct SettingsView: View {
         .ctReadableList()
         .background(Theme.bg.ignoresSafeArea())
         .brandedNavigationBar("Settings")
-        .task { await loadMfa() }
-        .sheet(item: $sheet, onDismiss: { Task { await loadMfa() } }) { which in
-            sheetView(which)
-        }
-#if os(iOS)
-        .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
-#endif
     }
+
+    #if !canImport(UIKit)
+    /// The Mac's settings landing: an account card on top and the same
+    /// drill-downs as a tile grid. Rows stretched to a 960pt pane read as
+    /// one long empty table; tiles keep every destination visible without
+    /// scrolling and use the width the list wasted.
+    private var macBody: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                profileCard
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 280), spacing: 12)],
+                    spacing: 12
+                ) {
+                    tile("Account", "person.crop.circle.fill", "Profile, email, password") {
+                        detail("Account") { accountSection }
+                    }
+                    tile("Security", "lock.shield.fill", "Two-factor, recovery") {
+                        detail("Security") { securitySection }
+                    }
+                    tile("Preferences", "slider.horizontal.3", "Currency, display, tabs") {
+                        detail("Preferences") { preferencesSection }
+                    }
+                    tile("Budget", "chart.pie.fill", "Period, budget lens") {
+                        detail("Budget") { budgetSection }
+                    }
+                    tile("Notifications", "bell.badge.fill", "Reminders, digest, summary") {
+                        detail("Notifications") { notificationsSection }
+                    }
+                    tile("Family", "person.2.fill", "Share with your household") {
+                        HouseholdSettingsView(api: env.api, myEmail: current.email)
+                    }
+                    tile("Automation", "wand.and.stars", "Autopay, dashboard tidying") {
+                        detail("Automation") { autopaySection }
+                    }
+                    tile("Data", "externaldrive.fill", "Export, clear, delete") {
+                        detail("Data") { dataSection }
+                    }
+                    if current.isAdmin {
+                        tile("Admin", "shield.lefthalf.filled", "Users, rewards, promo codes") {
+                            AdminView()
+                        }
+                    }
+                    #if DEBUG
+                    tile("Developer", "hammer.fill", "Simulate subscription states") {
+                        detail("Developer") { developerSection }
+                    }
+                    #endif
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .brandedNavigationBar("Settings")
+    }
+
+    /// Who is signed in and on which plan — the header the landing
+    /// otherwise buries in the sidebar. Sign out lives here because the
+    /// grid has no list row to hang it on.
+    private var profileCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(Theme.accentBg)
+                Text(initials)
+                    .font(Theme.ui(17, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(displayName)
+                        .font(Theme.ui(15, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                    Text(billing.isPro ? "PRO" : "FREE")
+                        .font(Theme.ui(10, weight: .bold)).tracking(0.6)
+                        .foregroundStyle(billing.isPro ? Theme.accent : Theme.muted)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(billing.isPro ? Theme.accentBg : Theme.surface2, in: Capsule())
+                }
+                Text(current.email)
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+            }
+            Spacer(minLength: 0)
+            Button("Sign out", role: .destructive) { Task { await env.logout() } }
+                .buttonStyle(.bordered)
+        }
+        .ctCard()
+        .accessibilityElement(children: .contain)
+    }
+
+    /// First letters of the display name, or of the email's local part —
+    /// the avatar the profile card falls back to when no name is set.
+    private var initials: String {
+        let parts = displayName.split(separator: " ")
+        let letters = parts.prefix(2).compactMap { $0.first }.map(String.init)
+        return letters.isEmpty ? "?" : letters.joined().uppercased()
+    }
+
+    private var displayName: String {
+        if let name = current.name, !name.isEmpty { return name }
+        return String(current.email.split(separator: "@").first ?? "FiHaven user")
+    }
+
+    /// A grid cell that pushes the same detail screen the iOS row does.
+    private func tile<Destination: View>(
+        _ title: String, _ icon: String, _ subtitle: String,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            MacSettingsTile(title: title, icon: icon, subtitle: subtitle)
+        }
+        .buttonStyle(.plain)
+    }
+    #endif
 
     /// A landing row that drills into a settings detail screen.
     private func groupRow<Destination: View>(
@@ -123,6 +254,7 @@ struct SettingsView: View {
             .ctGroupedList()
             .scrollContentBackground(.hidden)
             .ctReadableList()
+            .ctReadablePane()
             .background(Theme.bg.ignoresSafeArea())
             .brandedNavigationBar(title)
     }
@@ -651,3 +783,52 @@ struct SettingsView: View {
         }
     }
 }
+
+#if !canImport(UIKit)
+/// One tile in the Mac settings grid: tinted icon tile, title, subtitle,
+/// chevron. The hover surface2 fill matches the link rows in the About
+/// pane — a plain label on a NavigationLink, the pointer needs the card
+/// itself to say it is a button.
+private struct MacSettingsTile: View {
+    let title: String
+    let icon: String
+    let subtitle: String
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.accentBg)
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .frame(width: 34, height: 34)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.ui(14, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Text(subtitle)
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.muted)
+        }
+        .padding(12)
+        .background(hovering ? Theme.surface2 : Theme.surface,
+                    in: RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+        .onHover { hovering = $0 }
+    }
+}
+#endif
