@@ -32,6 +32,7 @@ export function isHousingLoan(c) {
  *   totalInterest: number,
  *   cards:         Array,
  *   payoffDate:    Date,
+ *   finished:      boolean,
  * } | null}
  */
 export function runPayoffSim(strategy, userExtra, opts = {}) {
@@ -151,7 +152,22 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
     totalInterest: Math.round(totalInterest * 100) / 100,
     cards:         sim,
     payoffDate:    new Date(now.getFullYear(), now.getMonth() + month, 1),
+    // Every card reached zero inside the projection. When false, months and
+    // totalInterest describe a run that stopped at the 360-month cap — fine
+    // to display, meaningless to compare against another sim's totals.
+    finished:      sim.every((c) => c.paidOffMonth !== null),
   };
+}
+
+/**
+ * Which strategy costs less interest. null unless both sims finished — a
+ * capped sim's totalInterest is interest accrued inside a truncated
+ * projection, and comparing it to a finished run can crown the worse plan
+ * as "best".
+ */
+export function recommendedStrategy(simSnow, simAval) {
+  if (!simSnow || !simAval || !simSnow.finished || !simAval.finished) return null;
+  return simAval.totalInterest <= simSnow.totalInterest ? 'avalanche' : 'snowball';
 }
 
 let instance = null;

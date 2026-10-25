@@ -7,7 +7,7 @@
 <script>
   import { cards } from '../js/storage.svelte.js';
   import { fmt } from '../js/utils.js';
-  import { runPayoffSim, isHousingLoan } from '../js/payoff.js';
+  import { runPayoffSim, recommendedStrategy, isHousingLoan } from '../js/payoff.js';
 
   let extra = $state(0);
   let includeMortgage = $state(false);
@@ -42,16 +42,16 @@
   let simMinUnpaid = $derived(simMin ? simMin.cards.filter((c) => c.paidOffMonth === null) : []);
   let minSimFinished = $derived(simMinUnpaid.length === 0);
   let minsNonAmortizing = $derived(simMinUnpaid.some((c) => c.nonAmortizing));
-  const finished = (s) => !!s && s.cards.every((c) => c.paidOffMonth !== null);
+  const finished = (s) => !!s && s.finished;
   let snowSaves = $derived(
     simMin && simSnow && minSimFinished && finished(simSnow)
       ? Math.max(0, simMin.totalInterest - simSnow.totalInterest) : 0);
   let avalSaves = $derived(
     simMin && simAval && minSimFinished && finished(simAval)
       ? Math.max(0, simMin.totalInterest - simAval.totalInterest) : 0);
-  let avalIsBest = $derived(!!(simAval && simSnow && simAval.totalInterest <= simSnow.totalInterest));
-
-  let bestStrategy = $derived(avalIsBest ? 'avalanche' : 'snowball');
+  // null unless both strategy sims finished — a capped sim's totalInterest
+  // is accrued-inside-the-projection, not a real cost to crown a winner on.
+  let bestStrategy = $derived(recommendedStrategy(simSnow, simAval));
   let heroSim = $derived(selected === 'avalanche' ? simAval : simSnow);
   let heroSaves = $derived(selected === 'avalanche' ? avalSaves : snowSaves);
 
@@ -160,7 +160,7 @@
         value={extra}
         oninput={(e) => {
           extra = parseFloat(e.currentTarget.value) || 0;
-          if (extra > 0) selected = bestStrategy;
+          if (extra > 0 && bestStrategy) selected = bestStrategy;
         }}
       />
     </div>
@@ -219,10 +219,10 @@
   <!-- Strategy compare -->
   <div class="payoff-strat-grid">
     {#each [
-      { key: 'snowball', name: 'Snowball', subtitle: 'Smallest balance first', sim: simSnow, saves: snowSaves, isBest: !avalIsBest },
-      { key: 'avalanche', name: 'Avalanche', subtitle: 'Highest APR first', sim: simAval, saves: avalSaves, isBest: avalIsBest },
+      { key: 'snowball', name: 'Snowball', subtitle: 'Smallest balance first', sim: simSnow, saves: snowSaves },
+      { key: 'avalanche', name: 'Avalanche', subtitle: 'Highest APR first', sim: simAval, saves: avalSaves },
     ] as s (s.key)}
-      {@const highlight = s.isBest && extra > 0}
+      {@const highlight = s.key === bestStrategy && extra > 0}
       <button
         type="button"
         class="card payoff-strat-card"
@@ -248,7 +248,9 @@
           </div>
         </div>
         <div class="payoff-strat-foot">
-          <div class="plabel">Interest</div>
+          <!-- A capped sim's total is interest accrued inside a truncated
+               projection — the "life of the plan" label would invent a cost. -->
+          <div class="plabel">{finished(s.sim) ? 'Interest' : 'Interest accrued'}</div>
           <div class="payoff-strat-interest">{fmt(s.sim.totalInterest)}</div>
           {#if s.saves > 0 && extra > 0}
             <div class="payoff-strat-saves">saves {fmt(s.saves)} vs mins</div>

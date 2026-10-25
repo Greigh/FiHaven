@@ -6,7 +6,7 @@ vi.mock('svelte', () => ({
   mount: mountMock,
 }));
 
-import { runPayoffSim, renderPayoff, isHousingLoan } from './payoff.js';
+import { runPayoffSim, recommendedStrategy, renderPayoff, isHousingLoan } from './payoff.js';
 import { setCards } from './storage.svelte.js';
 
 describe('payoff — runPayoffSim', () => {
@@ -193,6 +193,65 @@ describe('payoff — runPayoffSim', () => {
     expect(c.paidOffMonth).toBeNull();
     expect(c.endBalance).toBeGreaterThan(c.origBalance);
     expect(c.nonAmortizing).toBe(true);
+  });
+
+  it('reports finished=false only when the cap cut a card short', () => {
+    setCards([{ id: 'A', name: 'A', balance: 1000, minPayment: 100, regularAPR: 0 }]);
+    expect(runPayoffSim('none', 0).finished).toBe(true);
+
+    setCards([{ id: 'A', name: 'A', balance: 3700, minPayment: 10, regularAPR: 0 }]);
+    expect(runPayoffSim('none', 0).finished).toBe(false);
+  });
+});
+
+/* A strategy may only be crowned when both sims ran to zero — a capped
+   projection's totalInterest is what accrued inside 360 months, not the
+   plan's cost, and it can land below a finished strategy's real total. */
+describe('payoff — recommendedStrategy', () => {
+  beforeEach(() => {
+    setCards([]);
+  });
+
+  it('picks the lower-interest strategy when both sims finish', () => {
+    // Avalanche retires the 24% card first, so it accrues less interest.
+    setCards([
+      { id: 'low', name: 'Low APR', balance: 2000, minPayment: 50, regularAPR: 5 },
+      { id: 'high', name: 'High APR', balance: 2000, minPayment: 50, regularAPR: 24 },
+    ]);
+    const snow = runPayoffSim('snowball', 100);
+    const aval = runPayoffSim('avalanche', 100);
+    expect(aval.totalInterest).toBeLessThan(snow.totalInterest);
+    expect(recommendedStrategy(snow, aval)).toBe('avalanche');
+  });
+
+  it('returns null when either strategy hit the cap', () => {
+    // $40,000 at 0% pays $110/mo ($10 min + $100 extra) — needs 364 months,
+    // so both strategies run into the cap with ~$400 left.
+    setCards([{ id: 'A', name: 'A', balance: 40000, minPayment: 10, regularAPR: 0 }]);
+    const snow = runPayoffSim('snowball', 100);
+    const aval = runPayoffSim('avalanche', 100);
+    expect(snow.finished).toBe(false);
+    expect(aval.finished).toBe(false);
+    expect(recommendedStrategy(snow, aval)).toBeNull();
+  });
+
+  it('returns null when only one side finished', () => {
+    setCards([{ id: 'A', name: 'A', balance: 1000, minPayment: 100, regularAPR: 0 }]);
+    const snow = runPayoffSim('snowball', 0);
+    expect(snow.finished).toBe(true);
+    // Stub the unfinished side — constructing a deck where exactly one
+    // strategy caps is not stable, but the guard is what needs locking.
+    const capped = { ...snow, finished: false };
+    expect(recommendedStrategy(snow, capped)).toBeNull();
+    expect(recommendedStrategy(capped, snow)).toBeNull();
+  });
+
+  it('returns null for a missing sim', () => {
+    expect(recommendedStrategy(null, null)).toBeNull();
+    setCards([{ id: 'A', name: 'A', balance: 1000, minPayment: 100, regularAPR: 0 }]);
+    const aval = runPayoffSim('avalanche', 100);
+    expect(recommendedStrategy(aval, null)).toBeNull();
+    expect(recommendedStrategy(null, aval)).toBeNull();
   });
 });
 

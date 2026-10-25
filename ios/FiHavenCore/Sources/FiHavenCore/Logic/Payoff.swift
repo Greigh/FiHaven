@@ -28,6 +28,11 @@ public struct PayoffResult: Equatable, Sendable {
     public var totalInterest: Double
     public var cards: [PayoffCardResult]
     public var payoffDate: Date
+
+    /// Every card reached zero inside the projection. When false, months and
+    /// totalInterest describe a run that stopped at the 360-month cap — fine
+    /// to display, meaningless to compare against another sim's totals.
+    public var finished: Bool { cards.allSatisfy { $0.paidOffMonth != nil } }
 }
 
 /// Month-by-month debt-payoff simulation, ported verbatim from
@@ -55,6 +60,15 @@ public enum Payoff {
         /// month simulated — at the cap, promo interest suppression is what
         /// keeps a small minimum ahead of a large balance.
         var inPromoNow: Bool = false
+    }
+
+    /// Which strategy costs less interest. nil unless both sims finished —
+    /// a capped sim's totalInterest is interest accrued inside a truncated
+    /// projection, and comparing it to a finished run can crown the worse
+    /// plan as "best".
+    public static func recommendedStrategy(snowball: PayoffResult?, avalanche: PayoffResult?) -> PayoffStrategy? {
+        guard let s = snowball, let a = avalanche, s.finished, a.finished else { return nil }
+        return a.totalInterest <= s.totalInterest ? .avalanche : .snowball
     }
 
     /// Mortgage / home-equity style loans — PMI & escrow make sims approximate.

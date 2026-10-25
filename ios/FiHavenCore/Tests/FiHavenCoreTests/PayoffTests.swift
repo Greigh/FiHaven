@@ -71,4 +71,58 @@ final class PayoffTests: XCTestCase {
         XCTAssertGreaterThan(c.endBalance, c.origBalance)
         XCTAssertTrue(c.nonAmortizing)
     }
+
+    /// finished is false exactly when the cap cut a card short.
+    func testFinishedFlag() {
+        XCTAssertTrue(sim([card("1", balance: 1000, minPayment: 100, apr: 0)]).finished)
+        XCTAssertFalse(sim([card("1", balance: 3700, minPayment: 10, apr: 0)]).finished)
+    }
+
+    // ── recommendedStrategy ──────────────────────────────────────────
+    // A strategy may only be crowned when both sims ran to zero — a capped
+    // projection's totalInterest is what accrued inside 360 months, not the
+    // plan's cost, and it can land below a finished strategy's real total.
+
+    private func sim(_ cards: [Card], strategy: PayoffStrategy, extra: Double) -> PayoffResult {
+        Payoff.runPayoffSim(cards: cards, strategy: strategy, extra: extra, tz: tz, now: now)!
+    }
+
+    /// Avalanche retires the 24% card first, so it accrues less interest.
+    func testRecommendedStrategyPicksTheCheaperFinishedPlan() {
+        let deck = [card("low", balance: 2000, minPayment: 50, apr: 5),
+                    card("high", balance: 2000, minPayment: 50, apr: 24)]
+        let snow = sim(deck, strategy: .snowball, extra: 100)
+        let aval = sim(deck, strategy: .avalanche, extra: 100)
+        XCTAssertLessThan(aval.totalInterest, snow.totalInterest)
+        XCTAssertEqual(Payoff.recommendedStrategy(snowball: snow, avalanche: aval), .avalanche)
+    }
+
+    /// $40,000 at 0% pays $110/mo ($10 min + $100 extra) — needs 364
+    /// months, so both strategies run into the cap with ~$400 left.
+    func testRecommendedStrategyIsNilWhenEitherStrategyCapped() {
+        let deck = [card("1", balance: 40000, minPayment: 10, apr: 0)]
+        let snow = sim(deck, strategy: .snowball, extra: 100)
+        let aval = sim(deck, strategy: .avalanche, extra: 100)
+        XCTAssertFalse(snow.finished)
+        XCTAssertFalse(aval.finished)
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: snow, avalanche: aval))
+    }
+
+    /// The guard works per-side: a truncated run next to a finished one is
+    /// still no comparison.
+    func testRecommendedStrategyIsNilWhenOnlyOneSideFinished() {
+        let snow = sim([card("1", balance: 1000, minPayment: 100, apr: 0)], strategy: .snowball, extra: 0)
+        var capped = snow
+        capped.cards[0].paidOffMonth = nil
+        XCTAssertFalse(capped.finished)
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: snow, avalanche: capped))
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: capped, avalanche: snow))
+    }
+
+    func testRecommendedStrategyIsNilForMissingSims() {
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: nil, avalanche: nil))
+        let aval = sim([card("1", balance: 1000, minPayment: 100, apr: 0)], strategy: .avalanche, extra: 100)
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: aval, avalanche: nil))
+        XCTAssertNil(Payoff.recommendedStrategy(snowball: nil, avalanche: aval))
+    }
 }
