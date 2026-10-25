@@ -32,11 +32,12 @@ struct CalendarView: View {
         return cal.component(.weekday, from: first) - 1   // 1=Sun
     }
 
-    private var itemsByDay: [Int: [DayItem]] {
+    private func itemsByDay(year y: Int, month m: Int) -> [Int: [DayItem]] {
         var map: [Int: [DayItem]] = [:]
-        let first = DateLogic.dateForDay(1, year: year, month: month, cal: cal)
+        let first = DateLogic.dateForDay(1, year: y, month: m, cal: cal)
+        let days = cal.range(of: .day, in: .month, for: first)?.count ?? 30
         for b in store.activeBills {
-            for day in 1...daysInMonth {
+            for day in 1...days {
                 let d = cal.date(byAdding: .day, value: day - 1, to: first)!
                 guard BillSchedule.dueOn(b, date: d, tz: store.tz) else { continue }
                 map[day, default: []].append(DayItem(
@@ -54,9 +55,20 @@ struct CalendarView: View {
         return map
     }
 
+    /// This month's items — what the phone's single-month view reads.
+    private var itemsByDay: [Int: [DayItem]] { itemsByDay(year: year, month: month) }
+
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
     var body: some View {
+        #if canImport(UIKit)
+        phoneBody
+        #else
+        macBody
+        #endif
+    }
+
+    private var phoneBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 weekdayHeader
@@ -198,4 +210,254 @@ struct CalendarView: View {
             switch n % 10 { case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th" }
         }
     }
+
+    // MARK: - Mac month view
+
+    #if !canImport(UIKit)
+    /// A day slot in the Mac grid: its number and whether it belongs to the
+    /// month on display, so the previous/next month's spilling days can dim.
+    private struct MacCalDay: Hashable { let day: Int; let inMonth: Bool }
+
+    @State private var monthOffset = 0
+
+    private var displayComps: DateComponents {
+        let base = DateLogic.today(tz: store.tz)
+        let moved = cal.date(byAdding: .month, value: monthOffset, to: base) ?? base
+        return cal.dateComponents([.year, .month], from: moved)
+    }
+    private var displayYear: Int { displayComps.year ?? year }
+    private var displayMonth: Int { displayComps.month ?? month }
+
+    private var displayMonthLabel: String {
+        let d = DateLogic.dateForDay(1, year: displayYear, month: displayMonth, cal: cal)
+        let f = DateFormatter()
+        f.calendar = cal
+        f.timeZone = store.tz
+        f.dateFormat = "LLLL yyyy"
+        return f.string(from: d)
+    }
+
+    private var displayItemsByDay: [Int: [DayItem]] { itemsByDay(year: displayYear, month: displayMonth) }
+
+    /// The weeks on display, with the neighbouring months' days dimming into
+    /// the grid's edges the way a printed calendar's do.
+    private var displayWeeks: [[MacCalDay]] {
+        let first = DateLogic.dateForDay(1, year: displayYear, month: displayMonth, cal: cal)
+        let days = cal.range(of: .day, in: .month, for: first)?.count ?? 30
+        let blanks = cal.component(.weekday, from: first) - 1
+        let prev = cal.date(byAdding: .month, value: -1, to: first) ?? first
+        let prevDays = cal.range(of: .day, in: .month, for: prev)?.count ?? 30
+        var weeks: [[MacCalDay]] = []
+        var n = 0
+        let total = blanks + days
+        for _ in 0..<Int(ceil(Double(total) / 7.0)) {
+            var week: [MacCalDay] = []
+            for _ in 0..<7 {
+                n += 1
+                if n <= blanks {
+                    week.append(MacCalDay(day: prevDays - blanks + n, inMonth: false))
+                } else if n <= total {
+                    week.append(MacCalDay(day: n - blanks, inMonth: true))
+                } else {
+                    week.append(MacCalDay(day: n - total, inMonth: false))
+                }
+            }
+            weeks.append(week)
+        }
+        return weeks
+    }
+
+    private var macBody: some View {
+        GeometryReader { pane in
+            VStack(spacing: 0) {
+                macTitleRow
+                macWeekdayHeader
+                if pane.size.width >= 880 {
+                    HStack(alignment: .top, spacing: 16) {
+                        macGrid
+                        macInspector
+                            .frame(width: 300)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    .frame(maxHeight: .infinity)
+                } else {
+                    // Too narrow for a side inspector: the grid fills the
+                    // width and the day's list scrolls underneath.
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            macGrid
+                                .frame(height: max(400, pane.size.height * 0.62))
+                            macInspector
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                    }
+                }
+            }
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .brandedNavigationBar(displayMonthLabel)
+        .onAppear { if selectedDay == 0 { selectedDay = todayDay } }
+        .onChange(of: monthOffset) { _, _ in selectedDay = monthOffset == 0 ? todayDay : 0 }
+        .sheet(item: $paying) { target in PayView(target: target) }
+    }
+
+    /// The month name and the paging controls a month view lives by — back,
+    /// forward, and a Today that returns to this month.
+    private var macTitleRow: some View {
+        HStack(spacing: 10) {
+            Text(displayMonthLabel)
+                .font(Theme.ui(20, weight: .bold))
+                .foregroundStyle(Theme.text)
+            Spacer()
+            Button { monthOffset = 0 } label: { Text("Today") }
+                .ctPlainButton()
+                .disabled(monthOffset == 0)
+                .opacity(monthOffset == 0 ? 0.4 : 1)
+                .accessibilityHint("Returns to this month")
+            Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left") }
+                .ctPlainButton()
+                .accessibilityLabel("Previous month")
+            Button { monthOffset += 1 } label: { Image(systemName: "chevron.right") }
+                .ctPlainButton()
+                .accessibilityLabel("Next month")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var macWeekdayHeader: some View {
+        HStack(spacing: 1) {
+            ForEach(Array(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].enumerated()), id: \.offset) { _, d in
+                Text(d)
+                    .font(Theme.ui(11, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    /// The month grid: hairline-separated cells that share the pane's height,
+    /// with due items drawn as chips inside their day the way a calendar's
+    /// events sit inside theirs.
+    private var macGrid: some View {
+        VStack(spacing: 1) {
+            ForEach(Array(displayWeeks.enumerated()), id: \.offset) { _, week in
+                HStack(spacing: 1) {
+                    ForEach(week, id: \.self) { d in
+                        macCell(d)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+        }
+        .background(Theme.border.opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+    }
+
+    private func macCell(_ d: MacCalDay) -> some View {
+        let items = d.inMonth ? (displayItemsByDay[d.day] ?? []) : []
+        let isToday = d.inMonth && monthOffset == 0 && d.day == todayDay
+        let isSelected = d.inMonth && d.day == selectedDay
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("\(d.day)")
+                .font(Theme.ui(13, weight: isToday ? .bold : .regular))
+                .foregroundStyle(isToday ? .white : (d.inMonth ? Theme.text : Theme.muted.opacity(0.45)))
+                .frame(width: 22, height: 22)
+                .background(isToday ? Theme.accent : .clear)
+                .clipShape(Circle())
+
+            ForEach(items.prefix(3)) { item in
+                macChip(item)
+            }
+            if items.count > 3 {
+                Text("+\(items.count - 3) more")
+                    .font(Theme.ui(9, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(isSelected ? Theme.accent.opacity(0.12) : Theme.bg)
+        .contentShape(Rectangle())
+        .onTapGesture { if d.inMonth { selectedDay = d.day } }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            A11y.calendarDayLabel(
+                day: d.day,
+                monthLabel: displayMonthLabel,
+                hasItems: !items.isEmpty,
+                itemCount: items.count,
+                isToday: isToday,
+                isSelected: isSelected
+            )
+        )
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint(items.isEmpty ? "Shows this day's due items." : "Shows what's due on this day.")
+    }
+
+    /// One due item inside a day cell: the paid-state dot and the name — the
+    /// amount lives in the inspector, where there's room to show it.
+    private func macChip(_ item: DayItem) -> some View {
+        let color: Color = {
+            switch store.paidState(type: item.type, refId: item.refId) {
+            case .full: return Theme.green
+            case .partial: return Theme.orange
+            case .unpaid: return Theme.muted
+            }
+        }()
+        return HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text(item.name)
+                .font(Theme.ui(11, weight: .medium))
+                .foregroundStyle(Theme.text)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface2)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
+
+    /// The selected day, beside the grid the way Calendar's inspector sits
+    /// beside its month — the same due rows the phone shows below it.
+    private var macInspector: some View {
+        let items = selectedDay == 0 ? [] : (displayItemsByDay[selectedDay] ?? [])
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(selectedDay == 0
+                 ? "Choose a day"
+                 : "Due on \(displayMonthLabel.split(separator: " ").first.map(String.init) ?? "") \(selectedDay)\(ordinal(selectedDay))")
+                .font(Theme.ui(13, weight: .semibold))
+                .foregroundStyle(Theme.muted)
+            if items.isEmpty {
+                Text(selectedDay == 0 ? "Select a day to see what's due." : "Nothing due this day.")
+                    .font(Theme.ui(14))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .ctCard()
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                            if i > 0 { Divider().overlay(Theme.border) }
+                            dueRow(item)
+                        }
+                    }
+                }
+                .ctCard(padding: 0)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity)
+    }
+    #endif
 }
