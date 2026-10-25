@@ -241,6 +241,9 @@ private struct MacLinkRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        // .plain doesn't surface the label text to VoiceOver on the Mac —
+        // the row reads as a bare "button" without its name spelled out.
+        .accessibilityLabel(value.map { "\(title), \($0)" } ?? title)
         .accessibilityHint("Opens in browser")
     }
 }
