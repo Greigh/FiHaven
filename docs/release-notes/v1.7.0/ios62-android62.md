@@ -23,8 +23,17 @@ the console rejects longer). **TestFlight "What to Test" is 4000.**
 
 > Short release summary (under 500 characters).
 
+Beta track:
+
 ```
 BETA: More honest payoff plans — a strategy is only "Recommended" when its simulation actually finishes, totals that hit the 30-year cap say "interest accrued within the projection", and a debt that can't clear says so instead of inventing savings.
+```
+
+Production — when promoting 1.7.0 past beta, this covers everyone updating
+from 1.6.5 (437 chars):
+
+```
+A foldables-ready shell and more honest payoff plans. Tablets get a real sidebar and readable content at any text size. An account switch mid-save can no longer mix data up, and sessions survive process death. Payoff now recommends a strategy only when its simulation finishes; capped totals say "interest accrued within the projection", and a debt minimums cannot clear says so. Plus the setup wizard, Reduce Motion, and a calendar fix.
 ```
 
 ---
