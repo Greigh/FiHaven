@@ -13,15 +13,15 @@ Each release below uses two layers:
 
 ---
 
-## [1.6.8] Current Pre-Release — 2026-10-04
+## [1.7.0] Current Pre-Release — 2026-10-24
 
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.6.8 (60) — **FiHaven is a real Mac app**: a source-list sidebar, every list screen a sortable table with multi-select bulk actions, and full keyboard bindings — plus the seven-step setup wizard, the security-check reveal, and the payoff-plan honesty fix. |
-| **Android** | 1.6.8 (versionCode 60) — Seven-step setup wizard (reminders and App Lock asks), sign-in state that survives Android killing the app, the reminder-pass hour fix, and the full audit hardening shared with the server. |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — live App Store / Google Play badges on every page, the `/changelog` page, and the privacy page's on-device-storage disclosure. |
-| **Server** | Full security audit landed: household entity field allowlists, a shared SQLite rate-limit store, cross-process SSE relay, atomic credential consumption, and enforced Content-Security-Policy. |
+| **iOS** | 1.7.0 (62) — The Mac app gets its design pass: a branded About, a profile-and-tiles Settings home, a true month-view Calendar, side-by-side Income panels, and sign-in buttons that actually match — plus payoff recommendations that never compare truncated simulations. |
+| **Android** | 1.7.0 (versionCode 62) — Payoff recommendations that never compare truncated simulations, and the shared "projection capped" honesty wording. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — payoff tiles label capped interest as what it is: interest accrued inside the 30-year projection. |
+| **Server** | No changes this train — API in lockstep with build 60. |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.6.8.** The build number continues 59 → 60
+> **Marketing version is 1.7.0.** The build number continues 61 → 62
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -40,20 +40,16 @@ Each release below uses two layers:
 
 ### Summary
 
-> 1.6.7 build 58 ships the whole 1.6.6 train — **FiHaven is a native Mac app now**, not the iPad build on Apple Silicon: a source-list sidebar in a real Mac window, sortable tables with multi-select bulk actions on every list screen, and the entire app drivable from the keyboard. iPhone, iPad, Android, web, and the server gain the rest of the train: the sign-in security check reveals itself on the card, setup asks for reminders and App Lock up front, a payoff plan that would never clear says so, Android keeps its session when the app is killed, and the server enforces its Content-Security-Policy.
+> 1.7.0 is the Mac design pass. Build 60 made FiHaven a native Mac app; builds 61–62 make it look like one. About gains a branded hero and real link cards, Settings opens on a profile card and a tile grid instead of an edge-to-edge list, and every settings page reads inside a readable-width column. The Income screen splits into two side-by-side cards that fill the window, and Calendar stops being a column of dots — it's a true month view with due items inside the cells, the neighbouring months dimmed at the edges, and month paging.
 >
-> This build also lands a **complete security and correctness audit** (`docs/AUDIT.md`) across the Node/SQLite server, the web client, and both native apps — every finding fixed:
-> - **Stored XSS closed end-to-end**: shared household entities are scrubbed by a per-kind server-side allowlist, render read-only across the UI, and the one raw-HTML sink is escaped.
-> - **Session durability**: Android no longer wipes your sign-in, offline cache, and pending edits on a transient network error; iOS no longer flashes the sign-in screen on a valid-token cold launch.
-> - **One credential, one action**: email tokens, backup codes, re-auth codes, MFA challenges, and passkey completions are all atomic claims now — a replayed or racing request loses.
-> - **Multi-process correctness**: rate limits live in SQLite shared across workers, and household SSE events relay through the durable event log, so PM2 cluster mode works instead of multiplying limits and splitting live sync.
-> - **No duplicate scheduled mail**: reminder/digest/summary sends claim their marker atomically before sending.
-> - **Native persistence lanes**: whole-dataset writes moved off the UI thread on both platforms, and sign-out cache clearing is synchronous on that lane.
+> The payoff screens get an honesty fix on every platform: a simulation that runs into the 30-year projection cap never had a real "total interest", yet the apps compared those truncated totals to crown a "Best for you" strategy — and web tiles labeled the truncated number plain "Interest". Recommendations now come only from simulations that finished, and capped totals say "interest accrued within the projection" everywhere.
 
 ### What made up this version
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [62](#170-build-62--2026-10-24) | 2026-10-24 | Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
+| [61](#170-build-61--2026-10-24) | 2026-10-24 | A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations. |
 | [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
 | [59](#167-build-59--2026-10-06) | 2026-10-06 | Pipeline and CI fixes; no user-facing changes since build 58 |
 | [58](#167-build-58--2026-10-04) | 2026-10-04 | The 1.6.6 train — the native Mac app, the seven-step setup wizard, the payoff fix, surviving sessions, enforced CSP — plus a full security and correctness audit across server and clients |
@@ -62,7 +58,61 @@ Each release below uses two layers:
 | [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
 
 Store copy for every build of this train is in
-[`docs/release-notes/v1.6.7/`](docs/release-notes/v1.6.7/).
+[`docs/release-notes/v1.7.0/`](docs/release-notes/v1.7.0/).
+
+---
+
+## [1.7.0 build 62] — 2026-10-24
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.7.0 (62) — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
+| **Android** | 1.7.0 (versionCode 62) — Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 62 |
+
+> **Build bump.** The build number continues 61 → 62 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now.
+
+---
+
+## [1.7.0 build 61] — 2026-10-24
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.7.0 (61) — A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations. |
+| **Android** | 1.7.0 (versionCode 61) — A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 61 |
+
+> **Build bump.** The build number continues 60 → 61 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations.
+
+### Technical changelog
+
+The Mac design pass and the payoff honesty fix:
+
+- **Payoff recommendations only compare finished simulations** (`Payoff.swift`, `Payoff.kt`, `client/js/payoff.js`, plus all three payoff views): `avalIsBest` crowned whichever run ended with less `totalInterest` even when one ran into the 360-month cap mid-decline — a truncated total could label the wrong strategy "Best for you"/"Recommended" or default-flag snowball while both were still shrinking. Each core now reports whether its simulation `finished`, a shared `recommendedStrategy` picks a winner only when at least one side completed, and all three clients read that instead of comparing totals blind. Capped-but-declining is still distinct from non-amortizing — `nonAmortizing` stays reserved for payments that can't cover a month's interest. Regression coverage on all three cores: capped-vs-capped, capped-vs-finished, finished-vs-capped (JS 25, Swift 10, Kotlin green).
+- **Web payoff tiles and the Mac strip label capped interest honestly** (`PayoffView.svelte`, `MacScreens.swift`): both used to print the truncated figure under a plain "Interest" label; now "Interest accrued within the projection", consistent with the hero and the native clients.
+- **Mac About redesigned** (`AboutView.swift`): the shared iOS list rendered edge-to-edge at ~960pt with the version buried in a section header. The Mac pane is a centered column now — branded hero (gradient disc + `BrandMark` + wordmark + version pill), the same four link groups as bordered cards with hover-highlighted rows, and a centered footer. Link rows are real `Button`s that now carry an explicit `accessibilityLabel` — `.plain` buttons don't surface their label text to VoiceOver on macOS, so every link used to read as a bare "button" (`AXDescription` verified live: "License, Source available" … "Opens in browser"). Verified dark and light, and at the 640×520 window floor.
+- **Mac Settings redesigned** (`SettingsView.swift`, `PlatformStyle.swift`): the landing is a profile card (avatar, name, PRO state, sign-out) over a tile grid instead of nine flat list rows. Every detail pane (Account, Security, Preferences, Household, Budget rules, Reminder days, Tabs editor, Dashboard layout) caps at readable width via `ctReadablePane` — applied once through the shared `detail()` helper plus the standalone pushes.
+- **Mac Income is two side-by-side panels** (`MacScreens.swift`, `MacTables.swift`): above ~690pt of pane the sources and adjustments tables split the row, each a rounded card whose table fills the column height — below that they stack and scroll. The tables got real card chrome (inset, rounded) instead of square boxes bleeding to the pane edge, the adjustments section no longer collides with the sources table, and empty states center inside their card instead of a clipped one-row table. The narrow width tier drops the derived "Per month" column and shaves column minimums, so Amount stays readable at the 640pt window floor instead of clipping off the right edge.
+- **Mac Calendar is a real month view** (`CalendarView.swift`): hairline-separated cells share the pane's height, due items render as state-dotted chips inside their day (overflow reads "+N more"), adjacent months dim in at the edges, today is ringed in accent, and ◀︎/▶︎ plus a Today button page between months — the due computation already works per date, so paging is free. The selected day's due list sits beside the grid as an inspector with the same pay rows; under ~880pt it stacks below. iOS keeps its existing month layout verbatim.
+- **Mac sign-in buttons match** (`AuthView.swift`, `AppleSignInButton.swift`): the native `ASAuthorizationAppleIDButton` ignored `.frame(maxWidth:)` and kept its intrinsic 130×30 next to Google's full-width 48pt button. The existing `AppleSignInButton` wrapper's AppKit representable now answers the layout's proposed size in `sizeThatFits` — same width, same height, same corner radius on both platforms.
+- **CodeQL: shell command built from environment values** (`scripts/sweep-matrix.test.js`): `inBash` interpolated the harness script's path into `bash -c`; the path now arrives as `$0`, which bash never re-parses — matching how `run-macos-sign.test.js` already invokes scripts.
+- **`npm run ci` runs vitest** (`package.json`): the local gate previously ran the artifact checks and the build but not the test suite; it now matches the CI workflow (1486 tests).
 
 ---
 

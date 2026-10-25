@@ -1,6 +1,6 @@
 {
   "name": "fihaven",
-  "version": "1.6.8",
+  "version": "1.7.0",
   "private": true,
   "description": "Manual-first personal finance — bills, cards, loans, budget lenses, spending, and debt payoff — with optional bank linking (Plaid), rewards optimizer, and family sharing. Web app plus native iOS and Android clients on a shared Node/SQLite backend with server-side sync and FiHaven Pro subscriptions.",
   "license": "SEE LICENSE IN LICENSE",
@@ -101,6 +101,7 @@
   },
   "overrides": {
     "@parcel/watcher": "2.6.0",
+    "zod": "4.6.7",
     "@codecov/vite-plugin": {
       "vite": "$vite"
     }
