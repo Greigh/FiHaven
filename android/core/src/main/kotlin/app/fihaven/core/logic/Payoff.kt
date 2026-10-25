@@ -32,13 +32,28 @@ data class PayoffResult(
     val totalInterest: Double,
     val cards: List<PayoffCardResult>,
     val payoffDate: LocalDate,
-)
+) {
+    /** Every card reached zero inside the projection. When false, months and
+     *  totalInterest describe a run that stopped at the 360-month cap — fine
+     *  to display, meaningless to compare against another sim's totals. */
+    val finished: Boolean get() = cards.all { it.paidOffMonth != null }
+}
 
 /// Month-by-month debt-payoff simulation, ported verbatim from
 /// payoff.js `runPayoffSim`. Interest accrues monthly and is skipped while
 /// a card is inside its 0% promo window; freed minimums roll into the
 /// extra pool. Capped at 360 months. Null when no card carries a balance.
 object Payoff {
+    /** Which strategy costs less interest. null unless both sims finished —
+     *  a capped sim's totalInterest is interest accrued inside a truncated
+     *  projection, and comparing it to a finished run can crown the worse
+     *  plan as "best". */
+    fun recommendedStrategy(snowball: PayoffResult?, avalanche: PayoffResult?): PayoffStrategy? {
+        if (snowball == null || avalanche == null || !snowball.finished || !avalanche.finished) return null
+        return if (avalanche.totalInterest <= snowball.totalInterest) PayoffStrategy.AVALANCHE
+        else PayoffStrategy.SNOWBALL
+    }
+
     private class Sim(
         val id: String,
         val name: String,

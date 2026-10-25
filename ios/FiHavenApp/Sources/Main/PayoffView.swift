@@ -38,9 +38,10 @@ struct PayoffView: View {
         Payoff.runPayoffSim(cards: store.activeCards, strategy: .avalanche, extra: extra, tz: store.tz, includeMortgage: includeMortgage)
     }
     private var hero: PayoffResult? { strategy == .avalanche ? simAval : simSnow }
-    private var avalIsBest: Bool {
-        guard let a = simAval, let s = simSnow else { return true }
-        return a.totalInterest <= s.totalInterest
+    /// nil unless both strategy sims finished — a capped sim's totalInterest
+    /// is accrued inside a truncated projection, not a cost to crown on.
+    private var bestStrategy: PayoffStrategy? {
+        Payoff.recommendedStrategy(snowball: simSnow, avalanche: simAval)
     }
 
     var body: some View {
@@ -98,7 +99,7 @@ struct PayoffView: View {
                 .accessibilityLabel("Extra monthly payment")
                 .accessibilityValue(Money.fmt(extra))
                 .onChange(of: extra) { _, v in
-                    if v > 0 { strategy = avalIsBest ? .avalanche : .snowball }
+                    if v > 0, let best = bestStrategy { strategy = best }
                 }
         }
         .ctCard()
@@ -116,7 +117,7 @@ struct PayoffView: View {
             : (minsUnpaid.contains { $0.nonAmortizing }
                ? " · minimums never clear this debt"
                : " · minimums not paid off within the 30-year projection")
-        let unfinished = r.cards.contains { $0.paidOffMonth == nil }
+        let unfinished = !r.finished
         let saves: Double = {
             guard let m = simMin, !unfinished, minsUnpaid.isEmpty else { return 0 }
             return max(0, m.totalInterest - r.totalInterest)
@@ -126,7 +127,7 @@ struct PayoffView: View {
                 Text(strategy == .avalanche ? "Avalanche plan" : "Snowball plan")
                     .font(Theme.ui(12, weight: .bold))
                     .foregroundStyle(Theme.muted)
-                if (strategy == .avalanche) == avalIsBest, extra > 0 {
+                if strategy == bestStrategy, extra > 0 {
                     Text("Recommended")
                         .font(Theme.ui(11, weight: .semibold))
                         .foregroundStyle(Theme.green)
@@ -159,10 +160,10 @@ struct PayoffView: View {
     private var strategyCompare: some View {
         HStack(alignment: .top, spacing: 12) {
             if let s = simSnow {
-                strategyTile("Snowball", "Smallest first", s, isBest: !avalIsBest, tag: .snowball)
+                strategyTile("Snowball", "Smallest first", s, isBest: bestStrategy == .snowball, tag: .snowball)
             }
             if let a = simAval {
-                strategyTile("Avalanche", "Highest APR", a, isBest: avalIsBest, tag: .avalanche)
+                strategyTile("Avalanche", "Highest APR", a, isBest: bestStrategy == .avalanche, tag: .avalanche)
             }
         }
     }
@@ -179,9 +180,9 @@ struct PayoffView: View {
                 Text(sub).font(Theme.ui(11)).foregroundStyle(Theme.muted)
                 // An incomplete sim's payoffDate is just the cap month —
                 // showing it as a debt-free date would invent an outcome.
-                Text(r.cards.contains { $0.paidOffMonth == nil } ? ">30 yrs" : payoffDateLabel(r.payoffDate))
+                Text(!r.finished ? ">30 yrs" : payoffDateLabel(r.payoffDate))
                     .font(Theme.mono(16, weight: .semibold)).foregroundStyle(Theme.accent)
-                Text(r.cards.contains { $0.paidOffMonth == nil }
+                Text(!r.finished
                      ? "projection capped · \(Money.fmtShort(r.totalInterest)) interest"
                      : "\(r.months) mo · \(Money.fmtShort(r.totalInterest)) interest")
                     .font(Theme.ui(11)).foregroundStyle(Theme.muted)

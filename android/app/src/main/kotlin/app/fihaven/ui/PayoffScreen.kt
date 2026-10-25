@@ -65,7 +65,9 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
     val simSnow = Payoff.runPayoffSim(data.activeCards, PayoffStrategy.SNOWBALL, extra.toDouble(), zone, includeMortgage = includeMortgage)
     val simAval = Payoff.runPayoffSim(data.activeCards, PayoffStrategy.AVALANCHE, extra.toDouble(), zone, includeMortgage = includeMortgage)
     val hero = if (strategy == PayoffStrategy.AVALANCHE) simAval else simSnow
-    val avalIsBest = (simAval?.totalInterest ?: Double.MAX_VALUE) <= (simSnow?.totalInterest ?: Double.MAX_VALUE)
+    // null unless both strategy sims finished — a capped sim's totalInterest
+    // is accrued inside a truncated projection, not a cost to crown on.
+    val bestStrategy = Payoff.recommendedStrategy(simSnow, simAval)
 
     Column(
         Modifier.fillMaxSize().background(Ct.colors.bg).padding(padding)
@@ -105,7 +107,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                         value = extra,
                         onValueChange = {
                             extra = it
-                            if (it > 0f) strategy = if (avalIsBest) PayoffStrategy.AVALANCHE else PayoffStrategy.SNOWBALL
+                            if (it > 0f) bestStrategy?.let { b -> strategy = b }
                         },
                         valueRange = 0f..1000f,
                         steps = 39,
@@ -138,7 +140,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                     minsUnpaid.any { it.nonAmortizing } -> " · minimums never clear this debt"
                     else -> " · minimums not paid off within the 30-year projection"
                 }
-                val unfinished = hero.cards.any { it.paidOffMonth == null }
+                val unfinished = !hero.finished
                 val saves = if (simMin != null && !unfinished && minsUnpaid.isEmpty())
                     (simMin.totalInterest - hero.totalInterest).coerceAtLeast(0.0) else 0.0
                 CtCard {
@@ -148,7 +150,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                                 if (strategy == PayoffStrategy.AVALANCHE) "AVALANCHE PLAN" else "SNOWBALL PLAN",
                                 color = Ct.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             )
-                            if (((strategy == PayoffStrategy.AVALANCHE) == avalIsBest) && extra > 0) {
+                            if (strategy == bestStrategy && extra > 0) {
                                 Text(
                                     "Recommended", color = Ct.colors.green, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier
@@ -192,7 +194,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                             subtitle = "Smallest first",
                             result = it,
                             selected = strategy == PayoffStrategy.SNOWBALL,
-                            best = !avalIsBest && extra > 0,
+                            best = bestStrategy == PayoffStrategy.SNOWBALL && extra > 0,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         ) { strategy = PayoffStrategy.SNOWBALL }
                     }
@@ -202,7 +204,7 @@ fun PayoffScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)?
                             subtitle = "Highest APR",
                             result = it,
                             selected = strategy == PayoffStrategy.AVALANCHE,
-                            best = avalIsBest && extra > 0,
+                            best = bestStrategy == PayoffStrategy.AVALANCHE && extra > 0,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         ) { strategy = PayoffStrategy.AVALANCHE }
                     }
@@ -292,7 +294,7 @@ private fun StrategyTile(
             Text(subtitle, color = Ct.colors.muted, fontSize = 11.sp)
             // An incomplete sim's payoffDate is just the cap month — showing
             // it as a debt-free date would invent an outcome.
-            val incomplete = result.cards.any { it.paidOffMonth == null }
+            val incomplete = !result.finished
             Text(
                 if (incomplete) ">30 yrs" else DateLogic.monthKeyLabel(DateLogic.monthKey(result.payoffDate)),
                 color = if (selected) Ct.colors.accent else Ct.colors.text,

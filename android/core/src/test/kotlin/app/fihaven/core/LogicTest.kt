@@ -614,6 +614,67 @@ class PayoffTest {
         assertTrue(c.endBalance > c.origBalance)
         assertTrue(c.nonAmortizing)
     }
+
+    @Test fun finishedFlag() {
+        // finished is false exactly when the cap cut a card short.
+        val done = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val capped = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 3700.0, minPayment = 10.0, regularAPR = 0.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        assertTrue(done.finished)
+        assertFalse(capped.finished)
+    }
+
+    // ── recommendedStrategy ──────────────────────────────────────────
+    // A strategy may only be crowned when both sims ran to zero — a capped
+    // projection's totalInterest is what accrued inside 360 months, not the
+    // plan's cost, and it can land below a finished strategy's real total.
+
+    @Test fun recommendedStrategyPicksTheCheaperFinishedPlan() {
+        // Avalanche retires the 24% card first, so it accrues less interest.
+        val deck = listOf(
+            Card(id = "low", name = "Low", balance = 2000.0, minPayment = 50.0, regularAPR = 5.0),
+            Card(id = "high", name = "High", balance = 2000.0, minPayment = 50.0, regularAPR = 24.0),
+        )
+        val snow = Payoff.runPayoffSim(deck, PayoffStrategy.SNOWBALL, 100.0, UTC, NOW)!!
+        val aval = Payoff.runPayoffSim(deck, PayoffStrategy.AVALANCHE, 100.0, UTC, NOW)!!
+        assertTrue(aval.totalInterest < snow.totalInterest)
+        assertEquals(PayoffStrategy.AVALANCHE, Payoff.recommendedStrategy(snow, aval))
+    }
+
+    @Test fun recommendedStrategyIsNullWhenEitherStrategyCapped() {
+        // $40,000 at 0% pays $110/mo ($10 min + $100 extra) — needs 364
+        // months, so both strategies run into the cap with ~$400 left.
+        val deck = listOf(Card(id = "1", name = "A", balance = 40000.0, minPayment = 10.0, regularAPR = 0.0))
+        val snow = Payoff.runPayoffSim(deck, PayoffStrategy.SNOWBALL, 100.0, UTC, NOW)!!
+        val aval = Payoff.runPayoffSim(deck, PayoffStrategy.AVALANCHE, 100.0, UTC, NOW)!!
+        assertFalse(snow.finished)
+        assertFalse(aval.finished)
+        assertNull(Payoff.recommendedStrategy(snow, aval))
+    }
+
+    @Test fun recommendedStrategyIsNullWhenOnlyOneSideFinished() {
+        // The guard works per-side: a truncated run next to a finished one
+        // is still no comparison.
+        val snow = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            PayoffStrategy.SNOWBALL, 0.0, UTC, NOW)!!
+        val capped = snow.copy(cards = snow.cards.map { it.copy(paidOffMonth = null) })
+        assertFalse(capped.finished)
+        assertNull(Payoff.recommendedStrategy(snow, capped))
+        assertNull(Payoff.recommendedStrategy(capped, snow))
+    }
+
+    @Test fun recommendedStrategyIsNullForMissingSims() {
+        assertNull(Payoff.recommendedStrategy(null, null))
+        val aval = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "A", balance = 1000.0, minPayment = 100.0, regularAPR = 0.0)),
+            PayoffStrategy.AVALANCHE, 100.0, UTC, NOW)!!
+        assertNull(Payoff.recommendedStrategy(aval, null))
+        assertNull(Payoff.recommendedStrategy(null, aval))
+    }
 }
 
 class BudgetRulesTest {
