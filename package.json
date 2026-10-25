@@ -101,6 +101,7 @@
   },
   "overrides": {
     "@parcel/watcher": "2.6.0",
+    "zod": "4.6.7",
     "@codecov/vite-plugin": {
       "vite": "$vite"
     }
