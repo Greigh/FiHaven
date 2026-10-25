@@ -152,7 +152,7 @@ dependencies {
 
     // Plaid Link for in-app bank connections (Pro). Drives the existing
     // /api/plaid link-token + exchange endpoints.
-    implementation("com.plaid.link:sdk-core:6.2.2")
+    implementation("com.plaid.link:sdk-core:6.3.1")
 
     // Google Sign-In via Credential Manager (returns an OIDC ID token we post
     // to /api/auth/oauth/google).
