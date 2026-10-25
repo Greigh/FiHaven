@@ -381,7 +381,7 @@ struct MacIncomeScreen: View {
     private var baseIncome: Double { store.periodIncome - adjustmentsTotal }
 
     var body: some View {
-        ScrollView {
+        GeometryReader { pane in
             VStack(spacing: 0) {
                 MacSummaryStrip {
                     MacStripFigure(label: Income.baseIncomeLabel(for: store.periodConfig),
@@ -395,46 +395,32 @@ struct MacIncomeScreen: View {
                                    help: "This period's take-home after adjustments.")
                 }
 
-                MacSectionHeader("Income sources") {
-                    Button { creating = true } label: { Image(systemName: "plus") }
-                        .ctPlainButton()
-                        .accessibilityLabel("Add income source")
+                if pane.size.width >= 690 {
+                    // Wide enough for the pair side by side: sources on the
+                    // left, this period's adjustments on the right, each a
+                    // card that fills the pane's height so the screen uses
+                    // its window instead of pricing a fixed row count and
+                    // leaving the bottom half empty.
+                    HStack(alignment: .top, spacing: 0) {
+                        sourcesSection(placement: .fills)
+                        adjustmentsSection(placement: .fills)
+                    }
+                    .frame(maxHeight: .infinity)
+                    .padding(.bottom, 20)
+                } else {
+                    // Under ~690pt the pair would squeeze to less than a
+                    // narrow-tier table apiece, so the panes stack and scroll
+                    // instead — one more row than the data asks for, because a
+                    // bordered table's real rows run taller than the 24pt a
+                    // .rows count prices them at.
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            sourcesSection(placement: .rows(store.data.settings.incomes.isEmpty ? 5 : store.data.settings.incomes.count + 1))
+                            adjustmentsSection(placement: .rows(adjustments.isEmpty ? 5 : adjustments.count + 1))
+                                .padding(.top, 12)
+                        }
+                    }
                 }
-                MacIncomeTable(
-                    sources: store.data.settings.incomes,
-                    selection: $selSources,
-                    sortOrder: $sortSources,
-                    onEdit: { editing = $0 },
-                    emptyCopy: "No income sources yet. Add your paycheck."
-                )
-                // Empty floors at five rows: one row is 50pt, and the
-                // ContentUnavailableView's icon + title + description needs
-                // ~140 — shorter and it renders clipped in half.
-                .macTablePlacement(.rows(store.data.settings.incomes.isEmpty ? 5 : store.data.settings.incomes.count))
-                // A .rows table sits in the scroll column, not the pane: the
-                // edge-to-edge square border macTableSurface draws for .fills
-                // tables reads as a box bleeding off the edges here. Inset it
-                // to the headers' margin and round the border into a card.
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
-                .padding(.horizontal, 16)
-
-                MacSectionHeader(Income.adjustmentsLabel(for: store.periodConfig)) {
-                    Button { creatingAdj = true } label: { Image(systemName: "plus") }
-                        .ctPlainButton()
-                        .accessibilityLabel("Add income adjustment")
-                }
-                .padding(.top, 12)
-                MacIncomeAdjustmentsTable(
-                    adjustments: adjustments,
-                    selection: $selAdjustments,
-                    sortOrder: $sortAdjustments,
-                    onEdit: { editingAdj = $0 },
-                    emptyCopy: "No adjustments this period."
-                )
-                .macTablePlacement(.rows(adjustments.isEmpty ? 5 : adjustments.count))
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
             }
         }
         .sheet(isPresented: $creating) { IncomeEditorView(source: nil).environmentObject(store) }
@@ -444,6 +430,50 @@ struct MacIncomeScreen: View {
         }
         .sheet(item: $editingAdj) { adj in
             IncomeAdjustmentEditorView(adjustment: adj, monthKey: anchorMonth).environmentObject(store)
+        }
+    }
+
+    /// One side of the pair — a header row with its "+" and the table under
+    /// it, inset and rounded into a card. `placement` says whether the table
+    /// fills its column (wide panes, where the pair split the row) or prices
+    /// its rows inside the shared scroll view (narrow ones).
+    private func sourcesSection(placement: MacTablePlacement) -> some View {
+        VStack(spacing: 0) {
+            MacSectionHeader("Income sources") {
+                Button { creating = true } label: { Image(systemName: "plus") }
+                    .ctPlainButton()
+                    .accessibilityLabel("Add income source")
+            }
+            MacIncomeTable(
+                sources: store.data.settings.incomes,
+                selection: $selSources,
+                sortOrder: $sortSources,
+                onEdit: { editing = $0 },
+                emptyCopy: "No income sources yet. Add your paycheck."
+            )
+            .macTablePlacement(placement)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func adjustmentsSection(placement: MacTablePlacement) -> some View {
+        VStack(spacing: 0) {
+            MacSectionHeader(Income.adjustmentsLabel(for: store.periodConfig)) {
+                Button { creatingAdj = true } label: { Image(systemName: "plus") }
+                    .ctPlainButton()
+                    .accessibilityLabel("Add income adjustment")
+            }
+            MacIncomeAdjustmentsTable(
+                adjustments: adjustments,
+                selection: $selAdjustments,
+                sortOrder: $sortAdjustments,
+                onEdit: { editingAdj = $0 },
+                emptyCopy: "No adjustments this period."
+            )
+            .macTablePlacement(placement)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+            .padding(.horizontal, 16)
         }
     }
 }
