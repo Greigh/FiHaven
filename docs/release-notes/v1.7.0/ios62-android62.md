@@ -55,4 +55,22 @@ PLEASE TRY ON IPHONE/IPAD:
 
 ## App Store — What's New (only if promoting build 62 to release)
 
-Paste into App Store Connect → Version → What's New in This Version.
+Paste into App Store Connect → Version → What's New in This Version
+(under 4000 characters):
+
+```
+1.7.0 — A real Mac app, refined
+
+On Mac:
+• About & licenses is a branded pane with real link cards instead of an edge-to-edge list
+• Settings opens on a profile card and a tile grid; every settings page reads at a comfortable width
+• Income splits into two side-by-side cards on wide windows and stacks neatly on narrow ones
+• Calendar is a true month view — due items sit inside their day cells, months page with arrows or a Today button, and the selected day's bills live in a side inspector
+• The Apple and Google sign-in buttons finally match
+
+On iPhone and iPad:
+• Payoff plans are more honest — a strategy is only "Recommended" when its simulation actually finishes, and totals that hit the 30-year cap say "interest accrued within the projection" instead of quoting a number that never completes
+• If minimum payments can never clear a debt, the app says so rather than inventing savings
+
+No sign-out required, and nothing migrates — everything stays exactly where you left it.
+```
