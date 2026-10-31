@@ -6,7 +6,7 @@
 -->
 <script>
   import { cards } from '../js/storage.svelte.js';
-  import { fmt } from '../js/utils.js';
+  import { cardPromos, fmt, parseLocalDate } from '../js/utils.js';
   import { runPayoffSim, recommendedStrategy, isHousingLoan } from '../js/payoff.js';
 
   let extra = $state(0);
@@ -278,10 +278,12 @@
             {#if c.issuer}<span class="payoff-account-issuer"> · {c.issuer}</span>{/if}
             {#if c.type === 'loan'}<span class="badge badge-gray">Loan</span>{/if}
             {#if isHousingLoan(c)}<span class="badge badge-gray">Estimate</span>{/if}
-            {#if c.type !== 'loan' && c.hasPromo && c.promoEndDate}
-              <div class="payoff-account-promo">
-                0% promo → {new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-              </div>
+            {#if c.type !== 'loan'}
+              {#each cardPromos(c).filter((p) => p.endDate) as p (p.id)}
+                <div class="payoff-account-promo">
+                  {p.apr}% promo{p.label ? ' · ' + p.label : ''} → {parseLocalDate(p.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </div>
+              {/each}
             {/if}
           </div>
           <div class="payoff-account-meta">

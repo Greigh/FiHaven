@@ -168,6 +168,50 @@ func runScheduleChecks() {
         checkClose(Schedule.promoNeeded(expired, tz: tz, now: now), 800, "expired → whole balance")
     }
 
+    section("Schedule — multi-promo") {
+        // Two windows each spread their own balance — the need is the sum.
+        let two = Card(id: "m", name: "Mixed", promos: [
+            CardPromo(id: "a", balance: 800, endDate: "2026-10-01"),
+            CardPromo(id: "b", balance: 400, endDate: "2026-10-01"),
+        ])
+        checkClose(Schedule.promoNeeded(two, tz: tz, now: now), 300, "800 + 400 over 4 months", tol: 0.001)
+
+        // A blank-balance promo covers the balance the stated one doesn't.
+        let mixed = Card(id: "m2", name: "Mix", balance: 1000, promos: [
+            CardPromo(id: "a", balance: 400, endDate: "2026-10-01"),
+            CardPromo(id: "b", balance: nil, endDate: "2026-10-01"),
+        ])
+        let promos = mixed.promoList
+        checkClose(mixed.promoBalanceOf(promos[0]), 400, "stated bucket", tol: 0.001)
+        checkClose(mixed.promoBalanceOf(promos[1]), 600, "blank bucket gets the remainder", tol: 0.001)
+        checkClose(Schedule.promoNeeded(mixed, tz: tz, now: now), 250, "the card is fully covered", tol: 0.001)
+
+        // promoList: promos[] wins over legacy; legacy synthesizes one row.
+        var legacy = Card(id: "lg", name: "Legacy")
+        legacy.hasPromo = true
+        legacy.promoAPR = 0
+        legacy.promoEndDate = "2026-10-01"
+        legacy.promoBalance = 500
+        checkEqual(legacy.promoList.count, 1, "legacy synthesizes one promo")
+        checkEqual(legacy.promoList.first?.id, "legacy", "legacy promo id")
+        var both = legacy
+        both.promos = [CardPromo(id: "x", label: "BT", apr: 3.99, balance: 200, endDate: "2027-01-01")]
+        checkEqual(both.promoList.first?.id, "x", "promos[] wins over legacy fields")
+        checkEqual(both.promoList.first?.apr, 3.99, "promos[] keeps its own APR")
+
+        // soonestPromo keys on the earliest end date, expired or not.
+        let ordered = Card(id: "o", name: "O", promos: [
+            CardPromo(id: "late", balance: 100, endDate: "2031-01-01"),
+            CardPromo(id: "soon", balance: 100, endDate: "2025-01-01"),
+            CardPromo(id: "mid", balance: 100, endDate: "2030-06-01"),
+        ])
+        checkEqual(ordered.soonestPromo?.id, "soon", "soonest = earliest end date")
+        checkEqual(ordered.activePromos(tz: tz, now: now).count, 2, "expired promo is not active")
+        let running = ordered.promoList.first { $0.id == "late" }
+        check(running != nil && ordered.promoIsActive(running!, tz: tz, now: now),
+              "a promo inside its window is active")
+    }
+
     section("Schedule — buildUpcomingItems") {
         let bills = [
             Bill(id: "1", name: "Late", amount: 50, dueDay: 20),
@@ -598,6 +642,27 @@ func runPayoffChecks() {
                          hasPromo: true, promoEndDate: "2030-01-01")],
             strategy: .none, extra: 0, tz: tz, now: now)!
         check(reg.totalInterest > promo.totalInterest, "promo suppresses interest while active")
+
+        // A non-zero promo APR accrues its own interest — real, but under
+        // the same balance at the regular rate.
+        let reduced = Payoff.runPayoffSim(
+            cards: [Card(id: "m", name: "Mixed", balance: 1200, minPayment: 40, regularAPR: 24,
+                         promos: [CardPromo(id: "p1", label: "BT", apr: 3.99, balance: 1200, endDate: "2030-01-01")])],
+            strategy: .none, extra: 0, tz: tz, now: now)!
+        check(reduced.totalInterest > 5, "3.99% promo accrues its own interest")
+        check(reduced.totalInterest < reg.totalInterest, "3.99% promo under the regular rate")
+
+        // Two windows: the lapsed one rejoins the regular rate while the
+        // later one stays cheap — some interest, less than both at regular.
+        let endsSoon = Payoff.runPayoffSim(
+            cards: [Card(id: "t", name: "Two", balance: 2000, minPayment: 60, regularAPR: 24,
+                         promos: [
+                            CardPromo(id: "a", apr: 0, balance: 1000, endDate: "2026-07-01"),
+                            CardPromo(id: "b", apr: 0, balance: 1000, endDate: "2030-01-01"),
+                         ])],
+            strategy: .none, extra: 0, tz: tz, now: now)!
+        check(endsSoon.totalInterest > 0, "lapsed bucket accrues regular-rate interest")
+        check(endsSoon.totalInterest < reg.totalInterest, "still-running bucket saves interest")
 
         let snow = Payoff.runPayoffSim(
             cards: [

@@ -186,7 +186,7 @@ fun RewardsScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit)
                 if (ranking.excluded.isNotEmpty()) {
                     CtCard {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FieldLabel("Skipped (0% promo)")
+                            FieldLabel("Skipped (active promo)")
                             ranking.excluded.forEach { e ->
                                 Column {
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

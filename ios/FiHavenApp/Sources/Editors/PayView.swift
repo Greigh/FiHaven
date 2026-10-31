@@ -83,7 +83,7 @@ struct PayView: View {
         if cardTarget(.recommended) > cardTarget(.minimum) + Schedule.paidEpsilon {
             let sub: String
             if let o = c.recommendedPayment, o > 0 { sub = "Your set payment" }
-            else if c.hasPromo { sub = "Clears the 0% promo in time" }
+            else if !c.promoList.isEmpty { sub = "Clears the promo in time" }
             else { sub = "Pays off the balance" }
             ps.append(preset("Recommended", sub, target: cardTarget(.recommended)))
         }
@@ -191,7 +191,7 @@ struct PayView: View {
             } message: {
                 Text("You have already recorded \(Money.fmt(alreadyPaid)) in payments for this card/loan this month. Is this an additional payment?")
             }
-            .alert("Remove 0% promo?", isPresented: $showPromoClearAlert) {
+            .alert("Remove promo APR windows?", isPresented: $showPromoClearAlert) {
                 Button("Remove promo") {
                     store.resolvePromoClearPrompt(refId: target.refId, clear: true)
                     dismiss()
@@ -201,7 +201,7 @@ struct PayView: View {
                     dismiss()
                 }
             } message: {
-                Text("This card is paid off. Remove the 0% promo?")
+                Text("This card is paid off. Remove its promo APR windows?")
             }
         }
         .ctEditorSheetWidth()

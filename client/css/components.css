@@ -879,6 +879,10 @@ main {
   display: flex; align-items: center; gap: 6px;
 }
 .promo-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.promo-detail-list { margin-top:10px; border-top:1px dashed color-mix(in srgb, var(--border) 80%, transparent); padding-top:8px; }
+.promo-detail-row { display:flex; justify-content:space-between; gap:10px; font-size:12px; padding:3px 0; }
+.promo-detail-name { font-weight:600; color:var(--text); }
+.promo-detail-meta { color:var(--muted); text-align:right; }
 .plabel {
   font-size: 10px; font-weight: 700;
   letter-spacing: .07em; text-transform: uppercase;

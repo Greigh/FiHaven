@@ -34,10 +34,7 @@ struct CardEditorView: View {
     @State private var plaidAccountId = ""
     @State private var bankAccounts: [(id: String, label: String)] = []
 
-    @State private var hasPromo = false
-    @State private var promoAPR: Double = 0
-    @State private var promoBalance: Double = 0
-    @State private var promoEnd = Date()
+    @State private var promos: [CardPromo] = []
 
     @State private var rewardBase: Double = 0
     @State private var rewardCats: [String: Double] = [:]
@@ -144,12 +141,28 @@ struct CardEditorView: View {
 
                 if type == "card" {
                     Section {
-                        Toggle("0% / promo APR", isOn: $hasPromo)
-                        if hasPromo {
-                            PercentField(label: "Promo APR", value: $promoAPR, placeholder: "APR")
-                            money("Promo balance", $promoBalance)
-                            DatePicker("Promo ends", selection: $promoEnd, displayedComponents: .date)
+                        ForEach($promos) { $promo in
+                            VStack(alignment: .leading, spacing: 6) {
+                                TextField("Label (e.g. Balance transfer)", text: $promo.label)
+                                PercentField(label: "Promo APR", value: $promo.apr, placeholder: "APR")
+                                OptionalCurrencyField(label: "Balance under promo", value: $promo.balance)
+                                DatePicker("Ends", selection: Binding(
+                                    get: { DateLogic.parseDate(promo.endDate, tz: store.tz) ?? Date() },
+                                    set: { promo.endDate = DateLogic.ymd($0, tz: store.tz) }
+                                ), displayedComponents: .date)
+                            }
+                            .padding(.vertical, 2)
                         }
+                        .onDelete { promos.remove(atOffsets: $0) }
+                        Button {
+                            promos.append(CardPromo(id: UUID().uuidString))
+                        } label: {
+                            Label("Add promo", systemImage: "plus")
+                        }
+                        Text("0% or reduced-rate windows — one per balance (e.g. purchases + a balance transfer). A blank balance covers whatever the other promos don’t.")
+                            .font(Theme.ui(12)).foregroundStyle(Theme.muted)
+                    } header: {
+                        Text("Promo APRs")
                     }
                 }
 
@@ -381,12 +394,9 @@ struct CardEditorView: View {
         lastDigits = card.lastDigits ?? ""
         network = card.network ?? ""
         plaidAccountId = card.plaidAccountId ?? ""
-        hasPromo = card.hasPromo
-        promoAPR = card.promoAPR ?? 0
-        promoBalance = card.promoBalance ?? card.balance
-        if let parsed = DateLogic.parseDate(card.promoEndDate, tz: store.tz) {
-            promoEnd = parsed
-        }
+        // Legacy single-promo fields arrive through promoList like any
+        // other read — the two shapes can't diverge.
+        promos = card.promoList
         rewardBase = card.rewardBase
         rewardCats = card.rewardCategories
         perks = card.perks
@@ -402,12 +412,32 @@ struct CardEditorView: View {
     }
 
     private func save() {
-        let f = DateFormatter()
-        f.timeZone = store.tz
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-
         let isLoan = type == "loan"
+
+        // Drop rows the user added but left entirely blank, then write the
+        // legacy single-promo fields from the earliest-ending promo — an
+        // older client reading this card sees the deadline that matters.
+        let savedPromos = isLoan ? [] : promos.filter {
+            !$0.label.trimmingCharacters(in: .whitespaces).isEmpty
+                || $0.apr > 0
+                || ($0.balance ?? 0) > 0
+                || ($0.endDate?.isEmpty == false)
+        }
+        let mirror = savedPromos
+            .filter { $0.endDate?.isEmpty == false }
+            .sorted { ($0.endDate ?? "") < ($1.endDate ?? "") }
+            .first ?? savedPromos.first
+        // Re-ask after payoff only when the promo set is unchanged — compare
+        // the meaningful fields, not ids, so a legacy→promos[] migration of
+        // an untouched card doesn't re-prompt.
+        func promoKey(_ list: [CardPromo]) -> String {
+            list.map {
+                "\($0.label)|\($0.apr)|\($0.balance.map { String($0) } ?? "")|\($0.endDate ?? "")"
+            }.joined(separator: ";")
+        }
+        let promoPayoffPrompted = card?.promoPayoffPrompted == true
+            && promoKey(card?.promoList ?? []) == promoKey(savedPromos)
+
         let saved = Card(
             id: card?.id ?? AppStore.newID(),
             name: name.trimmingCharacters(in: .whitespaces),
@@ -416,10 +446,12 @@ struct CardEditorView: View {
             minPayment: minPayment,
             recommendedPayment: isLoan ? nil : (recommendedPayment > 0 ? recommendedPayment : nil),
             regularAPR: regularAPR,
-            hasPromo: isLoan ? false : hasPromo,
-            promoAPR: (isLoan ? false : hasPromo) ? promoAPR : nil,
-            promoEndDate: (isLoan ? false : hasPromo) ? f.string(from: promoEnd) : nil,
-            promoBalance: (isLoan ? false : hasPromo) ? promoBalance : nil,
+            hasPromo: !savedPromos.isEmpty,
+            promoAPR: mirror?.apr,
+            promoEndDate: mirror?.endDate,
+            promoBalance: mirror?.balance,
+            promos: savedPromos,
+            promoPayoffPrompted: promoPayoffPrompted,
             dueDay: dueDay,
             autopay: autopay,
             autopayDay: autopay && autopayDay > 0 ? autopayDay : nil,

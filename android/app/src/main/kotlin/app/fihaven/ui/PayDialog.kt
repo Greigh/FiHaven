@@ -27,6 +27,7 @@ import app.fihaven.core.logic.DateLogic
 import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.promoList
 import app.fihaven.ui.theme.Ct
 import app.fihaven.ui.theme.MonoNumerals
 import kotlin.math.abs
@@ -94,7 +95,7 @@ fun PayDialog(vm: AppViewModel, type: String, refId: String, name: String, onDis
                                             when {
                                                 (card.recommendedPayment ?: 0.0) > 0.0 ->
                                                         "Your set payment"
-                                                card.hasPromo -> "Clears the 0% promo in time"
+                                                card.promoList.isNotEmpty() -> "Clears the promo in time"
                                                 else -> "Pays off the balance"
                                             }
                                     add(preset("Recommended", sub,

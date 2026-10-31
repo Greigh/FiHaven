@@ -7,7 +7,7 @@
 import { mount } from 'svelte';
 import PayoffView from '../svelte/PayoffView.svelte';
 import { cards } from './storage.svelte.js';
-import { setRenderer } from './utils.js';
+import { cardPromos, parseLocalDate, promoBalanceOf, setRenderer, soonestPromo } from './utils.js';
 
 /** Mortgage / home-equity loans — PMI & escrow make sims approximate. */
 export function isHousingLoan(c) {
@@ -58,8 +58,21 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
       minPayment:   Math.max(parseFloat(c.minPayment) || 0, 1),
       apr:          parseFloat(c.regularAPR) || 0,
       monthlyRate:  (parseFloat(c.regularAPR) || 0) / 100 / 12,
-      hasPromo:     c.type !== 'loan' && !!c.hasPromo,
-      promoEndDate: c.type !== 'loan' ? c.promoEndDate || null : null,
+      hasPromo:     c.type !== 'loan' && cardPromos(c).length > 0,
+      promoEndDate: c.type !== 'loan' ? (soonestPromo(c) || {}).endDate || null : null,
+      // Each promo is a balance bucket at its own rate until its own end
+      // date; the uncovered remainder rides at the card's regular APR.
+      // Earliest-ending first — the order payments elsewhere drain them.
+      promoBuckets: c.type !== 'loan'
+        ? cardPromos(c)
+            .slice()
+            .sort((a, b) => ((a.endDate || '9999') < (b.endDate || '9999') ? -1 : 1))
+            .map((p) => ({
+              bal:  promoBalanceOf(c, p),
+              rate: p.apr / 100 / 12,
+              end:  p.endDate,
+            }))
+        : [],
       paidOffMonth: null,
       interestPaid: 0,
       // Whether the card sat inside its promo window in the most recent
@@ -85,11 +98,23 @@ export function runPayoffSim(strategy, userExtra, opts = {}) {
 
     sim.forEach((c) => {
       if (c.balance <= 0.01) return;
-      const inPromo = c.hasPromo && c.promoEndDate &&
-                      (new Date(c.promoEndDate) >= targetDate);
+      // Interest accrues per bucket: an active promo's share at the promo
+      // rate, an expired promo's share and the uncovered remainder at the
+      // regular rate. Buckets gate on the live balance, so paying the card
+      // down shrinks covered dollars first.
+      let remaining = c.balance;
+      let interest  = 0;
+      let inPromo   = false;
+      c.promoBuckets.forEach((b) => {
+        const covered = Math.min(b.bal, Math.max(0, remaining));
+        remaining    -= covered;
+        const active  = b.end && parseLocalDate(b.end) >= targetDate;
+        if (active) inPromo = true;
+        interest += covered * (active ? b.rate : c.monthlyRate);
+      });
+      if (remaining > 0) interest += remaining * c.monthlyRate;
       c.inPromoNow = inPromo;
-      if (!inPromo && c.monthlyRate > 0) {
-        const interest = c.balance * c.monthlyRate;
+      if (interest > 0) {
         c.interestPaid += interest;
         totalInterest  += interest;
         c.balance      += interest;

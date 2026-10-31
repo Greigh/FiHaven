@@ -61,17 +61,24 @@ struct AlertsWidget: View {
                 out.append("⏳ \(b.name) — free trial ends \(dayWord).")
             }
         }
-        for c in store.activeCreditCards where c.hasPromo && !(c.promoEndDate ?? "").isEmpty {
-            let mo = DateLogic.monthsUntil(c.promoEndDate, tz: store.tz)
-            let bal = c.promoBalance ?? c.balance
-            guard bal > 0 else { continue }
-            let need = max(c.minPaymentOrZero, Schedule.promoNeeded(c, tz: store.tz))
-            if mo <= 0 {
-                out.append("🚨 \(c.name) — 0% promo expired. \(Money.fmt(bal)) is accruing \(Int(c.regularAPR))% APR.")
-            } else if mo <= 2 {
-                out.append("🔥 \(c.name) — 0% promo ends in ~\(mo) mo. Pay \(Money.fmt(need))/mo to avoid interest.")
-            } else if mo <= 4 {
-                out.append("⚠️ \(c.name) — 0% promo ends in ~\(mo) mo. Need \(Money.fmt(need))/mo to clear \(Money.fmt(bal)).")
+        // One alert per promo — a card can hold several windows at once,
+        // and an expired transfer window next to a healthy purchase promo
+        // is two different kinds of news, not one.
+        for c in store.activeCreditCards {
+            for p in c.promoList {
+                guard let end = p.endDate, !end.isEmpty else { continue }
+                let bal = c.promoBalanceOf(p)
+                guard bal > 0 else { continue }
+                let mo = DateLogic.monthsUntil(end, tz: store.tz)
+                let need = max(c.minPaymentOrZero, mo <= 0 ? bal : bal / Double(mo))
+                let what = p.label.isEmpty ? "\(fmtRate(p.apr))% promo" : "\"\(p.label)\" promo"
+                if mo <= 0 {
+                    out.append("🚨 \(c.name) — \(what) expired. \(Money.fmt(bal)) is accruing \(Int(c.regularAPR))% APR.")
+                } else if mo <= 2 {
+                    out.append("🔥 \(c.name) — \(what) ends in ~\(mo) mo. Pay \(Money.fmt(need))/mo to avoid interest.")
+                } else if mo <= 4 {
+                    out.append("⚠️ \(c.name) — \(what) ends in ~\(mo) mo. Need \(Money.fmt(need))/mo to clear \(Money.fmt(bal)).")
+                }
             }
         }
         return out

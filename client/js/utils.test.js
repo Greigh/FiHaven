@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   recommendedAmount,
   promoNeeded,
+  cardPromos,
+  promoBalanceOf,
+  activePromos,
+  soonestPromo,
   liveCardBalance,
   utilizationOf,
   cardAmounts,
@@ -61,6 +65,10 @@ import { boundsForKey } from './period.js';
 
 const isoOffsetMonths = (months) => {
   const d = new Date();
+  // Anchor mid-month before adding months: on the 31st, "+N months" lands
+  // on a short month's 31st and rolls into the next month, shifting every
+  // monthsUntil count by one.
+  d.setDate(15);
   d.setMonth(d.getMonth() + months);
   return d.toISOString().slice(0, 10);
 };
@@ -108,6 +116,80 @@ describe('utils — promoNeeded', () => {
 
   it('returns the whole balance once the promo has ended', () => {
     expect(promoNeeded({ promoBalance: 500, promoEndDate: '2000-01-01' })).toBe(500);
+  });
+
+  it('sums the per-promo spreads when a card has several windows', () => {
+    const card = { promos: [
+      { id: 'a', balance: 1000, endDate: isoOffsetMonths(5) },
+      { id: 'b', balance: 500,  endDate: isoOffsetMonths(5) },
+    ]};
+    const n = promoNeeded(card);
+    // ~200 + ~100 ≈ 300 — comfortably above a single promo's ~200.
+    expect(n).toBeGreaterThan(230);
+    expect(n).toBeLessThan(390);
+  });
+});
+
+describe('utils — cardPromos', () => {
+  it('synthesizes one promo from the legacy fields', () => {
+    expect(cardPromos({
+      hasPromo: true, promoAPR: 0, promoBalance: 500, promoEndDate: '2030-01-01',
+    })).toEqual([{ id: 'legacy', label: '', apr: 0, balance: 500, endDate: '2030-01-01' }]);
+  });
+
+  it('treats leftover legacy fields as a promo when the flag is absent', () => {
+    // Our writers always set the flag, so flag-less data only has the
+    // fields to go on. An explicit hasPromo:false still wins — it's the
+    // user saying no.
+    expect(cardPromos({ promoEndDate: '2030-01-01' })).toHaveLength(1);
+    expect(cardPromos({ hasPromo: false, promoEndDate: '2030-01-01' })).toEqual([]);
+    expect(cardPromos({ hasPromo: false })).toEqual([]);
+    expect(cardPromos({})).toEqual([]);
+  });
+
+  it('prefers the promos array when both shapes are present', () => {
+    const promos = cardPromos({
+      hasPromo: true, promoAPR: 0, promoEndDate: '2030-01-01',
+      promos: [{ id: 'x', label: 'BT', apr: 3.99, balance: 200, endDate: '2031-06-01' }],
+    });
+    expect(promos).toEqual([{ id: 'x', label: 'BT', apr: 3.99, balance: 200, endDate: '2031-06-01' }]);
+  });
+
+  it('normalizes a missing, zero, or unreadable balance to null', () => {
+    // null means "the card balance the other promos don't claim" — matching
+    // the legacy promoBalance || balance fallback, where 0 also fell back.
+    const promos = cardPromos({ promos: [
+      { id: 'a', balance: '',     endDate: '2030-01-01' },
+      { id: 'b', balance: 0,      endDate: '2030-02-01' },
+      { id: 'c', balance: 'junk', endDate: '2030-03-01' },
+      { id: 'd', balance: 250,    endDate: '2030-04-01' },
+    ]});
+    expect(promos.map((p) => p.balance)).toEqual([null, null, null, 250]);
+  });
+});
+
+describe('utils — promoBalanceOf / window helpers', () => {
+  it('gives a blank promo the balance the stated promos do not claim', () => {
+    const card = { balance: 1000, promos: [
+      { id: 'a', balance: 400,  endDate: '2030-01-01' },
+      { id: 'b', balance: null, endDate: '2030-06-01' },
+    ]};
+    const [a, b] = cardPromos(card);
+    expect(promoBalanceOf(card, a)).toBe(400);
+    expect(promoBalanceOf(card, b)).toBe(600);
+    // Claimed beyond the balance clamps at 0, never negative.
+    expect(promoBalanceOf({ balance: 300, promos: card.promos }, b)).toBe(0);
+  });
+
+  it('soonestPromo picks the earliest end date; activePromos drops the lapsed', () => {
+    const card = { promos: [
+      { id: 'late', balance: 100, endDate: '2031-01-01' },
+      { id: 'gone', balance: 100, endDate: '2020-01-01' },
+      { id: 'mid',  balance: 100, endDate: '2030-06-01' },
+    ]};
+    expect(soonestPromo(card).id).toBe('gone');
+    expect(activePromos(card).map((p) => p.id).sort()).toEqual(['late', 'mid']);
+    expect(soonestPromo({ promos: [{ id: 'n', balance: 10 }] })).toBeNull();
   });
 });
 

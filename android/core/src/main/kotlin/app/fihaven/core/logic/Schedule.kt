@@ -3,13 +3,37 @@ package app.fihaven.core.logic
 import app.fihaven.core.CTConstants
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.CardPromo
 import app.fihaven.core.model.CategoryIcon
 import app.fihaven.core.model.Payment
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.max
+
+/** Signed days until a promo ends — negative once the window has closed.
+ *  null = no (or unreadable) end date. */
+fun Card.promoDaysLeft(promo: CardPromo, zone: ZoneId, now: Instant = Instant.now()): Int? {
+    val end = DateLogic.parseDate(promo.endDate) ?: return null
+    return ChronoUnit.DAYS.between(DateLogic.today(zone, now), end).toInt()
+}
+
+/** Inside its window right now. An unreadable end date counts as active —
+ *  dropping the promo would hide it exactly when it needs attention.
+ *  Mirrors promoIsActive in utils.js. */
+fun Card.promoIsActive(promo: CardPromo, zone: ZoneId, now: Instant = Instant.now()): Boolean {
+    val s = promo.endDate
+    if (s.isNullOrEmpty()) return false
+    val end = DateLogic.parseDate(s) ?: return true
+    return !end.isBefore(DateLogic.today(zone, now))
+}
+
+fun Card.activePromos(zone: ZoneId, now: Instant = Instant.now()): List<CardPromo> =
+    promoList.filter { promoIsActive(it, zone, now) }
 
 data class UpcomingItem(
     val name: String,
@@ -27,13 +51,16 @@ data class UpcomingItem(
 
 /// Upcoming-items + paid-state helpers, ported from utils.js.
 object Schedule {
-    fun promoNeeded(card: Card, zone: ZoneId, now: Instant = Instant.now()): Double {
-        val bal = card.promoBalance?.takeIf { it != 0.0 }
-            ?: card.balance.takeIf { it != 0.0 }
-            ?: 0.0
-        val months = DateLogic.monthsUntil(card.promoEndDate, zone, now)
-        return if (months <= 0) bal else bal / months
-    }
+    /** Monthly payment that clears every promo in time: the sum of each
+     *  promo's balance spread over the months it has left. An expired (or
+     *  end-less) promo wants its whole balance now — the legacy
+     *  single-promo rule unchanged. Mirrors `promoNeeded` in utils.js. */
+    fun promoNeeded(card: Card, zone: ZoneId, now: Instant = Instant.now()): Double =
+        card.promoList.sumOf { p ->
+            val bal = card.promoBalanceOf(p)
+            val months = DateLogic.monthsUntil(p.endDate, zone, now)
+            if (months <= 0) bal else bal / months
+        }
 
     fun buildUpcomingItems(
         bills: List<Bill>,
@@ -76,7 +103,7 @@ object Schedule {
         for (c in cards) {
             val dd = c.dueDay ?: continue
             if (dd == 0) continue
-            val needed = if (c.hasPromo) max(c.minPaymentOrZero, promoNeeded(c, zone, now)) else c.minPaymentOrZero
+            val needed = if (c.promoList.isNotEmpty()) max(c.minPaymentOrZero, promoNeeded(c, zone, now)) else c.minPaymentOrZero
             val ref = c.id.toString()
             val days = if (bounds != null) {
                 val goal = goalAmount(c, policy, payments, bounds, zone, now)
@@ -328,7 +355,7 @@ object Schedule {
         // Loans: the recommended payment is the scheduled monthly payment, never
         // the whole principal (paying it off is still an explicit option).
         if (card.type == "loan") return card.minPaymentOrZero
-        if (card.hasPromo) return max(card.minPaymentOrZero, promoNeeded(card, zone, now))
+        if (card.promoList.isNotEmpty()) return max(card.minPaymentOrZero, promoNeeded(card, zone, now))
         // 0% interest (no active promo): carrying a balance costs nothing, so the
         // recommended payment is just the minimum — not the whole balance.
         if (card.regularAPR <= 0) return card.minPaymentOrZero
@@ -362,6 +389,21 @@ object Schedule {
      */
     private fun cardAtPeriodStart(card: Card, paid: Double): Card {
         if (paid <= 0) return card
+        if (card.promos.isNotEmpty()) {
+            // Mirror of the payment delta, which drains earliest-ending
+            // first: the refund lands on the same bucket, keeping this
+            // period's pay target stable as installments record.
+            val promos = card.promos.map { it.copy() }.toMutableList()
+            val bucket = promos
+                .filter { !it.endDate.isNullOrEmpty() && (it.balance ?: 0.0) > 0 }
+                .minByOrNull { it.endDate!! }
+                ?: promos.firstOrNull { (it.balance ?: 0.0) > 0 }
+            if (bucket != null) {
+                val i = promos.indexOfFirst { it.id == bucket.id }
+                promos[i] = promos[i].copy(balance = (promos[i].balance ?: 0.0) + paid)
+            }
+            return card.copy(balance = card.balance + paid, promos = promos)
+        }
         return card.copy(
             balance = card.balance + paid,
             promoBalance = card.promoBalance?.let { it + paid },

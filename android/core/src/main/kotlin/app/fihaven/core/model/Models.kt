@@ -68,10 +68,18 @@ data class Card(
     val minPayment: Double? = null,
     val recommendedPayment: Double? = null,   // optional override for the "recommended" payment
     val regularAPR: Double = 0.0,
-    val hasPromo: Boolean = false,
+    /** Nullable on purpose: JSON-absent means "older client, never wrote the
+     *  flag" — then leftover promo fields still describe a real window — while
+     *  an explicit false is the user saying no. See [promoList]. */
+    val hasPromo: Boolean? = null,
     val promoAPR: Double? = null,
     val promoEndDate: String? = null,   // "YYYY-MM-DD"
     val promoBalance: Double? = null,
+    /** Promo APR windows — supersedes the legacy `hasPromo`/`promoAPR`/
+     *  `promoEndDate`/`promoBalance` fields. Those are still written
+     *  (mirrored from the earliest-ending promo) so older clients see the
+     *  deadline that matters; readers go through [promoList]. */
+    val promos: List<CardPromo> = emptyList(),
     val promoPayoffPrompted: Boolean = false,
     val dueDay: Int? = null,
     val autopay: Boolean = false,
@@ -108,6 +116,76 @@ data class Card(
      *  nothing. Use [minPayment] itself to ask whether one was ever set. */
     val minPaymentOrZero: Double get() = minPayment ?: 0.0
 }
+
+/**
+ * A promotional APR window on a card — 0% on purchases, a 4.99%
+ * balance-transfer offer, and so on. [balance] null means "the card balance
+ * the other promos don't claim" (the legacy `promoBalance || balance`
+ * meaning, where 0 fell back too). [endDate] null means the promo has no
+ * window and is never "active". Mirrors the web `Card.promos` entries and
+ * CardPromo in the Swift core.
+ */
+@Serializable
+data class CardPromo(
+    val id: String = "",
+    val label: String = "",
+    val apr: Double = 0.0,
+    /** Positive dollars this window covers; null/0 = the remainder. */
+    val balance: Double? = null,
+    val endDate: String? = null,   // "YYYY-MM-DD"
+)
+
+// ── Promos ────────────────────────────────────────────────────────────
+// A card can carry several promo windows at once — 0% on purchases plus a
+// balance-transfer offer, say — each with its own rate, balance and end
+// date. `promos` holds the list; cards saved before it existed carry the
+// same data in the legacy fields, so reads synthesize a one-item list and
+// every consumer works off the list — the two shapes can never diverge.
+// Mirrors cardPromos/promoBalanceOf/promoIsActive/soonestPromo in utils.js
+// and the Card extension in the Swift core.
+
+/** The card's promo windows: [promos] when non-empty, else a one-item list
+ *  synthesized from the legacy fields. A legacy promo exists when the flag
+ *  is on, or — with the flag absent from the JSON — when any legacy field
+ *  is set; an explicit `hasPromo: false` is the user saying no (our writers
+ *  always set the flag). */
+val Card.promoList: List<CardPromo>
+    get() {
+        if (promos.isNotEmpty()) return promos
+        val anyField = promoEndDate != null || promoBalance != null || promoAPR != null
+        if (!(hasPromo == true || (hasPromo == null && anyField))) return emptyList()
+        return listOf(
+            CardPromo(
+                id = "legacy",
+                apr = promoAPR ?: 0.0,
+                balance = promoBalance?.takeIf { it > 0 },
+                endDate = promoEndDate,
+            )
+        )
+    }
+
+/** The balance a promo actually covers: its stated figure, or — when
+ *  blank — the card balance the other promos don't claim. Keeps one
+ *  blank-balance promo meaning "the whole card" while two blank rows
+ *  can't count the same dollars twice. */
+fun Card.promoBalanceOf(promo: CardPromo): Double {
+    val stated = promo.balance?.takeIf { it > 0 }
+    if (stated != null) return stated
+    val claimed = promoList.sumOf { it.balance?.takeIf { b -> b > 0 } ?: 0.0 }
+    return maxOf(0.0, balance - claimed)
+}
+
+/** The promo whose end date comes first, expired or not — the deadline a
+ *  card-level urgency (pill, sort, alert) keys off. null when no promo
+ *  carries an end date. */
+val Card.soonestPromo: CardPromo?
+    get() = promoList
+        .filter { !it.endDate.isNullOrEmpty() }
+        .minByOrNull { it.endDate!! }
+
+/** The deadline-aware helpers ([promoDaysLeft], [promoIsActive],
+ *  [activePromos]) live with the other schedule logic — this package has no
+ *  dependency on `core.logic`. */
 
 /**
  * A card-linked offer (Amex/Chase/BofA deal) the user has activated. FiHaven

@@ -15,6 +15,8 @@ import app.fihaven.core.model.IncomeAdjustment
 import app.fihaven.core.model.IncomeSource
 import app.fihaven.core.model.Payment
 import app.fihaven.core.model.PromoResult
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
 import app.fihaven.core.model.SavingsGoal
 import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.storage.OfflineCache
@@ -85,6 +87,8 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -103,6 +107,7 @@ import java.net.URL
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.coroutines.coroutineContext
+import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -580,8 +585,22 @@ class AppViewModel @JvmOverloads constructor(
         // them to B's blob), so a response that arrives for a superseded
         // epoch or a different account is dropped.
         val epoch = sessionEpoch
+        // Paint the snapshot this device stored before the fetch lands —
+        // Pro gating and the data render immediately instead of flickering
+        // free→pro when the entitlement finally arrives. The server stays
+        // authoritative: fetched.entitlement and refreshEntitlement() below
+        // overwrite the hint as soon as either lands.
+        hydrateFromCache(epoch)
         try {
-            val fetched = api.fetchData()
+            // fetchData and billingStatusFull are independent; awaiting them
+            // serially doubled the window where a stale entitlement hint
+            // holds before the authoritative status revokes it.
+            val fetched = coroutineScope {
+                val entJob = async { refreshEntitlement() }
+                val data = api.fetchData()
+                entJob.await()
+                data
+            }
             val owner = fetched.email.orEmpty()
             if (epoch != sessionEpoch ||
                 !owner.equals(currentUser?.email.orEmpty(), ignoreCase = true)
@@ -611,7 +630,6 @@ class AppViewModel @JvmOverloads constructor(
 
             fetched.entitlement?.let { _entitlement.value = it }
             runAutopayMark()
-            refreshEntitlement()
             refreshNotifications()
             refreshPush()
             checkNewMonth()
@@ -620,10 +638,10 @@ class AppViewModel @JvmOverloads constructor(
             syncBanks()
         } catch (e: ApiError) {
             if (epoch != sessionEpoch) return
-            if (!restoreFromCache()) _dataError.value = e.userMessage
+            if (!restoreFromCache(epoch)) _dataError.value = e.userMessage
         } catch (e: Exception) {
             if (epoch != sessionEpoch) return
-            if (!restoreFromCache()) _dataError.value = e.message ?: "Couldn't load your data."
+            if (!restoreFromCache(epoch)) _dataError.value = e.message ?: "Couldn't load your data."
         }
     }
 
@@ -634,15 +652,43 @@ class AppViewModel @JvmOverloads constructor(
      *  written anywhere the app could read it back from.
      *
      *  @return whether a cached snapshot was adopted. */
-    private suspend fun restoreFromCache(): Boolean {
+    /** Adopt the on-device snapshot as a warm start, before [ApiClient.fetchData]
+     * lands or as the offline fallback when it can't.
+     *
+     * The entitlement inside seeds [_entitlement] so Pro gating doesn't
+     * flicker while the fetch is in flight — a hint only: a stale snapshot
+     * must not confer Pro, so fetched.entitlement and refreshEntitlement()
+     * overwrite it the moment either lands. [epoch] drops the adoption if
+     * the session moved on while the cache read was queued.
+     *
+     * @return whether a cached snapshot was adopted. */
+    private suspend fun hydrateFromCache(epoch: Int): Boolean {
         val owner = currentUser?.email.orEmpty()
         val cached = withContext(persistIo) {
             if (owner.isNotEmpty()) cache.read(owner) else cache.readRaw()
         } ?: return false
+        if (epoch != sessionEpoch) return false
         dataOwner = cached.owner
         _data.value = cached.data
         Money.setCurrency(cached.data.settings.currency)
+        // A dev override is a deliberate simulation — don't stomp it with
+        // the cached truth; refreshEntitlement() re-applies it post-fetch.
+        if (devEntitlement(devEntitlementOverride) == null) {
+            cached.data.entitlement?.let { _entitlement.value = it }
+        }
         _dataLoaded.value = true
+        return true
+    }
+
+    /** Open on the last snapshot we stored when the server can't be reached.
+     *
+     *  Without this a cold launch offline showed an error and an empty
+     *  dashboard — the data was on the device the whole time, just never
+     *  written anywhere the app could read it back from.
+     *
+     *  @return whether a cached snapshot was adopted. */
+    private suspend fun restoreFromCache(epoch: Int): Boolean {
+        if (!hydrateFromCache(epoch)) return false
         _syncState.value = SyncState.Offline
         runCatching { refreshNotifications() }
         return true
@@ -1753,9 +1799,9 @@ class AppViewModel @JvmOverloads constructor(
     /** True when statement + promo balances are paid off and we haven't asked yet. */
     fun cardNeedsPromoClearPrompt(refId: String): Boolean {
         val c = _data.value.cards.firstOrNull { it.id.toString() == refId } ?: return false
-        if (!c.hasPromo || c.promoPayoffPrompted) return false
+        if (c.promoList.isEmpty() || c.promoPayoffPrompted) return false
         if (c.balance > 0.005) return false
-        if (c.promoBalance != null && c.promoBalance!! > 0.005) return false
+        if (c.promoList.any { c.promoBalanceOf(it) > 0.005 }) return false
         return true
     }
 
@@ -1768,6 +1814,7 @@ class AppViewModel @JvmOverloads constructor(
                 promoAPR = null,
                 promoEndDate = null,
                 promoBalance = null,
+                promos = emptyList(),
             ) else c.copy(promoPayoffPrompted = true)
         })
     }
@@ -1824,10 +1871,45 @@ class AppViewModel @JvmOverloads constructor(
     private fun applyCardPaymentDelta(cards: List<Card>, refId: String, delta: Double): List<Card> {
         if (delta == 0.0) return cards
         return cards.map { c ->
-            if (c.id.toString() != refId) c
-            else c.copy(
+            if (c.id.toString() != refId) return@map c
+            var newPromos = c.promos
+            var newPromoBalance = c.promoBalance
+            var newPromoApr = c.promoAPR
+            var newPromoEndDate = c.promoEndDate
+            if (c.promos.isNotEmpty()) {
+                // Drain promo buckets earliest-ending first — the window closing
+                // soonest gets the payment. End-less promos sort last ("" counts
+                // as undated — editors write null, but synced/older data can
+                // carry it); blank-balance promos have nothing to decrement.
+                var remaining = delta
+                val drained = c.promos.map { it.copy() }.toMutableList()
+                val order = drained.indices
+                    .filter { (drained[it].balance ?: 0.0) > 0 }
+                    .sortedBy { drained[it].endDate?.takeIf { e -> e.isNotEmpty() } ?: "9999" }
+                for (i in order) {
+                    if (remaining <= 0) break
+                    val take = min(drained[i].balance ?: 0.0, remaining)
+                    drained[i] = drained[i].copy(balance = (drained[i].balance ?: 0.0) - take)
+                    remaining -= take
+                }
+                newPromos = drained
+                // Re-mirror the legacy single-promo fields off the earliest-
+                // ending window, the rule saveCard writes them with — otherwise
+                // an older client keeps reading a pre-drain balance.
+                val mirror = drained.filter { !it.endDate.isNullOrEmpty() }
+                    .minByOrNull { it.endDate!! } ?: drained.firstOrNull()
+                newPromoApr = mirror?.apr
+                newPromoEndDate = mirror?.endDate?.takeIf { it.isNotEmpty() }
+                newPromoBalance = mirror?.balance
+            } else {
+                newPromoBalance = c.promoBalance?.let { (it - delta).coerceAtLeast(0.0) }
+            }
+            c.copy(
                 balance = (c.balance - delta).coerceAtLeast(0.0),
-                promoBalance = c.promoBalance?.let { (it - delta).coerceAtLeast(0.0) },
+                promos = newPromos,
+                promoBalance = newPromoBalance,
+                promoAPR = newPromoApr,
+                promoEndDate = newPromoEndDate,
                 currentBalance = c.currentBalance?.let { (it - delta).coerceAtLeast(0.0) },
             )
         }

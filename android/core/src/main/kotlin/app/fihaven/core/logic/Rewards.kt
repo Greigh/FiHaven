@@ -294,12 +294,9 @@ object Rewards {
     fun effectiveValue(card: Card, category: String): Double =
         effectiveRate(card, category) * pointValue(card)
 
-    /** True while a card is inside an active 0% promo window (today < end). */
-    fun inActivePromo(card: Card, zone: ZoneId, now: Instant = Instant.now()): Boolean {
-        if (!card.hasPromo) return false
-        val end = DateLogic.parseDate(card.promoEndDate) ?: return false
-        return !end.isBefore(DateLogic.today(zone, now))
-    }
+    /** True while a card sits inside any active promo window (today < end). */
+    fun inActivePromo(card: Card, zone: ZoneId, now: Instant = Instant.now()): Boolean =
+        card.activePromos(zone, now).isNotEmpty()
 
     /**
      * Rank cards for a spending category. Loans never earn rewards and are
@@ -313,7 +310,7 @@ object Rewards {
             val rate = effectiveRate(c, category)
             val pv = pointValue(c)
             if (inActivePromo(c, zone, now)) {
-                excluded.add(Ranked(c, rate, pv, rate * pv, promoReason(c)))
+                excluded.add(Ranked(c, rate, pv, rate * pv, promoReason(c, zone)))
             } else {
                 eligible.add(Ranked(c, rate, pv, rate * pv))
             }
@@ -415,12 +412,20 @@ object Rewards {
         return total.roundToLong().toDouble()
     }
 
-    private fun promoReason(card: Card): String {
-        val end = DateLogic.parseDate(card.promoEndDate)
-        val label = if (end != null) {
-            "0% promo until " + end.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.US))
+    private fun promoReason(card: Card, zone: ZoneId): String {
+        // The soonest active promo is the deadline that matters; the others
+        // give the card more windows, not a different reason.
+        val soonest = card.activePromos(zone).minByOrNull { it.endDate ?: "9999" }
+        val what = if (!soonest?.label.isNullOrEmpty()) {
+            "\"${soonest?.label}\" promo"
         } else {
-            "its 0% promo"
+            "${trimRate(soonest?.apr ?: 0.0)}% promo"
+        }
+        val end = DateLogic.parseDate(soonest?.endDate)
+        val label = if (end != null) {
+            "$what until " + end.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.US))
+        } else {
+            "its $what"
         }
         return "$label — new spend isn’t prioritized for payoff and can accrue interest later."
     }

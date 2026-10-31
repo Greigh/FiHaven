@@ -20,22 +20,16 @@ public struct UpcomingItem: Equatable, Sendable, Identifiable {
 
 /// Upcoming-items + paid-state helpers, ported from utils.js.
 public enum Schedule {
-    /// Suggested payment toward a promo card this month: the promo balance
-    /// (or full balance) spread over the months left before the promo
-    /// ends, or the whole balance if the promo has ended.
-    /// Mirrors `promoNeeded` in utils.js.
+    /// Monthly payment that clears every promo in time: the sum of each
+    /// promo's balance spread over the months it has left. An expired (or
+    /// end-less) promo wants its whole balance now — the legacy
+    /// single-promo rule unchanged. Mirrors `promoNeeded` in utils.js.
     public static func promoNeeded(_ card: Card, tz: TimeZone, now: Date = Date()) -> Double {
-        // parseFloat(promoBalance) || parseFloat(balance) || 0
-        let bal: Double
-        if let pb = card.promoBalance, pb != 0 {
-            bal = pb
-        } else if card.balance != 0 {
-            bal = card.balance
-        } else {
-            bal = 0
+        card.promoList.reduce(0) { sum, p in
+            let bal = card.promoBalanceOf(p)
+            let months = DateLogic.monthsUntil(p.endDate, tz: tz, now: now)
+            return sum + (months <= 0 ? bal : bal / Double(months))
         }
-        let months = DateLogic.monthsUntil(card.promoEndDate, tz: tz, now: now)
-        return months <= 0 ? bal : bal / Double(months)
     }
 
     /// Build the sorted (soonest-first) list of upcoming bill/card payments.
@@ -80,9 +74,9 @@ public enum Schedule {
 
         for c in cards {
             guard let dd = c.dueDay, dd != 0 else { continue }
-            let needed = c.hasPromo
-                ? max(c.minPaymentOrZero, promoNeeded(c, tz: tz, now: now))
-                : c.minPaymentOrZero
+            let needed = c.promoList.isEmpty
+                ? c.minPaymentOrZero
+                : max(c.minPaymentOrZero, promoNeeded(c, tz: tz, now: now))
             let ref = String(c.id)
             let days: Int
             if let bounds {
@@ -382,7 +376,7 @@ public enum Schedule {
         // Loans: the recommended payment is the scheduled monthly payment, never
         // the whole principal (paying it off is still an explicit option).
         if (card.type ?? "card") == "loan" { return card.minPaymentOrZero }
-        if card.hasPromo { return max(card.minPaymentOrZero, promoNeeded(card, tz: tz, now: now)) }
+        if !card.promoList.isEmpty { return max(card.minPaymentOrZero, promoNeeded(card, tz: tz, now: now)) }
         // 0% interest (no active promo): carrying a balance costs nothing, so the
         // recommended payment is just the minimum — not the whole balance.
         if card.regularAPR <= 0 { return card.minPaymentOrZero }
@@ -414,7 +408,19 @@ public enum Schedule {
         guard paid > 0 else { return card }
         var start = card
         start.balance = card.balance + paid
-        if let promo = card.promoBalance { start.promoBalance = promo + paid }
+        if !card.promos.isEmpty {
+            // Mirror of AppStore's payment delta, which drains earliest-
+            // ending first: the refund lands on the same bucket, keeping
+            // this period's pay target stable as installments record.
+            let bucket = start.promos
+                .filter { ($0.endDate?.isEmpty == false) && ($0.balance ?? 0) > 0 }
+                .sorted { ($0.endDate ?? "") < ($1.endDate ?? "") }
+                .first
+                ?? start.promos.first { ($0.balance ?? 0) > 0 }
+            if let bucket, let i = start.promos.firstIndex(where: { $0.id == bucket.id }) {
+                start.promos[i].balance = (start.promos[i].balance ?? 0) + paid
+            }
+        } else if let promo = card.promoBalance { start.promoBalance = promo + paid }
         return start
     }
 

@@ -47,7 +47,7 @@ struct CalendarView: View {
         }
         for c in store.activeCards {
             guard let d = c.dueDay else { continue }
-            let amt = c.hasPromo ? max(c.minPaymentOrZero, Schedule.promoNeeded(c, tz: store.tz)) : c.minPaymentOrZero
+            let amt = !c.promoList.isEmpty ? max(c.minPaymentOrZero, Schedule.promoNeeded(c, tz: store.tz)) : c.minPaymentOrZero
             map[d, default: []].append(DayItem(
                 id: "card-\(c.id)", name: c.name + " (payment)", amount: amt,
                 icon: IssuerIcons.iconInfo(for: c), type: "card", refId: String(c.id)))

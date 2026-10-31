@@ -3,6 +3,8 @@ package app.fihaven.core
 import app.fihaven.core.logic.BillSchedule
 import app.fihaven.core.logic.BudgetRules
 import app.fihaven.core.logic.DateLogic
+import app.fihaven.core.logic.activePromos
+import app.fihaven.core.logic.promoIsActive
 import app.fihaven.core.logic.Income
 import app.fihaven.core.logic.PaidGoalPolicy
 import app.fihaven.core.logic.Payoff
@@ -18,6 +20,7 @@ import java.time.temporal.ChronoUnit
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.IncomeAdjustment
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.CardPromo
 import app.fihaven.core.model.CategoryIcon
 import app.fihaven.core.model.FiHavenJson
 import app.fihaven.core.model.Payment
@@ -26,6 +29,9 @@ import app.fihaven.core.model.SpendTransaction
 import app.fihaven.core.model.TRANSFER_CATEGORY
 import app.fihaven.core.model.envelopeRolloverBal
 import app.fihaven.core.model.envelopeRolloverAppliedFor
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
+import app.fihaven.core.model.soonestPromo
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -210,6 +216,46 @@ class ScheduleTest {
         val expired = Card(id = "1", name = "X", balance = 800.0, hasPromo = true,
             promoEndDate = "2025-01-01", promoBalance = 800.0)
         assertEquals(800.0, Schedule.promoNeeded(expired, UTC, NOW), 1e-6)
+    }
+
+    @Test fun promoNeededMultiPromo() {
+        // Two windows each spread their own balance — the need is the sum.
+        val two = Card(id = "m", name = "Mixed", promos = listOf(
+            CardPromo(id = "a", balance = 800.0, endDate = "2026-10-01"),
+            CardPromo(id = "b", balance = 400.0, endDate = "2026-10-01"),
+        ))
+        assertEquals(300.0, Schedule.promoNeeded(two, UTC, NOW), 0.001)
+
+        // A blank-balance promo covers the balance the stated one doesn't.
+        val mixed = Card(id = "m2", name = "Mix", balance = 1000.0, promos = listOf(
+            CardPromo(id = "a", balance = 400.0, endDate = "2026-10-01"),
+            CardPromo(id = "b", balance = null, endDate = "2026-10-01"),
+        ))
+        val promos = mixed.promoList
+        assertEquals(400.0, mixed.promoBalanceOf(promos[0]), 0.001)
+        assertEquals(600.0, mixed.promoBalanceOf(promos[1]), 0.001)
+        assertEquals(250.0, Schedule.promoNeeded(mixed, UTC, NOW), 0.001)
+
+        // promoList: promos[] wins over legacy; legacy synthesizes one row.
+        val legacy = Card(id = "lg", name = "Legacy", hasPromo = true,
+            promoAPR = 0.0, promoEndDate = "2026-10-01", promoBalance = 500.0)
+        assertEquals(1, legacy.promoList.size)
+        assertEquals("legacy", legacy.promoList.first().id)
+        val both = legacy.copy(promos = listOf(
+            CardPromo(id = "x", label = "BT", apr = 3.99, balance = 200.0, endDate = "2027-01-01")))
+        assertEquals("x", both.promoList.first().id)
+        assertEquals(3.99, both.promoList.first().apr, 1e-9)
+
+        // soonestPromo keys on the earliest end date, expired or not.
+        val ordered = Card(id = "o", name = "O", promos = listOf(
+            CardPromo(id = "late", balance = 100.0, endDate = "2031-01-01"),
+            CardPromo(id = "soon", balance = 100.0, endDate = "2025-01-01"),
+            CardPromo(id = "mid", balance = 100.0, endDate = "2030-06-01"),
+        ))
+        assertEquals("soon", ordered.soonestPromo!!.id)
+        assertEquals(2, ordered.activePromos(UTC, NOW).size)
+        val running = ordered.promoList.first { it.id == "late" }
+        assertTrue(ordered.promoIsActive(running, UTC, NOW))
     }
 
     @Test fun upcomingSortedAndIcons() {
@@ -536,6 +582,37 @@ class PayoffTest {
                 hasPromo = true, promoEndDate = "2030-01-01")),
             PayoffStrategy.NONE, 0.0, UTC, NOW)!!
         assertTrue(reg.totalInterest > promo.totalInterest)
+    }
+
+    @Test fun nonzeroPromoAprAccruesItsOwnRate() {
+        // A non-zero promo APR accrues its own interest — real, but under
+        // the same balance at the regular rate.
+        val reg = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val reduced = Payoff.runPayoffSim(
+            listOf(Card(id = "m", name = "Mixed", balance = 1200.0, minPayment = 40.0, regularAPR = 24.0,
+                promos = listOf(CardPromo(id = "p1", label = "BT", apr = 3.99, balance = 1200.0, endDate = "2030-01-01")))),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        assertTrue(reduced.totalInterest > 5.0)
+        assertTrue(reduced.totalInterest < reg.totalInterest)
+    }
+
+    @Test fun expiredPromoBucketRejoinsRegularRate() {
+        // Two windows: the lapsed one rejoins the regular rate while the
+        // later one stays cheap — some interest, less than both at regular.
+        val reg = Payoff.runPayoffSim(
+            listOf(Card(id = "1", name = "Reg", balance = 2000.0, minPayment = 50.0, regularAPR = 25.0)),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        val endsSoon = Payoff.runPayoffSim(
+            listOf(Card(id = "t", name = "Two", balance = 2000.0, minPayment = 60.0, regularAPR = 24.0,
+                promos = listOf(
+                    CardPromo(id = "a", apr = 0.0, balance = 1000.0, endDate = "2026-07-01"),
+                    CardPromo(id = "b", apr = 0.0, balance = 1000.0, endDate = "2030-01-01"),
+                ))),
+            PayoffStrategy.NONE, 0.0, UTC, NOW)!!
+        assertTrue(endsSoon.totalInterest > 0.0)
+        assertTrue(endsSoon.totalInterest < reg.totalInterest)
     }
 
     @Test fun snowballSmallestFirst() {

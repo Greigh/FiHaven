@@ -313,10 +313,10 @@ public enum Rewards {
         effectiveRate(card, category: category) * pointValue(card)
     }
 
-    /// True while a card is inside an active 0% promo window (today < end).
+    /// True while a card is inside an active promo window — any of its
+    /// promos whose end date hasn't passed (see promoIsActive on Card).
     public static func inActivePromo(_ card: Card, tz: TimeZone, now: Date = Date()) -> Bool {
-        guard card.hasPromo, let end = DateLogic.parseDate(card.promoEndDate, tz: tz) else { return false }
-        return end >= DateLogic.today(tz: tz, now: now)
+        !card.activePromos(tz: tz, now: now).isEmpty
     }
 
     /// Rank cards for a spending category. Loans never earn rewards and are
@@ -426,14 +426,22 @@ public enum Rewards {
     }
 
     private static func promoReason(_ card: Card, tz: TimeZone) -> String {
+        // The soonest active promo is the deadline that matters; the others
+        // give the card more windows, not a different reason.
+        let soonest = card.activePromos(tz: tz)
+            .sorted { ($0.endDate ?? "9999") < ($1.endDate ?? "9999") }
+            .first
+        let what = (soonest?.label.isEmpty == false)
+            ? "\"\(soonest?.label ?? "")\" promo"
+            : "\(trimRate(soonest?.apr ?? 0))% promo"
         let label: String
-        if let end = DateLogic.parseDate(card.promoEndDate, tz: tz) {
+        if let end = DateLogic.parseDate(soonest?.endDate, tz: tz) {
             let f = DateFormatter()
             f.dateFormat = "MMM yyyy"
             f.timeZone = tz
-            label = "0% promo until \(f.string(from: end))"
+            label = "\(what) until \(f.string(from: end))"
         } else {
-            label = "its 0% promo"
+            label = "its \(what)"
         }
         return "\(label) — new spend isn’t prioritized for payoff and can accrue interest later."
     }

@@ -209,7 +209,7 @@ struct RewardsView: View {
 
     private func excludedSection(_ list: [Rewards.Ranked]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Skipped (0% promo)")
+            Text("Skipped (active promo)")
                 .font(Theme.ui(12)).foregroundStyle(Theme.muted).textCase(.uppercase)
             ForEach(list) { e in
                 VStack(alignment: .leading, spacing: 3) {

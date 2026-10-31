@@ -75,6 +75,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fihaven.core.model.Bill
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
 import app.fihaven.core.model.categoryIcons
 import app.fihaven.core.model.dashboardLayout
 import app.fihaven.core.model.dashboardWidgets
@@ -251,6 +253,12 @@ fun MainScaffold(vm: AppViewModel, user: User, initialTab: String? = null, initi
             )
         }
     }
+}
+
+/// A promo/APR figure without trailing zeros (mirrors iOS `fmtRate`).
+private fun fmtRate(r: Double): String {
+    val rounded = Math.round(r * 100) / 100.0
+    return if (rounded == Math.floor(rounded)) rounded.toInt().toString() else rounded.toString()
 }
 
 @Composable
@@ -437,16 +445,23 @@ private fun DashboardScreen(vm: AppViewModel, padding: PaddingValues, onBack: ((
         val dayWord = when (left) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $left days" }
         "⏳ ${b.name} — free trial ends $dayWord."
     }
-    val promoAlerts = data.activeCreditCards.filter { it.hasPromo && !it.promoEndDate.isNullOrEmpty() }.mapNotNull { c ->
-        val mo = DateLogic.monthsUntil(c.promoEndDate, zone)
-        val bal = c.promoBalance ?: c.balance
-        if (bal <= 0) return@mapNotNull null
-        val need = maxOf(c.minPaymentOrZero, Schedule.promoNeeded(c, zone))
-        when {
-            mo <= 0 -> "🚨 ${c.name} — 0% promo expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
-            mo <= 2 -> "🔥 ${c.name} — 0% promo ends in ~$mo mo. Pay ${Money.fmt(need)}/mo to avoid interest."
-            mo <= 4 -> "⚠️ ${c.name} — 0% promo ends in ~$mo mo. Need ${Money.fmt(need)}/mo to clear ${Money.fmt(bal)}."
-            else -> null
+    // One alert per promo — a card can hold several windows at once, and an
+    // expired transfer window next to a healthy purchase promo is two
+    // different kinds of news, not one.
+    val promoAlerts = data.activeCreditCards.flatMap { c ->
+        c.promoList.mapNotNull { p ->
+            val end = p.endDate?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val bal = c.promoBalanceOf(p)
+            if (bal <= 0) return@mapNotNull null
+            val mo = DateLogic.monthsUntil(end, zone)
+            val need = maxOf(c.minPaymentOrZero, if (mo <= 0) bal else bal / mo)
+            val what = if (p.label.isEmpty()) "${fmtRate(p.apr)}% promo" else "\"${p.label}\" promo"
+            when {
+                mo <= 0 -> "🚨 ${c.name} — $what expired. ${Money.fmt(bal)} is accruing ${c.regularAPR.toInt()}% APR."
+                mo <= 2 -> "🔥 ${c.name} — $what ends in ~$mo mo. Pay ${Money.fmt(need)}/mo to avoid interest."
+                mo <= 4 -> "⚠️ ${c.name} — $what ends in ~$mo mo. Need ${Money.fmt(need)}/mo to clear ${Money.fmt(bal)}."
+                else -> null
+            }
         }
     }
     val dashboardAlerts = utilAlerts + trialAlerts + promoAlerts

@@ -22,10 +22,7 @@ export function mountCardEditorDom() {
       <input id="c-lastdigits" />
       <select id="c-network"><option value="">—</option><option value="Visa">Visa</option></select>
       <div id="c-bank-field"><select id="c-bank-account"><option value="">Match automatically</option></select></div>
-      <input id="c-haspromo" type="checkbox" />
-      <input id="c-promoapr" />
-      <input id="c-promoend" />
-      <input id="c-promobal" />
+      <div id="c-promos-field"><div id="c-promos-list"></div></div>
       <input id="c-dueday" value="1" />
       <input id="c-autopay" type="checkbox" />
       <input id="c-autopayday" />
@@ -42,9 +39,7 @@ export function mountCardEditorDom() {
       <div id="c-limit-field"></div>
       <div id="c-current-balance-field"></div>
       <div id="c-recommended-field"></div>
-      <div id="c-haspromo-field"></div>
       <div id="c-rewards-field"></div>
-      <div id="promo-fields"></div>
       <span id="lbl-c-balance"></span>
       <span id="lbl-c-minpay"></span>
       <span id="lbl-c-autopay"></span>

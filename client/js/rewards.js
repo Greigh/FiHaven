@@ -13,7 +13,7 @@
 
 import { mount } from 'svelte';
 import RewardsView from '../svelte/RewardsView.svelte';
-import { setRenderer, REWARD_CATEGORIES } from './utils.js';
+import { setRenderer, REWARD_CATEGORIES, activePromos, parseLocalDate } from './utils.js';
 import { merchantCategory } from './merchants.js';
 import { countsAsSpending } from './budgetRules.js';
 import { today } from './tz.js';
@@ -40,14 +40,10 @@ export function effectiveValue(card, category) {
   return effectiveRate(card, category) * pointValue(card);
 }
 
-// True while a card is inside an active 0% promo window (today < end).
+// True while a card is inside an active promo window — any of its promos
+// whose end date hasn't passed (see promoIsActive in utils.js).
 export function inActivePromo(card) {
-  if (!card.hasPromo || !card.promoEndDate) return false;
-  var end = new Date(card.promoEndDate);
-  if (isNaN(end)) return true; // unparseable end — treat as an active promo window
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return end >= today;
+  return activePromos(card).length > 0;
 }
 
 // Rank cards for a spending category. Loans never earn rewards and are
@@ -189,10 +185,18 @@ export function cardRewardsEstimateAnnual(card, spendByCategory) {
 }
 
 function promoReason(card) {
-  var end = new Date(card.promoEndDate);
-  var label = isNaN(end)
-    ? 'its 0% promo'
-    : '0% promo until ' + end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  // The soonest active promo is the deadline that matters; the others
+  // give the card more windows, not a different reason.
+  var soonest = activePromos(card).sort(function (a, b) {
+    return a.endDate < b.endDate ? -1 : 1;
+  })[0];
+  var end = soonest && soonest.endDate ? parseLocalDate(soonest.endDate) : null;
+  var what = soonest && soonest.label
+    ? '"' + soonest.label + '" promo'
+    : (soonest ? soonest.apr : 0) + '% promo';
+  var label = !end || isNaN(end)
+    ? 'its ' + what
+    : what + ' until ' + end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   return 'Skipped: ' + label + ' — new spend isn’t prioritized for payoff and can accrue interest later.';
 }
 

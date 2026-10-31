@@ -12,6 +12,7 @@ import {
   fmt, monthKey, toast, refreshAll,
   goalAmountFor, payTargetAmount, paidAmount, paidGoalPolicy,
   isFullyPaid, remainingForItem, currentPeriodKey, REWARD_CATEGORIES,
+  cardPromos, promoBalanceOf, newPromoId,
 } from './utils.js';
 import { boundsForKey, paymentInBounds } from './period.js';
 import { CARD_PRESETS, cardPresetById, suggestCardPreset } from './cardPresets.js';
@@ -38,6 +39,7 @@ let editAcceptedPresetUpdatedAt = null;
 let editDeclinedPresetUpdatedAt = null;
 let editPerks        = [];    // recurring credits/perks for the card being edited
 let editOffers       = [];    // card-linked offers for the card being edited
+let editPromos       = [];    // promo APR windows for the card being edited
 
 /* ── Card-balance side effect ─────────────────────────────────
    Recording a card payment decrements the card's balance (and
@@ -50,7 +52,30 @@ export function applyCardPaymentDelta(refId, delta) {
   if (!card) return false;
   const next = Math.max(0, (parseFloat(card.balance) || 0) - delta);
   card.balance = next;
-  if (card.promoBalance != null) {
+  if (Array.isArray(card.promos) && card.promos.length) {
+    // Drain promo buckets earliest-ending first — the window closing
+    // soonest is the one a payment should land against. Undated promos
+    // sort last; blank-balance promos have nothing to decrement.
+    var remainingDelta = delta;
+    card.promos
+      .filter(function (p) { return parseFloat(p.balance) > 0; })
+      .sort(function (a, b) { return (a.endDate || '9999') < (b.endDate || '9999') ? -1 : 1; })
+      .forEach(function (p) {
+        var take = Math.min(parseFloat(p.balance) || 0, remainingDelta);
+        p.balance = Math.max(0, (parseFloat(p.balance) || 0) - take);
+        remainingDelta = Math.max(0, remainingDelta - take);
+      });
+    // Re-mirror the legacy single-promo fields off the earliest-ending window,
+    // the rule saveCard writes them with — otherwise an older client keeps
+    // reading a pre-drain balance.
+    var mirror = card.promos
+      .filter(function (p) { return p.endDate; })
+      .sort(function (a, b) { return a.endDate < b.endDate ? -1 : 1; })[0]
+      || card.promos[0] || null;
+    card.promoAPR = mirror ? mirror.apr : null;
+    card.promoEndDate = mirror ? (mirror.endDate || null) : null;
+    card.promoBalance = mirror ? mirror.balance : null;
+  } else if (card.promoBalance != null) {
     card.promoBalance = Math.max(
       0,
       (parseFloat(card.promoBalance) || 0) - delta
@@ -69,11 +94,12 @@ export function applyCardPaymentDelta(refId, delta) {
 
 /** True when statement + promo balances are effectively paid off. */
 export function cardPromoFullyPaid(card) {
-  if (!card || !card.hasPromo) return false;
+  if (!card || !cardPromos(card).length) return false;
   const bal = parseFloat(card.balance) || 0;
   if (bal > 0.005) return false;
-  if (card.promoBalance != null && (parseFloat(card.promoBalance) || 0) > 0.005) return false;
-  return true;
+  return cardPromos(card).every(function (p) {
+    return promoBalanceOf(card, p) <= 0.005;
+  });
 }
 
 /**
@@ -85,7 +111,7 @@ export function maybePromptClearPaidPromo(refId) {
   const card = cards.find((c) => String(c.id) === String(refId));
   if (!card || !cardPromoFullyPaid(card) || card.promoPayoffPrompted) return;
   const clear = typeof window !== 'undefined' && window.confirm
-    ? window.confirm('This card is paid off. Remove the 0% promo?')
+    ? window.confirm('This card is paid off. Remove its promo APR windows?')
     : false;
   card.promoPayoffPrompted = true;
   if (clear) {
@@ -93,6 +119,7 @@ export function maybePromptClearPaidPromo(refId) {
     card.promoAPR = null;
     card.promoEndDate = null;
     card.promoBalance = null;
+    card.promos = [];
   }
   save('fh_cards', cards);
 }
@@ -314,18 +341,13 @@ export function editBillById(id) {
 /* ═══════════════════════════════════════════════════════════
    CARD MODAL
 ═══════════════════════════════════════════════════════════ */
-export function togglePromoFields() {
-  document.getElementById('promo-fields').style.display =
-    document.getElementById('c-haspromo').checked ? 'grid' : 'none';
-}
-
 export function toggleCardTypeFields() {
   var isLoan = document.getElementById('c-type').value === 'loan';
   
   document.getElementById('c-limit-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-current-balance-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-recommended-field').style.display = isLoan ? 'none' : '';
-  document.getElementById('c-haspromo-field').style.display = isLoan ? 'none' : '';
+  document.getElementById('c-promos-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-rewards-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-annualfee-field').style.display = isLoan ? 'none' : '';
   document.getElementById('c-feemonth-field').style.display = isLoan ? 'none' : '';
@@ -333,11 +355,6 @@ export function toggleCardTypeFields() {
   if (offersField) offersField.style.display = isLoan ? 'none' : '';
   var perksField = document.getElementById('c-perks-field');
   if (perksField) perksField.style.display = isLoan ? 'none' : '';
-
-  if (isLoan) {
-    document.getElementById('c-haspromo').checked = false;
-  }
-  togglePromoFields();
 
   document.getElementById('lbl-c-balance').textContent = isLoan ? 'Remaining Principal / Balance ($)' : 'Statement Balance ($)';
   document.getElementById('lbl-c-minpay').textContent = isLoan ? 'Monthly Payment ($)' : 'Minimum Payment ($)';
@@ -548,6 +565,58 @@ function collectPerks() {
   return editPerks;
 }
 
+// ── Promo APR editor ──────────────────────────────────────────────────
+// A card can carry several promo windows at once — 0% on purchases plus a
+// balance-transfer offer, say. Each row is label + APR + balance + end
+// date. The saved list rides `card.promos`; the legacy single-promo
+// fields are still written from the earliest-ending row so older clients
+// see the deadline that matters. A blank balance means "the card balance
+// the other promos don't claim" — see promoBalanceOf in utils.js.
+function renderPromoInputs() {
+  var box = document.getElementById('c-promos-list');
+  if (!box) return;
+  box.innerHTML = '';
+  editPromos.forEach(function (p, i) {
+    var row = document.createElement('div');
+    row.className = 'perk-edit-row promo-edit-row';
+    row.innerHTML =
+      '<input type="text" data-promo-label="' + i + '" placeholder="Label (e.g. Balance transfer)" value="' + escapeAttr(p.label || '') + '"/>' +
+      '<span class="perk-edit-amt promo-edit-num"><input type="number" step="0.01" min="0" data-promo-apr="' + i + '" placeholder="0" value="' + (p.apr != null ? p.apr : '') + '"/>%</span>' +
+      '<span class="perk-edit-amt promo-edit-num">$<input type="number" step="0.01" min="0" data-promo-balance="' + i + '" placeholder="balance" value="' + (p.balance != null ? p.balance : '') + '"/></span>' +
+      '<input type="date" class="promo-edit-end" data-promo-end="' + i + '" value="' + escapeAttr(p.endDate || '') + '"/>' +
+      '<button type="button" class="perk-edit-del" data-promo-del="' + i + '" aria-label="Remove promo">✕</button>';
+    box.appendChild(row);
+  });
+  box.querySelectorAll('[data-promo-del]').forEach(function (btn) {
+    btn.onclick = function () {
+      collectPromos();                                 // keep edits to other rows
+      editPromos.splice(parseInt(btn.getAttribute('data-promo-del'), 10), 1);
+      renderPromoInputs();
+    };
+  });
+}
+
+export function addPromoRow() {
+  collectPromos();
+  editPromos.push({ id: newPromoId(), label: '', apr: 0, balance: null, endDate: '' });
+  renderPromoInputs();
+}
+
+// Read the promo rows back into editPromos (blank/empty rows drop on save).
+function collectPromos() {
+  editPromos.forEach(function (p, i) {
+    var l = document.querySelector('[data-promo-label="' + i + '"]');
+    var a = document.querySelector('[data-promo-apr="' + i + '"]');
+    var b = document.querySelector('[data-promo-balance="' + i + '"]');
+    var e = document.querySelector('[data-promo-end="' + i + '"]');
+    if (l) p.label = l.value.trim();
+    if (a) p.apr = parseFloat(a.value) || 0;
+    if (b) p.balance = b.value.trim() === '' ? null : (parseFloat(b.value) || 0);
+    if (e) p.endDate = e.value || '';
+  });
+  return editPromos;
+}
+
 // ── Card-linked offers editor ─────────────────────────────────────────
 // Merchant + detail + expiry. "Used" is toggled later on the Rewards tab,
 // so it's preserved here but not edited.
@@ -629,10 +698,12 @@ export function openCardModal(idx, defaultType) {
   document.getElementById('c-lastdigits').value = c.lastDigits  || '';
   document.getElementById('c-network').value   = c.network     || '';
   fillBankAccountPicker(c.plaidAccountId || '');
-  document.getElementById('c-haspromo').checked = !!c.hasPromo;
-  document.getElementById('c-promoapr').value  = c.promoAPR    || 0;
-  document.getElementById('c-promoend').value  = c.promoEndDate|| '';
-  document.getElementById('c-promobal').value  = c.promoBalance|| '';
+  // Deep-copy the saved promos so edits stay local until Save. Legacy
+  // single-promo fields arrive through cardPromos like any other read.
+  editPromos = cardPromos(c).map(function (p) {
+    return { id: p.id || newPromoId(), label: p.label || '', apr: p.apr, balance: p.balance, endDate: p.endDate || '' };
+  });
+  renderPromoInputs();
   document.getElementById('c-dueday').value    = c.dueDay      || '';
   document.getElementById('c-autopay').checked = !!c.autopay;
   document.getElementById('c-autopayday').value = c.autopayDay || '';
@@ -679,13 +750,32 @@ export function saveCard() {
   var lastDigits = document.getElementById('c-lastdigits').value.trim() || null;
   var network = document.getElementById('c-network').value || null;
   var isLoan = type === 'loan';
-  var hasPromo = !isLoan && document.getElementById('c-haspromo').checked;
   var currentBalance = isLoan ? null : (parseFloat(document.getElementById('c-current-balance').value) || null);
   var prev = editCardId !== null ? cards[editCardId] : null;
-  var promoEnd = hasPromo ? document.getElementById('c-promoend').value : null;
-  // Re-ask after payoff only when the promo is freshly enabled or its end date changes.
-  var promoPayoffPrompted = !!(hasPromo && prev && prev.hasPromo
-    && prev.promoEndDate === promoEnd && prev.promoPayoffPrompted);
+
+  // Drop rows the user added but left entirely blank, then write the
+  // legacy single-promo fields from the earliest-ending promo — an older
+  // client reading this card sees the deadline that matters.
+  var savedPromos = isLoan ? [] : collectPromos()
+    .filter(function (p) { return p.label || p.apr > 0 || (p.balance != null && p.balance > 0) || p.endDate; })
+    .map(function (p) {
+      return { id: p.id || newPromoId(), label: p.label || '', apr: p.apr, balance: p.balance, endDate: p.endDate || null };
+    });
+  var promoMirror = savedPromos
+    .filter(function (p) { return p.endDate; })
+    .sort(function (a, b) { return a.endDate < b.endDate ? -1 : 1; })[0]
+    || savedPromos[0] || null;
+
+  // Re-ask after payoff only when the promo set is unchanged — compare the
+  // meaningful fields, not ids, so a legacy→promos[] migration of an
+  // untouched card doesn't re-prompt.
+  var promoKeyOf = function (list) {
+    return list.map(function (p) {
+      return [p.label || '', p.apr, p.balance == null ? '' : p.balance, p.endDate || ''].join('|');
+    }).join(';');
+  };
+  var promoPayoffPrompted = !!(prev && prev.promoPayoffPrompted
+    && promoKeyOf(cardPromos(prev)) === promoKeyOf(cardPromos({ promos: savedPromos })));
 
   var obj = {
     id:           (editCardId !== null) ? cards[editCardId].id : genId(),
@@ -708,10 +798,11 @@ export function saveCard() {
     // Loans don't carry an annual fee.
     annualFee:    isLoan ? null : (parseFloat(document.getElementById('c-annualfee').value) || null),
     feeMonth:     isLoan ? null : (parseInt(document.getElementById('c-feemonth').value, 10) || null),
-    hasPromo:     hasPromo,
-    promoAPR:     hasPromo ? parseFloat(document.getElementById('c-promoapr').value) || 0 : null,
-    promoEndDate: promoEnd,
-    promoBalance: hasPromo ? (parseFloat(document.getElementById('c-promobal').value) || null) : null,
+    hasPromo:     savedPromos.length > 0,
+    promos:       savedPromos,
+    promoAPR:     promoMirror ? promoMirror.apr : null,
+    promoEndDate: promoMirror ? (promoMirror.endDate || null) : null,
+    promoBalance: promoMirror ? promoMirror.balance : null,
     promoPayoffPrompted: promoPayoffPrompted,
     dueDay:       parseInt(document.getElementById('c-dueday').value) || null,
     autopay:      document.getElementById('c-autopay').checked,
@@ -844,7 +935,7 @@ function buildPayPresets(type, rec, mk) {
     add('minimum', 'minimum', 'Minimum', 'Minimum payment');
     if (payTargetAmount('recommended', type, refId, mk) > payTargetAmount('minimum', type, refId, mk) + 0.005) {
       var recSub = rec.recommendedPayment > 0 ? 'Your set payment'
-        : (rec.hasPromo ? 'Clears the 0% promo in time' : 'Pays off the balance');
+        : (cardPromos(rec).length ? 'Clears the promo in time' : 'Pays off the balance');
       add('recommended', 'recommended', 'Recommended', recSub);
     }
   }
@@ -1214,8 +1305,8 @@ export function askDelete(fn) {
 /* ── Expose for inline onclick handlers ───────────────────── */
 Object.assign(window, {
   openBillModal, closeBillModal, saveBill, editBill, editBillById, openBillAsSubscription,
-  openCardModal, closeCardModal, saveCard, editCard, editCardById, togglePromoFields, toggleCardTypeFields,
-  addPerkRow, addOfferRow,
+  openCardModal, closeCardModal, saveCard, editCard, editCardById, toggleCardTypeFields,
+  addPromoRow, addPerkRow, addOfferRow,
   openPayModal, openEditPayment, closePayModal, confirmPay,
   openConfirm, closeConfirmModal, askDelete,
 });

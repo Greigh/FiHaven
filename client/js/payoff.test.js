@@ -139,6 +139,67 @@ describe('payoff — runPayoffSim', () => {
     expect(withPromo.totalInterest).toBeLessThan(noPromo.totalInterest);
   });
 
+  it('applies each promo APR to its own bucket, not 0% to everything', () => {
+    // A 3.99% promo on the whole $1,200 accrues its own interest — real,
+    // nonzero, and well under the same balance at the 24% regular rate.
+    // The window outlives the payoff so no regular-rate tail sneaks in.
+    const future = new Date();
+    future.setMonth(future.getMonth() + 48);
+    const end = future.toISOString().slice(0, 10);
+    const mk = (apr) => [{
+      id: 'M', name: 'Mixed', balance: 1200, minPayment: 40, regularAPR: 24,
+      promos: [{ id: 'p1', label: 'BT', apr, balance: 1200, endDate: end }],
+    }];
+    setCards(mk(3.99));
+    const reduced = runPayoffSim('none', 0);
+    setCards(mk(24));
+    const same = runPayoffSim('none', 0);
+    expect(reduced.totalInterest).toBeGreaterThan(5);
+    expect(reduced.totalInterest).toBeLessThan(same.totalInterest);
+  });
+
+  it('charges the regular rate on balance the promos do not cover', () => {
+    const future = new Date();
+    future.setMonth(future.getMonth() + 48);
+    const end = future.toISOString().slice(0, 10);
+
+    // Half of $2,000 under 0% promo, half exposed to the 24% rate.
+    setCards([{
+      id: 'M', name: 'Mixed', balance: 2000, minPayment: 100, regularAPR: 24,
+      promos: [{ id: 'p1', apr: 0, balance: 1000, endDate: end }],
+    }]);
+    const partial = runPayoffSim('none', 0);
+
+    // Same card with the promo covering the whole balance.
+    setCards([{
+      id: 'F', name: 'Full', balance: 2000, minPayment: 100, regularAPR: 24,
+      promos: [{ id: 'p1', apr: 0, balance: 2000, endDate: end }],
+    }]);
+    const full = runPayoffSim('none', 0);
+
+    expect(full.totalInterest).toBe(0);
+    expect(partial.totalInterest).toBeGreaterThan(100);
+  });
+
+  it('a lapsed promo bucket rejoins the regular rate while a later one stays cheap', () => {
+    const soon = new Date(); soon.setMonth(soon.getMonth() + 2);
+    const later = new Date(); later.setMonth(later.getMonth() + 24);
+    const iso = (d) => d.toISOString().slice(0, 10);
+
+    setCards([{
+      id: 'T', name: 'Two windows', balance: 2000, minPayment: 60, regularAPR: 24,
+      promos: [
+        { id: 'a', apr: 0, balance: 1000, endDate: iso(soon) },  // lapses → 24% after ~2 months
+        { id: 'b', apr: 0, balance: 1000, endDate: iso(later) }, // still 0%
+      ],
+    }]);
+    const r = runPayoffSim('none', 0);
+    // The lapsed $1k accrues ~$20/mo for the rest of the run — plainly
+    // nonzero, plainly less than both buckets at the regular rate.
+    expect(r.totalInterest).toBeGreaterThan(50);
+    expect(r.totalInterest).toBeLessThan(800);
+  });
+
   // ── 360-month cap semantics ──────────────────────────────────────
   // paidOffMonth === null means the *projection* stopped, nothing more.
   // `nonAmortizing` is the stronger claim: the minimum cannot cover a

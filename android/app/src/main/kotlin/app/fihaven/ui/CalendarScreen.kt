@@ -50,6 +50,7 @@ import app.fihaven.core.logic.PaidState
 import app.fihaven.core.logic.Schedule
 import app.fihaven.core.model.categoryIcons
 import app.fihaven.core.model.CategoryIcon
+import app.fihaven.core.model.promoList
 import app.fihaven.core.logic.IssuerIcons
 import app.fihaven.ui.theme.Ct
 import kotlin.math.max
@@ -83,7 +84,7 @@ fun CalendarScreen(vm: AppViewModel, padding: PaddingValues, onBack: (() -> Unit
         }
         data.activeCards.forEach { c ->
             c.dueDay?.let { d ->
-                val amt = if (c.hasPromo) max(c.minPaymentOrZero, Schedule.promoNeeded(c, zone)) else c.minPaymentOrZero
+                val amt = if (c.promoList.isNotEmpty()) max(c.minPaymentOrZero, Schedule.promoNeeded(c, zone)) else c.minPaymentOrZero
                 map.getOrPut(d) { mutableListOf() }
                     .add(DayItem(c.name + " (payment)", amt, IssuerIcons.iconInfo(c), "card", c.id.toString()))
             }

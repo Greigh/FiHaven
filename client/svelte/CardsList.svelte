@@ -13,6 +13,7 @@
   import {
     CARD_COLORS, fmt, currentPeriodKey, daysUntilDue, effectiveDaysUntilDue, nextDueDate, shortDate,
     monthsUntil, daysUntilDate, promoNeeded, liveCardBalance, utilizationOf,
+    cardPromos, promoBalanceOf, soonestPromo, parseLocalDate,
     cardAmounts, cardHeadlineMode, otherCardAmounts,
     paidState, paidAmount, goalAmountFor, remainingForItem, payTargetRemaining, needsAmount, nothingDue,
     paymentStats, archiveInsteadOfDelete,
@@ -178,19 +179,42 @@
     return 'warn';
   }
 
+  /* Per-promo figures for the expanded block: balance covered, window
+     left, and the slice of the monthly payoff it needs. */
+  function promoRowMeta(c, p) {
+    const mo     = monthsUntil(p.endDate);
+    const dl     = daysUntilDate(p.endDate);
+    const pb     = promoBalanceOf(c, p);
+    const needed = mo <= 0 ? pb : pb / mo;
+    const urgent = mo <= 2;
+    const safe   = mo >= 5;
+    return {
+      promo: p, mo, dl, pb, needed, urgent, safe,
+      endDate: parseLocalDate(p.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    };
+  }
+
+  // Card-level rollup for the collapsed header — the soonest deadline
+  // decides the color and the countdown; the totals sum every promo.
   function promoMeta(c) {
-    const mo        = monthsUntil(c.promoEndDate);
-    const dl        = daysUntilDate(c.promoEndDate);
-    const pb        = parseFloat(c.promoBalance) || parseFloat(c.balance) || 0;
+    const list  = cardPromos(c).filter((p) => p.endDate)
+      .map((p) => promoRowMeta(c, p))
+      .sort((a, b) => (a.promo.endDate < b.promo.endDate ? -1 : 1));
+    const first = list[0] || null;
+    const mo    = first ? first.mo : 0;
+    const dl    = first ? first.dl : 0;
+    const pb    = list.reduce((s, m) => s + m.pb, 0);
     const needed    = promoNeeded(c);
     const payNeeded = Math.max(parseFloat(c.minPayment || 0), needed);
-    const urgent    = mo <= 2;
-    const safe      = mo >= 5;
+    const urgent    = first ? first.urgent : false;
+    const safe      = first ? first.safe : false;
     return {
-      mo, dl, pb, needed, payNeeded, urgent, safe,
+      list, mo, dl, pb, needed, payNeeded, urgent, safe,
+      count: cardPromos(c).length,
       titleColor: urgent ? 'var(--red)' : safe ? 'var(--green)' : 'var(--orange)',
       icon: urgent ? '🔥' : safe ? '✅' : '⏳',
-      endDate: new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      apr: first ? first.promo.apr : 0,
+      endDate: first ? first.endDate : '',
       pctUsed: Math.min(100, Math.round((1 - dl / 365) * 100)),
     };
   }
@@ -227,14 +251,13 @@
      Cards without a 0% promo accrue interest now, so their balance is a
      "pay this off first" lump. Cards with a 0% promo instead get a monthly
      amount that clears the promo balance before it expires. */
-  let nonPromoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && !(c.hasPromo && c.promoEndDate) && liveCardBalance(c) > 0));
+  let nonPromoCards = $derived(baseCards.filter((c) => c.type !== 'loan' && !soonestPromo(c) && liveCardBalance(c) > 0));
   let nonPromoPayoff = $derived(nonPromoCards.reduce((s, c) => s + liveCardBalance(c), 0));
-  let promoCards = $derived(baseCards.filter((c) => {
-    if (!(c.type !== 'loan' && c.hasPromo && c.promoEndDate)) return false;
-    return (parseFloat(c.promoBalance) || parseFloat(c.balance) || 0) > 0;
-  }));
+  let promoCards = $derived(baseCards.filter((c) =>
+    c.type !== 'loan' && cardPromos(c).some((p) => p.endDate && promoBalanceOf(c, p) > 0)));
   let promoMonthly = $derived(promoCards.reduce((s, c) => s + promoNeeded(c), 0));
-  let promoLongestMonths = $derived(promoCards.reduce((m, c) => Math.max(m, monthsUntil(c.promoEndDate)), 0));
+  let promoLongestMonths = $derived(promoCards.reduce((m, c) => Math.max(m,
+    ...cardPromos(c).filter((p) => p.endDate).map((p) => monthsUntil(p.endDate))), 0));
 
   /* ── Filtered + sorted view ─────────────────────────── */
   let displayCards = $derived.by(() => {
@@ -242,7 +265,7 @@
     const q = (search || '').trim().toLowerCase();
     const list = baseCards.filter((c) => {
       if (f.balance && !(liveCardBalance(c) > 0)) return false;
-      if (f.promo && !(c.hasPromo && c.promoEndDate)) return false;
+      if (f.promo && !soonestPromo(c)) return false;
       if (f.overdue && !(c.dueDay && effectiveDaysUntilDue(parseInt(c.dueDay), 'card', String(c.id), mk) < 0)) return false;
       if (f.autopay && !c.autopay) return false;
       if (q) {
@@ -257,7 +280,7 @@
     else if (sort === 'util')    out.sort((a, b) => utilOf(b) - utilOf(a));
     else if (sort === 'name')    out.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     else if (sort === 'promo') {
-      const pr = (c) => (c.hasPromo && c.promoEndDate ? monthsUntil(c.promoEndDate) : 9999);
+      const pr = (c) => { const s = soonestPromo(c); return s ? monthsUntil(s.endDate) : 9999; };
       out.sort((a, b) => pr(a) - pr(b));
     } else { // 'due' — soonest first, no dueDay last
       out.sort((a, b) => {
@@ -453,8 +476,10 @@
       {@const noAmount = needsAmount('card', String(c.id), mk)}
       {@const noneDue = nothingDue('card', String(c.id), mk)}
       {@const stats   = paymentStats('card', String(c.id), 6)}
-      {@const hasPromo = !!(c.hasPromo && c.promoEndDate)}
-      {@const neededPayment = hasPromo
+      {@const soonestP = soonestPromo(c)}
+      {@const hasPromo = !!soonestP}
+      {@const promoCount = cardPromos(c).length}
+      {@const neededPayment = promoCount > 0
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0)}
       {@const paidSoFar = paidAmount('card', String(c.id), mk)}
@@ -471,7 +496,7 @@
            left to pay. Suppressed when the amounts block already states it,
            which under the default payment goal is every time — the tile was
            repeating the figure two inches above it. -->
-      {@const suggestedLeft = (hasPromo || parseFloat(c.recommendedPayment || 0) > 0)
+      {@const suggestedLeft = (promoCount > 0 || parseFloat(c.recommendedPayment || 0) > 0)
         ? payTargetRemaining('recommended', 'card', String(c.id), mk)
         : 0}
       {@const suggested = (suggestedLeft > 0.005
@@ -536,7 +561,7 @@
                   <span class="card-row-pill is-muted" style="color:{aprColor(c.regularAPR)};">{c.regularAPR}% APR</span>
                   {#if c.network || c.lastDigits}<span class="card-row-pill is-muted">{[c.network, c.lastDigits ? '•••• ' + c.lastDigits : ''].filter(Boolean).join(' ')}</span>{/if}
                   {#if cardSpend(c)}<span class="card-row-pill is-muted" title="Bank charges imported for this card this period">🏦 {fmt(cardSpend(c).total)} · {cardSpend(c).count} charge{cardSpend(c).count === 1 ? '' : 's'}</span>{/if}
-                  {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">0% promo</span>{/if}
+                  {#if c.type !== 'loan' && hasPromo}<span class="card-row-pill" style="background:var(--orange-bg);color:var(--orange);">{soonestP.apr}% promo{promoCount > 1 ? ` ×${promoCount}` : ''}</span>{/if}
                   {#if c.autopay}<span class="card-row-pill" style="background:var(--green-bg);color:var(--green);">✓ Autopay{#if c.autopayDay} · day {c.autopayDay}{/if}</span>{:else}<span class="card-row-pill is-muted">Manual</span>{/if}
                   {#if c.notes}<span class="card-row-notes">{c.notes}</span>{/if}
                 </div>
@@ -704,7 +729,7 @@
             >
               <span class="card-promo-toggle-left">
                 <span>{p.icon}</span>
-                <span class="card-promo-toggle-title" style="color:{p.titleColor};">0% APR — ends {p.endDate}</span>
+                <span class="card-promo-toggle-title" style="color:{p.titleColor};">{p.apr}% APR — ends {p.endDate}{p.count > 1 ? ` · +${p.count - 1} more` : ''}</span>
                 <span class="card-promo-toggle-meta">
                   {p.mo > 0 ? `${p.mo}mo left` : `${p.dl}d left`} · pay {fmt(p.payNeeded)}/mo
                 </span>
@@ -714,7 +739,7 @@
             {#if isPromoOpen}
               <div class="promo-box {promoBoxClass(p.mo)}" style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0;border-top:none;">
                 <div class="promo-grid">
-                  <div><div class="plabel">Promo balance</div><div class="pval">{fmt(p.pb)}</div></div>
+                  <div><div class="plabel">Promo balance{p.count > 1 ? ' (all promos)' : ''}</div><div class="pval">{fmt(p.pb)}</div></div>
                   <div>
                     <div class="plabel">Time left</div>
                     <div class="pval" style="color:{p.urgent ? 'var(--red)' : 'var(--text)'};">
@@ -726,6 +751,18 @@
                     <div class="pval" style="color:{p.urgent ? 'var(--red)' : 'var(--accent)'};">{fmt(p.payNeeded)}</div>
                   </div>
                 </div>
+                {#if p.count > 1}
+                  <div class="promo-detail-list">
+                    {#each p.list as m (m.promo.id)}
+                      <div class="promo-detail-row">
+                        <span class="promo-detail-name">{m.promo.label || 'Promo'}</span>
+                        <span class="promo-detail-meta">
+                          {m.promo.apr}% · {fmt(m.pb)} · ends {m.endDate} · {fmt(m.needed)}/mo
+                        </span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
                 <div style="margin-top:12px;">
                   <div class="pbar"><div class="pbar-fill" style="width:{p.pctUsed}%;background:{p.urgent ? 'var(--red)' : 'var(--accent)'};"></div></div>
                   <div style="font-size:11px;color:var(--muted);margin-top:4px;">
@@ -737,11 +774,13 @@
                     ℹ️ Min payment ({fmt(c.minPayment)}) covers the required payoff — you're on track.
                   </div>
                 {/if}
-                {#if p.mo <= 0 && p.pb > 0}
-                  <div style="margin-top:10px;font-size:12px;color:var(--red);font-weight:600;">
-                    ⚠️ Promo expired — {c.regularAPR}% APR now applies to remaining balance.
-                  </div>
-                {/if}
+                {#each p.list as m (m.promo.id)}
+                  {#if m.mo <= 0 && m.pb > 0}
+                    <div style="margin-top:10px;font-size:12px;color:var(--red);font-weight:600;">
+                      ⚠️ {m.promo.label || 'Promo'} expired — {c.regularAPR}% APR now applies to its balance.
+                    </div>
+                  {/if}
+                {/each}
               </div>
             {/if}
           </div>

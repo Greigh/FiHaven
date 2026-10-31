@@ -223,16 +223,15 @@ extension AppStore {
     }
 
     /// True when a card's statement + promo balances are paid off and we haven't
-    /// asked about clearing the 0% promo yet.
+    /// asked about clearing the promos yet.
     func cardNeedsPromoClearPrompt(refId: String) -> Bool {
         guard let c = data.cards.first(where: { String($0.id) == refId }) else { return false }
-        guard c.hasPromo, !c.promoPayoffPrompted else { return false }
+        guard !c.promoList.isEmpty, !c.promoPayoffPrompted else { return false }
         if c.balance > 0.005 { return false }
-        if let pb = c.promoBalance, pb > 0.005 { return false }
-        return true
+        return c.promoList.allSatisfy { c.promoBalanceOf($0) <= 0.005 }
     }
 
-    /// Yes clears promo fields; No only marks the prompt as answered.
+    /// Yes clears the whole promo list; No only marks the prompt as answered.
     func resolvePromoClearPrompt(refId: String, clear: Bool) {
         mutate { data in
             guard let i = data.cards.firstIndex(where: { String($0.id) == refId }) else { return }
@@ -242,19 +241,51 @@ extension AppStore {
                 data.cards[i].promoAPR = nil
                 data.cards[i].promoEndDate = nil
                 data.cards[i].promoBalance = nil
+                data.cards[i].promos = []
             }
         }
     }
 
     /// Recording a card payment decrements its balance (and promo
-    /// balance); reversing one adds it back. Mirrors applyCardPaymentDelta
+    /// balances); reversing one adds it back. Mirrors applyCardPaymentDelta
     /// in modals.js. `delta` is positive for a new payment, negative to undo.
     /// When Current Balance is set, it moves in lockstep with statement balance.
     static func applyCardPaymentDelta(_ refId: String, _ delta: Double, in data: inout AppData) {
         guard delta != 0,
               let i = data.cards.firstIndex(where: { String($0.id) == refId }) else { return }
         data.cards[i].balance = max(0, data.cards[i].balance - delta)
-        if let pb = data.cards[i].promoBalance {
+        if !data.cards[i].promos.isEmpty {
+            // Drain promo buckets earliest-ending first — the window closing
+            // soonest is the one a payment should land against. Undated
+            // promos sort last ("" counts as undated — the editors write nil,
+            // but synced/older data can carry it); blank-balance promos have
+            // nothing to decrement.
+            func sortKey(_ p: CardPromo) -> String {
+                guard let e = p.endDate, !e.isEmpty else { return "9999" }
+                return e
+            }
+            var remaining = delta
+            let order = data.cards[i].promos.indices
+                .filter { (data.cards[i].promos[$0].balance ?? 0) > 0 }
+                .sorted { sortKey(data.cards[i].promos[$0]) < sortKey(data.cards[i].promos[$1]) }
+            for idx in order {
+                let take = min(data.cards[i].promos[idx].balance ?? 0, remaining)
+                data.cards[i].promos[idx].balance = max(0, (data.cards[i].promos[idx].balance ?? 0) - take)
+                remaining = max(0, remaining - take)
+            }
+            // Re-mirror the legacy single-promo fields off the earliest-ending
+            // window, the rule saveCard writes them with — otherwise an older
+            // client keeps reading a pre-drain balance.
+            let mirror = data.cards[i].promos
+                .filter { $0.endDate?.isEmpty == false }
+                .sorted { ($0.endDate ?? "") < ($1.endDate ?? "") }
+                .first ?? data.cards[i].promos.first
+            data.cards[i].promoAPR = mirror?.apr
+            data.cards[i].promoEndDate = mirror.flatMap {
+                ($0.endDate ?? "").isEmpty ? nil : $0.endDate
+            }
+            data.cards[i].promoBalance = mirror?.balance
+        } else if let pb = data.cards[i].promoBalance {
             data.cards[i].promoBalance = max(0, pb - delta)
         }
         if let cur = data.cards[i].currentBalance {

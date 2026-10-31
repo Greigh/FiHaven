@@ -5,7 +5,7 @@
 import { bills, cards, payments } from './storage.svelte.js';
 import {
   fmt, monthKey, offsetDate,
-  paidState, paidAmount, goalAmountFor, promoNeeded, toast,
+  paidState, paidAmount, goalAmountFor, promoNeeded, cardPromos, soonestPromo, toast,
 } from './utils.js';
 import { getBudgetMonthOffset } from './budget.js';
 
@@ -52,13 +52,18 @@ export function exportCSV(type) {
              'Has Promo', 'Promo APR', 'Promo End Date', 'Promo Balance',
              'Monthly Needed', 'Due Day', 'Autopay', 'Autopay Day', 'Notes']];
     cards.filter(function (c) { return !c.archived; }).forEach(function (c) {
-      var needed = c.hasPromo
+      var promos = cardPromos(c);
+      var soonest = soonestPromo(c);
+      var needed = promos.length
         ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
         : parseFloat(c.minPayment || 0);
       rows.push([
         c.name, c.balance, c.limit, c.minPayment, c.regularAPR,
-        c.hasPromo ? 'Yes' : 'No',
-        c.promoAPR || '', c.promoEndDate || '', c.promoBalance || '',
+        promos.length ? 'Yes' : 'No',
+        // The three single-promo columns keep the CSV shape; a multi-promo
+        // card reports its soonest window (the legacy mirror fields agree).
+        soonest ? (soonest.apr || '') : '', soonest ? (soonest.endDate || '') : '',
+        soonest ? (soonest.balance || '') : '',
         needed.toFixed(2), c.dueDay || '',
         c.autopay ? 'Yes' : 'No', c.autopayDay || '', c.notes || '',
       ]);

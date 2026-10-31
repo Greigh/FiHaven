@@ -1,6 +1,8 @@
 package app.fihaven.core.logic
 
 import app.fihaven.core.model.Card
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -40,10 +42,18 @@ data class PayoffResult(
 }
 
 /// Month-by-month debt-payoff simulation, ported verbatim from
-/// payoff.js `runPayoffSim`. Interest accrues monthly and is skipped while
-/// a card is inside its 0% promo window; freed minimums roll into the
-/// extra pool. Capped at 360 months. Null when no card carries a balance.
+/// payoff.js `runPayoffSim`. Interest accrues monthly per promo bucket
+/// (each promo's share at its own rate until its own end date; the
+/// uncovered remainder at `regularAPR/100/12`); freed minimums roll into
+/// the extra pool. Capped at 360 months. Null when no card carries a balance.
 object Payoff {
+    /** A promo's share of the card balance accruing at the promo rate until
+     *  its own end date; the uncovered remainder rides at the regular APR. */
+    private class PromoBucket(
+        val bal: Double,
+        val rate: Double,   // monthly
+        val end: LocalDate?,
+    )
     /** Which strategy costs less interest. null unless both sims finished —
      *  a capped sim's totalInterest is interest accrued inside a truncated
      *  projection, and comparing it to a finished run can crown the worse
@@ -62,8 +72,8 @@ object Payoff {
         val minPayment: Double,
         val apr: Double,
         val monthlyRate: Double,
-        val hasPromo: Boolean,
-        val promoEnd: LocalDate?,
+        /** Earliest-ending first — the order payments elsewhere drain them. */
+        val promoBuckets: List<PromoBucket>,
         var paidOffMonth: Int?,
         var interestPaid: Double,
         val housing: Boolean,
@@ -105,8 +115,13 @@ object Payoff {
                 minPayment = max(c.minPaymentOrZero, 1.0),
                 apr = c.regularAPR,
                 monthlyRate = c.regularAPR / 100.0 / 12.0,
-                hasPromo = if (isLoan) false else c.hasPromo,
-                promoEnd = if (isLoan) null else DateLogic.parseDate(c.promoEndDate),
+                promoBuckets = if (isLoan) emptyList() else c.promoList
+                    .sortedBy { it.endDate ?: "9999" }
+                    .map { PromoBucket(
+                        bal = c.promoBalanceOf(it),
+                        rate = it.apr / 100.0 / 12.0,
+                        end = DateLogic.parseDate(it.endDate),
+                    ) },
                 paidOffMonth = null,
                 interestPaid = 0.0,
                 housing = isHousingLoan(c),
@@ -128,13 +143,25 @@ object Payoff {
             month++
             val targetDate = firstThisMonth.plusMonths(month.toLong())
 
-            // Accrue interest (skipped inside a promo window).
+            // Accrue interest per bucket: an active promo's share at the
+            // promo rate, an expired promo's share and the uncovered
+            // remainder at the regular rate. Buckets gate on the live
+            // balance, so paying the card down shrinks covered dollars first.
             for (c in sim) {
                 if (c.balance <= 0.01) continue
-                val inPromo = c.hasPromo && c.promoEnd != null && !c.promoEnd.isBefore(targetDate)
+                var remaining = c.balance
+                var interest = 0.0
+                var inPromo = false
+                for (b in c.promoBuckets) {
+                    val covered = min(b.bal, max(0.0, remaining))
+                    remaining -= covered
+                    val active = b.end != null && !b.end.isBefore(targetDate)
+                    if (active) inPromo = true
+                    interest += covered * (if (active) b.rate else c.monthlyRate)
+                }
+                if (remaining > 0) interest += remaining * c.monthlyRate
                 c.inPromoNow = inPromo
-                if (!inPromo && c.monthlyRate > 0) {
-                    val interest = c.balance * c.monthlyRate
+                if (interest > 0) {
                     c.interestPaid += interest
                     totalInterest += interest
                     c.balance += interest

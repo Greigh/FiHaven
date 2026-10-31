@@ -342,7 +342,7 @@ export function rolloverAmount(mode, currentAmount, recentAvg) {
    balance over, which inflates every figure derived from it. Parse the parts
    into a local midnight instead; anything with a time attached is a real
    instant and goes through Date untouched. */
-function parseLocalDate(dateStr) {
+export function parseLocalDate(dateStr) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr).trim());
   if (!m) return new Date(dateStr);
   return new Date(+m[1], +m[2] - 1, +m[3]);
@@ -469,10 +469,113 @@ export function otherCardAmounts(mode) {
   return ['due', 'current', 'owed'].filter(function (k) { return k !== mode; });
 }
 
+/* ── Card promos ────────────────────────────────────────────
+   A card can carry several promo windows at once — 0% on purchases plus a
+   4.99% balance-transfer offer, say — each with its own rate, balance and
+   end date. `card.promos` holds the list. Cards saved before it existed
+   carry the same data in the legacy single-promo fields, so reads
+   synthesize a one-item list from them and every consumer works off the
+   list — the two shapes can never diverge. Writers still fill the legacy
+   fields from the earliest-ending promo, so an older client opening the
+   same data sees the most urgent window.
+
+   Normalized promo shape: { id, label, apr, balance, endDate }.
+   `balance` is null unless a positive number — blank/0/unreadable all
+   mean "whatever the other promos don't claim" (a single blank-balance
+   promo = the whole card balance, matching the legacy
+   `promoBalance || balance` fallback). `endDate` may be null — a promo
+   without one has no window and is never "active". */
+export function cardPromos(card) {
+  if (!card) return [];
+  // A legacy promo exists when the flag is on, or — with the flag absent —
+  // when any legacy field is set. An explicit falsy flag (false/0/'') is
+  // the user saying no; our writers always set it, so flag-less data only
+  // has the fields to go on. Native flexibleBool decode maps to the same
+  // three states (true / explicit-no / absent).
+  var hasLegacy = !!card.hasPromo || (card.hasPromo == null
+    && (card.promoEndDate != null || card.promoBalance != null || card.promoAPR != null));
+  var raw = Array.isArray(card.promos) && card.promos.length
+    ? card.promos
+    : (hasLegacy ? [{
+        id:      'legacy',
+        label:   '',
+        apr:     card.promoAPR,
+        balance: card.promoBalance,
+        endDate: card.promoEndDate,
+      }] : []);
+  return raw.map(function (p, i) {
+    var bal = parseFloat(p.balance);
+    return {
+      id:      p.id || ('promo-' + i),
+      label:   p.label || '',
+      apr:     parseFloat(p.apr) || 0,
+      balance: (!isNaN(bal) && bal > 0) ? bal : null,
+      endDate: p.endDate || null,
+    };
+  });
+}
+
+/* The balance a promo actually covers: its stated figure, or — when blank —
+   the card balance the other promos don't claim. That keeps one
+   blank-balance promo meaning "the whole card" while two blank rows can't
+   count the same dollars twice. */
+export function promoBalanceOf(card, promo) {
+  if (promo.balance != null) return promo.balance;
+  var claimed = cardPromos(card).reduce(function (s, p) {
+    return s + (p.balance == null ? 0 : p.balance);
+  }, 0);
+  return Math.max(0, (parseFloat(card.balance) || 0) - claimed);
+}
+
+/* Signed days until a promo ends — negative once the window has closed.
+   parseLocalDate keeps a bare YYYY-MM-DD at local midnight, so the last
+   day counts as inside the window. null = no (or unreadable) end date. */
+export function promoDaysLeft(promo) {
+  if (!promo || !promo.endDate) return null;
+  var end = parseLocalDate(promo.endDate);
+  if (isNaN(end)) return null;
+  var endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.round((endMidnight - todayInTz()) / 864e5);
+}
+
+/* Inside its window right now. An unreadable end date counts as active —
+   dropping the promo would hide it exactly when it needs attention. */
+export function promoIsActive(promo) {
+  if (!promo || !promo.endDate) return false;
+  var d = promoDaysLeft(promo);
+  return d === null ? true : d >= 0;
+}
+
+export function activePromos(card) {
+  return cardPromos(card).filter(promoIsActive);
+}
+
+/* The promo whose end date comes first, expired or not — the deadline a
+   card-level urgency (pill, sort, alert color) keys off. null when no
+   promo carries an end date. */
+export function soonestPromo(card) {
+  var best = null;
+  cardPromos(card).forEach(function (p) {
+    if (!p.endDate) return;
+    if (!best || p.endDate < best.endDate) best = p;
+  });
+  return best;
+}
+
+export function newPromoId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/* Monthly payment that clears every promo in time: the sum of each
+   promo's balance spread over the months it has left. An expired (or
+   end-less) promo wants its whole balance now — the legacy single-promo
+   rule unchanged. */
 export function promoNeeded(card) {
-  var bal    = parseFloat(card.promoBalance) || parseFloat(card.balance) || 0;
-  var months = monthsUntil(card.promoEndDate);
-  return months <= 0 ? bal : bal / months;
+  return cardPromos(card).reduce(function (sum, p) {
+    var bal    = promoBalanceOf(card, p);
+    var months = monthsUntil(p.endDate);
+    return sum + (months <= 0 ? bal : bal / months);
+  }, 0);
 }
 
 /* Bank rows carry the Plaid `accountId` they came from; a card carries the
@@ -545,7 +648,7 @@ export function recommendedAmount(card) {
   // the whole principal — you rarely clear a mortgage/auto loan in one go
   // (paying it off is still offered as an explicit option in the Pay flow).
   if ((card.type || 'card') === 'loan') return min;
-  if (card.hasPromo) return Math.max(min, promoNeeded(card));
+  if (cardPromos(card).length) return Math.max(min, promoNeeded(card));
   // 0% interest (no active promo): carrying a balance costs nothing, so the
   // recommended payment is just the minimum — not the whole balance. Only a
   // positive regular APR makes paying the balance off the smart move.
@@ -566,7 +669,17 @@ function cardAtPeriodStart(card, paid) {
   if (!(paid > 0)) return card;
   var start = Object.assign({}, card);
   start.balance = (parseFloat(card.balance) || 0) + paid;
-  if (card.promoBalance !== null && card.promoBalance !== undefined && card.promoBalance !== '') {
+  if (Array.isArray(card.promos) && card.promos.length) {
+    start.promos = card.promos.map(function (p) { return Object.assign({}, p); });
+    // Mirror of applyCardPaymentDelta, which drains earliest-ending first:
+    // the refund lands on the same bucket, keeping this period's pay
+    // target stable as installments record.
+    var dated = start.promos
+      .filter(function (p) { return p.endDate && parseFloat(p.balance) > 0; })
+      .sort(function (a, b) { return a.endDate < b.endDate ? -1 : 1; });
+    var bucket = dated[0] || start.promos.find(function (p) { return parseFloat(p.balance) > 0; });
+    if (bucket) bucket.balance = (parseFloat(bucket.balance) || 0) + paid;
+  } else if (card.promoBalance !== null && card.promoBalance !== undefined && card.promoBalance !== '') {
     start.promoBalance = (parseFloat(card.promoBalance) || 0) + paid;
   }
   return start;
@@ -735,7 +848,7 @@ export function buildUpcomingItems() {
   cards.forEach(function(c) {
     if (c.archived) return;
     if (!c.dueDay) return;
-    var needed = c.hasPromo
+    var needed = cardPromos(c).length
       ? Math.max(parseFloat(c.minPayment || 0), promoNeeded(c))
       : parseFloat(c.minPayment || 0);
     items.push({

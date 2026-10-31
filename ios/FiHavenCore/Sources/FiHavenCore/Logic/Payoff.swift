@@ -36,13 +36,21 @@ public struct PayoffResult: Equatable, Sendable {
 }
 
 /// Month-by-month debt-payoff simulation, ported verbatim from
-/// payoff.js `runPayoffSim`. Interest accrues monthly
-/// (`regularAPR/100/12`) and is skipped while a card is inside its 0%
-/// promo window; freed minimums roll into the extra pool (the snowball
-/// rollover). Capped at 360 months.
+/// payoff.js `runPayoffSim`. Interest accrues monthly per promo bucket
+/// (each promo's share at its own rate until its own end date; the
+/// uncovered remainder at `regularAPR/100/12`); freed minimums roll into
+/// the extra pool (the snowball rollover). Capped at 360 months.
 ///
 /// Returns nil when no card carries a balance.
 public enum Payoff {
+    /// A promo's share of the card balance accruing at the promo rate until
+    /// its own end date; the uncovered remainder rides at the regular APR.
+    private struct PromoBucket {
+        var bal: Double
+        var rate: Double   // monthly
+        var end: Date?
+    }
+
     private struct Sim {
         var id: String
         var name: String
@@ -51,12 +59,12 @@ public enum Payoff {
         var minPayment: Double
         var apr: Double
         var monthlyRate: Double
-        var hasPromo: Bool
-        var promoEnd: Date?
+        /// Earliest-ending first — the order payments elsewhere drain them.
+        var promoBuckets: [PromoBucket]
         var paidOffMonth: Int?
         var interestPaid: Double
         var housing: Bool
-        /// Whether the card sat inside its promo window in the most recent
+        /// Whether the card sat inside a promo window in the most recent
         /// month simulated — at the cap, promo interest suppression is what
         /// keeps a small minimum ahead of a large balance.
         var inPromoNow: Bool = false
@@ -108,8 +116,13 @@ public enum Payoff {
                 minPayment: max(c.minPaymentOrZero, 1),
                 apr: c.regularAPR,
                 monthlyRate: c.regularAPR / 100 / 12,
-                hasPromo: isLoan ? false : c.hasPromo,
-                promoEnd: isLoan ? nil : DateLogic.parseDate(c.promoEndDate, tz: tz),
+                promoBuckets: isLoan ? [] : c.promoList
+                    .sorted { ($0.endDate ?? "9999") < ($1.endDate ?? "9999") }
+                    .map { PromoBucket(
+                        bal: c.promoBalanceOf($0),
+                        rate: $0.apr / 100 / 12,
+                        end: DateLogic.parseDate($0.endDate, tz: tz)
+                    ) },
                 paidOffMonth: nil,
                 interestPaid: 0,
                 housing: isHousingLoan(c)
@@ -135,14 +148,25 @@ public enum Payoff {
             month += 1
             let targetDate = DateLogic.dateForDay(1, year: baseYear, month: baseMonth + month, cal: cal)
 
-            // Accrue interest (skipped inside a promo window).
+            // Accrue interest per bucket: an active promo's share at the
+            // promo rate, an expired promo's share and the uncovered
+            // remainder at the regular rate. Buckets gate on the live
+            // balance, so paying the card down shrinks covered dollars first.
             for i in sim.indices {
                 guard sim[i].balance > 0.01 else { continue }
-                let inPromo = sim[i].hasPromo
-                    && (sim[i].promoEnd.map { $0 >= targetDate } ?? false)
+                var remaining = sim[i].balance
+                var interest = 0.0
+                var inPromo = false
+                for b in sim[i].promoBuckets {
+                    let covered = min(b.bal, max(0, remaining))
+                    remaining -= covered
+                    let active = b.end.map { $0 >= targetDate } ?? false
+                    if active { inPromo = true }
+                    interest += covered * (active ? b.rate : sim[i].monthlyRate)
+                }
+                if remaining > 0 { interest += remaining * sim[i].monthlyRate }
                 sim[i].inPromoNow = inPromo
-                if !inPromo && sim[i].monthlyRate > 0 {
-                    let interest = sim[i].balance * sim[i].monthlyRate
+                if interest > 0 {
                     sim[i].interestPaid += interest
                     totalInterest += interest
                     sim[i].balance += interest

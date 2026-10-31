@@ -1967,6 +1967,12 @@ input[type="file"]::file-selector-button:hover {
 .perk-edit-del { border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; padding:4px 6px; border-radius:6px; }
 .perk-edit-del:hover { color:var(--red,#e5484d); background:color-mix(in srgb, var(--red,#e5484d) 12%, transparent); }
 
+/* Promo rows carry five fields (label + APR + balance + end + delete) —
+   wrap onto a second line before squeezing the date picker. */
+.promo-edit-row { flex-wrap:wrap; }
+.promo-edit-num input { width:64px; }
+.promo-edit-end { width:132px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px; color:var(--text); font:inherit; }
+
 /* Credits & perks — Rewards-tab panel */
 .perk-total { text-align:right; line-height:1.1; flex-shrink: 0; }
 .perk-total-amt { display:block; font-family:'Manrope',sans-serif; font-weight:800; letter-spacing:-.03em; font-size:22px; color:var(--accent); }

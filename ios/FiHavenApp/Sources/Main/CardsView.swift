@@ -67,7 +67,7 @@ struct CardsView: View {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         var list = baseCards.filter { c in
             if fBalance && !(c.balance > 0) { return false }
-            if fPromo && !(c.hasPromo && !(c.promoEndDate ?? "").isEmpty) { return false }
+            if fPromo && c.soonestPromo == nil { return false }
             if fOverdue && !(dueDays(c) < 0) { return false }
             if !q.isEmpty {
                 let hay = [c.name, c.issuer ?? "", c.type ?? ""].joined(separator: " ")
@@ -82,7 +82,7 @@ struct CardsView: View {
         case "name":    list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case "promo":
             let pr: (Card) -> Int = { c in
-                (c.hasPromo && !(c.promoEndDate ?? "").isEmpty) ? DateLogic.monthsUntil(c.promoEndDate, tz: store.tz) : 9999
+                c.soonestPromo.map { DateLogic.monthsUntil($0.endDate, tz: store.tz) } ?? 9999
             }
             list.sort { pr($0) < pr($1) }
         default: break // "due" — already due-sorted
@@ -479,15 +479,17 @@ struct CardsView: View {
     // ── Payoff plan: lump for interest-bearing cards, monthly for 0% promos
     @ViewBuilder
     private var cardsPayoffPanel: some View {
-        let nonPromo = baseCards.filter { $0.type != "loan" && !($0.hasPromo && !($0.promoEndDate ?? "").isEmpty) && $0.balance > 0 }
-        let promo = baseCards.filter {
-            $0.type != "loan" && $0.hasPromo && !($0.promoEndDate ?? "").isEmpty
-                && ($0.promoBalance ?? $0.balance) > 0
+        let nonPromo = baseCards.filter { $0.type != "loan" && $0.soonestPromo == nil && $0.balance > 0 }
+        let promo = baseCards.filter { c in
+            c.type != "loan"
+                && c.promoList.contains { p in (p.endDate?.isEmpty == false) && c.promoBalanceOf(p) > 0 }
         }
         if !nonPromo.isEmpty || !promo.isEmpty {
             let nonPromoTotal = nonPromo.reduce(0.0) { $0 + $1.balance }
             let promoMonthly = promo.reduce(0.0) { $0 + Schedule.promoNeeded($1, tz: store.tz) }
-            let longestMonths = promo.reduce(0) { max($0, DateLogic.monthsUntil($1.promoEndDate, tz: store.tz)) }
+            let longestMonths = promo.reduce(0) { m, c in
+                c.promoList.reduce(m) { max($0, DateLogic.monthsUntil($1.endDate, tz: store.tz)) }
+            }
             VStack(alignment: .leading, spacing: 12) {
                 FieldLabel(text: "Payoff plan")
                 if !nonPromo.isEmpty {
@@ -769,10 +771,15 @@ private struct CardRow: View {
         return f.string(from: date)
     }
 
-    private var promoActive: Bool {
-        guard card.hasPromo else { return false }
-        return DateLogic.monthsUntil(card.promoEndDate, tz: tz) > 0
+    /// The promo window closing soonest that still has months left — the
+    /// deadline the pill and the "/mo" suggestion key off.
+    private var soonestRunningPromo: CardPromo? {
+        card.promoList
+            .filter { DateLogic.monthsUntil($0.endDate, tz: tz) > 0 }
+            .min { ($0.endDate ?? "") < ($1.endDate ?? "") }
     }
+
+    private var promoActive: Bool { soonestRunningPromo != nil }
 
     // The one amount worth showing without tapping Pay: what to pay this period on
     // a card with a distinct recommendation — a 0% promo's monthly payoff, or an
@@ -784,7 +791,7 @@ private struct CardRow: View {
     private var suggestedPayment: (amount: Double, isMonthly: Bool)? {
         if card.type == "loan" { return nil }
         var found: (amount: Double, isMonthly: Bool)?
-        if promoActive {
+        if !card.promoList.isEmpty {
             found = (max(card.minPaymentOrZero, Schedule.promoNeeded(card, tz: tz)), true)
         } else if let rec = card.recommendedPayment, rec > 0 {
             found = (rec, false)
@@ -864,11 +871,11 @@ private struct CardRow: View {
                     }
                     autopayChip
                     Spacer()
-                    if promoActive {
+                    if let sp = soonestRunningPromo {
                         HStack(spacing: 4) {
                             Image(systemName: "percent")
                                 .font(.caption2)
-                            Text("0% promo")
+                            Text("\(fmtRate(sp.apr))% promo\(card.promoList.count > 1 ? " ×\(card.promoList.count)" : "")")
                                 .font(Theme.mono(10, weight: .medium))
                         }
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -1032,7 +1039,7 @@ private struct CardRow: View {
         if card.type != "loan", card.limit > 0 {
             parts.append("\(Int(utilization * 100)) percent utilized")
         }
-        if promoActive { parts.append("0 percent promo active") }
+        if let sp = soonestRunningPromo { parts.append("\(fmtRate(sp.apr)) percent promo active") }
         return parts.joined(separator: ", ")
     }
 

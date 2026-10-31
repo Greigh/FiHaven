@@ -57,7 +57,11 @@ import androidx.compose.foundation.layout.width
 import java.util.UUID
 import app.fihaven.core.model.CardPerk
 import app.fihaven.core.model.CardOffer
+import app.fihaven.core.model.CardPromo
 import app.fihaven.core.model.genId
+import app.fihaven.core.model.promoBalanceOf
+import app.fihaven.core.model.promoList
+import app.fihaven.core.model.soonestPromo
 import app.fihaven.BuildConfig
 import kotlinx.coroutines.flow.first
 import app.fihaven.core.model.archiveInsteadOfDelete
@@ -126,7 +130,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
     val filtered = data.activeCards.filter { c ->
         if (((c.type == "loan")) != isLoanView) return@filter false
         if (fBalance && !(c.balance > 0)) return@filter false
-        if (fPromo && !(c.hasPromo && !c.promoEndDate.isNullOrEmpty())) return@filter false
+        if (fPromo && c.soonestPromo == null) return@filter false
         if (fOverdue && !(c.dueDay != null && DateLogic.effectiveDaysUntilDue(
                 c.dueDay!!,
                 vm.isFullyPaid("card", c.id.toString()),
@@ -141,7 +145,7 @@ fun CardsScreen(vm: AppViewModel, padding: PaddingValues, kind: String = "card",
         "util" -> filtered.sortedByDescending { Schedule.utilization(it) ?: 0.0 }
         "name" -> filtered.sortedBy { it.name.lowercase() }
         "promo" -> filtered.sortedBy {
-            if (it.hasPromo && !it.promoEndDate.isNullOrEmpty()) DateLogic.monthsUntil(it.promoEndDate, zone) else 9999
+            it.soonestPromo?.let { p -> DateLogic.monthsUntil(p.endDate, zone) } ?: 9999
         }
         else -> filtered.sortedBy {
             val dd = it.dueDay ?: return@sortedBy 99
@@ -456,7 +460,12 @@ private fun CardRow(
     // Utilization is measured against the live balance — charges made since the
     // statement closed still count against the limit at the issuer.
     val util = if (card.limit > 0) min(1.0, amounts.current / card.limit) else 0.0
-    val promoActive = card.hasPromo && DateLogic.monthsUntil(card.promoEndDate, zone) > 0
+    // The promo window closing soonest that still has months left — the
+    // deadline the pill and the "/mo" suggestion key off.
+    val soonestRunningPromo = card.promoList
+        .filter { !it.endDate.isNullOrEmpty() && DateLogic.monthsUntil(it.endDate, zone) > 0 }
+        .minByOrNull { it.endDate!! }
+    val promoActive = soonestRunningPromo != null
 
     // Due countdown is resolved up here because both the footer text and the
     // headline amount's colour read from it — one source, so they can't disagree.
@@ -556,7 +565,8 @@ private fun CardRow(
                             color = Ct.colors.muted, fontSize = 12.sp)
                     }
                     if (promoActive) {
-                        Text("0% promo", color = Ct.colors.green, fontSize = 10.sp, style = MonoNumerals)
+                        Text("${fmtRate(soonestRunningPromo.apr)}% promo${if (card.promoList.size > 1) " ×${card.promoList.size}" else ""}",
+                            color = Ct.colors.green, fontSize = 10.sp, style = MonoNumerals)
                     } else {
                         Text("%.2f%% APR".format(card.regularAPR), color = Ct.colors.muted,
                             fontSize = 11.sp, style = MonoNumerals)
@@ -599,7 +609,7 @@ private fun CardRow(
             // headline figure directly above it.
             val suggested: Pair<Double, Boolean>? = when {
                 isLoan -> null
-                promoActive -> maxOf(card.minPaymentOrZero, Schedule.promoNeeded(card, zone)) to true
+                card.promoList.isNotEmpty() -> maxOf(card.minPaymentOrZero, Schedule.promoNeeded(card, zone)) to true
                 (card.recommendedPayment ?: 0.0) > 0.0 -> card.recommendedPayment!! to false
                 else -> null
             }?.takeIf { (amount, _) ->
@@ -704,10 +714,15 @@ fun CardEditorDialog(
     var autopay by remember { mutableStateOf(card?.autopay ?: false) }
     var autopayDay by remember { mutableStateOf(card?.autopayDay?.toString() ?: "") }
     var notes by remember { mutableStateOf(card?.notes ?: "") }
-    var hasPromo by remember { mutableStateOf(card?.hasPromo ?: false) }
-    var promoApr by remember { mutableStateOf(card?.promoAPR?.toString() ?: "0") }
-    var promoBalance by remember { mutableStateOf(card?.promoBalance?.toString() ?: "") }
-    var promoEnd by remember { mutableStateOf(card?.promoEndDate ?: "") }
+    val promos = remember {
+        mutableStateListOf<PromoEditState>().apply {
+            card?.promoList?.forEach {
+                add(PromoEditState(it.id, it.label,
+                    if (it.apr == Math.floor(it.apr)) it.apr.toInt().toString() else it.apr.toString(),
+                    it.balance?.toString() ?: "", it.endDate ?: ""))
+            }
+        }
+    }
     var rewardBase by remember { mutableStateOf(card?.rewardBase?.takeIf { it != 0.0 }?.toString() ?: "") }
     val rewardCats = remember {
         mutableStateMapOf<String, String>().apply {
@@ -743,6 +758,27 @@ fun CardEditorDialog(
         },
         saveEnabled = name.isNotBlank(),
         onSave = {
+            // Drop rows the user added but left entirely blank, then write the
+            // legacy single-promo fields from the earliest-ending promo — an
+            // older client reading this card sees the deadline that matters.
+            val savedPromos = if (isLoan) emptyList() else promos.mapNotNull { p ->
+                val pApr = p.apr.toDoubleOrNull() ?: 0.0
+                val pBal = p.balance.toDoubleOrNull()?.takeIf { it > 0 }
+                val pEnd = p.endDate.ifBlank { null }
+                if (p.label.isNotBlank() || pApr > 0 || pBal != null || pEnd != null) {
+                    CardPromo(p.id, p.label.trim(), pApr, pBal, pEnd)
+                } else null
+            }
+            val mirror = savedPromos.filter { !it.endDate.isNullOrEmpty() }
+                .minByOrNull { it.endDate!! } ?: savedPromos.firstOrNull()
+            // Re-ask after payoff only when the promo set is unchanged — compare
+            // the meaningful fields, not ids, so a legacy→promos[] migration of
+            // an untouched card doesn't re-prompt.
+            fun promoKey(list: List<CardPromo>) = list.joinToString(";") {
+                "${it.label}|${it.apr}|${it.balance ?: ""}|${it.endDate ?: ""}"
+            }
+            val keepPrompted = card?.promoPayoffPrompted == true &&
+                promoKey(card.promoList) == promoKey(savedPromos)
             val saved = Card(
                     id = card?.id ?: genId(),
                     name = name.trim(),
@@ -760,10 +796,12 @@ fun CardEditorDialog(
                     minPayment = minPayment.trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull(),
                     recommendedPayment = recommendedPayment.toDoubleOrNull()?.takeIf { it > 0.0 },
                     regularAPR = apr.toDoubleOrNull() ?: 0.0,
-                    hasPromo = if (isLoan) false else hasPromo,
-                    promoAPR = if (!isLoan && hasPromo) promoApr.toDoubleOrNull() else null,
-                    promoEndDate = if (!isLoan && hasPromo) promoEnd.ifBlank { null } else null,
-                    promoBalance = if (!isLoan && hasPromo) promoBalance.toDoubleOrNull() else null,
+                    hasPromo = savedPromos.isNotEmpty(),
+                    promoAPR = mirror?.apr,
+                    promoEndDate = mirror?.endDate,
+                    promoBalance = mirror?.balance,
+                    promos = savedPromos,
+                    promoPayoffPrompted = keepPrompted,
                     dueDay = dueDay.toIntOrNull()?.coerceIn(1, 31) ?: 1,
                     autopay = autopay,
                     autopayDay = if (autopay) autopayDay.toIntOrNull()?.coerceIn(1, 31) else null,
@@ -875,15 +913,26 @@ fun CardEditorDialog(
             DayField("Autopay day", autopayDay, allowSame = true) { autopayDay = it }
         }
         if (!isLoan) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("0% / promo APR", color = Ct.colors.text, modifier = Modifier.weight(1f))
-                Switch(checked = hasPromo, onCheckedChange = { hasPromo = it })
+            FieldLabel("Promo APR periods")
+            Text("0% or reduced-rate windows — each tracks its own balance and end date.",
+                color = Ct.colors.muted, fontSize = 12.sp)
+            promos.forEachIndexed { i, p ->
+                OutlinedTextField(p.label, { p.label = it }, label = { Text("Label (e.g. Balance transfer)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(p.apr, { p.apr = it }, label = { Text("APR %") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+                        modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedTextField(p.balance, { p.balance = it }, label = { Text("Balance") }, prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+                        modifier = Modifier.weight(1f))
+                    TextButton({ promos.removeAt(i) }) { Text("✕", color = Ct.colors.muted) }
+                }
+                DateField("Promo ends", p.endDate, { p.endDate = it })
             }
-            if (hasPromo) {
-                OutlinedTextField(promoApr, { promoApr = it }, label = { Text("Promo APR %") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
-                money(promoBalance, "Promo balance") { promoBalance = it }
-                DateField("Promo ends", promoEnd, { promoEnd = it })
+            TextButton({ promos.add(PromoEditState(UUID.randomUUID().toString(), "", "0", "", "")) }) {
+                Text("+ Add promo")
             }
         }
         if (!isLoan) {
@@ -988,6 +1037,14 @@ fun CardEditorDialog(
     }
 }
 
+/** Mutable editor row for a promo APR window (amounts kept as text while typing). */
+private class PromoEditState(val id: String, label: String, apr: String, balance: String, endDate: String) {
+    var label by mutableStateOf(label)
+    var apr by mutableStateOf(apr)
+    var balance by mutableStateOf(balance)
+    var endDate by mutableStateOf(endDate)
+}
+
 /** Mutable editor row for a card perk (amount kept as text while typing). */
 private class PerkEditState(val id: String, label: String, amount: String, frequency: String) {
     var label by mutableStateOf(label)
@@ -1031,6 +1088,12 @@ private fun AutopayPill(autopay: Boolean, autopayDay: Int?) {
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
+}
+
+/// A promo/APR figure without trailing zeros (mirrors iOS `fmtRate`).
+private fun fmtRate(r: Double): String {
+    val rounded = Math.round(r * 100) / 100.0
+    return if (rounded == Math.floor(rounded)) rounded.toInt().toString() else rounded.toString()
 }
 
 /// A due date as a short "MMM d" label (adding the year only when it isn't this one).
@@ -1273,14 +1336,15 @@ fun AccountEditorDialog(account: Account?, vm: AppViewModel, onDismiss: () -> Un
 // ── Payoff plan: lump for interest-bearing cards, monthly for 0% promos ──
 @Composable
 private fun CardsPayoffCard(cards: List<Card>, zone: java.time.ZoneId) {
-    val nonPromo = cards.filter { !(it.hasPromo && !it.promoEndDate.isNullOrEmpty()) && it.balance > 0 }
-    val promo = cards.filter {
-        it.hasPromo && !it.promoEndDate.isNullOrEmpty() && (it.promoBalance ?: it.balance) > 0
-    }
+    fun isPromoCard(c: Card) = c.promoList.any { !it.endDate.isNullOrEmpty() && c.promoBalanceOf(it) > 0 }
+    val nonPromo = cards.filter { !isPromoCard(it) && it.balance > 0 }
+    val promo = cards.filter { isPromoCard(it) }
     if (nonPromo.isEmpty() && promo.isEmpty()) return
     val nonPromoTotal = nonPromo.sumOf { it.balance }
     val promoMonthly = promo.sumOf { Schedule.promoNeeded(it, zone) }
-    val longestMonths = promo.maxOfOrNull { DateLogic.monthsUntil(it.promoEndDate, zone) } ?: 0
+    val longestMonths = promo.fold(0) { m, c ->
+        c.promoList.fold(m) { acc, p -> maxOf(acc, DateLogic.monthsUntil(p.endDate, zone)) }
+    }
     CtCard {
         Text("PAYOFF PLAN", color = Ct.colors.muted, fontSize = 10.sp,
             fontWeight = FontWeight.Bold, letterSpacing = 1.sp)

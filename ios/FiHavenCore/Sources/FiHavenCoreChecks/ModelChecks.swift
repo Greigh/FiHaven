@@ -26,6 +26,45 @@ func runModelChecks() {
         check(data.cards[1].promoBalance == nil, "null promoBalance → nil")
     }
 
+    section("Promos — decode, round-trip, legacy fallback") {
+        // Web-written JSON with a promos array decodes, keeping every field.
+        let webJSON = #"""
+        {"id":"c1","name":"Chase","promos":[
+            {"id":"p1","label":"Balance transfer","apr":0,"balance":1000,"endDate":"2026-12-01"},
+            {"id":"p2","label":"Purchases","apr":3.99,"endDate":"2027-06-01"}
+        ],"hasPromo":true,"promoEndDate":"2026-12-01","promoBalance":1000}
+        """#
+        let web = try JSONDecoder().decode(Card.self, from: Data(webJSON.utf8))
+        checkEqual(web.promos.count, 2, "promos array decodes")
+        checkEqual(web.promos[0].label, "Balance transfer", "label decodes")
+        checkClose(web.promos[1].apr ?? -1, 3.99, "apr decodes")
+        check(web.promos[1].balance == nil, "missing balance → nil")
+        checkEqual(web.promoList.first?.id, "p1", "promoList uses promos[] when present")
+
+        // Round-trip survives a native re-encode for the server.
+        let rt = try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(web))
+        checkEqual(rt.promos.count, 2, "promos round-trip count")
+        checkEqual(rt.promos[1].endDate, "2027-06-01", "endDate round-trip")
+
+        // Legacy-only card synthesizes one promo; explicit hasPromo=false wins.
+        let legacyJSON = #"{"id":"c2","name":"X","hasPromo":true,"promoEndDate":"2026-10-01","promoBalance":500}"#
+        let legacy = try JSONDecoder().decode(Card.self, from: Data(legacyJSON.utf8))
+        checkEqual(legacy.promoList.count, 1, "legacy fields synthesize one promo")
+        checkEqual(legacy.promoList.first?.endDate, "2026-10-01", "legacy endDate carries")
+        checkEqual(legacy.promoList.first?.id, "legacy", "legacy promo id")
+
+        let offJSON = #"{"id":"c3","name":"Y","hasPromo":false,"promoEndDate":"2026-10-01"}"#
+        let off = try JSONDecoder().decode(Card.self, from: Data(offJSON.utf8))
+        check(off.promoList.isEmpty, "explicit hasPromo=false suppresses stale fields")
+
+        // No flag but fields present → still a promo (old exports).
+        let bareJSON = #"{"id":"c4","name":"Z","promoEndDate":"2026-10-01"}"#
+        let bare = try JSONDecoder().decode(Card.self, from: Data(bareJSON.utf8))
+        checkEqual(bare.promoList.count, 1, "absent flag + fields still means promo")
+
+        check(Card(id: "c5", name: "None").promoList.isEmpty, "no promo data → empty list")
+    }
+
     section("Models — autopayDay round-trips and tolerates a string") {
         let bill = Bill(id: "1", name: "Rent", autopay: true, autopayDay: 18)
         let card = Card(id: "2", name: "Visa", autopay: true, autopayDay: 5)

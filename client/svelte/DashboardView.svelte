@@ -9,6 +9,7 @@
   import {
     fmt, currentPeriodKey, periodKeyLabel, shortDate,
     monthsUntil, daysUntilDate, promoNeeded, liveCardBalance, utilizationOf,
+    cardPromos, promoBalanceOf, parseLocalDate,
     buildUpcomingItems, isFullyPaid, paidAmount,
     goalAmountFor, remainingForItem, needsAmount, nothingDue,
     periodObligationItems, hidePaidOnDashboard,
@@ -51,12 +52,10 @@
   // Live balance (current when tracked, statement otherwise) — a card charged
   // since its statement closed still counts toward debt and utilization.
   let totalDebt = $derived(activeCards.reduce((s, c) => s + liveCardBalance(c), 0));
-  let promoCards = $derived(activeCards.filter((c) => {
-    if (!(c.hasPromo && c.promoEndDate)) return false;
-    const bal = parseFloat(c.promoBalance) || parseFloat(c.balance) || 0;
-    return bal > 0;
-  }));
-  let urgentPromo = $derived(promoCards.filter((c) => monthsUntil(c.promoEndDate) <= 3).length);
+  let promoCards = $derived(activeCards.filter((c) =>
+    cardPromos(c).some((p) => p.endDate && promoBalanceOf(c, p) > 0)));
+  let urgentPromo = $derived(promoCards.filter((c) =>
+    cardPromos(c).some((p) => p.endDate && promoBalanceOf(c, p) > 0 && monthsUntil(p.endDate) <= 3)).length);
 
   let allItems   = $derived.by(() => {
     void settings.categoryIcons;
@@ -103,9 +102,9 @@
   // or promo dates that decide whether the alert fires at all. The template
   // below interpolates every field as text, so Svelte escapes it.
   //
-  // `body` is a run of segments; `strong: true` bolds one. Segment text is
-  // always app-generated (formatted money, day counts) — user data only ever
-  // reaches `name`, and `regularAPR`, which is stored unvalidated too.
+  // `body` is a run of segments; `strong: true` bolds one. Everything is
+  // interpolated as text — never {@html} — so the user-typed promo label
+  // and card name can carry markup-looking text safely.
   let alerts = $derived.by(() => {
     const out = [];
     activeCards.forEach((c) => {
@@ -129,41 +128,49 @@
         body: [{ text: `free trial ends ${dayWord}. Review before you're charged.` }],
       });
     });
+    // One alert per promo — a card can hold several windows at once, and
+    // an expired transfer window next to a healthy purchase promo is two
+    // different kinds of news, not one.
     promoCards.forEach((c) => {
-      const mo   = monthsUntil(c.promoEndDate);
-      const days = daysUntilDate(c.promoEndDate);
-      const needed = promoNeeded(c);
-      const bal = parseFloat(c.promoBalance) || parseFloat(c.balance) || 0;
-      const payAmt = fmt(Math.max(parseFloat(c.minPayment || 0), needed));
-      const endStr = new Date(c.promoEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      if (mo <= 0 && bal > 0) {
-        out.push({
-          type: 'danger', icon: '🚨', name: c.name,
-          body: [{ text: `0% promo expired. ${fmt(bal)} is accruing ${c.regularAPR}% APR.` }],
-        });
-      } else if (mo <= 2 && bal > 0) {
-        out.push({
-          type: 'danger', icon: '🔥', name: c.name,
-          body: [
-            { text: '0% promo ends in ' },
-            { text: `${days} days`, strong: true },
-            { text: ` (${endStr}). Pay ` },
-            { text: `${payAmt}/mo`, strong: true },
-            { text: ' to avoid interest.' },
-          ],
-        });
-      } else if (mo <= 4 && bal > 0) {
-        out.push({
-          type: 'warn', icon: '⚠️', name: c.name,
-          body: [
-            { text: '0% promo ends in ' },
-            { text: `${mo} months`, strong: true },
-            { text: '. Need ' },
-            { text: `${payAmt}/mo`, strong: true },
-            { text: ` to clear ${fmt(bal)}.` },
-          ],
-        });
-      }
+      cardPromos(c).forEach((p) => {
+        if (!p.endDate) return;
+        const bal = promoBalanceOf(c, p);
+        if (bal <= 0) return;
+        const mo   = monthsUntil(p.endDate);
+        const days = daysUntilDate(p.endDate);
+        const needed = mo <= 0 ? bal : bal / mo;
+        const payAmt = fmt(Math.max(parseFloat(c.minPayment || 0), needed));
+        const endStr = parseLocalDate(p.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const what = p.label ? `"${p.label}" promo` : `${p.apr}% promo`;
+        if (mo <= 0) {
+          out.push({
+            type: 'danger', icon: '🚨', name: c.name,
+            body: [{ text: `${what} expired. ${fmt(bal)} is accruing ${c.regularAPR}% APR.` }],
+          });
+        } else if (mo <= 2) {
+          out.push({
+            type: 'danger', icon: '🔥', name: c.name,
+            body: [
+              { text: `${what} ends in ` },
+              { text: `${days} days`, strong: true },
+              { text: ` (${endStr}). Pay ` },
+              { text: `${payAmt}/mo`, strong: true },
+              { text: ' to avoid interest.' },
+            ],
+          });
+        } else if (mo <= 4) {
+          out.push({
+            type: 'warn', icon: '⚠️', name: c.name,
+            body: [
+              { text: `${what} ends in ` },
+              { text: `${mo} months`, strong: true },
+              { text: '. Need ' },
+              { text: `${payAmt}/mo`, strong: true },
+              { text: ` to clear ${fmt(bal)}.` },
+            ],
+          });
+        }
+      });
     });
     return out;
   });
