@@ -27,8 +27,8 @@
   `FIHAVEN_TEST_DB_PATH` to a scratch file per run, or stub `./db`. The dev
   database at `data/cleartab.db` is real data on a newer schema — tests that
   open it for real will crash at module load.
-- `bun test scripts/` covers `scripts/*.test.js`; vitest does not include
-  `scripts/`.
+- `scripts/*.test.js` run under vitest's node environment as part of the main
+  `npm test`; `bun test scripts/` covers them too.
 
 ## Repo layout
 

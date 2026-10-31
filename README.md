@@ -8,7 +8,7 @@
 
 ### Quiet money. Calm month.
 
-A focused, manual-first personal finance and debt dashboard — recurring bills, credit cards (with 0% APR promo tracking), loans, income, asset accounts, period-aware budget lenses, individual spend, and debt payoff planners — with native iOS, macOS, and Android apps on a shared server-synced backend.
+A focused, manual-first personal finance and debt dashboard — recurring bills, credit cards (with multi-window promo tracking), loans, income, asset accounts, period-aware budget lenses, individual spend, and debt payoff planners — with native iOS, macOS, and Android apps on a shared server-synced backend.
 
 <p align="center">
   <a href="https://fihaven.app" target="_blank" rel="noopener">
@@ -58,7 +58,7 @@ A focused, manual-first personal finance and debt dashboard — recurring bills,
 
 A focused bill and debt dashboard for people who'd rather spend five
 calm minutes a week than a frantic afternoon every payday. Track
-recurring bills, credit cards (including 0% promo periods), **loans**,
+recurring bills, credit cards (including multi-window promo offers), **loans**,
 **income**, the **accounts you own**, a period-aware budget,
 **individual transactions**, **subscriptions**, payment history,
 debt-payoff strategies, and a month-grid calendar of upcoming due
@@ -112,7 +112,7 @@ Changelog: [CHANGELOG.md](CHANGELOG.md).
 ## Highlights
 
 - **Bills, Cards & Loans** — recurring bills with variance sparklines,
-  credit cards with 0% promo tracking, and loans/mortgages in their own
+  credit cards with multi-window promo tracking, and loans/mortgages in their own
   tab (recommended payment is the minimum, not the whole balance —
   payoff-in-full stays an option).
 - **Income & Balances tabs** — every paycheck with its own frequency plus
@@ -167,9 +167,9 @@ normally on all three platforms unless noted.
 | **Variance sparklines** | Inline 6-month history of what each bill *actually* cost, so a "fixed" bill that isn't stands out |
 | **Stale-bill audit** | Rows unpaid for 60+ days get a "mark dormant" / delete affordance |
 | **Credit cards** | Statement balance, current balance, limit, APR, minimum payment, due day, utilisation warnings, annual fee |
-| **0% promo tracking** | Promo balance + expiry, a dashboard tile for promos ending within three months, and a one-time prompt to clear the promo flags when you pay it to zero |
+| **Promo APR windows** | Multiple promo windows per card — a 0% purchases offer beside a balance-transfer deal — each with its own label, APR, balance and deadline (`card.promos`; data saved before multi-promo still reads as a single window). A dashboard tile flags windows ending within three months, and paying a card's promos to zero prompts once to clear the flags |
 | **Loans & mortgages** | Own tab. They share the `cards` list but are split out wherever it matters: the recommendation is the scheduled monthly payment, and `activeCreditCards` (vs `activeCards`) keeps a mortgage out of "card debt" |
-| **Pay flow** | Marking paid decrements statement / promo / current balances; editing a payment applies the delta; deleting one from History adds it back. Balances never go negative |
+| **Pay flow** | Marking paid decrements statement / promo / current balances — a payment drains the earliest-ending promo window first; editing a payment applies the delta; deleting one from History adds it back. Balances never go negative |
 | **Pay-goal policy** | What an item should reach this period — `minimum`, payoff-aware `recommended` (default), or `full` (`settings.paidGoal`, ported to the server in `paidGoal.js` so autopay marks the same number a client would) |
 | **Autopay auto-mark** *(Pro)* | Opt-in. An autopay item whose due date has arrived is marked paid at most once per period, with an undo-aware per-month memory that also handles $0 items |
 | **Monthly rollover review** | When a new period starts, a banner offers to re-check each active bill's amount, pre-filled per `rolloverPrefill` (recent-payment average by default) |
@@ -222,7 +222,7 @@ normally on all three platforms unless noted.
 
 | Feature | Notes |
 |---|---|
-| **Rewards optimizer** *(Pro)* | Ranks your cards per spending category from `rewardCategories[category] ?? rewardBase`, and **excludes any card inside an active 0% promo** (with the reason shown) — a reward purchase at the back of the payoff queue costs more in interest than the rewards are worth |
+| **Rewards optimizer** *(Pro)* | Ranks your cards per spending category from `rewardCategories[category] ?? rewardBase`, and **excludes any card inside an active promo window** (with the reason shown) — a reward purchase at the back of the payoff queue costs more in interest than the rewards are worth |
 | **Card preset database** *(Pro)* | Popular U.S. rewards cards auto-fill a full reward profile, including rotating / choose-your-category 5% pools you tick per quarter |
 | **Preset update prompts** | When the admin catalog changes a rate on a card you imported, you get Update / Keep mine rather than a silent overwrite |
 | **Perks & statement credits** *(Pro — Rewards tab)* | Track recurring credits ("$10 Uber Cash", "$50 hotel credit") per cycle — monthly, quarterly, semiannual, annual — with unrealised-credit totals so you see money left on the table |
@@ -234,7 +234,7 @@ normally on all three platforms unless noted.
 
 | Feature | Notes |
 |---|---|
-| **Debt payoff planner** *(Pro)* | Avalanche and snowball, side by side, over cards *and* loans |
+| **Debt payoff planner** *(Pro)* | Avalanche and snowball, side by side, over cards *and* loans — each promo window accrues at its own APR until it expires, then the card's regular rate |
 | **Calendar tab** *(Pro)* | Month grid of every bill / card payment due in the next 6 months, colour-coded, each cell linking back to its row |
 | **iCal subscription** *(Pro)* | Per-user random token → a `webcal` feed any calendar app can subscribe to, with a `VALARM` a day before each event. Rotating the token kills existing subscriptions instantly |
 | **Payment history** *(Pro)* | Full ledger with edit and delete, both of which correct card balances |
@@ -286,7 +286,7 @@ normally on all three platforms unless noted.
 | **Email sign-in codes** | A second factor for people who won't run an authenticator app |
 | **Step-up re-auth** | Sensitive actions (disable TOTP, delete a passkey, regenerate codes, delete account) re-verify you — by password, or by emailed code for OAuth-only accounts that have no password |
 | **Email verification & recovery** | Verify-email (including correcting a mistyped signup address), forgot/reset password, and a lost-2FA recovery flow, all on single-use tokens |
-| **Bot & abuse protection** | Cloudflare Turnstile, honeypot + timing checks, per-IP `express-rate-limit`, and an in-memory login throttle keyed by IP + email |
+| **Bot & abuse protection** | Cloudflare Turnstile, honeypot + timing checks, per-IP `express-rate-limit` on SQLite-backed buckets, and a persisted login throttle keyed by IP + email |
 | **Encryption at rest** | AES-256-GCM over TOTP secrets, Plaid access tokens, and every user's `user_data` blob. Session ids, email tokens and OAuth handoff codes are SHA-256-hashed rather than encrypted — they are random secrets we only need to recognise, never to read back |
 | **Biometric app lock** *(native)* | Face ID / Touch ID / device credential, bound to a hardware AndroidKeyStore key on Android; native token storage secured via Android Keystore AES-256-GCM (`PrefsTokenStore`) |
 | **Server-side page gates** | Private pages are gated by Express, not just JS, so they hold with scripting off |
@@ -368,11 +368,11 @@ Solo Pro therefore cannot create a household — only join one, which is free.
 | **Frontend pages** | Svelte 5 (runes) for each dashboard tab, vanilla JS for navbar / modals / auth / theme |
 | **Build** | [Vite 8](https://vitejs.dev) multi-page (Vite 8.3), with the [@sveltejs/vite-plugin-svelte](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) plugin |
 | **Styling** | Hand-written CSS split into themed files (`tokens`, `components`, `theme-dark`, `pages`, `marketing`, `budget`, `mobile`) + a Tailwind CSS v4 utility build (`@tailwindcss/cli` 4.3). Fully responsive — phones get a hamburger drawer and stacked-card tables |
-| **Server** | Node 24 (engines `>=22.11.0`) + Express 5 (`5.2.1`), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (`13.0.3`) for storage |
-| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite (SHA-256-hashed at rest), HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) plus an in-memory login throttle keyed by IP + email. Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
+| **Server** | Node 24 (engines `>=22.11.0`) + Express 5 (`5.3`), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (`13.0.3`) for storage |
+| **Auth** | bcrypt password hashing, opaque server-side sessions in SQLite (SHA-256-hashed at rest), HttpOnly cookies, CSRF double-submit token, [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) bot protection, per-IP rate limiting via [express-rate-limit](https://www.npmjs.com/package/express-rate-limit) on SQLite-backed buckets plus a persisted login throttle keyed by IP + email (counters survive a restart). Optional **Sign in with Apple / Google** (OIDC ID-token verification, auto-link by verified email) |
 | **MFA** | TOTP via [otpauth](https://www.npmjs.com/package/otpauth) + QR codes, WebAuthn passkeys via [@simplewebauthn](https://simplewebauthn.dev/) 14, email sign-in codes via [nodemailer](https://nodemailer.com/) 10, bcrypt-hashed backup codes; TOTP secrets encrypted at rest with AES-256-GCM. Native app lock uses platform biometrics (Android binds it to a hardware AndroidKeyStore key) |
 | **Native (iOS / macOS)** | Swift 6.3 / SwiftUI on a shared Swift core (`ios/FiHavenCore`), StoreKit 2 subscriptions, bundled fonts, Face ID / Touch ID, deployment target iOS 18.6+ |
-| **Native (Android)** | Kotlin 2.4 / Jetpack Compose BOM 2026.08 on a shared Kotlin core (`android/core`), Play Billing, AES-256-GCM hardware KeyStore token storage, minSdk 26, targetSdk 36 |
+| **Native (Android)** | Kotlin 2.4 / Jetpack Compose BOM 2026.09 on a shared Kotlin core (`android/core`), Play Billing, AES-256-GCM hardware KeyStore token storage, minSdk 26, targetSdk 36 |
 | **Billing** | Unified **FiHaven Pro** entitlement (server-authoritative) across web [Paddle](https://paddle.com) (merchant of record), iOS StoreKit 2, and Android Play Billing, plus server-issued promo codes. Native purchases are re-verified server-side — Play via the Google Play Developer API (`googlePlay.js`) with Real-time Developer Notifications, StoreKit via signed transactions |
 | **Bank sync** | Optional, Pro-gated [Plaid](https://plaid.com) linking (Link + OAuth: web `/plaid-oauth`, native package / Universal Link return; `transactionsSync`, webhooks). Access tokens AES-256-GCM-encrypted at rest; synced transactions are **additive only** and never overwrite manual entries |
 | **Per-user data sync** | One JSON blob per user in SQLite, `PUT /api/data` with debounced client writes, Svelte 5 `$state` proxies as the in-memory store, localStorage as offline cache |
@@ -447,7 +447,7 @@ one usually means a change to all three — and to each of their suites.
 
 | Platform | Command | Covers |
 |---|---|---|
-| Web | `npm test` | `client/js/*.test.js`, `server/*.test.js`, `tests/integration/` |
+| Web | `npm test` | `client/js/*.test.js`, `server/*.test.js`, `scripts/*.test.js`, `tests/integration/` |
 | iOS core | `cd ios/FiHavenCore && swift test` | XCTest suite (`Tests/FiHavenCoreTests`) |
 | iOS core (checks) | `FH_INCLUDE_CHECKS=1 swift run FiHavenCoreChecks` | the older hand-rolled check executable |
 | Android core | `android/gradlew -p android :core:test` | shared Kotlin logic |
@@ -456,7 +456,11 @@ one usually means a change to all three — and to each of their suites.
 Compile checks — `npx vite build`, `:app:compileDebugKotlin`, and an iOS
 `xcodebuild … CODE_SIGNING_ALLOWED=NO` — round out local validation. Neither app
 module has an instrumented (device) suite; UI behaviour is verified by driving
-an emulator/simulator by hand.
+an emulator/simulator by hand. For a real-app look, `scripts/run-ios.sh`,
+`run-macos.sh`, and `run-android.sh` build and launch the debug app on a
+simulator/emulator and photograph the shared screen matrix in
+`sweep-matrix.sh`; the Apple scripts also regenerate the XcodeGen project when
+`project.yml` or the sources have moved on.
 
 ---
 
@@ -474,6 +478,7 @@ fihaven/
 │   │                                bill-tracker-app, mint-alternative,
 │   │                                rocket-money-alternative, security, contact,
 │   │                                terms, privacy, refunds, delete-account,
+│   │                                changelog (public release notes),
 │   │                                dashboard, settings, welcome (onboarding),
 │   │                                pay (checkout), plaid-oauth, verify-email,
 │   │                                reset (password), recover (lost-2FA),
@@ -513,6 +518,9 @@ fihaven/
 │   │   ├── storage.svelte.js        shared `$state` proxies + debounced sync
 │   │   ├── localCache.js            the single list of session-scoped localStorage keys
 │   │   ├── pendingSync.js           durable "this device has unsent edits" flag
+│   │   ├── syncMerge.js             three-way merge — this device's edits vs the
+│   │   │                            server's copy, against the last-agreed
+│   │   │                            baseline; replaces last-write-wins
 │   │   ├── snoozes.svelte.js        per-device row snoozes (not synced)
 │   │   │                            ── money logic (mirrored natively) ──
 │   │   ├── utils.js                 formatters (currency-aware) + due-date math
@@ -586,18 +594,30 @@ fihaven/
 │   │   ├── *.md                    generated — npm run markdown (one per public page)
 │   │   ├── .well-known/api-catalog RFC 9727 — which APIs exist
 │   │   ├── .well-known/auth.md     there is no agent login, and why
-│   │   ├── icon.svg
-│   │   └── og-image.jpg             share cards — npm run generate:og
+│   │   ├── .well-known/…           + apple-app-site-association (iOS Universal
+│   │   │                            Links), assetlinks.json (Android App Links /
+│   │   │                            passkeys), security.txt (RFC 9116)
+│   │   ├── plaid.html              iOS Plaid Universal Link fallback (/plaid)
+│   │   ├── oauth-return.html       Android App Link OAuth landing
+│   │   │                            (/oauth/apple, /oauth/google)
+│   │   ├── oauth-google-android.html loaded inside the Android Google sign-in flow
+│   │   ├── offline.html            service-worker offline fallback
+│   │   ├── icon.svg + icon-*.png   PWA / maskable / touch icons + store badges
+│   │   └── og-*.jpg                share cards — npm run generate:og
 │   └── svelte.config.js
 ├── server/
 │   ├── index.js                     Express entry — env, routes, static,
 │   │                                page gates, scheduler boot, / base
 │   ├── db.js                        better-sqlite3 + schema + statements
+│   ├── dataDir.js                   the one writable dir (SQLite + mfa.key) —
+│   │                                FIHAVEN_DATA_DIR overrides for self-hosts
 │   ├── session.js                   loadSession / requireAuth / requireVerified / requireCsrf
 │   ├── agentWeb.js                  Accept: text/markdown negotiation + Link headers
 │   ├── reauth.js                    step-up proof for sensitive actions (password or emailed code)
 │   ├── securityConfig.js            CSP / security headers, one place
 │   ├── securityHeaders.js           the emitted header set + CSP hash list
+│   ├── cspReport.js                 CSP violation collector — written, not
+│   │                                currently mounted
 │   ├── pageGate.js                  server-side gate on private pages (works with JS off)
 │   ├── health.js                    /health probe (db reachable, build info)
 │   ├── tokens.js                    single-use email tokens (verify / reset / recover)
@@ -627,8 +647,13 @@ fihaven/
 │   ├── household.js                 Family/household model + caps
 │   ├── householdEvents.js           per-household SSE broadcast (live share sync)
 │   ├── mail.js                      thin nodemailer wrapper
-│   ├── rateLimit.js                 in-memory login throttle, IP+email (5 / 15 min)
-│   │                                (per-IP flood guard is express-rate-limit in index.js)
+│   ├── rateLimit.js                 login throttle, IP+email (5 / 15 min) —
+│   │                                counters persisted to SQLite via attachStore
+│   │                                (per-IP flood guard is express-rate-limit in
+│   │                                index.js, also on SQLite-backed buckets)
+│   ├── rateLimitStore.js            SQLite store for express-rate-limit — bucket
+│   │                                counts survive a restart and would hold
+│   │                                under PM2 cluster mode
 │   ├── cardPresets.seed.json        the shipped card-preset catalog
 │   ├── util.js                      email + password policy, BCRYPT_COST
 │   └── routes/
@@ -653,7 +678,8 @@ fihaven/
 ├── android/                         Compose app + shared Kotlin core — see android/README.md
 ├── tests/integration/               cross-layer suites (server + client flows)
 ├── docs/                            security/retention/access policies, source-available
-│                                    terms, release notes, maintainer-local notes
+│                                    terms, release-notes/, maintainer/ runbooks
+│                                    (see docs/maintainer/README.md), local/ (gitignored)
 ├── data/                            SQLite file + mfa.key live here (gitignored)
 ├── dist/                            Vite build output (gitignored)
 ├── scripts/
@@ -670,6 +696,18 @@ fihaven/
 │   ├── ios-testflight.sh            archive + upload to App Store Connect
 │   ├── play-upload.js               bundleRelease + upload the AAB to Play
 │   ├── native-versions.js           read/bump the shared marketing + build numbers
+│   ├── generate.js                  one-shot regen of every artifact (npm run generate)
+│   ├── bump-build.js                bump the shared version + build counter everywhere
+│   ├── install-hooks.js             installs the pre-commit hook (npm run hooks:install)
+│   ├── precommit-artifacts.js       the hook itself — artifact checks on the staged index
+│   ├── worktree.js                  the shared "uncommitted input is exempt" rule
+│   ├── release-check.js             fails a release on AI signatures in commits/docs
+│   ├── check-debug-plist.js         Debug Info.plist = Release + local ATS only
+│   ├── sh-parse.js / store-notes.js back the sh:check / notes:check gates
+│   ├── run-ios.sh / run-macos.sh    launch the debug app + photograph the sweep
+│   │                                matrix (regenerates the XcodeGen project)
+│   ├── run-android.sh               the same sweep, driven via adb intent extras
+│   ├── sweep-matrix.sh / sweep-diff.js the shared screen matrix + sweep diffing
 │   ├── mail-check.js                SMTP smoke test
 │   ├── push-check.js                APNs / FCM smoke test (+ push-setup.sh)
 │   ├── seed-user-data.js            fill a dev account with realistic data
@@ -704,12 +742,13 @@ Grouped the way you actually reach for them. Every row below exists in
 | `npm run dev:server` | Express only, with `node --watch`. |
 | `npm run dev:client` | Vite only. |
 | `npm run dev:css` | Watch-rebuild the Tailwind utility classes into `client/css/tailwind-built.css`. |
+| `npm run hooks:install` | Install the git pre-commit hook (`scripts/precommit-artifacts.js`) — runs the artifact checks against the staged index in a scratch worktree, so a stale generated file can't ride a commit past `npm run ci`'s uncommitted-input exemption. `hooks:uninstall` removes it. |
 
 **Test**
 
 | Script | What it does |
 |---|---|
-| `npm test` | `vitest run` — `client/js/*.test.js`, `server/*.test.js`, `tests/integration/`. |
+| `npm test` | `vitest run` — `client/js/*.test.js`, `server/*.test.js`, `scripts/*.test.js`, `tests/integration/`. |
 | `npm run test:watch` | Vitest in watch mode. |
 | `npm run test:integration` | Just `tests/integration/`. |
 | `npm run coverage` | Vitest with coverage (uploaded to Codecov in CI). |
@@ -722,13 +761,18 @@ Grouped the way you actually reach for them. Every row below exists in
 | `npm run build:vite` | `vite build` only. |
 | `npm run build` | `build:css` + `build:vite` → `dist/`. Strips HTML comments and minifies CSS/JS. |
 | `npm run preview` | `vite preview` of the built `dist/`. |
-| `npm run ci` | `csp:check` + `sitemap:check` + `markdown:check` + `build` — what CI runs. |
+| `npm run generate` | Regenerate every artifact in one pass — sitemap, Markdown renditions, issuer logos, CSP hashes — then report what changed. Reach for this instead of the individual generators below. |
+| `npm run ci` | `csp:check` + `sitemap:check` + `markdown:check` + `logos:check` + `sh:check` + `notes:check` + `plist:check` + `build` + `npm test` — what CI runs. |
 | `npm run csp:hashes` | Recompute inline-script/JSON-LD CSP hashes; paste the output into `server/securityHeaders.js`. |
 | `npm run csp:check` | Fail if the committed CSP hashes are stale. Part of `npm run ci`. |
 | `npm run sitemap` | Regenerate `client/public/sitemap.xml` from `scripts/indexnow-urls.js`, with `lastmod` from git history. |
 | `npm run sitemap:check` | Fail if the committed sitemap is stale. Part of `npm run ci`. |
 | `npm run markdown` | Regenerate the Markdown rendition of every public page into `client/public/*.md`. Runs as part of `npm run build`. |
 | `npm run markdown:check` | Fail if a committed rendition is stale. Part of `npm run ci`. |
+| `npm run logos:check` | Fail if the bundled issuer-logo set is stale. Part of `npm run ci`. |
+| `npm run sh:check` | `bash -n` over every `*.sh` in the tree — catches a syntax error before a sweep or deploy finds it. Part of `npm run ci`. |
+| `npm run notes:check` | Measure the fenced paste blocks in `docs/release-notes/**` against the store caps (Play 500, TestFlight/App Store 4000) and flag a stated count that has drifted from its block. Part of `npm run ci`. |
+| `npm run plist:check` | Assert the iOS Debug Info.plist equals the Release one plus exactly the local-networking ATS exception (`scripts/check-debug-plist.js`). Part of `npm run ci`. |
 | `npm run check:crawlers` | Assert the live site allows answer engines and refuses training crawlers. Hits production, so it's deliberately not in CI. |
 
 **Ship**
@@ -738,6 +782,8 @@ Grouped the way you actually reach for them. Every row below exists in
 | `npm run deploy` | Runs `bash upload.sh` — copy from `scripts/examples/upload.example.sh` first; backs up remote, builds, rsyncs, `npm ci --omit=dev` + PM2 restart, verifies `/health`. |
 | `npm run deploy:ios` | Archive Release iOS + upload to App Store Connect / TestFlight (`scripts/ios-testflight.sh`). |
 | `npm run deploy:android` | `bundleRelease` + upload AAB (and mapping/native symbols) to Play; default track `beta` (Open testing) — `--track alpha` for Closed testing. |
+| `npm run bump:build` | Bump the shared marketing + build numbers everywhere — `project.yml`, `build.gradle.kts`, `package.json`/`-lock`, this README's badge and version rows, store docs, `docs/release-notes/`, CHANGELOG, `changelog.html` — then regenerate artifacts and verify parity. |
+| `npm run bump:build:check` | Verify all the version sites agree without changing anything. |
 | `npm run indexnow` | Ping IndexNow with the URLs in `scripts/indexnow-urls.js`. |
 
 There is deliberately **no** `npm start` and **no** `npm run rollback`.
@@ -757,12 +803,6 @@ the template: `bash scripts/examples/rollback.example.sh --list` — see
 | `npm run plaid:sandbox` | One-off Plaid sandbox API connectivity check (loads `.env` from repo root). |
 | `npm run paddle:webhook` | Local Paddle webhook signature/delivery check. |
 | `npm run promo` | Promo-code admin CLI (`scripts/promo.js` — create/list/disable codes in SQLite). |
-| `npm test` | Vitest run over `client/js`, `server/`, and `tests/integration`. |
-| `npm run csp:hashes` | Regenerate `INLINE_SCRIPT_HASHES` after editing an inline `<script>` in `client/*.html`. |
-| `npm run csp:check` | Verify every inline script's hash is in the CSP allowlist. |
-| `npm run sh:check` | `bash -n` over every `*.sh` in the tree — catches a syntax error before a sweep or deploy finds it. |
-| `npm run notes:check` | Measures the fenced paste blocks in `docs/release-notes/**` against the store caps (Play 500, TestFlight/App Store 4000) and flags a stated count that has drifted from its block. |
-| `npm run ci` | `csp:check` + `sitemap:check` + `markdown:check` + `sh:check` + `notes:check` + `build`. |
 ---
 
 ## Environment
@@ -790,6 +830,8 @@ fallback. **None of those files are committed** — `.env`, `.env.local`,
 |---|---|---|---|
 | `NODE_ENV` | no | `development` | Drives env-file loading + cookie `Secure` flag |
 | `PORT` | no | `5222` | Express port |
+| `FIHAVEN_DATA_DIR` | no | `<repo>/data` | The one writable directory — `cleartab.db` + the `mfa.key` fallback. Point it at a mounted volume to persist everything a container or self-host needs in one place. |
+| `TRUST_PROXY` | no | `1` | Express `trust proxy` — how many `X-Forwarded-For` hops to trust. `2` behind Cloudflare → nginx; also accepts a comma-separated IP/CIDR list or a named range (e.g. `uniquelocal`). |
 | `TURNSTILE_SECRET` | **yes** | — | Cloudflare Turnstile server-side secret. The server **exits at boot** without this and `TURNSTILE_SITEKEY` |
 | `TURNSTILE_SITEKEY` | **yes** | — | Cloudflare Turnstile public sitekey |
 | `VITE_TURNSTILE_SITEKEY` | **yes** | — | Same sitekey, exposed to Vite so it can inline into `login.html` at build time |
@@ -869,6 +911,7 @@ the Vite dev middleware.
 | `/privacy` | Privacy Policy | public | ✅ |
 | `/refunds` | Refund & cancellation policy | public | ✅ |
 | `/delete-account` | How to delete your account and data (store-required) | public | ✅ |
+| `/changelog` | Public release notes — the changelog rendered for the web | public | ✅ |
 | `/dashboard` | App dashboard — Dashboard / Bills / Cards / Loans / Income / Budget / Spending, plus Subscriptions / Calendar / History / Payoff / Rewards / Net Worth / Balances under **More** | required | ❌ noindex |
 | `/settings` | Grouped settings (open a group to drill in) — Profile (name, currency, time zone, default view), Budget (period, lens, category buckets, category icons), Payments & cards, Monthly rollover, Dashboard, Family & household, Security (email, password, 2FA), Notifications (email + push), Calendar/iCal, Bank linking, Data (export / import / clear / delete), Admin + Developer where applicable. Auto-synced to the server. | required | ❌ noindex |
 | `/welcome` | Post-signup onboarding flow | required | ❌ noindex |
@@ -876,7 +919,8 @@ the Vite dev middleware.
 | `/reset` | Forgot / reset password (token) | public | ❌ noindex |
 | `/recover` | Lost-2FA account recovery (token) | public | ❌ noindex |
 | `/plaid-oauth` | Plaid OAuth return handler for **web** Link (resumes bank Link after the redirect) | required | ❌ noindex |
-| `/plaid` | Plaid Universal Link target for **iOS** native Link (fallback page if the app does not open) | required | ❌ noindex |
+| `/plaid` | Plaid Universal Link target for **iOS** native Link (fallback page if the app does not open) | public | ❌ noindex |
+| `/oauth/apple`, `/oauth/google` | Android App Link OAuth landing (`oauth-return.html`) — package-locks an Intent into the app when App Links verification fails | public | ❌ noindex |
 | `/dev-portal` | Developer subscription portal (manage a comp/dev Pro grant) | required | ❌ noindex |
 | `/pay` | Paddle checkout hand-off page | required | ❌ noindex |
 | `/unsubscribe` | Email preferences / opt-out (signed token — no sign-in needed) | public | ❌ noindex |
@@ -1227,7 +1271,7 @@ invalidates any existing subscription instantly.
 
 - **DashboardView.svelte** renders the stat strip at the top of the
   dashboard — still owed this period, cushion after bills, card debt,
-  and 0% promos ending within three months, all derived live from
+  and promo windows ending within three months, all derived live from
   `$state` proxies. Loans are excluded from the card-debt tile and its
   count: they share the `cards` list but aren't revolving credit, so
   they'd otherwise put a mortgage into "card debt". Net worth and the
@@ -1250,13 +1294,18 @@ invalidates any existing subscription instantly.
 
 1. Dashboard boots → `storage.bootstrapData()` → `GET /api/data` →
    populates the `$state` proxies (`bills`, `cards`, `payments`,
-   `settings`) re-exported by `client/svelte/storage.svelte.js`.
+   `settings`) re-exported by `client/js/storage.svelte.js`.
 2. Any mutation goes through `storage.save(key, value)` →
    writes localStorage **and** schedules a debounced (800 ms) PUT.
 3. Svelte components read the `$state` proxies directly — Svelte 5's
    fine-grained reactivity handles re-renders. No event bridge.
 4. Offline writes get flushed on `pagehide` /
    `visibilitychange:hidden` via `fetch(keepalive: true)`.
+5. When a device holding unsent edits meets a server copy that has moved
+   on, `syncMerge.js` three-way-merges local, server, and the last-agreed
+   baseline (`fh_sync_base`) instead of last-write-wins — a field both
+   sides changed resolves to the local device and is reported as a
+   conflict.
 
 ### Live household sync is SSE, not WebSockets
 
@@ -1307,11 +1356,12 @@ when the server-side date doesn't match the user's wall clock.
 ### Card balances on payments
 
 Marking a card payment as paid (`confirmPay`) decrements
-`card.balance` (Statement), `card.promoBalance` if present, and
+`card.balance` (Statement), the earliest-ending promo window's balance
+(`card.promos`; the legacy `promoBalance` field for old data), and
 `card.currentBalance` when set. Edit-payment applies the delta.
 Delete-payment from the History tab adds the amount back. Balances
-never go negative. Paying a 0% promo card to zero prompts once to
-clear the promo flags.
+never go negative. Paying every promo window to zero prompts once to
+clear the card's promo flags.
 
 ### Rewards optimizer
 
@@ -1319,7 +1369,7 @@ The Rewards tab ranks your cards for a chosen spending category. Each
 card's effective rate is `rewardCategories[category] ?? rewardBase`, and
 the engine (`client/js/rewards.js`, mirrored by the native cores) returns
 the best card plus the rest, **with one deliberate exclusion**: any card
-inside an active 0% APR promo is dropped (and shown with a reason).
+inside an active promo window is dropped (and shown with a reason).
 Because payoff strategies pay 0% balances *last*, a reward purchase made
 on a promo card sits at the back of the queue and starts accruing
 interest before it's cleared — which almost always costs more than the
@@ -1493,10 +1543,13 @@ location / {
 }
 ```
 
-The Node process trusts the first proxy hop
-(`app.set('trust proxy', 1)`), so the `Secure` cookie flag fires
-when nginx terminates HTTPS upstream. Persist `data/` between
-deploys — it holds `cleartab.db` and the MFA key.
+The Node process trusts proxy hops per `TRUST_PROXY` (default `1`; set
+`2` when Cloudflare sits in front of nginx), so the `Secure` cookie flag
+fires when nginx terminates HTTPS upstream — and stays off when
+`PUBLIC_ORIGIN` is plain `http`, so a LAN self-host can still sign in.
+Persist `data/` between deploys — it holds `cleartab.db` and the MFA
+key (or set `FIHAVEN_DATA_DIR` to keep all writable state on one mounted
+volume).
 
 ### Email-MFA on the VPS
 

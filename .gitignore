@@ -48,6 +48,10 @@ server/*.db-shm
 # ── Maintainer-local docs (templates live under docs/maintainer/) ────────────
 docs/local/
 
+# ── Maintainer working dirs (store export zips, scratch images) ─────────────
+generated_images/
+store-assets/
+
 # ── Generated policy PDFs (source: docs/*.md — npm run generate:pdfs) ────────
 docs/pdf/
 
