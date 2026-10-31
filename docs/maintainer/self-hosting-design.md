@@ -131,17 +131,17 @@ Cert `seats` comes from the Family plan's `householdMax` (3).
 every user. Registration beyond seats → `seat-limit`. Household sharing
 works as-is — the seat cap already bounds membership.
 
-## Prep fixes (standalone, land first)
+## Prep fixes (landed — `a0ca153`)
 
-Behavior-identical on hosted, enable the above:
+Already on `release/1.7.0`, behavior-identical on hosted:
 
 1. `session.js` `cookieOpts()` — `secure` iff prod **and** `PUBLIC_ORIGIN`
    is https.
 2. `mfa.js` `rpConfig()` — prod rpID/origin derived from `PUBLIC_ORIGIN`
    hostname, not hardcoded `fihaven.app`.
-3. `FIHAVEN_DATA_DIR` env (default `<repo>/data`) for `cleartab.db` +
-   `mfa.key` + any other hardcoded `data/` paths. `FIHAVEN_TEST_DB_PATH`
-   keeps precedence for tests.
+3. `FIHAVEN_DATA_DIR` env (`server/dataDir.js`, default `<repo>/data`)
+   for `cleartab.db` + `mfa.key`. `FIHAVEN_TEST_DB_PATH` keeps precedence
+   for tests. Documented in `.env.example`.
 
 ## Client
 
@@ -209,8 +209,7 @@ New: `server/selfhost.js`, `server/licenseCert.js`,
 
 Edited: `server/index.js` (mounts, boot checks, refresh loop),
 `server/securityConfig.js` (self-host branch), `server/billing.js`
-(entitlement short-circuit), `server/session.js` (secure flag),
-`server/mfa.js` (rpID), `server/db.js` (tables + `FIHAVEN_DATA_DIR`),
+(entitlement short-circuit), `server/db.js` (new tables),
 `server/captcha.js` (self-host bypass), `server/routes/auth.js` (seat
 cap, auto-verify), `client/settings.html` (key UI), shared layout (meta
 fetch + banner), `.env.example`, `README.md`.
