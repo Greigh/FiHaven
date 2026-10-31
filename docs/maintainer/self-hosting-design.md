@@ -49,13 +49,16 @@ POST /api/selfhost/activate  ◄── HTTPS ──  POST /api/selfhost-local/ac
 
 **Key** — `fhk_` + 40 url-safe chars (~240 bits). Shown once at mint;
 stored as SHA-256 hash + a display prefix (`fhk_…·last4`). Multiple keys
-per account, labelled, independently revocable.
+per account (soft cap 10), labelled, independently revocable; each key
+may activate several instances (same household's NAS + homelab).
 
 **Cert** — `fh1.<b64url payload>.<b64url sig>`, Ed25519-signed JSON:
 `{iss:"fihaven.app", iid, plan:"family", seats, iat, exp, key_id}`.
 TTL **30 days**; refreshed every **24h**. The private key is
 `SELFHOST_SIGNING_KEY` in the hosted env only; the public key is a
 committed constant in the self-host verifier (public by definition).
+Certs are instance-bound: import rejects any `iid` ≠ the local
+`instance_id`, so a cert minted for one instance can't seed another.
 
 **Fail closed.** The hosted side only mints certs while the owner is
 currently Family-entitled. Lapse, revocation, and network outage are the
@@ -66,9 +69,11 @@ fihaven.app gets exactly the lapse behavior. Clock-rollback to defeat
 self-defeating.
 
 **Degrade (read-only).** When no valid cert exists: all mutating API
-calls 403 `license-degraded`; login, reads, and export keep working; a
-persistent banner explains why. A successful later refresh restores full
-function. Setup mode is stricter: everything except activation endpoints,
+calls 403 `license-degraded` **except** `/api/auth/*` (login, MFA/verify,
+passkey login, logout — an expired session must never lock someone out
+of their own data), `/api/selfhost-local/*`, and `/api/meta`. Reads and
+export keep working; a persistent banner explains why. A successful
+later refresh restores full function. Setup mode is stricter: everything except activation endpoints,
 `/api/meta`, and static assets returns 503, and the client redirects to
 `activate.html`.
 
@@ -116,8 +121,10 @@ UI "last seen" per key and makes one key serving many instances visible.
 | Turnstile | boot-required | skipped at boot; `verifyCaptcha` passes only when SELF_HOST **and** `TURNSTILE_SECRET` unset; BYO keys honored |
 | Cookie `secure` | `NODE_ENV=production` | also requires `PUBLIC_ORIGIN` https — http-LAN logins must work |
 | Email verify | `requireVerified` gates app | `SMTP_HOST` unset → auto-verify at registration; SMTP set → normal flow |
-| Passkey rpID | hardcoded `fihaven.app` | `PUBLIC_ORIGIN` hostname |
+| Passkey rpID | hardcoded `fihaven.app` | `PUBLIC_ORIGIN` hostname (WebAuthn needs a secure context — passkeys only work over TLS or `localhost`, docs note) |
 | Seats | — | `POST /register` → `seat-limit` once `count(users) = cert.seats` |
+| Admin role | `ADMIN_EMAILS` env | first registered account gets `role:'admin'` automatically (else nobody can reach admin routes like `deactivate`) |
+| Scheduler | on | stays on while degraded — internal reminder bookkeeping, not user data |
 | Entitlement | `computeEntitlement` per user | licensed → `{pro, plan:'family'}` for all users; degraded → `pro:false` |
 | Billing routes | mounted | mounted — client needs `GET /api/billing/status`; store/Paddle POSTs stay inert without credentials. Paywall UI hidden client-side |
 | IAP/OAuth dev-trust | forbidden in prod | still forbidden |

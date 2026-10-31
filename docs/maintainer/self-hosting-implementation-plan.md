@@ -151,20 +151,25 @@ non-JSON payload → `malformed`.
     degraded; else licensed)
   - `certInfo() -> {seats, expiresAt, keyId} | null`
   - `seats() -> number` (cert seats, else 0)
-  - `storeCert(cert) -> boolean` (verifies before persisting; bad → false)
+  - `storeCert(cert) -> boolean` — verifies signature+expiry **and**
+    `payload.iid === instanceId()` before persisting (certs are
+    instance-bound); any failure → `false`, nothing stored
   - `clearCert()`, `storedKeyFingerprint() -> string | null`,
     `storeKeyFingerprint(fp)`
   - `autoVerifyEmail() -> boolean` (`enabled() && !process.env.SMTP_HOST`)
   - `seatLimitReached() -> boolean` (`enabled() && dbApi.countUsers() >= seats()`)
-- Pubkey resolution: `process.env.SELFHOST_VERIFY_KEY ||
-  COMMITTED_PUBLIC_KEY` — constant starts as a placeholder filled at
-  provisioning (Task 12); comment marks it dev/test seam.
+  - `_setVerifyKeyForTests(pem | null)` — test-only pubkey seam. **No
+    env-var override**: a configurable pubkey would be a documented
+    self-signing backdoor (set env → mint `seats:999, exp:2099` certs).
+    `COMMITTED_PUBLIC_KEY` is the only runtime key; it starts as a
+    placeholder filled at provisioning (Task 12).
 
-- [ ] **Step 1: Failing test** — env `SELF_HOST=1`, `SELFHOST_VERIFY_KEY`
-  = test pubkey; `state()` → `unlicensed`; `storeCert(garbage)` → `false`,
-  `state()` → `unlicensed`... wait: storeCert refuses bad certs so nothing
-  is stored — a tampered row must come from `selfhostStateSet` directly:
-  set cert row to `fh1.bad.sig` → `state()` → `degraded` (not throw).
+- [ ] **Step 1: Failing test** — env `SELF_HOST=1`;
+  `_setVerifyKeyForTests(testPub)`. `state()` → `unlicensed`;
+  `storeCert(garbage)` → `false`. A tampered row must be seeded via
+  `selfhostStateSet` directly (storeCert refuses bad certs): set cert row
+  to `fh1.bad.sig` → `state()` → `degraded` (not throw). A validly-signed
+  cert for a **different** `iid` → `storeCert` → `false` (binding check).
   `storeCert(valid)` → `true`, `state()` → `licensed`, `seats()` → 3.
   `instanceId()` stable across calls, re-persists after delete.
   `autoVerifyEmail`/`seatLimitReached` matrix (enabled flag, SMTP_HOST,
@@ -242,7 +247,9 @@ non-JSON payload → `malformed`.
     `security.html`, `contact.html`, `404.html`, `500.html`, `favicon`,
     assets, `/api/meta`, `/api/selfhost-local/*`, `/health`).
     `degraded`: non-GET `/api/*` → 403 `{error:'license-degraded'}` except
-    `/api/selfhost-local/*`, `/api/auth/logout`.
+    **`/api/auth/*`** (login, mfa/verify, passkey login, logout — an
+    expired session must not lock users out of their own data),
+    `/api/selfhost-local/*`, `/api/meta`.
     `licensed`: `next()`.
   - `localRouter() -> express.Router`:
     - `GET /api/meta` → `{selfhost:true, licenseStatus: state(),
@@ -259,8 +266,9 @@ non-JSON payload → `malformed`.
 - [ ] **Step 1: Failing tests** — middleware matrix across the three
   states (503 on POST /api/data unlicensed; redirect on GET
   /dashboard.html; GET /api/meta allowed; degraded 403 on POST
-  /api/data, 200 GET, logout allowed); `/api/meta` body shape; activate
-  route delegates to `activate()`.
+  /api/data, 200 GET, **login + mfa/verify POSTs allowed**); `/api/meta`
+  body shape; activate route delegates to `activate()` and `{cert}` →
+  `storeCert` (covers the iid-mismatch → `invalid-cert` case).
 
 - [ ] **Step 2: Run, expect failure.**
 
@@ -287,7 +295,8 @@ non-JSON payload → `malformed`.
   `billing.computeEntitlement`, `rateLimit.checkKey/recordKey`,
   `requireAuth`, `requireVerified`, `requireCsrf`.
 - Produces:
-  - `POST /keys {label}` — session+verified+`plan==='family'` → mint
+  - `POST /keys {label}` — session+verified+`plan==='family'`; soft cap
+    10 live keys/account (`>=` → 403 `{error:'key-limit'}`) → mint
     `fhk_`+40 (crypto.randomBytes(30).toString('base64url') sliced),
     store `sha256` + prefix `fhk_…`+last4 → return `{id, key}` once.
   - `GET /keys` — masked list + `selfhostActivationsForKeys`.
@@ -340,6 +349,12 @@ non-JSON payload → `malformed`.
     token+`sendVerifyEmail`. On `sendVerifyEmail` failure in self-host,
     `console.error` the raw verify URL (`${origin}/verify-email?token=…`)
     so an admin with a broken SMTP isn't stuck.
+  - First-user admin: after `createUser` in self-host, if
+    `dbApi.countUsers() === 1` → `dbApi.setUserRole(user.id, 'admin')`
+    (otherwise nobody can reach `deactivate`/admin routes without
+    `ADMIN_EMAILS` set). Honest note: seat check→create isn't atomic —
+    concurrent registers could land one user over the cap; acceptable at
+    family scale, no transaction needed.
 
 - [ ] **Step 1: Failing tests** — `captcha.test.js`: bypass matrix
   (SELF_HOST ±TURNSTILE_SECRET ±token). `selfhostAuth.test.js`: extract
@@ -348,9 +363,10 @@ non-JSON payload → `malformed`.
   calls `dbApi.setEmailVerified` and does NOT send; otherwise it issues
   `verify-email` + `sendVerifyEmail`, and on send failure in self-host it
   logs the raw verify URL (assert via `vi.spyOn(console,'error')` and a
-  stubbed `emails.sendVerifyEmail` throw). `seatLimitReached` is already
-  pinned in Task 3; the register-path wiring is exercised in the Task 11
-  docker smoke.
+  stubbed `emails.sendVerifyEmail` throw). First-user admin grant:
+  `countUsers()===1` → `setUserRole(id,'admin')` called (stub dbApi).
+  `seatLimitReached` is already pinned in Task 3; the register-path
+  wiring is exercised in the Task 11 docker smoke.
 
 - [ ] **Step 2: Run, expect failure.**
 
@@ -378,7 +394,10 @@ non-JSON payload → `malformed`.
     - `if (selfhost.enabled()) { app.use(selfhost.localRouter());
       app.use(selfhost.gate()); } else { app.use('/api/selfhost',
       require('./routes/selfhost')); }` — gate **before** the data/billing
-      router mounts.
+      routers **and before the static/page mounts**, or `dashboard.html`
+      serves before the setup redirect can fire.
+    - Scheduler keeps running in degraded state (reminder bookkeeping
+      isn't user financial data — spec delta row).
     - `selfhost.enabled()` → boot log license state + `selfhost.refresh()`
       kick + `startRefreshLoop()` alongside the existing scheduler start.
 
@@ -444,7 +463,9 @@ non-JSON payload → `malformed`.
     `/login.html`; on `{error}` show server error string. External JS
     only, minimal page consistent with existing `.html` shells (check
     `verify-email.html`/`login.html` for house structure).
-  - Every app page (app.js boot): fetch `/api/meta` → `unlicensed` →
+  - Every app page (app.js boot): fetch `/api/meta` — a 404/error means
+    hosted mode, treat as `{selfhost:false}` and do nothing (the hosted
+    site must not break on the new fetch); `unlicensed` →
     `location.replace('/activate.html')`; `degraded` → persistent
     read-only banner at top of shell.
   - `settings.html`: "Self-host keys" card — only rendered when
@@ -472,17 +493,23 @@ non-JSON payload → `malformed`.
 **Files:**
 - Create: `Dockerfile`, `.dockerignore`, `docker-compose.yml`
 - Modify: `.env.example` (`SELF_HOST`, `FIHAVEN_LICENSE_SERVER`,
-  `SELFHOST_SIGNING_KEY`, `SELFHOST_VERIFY_KEY`, `ADMIN_EMAILS` notes)
+  `SELFHOST_SIGNING_KEY`, `ADMIN_EMAILS` notes — no
+  `SELFHOST_VERIFY_KEY`: deliberately env-less, see Task 3)
 
 **Interfaces:** none (artifact task).
 
 - [ ] **Step 1:** `Dockerfile` — stage 1 `node:22-bookworm-slim` AS build:
-  `apt` toolchain for better-sqlite3 fallback, `npm ci`, `npm run build`.
-  Stage 2 same base: `npm ci --omit=dev`, copy `server/`, `dist/`,
-  `schema.sql`, `package.json`; `ENV NODE_ENV=production SELF_HOST=1
-  FIHAVEN_DATA_DIR=/data PORT=5222`; `VOLUME /data`; `EXPOSE 5222`;
-  `USER node`; `HEALTHCHECK` via `node -e` fetch of `/health` (slim has no
-  curl); `CMD ["node","server/index.js"]`.
+  `apt` toolchain (better-sqlite3/bcrypt gyp fallback), `npm ci` — **all
+  deps**, so native modules compile where the toolchain lives — then
+  `npm run build` → `dist/`, then `npm prune --omit=dev` to slim
+  `node_modules`. Stage 2 same base: `COPY --from=build node_modules` (no
+  npm install in stage 2 — it would hit node-gyp with no compiler),
+  copy `server/`, `dist/`, `schema.sql`, `package.json`;
+  `RUN mkdir -p /data && chown -R node:node /data` (a fresh named volume
+  mounts root-owned and the `node` user couldn't open the DB);
+  `ENV NODE_ENV=production SELF_HOST=1 FIHAVEN_DATA_DIR=/data PORT=5222`;
+  `VOLUME /data`; `EXPOSE 5222`; `USER node`; `HEALTHCHECK` via `node -e`
+  fetch of `/health` (slim has no curl); `CMD ["node","server/index.js"]`.
 - [ ] **Step 2:** `.dockerignore` — `node_modules`, `data`, `.env*`,
   `dist`, `ios`, `android`, `store-assets`, `.firecrawl`,
   `.playwright-mcp`, `docs`, `tests`, `generated_images`.
@@ -524,7 +551,10 @@ non-JSON payload → `malformed`.
   fihaven.app → Settings → Self-host keys" (Family required), env table
   (SELF_HOST baked in; SMTP/PLAID/TURNSTILE/VAPID/OAuth BYO), upgrade via
   `docker pull`, read-only degrade explanation, revoke/regenerate flows.
-  README gets a short "Self-hosting" pointer section.
+  Include: bind-mount users must `chown` the host dir to uid 1000 (`node`)
+  or use the named volume; passkeys require a secure context so on plain
+  `http://lan` they simply won't appear — recommend a reverse proxy or
+  Tailscale TLS. README gets a short "Self-hosting" pointer section.
 - [ ] **Step 4: Provisioning** — generate the production Ed25519 pair:
   `scripts/selfhost-cert.js --generate` (prints pub+priv PEM). Private →
   hosted `.env` `SELFHOST_SIGNING_KEY`; public → replace
