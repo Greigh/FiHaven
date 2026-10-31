@@ -10,7 +10,20 @@ Releases & Updates
 
 Every notable update, feature addition, security improvement, and bug fix across the FiHaven Web app, iOS, Android, and backend services.
 
-1.7.0 (Build 62) Latest Beta
+1.7.1 (Build 63) Latest Beta
+
+October 30, 2026
+
+**Multiple promo APR windows per card, plus a round of sign-in and polish fixes.**
+
+- Cards can carry several promo APR windows at once — a 0% purchases window beside a balance-transfer offer — each with a label, its own rate, balance and end date. Older apps keep seeing the window whose deadline matters most.
+- Payoff plans charge every window its own rate until it expires — promo APRs are real interest now, not an assumed 0%.
+- Self-hosted installs: one writable data directory, passkeys on any domain, and sessions that work over plain http.
+- The dashboard paints cached data instantly and keeps the tab you were looking at; a stale free-tier hint can't flash an upsell at Pro users; Mac Balances caches its bank figures.
+
+iOS 1.7.1 (63) Android 1.7.1 (63) Web fihaven.app Server API
+
+1.7.0 (Build 62) Beta
 
 October 24, 2026
 

@@ -13,15 +13,15 @@ Each release below uses two layers:
 
 ---
 
-## [1.7.0] Current Pre-Release — 2026-10-24
+## [1.7.1] Current Pre-Release — 2026-10-30
 
 | | |
 |---|---|
 | **Status** | Pre-release — beta build (TestFlight / Play open testing) |
-| **iOS** | 1.7.0 (62) — The Mac app gets its design pass: a branded About, a profile-and-tiles Settings home, a true month-view Calendar, side-by-side Income panels, and sign-in buttons that actually match — plus payoff recommendations that never compare truncated simulations. |
-| **Android** | 1.7.0 (versionCode 62) — Payoff recommendations that never compare truncated simulations, and the shared "projection capped" honesty wording. |
-| **Web** | Live at [fihaven.app](https://fihaven.app) — payoff tiles label capped interest as what it is: interest accrued inside the 30-year projection. |
-| **Server** | No changes this train — API in lockstep with build 60. |
+| **iOS** | 1.7.1 (63) — A card can carry several promo APR windows at once — each labeled, with its own rate, balance and deadline — and payoff plans charge each window its real rate; Mac Balances stops refetching bank figures on every visit. |
+| **Android** | 1.7.1 (versionCode 63) — Multiple promo APR windows per card, each with its own rate in payoff plans. |
+| **Web** | Live at [fihaven.app](https://fihaven.app) — multi-promo cards, plus a first paint that no longer snaps back to the landing tab once the server answers. |
+| **Server** | Self-hosted deploy fixes — one writable data directory, passkeys on any domain, and sessions that work over plain http. |
 
 > **Get FiHaven:**
 > **iOS** — [App Store](https://apps.apple.com/us/app/fihaven/id6781084347) ·
@@ -30,7 +30,7 @@ Each release below uses two layers:
 > Want the beta? **iOS** — [TestFlight](https://testflight.apple.com/join/SdN4yuuH) ·
 > **Android** — [Play open testing](https://play.google.com/store/apps/details?id=app.fihaven)
 
-> **Marketing version is 1.7.0.** The build number continues 61 → 62
+> **Marketing version is 1.7.1.** The build number continues 62 → 63
 > — since build 49 it is a single shared counter across both stores and does
 > **not** reset on a marketing bump (`CURRENT_PROJECT_VERSION` in
 > `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`;
@@ -40,14 +40,17 @@ Each release below uses two layers:
 
 ### Summary
 
-> 1.7.0 is the Mac design pass. Build 60 made FiHaven a native Mac app; builds 61–62 make it look like one. About gains a branded hero and real link cards, Settings opens on a profile card and a tile grid instead of an edge-to-edge list, and every settings page reads inside a readable-width column. The Income screen splits into two side-by-side cards that fill the window, and Calendar stops being a column of dots — it's a true month view with due items inside the cells, the neighbouring months dimmed at the edges, and month paging.
+> 1.7.1 is the multi-promo build. A card used to track a single promotional APR window; now it tracks several at once — a 0% purchases window beside a balance-transfer offer — each with an optional label, its own APR, its own balance, and its own end date. Card editors on web, iOS and Android grew add/remove promo rows; the dashboard flags each window as its deadline nears; and the payoff planner charges every window its own rate until it expires, then the card's regular rate — promo APRs are real interest now, not an assumed 0%.
 >
-> The payoff screens get an honesty fix on every platform: a simulation that runs into the 30-year projection cap never had a real "total interest", yet the apps compared those truncated totals to crown a "Best for you" strategy — and web tiles labeled the truncated number plain "Interest". Recommendations now come only from simulations that finished, and capped totals say "interest accrued within the projection" everywhere.
+> Alongside it, a round of fixes: self-hosted installs can keep all writable state on one mounted volume, passkeys work on whatever domain the server is reached at, and sign-in survives a production deploy reached over plain http. The web dashboard paints cached data immediately without mutating it, then refreshes in place — it no longer snaps back to the landing tab while you were looking at something else — and a Pro user can't catch a free-tier upsell that a stale cache hint would have shown. On Mac, the Balances screen caches its bank figures instead of refetching on every visit, and a daylight-saving off-by-one in subscription trial countdowns is gone.
+>
+> Older apps and older data are safe: cards written before multi-promo still read exactly as they did, and older clients that don't know the new field keep seeing the promo window whose deadline matters most.
 
 ### What made up this version
 
 | Build | Shipped | Headline |
 |---|---|---|
+| [63](#171-build-63--2026-10-30) | 2026-10-30 | Multiple promo APR windows per card, self-hosted sign-in fixes |
 | [62](#170-build-62--2026-10-24) | 2026-10-24 | Mac calendar responds instantly — the month grid scanned bills once per cell; it scans once per render now. |
 | [61](#170-build-61--2026-10-24) | 2026-10-24 | A real Mac app, refined — branded About and Settings panes, a true month-view calendar, side-by-side Income panels, and payoff recommendations that never lean on truncated simulations. |
 | [60](#168-build-60--2026-10-22) | 2026-10-22 | An adaptive shell for iPad and foldables — a real sidebar on wide windows, readable-width content everywhere, and accessibility-size text that keeps figures intact — plus sign-in and session-restoration fixes, and a complete visual audit of every screen whose headline catch is a sign-in race that could write one account's save over another's data. |
@@ -58,7 +61,40 @@ Each release below uses two layers:
 | [53](#163-build-53--2026-09-02) | 2026-09-02 | An asset account can be pinned to a bank account from the editor, so a sync can find it and its balance reaches the Balances tab; the post-sync prompt now covers account balances. No server deploy, no sign-out |
 
 Store copy for every build of this train is in
-[`docs/release-notes/v1.7.0/`](docs/release-notes/v1.7.0/).
+[`docs/release-notes/v1.7.1/`](docs/release-notes/v1.7.1/).
+
+---
+
+## [1.7.1 build 63] — 2026-10-30
+
+| | |
+|---|---|
+| **Status** | Pre-release — beta build (TestFlight / Play open testing) |
+| **iOS** | 1.7.1 (63) — Multiple promo APR windows per card, self-hosted sign-in fixes |
+| **Android** | 1.7.1 (versionCode 63) — Multiple promo APR windows per card, self-hosted sign-in fixes |
+| **Web** | Live at [fihaven.app](https://fihaven.app) |
+| **Server** | API in lockstep with client build 63 |
+
+> **Build bump.** The build number continues 62 → 63 across both stores together (`CURRENT_PROJECT_VERSION` in `ios/FiHavenApp/project.yml`, `versionCode` in `android/app/build.gradle.kts`).
+
+> **No forced sign-out, no data migration.**
+
+### Summary
+
+> A card can now carry several promotional APR windows at once — a 0% purchases window beside a balance-transfer offer — each with an optional label, its own APR, an optional balance and an optional end date. Card editors on all three platforms grew add/remove promo rows, the dashboard flags each window as its deadline nears, and the payoff planner charges every window its own rate until it expires.
+>
+> Plus a round of fixes: self-hosted installs get one writable data directory, passkeys work on any domain, sessions survive plain-http deploys; the web dashboard paints instantly and stops snapping back to the landing tab; a stale free-tier hint can't flash an upsell at Pro users; Mac Balances caches its bank figures; and a DST off-by-one in trial countdowns is fixed.
+
+### Technical changelog
+
+- **Cards carry `promos[]`** (`client/js/utils.js` `cardPromos`, `Card.swift` `promoList`, `Models.kt` `promoList`): each entry is `{id, label?, apr, balance?, endDate?}` — label free-text, balance blank meaning "whatever the stated balances don't claim", end date optional. Readers prefer `promos` when non-empty and otherwise synthesize one promo from the legacy `hasPromo`/`promoAPR`/`promoEndDate`/`promoBalance` fields; an explicit `hasPromo: false` suppresses stale legacy values, while flag-absent data carrying the fields still reads as a promo. Writers mirror the earliest-ending promo into the legacy fields — and the payment-delta drain re-mirrors — so older clients keep seeing the most urgent window, and older data reads unchanged.
+- **`promoNeeded` sums per-window**: each promo contributes its covered balance divided by months left (expired or undated windows want their whole balance), and the recommended payment stays `max(minPayment, promoNeeded)`. Payments drain stated promo balances earliest-ending first; `cardAtPeriodStart` refunds the same bucket so period pay-targets hold still as installments record.
+- **Payoff sim is per-bucket** (`payoff.js`, `Payoff.swift`, `Payoff.kt`): every promo is its own balance bucket accruing *its own* APR while inside its window and the card's regular APR after expiry; uncovered balance accrues the regular rate throughout. `promoAPR` finally prices real interest — the sim used to treat any promo as 0%.
+- **Every surface reads the normalized list**: add/remove rows in all three card editors, per-window dashboard alerts, the card-row pill (rate + count), promo filter/sort keys on the soonest end date, calendar, pay dialog and CSV export (which reports the soonest window in the single-promo columns). Rewards exclusion still triggers on any active promo — a nonzero-rate one now says its real rate instead of "0%".
+- **Self-hosted deploy fixes** (`server/dataDir.js`, `db.js`, `mfa.js`, `session.js`, `.env.example`): `FIHAVEN_DATA_DIR` points the SQLite db and the mfa.key fallback at one mountable volume (default unchanged: `<repo>/data`); the passkey `rpID` derives from `PUBLIC_ORIGIN`'s hostname instead of a hardcoded `fihaven.app`; and session cookies go `Secure` only when the configured origin is really `https:` — a NODE_ENV=production deploy reached over http no longer mints cookies the browser refuses to send back.
+- **Web bootstrap and entitlement fixes** (`storage.svelte.js`, `app.js`, `localCache.js`, `pro.js`, `spending.js`): the bootstrap promise now resolves on the 401 and suspended paths (it used to hang), the dashboard paints cached data immediately and re-renders the *current* tab when the server copy lands instead of snapping back to the landing view, `fh_entitlement` is cleared with the other data keys on account switch (a Pro user's leftover hint could unlock the next sign-in's gated tabs), and the Pro upsell card waits on bootstrap's settled entitlement rather than firing a second status call.
+- **iOS store and Mac fixes** (`AppStore.swift`, `StoreManager.swift`, `AppEnvironment.swift`, `BalancesView.swift`, `MacTables.swift`, `SubscriptionsFinder.swift`): `bankFigures` moved onto the store behind a 300-second TTL so every macOS Balances rebuild stopped refiring `plaidStatus`; `StoreManager.start()` is idempotent against the double kick from `enterSignedIn` and `RootView.task`; the on-device snapshot's last-known entitlement forwards through `onEntitlementHint` during hydration — a hint only, writes still prove themselves against the server; and subscription trial-day countdowns count days in the timezone the dates were parsed in, fixing an off-by-one over the Nov 1 DST boundary.
+- **Dependencies**: kotlinx-serialization-json 1.12.0, Plaid Link 6.3.1, Firebase BOM 35.1.0, AGP 9.5.0, Gradle wrapper, express-rate-limit 8.7.2, googleapis 189.0.0, nodemailer 10.3.1, svelte 5.57.3; the Kotlin < 2.3.30 CodeQL pin comment is obsolete on Kotlin 2.4.21.
 
 ---
 
