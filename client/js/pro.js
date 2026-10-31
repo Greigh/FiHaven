@@ -12,6 +12,8 @@
    round-trip and the onboarding hand-off.
 ═══════════════════════════════════════════════════════════ */
 
+import { bootstrapDone, entitlement } from './storage.svelte.js';
+
 var overlay = null;
 var lastBilling = { paddlePortal: false, plans: null };
 var paddleReady = null;    // Promise, resolved once Paddle.js is initialized
@@ -850,11 +852,15 @@ function renderNudge(slot) {
   var slot = document.querySelector('[data-pro-nudge-slot]');
   if (!slot) return;                       // dashboard-only
   if (Date.now() < snoozedUntil()) return; // recently dismissed
-  billingFetch('status').then(function (res) {
-    var ent = res.ok && res.data ? res.data.entitlement : null;
-    if (ent && ent.pro) return;            // never shown to Pro users
+  // /api/data already carried the entitlement — wait on bootstrap's answer
+  // instead of a second /api/billing/status. The cached hint must not show
+  // the card (a stale free would flash an upsell at a Pro user), so it reads
+  // the settled state, which only the server decides.
+  bootstrapDone.then(function (answered) {
+    if (!answered) return;                 // offline: stay silent, as before
+    if (entitlement.pro) return;           // never shown to Pro users
     renderNudge(slot);
-  }).catch(function () { /* stay silent on failure */ });
+  });
 })();
 
 /* ── Checkout / portal return handler ─────────────────────── */

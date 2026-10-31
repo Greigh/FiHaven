@@ -397,6 +397,11 @@ final class AppEnvironment: ObservableObject {
                 self.authError = "Your session expired. Please sign in again."
             }
         }
+        // Paint last-known Pro gating from the on-device snapshot the moment
+        // it hydrates — well before fetchData, let alone the status fetch,
+        // can answer. The server stays authoritative: a stale hint is revoked
+        // when billingStatusFull lands inside start().
+        store.onEntitlementHint = { [weak self] in self?.billing.seed($0) }
         self.store = store
         session = .signedIn(user)
         // A fresh sign-in just wrote the token — if the keychain refused, the
@@ -405,9 +410,16 @@ final class AppEnvironment: ObservableObject {
         if fresh, let store = tokens as? KeychainTokenStore {
             sessionSaveNotice = Self.sessionSaveNotice(forWriteStatus: store.lastWriteStatus)
         }
-        await store.load()
+        // fetchData and billingStatusFull are independent; awaiting them
+        // serially doubled the window where a stale entitlement hint holds
+        // before refresh() revokes it. start() is idempotent, so this also
+        // dedupes RootView.task's call whichever order they land in.
+        async let loaded: Void = store.load()
+        async let started: Void = startBilling()
+        await loaded
         // Seed the entitlement from the data fetch to avoid a gating
-        // flicker, then start StoreKit (authoritative refresh + listener).
+        // flicker. seed() is hint-only: once refresh() has answered, a late
+        // hint can't re-grant a revoked state.
         billing.seed(store.data.entitlement)
         #if DEBUG
         // FH_DEV_ENTITLEMENT wins over the seeded value — applied here so it
@@ -415,17 +427,20 @@ final class AppEnvironment: ObservableObject {
         // default shape.
         billing.applyDevEntitlement()
         #endif
-        #if DEBUG
-        // Default to skipping StoreKit in Debug unless explicitly overridden
-        if ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] == "0" {
-            await billing.start()
-        } else {
-            fhLog("[AppEnvironment] Skipping StoreKit start (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
-        }
-        #else
-        await billing.start()
-        #endif
+        await started
         fhLog("[AppEnvironment] enterSignedIn end; session=\(session)")
+    }
+
+    /// One call site for the gate both enterSignedIn and RootView.task
+    /// applied inline: DEBUG skips StoreKit unless FH_SKIP_STOREKIT=0.
+    private func startBilling() async {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["FH_SKIP_STOREKIT"] == "0" else {
+            fhLog("[AppEnvironment] Skipping StoreKit start (DEBUG default; set FH_SKIP_STOREKIT=0 to enable)")
+            return
+        }
+        #endif
+        await billing.start()
     }
 
     private func runAuth(_ op: @escaping () async throws -> Void) async {

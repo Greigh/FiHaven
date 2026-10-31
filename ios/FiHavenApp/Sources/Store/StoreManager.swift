@@ -62,18 +62,27 @@ final class StoreManager: ObservableObject {
     private var listener: Task<Void, Never>?
     /// Fetched once per launch — see signedAppTransaction().
     private var cachedAppTransaction: String?
+    /// enterSignedIn and RootView.task both kick off start() at launch; the
+    /// flag keeps the second call from re-fetching status and products.
+    private var started = false
+    /// Set once the server's billingStatusFull (or the DEBUG synth) has
+    /// spoken: a cache-hydrate hint landing after that point must not
+    /// re-grant a state the server already revoked.
+    private var authoritative = false
 
     init(api: APIClient) { self.api = api }
 
     /// Seed from the entitlement already in `/api/data` so gating doesn't
     /// flicker before the authoritative refresh lands.
     func seed(_ ent: Entitlement?) {
-        if let ent, !entitlement.pro { entitlement = ent }
+        if let ent, !authoritative, !entitlement.pro { entitlement = ent }
     }
 
     /// Begin listening for transaction updates (renewals, Ask-to-Buy,
     /// offer-code redemptions) and pull authoritative state + products.
     func start() async {
+        guard !started else { return }
+        started = true
         if listener == nil {
             listener = Task { [weak self] in
                 for await update in Transaction.updates {
@@ -92,6 +101,8 @@ final class StoreManager: ObservableObject {
     func reset() {
         listener?.cancel()
         listener = nil
+        started = false
+        authoritative = false
         entitlement = Entitlement()
         billingPortal = false
         products = []
@@ -100,10 +111,11 @@ final class StoreManager: ObservableObject {
 
     func refresh() async {
         #if DEBUG
-        if let synth = Self.devEntitlement(devEntitlementOverride) { entitlement = synth; return }
+        if let synth = Self.devEntitlement(devEntitlementOverride) { entitlement = synth; authoritative = true; return }
         #endif
         if let status = try? await api.billingStatusFull() {
             entitlement = status.entitlement
+            authoritative = true
             billingPortal = status.paddlePortal ?? false
         }
     }

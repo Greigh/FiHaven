@@ -93,6 +93,11 @@ export function setEntitlement(e) {
   entitlement.productId = next.productId ?? null;
   entitlement.plan = next.plan ?? null;
   entitlement.expiresAt = next.expiresAt ?? null;
+  // Session-scoped record of the gating the user was last shown, so the next
+  // cold load can paint it while /api/data is still in flight (hydrateFromCache).
+  // It is a hint only — the server re-decides on every bootstrap — and
+  // clearSessionCache() drops it on sign-out like every per-account key.
+  try { localStorage.setItem('fh_entitlement', JSON.stringify(entitlement)); } catch (err) { /* ignore */ }
 }
 
 /* ── Dev entitlement override (admins only) ─────────────────
@@ -353,9 +358,12 @@ function cachedData() {
   };
 }
 
-function applyData(d) {
+// `hydrate=false` paints the warm-start cache without declaring the state
+// settled: a pagehide/online push in the fetch window must not send the stale
+// snapshot over newer server state, which `hydrated` keeps guarding against.
+function applyData(d, hydrate) {
   d = d || {};
-  hydrated = true;
+  if (hydrate !== false) hydrated = true;
   setBills(d.bills);
   setCards(d.cards);
   setPayments(d.payments);
@@ -692,20 +700,45 @@ window.addEventListener('online', () => {
 });
 
 /* ── Startup load ────────────────────────────────────────── */
+/* Resolved once the server has answered this session's bootstrap — true when
+   a payload arrived (including the keep-cache path), false when the device is
+   offline or the call failed. UI that needs the SERVER's entitlement — never
+   the cache's forgeable hint — waits on this instead of issuing its own
+   /api/billing/status. */
+let resolveBootstrap;
+export const bootstrapDone = new Promise((r) => { resolveBootstrap = r; });
+
+/* Paint the snapshot this device stored, before /api/data answers. The
+   dashboard used to sit empty — and gate Pro off — for the whole round-trip
+   even though the data was in localStorage the whole time. `hydrated` stays
+   false until the server (or the offline fallback) settles, so the pagehide /
+   online push guards still treat the state as undecided. The entitlement is
+   likewise a display hint only: every write still proves itself on the wire,
+   and applyEntitlement(server) overwrites it on arrival. */
+function hydrateFromCache() {
+  dataOwner = currentOwner();
+  applyData(cachedData(), false);
+  const ent = load('fh_entitlement', null);
+  if (ent && typeof ent === 'object') setEntitlement(ent);
+}
+
 // Resolves once bills/cards/payments/settings are populated.
 // Server data wins; a pre-account localStorage dataset is
 // migrated up on first login; offline falls back to this
 // device's cache.
 export function bootstrapData() {
+  hydrateFromCache();
   return fetch('/api/data', { credentials: 'same-origin' })
     .then((r) => {
       if (r.status === 401) {
+        resolveBootstrap(false);
         window.location.replace('/login');
         return Promise.reject('unauth');
       }
       if (r.status === 403) {
         return r.json().catch(() => ({})).then((d) => {
           if (d && d.error === 'account-suspended') {
+            resolveBootstrap(false);
             if (window.AppAuth && window.AppAuth.showSuspendedLock) {
               window.AppAuth.showSuspendedLock(d.reason || null);
             }
@@ -719,6 +752,7 @@ export function bootstrapData() {
     })
     .then((server) => {
       applyEntitlement(server);
+      resolveBootstrap(true);
       const owner = server.email || '';
       dataOwner = owner;
 
@@ -786,6 +820,7 @@ export function bootstrapData() {
       // pending marker is deliberately left in place: the edits behind it
       // still haven't reached the server, and the `online` listener (or the
       // next successful boot) is what finally pushes them.
+      resolveBootstrap(false);
       dataOwner = currentOwner();
       applyData(cachedData());
       setSyncStatus('offline');

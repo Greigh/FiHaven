@@ -141,7 +141,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
     // Google Play Billing for subscriptions (docs/native-contract.md §billing).
     implementation("com.android.billingclient:billing-ktx:9.1.0")
@@ -152,7 +152,7 @@ dependencies {
 
     // Plaid Link for in-app bank connections (Pro). Drives the existing
     // /api/plaid link-token + exchange endpoints.
-    implementation("com.plaid.link:sdk-core:6.2.2")
+    implementation("com.plaid.link:sdk-core:6.3.1")
 
     // Google Sign-In via Credential Manager (returns an OIDC ID token we post
     // to /api/auth/oauth/google).
@@ -163,7 +163,7 @@ dependencies {
     // Custom Tabs for the Sign in with Apple web flow.
     implementation("androidx.browser:browser:1.10.0")
 
-    implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 }

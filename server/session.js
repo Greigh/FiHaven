@@ -41,9 +41,13 @@ function hashId(raw) {
 const COOKIE_PATH = '/';
 
 function cookieOpts() {
+  const origin = String(process.env.PUBLIC_ORIGIN || '').trim();
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // Secure iff the configured origin is really https — NODE_ENV=production
+    // alone isn't enough: a prod-mode deploy reached over plain http would
+    // mint cookies the browser refuses to send back.
+    secure: process.env.NODE_ENV === 'production' && /^https:\/\//i.test(origin),
     sameSite: 'lax',
     path: COOKIE_PATH,
     maxAge: TTL_MS,

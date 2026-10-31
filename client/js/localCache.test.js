@@ -24,8 +24,10 @@ describe('localCache', () => {
     // point the next session at data that no longer exists.
     // `fh_sync_base` is the three-way merge's baseline — one account's data.
     // Left behind, the next user's records would all read as local deletions.
+    // `fh_entitlement` is the last session's gating hint — a Pro user's
+    // leftover copy would unlock the next sign-in's tabs until corrected.
     expect(SESSION_KEYS).toEqual(
-      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync', 'fh_sync_base', 'fh_plaid_oauth'])
+      DATA_CACHE_KEYS.concat(['fh_data_owner', 'fh_pending_sync', 'fh_sync_base', 'fh_plaid_oauth', 'fh_entitlement'])
     );
   });
 

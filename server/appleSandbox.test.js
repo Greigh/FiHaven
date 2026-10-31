@@ -17,7 +17,8 @@ const require = createRequire(import.meta.url);
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.FIHAVEN_TEST_DB_PATH =
-  process.env.FIHAVEN_TEST_DB_PATH || path.join(serverDir, '..', 'data', 'test-apple-sandbox.db');
+  process.env.FIHAVEN_TEST_DB_PATH ||
+  path.join(require(path.join(serverDir, 'dataDir.js')), 'test-apple-sandbox.db');
 
 const billing = require(path.join(serverDir, 'billing.js'));
 const googlePlay = require(path.join(serverDir, 'googlePlay.js'));

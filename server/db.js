@@ -12,7 +12,7 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 const mfa = require('./mfa');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = require('./dataDir');
 const DB_PATH = process.env.FIHAVEN_TEST_DB_PATH
   ? path.resolve(process.env.FIHAVEN_TEST_DB_PATH)
   : path.join(DATA_DIR, 'cleartab.db');

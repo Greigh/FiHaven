@@ -32,9 +32,15 @@ export const DATA_CACHE_KEYS = [
  *
  *  So does `fh_sync_base`, the three-way merge's baseline. It is one account's
  *  data, and a merge measured against the wrong account's ancestor would read
- *  every one of the next user's records as a deliberate local deletion. */
+ *  every one of the next user's records as a deliberate local deletion.
+ *
+ *  And so does `fh_entitlement`: it is the gating hint the last session was
+ *  shown, so a Pro user's leftover copy would unlock the next sign-in's tabs
+ *  until the server corrected it — the exact leak the data keys were dropped
+ *  over. */
 export const SESSION_KEYS = DATA_CACHE_KEYS.concat([
   'fh_data_owner', 'fh_pending_sync', 'fh_sync_base', 'fh_plaid_oauth',
+  'fh_entitlement',
 ]);
 
 /** Remove every session-scoped key. Safe when storage is unavailable. */

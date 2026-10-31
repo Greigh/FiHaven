@@ -24,9 +24,18 @@ enum SyncState: Equatable {
 /// storage.svelte.js (docs/native-contract.md §4).
 @MainActor
 final class AppStore: ObservableObject {
-    @Published private(set) var data = AppData()
+    @Published private(set) var data = AppData() {
+        // Every write — mutate()'s in-place edit or a wholesale adoption —
+        // bumps the generation the memoized deriveds below are keyed on.
+        didSet { derivedGeneration &+= 1 }
+    }
     @Published private(set) var syncState: SyncState = .idle
     @Published private(set) var loaded = false
+    /// When the server's copy (or the offline fallback's) was last adopted.
+    /// The warm-start paint deliberately does NOT set it, so consumers like
+    /// the macOS "Synced h:mm" subtitle keep meaning "when the truth
+    /// arrived", not "when the cache appeared".
+    @Published private(set) var lastSyncAt: Date?
     @Published private(set) var rolloverPrompt: RolloverPrompt?
     /// Queue of catalog rate updates awaiting Update / Keep mine.
     @Published private(set) var presetUpdatePrompt: Rewards.PendingPresetUpdate?
@@ -80,6 +89,35 @@ final class AppStore: ObservableObject {
     private var owner: String = ""
     private var expectedOwner: String = ""
 
+    /// Last-known entitlement surfaced while hydrating the on-device cache,
+    /// forwarded so StoreManager can render the right gating before the
+    /// server answers. A hint only — the status fetch still decides, and a
+    /// stale snapshot can't mint Pro: writes still prove themselves on the
+    /// wire, and refresh() revokes the hint a moment later.
+    var onEntitlementHint: ((Entitlement?) -> Void)?
+
+    /// Generation-stamped deriveds. `upcoming`, `periodTransactions` and the
+    /// spend getters scan the whole dataset, and every `data` publish makes
+    /// each live view's body ask for them again — so each is computed at
+    /// most once per (data generation, calendar day). The day matters
+    /// because period math is date-relative: a period rolling over with no
+    /// edit must still recompute.
+    private var derivedGeneration: UInt64 = 0
+    private struct Memo<T> { var generation: UInt64; var day: Date; var value: T }
+    private var upcomingMemo: Memo<[UpcomingItem]>?
+    private var periodTransactionsMemo: Memo<[SpendTransaction]>?
+    private var periodSpendMemo: Memo<[SpendTransaction]>?
+
+    private func memoized<T>(_ slot: inout Memo<T>?, _ build: () -> T) -> T {
+        let day = DateLogic.today(tz: tz)
+        if let memo = slot, memo.generation == derivedGeneration, memo.day == day {
+            return memo.value
+        }
+        let value = build()
+        slot = Memo(generation: derivedGeneration, day: day, value: value)
+        return value
+    }
+
     /// Called when the server rejects our token. A dead session can't be
     /// papered over with the offline banner: the edits are safe on disk, but
     /// they will never reach the server on this token, so the honest answer
@@ -98,6 +136,12 @@ final class AppStore: ObservableObject {
     }
 
     func load() async {
+        // Paint the snapshot this device stored before the fetch lands — a
+        // cold launch used to idle on an empty dashboard (and free-tier
+        // gating) for the round-trip's duration, then snap when the truth
+        // arrived. Everything below still adopts the server's answer exactly
+        // as before, just against an already-painted UI.
+        await hydrateFromCache()
         do {
             let server = try await api.fetchData()
             let serverOwner = server.email ?? ""
@@ -124,6 +168,7 @@ final class AppStore: ObservableObject {
                 let snapshot = data, snapshotOwner = owner
                 await persist { [cache] in cache.write(data: snapshot, owner: snapshotOwner, pendingWrite: false) }
             }
+            lastSyncAt = Date()
 
             runAutopayMark()
             refreshNotifications()
@@ -134,9 +179,12 @@ final class AppStore: ObservableObject {
             // could go a long time without opening the one view that applied
             // the rollover. Android has always done it here. Idempotent.
             applyEnvelopeRolloverIfNeeded()
+            // The catalog and bank pulls are independent; awaiting them
+            // serially stacked a second round-trip onto every launch.
+            async let banks: Void = syncBanks()
             await loadCardPresets()
             checkPresetUpdates()
-            await syncBanks()
+            await banks
         } catch APIError.unauthenticated {
             // An expired/revoked token used to render as "offline", leaving a
             // permanently empty dashboard that swallowed every later edit.
@@ -155,12 +203,34 @@ final class AppStore: ObservableObject {
                 data = cached.data
                 Money.setCurrency(data.settings.currency)
                 loaded = true
+                lastSyncAt = Date()
                 runAutopayMark()
                 refreshNotifications()
                 checkNewMonth()
             }
             syncState = .offline
         }
+    }
+
+    /// Adopt the on-device snapshot as a warm start, before `fetchData` lands.
+    ///
+    /// Same ownership rule as the offline fallback in `load()`: only a
+    /// snapshot written for the signed-in account may be adopted. The
+    /// entitlement inside is forwarded as a *hint* so Pro gating renders
+    /// immediately instead of flickering free→pro; `billingStatusFull`
+    /// re-decides a moment later, and the pending-write check in `load()`
+    /// still guards a stale snapshot from overwriting the server's copy.
+    private func hydrateFromCache() async {
+        let expected = expectedOwner
+        let cached = expected.isEmpty
+            ? await persist { [cache] in cache.readRaw() }
+            : await persist { [cache] in cache.read(owner: expected) }
+        guard let cached else { return }
+        owner = cached.owner
+        data = cached.data
+        Money.setCurrency(data.settings.currency)
+        loaded = true
+        onEntitlementHint?(data.entitlement)
     }
 
     /// Pull the admin-editable rewards catalog. Best-effort — bundled presets remain if this fails.
@@ -216,6 +286,44 @@ final class AppStore: ObservableObject {
         // offline launch shows the imported rows too.
         let snapshot = data, snapshotOwner = owner
         await persist { [cache] in cache.write(data: snapshot, owner: snapshotOwner, pendingWrite: false) }
+    }
+
+    /// What a linked bank last reported for one Plaid account — institution
+    /// label, balance, and when that figure was current. Lives on the store,
+    /// not the view: on macOS every navigation switch rebuilds BalancesView
+    /// and re-fires its `.task`, and the figures only move on the server-side
+    /// sync cadence anyway, so a short TTL turns re-visits into cache hits.
+    struct BankFigure: Equatable {
+        let label: String
+        let balance: Double?
+        let asOf: Date?
+    }
+    @Published private(set) var bankFigures: [String: BankFigure] = [:]
+    private var bankFiguresFetchedAt: Date?
+    private static let bankFiguresTTL: TimeInterval = 300
+
+    /// Refill `bankFigures`. Skipped while the last fetch is fresher than the
+    /// TTL; `force` bypasses it (e.g. right after the user runs a sync).
+    /// Best-effort like syncBanks — a failed status call just leaves the rows
+    /// reading "Manual".
+    func refreshBankFigures(force: Bool = false) async {
+        if !force, let t = bankFiguresFetchedAt,
+           Date().timeIntervalSince(t) < Self.bankFiguresTTL { return }
+        guard let status = try? await api.plaidStatus() else { return }
+        var out: [String: BankFigure] = [:]
+        for item in status.items {
+            // Epoch milliseconds from the server's INTEGER column.
+            let asOf = item.lastSyncAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+            for a in item.accounts
+            where ["depository", "investment", "brokerage"].contains((a.type ?? "").lowercased()) {
+                var label = item.institutionName
+                if let n = a.name, !n.isEmpty { label += " · " + n }
+                if let m = a.mask, !m.isEmpty { label += " ····" + m }
+                out[a.accountId] = BankFigure(label: label, balance: a.currentBalance, asOf: asOf)
+            }
+        }
+        bankFigures = out
+        bankFiguresFetchedAt = Date()
     }
 
     /// Opt-in: auto-mark autopay bills/cards paid once their due date in the
@@ -693,27 +801,31 @@ final class AppStore: ObservableObject {
 
     // ── Spending (transactions in the current period) ───────────────
     var periodTransactions: [SpendTransaction] {
-        let b = currentBounds
-        return data.transactions.filter { !$0.date.isEmpty && $0.date >= b.startKey && $0.date < b.endKey }
+        memoized(&periodTransactionsMemo) {
+            let b = currentBounds
+            return data.transactions.filter { !$0.date.isEmpty && $0.date >= b.startKey && $0.date < b.endKey }
+        }
     }
     /// `periodTransactions` is the list; `periodSpend` is what actually counts
     /// toward a budget — transfers (card payments, savings sweeps) are shown but
     /// never totalled, or the purchases they settle get counted twice.
-    var periodSpend: [SpendTransaction] { periodTransactions.filter(\.countsAsSpending) }
+    var periodSpend: [SpendTransaction] { memoized(&periodSpendMemo) { periodTransactions.filter(\.countsAsSpending) } }
     func spent(category: String) -> Double {
         periodSpend.filter { $0.category == category }.reduce(0) { $0 + $1.amount }
     }
     var totalSpent: Double { periodSpend.reduce(0) { $0 + $1.amount } }
     var upcoming: [UpcomingItem] {
-        Schedule.buildUpcomingItems(
-            bills: data.bills,
-            cards: data.cards,
-            tz: tz,
-            payments: data.payments,
-            bounds: currentBounds,
-            policy: paidGoalPolicy,
-            categoryIcons: data.settings.categoryIcons
-        )
+        memoized(&upcomingMemo) {
+            Schedule.buildUpcomingItems(
+                bills: data.bills,
+                cards: data.cards,
+                tz: tz,
+                payments: data.payments,
+                bounds: currentBounds,
+                policy: paidGoalPolicy,
+                categoryIcons: data.settings.categoryIcons
+            )
+        }
     }
 
     /// Total still owed this period: the sum of each obligation's

@@ -504,34 +504,15 @@ private struct MacSectionHeader<Accessory: View>: View {
 // MARK: - Balances
 
 struct MacBalancesScreen: View {
-    @EnvironmentObject var env: AppEnvironment
     @EnvironmentObject var store: AppStore
     @State private var selection = Set<String>()
     @State private var sortOrder = [KeyPathComparator(\Account.name)]
     @State private var creating = false
     @State private var editing: Account?
-    @State private var bankFigures: [String: BalancesView.BankFigure] = [:]
-
-    private func bankFigure(for account: Account) -> BalancesView.BankFigure? {
+    private func bankFigure(for account: Account) -> AppStore.BankFigure? {
         guard let pid = account.plaidAccountId, !pid.isEmpty, pid != Account.noPlaidLink
         else { return nil }
-        return bankFigures[pid]
-    }
-
-    private func loadBankFigures() async {
-        guard let status = try? await env.api.plaidStatus() else { return }
-        var out: [String: BalancesView.BankFigure] = [:]
-        for item in status.items {
-            let asOf = item.lastSyncAt.map { Date(timeIntervalSince1970: $0 / 1000) }
-            for a in item.accounts
-            where ["depository", "investment", "brokerage"].contains((a.type ?? "").lowercased()) {
-                var label = item.institutionName
-                if let n = a.name, !n.isEmpty { label += " · " + n }
-                if let m = a.mask, !m.isEmpty { label += " ····" + m }
-                out[a.accountId] = BalancesView.BankFigure(label: label, balance: a.currentBalance, asOf: asOf)
-            }
-        }
-        bankFigures = out
+        return store.bankFigures[pid]
     }
 
     var body: some View {
@@ -545,7 +526,7 @@ struct MacBalancesScreen: View {
         )
         .sheet(isPresented: $creating) { AccountEditorView(account: nil).environmentObject(store) }
         .sheet(item: $editing) { account in AccountEditorView(account: account).environmentObject(store) }
-        .task { await loadBankFigures() }
+        .task { await store.refreshBankFigures() }
     }
 }
 

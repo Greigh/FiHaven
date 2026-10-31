@@ -130,12 +130,12 @@ public enum SubscriptionsFinder {
         guard let trialEnds, trialEnds.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil,
               let end = DateLogic.parseDate(trialEnds, tz: tz) else { return nil }
         let today = DateLogic.today(tz: tz)
-        return Calendar.current.dateComponents([.day], from: today, to: end).day
+        return DateLogic.calendar(tz: tz).dateComponents([.day], from: today, to: end).day
     }
 
     private static func daysSince(_ iso: String, tz: TimeZone) -> Int? {
         guard let d = DateLogic.parseDate(iso, tz: tz) else { return nil }
-        return Calendar.current.dateComponents([.day], from: d, to: Date()).day
+        return DateLogic.calendar(tz: tz).dateComponents([.day], from: d, to: Date()).day
     }
 }
 

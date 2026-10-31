@@ -1195,10 +1195,9 @@ struct MacCardsTable: View {
     private func dueColor(_ card: Card) -> Color { dueState(card).color }
 
     /// A promo is only worth flagging while it is still running, which is the
-    /// same test the phone row makes.
+    /// same test the phone row makes — any promo with months left.
     private func promoIsActive(_ card: Card) -> Bool {
-        guard card.hasPromo else { return false }
-        return DateLogic.monthsUntil(card.promoEndDate, tz: store.tz) > 0
+        card.promoList.contains { DateLogic.monthsUntil($0.endDate, tz: store.tz) > 0 }
     }
 
     // MARK: - Actions
@@ -2233,7 +2232,7 @@ struct MacBalancesTable: View {
     /// the *Plaid* account id, not this account's — that mapping is the
     /// screen's business, and a table that indexed the map itself would report
     /// every linked account as Manual.
-    let bankFigure: (Account) -> BalancesView.BankFigure?
+    let bankFigure: (Account) -> AppStore.BankFigure?
     @Binding var selection: Set<String>
     @Binding var sortOrder: [KeyPathComparator<Account>]
     let onEdit: (Account) -> Void

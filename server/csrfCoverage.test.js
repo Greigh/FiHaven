@@ -21,7 +21,8 @@ const require = createRequire(import.meta.url);
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.FIHAVEN_TEST_DB_PATH =
-  process.env.FIHAVEN_TEST_DB_PATH || path.join(serverDir, '..', 'data', 'test-csrf-coverage.db');
+  process.env.FIHAVEN_TEST_DB_PATH ||
+  path.join(require(path.join(serverDir, 'dataDir.js')), 'test-csrf-coverage.db');
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
 const { requireCsrf } = require(path.join(serverDir, 'session.js'));

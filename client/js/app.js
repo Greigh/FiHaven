@@ -64,7 +64,12 @@ const PRO_TABS = {
 const MORE_TABS = ['subscriptions', 'calendar', 'history', 'payoff', 'rewards', 'networth', 'balances'];
 
 /* ── Tab switching ────────────────────────────────────────── */
+// The tab actually on screen — remembered so the post-fetch refresh can
+// re-render in place instead of snapping back to the landing tab.
+let currentTab = 'dashboard';
+
 function showTab(name) {
+  currentTab = name;
   TABS.forEach(function (t) {
     var pane = document.getElementById('tab-' + t);
     if (pane) pane.style.display = (t === name) ? '' : 'none';
@@ -276,6 +281,18 @@ function wireDataFnClicks() {
 }
 
 /* ── Init ────────────────────────────────────────────────── */
+// First paint: render whatever bootstrapData() hydrated synchronously from
+// this device's cache. No mutations here — seeding, rollover and autopay
+// marks must wait for the server's copy so they never write off a stale one.
+function paintApp() {
+  setMoneyFormat(settings.currency);
+  var landing = TABS.indexOf(settings.landingView) >= 0 ? settings.landingView : 'dashboard';
+  showTab(landing);
+}
+
+// Post-fetch: the server copy has settled, so run the state-changing half
+// and refresh the visible tab in place — the user may already have moved
+// off the landing tab while the fetch was in flight.
 function startApp() {
   seedIfEmpty();
   checkNewMonth();
@@ -284,8 +301,7 @@ function startApp() {
   runAutopayMark();
   // Apply display preferences from synced settings.
   setMoneyFormat(settings.currency);
-  var landing = TABS.indexOf(settings.landingView) >= 0 ? settings.landingView : 'dashboard';
-  showTab(landing);
+  showTab(currentTab);
 }
 
 Object.assign(window, {
@@ -295,7 +311,11 @@ Object.assign(window, {
 
 wireDataFnClicks();
 
-bootstrapData().then(() => {
+// bootstrapData() paints the cached snapshot synchronously; render it now
+// instead of idling on an empty page for /api/data's whole round-trip.
+const ready = bootstrapData();
+paintApp();
+ready.then(() => {
   startApp();
   // Prefer the admin-editable server catalog over the bundled defaults, then
   // offer Update / Keep mine for any cards whose catalog rates changed.

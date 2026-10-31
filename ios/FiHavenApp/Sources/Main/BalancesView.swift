@@ -12,21 +12,13 @@ import FiHavenCore
 /// Mirrors the web `BalancesView.svelte`.
 struct BalancesView: View {
     @EnvironmentObject var store: AppStore
-    @EnvironmentObject var env: AppEnvironment
     @State private var editing: Account?
     @State private var creating = false
 
-    /// What a linked bank last reported for an account, by Plaid account id.
-    /// Empty for Free users, for anyone with no bank linked, and whenever the
-    /// status call fails — in every one of those the rows simply read "Manual".
-    struct BankFigure: Equatable {
-        let label: String
-        let balance: Double?
-        /// The item's last sync. The figure is cached as of then, so it is
-        /// always shown dated rather than as a live number.
-        let asOf: Date?
-    }
-    @State private var bankFigures: [String: BankFigure] = [:]
+    /// What a linked bank last reported for an account, by Plaid account id —
+    /// `store.bankFigures`, filled by `store.refreshBankFigures()`. Empty for
+    /// Free users, for anyone with no bank linked, and whenever the status call
+    /// fails — in every one of those the rows simply read "Manual".
 
     private static let types: [String: (label: String, icon: String)] = [
         "checking":   ("Checking", "🏦"),
@@ -129,33 +121,16 @@ struct BalancesView: View {
         }
         .sheet(isPresented: $creating) { AccountEditorView(account: nil) }
         .sheet(item: $editing) { account in AccountEditorView(account: account) }
-        .task { await loadBankFigures() }
+        .task { await store.refreshBankFigures() }
     }
 
     /// Depository/investment accounts across every linked bank. The mirror of
     /// CardEditorView.loadBankAccounts, which wants the credit lines instead.
     /// Failures are silent — the rows just fall back to "Manual".
-    private func loadBankFigures() async {
-        guard let status = try? await env.api.plaidStatus() else { return }
-        var out: [String: BankFigure] = [:]
-        for item in status.items {
-            // Epoch milliseconds from the server's INTEGER column.
-            let asOf = item.lastSyncAt.map { Date(timeIntervalSince1970: $0 / 1000) }
-            for a in item.accounts
-            where ["depository", "investment", "brokerage"].contains((a.type ?? "").lowercased()) {
-                var label = item.institutionName
-                if let n = a.name, !n.isEmpty { label += " · " + n }
-                if let m = a.mask, !m.isEmpty { label += " ····" + m }
-                out[a.accountId] = BankFigure(label: label, balance: a.currentBalance, asOf: asOf)
-            }
-        }
-        bankFigures = out
-    }
-
-    private func bankFigure(for account: Account) -> BankFigure? {
+    private func bankFigure(for account: Account) -> AppStore.BankFigure? {
         guard let pid = account.plaidAccountId, !pid.isEmpty, pid != Account.noPlaidLink
         else { return nil }
-        return bankFigures[pid]
+        return store.bankFigures[pid]
     }
 
     private static let asOfFmt: DateFormatter = {
@@ -286,7 +261,7 @@ struct BalancesView: View {
         .accessibilityHint("Double tap to edit")
     }
 
-    private func bankLine(_ bank: BankFigure, _ figure: Double) -> String {
+    private func bankLine(_ bank: AppStore.BankFigure, _ figure: Double) -> String {
         var s = "Bank says \(Money.fmt(figure))"
         if let asOf = bank.asOf { s += " · as of \(Self.asOfFmt.string(from: asOf))" }
         return s

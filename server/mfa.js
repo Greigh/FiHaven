@@ -25,7 +25,7 @@ const {
   verifyAuthenticationResponse,
 } = require('@simplewebauthn/server');
 
-const KEY_FILE = path.join(__dirname, '..', 'data', 'mfa.key');
+const KEY_FILE = path.join(require('./dataDir'), 'mfa.key');
 
 /* ── Encryption helpers ─────────────────────────────────────── */
 
@@ -190,10 +190,15 @@ function newBackupCodeSet() {
 // either entry. In production it's the public HTTPS origin.
 function rpConfig(req) {
   if (process.env.NODE_ENV === 'production') {
-    return {
-      rpID: 'fihaven.app',
-      origin: process.env.PUBLIC_ORIGIN || 'https://fihaven.app',
-    };
+    const origin = (process.env.PUBLIC_ORIGIN || 'https://fihaven.app').replace(/\/+$/, '');
+    // rpID is a bare hostname (passkeys are scoped to a domain, not an
+    // origin); an unparseable PUBLIC_ORIGIN keeps the historical default,
+    // which is the same outcome the hardcoded value gave before.
+    let rpID = 'fihaven.app';
+    try {
+      rpID = new URL(origin).hostname || rpID;
+    } catch (_) { /* keep default */ }
+    return { rpID, origin };
   }
   // dev: derive from the host header so it works with either port
   const host = (req && req.get && req.get('host')) || 'localhost:5222';

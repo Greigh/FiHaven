@@ -131,7 +131,9 @@ struct MacShellView: View {
     /// subtitle, which is where a Mac app answers "am I looking at stale
     /// numbers?" — the phone answers it with pull-to-refresh, and there is no
     /// pull on a Mac.
-    @State private var syncedAt: Date?
+    // "when the numbers arrived" lives on the store: the warm-start cache
+    // paint must not stamp it, only a server/fallback adoption does.
+    private var syncedAt: Date? { store.lastSyncAt }
     /// The sidebar's search field — a Mac column with fourteen screens is
     /// something people expect to be able to type into.
     @State private var screenQuery = ""
@@ -268,7 +270,6 @@ struct MacShellView: View {
                             Task {
                                 refreshing = true
                                 await store.load()
-                                syncedAt = Date()
                                 refreshing = false
                             }
                         } label: {
@@ -294,7 +295,6 @@ struct MacShellView: View {
         // this runs at most once and only when nothing was restored.
         .task(id: store.loaded) {
             guard store.loaded else { return }
-            syncedAt = Date()
             // Open at the user's saved default view on a first launch, the way
             // `MainTabView` does. Later launches reopen the remembered screen,
             // so this runs at most once and only when nothing was restored.
