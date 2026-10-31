@@ -864,9 +864,17 @@ describe('utils — month helpers', () => {
 
   it('offsetDate shifts by whole months', () => {
     setSettings({});
-    const base = offsetDate(0);
-    const next = offsetDate(1);
-    expect(next.getMonth()).toBe((base.getMonth() + 1) % 12);
+    // Pinned: on a 31st whose next month is shorter, setMonth rolls into the
+    // month after (Oct 31 +1 → Dec 1), which is correct but fails this check.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15)); // Oct 15 2026, local
+    try {
+      const base = offsetDate(0);
+      const next = offsetDate(1);
+      expect(next.getMonth()).toBe((base.getMonth() + 1) % 12);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
