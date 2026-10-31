@@ -119,7 +119,7 @@ UI "last seen" per key and makes one key serving many instances visible.
 | Passkey rpID | hardcoded `fihaven.app` | `PUBLIC_ORIGIN` hostname |
 | Seats | — | `POST /register` → `seat-limit` once `count(users) = cert.seats` |
 | Entitlement | `computeEntitlement` per user | licensed → `{pro, plan:'family'}` for all users; degraded → `pro:false` |
-| Billing routes | mounted | not mounted (paywall meaningless; everyone is Family) |
+| Billing routes | mounted | mounted — client needs `GET /api/billing/status`; store/Paddle POSTs stay inert without credentials. Paywall UI hidden client-side |
 | IAP/OAuth dev-trust | forbidden in prod | still forbidden |
 | `DISABLE_RATE_LIMIT` | forbidden in prod | still forbidden |
 
