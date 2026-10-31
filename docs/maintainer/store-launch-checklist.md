@@ -60,6 +60,9 @@ Confirm on App ID **`app.fihaven`** (team `365KR8NF53`):
 # iOS → App Store Connect / TestFlight
 bun run deploy:ios   # or: npm run deploy:ios
 
+# macOS → App Store Connect (macOS version record / TestFlight for Mac)
+bun run deploy:macos # or: npm run deploy:macos
+
 # Android → build signed AAB + upload (default track: beta = Open testing)
 bun run deploy:android
 # Closed / internal testing instead:

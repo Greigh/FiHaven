@@ -47,6 +47,7 @@
     "bump:build:check": "node scripts/bump-build.js --check",
     "deploy": "bash upload.sh",
     "deploy:ios": "bash scripts/ios-testflight.sh",
+    "deploy:macos": "bash scripts/macos-testflight.sh",
     "deploy:android": "node scripts/play-upload.js --build",
     "promo": "node scripts/promo.js",
     "indexnow": "node scripts/submit-indexnow.js",
